@@ -26,6 +26,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getRemoteAgentHostWebSocketUrl, InsecureRemoteAgentHostError } from '../../../../../platform/agentHost/common/remoteAgentHostWebSocket.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig, type SSHAgentHostConnectionRequest } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -83,8 +84,16 @@ registerAction2(class extends Action2 {
 				if (result.error === RemoteAgentHostInputValidationError.Empty) {
 					return localize('addRemoteValidationEmpty', "Enter a remote agent host address.");
 				}
-				if (result.error === RemoteAgentHostInputValidationError.Invalid) {
+				if (!result.parsed) {
 					return localize('addRemoteValidationInvalid', "Enter a valid host, host:port, or WebSocket URL.");
+				}
+				try {
+					getRemoteAgentHostWebSocketUrl(result.parsed.address);
+				} catch (error) {
+					if (error instanceof InsecureRemoteAgentHostError) {
+						return error.message;
+					}
+					throw error;
 				}
 				return undefined;
 			},

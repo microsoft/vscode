@@ -33,6 +33,9 @@ import { AgentHostTransportFailureReason, NonReconnectableTransportError } from 
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../../common/agentHostAdvertisedAuthentication.js';
 import type { AgentInfo } from '../../common/state/sessionState.js';
 import type { AuthenticateParams } from '../../common/agent.js';
+import { WebSocketClientTransport } from '../../browser/webSocketClientTransport.js';
+import { INotificationService } from '../../../notification/common/notification.js';
+import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 
 interface IRemoteAgentHostServiceTestAccess {
 	readonly _reconnectAttempts: Map<string, number>;
@@ -326,6 +329,7 @@ suite('RemoteAgentHostService', () => {
 	let storageService: TestStorageService;
 	let resolveAuthentication: (address: string, agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
 	let createdClientOptions: (IAgentHostProtocolClientOptions | undefined)[];
+	let notifications: string[];
 
 	setup(() => {
 		configService = new TestConfigurationService();
@@ -335,9 +339,16 @@ suite('RemoteAgentHostService', () => {
 		createdClientInfos = [];
 		createdClientOptions = [];
 		resolveAuthentication = async () => [];
+		notifications = [];
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override error(message: Parameters<TestNotificationService['error']>[0]) {
+				notifications.push(String(message));
+				return super.error(message);
+			}
+		}());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
 		instantiationService.stub(IAgentHostAdvertisedAuthenticationResolver, {
@@ -678,6 +689,100 @@ suite('RemoteAgentHostService', () => {
 		]);
 	}));
 
+	for (const recovery of ['reconnect', 'remove', 'settings removal'] as const) {
+		test(`terminal transport errors reach reentrant and late waiters and clear on ${recovery}`, () => runWithFakedTimers({}, async () => {
+			const address = 'waiters.example:8080';
+			const entry: IRemoteAgentHostEntry = { name: 'Host', connection: { type: RemoteAgentHostEntryType.WebSocket, address } };
+			const error = new NonReconnectableTransportError('Secure transport required');
+			const outcomes: Record<string, string | undefined> = {};
+			const wait = (name: string) => {
+				outcomes[name] = undefined;
+				void service.waitForConnection(address).then(
+					() => { outcomes[name] = 'connected'; },
+					err => { outcomes[name] = err === error ? 'terminal rejection' : String(err); },
+				);
+			};
+			configService.setEntries([entry]);
+			await waitForCreatedClients(1);
+			wait('initial');
+			let notified = false;
+			const listener = disposables.add(service.onDidChangeConnections(() => {
+				if (!notified && service.connections[0]?.status.kind === 'disconnected') {
+					notified = true;
+					wait('reentrant');
+				}
+			}));
+			await createdClients[0].connectDeferred.error(error);
+			while (service.pendingConnections.length) {
+				await Event.toPromise(service.onDidChangePendingConnections);
+			}
+			wait('late');
+			await timeout(10_001);
+			const failures = { ...outcomes };
+			listener.dispose();
+
+			if (recovery === 'reconnect') {
+				service.reconnect(address, false);
+			} else {
+				if (recovery === 'remove') {
+					await service.removeRemoteAgentHost(address);
+				} else {
+					configService.setEntries([]);
+				}
+				wait('afterRemoval');
+				configService.setEntries([entry]);
+			}
+			await waitForCreatedClients(2);
+			wait('retry');
+			await createdClients[1].connectDeferred.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({ failures, retry: outcomes.retry, afterRemoval: outcomes.afterRemoval }, {
+				failures: { initial: 'terminal rejection', reentrant: 'terminal rejection', late: 'terminal rejection' },
+				retry: 'connected',
+				afterRemoval: recovery === 'reconnect' ? undefined : 'connected',
+			});
+		}));
+	}
+
+	for (const window of ['agents', 'editor'] as const) {
+		test(`automatic TLS rejections retain their reason and notify the ${window} window`, async () => {
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(window === 'agents' ? AgentsWindowRemoteAgentHostService : EditorWindowRemoteAgentHostService));
+			const address = 'ws://host.example:8080';
+			const transport = disposables.add(new class extends WebSocketClientTransport {
+				protected override createWebSocket(): WebSocket {
+					throw new Error('The insecure transport must not create a socket');
+				}
+			}(address, undefined, undefined, instantiationService));
+			const error = await transport.connect().then(() => assert.fail('Expected a transport rejection'), err => {
+				assert.ok(err instanceof NonReconnectableTransportError);
+				return err;
+			});
+			const entry = { address, name: 'Configured host' };
+			if (window === 'agents') {
+				configService.setRawEntries([entry]);
+			} else {
+				configService.setWorkspaceEntries([entry]);
+			}
+			await waitForCreatedClients(1);
+			createdClients[0].fireClose();
+			await createdClients[0].connectDeferred.error(error);
+			while (service.pendingConnections.length) {
+				await Event.toPromise(service.onDidChangePendingConnections);
+			}
+			assert.deepStrictEqual({
+				status: service.connections[0]?.status,
+				error: service.connections[0]?.lastConnectionError,
+				notifications,
+			}, {
+				status: RemoteAgentHostConnectionStatus.disconnected,
+				error: error.message,
+				notifications: [`Cannot connect to remote agent host 'Configured host': ${error.message}`],
+			});
+		});
+	}
+
 	test('manages multiple connections independently', async () => {
 		configService.setEntries([
 			{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } },
@@ -958,6 +1063,32 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('factory connections', () => {
+		test('terminal factory errors reach reentrant and late waiters', () => runWithFakedTimers({}, async () => {
+			const address = 'cloudsandbox:terminal';
+			const error = new NonReconnectableTransportError('Connection refused');
+			const factory = disposables.add(new TestConnectionFactory(RemoteAgentHostEntryType.CloudSandbox));
+			disposables.add(service.registerConnectionFactory(factory));
+			const entry = cloudSandboxEntry('Host', address);
+			const outcomes: Record<string, string | undefined> = {};
+			const wait = (name: string) => {
+				outcomes[name] = undefined;
+				void service.waitForConnection(address).then(
+					() => { outcomes[name] = 'connected'; },
+					err => { outcomes[name] = err === error ? 'terminal rejection' : String(err); },
+				);
+			};
+			disposables.add(Event.once(service.onDidChangeConnections)(() => wait('reentrant')));
+			factory.stageFailure(entry, error);
+			service.reconnect(address);
+			wait('initial');
+			while (service.pendingConnections.length) {
+				await Event.toPromise(service.onDidChangePendingConnections);
+			}
+			wait('late');
+			await timeout(10_001);
+			assert.deepStrictEqual(outcomes, { initial: 'terminal rejection', reentrant: 'terminal rejection', late: 'terminal rejection' });
+		}));
+
 		for (const autoConnect of [false, true]) {
 			for (const { name, error, retryable } of [
 				{ name: 'cancellation', error: new CancellationError(), retryable: false },

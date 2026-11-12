@@ -14,11 +14,12 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type SSHAgentHostConnectionRequest } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -56,6 +57,60 @@ import { ITestSessionsService, ITestSessionWithChat } from '../../../../../../wo
 
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Add Remote Agent Host validates transport security before saving an entry', async () => {
+		const inputs = [
+			{ value: 'host.example:8080', allowed: false },
+			{ value: 'ws://host.example:8080', allowed: false },
+			{ value: 'http://host.example:8080', allowed: false },
+			{ value: 'ws://[::ffff:192.0.2.1]:8080', allowed: false },
+			{ value: 'ws://127.0.0.1:8080', allowed: true },
+			{ value: 'ws://[::ffff:127.0.0.1]:8080', allowed: true },
+			{ value: 'https://host.example:8080?tkn=test-token', allowed: true },
+		];
+		const outcomes: object[] = [];
+		for (const { value } of inputs) {
+			const instantiation = store.add(new TestInstantiationService());
+			const writes: { key: string; value: unknown }[] = [];
+			const connections: string[] = [];
+			const configuration = new class extends TestConfigurationService {
+				override async updateValue(key: string, value: unknown): Promise<void> {
+					writes.push({ key, value });
+				}
+			}({ [RemoteAgentHostsSettingId]: [] });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			instantiation.stub(INotificationService, new TestNotificationService());
+			instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+				override async waitForConnection(address: string) {
+					connections.push(address);
+					return { address, name: 'Test host', status: RemoteAgentHostConnectionStatus.connected };
+				}
+			}());
+			let validation: string | undefined;
+			let prompts = 0;
+			instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override async input(options: NonNullable<Parameters<IQuickInputService['input']>[0]>): Promise<string | undefined> {
+					if (prompts++ === 0) {
+						const result = await options.validateInput?.(value);
+						assert.ok(result === undefined || typeof result === 'string');
+						validation = result;
+						return result ? undefined : value;
+					}
+					return 'Test host';
+				}
+			}());
+			await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.addRemoteAgentHost)!.handler(accessor));
+			outcomes.push({ input: value, validation, prompts, writes: writes.length, connections: connections.length });
+		}
+		assert.deepStrictEqual(outcomes, inputs.map(({ value, allowed }) => ({
+			input: value,
+			validation: allowed ? undefined : 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
+			prompts: allowed ? 2 : 1,
+			writes: allowed ? 1 : 0,
+			connections: allowed ? 1 : 0,
+		})));
+	});
 
 	test('Dev Tunnels uses the standard remote icon', () => {
 		assert.deepStrictEqual(MenuRegistry.getCommand(RemoteAgentHostCommandIds.connectViaTunnel)?.icon, Codicon.remote);

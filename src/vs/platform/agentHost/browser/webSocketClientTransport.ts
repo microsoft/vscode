@@ -9,13 +9,12 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { isLoopbackHost } from '../../remote/common/remoteHosts.js';
 import { AhpJsonlLogger, getAhpLogByteLength, IAhpJsonlLoggerOptions } from '../common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import { getRemoteAgentHostWebSocketUrl } from '../common/remoteAgentHostWebSocket.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
-import { NonReconnectableTransportError, parseProtocolMessage, type IClientTransport, type ITransportCloseDetails } from '../common/state/sessionTransport.js';
+import { parseProtocolMessage, type IClientTransport, type ITransportCloseDetails } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
 // ---- Client transport -------------------------------------------------------
@@ -77,14 +76,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 				return;
 			}
 
-			const url = new URL(this._address.startsWith('ws://') || this._address.startsWith('wss://')
-				? this._address
-				: `ws://${this._address}`);
-
-			if (url.protocol !== 'wss:' && !isLoopbackHost(url.hostname) && !/^127(?:\.\d{1,3}){3}$/.test(url.hostname)) {
-				reject(new NonReconnectableTransportError(localize('remoteAgentHost.secureConnectionRequired', "Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.")));
-				return;
-			}
+			const url = getRemoteAgentHostWebSocketUrl(this._address);
 
 			if (this._connectionToken) {
 				const separator = url.search ? '&' : '?';

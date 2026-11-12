@@ -117,6 +117,26 @@ suite('WebSocketClientTransport', () => {
 		})));
 	});
 
+	test('allows IPv4-mapped IPv6 loopback without allowing mapped remote addresses', async () => {
+		const cases = [
+			{ address: 'ws://[::ffff:127.0.0.1]:8080', url: 'ws://[::ffff:7f00:1]:8080/' },
+			{ address: '[::ffff:127.0.0.2]:8080', url: 'ws://[::ffff:7f00:2]:8080/' },
+			{ address: 'ws://[0:0:0:0:0:ffff:7f00:1]:8080', url: 'ws://[::ffff:7f00:1]:8080/' },
+			{ address: 'ws://[::ffff:127.255.255.255]:8080', url: 'ws://[::ffff:7fff:ffff]:8080/' },
+			{ address: 'ws://[::ffff:126.255.255.255]:8080', url: undefined },
+			{ address: 'ws://[::ffff:128.0.0.0]:8080', url: undefined },
+			{ address: 'ws://[::ffff:192.0.2.1]:8080', url: undefined },
+			{ address: 'ws://[::7f00:1]:8080', url: undefined },
+			{ address: 'wss://[::ffff:192.0.2.1]:8080', url: 'wss://[::ffff:c000:201]:8080/' },
+		];
+		const results = await Promise.all(cases.map(async ({ address }) => ({ address, ...await connect(address, undefined) })));
+		assert.deepStrictEqual(results, cases.map(({ address, url }) => ({
+			address,
+			urls: url ? [url] : [],
+			error: url ? undefined : 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
+		})));
+	});
+
 	test('sends only AHP messages without Web PubSub capability controls', async () => {
 		const socket = new TestWebSocket();
 		const instantiation = store.add(new TestInstantiationService());

@@ -34,6 +34,8 @@ import { AHP_UNSUPPORTED_PROTOCOL_VERSION, JsonRpcErrorCodes, isJsonRpcRequest, 
 import { type IWSLAgentHostConfig, type IWSLConnectResult, type IWSLConnectProgress, type IWSLRemoteAgentHostMainService } from '../../common/wslRemoteAgentHost.js';
 import { IWSLRelayClientFactory, WSLRelayClientFactory, WSLRemoteAgentHostService } from '../../electron-browser/wslRemoteAgentHostServiceImpl.js';
 import { IRequestService } from '../../../request/common/request.js';
+import { INotificationService } from '../../../notification/common/notification.js';
+import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
@@ -254,6 +256,7 @@ suite('WSLRemoteAgentHostService (renderer)', () => {
 			registerFormatter: () => toDisposable(() => undefined),
 		} as Partial<ILabelService>);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(IAgentHostResourceService, new class extends mock<IAgentHostResourceService>() {
 			override connectionClosed(): void { }
 		});

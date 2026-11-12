@@ -19,6 +19,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
+import { INotificationService } from '../../notification/common/notification.js';
 import { observableConfigValue } from '../../observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -55,6 +56,7 @@ import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type Connect
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../common/agentHostAdvertisedAuthentication.js';
+import { InsecureRemoteAgentHostError } from '../common/remoteAgentHostWebSocket.js';
 
 const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
 
@@ -218,7 +220,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _tokens = new Map<string, string | undefined>();
 	private readonly _operatingSystems = new Map<string, OperatingSystem>();
 	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
-	/** Errors from reconnects that could not start a dial. */
+	/** Terminal failures retained until removal or a fresh connection attempt. */
 	private readonly _failedReconnects = new Map<string, Error>();
 	/** Pending reconnect timeouts, keyed by normalized address. */
 	private readonly _reconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
@@ -247,6 +249,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -562,7 +565,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._names.delete(normalized);
 		this._tokens.delete(normalized);
 		this._operatingSystems.delete(normalized);
-		this._failedReconnects.delete(normalized);
 		this._clearHostLabelFormatter(normalized);
 		this._cancelReconnect(normalized);
 		this._reconnectAttempts.delete(normalized);
@@ -570,6 +572,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	private _removeConnection(address: string): void {
+		this._failedReconnects.delete(address);
 		const pending = this._pendingConnects.get(address);
 		if (pending) {
 			this._pendingConnects.delete(address);
@@ -713,6 +716,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return existingPendingConnect.promise;
 		}
 
+		this._failedReconnects.delete(address);
 		const pendingConnect = new DeferredPromise<void>();
 		const factory = this._connectionFactories.get(entryToCreate.connection.type);
 		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
@@ -793,6 +797,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// rejected by its precondition check, never reaching the handshake below.
 			// Retain the entry so its status remains visible to consumers.
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
+			if (isTerminalConnectError(err)) {
+				this._failedReconnects.set(address, err instanceof Error ? err : new Error(toErrorMessage(err)));
+			}
 			this._entries.set(address, {
 				store: new DisposableStore(),
 				observer,
@@ -1010,16 +1017,24 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
 			const terminalConnectError = isTerminalConnectError(err);
 			if (terminalConnectError) {
+				this._failedReconnects.set(address, err instanceof Error ? err : new Error(toErrorMessage(err)));
 				this._cancelReconnect(address);
 			}
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
 			if (disconnectReason !== AgentHostTransportFailureReason.AuthenticationFailed) {
-				entry.lastConnectionError = attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined;
+				entry.lastConnectionError = (attempt.showError || err instanceof InsecureRemoteAgentHostError) && !isCancellationError(err) ? toErrorMessage(err) : undefined;
 			}
 			entry.client = undefined;
 			// Clean up the failed client while retaining its entry and status.
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, err);
+			if (terminalConnectError && this._pendingConnects.get(address) === attempt) {
+				this._pendingConnects.delete(address);
+				this._onDidChangePendingConnections.fire();
+			}
+			if (err instanceof InsecureRemoteAgentHostError && !attempt.info.userInitiated) {
+				this._notificationService.error(localize('remoteAgentHost.insecureHost', "Cannot connect to remote agent host '{0}': {1}", entryToCreate.name, err.message));
+			}
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
 			if (terminalConnectError || createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
@@ -1242,6 +1257,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			void wait.error(new Error(`Remote agent host service disposed before connecting to ${address}`));
 		}
 		this._pendingConnectionWaits.clear();
+		this._failedReconnects.clear();
 		for (const entry of this._entries.values()) {
 			entry.observer?.('disposed');
 			disposeEntry(entry);
@@ -1281,7 +1297,8 @@ export class AgentsWindowRemoteAgentHostService extends RemoteAgentHostService {
 		@ILogService logService: ILogService,
 		@ILabelService labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(configurationService, instantiationService, logService, labelService, storageService);
+		super(configurationService, instantiationService, logService, labelService, storageService, notificationService);
 	}
 }
