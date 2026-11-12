@@ -299,6 +299,22 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		});
 	});
 
+	test('withdraws a share another window added while this window is disabled', async () => {
+		const context = fixture();
+		const ubuntu = context.addRemote('wsl:Ubuntu');
+		context.setEnabled(false);
+		await context.flush();
+
+		ubuntu.setRegistration('account');
+		context.storage.store(sharesStorageKey, JSON.stringify({ 'wsl:Ubuntu': { accountId: 'account', environmentId: 'environment-wsl:Ubuntu-account', instanceId: 'wsl:Ubuntu#0' } }), StorageScope.APPLICATION, StorageTarget.MACHINE, true);
+		await context.flush();
+
+		assert.deepStrictEqual({ stored: context.stored(), calls: context.calls }, {
+			stored: { 'wsl:Ubuntu': { accountId: 'account', environmentId: 'environment-wsl:Ubuntu-account' } },
+			calls: ['unregister wsl:Ubuntu account'],
+		});
+	});
+
 	test('registers again after a protocol reconnect and withdraws a registration the gate closed meanwhile', async () => {
 		const context = fixture();
 		const ubuntu = context.addRemote('wsl:Ubuntu');

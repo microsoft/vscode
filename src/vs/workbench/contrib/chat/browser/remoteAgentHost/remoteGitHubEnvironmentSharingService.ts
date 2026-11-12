@@ -525,7 +525,8 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 				continue;
 			}
 			this._adopted.add(address);
-			const initializeResult = this._connections.get().get(address)?.initializeResult.get();
+			// The other window registers the share, which a disabled window must still withdraw.
+			const initializeResult = this._enabled.get() ? this._connections.get().get(address)?.initializeResult.get() : undefined;
 			if (initializeResult) {
 				this._synced.set(address, initializeResult);
 			}
