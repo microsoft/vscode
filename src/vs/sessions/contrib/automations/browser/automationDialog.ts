@@ -2247,7 +2247,7 @@ export function renderForm(
 		},
 		focusSaveError: focusDialogMessage,
 		getFocusableElements: () => {
-			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
 		},
 		acceptPromptSuggestion: () => {

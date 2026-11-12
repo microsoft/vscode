@@ -70,15 +70,33 @@ type RemoteCellTemplate = {
 	row?: IRemoteTableRow;
 } & (
 		| { readonly column: 'name'; readonly label: HTMLElement; readonly count: HTMLElement; readonly progress: HTMLElement; readonly warning: HTMLElement; readonly description: HTMLElement; readonly links: HTMLElement; readonly actionContainer: HTMLElement; actionLink?: Link; actionProgress?: HTMLElement; link?: Link }
-		| { readonly column: 'connection'; readonly label: HTMLElement; readonly warning: HTMLElement }
+		| { readonly column: 'connection'; readonly state: HTMLElement; readonly icon: HTMLElement; readonly label: HTMLElement; readonly warning: HTMLElement }
 		| { readonly column: 'gutter'; readonly action: Action; readonly toolbar: WorkbenchToolBar }
 		| { readonly column: 'actions'; readonly action: Action; readonly rename: Action; readonly copyAddress: Action; readonly locationPreference: Action; readonly updateServer: Action; readonly delete: Action; readonly documentation: Action; readonly toolbar: WorkbenchToolBar; actionLayout: string }
 	);
 
+const connectionProgressIcon = ThemeIcon.modify(Codicon.loading, 'spin');
+
+function getConnectionState(remote: ICustomizationRemote, connecting?: boolean): { readonly label: string; readonly icon: ThemeIcon } {
+	if (connecting !== undefined) {
+		return {
+			label: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting"),
+			icon: connectionProgressIcon,
+		};
+	}
+	if (remote.kind === 'environment' && remote.unavailableReason && RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus)) {
+		return { label: localize('remotes.hostOffline', "Host offline"), icon: Codicon.circleSlash };
+	}
+	const label = getAgentHostConnectionStatusLabel(remote.connectionStatus);
+	switch (remote.connectionStatus.kind) {
+		case 'connected': return { label, icon: Codicon.plug };
+		case 'connecting': return { label, icon: connectionProgressIcon };
+		default: return { label, icon: Codicon.debugDisconnect };
+	}
+}
+
 export function getConnectionLabel(remote: ICustomizationRemote, connecting?: boolean): string {
-	return connecting === undefined ? remote.kind === 'environment' && remote.unavailableReason && RemoteAgentHostConnectionStatus.isDisconnected(remote.connectionStatus)
-		? localize('remotes.offline', "Offline") : getAgentHostConnectionStatusLabel(remote.connectionStatus)
-		: connecting ? getAgentHostConnectionStatusLabel(RemoteAgentHostConnectionStatus.connecting) : localize('remotes.disconnecting', "Disconnecting");
+	return getConnectionState(remote, connecting).label;
 }
 
 export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, RemoteCellTemplate> {
@@ -122,10 +140,12 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			case 'connection': {
-				const label = dom.append(container, dom.$('.remotes-connection-state'));
+				const state = dom.append(container, dom.$('.remotes-connection-state'));
+				const icon = dom.append(state, dom.$('span.remotes-connection-icon', { 'aria-hidden': 'true' }));
+				const label = dom.append(state, dom.$('span.remotes-connection-text'));
 				const warning = dom.append(container, dom.$('.remotes-connection-warning'));
 				dom.append(warning, renderIcon(Codicon.warning)).setAttribute('aria-hidden', 'true');
-				template = { ...base, column: this.column, label, warning };
+				template = { ...base, column: this.column, state, icon, label, warning };
 				break;
 			}
 			default: {
@@ -269,7 +289,10 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				break;
 			}
 			case 'connection': {
-				template.label.textContent = entry.type === 'remote' ? getConnectionLabel(entry.remote, entry.connecting) : '';
+				const state = entry.type === 'remote' ? getConnectionState(entry.remote, entry.connecting) : undefined;
+				template.label.textContent = state?.label ?? '';
+				template.icon.className = state ? `remotes-connection-icon ${ThemeIcon.asClassName(state.icon)}` : 'remotes-connection-icon';
+				template.icon.hidden = !state;
 				const error = entry.type === 'remote' && entry.connecting === undefined
 					? entry.remote.lastConnectionError : undefined;
 				template.warning.hidden = !error;
@@ -279,7 +302,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					}, { groupId: this.hoverGroupId }));
 				}
 				if (entry.type === 'remote') {
-					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
+					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.state, {
 						content: entry.connecting === undefined ? error ?? entry.remote.unavailableReason ?? getStatusHover(entry.remote.connectionStatus) : template.label.textContent,
 						style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));

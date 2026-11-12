@@ -12,6 +12,7 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/erro
 import { DeferredPromise, timeout } from '../../../../common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { registerTestIframe } from '../../testWindow.js';
 
 
 /**
@@ -1096,6 +1097,8 @@ suite('ContextView', () => {
 			iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 400px; height: 400px; border: 0;';
 			mainWindow.document.body.appendChild(iframe);
 			disposables.push(() => iframe.remove());
+			const registration = registerTestIframe(iframe);
+			disposables.push(() => registration.dispose());
 			const otherDocument = iframe.contentDocument!;
 			otherDocument.body.style.margin = '0';
 			// Auxiliary windows clone the main window's stylesheets, see `AuxiliaryWindowService`
@@ -1319,6 +1322,7 @@ suite('ContextView', () => {
 			iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 400px; height: 300px; border: 0;';
 			mainWindow.document.body.appendChild(iframe);
 			disposables.add(toDisposable(() => iframe.remove()));
+			disposables.add(registerTestIframe(iframe));
 			const otherDocument = iframe.contentDocument!;
 			const otherWindow = iframe.contentWindow!;
 			otherDocument.body.style.margin = '0';

@@ -551,21 +551,24 @@ function collectPackagesInNodeModules(nmDir: string): string[] {
  * Returns the packages installed in the node_modules folder `nmDir`, each as its name in a
  * node_modules folder (scoped names included) and its folder: the top-level packages of `nmDir`,
  * then, when pnpm installed `nmDir` with the isolated linker, the packages of its virtual store
- * (`.pnpm`).
+ * (`.pnpm`), or, for a member of a pnpm workspace, the packages that its links reach in the store of
+ * the workspace root.
  *
  * With pnpm's hoisted linker, every package of an install root has a folder in its node_modules
  * folders, and `.pnpm` holds no packages. With the isolated linker, the top level holds only the
- * install root's direct dependencies (links into the store), and the packages are in
+ * project's direct dependencies (links into the store), and the packages are in
  * `.pnpm/<id>/node_modules/<name>`, next to links to their dependencies. Callers keep the first
  * folder that they find for a name, so the store's hoisting folder (`.pnpm/node_modules`, which
- * links one version of each package) comes before the package folders of the store.
+ * links one version of each package) comes before the package folders of the store. The store of
+ * a workspace holds the packages of all of its members, so a member lists only those that its own
+ * dependencies reach, nearest first.
  */
 export function collectInstalledPackages(nmDir: string): Array<{ name: string; dir: string }> {
 	const inFolder = (folder: string) => collectPackagesInNodeModules(folder).map(name => ({ name, dir: path.join(folder, ...name.split('/')) }));
 	const result = inFolder(nmDir);
 	const store = path.join(nmDir, '.pnpm');
 	if (!fs.existsSync(store)) {
-		return result;
+		return [...result, ...collectReachedStorePackages(result)];
 	}
 	result.push(...inFolder(path.join(store, 'node_modules')));
 	for (const id of fs.readdirSync(store).sort()) {
@@ -573,6 +576,44 @@ export function collectInstalledPackages(nmDir: string): Array<{ name: string; d
 			continue;
 		}
 		result.push(...inFolder(path.join(store, id, 'node_modules')).filter(({ dir }) => !fs.lstatSync(dir).isSymbolicLink()));
+	}
+	return result;
+}
+
+/**
+ * Returns the packages in pnpm's virtual store that the links `packages` reach, breadth first,
+ * without the packages themselves: the dependencies of a package in the store are the links next
+ * to it, in `.pnpm/<id>/node_modules`. Packages that aren't in a store (the hoisted layout) reach
+ * nothing.
+ */
+function collectReachedStorePackages(packages: ReadonlyArray<{ name: string; dir: string }>): Array<{ name: string; dir: string }> {
+	const result: Array<{ name: string; dir: string }> = [];
+	const seen = new Set<string>();
+	const queue = [...packages];
+	for (let i = 0; i < queue.length; i++) {
+		const { name, dir } = queue[i];
+		let realDir: string;
+		try {
+			realDir = fs.realpathSync(dir);
+		} catch {
+			continue;
+		}
+		if (seen.has(realDir)) {
+			continue;
+		}
+		seen.add(realDir);
+		if (i >= packages.length) {
+			result.push({ name, dir: realDir });
+		}
+		const nodeModules = path.resolve(realDir, ...name.split('/').map(() => '..'));
+		if (path.basename(nodeModules) !== 'node_modules' || path.basename(path.dirname(path.dirname(nodeModules))) !== '.pnpm') {
+			continue;
+		}
+		for (const dependency of collectPackagesInNodeModules(nodeModules)) {
+			if (dependency !== name) {
+				queue.push({ name: dependency, dir: path.join(nodeModules, ...dependency.split('/')) });
+			}
+		}
 	}
 	return result;
 }
@@ -1199,12 +1240,12 @@ async function main(): Promise<void> {
 	// would make the presence index complete; until then the
 	// presence index is best-effort and the stale-override signal is warn-only.
 
-	// `extensions` is a pnpm install root: with the hoisted layout most extension
-	// dependencies are in extensions/node_modules, after the extensions' own folders.
-	// Its nested node_modules folders come last, for packages that pnpm didn't
-	// hoist (e.g. `emmet`, whose name a workspace project has). With the isolated
-	// layout they are in the store of extensions/node_modules (see
-	// collectInstalledPackages).
+	// `extensions` and the extensions are members of the root pnpm workspace. With
+	// the isolated layout, their node_modules folders hold links into the store of
+	// the root node_modules, and each one lists the packages that its links reach
+	// (see collectInstalledPackages). The nested node_modules folders of
+	// extensions/node_modules are for the hoisted layout, which nests the packages
+	// that it can't hoist (e.g. `emmet`, whose name a workspace project has).
 	for (const ext of [...extensions, '(extensions)']) {
 		const nmDirs = ext === '(extensions)' ? [path.join(extensionsDir, 'node_modules'), ...collectNestedNodeModules(path.join(extensionsDir, 'node_modules'))] : [
 			path.join(extensionsDir, ext, 'node_modules'),
@@ -1925,26 +1966,33 @@ async function main(): Promise<void> {
 	console.log('=========================================================================');
 
 	const hostPlatform = process.platform;
-	// The root project of the root, remote and build install roots (the root
-	// lockfile also records the workspace members, e.g. extensions, which are
-	// covered elsewhere).
-	const s6LockFiles = [
-		path.join(repoRoot, 'pnpm-lock.yaml'),
-		path.join(repoRoot, 'remote', 'pnpm-lock.yaml'),
-		path.join(repoRoot, 'build', 'pnpm-lock.yaml'),
-		path.join(repoRoot, 'extensions', 'pnpm-lock.yaml'),
+	// The root project of the root, remote and build install roots, and the
+	// project of the dependencies that the built-in extensions share, a member of
+	// the root workspace (the root lockfile also records the other workspace
+	// members, which are covered elsewhere).
+	const s6Projects = [
+		{ lockPath: path.join(repoRoot, 'pnpm-lock.yaml'), importer: '.' },
+		{ lockPath: path.join(repoRoot, 'remote', 'pnpm-lock.yaml'), importer: '.' },
+		{ lockPath: path.join(repoRoot, 'build', 'pnpm-lock.yaml'), importer: '.' },
+		{ lockPath: path.join(repoRoot, 'pnpm-lock.yaml'), importer: 'extensions' },
 	];
+	const s6Importers = new Map<string, Map<string, PnpmLockfilePackageEntry[]>>();
 	let s6Seeded = 0;
 	let s6AlreadyResolved = 0;
 	let s6AlreadyPresent = 0;
 	const s6Seen = new Set<string>();
-	for (const lockPath of s6LockFiles) {
+	for (const { lockPath, importer } of s6Projects) {
 		if (!fs.existsSync(lockPath)) {
 			continue;
 		}
 		let rootPackages: PnpmLockfilePackageEntry[];
 		try {
-			rootPackages = readPnpmLockfileImporters(lockPath).get('.') ?? [];
+			let importers = s6Importers.get(lockPath);
+			if (!importers) {
+				importers = readPnpmLockfileImporters(lockPath);
+				s6Importers.set(lockPath, importers);
+			}
+			rootPackages = importers.get(importer) ?? [];
 		} catch (err) {
 			console.warn(`  WARN: could not parse ${lockPath}: ${(err as Error).message}`);
 			continue;

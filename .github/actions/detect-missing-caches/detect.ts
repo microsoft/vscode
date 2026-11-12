@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { computeBuiltInDepsCacheKey, computeNodeModulesCacheKey, type ReadRepositoryFile } from '../../../build/azure-pipelines/common/cacheKeys.ts';
+import { computeBuiltInDepsCacheKey, computePnpmStoreBaseCacheKey, computePnpmStoreCacheKey, type ReadRepositoryFile } from '../../../build/azure-pipelines/common/cacheKeys.ts';
 
 interface ICacheListParameters {
 	readonly owner: string;
@@ -49,12 +49,16 @@ type RunnerOs = 'Linux' | 'macOS' | 'Windows';
 type LineEndings = 'lf' | 'crlf';
 
 /**
- * A job of `.github/workflows/pr-node-modules.yml` and the caches it keeps warm on `main`.
+ * A job of `.github/workflows/pr-pnpm-store.yml` and the caches it keeps warm on `main`.
  */
 export interface ICacheWarmingJob {
 	readonly os: RunnerOs;
-	/** The `key-prefix` and the evaluated `key-args` of `.github/actions/restore-node-modules`. */
-	readonly nodeModules: { readonly prefix: string; readonly args: readonly string[] };
+	/**
+	 * When the job saves a pnpm store with `.github/actions/save-pnpm-store`: the `key-prefix` of
+	 * `.github/actions/restore-pnpm-store`, and the platform and architecture of the runner, which the key
+	 * includes. Jobs that install the same install roots share a store, which only one of them saves.
+	 */
+	readonly pnpmStore?: { readonly prefix: string; readonly args: readonly string[] };
 	/** The `arch` of `.github/actions/setup-electron`. */
 	readonly electron?: { readonly arch: string };
 	/** The marketplace target platform of the built-in extensions cache. */
@@ -79,36 +83,35 @@ export interface ICache {
 export const cacheWarmingJobs: Readonly<Record<string, ICacheWarmingJob>> = {
 	'compile': {
 		os: 'Linux',
-		nodeModules: { prefix: 'node_modules-compile', args: ['compile', 'x64'] },
+		pnpmStore: { prefix: 'pnpm-store-linux', args: ['linux', 'x64'] },
 		builtInExtensions: { target: 'linux-x64' },
 	},
 	'linux': {
 		os: 'Linux',
-		nodeModules: { prefix: 'node_modules-linux', args: ['linux', 'x64', 'x64'] },
 		electron: { arch: 'x64' },
 		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
-	// Commented out with the macOS job of pr-node-modules.yml (see there).
+	// Commented out with the macOS job of pr-pnpm-store.yml (see there).
 	// 'macOS': {
 	// 	os: 'macOS',
-	// 	nodeModules: { prefix: 'node_modules-macos', args: ['darwin', 'arm64', 'arm64'] },
+	// 	pnpmStore: { prefix: 'pnpm-store-macos', args: ['darwin', 'arm64'] },
 	// 	electron: { arch: 'arm64' },
 	// 	playwright: { arch: 'ARM64', browsers: '--only-shell chromium webkit' },
 	// },
 	'windows': {
 		os: 'Windows',
-		nodeModules: { prefix: 'node_modules-windows', args: ['win32', 'x64', 'x64'] },
+		pnpmStore: { prefix: 'pnpm-store-windows', args: ['win32', 'x64'] },
 		electron: { arch: 'x64' },
 		wslInstaller: true,
 		playwright: { arch: 'X64', browsers: '--only-shell chromium' },
 	},
 	'copilot-linux': {
 		os: 'Linux',
-		nodeModules: { prefix: 'copilot-node_modules-linux', args: ['linux', 'x64'] },
+		pnpmStore: { prefix: 'pnpm-store-copilot-linux', args: ['linux', 'x64'] },
 	},
 	'copilot-windows': {
 		os: 'Windows',
-		nodeModules: { prefix: 'copilot-node_modules-windows', args: ['win32', 'x64'] },
+		pnpmStore: { prefix: 'pnpm-store-copilot-windows', args: ['win32', 'x64'] },
 	},
 };
 
@@ -151,7 +154,11 @@ function getCacheVersion(os: RunnerOs, cachePath: string, enableCrossOsArchive =
  */
 export function getCaches(job: ICacheWarmingJob, readFile: ReadRepositoryFile): ICache[] {
 	const cache = (key: string, cachePath: string, enableCrossOsArchive?: boolean): ICache => ({ key, version: getCacheVersion(job.os, cachePath, enableCrossOsArchive) });
-	const caches = [cache(`${job.nodeModules.prefix}-${hashFiles(Buffer.from(computeNodeModulesCacheKey(job.nodeModules.args, readFile)))}`, '.build/node_modules_cache')];
+	const caches: ICache[] = [];
+	if (job.pnpmStore) {
+		const base = hashFiles(Buffer.from(computePnpmStoreBaseCacheKey(job.pnpmStore.args, readFile)));
+		caches.push(cache(`${job.pnpmStore.prefix}-${base}-${hashFiles(Buffer.from(computePnpmStoreCacheKey(readFile)))}`, '.build/pnpm-store'));
+	}
 	if (job.electron) {
 		caches.push(cache(`electron-download-v1-${job.os}-${job.electron.arch}-${hashFiles(readFile('build/checksums/electron.txt'))}`, electronCachePaths[job.os]));
 	}

@@ -20,12 +20,14 @@
 	border-radius: 0;
 }
 
-.session-canvas-editor .session-canvas-message {
+.session-canvas-editor .session-canvas-status {
 	position: absolute;
 	inset: 0;
 	display: flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
+	gap: var(--vscode-spacing-size120);
 	padding: var(--vscode-spacing-size160);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body1);
@@ -35,6 +37,11 @@
 
 .session-canvas-editor .session-canvas-message:empty {
 	display: none;
+}
+
+.session-canvas-editor .session-canvas-status > .monaco-button {
+	width: auto;
+	pointer-events: auto;
 }
 
 /*
@@ -69,7 +76,7 @@
 	}
 }
 
-.session-canvas-editor.provider-reconnecting .session-canvas-message {
+.session-canvas-editor.provider-reconnecting .session-canvas-status {
 	z-index: 1;
 	margin: auto;
 	width: fit-content;

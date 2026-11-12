@@ -9,7 +9,7 @@ import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
@@ -31,6 +31,13 @@ const BADGE_DISMISSED_STORAGE_KEY = 'agentsWindow.extensionSuggestions.badgeDism
  */
 export function getExtensionSuggestionsBadgeDescription(): string {
 	return localize('agentsWindowExtensionSuggestions.badge', "Some installed extensions can be enabled in the Agents window.");
+}
+
+/**
+ * The badge of the Extensions section of Agent Customizations, which signals suggested extensions.
+ */
+export function getExtensionSuggestionsSectionBadge(accessor: ServicesAccessor): IObservable<string | undefined> {
+	return accessor.get(IAgentsWindowExtensionSuggestionsService).showBadge.map(show => show ? getExtensionSuggestionsBadgeDescription() : undefined);
 }
 
 /**

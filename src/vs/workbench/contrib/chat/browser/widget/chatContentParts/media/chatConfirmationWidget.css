@@ -549,6 +549,7 @@
 	border: none !important;
 }
 
+.chat-confirmation-message-terminal-target,
 .chat-confirmation-message-terminal-reason {
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 
@@ -559,6 +560,10 @@
 	.chat-markdown-part > :last-child {
 		margin-bottom: 0;
 	}
+}
+
+.chat-confirmation-message-terminal-target {
+	overflow-wrap: anywhere;
 }
 
 .chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {

@@ -172,7 +172,7 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 	}
 }
 
-/** Entitlement decided locally from the token's tenant claim. The bearer travels with it. */
+/** Entitlement from the sign-in token's tenant claim; only resource-scoped bearers leave the provider. */
 export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvider {
 
 	constructor(
@@ -219,10 +219,10 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return {};
 		}
 		const protectedResource = await this.getProtectedResource(cache);
-		if (!protectedResource || protectedResource.invalidScopes) {
-			return { accessToken: session.accessToken };
+		if (!protectedResource || protectedResource.invalidScopes || !this.hasResourceScopes(protectedResource.scopes)) {
+			return {};
 		}
-		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken ?? session.accessToken };
+		return { accessToken: (await this.getResourceSession(session, protectedResource))?.accessToken };
 	}
 
 	/** Work/school tenant is eligible, personal is not. Fails closed on an unreadable token. */
@@ -259,6 +259,12 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		return session;
 	}
 
+	private hasResourceScopes(scopes: readonly string[]): boolean {
+		// Microsoft authentication turns OIDC-only requests into Graph token requests.
+		return scopes.every(scope => !scope.startsWith('VSCODE_'))
+			&& scopes.some(scope => !['openid', 'email', 'profile', 'offline_access'].includes(scope));
+	}
+
 	/**
 	 * Requests the resource-scoped session (RFC 8707) for the already-chosen account. The
 	 * marketplace names its own authorization server, so it is the authentication provider that
@@ -266,12 +272,11 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	 * treated here as simply having no session.
 	 */
 	private async getResourceSession(session: AuthenticationSession, protectedResource: IMarketplaceProtectedResource): Promise<AuthenticationSession | undefined> {
-		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
-		if (!resourceScopes) {
+		if (!this.hasResourceScopes(protectedResource.scopes)) {
 			return undefined;
 		}
 		try {
-			const sessions = await this.authenticationService.getSessions('microsoft', resourceScopes, {
+			const sessions = await this.authenticationService.getSessions('microsoft', [...protectedResource.scopes], {
 				account: session.account,
 				authorizationServer: URI.parse(protectedResource.authorizationServer)
 			});
@@ -349,6 +354,9 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 				this.logService.warn('[Marketplace] Ignoring invalid protected resource scopes');
 				return { authorizationServer, scopes: [], invalidScopes: true };
 			}
+			if (!this.hasResourceScopes(scopes)) {
+				this.logService.warn('[Marketplace] No usable marketplace resource scopes are advertised. Requests will be rejected if the marketplace requires authentication. Contact the marketplace administrator to configure scopes_supported.');
+			}
 			return { authorizationServer, scopes };
 		} catch {
 			return attempts.length > 0 && attempts.every(attempt => attempt.status === 404 || attempt.status === 410) ? null : undefined;
@@ -422,7 +430,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return;
 		}
 		const protectedResource = await this.getProtectedResource(cache, true);
-		if (!protectedResource || protectedResource.invalidScopes) {
+		if (!protectedResource || protectedResource.invalidScopes || !this.hasResourceScopes(protectedResource.scopes)) {
 			return;
 		}
 		if (await this.getResourceSession(session, protectedResource)) {
@@ -431,12 +439,8 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 		if (this._store.isDisposed || this.protectedResourceCache !== cache || cache.value !== protectedResource || isExpired(cache.expiresAt)) {
 			return;
 		}
-		const resourceScopes = protectedResource.scopes.length ? [...protectedResource.scopes] : this.scopes;
-		if (!resourceScopes) {
-			return;
-		}
 		try {
-			await this.authenticationService.createSession('microsoft', resourceScopes, {
+			await this.authenticationService.createSession('microsoft', [...protectedResource.scopes], {
 				account: session.account,
 				authorizationServer: URI.parse(protectedResource.authorizationServer)
 			});

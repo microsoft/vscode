@@ -48,6 +48,10 @@ import { IconBadge, NumberBadge } from '../../../workbench/services/activity/com
 import { TestContextViewService } from './testContextViewService.js';
 import '../../../base/browser/ui/tree/media/tree.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
+// eslint-disable-next-line local/code-import-patterns
+import '../../../workbench/contrib/modernUI/browser/media/connectedEditorTabs.css';
 import { LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { IWindowCommandContext } from '../../../workbench/common/windowCommandContext.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
@@ -437,7 +441,7 @@ suite('Sessions - Session Activity Bar', () => {
 		grip.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
 		const reset = top();
 		inColumn.set(true, undefined);
-		const inColumnState = { top: element.style.top, grip: mainWindow.getComputedStyle(grip).display !== 'none' };
+		const inColumnState = { top: mainWindow.getComputedStyle(element).top, grip: mainWindow.getComputedStyle(grip).display !== 'none' };
 
 		assert.deepStrictEqual({ dragged, bottomGap, bottomGapAfterAreaGrew, reset, inColumn: inColumnState }, {
 			dragged: 94,
@@ -487,7 +491,7 @@ suite('Sessions - Session Activity Bar', () => {
 		const element = docked.element!;
 		const host = element.parentElement!;
 		// As the hosts lay it out: to the left of the column they keep.
-		const chat = append(host, $('.chat-view'));
+		const chat = append(host, $('.chat-view.sessions-chat'));
 		chat.style.cssText = `position: absolute; top: 0; left: 0; height: 100%; width: calc(100% - ${docked.reservedWidth.get()}px);`;
 		const bounds = element.getBoundingClientRect();
 		const button = element.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect();
@@ -639,6 +643,8 @@ suite('Sessions - Session Activity Bar', () => {
 
 	test('in the main window\'s column, takes the size chosen for it, and beside a chat is always compact', () => {
 		const { createDocked, root, setSize } = createActivityBar(store, [changes, browser]);
+		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
 		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
 		const inColumn = observableValue('inColumn', true);
 		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: inColumn, fullSize: true, setOccupied: () => { } }));
@@ -646,7 +652,10 @@ suite('Sessions - Session Activity Bar', () => {
 		docked.layout(0, 400);
 		docked.setActive(true);
 		const element = docked.element!;
-		const state = () => ({ compact: element.classList.contains('size-compact'), floating: element.classList.contains('floating') });
+		const state = () => {
+			const [first, second] = [...element.querySelectorAll<HTMLElement>('.action-label:not(.separator)')].map(entry => entry.getBoundingClientRect());
+			return { compact: element.classList.contains('size-compact'), floating: element.classList.contains('floating'), gap: second.top - first.bottom };
+		};
 
 		const initial = state();
 		setSize(MenuActivityBarSize.Normal);
@@ -657,14 +666,112 @@ suite('Sessions - Session Activity Bar', () => {
 		const backInColumn = state();
 		setSize(MenuActivityBarSize.Compact);
 		const compact = state();
+		root.classList.add('modern-ui-compact');
+		const compactDensity = state();
 
-		assert.deepStrictEqual({ initial, normalSize, besideChat, backInColumn, compact }, {
-			initial: { compact: true, floating: false },
-			normalSize: { compact: false, floating: false },
-			besideChat: { compact: true, floating: true },
-			backInColumn: { compact: false, floating: false },
-			compact: { compact: true, floating: false },
+		assert.deepStrictEqual({ initial, normalSize, besideChat, backInColumn, compact, compactDensity }, {
+			initial: { compact: true, floating: false, gap: 4 },
+			normalSize: { compact: false, floating: false, gap: 8 },
+			besideChat: { compact: true, floating: true, gap: 0 },
+			backInColumn: { compact: false, floating: false, gap: 8 },
+			compact: { compact: true, floating: false, gap: 4 },
+			compactDensity: { compact: true, floating: false, gap: 4 },
 		});
+	});
+
+	test('aligns the docked strip with inset frames without horizontal movement and defaults to transparent customizable chrome', () => {
+		const { createDocked, root } = createActivityBar(store, [changes, browser]);
+		root.classList.add('agent-sessions-workbench', 'modern-ui-tabs');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-agentsWindow-panels-spacing', '4px');
+		root.style.setProperty('--vscode-modernActivityBar-border', 'red');
+		root.style.setProperty('--vscode-modernActivityBar-background', 'red');
+		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		hostElement.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size240: 24px; width: 38px; height: 200px;';
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), fullSize: true, setOccupied: () => { } }));
+		const docked = createDocked();
+		docked.layout(40, 400);
+		docked.setActive(true);
+		const element = docked.element!;
+		const geometry = () => {
+			const bounds = element.getBoundingClientRect();
+			const hostBounds = hostElement.getBoundingClientRect();
+			return {
+				insets: [bounds.top - hostBounds.top, hostBounds.bottom - bounds.bottom, hostBounds.right - bounds.right],
+				border: mainWindow.getComputedStyle(element).borderRightColor,
+				background: mainWindow.getComputedStyle(element).backgroundColor,
+			};
+		};
+		const open = geometry();
+		root.classList.add('noeditorpane');
+		const closed = geometry();
+		root.classList.remove('noeditorpane');
+		const reopened = geometry();
+		root.classList.add('modern-ui-compact', 'hc-black');
+		const compact = geometry();
+		root.classList.remove('modern-ui-compact', 'hc-black');
+		root.classList.add('hc-light');
+		const highContrastLight = geometry();
+		root.classList.remove('modern-ui-tabs');
+		const legacy = geometry();
+		root.style.setProperty('--vscode-agentsActivityBar-background', '#123456');
+		root.style.setProperty('--vscode-agentsActivityBar-border', '#abcdef');
+		const customized = geometry();
+		root.style.removeProperty('--vscode-agentsActivityBar-background');
+		root.style.removeProperty('--vscode-agentsActivityBar-border');
+		const reset = geometry();
+
+		assert.deepStrictEqual({ open, closed, reopened, compact, highContrastLight, legacy, customized, reset }, {
+			open: { insets: [1, 1, 0], border: 'rgba(0, 0, 0, 0)', background: 'rgba(0, 0, 0, 0)' },
+			closed: { insets: [1, 1, 0], border: 'rgba(0, 0, 0, 0)', background: 'rgba(0, 0, 0, 0)' },
+			reopened: { insets: [1, 1, 0], border: 'rgba(0, 0, 0, 0)', background: 'rgba(0, 0, 0, 0)' },
+			compact: { insets: [0, 0, 0], border: 'rgba(0, 0, 0, 0)', background: 'rgba(0, 0, 0, 0)' },
+			highContrastLight: { insets: [1, 1, 0], border: 'rgba(0, 0, 0, 0)', background: 'rgba(0, 0, 0, 0)' },
+			legacy: { insets: [0, 0, 0], border: 'rgba(0, 0, 0, 0)', background: 'rgba(0, 0, 0, 0)' },
+			customized: { insets: [0, 0, 0], border: 'rgb(171, 205, 239)', background: 'rgb(18, 52, 86)' },
+			reset: { insets: [0, 0, 0], border: 'rgba(0, 0, 0, 0)', background: 'rgba(0, 0, 0, 0)' },
+		});
+	});
+
+	test('aligns the first docked control with the connected panel header icons as tab height and layout density change', () => {
+		const { createDocked, root } = createActivityBar(store, [changes, browser]);
+		root.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size200: 20px; --vscode-spacing-size240: 24px; --vscode-strokeThickness: 1px;';
+		const editor = append(root, $('.part.editor'));
+		editor.style.cssText = 'position: absolute; top: 0; width: 400px;';
+		const group = append(append(editor, $('.content')), $('.editor-group-container.active'));
+		const title = append(group, $('.title.tabs'));
+		const row = append(title, $('.tabs-and-actions-container'));
+		append(append(row, $('.tabs-container')), $('.tab'));
+		const toolbars = append(row, $('.editor-toolbars'));
+		const actions = append(toolbars, $('.editor-actions'));
+		const actionBar = append(append(actions, $('.monaco-toolbar')), $('.monaco-action-bar'));
+		const icon = append(append(append(actionBar, $('ul.actions-container')), $('li.action-item')), $('a.action-label.codicon'));
+		const hostElement = append(root, $('.session-activity-bar-column.session-activity-bar-host'));
+		hostElement.style.cssText = 'position: absolute; top: 0; width: 34px; height: 200px;';
+		store.add(registerSessionActivityBarExternalHost(root, { element: hostElement, active: observableValue('active', true), fullSize: true, setOccupied: () => { } }));
+		const docked = createDocked();
+		docked.setActive(true);
+		docked.layout(0, 200);
+		const states = [false, true, false].map(compactDensity => {
+			root.classList.toggle('modern-ui-compact', compactDensity);
+			return [false, true, false].map(compactTabs => {
+				root.classList.toggle('editor-tabs-compact-height', compactTabs);
+				title.classList.toggle('compact-height', compactTabs);
+				const control = docked.element!.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect();
+				const header = icon.getBoundingClientRect();
+				return {
+					offset: control.top + control.height / 2 - header.top - header.height / 2,
+					center: control.top + control.height / 2 - hostElement.getBoundingClientRect().top,
+				};
+			});
+		});
+
+		assert.deepStrictEqual(states, Array.from({ length: 3 }, () => [
+			{ offset: 0, center: 15.5 },
+			{ offset: 0, center: 13.5 },
+			{ offset: 0, center: 15.5 },
+		]));
 	});
 
 	test('right-clicking an entry or the rest of the strip offers to hide the activity bar and lists the entries to show, the rest of the strip without the actions of an entry', () => {

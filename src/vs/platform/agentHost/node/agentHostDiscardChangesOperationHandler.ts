@@ -10,7 +10,7 @@ import { basename, extUriBiasedIgnorePathCase, relativePath } from '../../../bas
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../files/common/files.js';
-import { findDeepestContainingWorkingDirectory, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
+import { findDeepestContainingWorkingDirectory } from '../common/agentHostWorkingDirectories.js';
 import { EMPTY_TREE_OBJECT, IAgentHostGitService } from '../common/agentHostGitService.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
@@ -28,6 +28,7 @@ import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
 import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { createFileEditAcceptRecordAfter, fileEditContentEquals, getUnacceptedFileEditRecords, getWorkingSetFileEditRecords, isFileEditAcceptRecord } from './fileEditAccept.js';
+import { isFileEditPath } from './fileEditPath.js';
 import { FileEditsInProgressError, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 import { getWorkingSetFileNonce, isPathWithinFolderScope } from './sessionDiffAggregator.js';
 import { createChangedSinceShownError } from './workingSetNonce.js';
@@ -47,10 +48,6 @@ export function getLastTurn(stateManager: AgentHostStateManager, owner: Protocol
 	}
 	const id = lastAttributableTurnId(state.turns);
 	return id === undefined ? undefined : { id, inProgress: false };
-}
-
-function isFilePath(path: string | undefined, resource: URI): boolean {
-	return path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
 }
 
 /** The one-based lines that a zero-based range covers; a range that ends at the start of a line doesn't cover it. */
@@ -396,13 +393,11 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	private async _doDiscardSessionFile(owner: ProtocolURI, session: ProtocolURI, resource: URI, range: { readonly side?: 'before' | 'after'; readonly range: TextRange } | undefined, sinceAccepted: boolean, duringTurn: boolean, shownNonce: string | undefined, token: CancellationToken): Promise<InvokeChangesetOperationResult> {
 		const turnsBefore = this._getSessionTurnsKey(session);
 		const messages = sinceAccepted ? {
-			multiRoot: localize('agentHost.changeset.discardWorkingSetChanges.multiRoot', "Changes that have not been accepted can't be discarded in a session with more than one folder."),
 			noChanges: localize('agentHost.changeset.discardWorkingSetChanges.noChanges', "'{0}' has no changes that have not been accepted.", basename(resource)),
 			turnRan: localize('agentHost.changeset.discardWorkingSetChanges.turnRanDuringDiscard', "A turn ran while the changes to '{0}' were being discarded. Try again.", basename(resource)),
 			conflict: localize('agentHost.changeset.discardWorkingSetChanges.conflict', "Couldn't discard the changes to '{0}' that have not been accepted because the same lines were changed outside of the session.", basename(resource)),
 			discarded: localize('agentHost.changeset.discardWorkingSetChanges.discarded', "Discarded the changes to `{0}` that have not been accepted.", basename(resource)),
 		} : {
-			multiRoot: localize('agentHost.changeset.discardSessionChanges.multiRoot', "Session changes can't be discarded in a session with more than one folder."),
 			noChanges: localize('agentHost.changeset.discardSessionChanges.notInSession', "'{0}' has no changes made by the session.", basename(resource)),
 			turnRan: localize('agentHost.changeset.discardSessionChanges.turnRanDuringDiscard', "A turn ran while the session's changes to '{0}' were being discarded. Try again.", basename(resource)),
 			conflict: localize('agentHost.changeset.discardSessionChanges.conflict', "Couldn't discard the session's changes to '{0}' because the same lines were changed outside of the session.", basename(resource)),
@@ -413,9 +408,6 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		const tracked = this._changesets.openTrackedSessionDatabases(owner);
 		let discardedChat: ProtocolURI;
 		try {
-			if (isMultiRootSession(tracked.workingDirectories)) {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.multiRoot);
-			}
 			this._throwIfOutsideWorkingDirectories(resource, tracked.workingDirectories, owner);
 
 			const matches: { readonly source: ITrackedEditSource; readonly records: readonly IFileEditRecord[] }[] = [];
@@ -571,10 +563,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	 * rename that touches `resource` is rejected.
 	 */
 	private _getFileEditRecords(records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
-		if (records.some(record => record.kind === FileEditKind.Rename && (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)))) {
+		if (records.some(record => record.kind === FileEditKind.Rename && (isFileEditPath(record.filePath, resource) || isFileEditPath(record.originalPath, resource)))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.renamed', "Changes to a renamed file can't be discarded."));
 		}
-		return records.filter(record => isFilePath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
+		return records.filter(record => isFileEditPath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
 	}
 
 	/**
@@ -584,7 +576,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	private async _throwIfEditedByOtherChats(otherChatDatabases: readonly ISessionDatabase[], resource: URI): Promise<void> {
 		for (const db of otherChatDatabases) {
 			const records = await db.getAllFileEdits();
-			if (records.some(record => isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource))) {
+			if (records.some(record => isFileEditPath(record.filePath, resource) || isFileEditPath(record.originalPath, resource))) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.otherChat', "Changes to '{0}' can't be discarded because another chat in this session also changed it.", basename(resource)));
 			}
 		}

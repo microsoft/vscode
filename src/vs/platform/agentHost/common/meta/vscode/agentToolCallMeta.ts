@@ -46,6 +46,14 @@ export interface IToolCallMeta {
 	readonly toolKind?: ToolKind;
 	/** Shell language for a `terminal` tool call (drives syntax highlighting). */
 	readonly language?: string;
+	/**
+	 * Working directory of a `terminal` tool call's command, verbatim in its
+	 * execution environment's path syntax. Shown before approval because the
+	 * same relative command line runs different programs in different directories.
+	 */
+	readonly 'vscode.terminalWorkingDirectory'?: string;
+	/** Execution environment of a `terminal` tool call's command, when it is not the agent host's own machine. */
+	readonly 'vscode.terminalEnvironment'?: string;
 	/** Short task description for a `subagent` tool call (e.g. "Find related files"). */
 	readonly subagentDescription?: string;
 	/** Agent name for a `subagent` tool call (e.g. "explore"). */
@@ -84,6 +92,8 @@ const toolCallMetaKeys = [
 	'vscode.sandboxPathGrant',
 	'vscode.assistedApprovalNotice',
 	'vscode.assistedApprovalFeedbackAccepted',
+	'vscode.terminalWorkingDirectory',
+	'vscode.terminalEnvironment',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
@@ -207,6 +217,10 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (meta['vscode.assistedApprovalFeedbackAccepted'] === true) { result['vscode.assistedApprovalFeedbackAccepted'] = true; }
 	if (isToolKind(meta.toolKind)) { result.toolKind = meta.toolKind; }
 	if (typeof meta.language === 'string') { result.language = meta.language; }
+	const terminalWorkingDirectory = meta['vscode.terminalWorkingDirectory'];
+	if (typeof terminalWorkingDirectory === 'string' && terminalWorkingDirectory) { result['vscode.terminalWorkingDirectory'] = terminalWorkingDirectory; }
+	const terminalEnvironment = meta['vscode.terminalEnvironment'];
+	if (typeof terminalEnvironment === 'string' && terminalEnvironment) { result['vscode.terminalEnvironment'] = terminalEnvironment; }
 	if (typeof meta.subagentDescription === 'string') { result.subagentDescription = meta.subagentDescription; }
 	if (typeof meta.subagentAgentName === 'string') { result.subagentAgentName = meta.subagentAgentName; }
 	if (typeof meta.subagentChatUri === 'string') { result.subagentChatUri = meta.subagentChatUri; }

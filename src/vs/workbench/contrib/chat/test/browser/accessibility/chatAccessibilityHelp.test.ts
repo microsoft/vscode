@@ -26,6 +26,11 @@ suite('Chat Accessibility Help', () => {
 		].map(help => help.includes('<keybinding:editor.changePasteType>')), [true, true, true, false, false, true]);
 	});
 
+	test('documents showing files above the chat input only while chat resources are enabled', () => {
+		const help = (chatResourcesEnabled: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, chatResourcesEnabled);
+		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('Show Above Chat Input')), [false, true]);
+	});
+
 	test('documents read-only remote sandbox certificate refresh and keyboard access', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -36,6 +41,18 @@ suite('Chat Accessibility Help', () => {
 			&& help.includes('Enter or Space to activate it')
 			&& help.includes('without changing trust')
 			&& help.includes('leaves Refresh available to try again')), [true, true, false, true]);
+	});
+
+	test('explains sandbox scope storage and keyboard approval in both windows', () => {
+		assert.deepStrictEqual([false, true].map(sessionsWindow => {
+			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, sessionsWindow);
+			return {
+				sessionDefault: help.includes('Allow for This Session is the default'),
+				workspace: help.includes('Allow for This Workspace') && help.includes('privately on the agent host'),
+				noWorkspaceSettings: help.includes('without changing workspace settings'),
+				keyboard: help.includes('Enter or Space to open the approval dropdown') && help.includes('Escape closes the dropdown without approving'),
+			};
+		}), Array.from({ length: 2 }, () => ({ sessionDefault: true, workspace: true, noWorkspaceSettings: true, keyboard: true })));
 	});
 
 	test('documents the file chooser on chat surfaces with Add Context', () => {

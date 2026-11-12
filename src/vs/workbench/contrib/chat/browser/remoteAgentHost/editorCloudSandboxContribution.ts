@@ -113,6 +113,10 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	/** External creations are observed only after Chat is presented or Cloud functionality is requested. */
 	protected override get discoveryEnabled(): boolean { return this._discoveryRequested; }
 
+	protected override get discoveryActive(): boolean {
+		return super.discoveryActive && this._viewsService.isViewVisible(ChatViewId);
+	}
+
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
 		@ICloudSandboxApiService apiService: ICloudSandboxApiService,
@@ -135,7 +139,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IViewsService viewsService: IViewsService,
+		@IViewsService private readonly _viewsService: IViewsService,
 	) {
 		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
@@ -254,10 +258,15 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				this._editorChatSessionsService.setOptionGroupsForSessionType(CLOUD_SANDBOX_SESSION_TYPE, 0, groups);
 			}
 		}));
-		this._discoveryRequested = viewsService.isViewVisible(ChatViewId);
-		this._register(viewsService.onDidChangeViewVisibility(event => {
-			if (event.id === ChatViewId && event.visible && !this._discoveryRequested) {
-				this._requestDiscovery();
+		this._discoveryRequested = this._viewsService.isViewVisible(ChatViewId);
+		this._updateDiscoveryActivity();
+		this._register(this._viewsService.onDidChangeViewVisibility(event => {
+			if (event.id === ChatViewId) {
+				this._updateDiscoveryActivity();
+				if (event.visible) {
+					this._requestDiscovery();
+					void this._refreshIfStale('automatic');
+				}
 			}
 		}));
 		this._updateRegistration();

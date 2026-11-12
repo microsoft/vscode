@@ -538,7 +538,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 		try {
 			void dialog.show().then(() => closeDialog(undefined));
-			// eslint-disable-next-line no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
 			closeToolbar = dialogElement?.querySelector<HTMLElement>('.dialog-toolbar') ?? undefined;
 			focusFirst();
 			return await completion.p;
