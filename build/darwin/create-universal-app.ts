@@ -34,6 +34,19 @@ function crossCopyPlatformDir(x64AppPath: string, arm64AppPath: string, relative
 	}
 }
 
+/**
+ * Files that are unique to a single arch *inside* the merged `node_modules.asar`.
+ * Their on-disk (unpacked) copies are cross-copied between builds (see main), but the
+ * ASAR header still only references the target arch's package, so the merger sees
+ * them as arch-unique. Paths here are ASAR-internal (top level, no `node_modules`
+ * prefix). Over-covering is harmless: the allowlist is only consulted for files
+ * that are actually unique to one arch.
+ *
+ * The merger matches these without `dot: true`, so `**` doesn't match dot files
+ * or folders, like the plugin manifests of the Copilot SDK
+ * (`plugins/browser-use/.mcp.json`, `plugins/browser-use/.plugin/plugin.json`).
+ */
+export const DARWIN_UNIVERSAL_SINGLE_ARCH_FILES = '{**/@github/copilot-darwin-*,**/@github/copilot-darwin-*/**,**/@github/copilot-sdk-darwin-*,**/@github/copilot-sdk-darwin-*/**,**/@github/copilot-sdk-darwin-*/plugins/*/.*,**/@github/copilot-sdk-darwin-*/plugins/*/.*/**,**/@github/copilot/prebuilds/darwin-*,**/@github/copilot/prebuilds/darwin-*/**,**/@github/copilot/tgrep/bin/darwin-*,**/@github/copilot/tgrep/bin/darwin-*/**,**/@github/copilot/sdk/tgrep/bin/darwin-*,**/@github/copilot/sdk/tgrep/bin/darwin-*/**,**/@github/copilot/sdk/prebuilds/darwin-*,**/@github/copilot/sdk/prebuilds/darwin-*/**,**/@github/copilot/sdk/ripgrep/bin/darwin-*,**/@github/copilot/sdk/ripgrep/bin/darwin-*/**,**/@vscode/ripgrep-universal/bin/darwin-*,**/@vscode/ripgrep-universal/bin/darwin-*/**,**/@vscode/os-proxy-resolver-darwin-*,**/@vscode/os-proxy-resolver-darwin-*/**,**/foundry-local-sdk/prebuilds,**/foundry-local-sdk/prebuilds/darwin-arm64,**/foundry-local-sdk/prebuilds/darwin-arm64/**}';
 async function main(buildDir?: string) {
 	const arch = process.env['VSCODE_ARCH'];
 
@@ -130,13 +143,7 @@ async function main(buildDir?: string) {
 		outAppPath,
 		force: true,
 		mergeASARs: true,
-		// Files that are unique to a single arch *inside* the merged `node_modules.asar`.
-		// Their on-disk (unpacked) copies are cross-copied between builds above, but the
-		// ASAR header still only references the target arch's package, so the merger sees
-		// them as arch-unique. Paths here are ASAR-internal (top level, no `node_modules`
-		// prefix). Over-covering is harmless: the allowlist is only consulted for files
-		// that are actually unique to one arch.
-		singleArchFiles: '{**/@github/copilot-darwin-*,**/@github/copilot-darwin-*/**,**/@github/copilot-sdk-darwin-*,**/@github/copilot-sdk-darwin-*/**,**/@github/copilot/prebuilds/darwin-*,**/@github/copilot/prebuilds/darwin-*/**,**/@github/copilot/tgrep/bin/darwin-*,**/@github/copilot/tgrep/bin/darwin-*/**,**/@github/copilot/sdk/tgrep/bin/darwin-*,**/@github/copilot/sdk/tgrep/bin/darwin-*/**,**/@github/copilot/sdk/prebuilds/darwin-*,**/@github/copilot/sdk/prebuilds/darwin-*/**,**/@github/copilot/sdk/ripgrep/bin/darwin-*,**/@github/copilot/sdk/ripgrep/bin/darwin-*/**,**/@vscode/ripgrep-universal/bin/darwin-*,**/@vscode/ripgrep-universal/bin/darwin-*/**,**/@vscode/os-proxy-resolver-darwin-*,**/@vscode/os-proxy-resolver-darwin-*/**,**/foundry-local-sdk/prebuilds,**/foundry-local-sdk/prebuilds/darwin-arm64,**/foundry-local-sdk/prebuilds/darwin-arm64/**}',
+		singleArchFiles: DARWIN_UNIVERSAL_SINGLE_ARCH_FILES,
 		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/**,**/node_modules/@github/copilot-sdk-darwin-*/**,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/**,**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-*/**,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules/@vscode/os-proxy-resolver-darwin-*/**,**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-*/**}',
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {
