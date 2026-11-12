@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { filter } from './gulp/facade.ts';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from './npmPackage.ts';
 import { getLockfileFolder, parsePackageKey, readPnpmLockfile, type PnpmLockfile } from './pnpmLock.ts';
 
@@ -207,6 +208,29 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 }
 
 /**
+ * Filters a post-merge dependency stream to strip non-target Copilot, tgrep,
+ * and ripgrep platform binaries while preserving dot-prefixed entries strictly
+ * under `@github/copilot-sdk-<target>/plugins/**` (excluding `computer-use`).
+ */
+export function filterCopilotDependencies(platform: string, arch: string): NodeJS.ReadWriteStream {
+	const targetPlatformArch = toCopilotPackagePlatformArch(platform, arch);
+	const targetPluginsAllowlist = copilotPlatforms.includes(targetPlatformArch)
+		? [`**/node_modules/@github/copilot-sdk-${targetPlatformArch}/plugins/**`]
+		: [];
+
+	return filter([
+		'**',
+		'!**/.*',
+		'!**/.*/**',
+		...targetPluginsAllowlist,
+		'!**/node_modules/@github/copilot-sdk-*/plugins/computer-use/**',
+		...getCopilotExcludeFilter(platform, arch).slice(1),
+		...getCopilotTgrepExcludeFilter(platform, arch).slice(1),
+		...getRipgrepExcludeFilter(platform, arch).slice(1),
+	], { dot: true });
+}
+
+/**
  * Returns the SDK-owned runtime files that must survive app/remote packaging
  * for the target platform.
  *
@@ -243,6 +267,8 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 		'copilot-sdk/index.js',
 		path.join('prebuilds', copilotPackagePlatformArch, platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime'),
 		path.join('prebuilds', copilotPackagePlatformArch, 'runtime.node'),
+		path.join('plugins', 'browser-use', '.plugin', 'plugin.json'),
+		path.join('plugins', 'browser-use', '.mcp.json'),
 	];
 	const missingFiles = requiredFiles.filter(file => !fs.existsSync(path.join(packageDir, file)));
 	if (missingFiles.length > 0) {

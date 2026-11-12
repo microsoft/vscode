@@ -14,7 +14,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 
 	const shouldUnpackFile = (file: VinylFile): boolean => {
 		for (let i = 0; i < unpackGlobs.length; i++) {
-			if (minimatch(file.relative, unpackGlobs[i])) {
+			if (minimatch(file.relative, unpackGlobs[i], { dot: true })) {
 				return true;
 			}
 		}
@@ -23,7 +23,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 
 	const shouldSkipFile = (file: VinylFile): boolean => {
 		for (const skipGlob of skipGlobs) {
-			if (minimatch(file.relative, skipGlob)) {
+			if (minimatch(file.relative, skipGlob, { dot: true })) {
 				return true;
 			}
 		}
@@ -34,7 +34,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 	// node_modules.asar and node_modules
 	const shouldDuplicateFile = (file: VinylFile): boolean => {
 		for (const duplicateGlob of duplicateGlobs) {
-			if (minimatch(file.relative, duplicateGlob)) {
+			if (minimatch(file.relative, duplicateGlob, { dot: true })) {
 				return true;
 			}
 		}

@@ -6,12 +6,14 @@
 import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { createHash } from 'crypto';
+import es from 'event-stream';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
-import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from '../copilot.ts';
+import VinylFile from 'vinyl';
+import { copilotPlatforms, ensureCopilotPlatformPackage, filterCopilotDependencies, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from '../copilot.ts';
 import { getLockedVersion } from '../pnpmLock.ts';
 import { writePnpmLockfile } from './pnpmLockfileFixture.ts';
 
@@ -179,9 +181,12 @@ suite('copilot', () => {
 					const packageRoot = path.join(tempDir, 'package');
 					fs.mkdirSync(path.join(packageRoot, 'prebuilds', 'darwin-x64'), { recursive: true });
 					fs.mkdirSync(path.join(packageRoot, 'copilot-sdk'), { recursive: true });
+					fs.mkdirSync(path.join(packageRoot, 'plugins', 'browser-use', '.plugin'), { recursive: true });
 					fs.writeFileSync(path.join(packageRoot, 'copilot-sdk', 'index.js'), '');
 					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'copilot-runtime'), '');
 					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'runtime.node'), '');
+					fs.writeFileSync(path.join(packageRoot, 'plugins', 'browser-use', '.plugin', 'plugin.json'), '{}');
+					fs.writeFileSync(path.join(packageRoot, 'plugins', 'browser-use', '.mcp.json'), '{}');
 					const tarball = path.join(tempDir, 'copilot-sdk-darwin-x64.tgz');
 					create({ file: tarball, cwd: tempDir, gzip: true, sync: true }, ['package']);
 					return tarball;
@@ -192,10 +197,14 @@ suite('copilot', () => {
 				sdk: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'copilot-sdk', 'index.js')),
 				runtime: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'prebuilds', 'darwin-x64', 'copilot-runtime')),
 				native: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'prebuilds', 'darwin-x64', 'runtime.node')),
+				browserUsePluginJson: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'plugins', 'browser-use', '.plugin', 'plugin.json')),
+				browserUseMcpJson: fs.existsSync(path.join(nodeModulesRoot, '@github', 'copilot-sdk-darwin-x64', 'plugins', 'browser-use', '.mcp.json')),
 			}, {
 				sdk: true,
 				runtime: true,
 				native: true,
+				browserUsePluginJson: true,
+				browserUseMcpJson: true,
 			});
 		} finally {
 			fs.rmSync(repoRoot, { recursive: true, force: true });
@@ -224,6 +233,33 @@ suite('copilot', () => {
 		}
 	});
 
+	test('rejects a target SDK platform package with missing browser-use plugin dotfiles', () => {
+		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-browser-use-test-'));
+		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
+		try {
+			fs.mkdirSync(nodeModulesRoot, { recursive: true });
+			writePnpmLockfile(path.join(repoRoot, 'pnpm-lock.yaml'), { '@github/copilot-sdk-darwin-x64': { version: '1.0.32-preview.1' } });
+
+			assert.throws(() => ensureCopilotPlatformPackage('darwin', 'x64', nodeModulesRoot, {
+				packPackage: (_packageName, _version, tempDir) => {
+					const packageRoot = path.join(tempDir, 'package');
+					fs.mkdirSync(path.join(packageRoot, 'prebuilds', 'darwin-x64'), { recursive: true });
+					fs.mkdirSync(path.join(packageRoot, 'copilot-sdk'), { recursive: true });
+					fs.mkdirSync(path.join(packageRoot, 'plugins', 'browser-use'), { recursive: true });
+					fs.writeFileSync(path.join(packageRoot, 'copilot-sdk', 'index.js'), '');
+					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'copilot-runtime'), '');
+					fs.writeFileSync(path.join(packageRoot, 'prebuilds', 'darwin-x64', 'runtime.node'), '');
+					fs.writeFileSync(path.join(packageRoot, 'plugins', 'browser-use', 'channel.json'), '{}');
+					const tarball = path.join(tempDir, 'copilot-sdk-darwin-x64.tgz');
+					create({ file: tarball, cwd: tempDir, gzip: true, sync: true }, ['package']);
+					return tarball;
+				}
+			}), /plugins[\\/]browser-use[\\/]\.plugin[\\/]plugin\.json.*plugins[\\/]browser-use[\\/]\.mcp\.json/);
+		} finally {
+			fs.rmSync(repoRoot, { recursive: true, force: true });
+		}
+	});
+
 	test('excludes legacy and non-target Copilot platform packages from the dependency stream', () => {
 		const files = getCopilotExcludeFilter('linux', 'x64');
 
@@ -238,6 +274,62 @@ suite('copilot', () => {
 			nonTargetSdkRuntime: false,
 			nonTargetCliRuntime: false,
 		});
+	});
+
+	test('retains target browser-use dotfiles while stripping non-target platform packages in the dependency stream', async () => {
+		const cwd = process.cwd();
+		const runFilter = (platform: string, arch: string, base: string, paths: readonly string[]): Promise<string[]> =>
+			new Promise((resolve, reject) => {
+				const retained: string[] = [];
+				es.readArray(paths.map(p => new VinylFile({ cwd, base: path.join(cwd, base), path: path.join(cwd, p) })))
+					.pipe(filterCopilotDependencies(platform, arch))
+					.on('data', (file: VinylFile) => retained.push(path.relative(cwd, file.path).replace(/\\/g, '/')))
+					.on('end', () => resolve(retained))
+					.on('error', reject);
+			});
+
+		assert.deepStrictEqual(
+			await runFilter('win32', 'x64', '.', [
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/browser-use/.plugin/plugin.json',
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/browser-use/.mcp.json',
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/browser-use/.release-target',
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/browser-use/channel.json',
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/computer-use/.release-target',
+				'node_modules/@github/copilot-sdk-win32-x64/.DS_Store',
+				'node_modules/@github/copilot-sdk-win32-x64/.github/workflows/ci.yml',
+				'node_modules/@github/copilot-sdk-win32-x64/prebuilds/win32-x64/.gitkeep',
+				'node_modules/@vscode/os-proxy-resolver-win32-x64-msvc/.npmignore',
+				'node_modules/@github/copilot-sdk-darwin-arm64/plugins/browser-use/.plugin/plugin.json',
+				'node_modules/@github/copilot-win32-x64/copilot.exe',
+				'node_modules/@github/copilot/tgrep/bin/win32-x64/tgrep.exe',
+				'node_modules/@github/copilot/tgrep/bin/darwin-arm64/tgrep',
+				'node_modules/@vscode/ripgrep-universal/bin/win32-x64/rg.exe',
+				'node_modules/@vscode/ripgrep-universal/bin/darwin-arm64/rg',
+			]),
+			[
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/browser-use/.plugin/plugin.json',
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/browser-use/.mcp.json',
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/browser-use/.release-target',
+				'node_modules/@github/copilot-sdk-win32-x64/plugins/browser-use/channel.json',
+				'node_modules/@github/copilot/tgrep/bin/win32-x64/tgrep.exe',
+				'node_modules/@vscode/ripgrep-universal/bin/win32-x64/rg.exe',
+			]
+		);
+
+		assert.deepStrictEqual(
+			await runFilter('alpine', 'x64', 'remote', [
+				'remote/node_modules/@github/copilot-sdk-linuxmusl-x64/plugins/browser-use/.plugin/plugin.json',
+				'remote/node_modules/@github/copilot-sdk-linuxmusl-x64/plugins/browser-use/.mcp.json',
+				'remote/node_modules/@github/copilot-sdk-linux-x64/plugins/browser-use/.plugin/plugin.json',
+				'remote/node_modules/@vscode/ripgrep-universal/bin/linux-x64/rg',
+				'remote/node_modules/@vscode/ripgrep-universal/bin/darwin-arm64/rg',
+			]),
+			[
+				'remote/node_modules/@github/copilot-sdk-linuxmusl-x64/plugins/browser-use/.plugin/plugin.json',
+				'remote/node_modules/@github/copilot-sdk-linuxmusl-x64/plugins/browser-use/.mcp.json',
+				'remote/node_modules/@vscode/ripgrep-universal/bin/linux-x64/rg',
+			]
+		);
 	});
 
 	test('materializes target Copilot SDK prebuilds and tgrep for the built-in extension', () => {
