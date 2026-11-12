@@ -7,7 +7,7 @@ import assert from 'assert';
 import { restore, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,7 +17,8 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, MissionControlUseLocalCredentialsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, MissionControlOwnerMismatchError, MissionControlUseLocalCredentialsConfigKey, MissionControlUseLocalCredentialsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
@@ -509,7 +510,11 @@ suite('Mission Control sharing service', () => {
 			const { calls, configuration, sharing } = fixture();
 			await configuration.setUserConfiguration(localCredentialSetting, enabled);
 			await sharing.setEnabled(true);
-			assert.deepStrictEqual(calls.map(call => call.options?.useLocalCredentials === true), [enabled]);
+			assert.deepStrictEqual({
+				registration: calls.map(call => call.options?.useLocalCredentials === true),
+				localHost: resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Local)[MissionControlUseLocalCredentialsConfigKey],
+				remoteHost: resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Remote)[MissionControlUseLocalCredentialsConfigKey],
+			}, { registration: [enabled], localHost: enabled, remoteHost: undefined });
 		}));
 	}
 
@@ -560,6 +565,28 @@ suite('Mission Control sharing service', () => {
 			lastCall: calls.at(-1),
 		}, {
 			enabledSetting: true, state: 'disabled', lastCall: { options: undefined, withdrawingAccountId: 'account' },
+		});
+	}));
+
+	test('reports an availability withdrawal failure once without retrying setup', () => runWithFakedTimers({}, async () => {
+		const error = new Error('Withdrawal failed');
+		const { availability, sharing, calls, logService } = fixture({
+			configure: async options => {
+				if (!options) {
+					throw error;
+				}
+			},
+		});
+		await sharing.setEnabled(true);
+		await timeout(0);
+		const logError = stub(logService, 'error');
+		calls.length = 0;
+		availability.set(false, undefined);
+		await timeout(2000);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls, errors: logError.args }, {
+			state: 'disabled',
+			calls: [{ options: undefined, withdrawingAccountId: 'account' }],
+			errors: [['Mission Control configuration failed', error]],
 		});
 	}));
 
@@ -811,7 +838,7 @@ suite('Mission Control sharing service', () => {
 		const { sharing, calls, storage } = fixture({
 			configure: async options => { if (options) { throw new Error('Registration failed'); } },
 		});
-		await assert.rejects(sharing.setEnabled(true), /Registration failed/);
+		await assert.rejects(sharing.setEnabled(true), /Could not set up GitHub environment sharing/);
 		const restored = fixture({ storage });
 		await timeout(0);
 		assert.deepStrictEqual({ state: sharing.state.get(), restoredCalls: restored.calls, calls }, {
@@ -819,6 +846,281 @@ suite('Mission Control sharing service', () => {
 				{ options: expectedOptions, withdrawingAccountId: undefined },
 				{ options: undefined, withdrawingAccountId: 'account' },
 			],
+		});
+	}));
+
+	for (const replacementFails of [false, true]) {
+		test(`waits for the replacement configuration when the original enable attempt fails (${replacementFails ? 'failure' : 'success'})`, () => runWithFakedTimers({}, async () => {
+			const first = new DeferredPromise<void>();
+			const replacement = new DeferredPromise<void>();
+			let attempts = 0;
+			const { sharing, calls, storage } = fixture({
+				configure: options => !options ? Promise.resolve() : ++attempts === 1 ? first.p : replacement.p,
+			});
+			const error = new Error('Replacement rejected');
+			let settled = false;
+			const enabling = sharing.setEnabled(true).finally(() => { settled = true; });
+			const outcome = replacementFails
+				? assert.rejects(enabling, failure => failure instanceof Error && failure.cause === error)
+				: enabling;
+			await timeout(0);
+			sharing.setProjectFolders([]);
+			await timeout(0);
+			first.error(new Error('Superseded connection failed'));
+			await timeout(0);
+			const pending = { state: sharing.state.get(), settled };
+			if (replacementFails) {
+				replacement.error(error);
+			} else {
+				replacement.complete();
+			}
+			await outcome;
+			await timeout(0);
+			const restored = fixture({ storage });
+			await timeout(0);
+			assert.deepStrictEqual({
+				pending, state: sharing.state.get(), attempts,
+				withdrawals: calls.filter(call => !call.options).length,
+				restored: restored.sharing.state.get(),
+			}, {
+				pending: { state: 'connecting', settled: false },
+				state: replacementFails ? 'disabled' : 'enabled',
+				attempts: 2,
+				withdrawals: replacementFails ? 1 : 0,
+				restored: replacementFails ? 'disabled' : 'enabled',
+			});
+		}));
+	}
+
+	test('retries transient enable failures with bounded backoff while staying connecting', () => runWithFakedTimers({}, async () => {
+		const started = Date.now();
+		const attempts: { delay: number; state: string }[] = [];
+		const { sharing } = fixture({
+			configure: async options => {
+				if (options) {
+					attempts.push({ delay: Date.now() - started, state: sharing.state.get() });
+					if (attempts.length < 3) {
+						throw new TypeError('fetch failed', {
+							cause: new Error('Dispatcher failed', {
+								cause: Object.assign(new Error('Network failure'), { code: 'ETIMEDOUT' }),
+							}),
+						});
+					}
+				}
+			},
+		});
+		await sharing.setEnabled(true);
+		assert.deepStrictEqual({ attempts, state: sharing.state.get() }, {
+			attempts: [{ delay: 0, state: 'connecting' }, { delay: 500, state: 'connecting' }, { delay: 1500, state: 'connecting' }],
+			state: 'enabled',
+		});
+	}));
+
+	test('rejects once after exhausting enable retries and preserves the original timeout', () => runWithFakedTimers({}, async () => {
+		const error = Object.assign(new Error('Mission Control WPS socket error'), { code: 'ETIMEDOUT' });
+		const { sharing, calls, storage } = fixture({
+			configure: async options => { if (options) { throw error; } },
+		});
+		await assert.rejects(sharing.setEnabled(true), failure => failure instanceof Error
+			&& failure.message === 'The connection timed out. Please try again.' && failure.cause === error);
+		const restored = fixture({ storage });
+		await timeout(0);
+		assert.deepStrictEqual({
+			state: sharing.state.get(),
+			attempts: calls.filter(call => call.options).length,
+			withdrawals: calls.filter(call => !call.options).length,
+			restoredCalls: restored.calls,
+		}, { state: 'disabled', attempts: 3, withdrawals: 1, restoredCalls: [] });
+	}));
+
+	for (const status of [401, 403]) {
+		test(`does not retry an authentication or policy rejection (${status})`, () => runWithFakedTimers({}, async () => {
+			const error = Object.assign(new Error('Mission Control WPS socket error'), { status });
+			const { sharing, calls } = fixture({
+				configure: async options => { if (options) { throw error; } },
+			});
+			await assert.rejects(sharing.setEnabled(true), status === 401 ? /Sign in to GitHub again/ : /Check your account and organization settings/);
+			assert.deepStrictEqual({ state: sharing.state.get(), attempts: calls.filter(call => call.options).length }, {
+				state: 'disabled', attempts: 1,
+			});
+		}));
+	}
+
+	test('explains how to recover from an Agent Host account mismatch without retrying', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			configure: async options => {
+				if (options) {
+					throw new MissionControlOwnerMismatchError('Agent Host already belongs to another local account');
+				}
+			},
+		});
+		await assert.rejects(sharing.setEnabled(true), /Restart VS Code to share it with another account/);
+		assert.deepStrictEqual({ state: sharing.state.get(), attempts: calls.filter(call => call.options).length }, {
+			state: 'disabled', attempts: 1,
+		});
+	}));
+
+	for (const backgroundFails of [false, true]) {
+		for (const enableFails of [false, true]) {
+			test(`keeps a new enable operation separate from an in-flight background restore (background ${backgroundFails ? 'fails' : 'succeeds'}, enable ${enableFails ? 'fails' : 'succeeds'})`, () => runWithFakedTimers({}, async () => {
+				const first = fixture();
+				await first.sharing.setEnabled(true);
+				first.sharing.dispose();
+				const background = new DeferredPromise<void>();
+				let attempts = 0;
+				const { sharing, calls } = fixture({
+					storage: first.storage,
+					configure: async options => {
+						if (options && ++attempts === 1) {
+							await background.p;
+						} else if (options && enableFails) {
+							throw new Error('Enable failed');
+						}
+					},
+				});
+				await timeout(0);
+				await sharing.setEnabled(false);
+				let settled = false;
+				const enabling = sharing.setEnabled(true).finally(() => { settled = true; });
+				const outcome = enableFails ? assert.rejects(enabling, /Could not set up GitHub environment sharing/) : enabling;
+				sharing.setProjectFolders([]);
+				await timeout(0);
+				const pending = { state: sharing.state.get(), settled };
+				if (backgroundFails) {
+					background.error(new Error('Restore failed'));
+				} else {
+					background.complete();
+				}
+				await outcome;
+				await timeout(0);
+				assert.deepStrictEqual({
+					pending, state: sharing.state.get(), attempts,
+					withdrawals: calls.filter(call => !call.options).length,
+				}, {
+					pending: { state: 'connecting', settled: false },
+					state: enableFails ? 'disabled' : 'enabled',
+					attempts: 2,
+					withdrawals: enableFails ? 2 : 1,
+				});
+			}));
+		}
+	}
+
+	for (const setting of [MissionControlUseLocalCredentialsSettingId, remoteControlPolicyOverrideSetting]) {
+		test(`applies ${setting} changes that withdraw an in-flight enable without dropping the new configuration`, () => runWithFakedTimers({}, async () => {
+			const configuring = new DeferredPromise<void>();
+			let attempts = 0;
+			const { sharing, calls, configuration } = fixture({
+				configure: options => options && ++attempts === 1 ? configuring.p : Promise.resolve(),
+			});
+			const enabling = sharing.setEnabled(true);
+			await timeout(0);
+			await configuration.setUserConfiguration(setting, setting === remoteControlPolicyOverrideSetting);
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string) { return section === setting; }
+			}());
+			await timeout(0);
+			configuring.complete();
+			await enabling;
+			await timeout(0);
+			assert.deepStrictEqual({
+				state: sharing.state.get(),
+				calls: calls.map(call => call.options ? {
+					useLocalCredentials: call.options.useLocalCredentials === true,
+					ignoreRemoteControlPolicy: call.options.ignoreRemoteControlPolicy === true,
+				} : { withdrawingAccountId: call.withdrawingAccountId }),
+			}, {
+				state: 'enabled',
+				calls: [
+					{ useLocalCredentials: true, ignoreRemoteControlPolicy: false },
+					{ withdrawingAccountId: 'account' },
+					{
+						useLocalCredentials: setting === remoteControlPolicyOverrideSetting,
+						ignoreRemoteControlPolicy: setting === remoteControlPolicyOverrideSetting,
+					},
+				],
+			});
+		}));
+	}
+
+	for (const queuedBehindRestore of [false, true]) {
+		test(`renaming during enable is handled by that enable operation (${queuedBehindRestore ? 'queued behind restore' : 'active'})`, () => runWithFakedTimers({}, async () => {
+			const first = fixture();
+			if (queuedBehindRestore) {
+				await first.sharing.setEnabled(true);
+			}
+			first.sharing.dispose();
+			const configuring = new DeferredPromise<void>();
+			let attempts = 0;
+			const { sharing, calls } = fixture({
+				storage: first.storage,
+				configure: options => options && ++attempts === 1 ? configuring.p : Promise.resolve(),
+			});
+			if (queuedBehindRestore) {
+				await timeout(0);
+				await sharing.setEnabled(false);
+			}
+			const enabling = sharing.setEnabled(true);
+			await timeout(0);
+			const renaming = sharing.setEnvironmentName('New shared name');
+			await timeout(0);
+			configuring.complete();
+			await Promise.all([enabling, renaming]);
+			await timeout(0);
+			assert.deepStrictEqual({
+				state: sharing.state.get(), attempts,
+				names: calls.filter(call => call.options).map(call => call.options?.name),
+			}, { state: 'enabled', attempts: 2, names: [undefined, 'New shared name'] });
+		}));
+	}
+
+	test('turning sharing off cancels the retry delay without another attempt or failure', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			configure: async options => {
+				if (options) {
+					throw Object.assign(new Error('Connection reset'), { code: 'ECONNRESET' });
+				}
+			},
+		});
+		const enabling = sharing.setEnabled(true);
+		await timeout(0);
+		await sharing.setEnabled(false);
+		await enabling;
+		await timeout(2000);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, {
+			state: 'disabled',
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: 'account' },
+			],
+		});
+	}));
+
+	test('ignores a connection failure that arrives after sharing was turned off', () => runWithFakedTimers({}, async () => {
+		const configuring = new DeferredPromise<void>();
+		const { sharing, calls } = fixture({ configure: options => options ? configuring.p : Promise.resolve() });
+		const enabling = sharing.setEnabled(true);
+		await timeout(0);
+		await sharing.setEnabled(false);
+		configuring.error(Object.assign(new Error('Connection timed out'), { code: 'ETIMEDOUT' }));
+		await enabling;
+		await timeout(2000);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, {
+			state: 'disabled',
+			calls: [
+				{ options: expectedOptions, withdrawingAccountId: undefined },
+				{ options: undefined, withdrawingAccountId: 'account' },
+			],
+		});
+	}));
+
+	test('preserves host cancellation without retrying or translating it to a connection error', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			configure: async options => { if (options) { throw new CancellationError(); } },
+		});
+		await assert.rejects(sharing.setEnabled(true), isCancellationError);
+		assert.deepStrictEqual({ state: sharing.state.get(), attempts: calls.filter(call => call.options).length }, {
+			state: 'disabled', attempts: 1,
 		});
 	}));
 

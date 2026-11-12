@@ -551,7 +551,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				let sectionLabel: string | undefined;
 
 				// Section header — querySelector is needed to identify elements within virtualized list rows
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const sectionHeaderEl = row.querySelector('.agent-session-section-label');
 				if (sectionHeaderEl) {
 					sectionLabel = sectionHeaderEl.textContent ?? undefined;
@@ -559,7 +559,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				// Show-more element
 				if (!sectionLabel) {
-					// eslint-disable-next-line no-restricted-syntax
+					// eslint-disable-next-line eslint-js/no-restricted-syntax
 					const showMoreEl = row.querySelector('.agent-session-show-more');
 					if (showMoreEl) {
 						sectionLabel = showMoreEl.getAttribute('data-section-label') ?? undefined;
@@ -568,7 +568,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 				// Session item — use data-section-label attribute
 				if (!sectionLabel) {
-					// eslint-disable-next-line no-restricted-syntax
+					// eslint-disable-next-line eslint-js/no-restricted-syntax
 					const sessionItem = row.querySelector('.agent-session-item[data-section-label]');
 					if (sessionItem) {
 						sectionLabel = sessionItem.getAttribute('data-section-label') ?? undefined;
@@ -579,7 +579,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				// inside a row with a session item, keep the current state
 				// (prevents collapse when hovering toolbar icons, diff stats, etc.)
 				if (!sectionLabel) {
-					// eslint-disable-next-line no-restricted-syntax
+					// eslint-disable-next-line eslint-js/no-restricted-syntax
 					if (row.querySelector('.agent-session-item')) {
 						return;
 					}
@@ -800,6 +800,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const marshalledContext: IMarshalledAgentSessionContext = {
 			session,
 			sessions: selection.length > 1 && selection.includes(session) ? selection : [session],
+			showAutomationRuns: !this.options.filter.getExcludes().automation,
 			$mid: MarshalledId.AgentSessionContext
 		};
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { homedir } from 'os';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -18,6 +18,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import type { IParsedAgent, IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
+import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentSession, type IAgentModelInfo } from '../../common/agent.js';
@@ -31,7 +32,7 @@ import { isWorktreeUnderRepository } from '../../common/worktreePaths.js';
 import { getCopilotApprovalPolicy, isManagedWorkspaceRetrievalWithheld, isWithheldClientTool, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsActivityReporter, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
-import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
@@ -48,9 +49,12 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyService.js';
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
+import { ICopilotAccountService } from './copilotAccountService.js';
+import { isMicrosoftCopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
+import { createCopilotSkillProvider } from './copilotBuiltinSkills.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
@@ -61,10 +65,13 @@ import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyPromptOverridesFromString, resolveConfiguredPromptOverride } from './prompts/promptOverride.js';
 import { isProgressUpdatesPromptModel } from './prompts/progressUpdatesInstructions.js';
-import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
+import { appendSystemMessageContent, describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, TOOL_SEARCH_DEFER_THRESHOLD, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
+import { isModelRouterModelId } from '../../common/modelRouter.js';
+import { modelRouterBriefing, type IModelRouterGuidance } from '../../common/modelRouterGuidance.js';
+import { ModelRouterEnabledConfigKey } from '../../common/modelRouterConfig.js';
 import type { CopilotWorkspace } from './copilotWorkspace.js';
 import type { CopilotVirtualSessionFs } from './copilotVirtualSessionFs.js';
 import { createCopilotVirtualSearchTools } from './copilotVirtualSearchTools.js';
@@ -357,6 +364,12 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 export interface ICopilotSessionRuntime {
 	readonly cancellationToken?: CancellationToken;
 	readonly setApprovalPolicy?: (resolved: Parameters<typeof getCopilotApprovalPolicy>[0], bridged: ManagedSettingsPermissions) => void;
+	/**
+	 * The permission mode the session opens in, resolved under the approval policy {@link setApprovalPolicy}
+	 * just received. `undefined` opens without one: a new session in the runtime's default mode, a resumed one in
+	 * its restored mode. The runtime may refuse the mode, so the opened session's result decides what was applied.
+	 */
+	readonly resolveInitialPermissionMode?: () => PermissionMode | undefined;
 	readonly onSessionEvent?: (event: SessionEvent) => void;
 	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
 	readonly chatUri: URI;
@@ -402,6 +415,8 @@ export interface ICopilotSessionRuntime {
 	/** Tools that let the agent ask the user to turn on Computer Use; empty unless the runtime has it and it is off. */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createComputerUseActivationTools?(): Promise<Tool<any>[]>;
+	/** The model router check tool; empty unless routers are on. */
+	createModelRouterTools?(): Tool<unknown>[];
 	reloadExtensions(): Promise<void>;
 }
 
@@ -472,6 +487,8 @@ interface ICopilotSessionLaunchBase {
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
 	readonly availableModels?: () => readonly IAgentModelInfo[];
+	/** The guidance of the model router route this chat was started on. The session is launched with exactly this object. */
+	readonly modelRouterGuidance?: IModelRouterGuidance;
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	/** The Auto tiers this chat's catalog accepts: a scoped caller's own catalog, else the host-wide one. */
 	readonly autoTierSupport?: () => IAutoModeTierSupport;
@@ -504,6 +521,11 @@ export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBa
 export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBase {
 	readonly kind: 'resume';
 	readonly workingDirectory: URI;
+	/**
+	 * Whether the resumed session keeps the permission mode the runtime restored, because the host takes its
+	 * approvals from the runtime: an imported chat another client drove.
+	 */
+	readonly keepsRestoredPermissionMode?: boolean;
 	readonly fallback: {
 		readonly model: ModelSelection | undefined;
 		readonly longContextWindow?: number;
@@ -918,6 +940,8 @@ export async function synthesizeByokSessionConfig(
 	const models: ProviderModelConfig[] = byokModels.map(m => ({
 		id: getByokLmSelectionModelId(m),
 		provider: m.vendor,
+		// Tool/prompt policy uses the canonical model, not the provider group's routing id.
+		modelId: m.id,
 		...(m.name !== undefined ? { name: m.name } : {}),
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
 		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),
@@ -1096,6 +1120,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
+		@ICopilotAccountService private readonly _accountService: ICopilotAccountService,
 	) { }
 
 	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
@@ -1169,10 +1195,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return session;
 	}
 
+	private _assertConversationAuthentication(plan: CopilotSessionLaunchPlan): void {
+		if (this._configurationService.copilotM365EnabledAtStartup && isMicrosoftCopilotAccountContext(this._accountService.state.get()) && !plan.githubCredentials.usesScopedCredential) {
+			this._accountService.requireReady();
+			throw new Error(localize('copilot.microsoftConversationUnavailable', "Microsoft Copilot conversation authentication is not yet available."));
+		}
+	}
+
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		if (plan.workspace?.kind === 'virtual' && !plan.virtualSessionFs) {
 			throw new Error('Virtual Copilot sessions require an editor-backed filesystem provider');
 		}
+		this._assertConversationAuthentication(plan);
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');
@@ -1445,7 +1479,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			AUTO_APPROVAL: true,
 			...catalogInstallationFeatureFlags,
 			CONNECTORS: copilotConnectorsEnabled,
-			MCP_SKILLS: this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSkillsEnabledConfigKey) === true,
+			MCP_SKILLS: this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSkillsEnabledConfigKey) !== false,
 			TGREP: plan.workspace?.kind !== 'virtual',
 			CONTENT_EXCLUSION: true,
 			// Attached long-lived services prevent the runtime from reaching session idle.
@@ -1482,7 +1516,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const availableModelIds = new Set(plan.availableModels?.().map(model => model.id));
+		// Custom agents run on the model they name, without routing, so a router is never one of their models.
+		const availableModelIds = new Set(plan.availableModels?.().filter(model => !isModelRouterModelId(model.id)).map(model => model.id));
 		const customAgentsPromise = plan.isEphemeral || plan.workspace?.kind === 'virtual' ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		const computerUseToolsPromise = plan.isEphemeral ? Promise.resolve([]) : runtime.createComputerUseActivationTools?.() ?? Promise.resolve([]);
@@ -1565,17 +1600,17 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (modelFamily) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
-		const toolSearchEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchEnabled) === true
-			&& agentHostModelSupportsToolSearch(effectiveModel?.id);
-		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
+		// Tool search follows the client's `toolSearch` tool, which users toggle in Chat Customizations.
+		const toolSearchEnabled = agentHostModelSupportsToolSearch(effectiveModel?.id);
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
-			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: toolSearchDeferThreshold } : { enabled: false };
+			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: TOOL_SEARCH_DEFER_THRESHOLD } : { enabled: false };
 		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
-		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
+		const extensionTools = [...createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService), ...runtime.createModelRouterTools?.() ?? []];
 		const bridgedPermissions = this._managedSettingsService.permissions;
 		const resolved = await resolveCopilotSessionManagedSettings(plan, runtime.cancellationToken, runtime.reportManagedSettingsActivity);
 		runtime.setApprovalPolicy?.(resolved.resolved, bridgedPermissions);
+		const permissionMode = runtime.resolveInitialPermissionMode?.();
 		// The overrides read files without permission checks, so they follow the managed policy that withholds workspace retrieval.
 		const virtualSearchTools = plan.virtualSessionFs && !isManagedWorkspaceRetrievalWithheld(resolved.resolved) ? createCopilotVirtualSearchTools(plan.virtualSessionFs) : [];
 		const hostToolNames = new Set([...virtualSearchTools, ...shellTools, ...serverTools, ...extensionTools, ...computerUseTools].map(tool => tool.name));
@@ -1595,6 +1630,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			bridgedPermissions).permissions;
 		const additionalDirectories = plan.workspace?.kind === 'virtual' ? undefined : plan.additionalDirectories?.filter(d => d.scheme === Schemas.file).map(d => d.fsPath);
 		const authoredCustomAgents = pluginCustomAgents.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.displayName ?? agent.name));
+		// An ephemeral session does none of the chat's work, so it is not told how to do it.
+		const routerBriefing = !plan.isEphemeral && plan.modelRouterGuidance ? modelRouterBriefing(plan.modelRouterGuidance) : undefined;
 		const resolveToolConfiguration = (published: readonly ToolDefinition[], clientTools: readonly Tool[] = []): ICopilotResolvedClientToolConfiguration => {
 			// Withheld tools are absent from every derived setting, so the runtime keeps its built-in replacement excluded.
 			const definitions = withheldClientToolNames.size ? published.filter(tool => !isWithheldClientTool(tool, withheldClientToolNames)) : published;
@@ -1608,9 +1645,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				workspaceless: plan.workspaceless === true,
 				toolSearchActive: toolSearch.enabled === true,
 			};
-			const systemMessage = promptOverrides.systemPrompt !== undefined
+			const baseSystemMessage = promptOverrides.systemPrompt !== undefined
 				? fullSystemPrompt(promptOverrides.systemPrompt)
 				: agentHostPromptRegistry.resolveSystemMessageConfig(effectiveModel, promptContext);
+			const systemMessage = routerBriefing ? appendSystemMessageContent(baseSystemMessage, routerBriefing) : baseSystemMessage;
 			return {
 				tools: promptOverrides.tools,
 				sessionConfig: {
@@ -1694,6 +1732,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// HydraFusion, which Auto's service-provided tiers can route to, needs experimental mode.
 			enableExperimentalMode: true,
 			interactiveUser: true,
+			// Applied before the first turn, or before a resumed session continues pending work.
+			...(permissionMode ? { permissionMode } : {}),
 			featureFlags,
 			...toSdkExpAssignments(this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey]),
 			streaming: true,
@@ -1733,6 +1773,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...toolConfiguration.sessionConfig,
 			agent: getNativeAgentSelection(plan) ? undefined : plan.resolvedAgentName,
 			skillDirectories: plan.workspace?.kind === 'virtual' ? [] : skillDirectories,
+			skillProvider: plan.workspace?.kind === 'virtual' ? undefined : createCopilotSkillProvider(plan.sessionId, this._copilotHomeService.home, () => this._configurationService.getRootValue(platformRootSchema, ModelRouterEnabledConfigKey) === true),
 			instructionDirectories: plan.workspace?.kind === 'virtual' ? [] : instructionDirectories,
 			additionalDirectories,
 			coauthorEnabled: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.IncludeCoAuthoredBy),

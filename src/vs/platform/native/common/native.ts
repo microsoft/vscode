@@ -100,6 +100,8 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUriIsDefault?: boolean;
 	/** Reveal a session or the new-session composer; otherwise preserve the view of an already-open window. */
 	readonly reveal?: UriComponents | 'new';
+	/** The remote authority of the editor window whose own agent host, on that remote machine, owns the revealed session. */
+	readonly revealRemoteAuthority?: string;
 	/** Session to spotlight after a contextual invitation, even when it is not opened. */
 	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
@@ -398,7 +400,7 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+	getScreenshot(rect?: IRectangle, options?: INativeHostOptions): Promise<VSBuffer | undefined>;
 
 	// GitHub mobile upload API (runs in main process to avoid CORS)
 	uploadFileViaMobileApi(token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }>;

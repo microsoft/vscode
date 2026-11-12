@@ -15,7 +15,7 @@ import { ITextModel } from '../../common/model.js';
 import * as languages from '../../common/languages.js';
 import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
 import { EditorWorker } from '../../common/services/editorWebWorker.js';
-import { DiffAlgorithmName, IEditorWorkerService, ILineChange, IStringEditFromDiff, IUnicodeHighlightsResult } from '../../common/services/editorWorker.js';
+import { DiffAlgorithmName, IEditorWorkerService, ILineChange, IStringDiffOptions, IStringEditFromDiff, IUnicodeHighlightsResult } from '../../common/services/editorWorker.js';
 import { IModelService } from '../../common/services/model.js';
 import { ITextResourceConfigurationService } from '../../common/services/textResourceConfiguration.js';
 import { isNonEmptyArray } from '../../../base/common/arrays.js';
@@ -118,6 +118,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			identical: result.identical,
 			quitEarly: result.quitEarly,
 			validity: result.validity,
+			fallback: result.fallback,
 			changes: toLineRangeMappings(result.changes),
 			moves: result.moves.map(m => new MovedText(
 				new LineRangeMapping(new LineRange(m[0], m[1]), new LineRange(m[2], m[3])),
@@ -190,11 +191,11 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		}
 	}
 
-	public async computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit> {
+	public async computeStringEditFromDiff(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<StringEdit> {
 		return (await this.computeStringEditFromDiffWithMetadata(original, modified, options, algorithm)).edit;
 	}
 
-	public async computeStringEditFromDiffWithMetadata(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff> {
+	public async computeStringEditFromDiffWithMetadata(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff> {
 		try {
 			const worker = await this._workerWithResources([]);
 			const result = await worker.$computeStringDiff(original, modified, options, algorithm);

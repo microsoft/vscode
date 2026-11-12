@@ -48,6 +48,7 @@ export interface IAuxiliaryWindowOpenOptions {
 
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
+	/** Initial state; native windows inherit the main window's current state when omitted. */
 	readonly alwaysOnTop?: boolean;
 
 	readonly nativeTitlebar?: boolean;
@@ -426,7 +427,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {
 		for (const metaTag of ['meta[charset="utf-8"]', 'meta[http-equiv="Content-Security-Policy"]', 'meta[name="viewport"]', 'meta[name="theme-color"]']) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const metaElement = mainWindow.document.querySelector(metaTag);
 			if (metaElement) {
 				const clonedMetaElement = createMetaElement(auxiliaryWindow.document.head);
@@ -441,7 +442,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			}
 		}
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const originalIconLinkTag = mainWindow.document.querySelector('link[rel="icon"]');
 		if (originalIconLinkTag) {
 			const icon = createLinkElement(auxiliaryWindow.document.head);
@@ -489,7 +490,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		// all style related nodes have been cloned.
 		pendingLinksToSettle++;
 		try {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
 				cloneNode(originalNode);
 			}

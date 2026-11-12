@@ -36,9 +36,10 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -428,6 +429,42 @@ suite('stateToProgressAdapter', () => {
 			value: '{"number":42}',
 			uri: 'https://github.com/owner/repo/pull/42',
 		});
+	});
+
+	test('preserves completion and resource mention ranges when restoring attachments', () => {
+		const text = '/skill first\r\nthen /command and #file';
+		const attachments = [{
+			type: MessageAttachmentKind.Simple as const,
+			label: 'Skill',
+			displayKind: 'skill',
+			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
+			_meta: { uri: 'custom-skill:/selected' },
+		}, {
+			type: MessageAttachmentKind.Simple as const,
+			label: 'Command',
+			displayKind: 'command',
+			range: { start: { line: 1, character: 5 }, end: { line: 1, character: 13 } },
+		}, {
+			type: MessageAttachmentKind.Resource as const,
+			label: 'File',
+			uri: 'file:///workspace/file.ts',
+			range: { start: { line: 1, character: 18 }, end: { line: 1, character: 23 } },
+		}];
+		assert.deepStrictEqual([
+			messageAttachmentsToVariableData(attachments, 'local', text),
+			messageAttachmentsToVariableData(attachments, 'local'),
+		].map(data => data?.variables.map(variable => variable.range && {
+			start: variable.range.start,
+			endExclusive: variable.range.endExclusive,
+			text: text.slice(variable.range.start, variable.range.endExclusive),
+		})), [
+			[
+				{ start: 0, endExclusive: 6, text: '/skill' },
+				{ start: 19, endExclusive: 27, text: '/command' },
+				{ start: 32, endExclusive: 37, text: '#file' },
+			],
+			[undefined, undefined, undefined],
+		]);
 	});
 
 	test('restores embedded resources with invalid base64 data without throwing', () => {
@@ -1526,6 +1563,26 @@ suite('stateToProgressAdapter', () => {
 			if (response.type !== 'response') { return; }
 
 			assert.deepStrictEqual(response.parts.filter(part => part.kind === 'autoModeResolution'), []);
+		});
+
+		test('a model router that picks once per chat is settled after its first pick', () => {
+			const routedTurn = (id: string, router: string, firstTurnOnly?: boolean) => createTurn({ id, usage: { _meta: { modelRouted: { router, chosenModel: 'opus', ...(firstTurnOnly ? { firstTurnOnly } : {}) } } } });
+			const picked = routedTurn('turn-1', 'daily', true);
+			const selecting = (model: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } });
+			// After a restart a turn's selection is the model it ran on; its usage says which router it asked for, if any.
+			const restoredUnrouted = (router: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: 'opus' } }, usage: { inputTokens: 5, outputTokens: 1, _meta: { modelRouterUnrouted: router } } });
+			assert.deepStrictEqual({
+				firstTurn: isModelRouterPickSettled([picked], 'turn-1', 'daily'),
+				laterTurn: isModelRouterPickSettled([picked, createTurn({ id: 'turn-2' })], 'turn-3', 'daily'),
+				afterItsOwnUnroutedTurn: isModelRouterPickSettled([picked, selecting('model-router:daily')], 'turn-3', 'daily'),
+				afterItsOwnRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('daily')], 'turn-3', 'daily'),
+				afterAnotherRoutersRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('other')], 'turn-3', 'daily'),
+				afterAHandPickedModel: isModelRouterPickSettled([picked, selecting('opus')], 'turn-3', 'daily'),
+				afterAnotherRouterWasSelected: isModelRouterPickSettled([picked, selecting('model-router:other')], 'turn-3', 'daily'),
+				reroutesEveryTurn: isModelRouterPickSettled([routedTurn('turn-1', 'daily')], 'turn-2', 'daily'),
+				anotherRouter: isModelRouterPickSettled([picked], 'turn-2', 'other'),
+				notARouter: isModelRouterPickSettled([picked], 'turn-2', undefined),
+			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, reroutesEveryTurn: false, anotherRouter: false, notARouter: false });
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -3343,6 +3400,41 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('model comparison reference', () => {
+		test('reconstructs the same narrowly trusted link for live completion and restored history', () => {
+			const comparisonId = 'comparison-(one)';
+			const tc = createCompletedToolCall({
+				toolName: 'createModelComparison',
+				pastTenseMessage: { markdown: '[untrusted](command:unrelated.command)' },
+				content: [{ type: ToolResultContentType.Text, text: JSON.stringify({ comparisonId }) }],
+			});
+			const invocation = toolCallStateToInvocation(createToolCallState({ toolName: tc.toolName }));
+			finalizeToolInvocation(invocation, tc);
+			const expected = {
+				value: `Started model comparison. [Open Comparison](command:${OPEN_SESSION_COMPARISON_COMMAND_ID}?%5B%22comparison-%28one%29%22%5D)`,
+				isTrusted: { enabledCommands: [OPEN_SESSION_COMPARISON_COMMAND_ID] },
+			};
+			const messages = [invocation.pastTenseMessage, completedToolCallToSerialized(tc, undefined, URI.file('/'), 'remote-test').pastTenseMessage];
+			assert.deepStrictEqual(messages.map(message => {
+				assert.ok(message && typeof message !== 'string');
+				return { value: message.value, isTrusted: message.isTrusted };
+			}), [expected, expected]);
+		});
+
+		test('does not trust unrelated, failed or malformed tool output', () => {
+			const messages = [
+				{ toolName: 'otherTool', success: true, text: '{"comparisonId":"comparison"}' },
+				{ toolName: 'createModelComparison', success: false, text: '{"comparisonId":"comparison"}' },
+				{ toolName: 'createModelComparison', success: true, text: 'not JSON' },
+				{ toolName: 'createModelComparison', success: true, text: 'null' },
+				{ toolName: 'createModelComparison', success: true, text: '{"comparisonId":17}' },
+			].map(({ toolName, success, text }) => completedToolCallToSerialized(createCompletedToolCall({
+				toolName, success, content: [{ type: ToolResultContentType.Text, text }],
+			}), undefined, URI.file('/'), 'local').pastTenseMessage);
+			assert.deepStrictEqual(messages, ['Ran test tool', 'Running test tool...', 'Ran test tool', 'Ran test tool', 'Ran test tool']);
+		});
+	});
+
 	suite('addComment reference', () => {
 
 		const commentRange = { startLineNumber: 3, startColumn: 1, endLineNumber: 3, endColumn: 5 };
@@ -3711,6 +3803,36 @@ suite('stateToProgressAdapter', () => {
 			}, {
 				command: 'npm install --registry=https://registry.npmjs.org',
 				gatePreserved: true,
+			});
+		});
+
+		test('a call the user approves stays visible once it completes, and one they decline is hidden', () => {
+			const running = createToolCallState({ toolCallId: 'tc-grep', toolName: 'grep', displayName: 'Search', invocationMessage: 'Search for `thinkingStyle`', _meta: { toolKind: 'search' } });
+			const pending: AnyToolCallState = { ...running, status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Allow search?' };
+			const settle = (asksFirst: boolean, approved: boolean) => {
+				// Copilot starts a call running and asks for approval later; other hosts can ask first.
+				const invocation = toolCallStateToInvocation(asksFirst ? pending : running);
+				if (!asksFirst) {
+					invocation.requestConfirmation(toolCallStateToPreparedInvocation(pending));
+				}
+				const hiddenWhilePending = IChatToolInvocation.isEffectivelyHidden(invocation);
+				IChatToolInvocation.confirmWith(invocation, { type: approved ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied });
+				finalizeToolInvocation(invocation, approved
+					? createCompletedToolCall({ ...running, status: ToolCallStatus.Completed, pastTenseMessage: 'Searched for `thinkingStyle`' })
+					: { ...running, status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied });
+				return { hiddenWhilePending, hidden: IChatToolInvocation.isEffectivelyHidden(invocation) };
+			};
+
+			assert.deepStrictEqual({
+				approvedAfterRunning: settle(false, true),
+				approvedBeforeRunning: settle(true, true),
+				declinedAfterRunning: settle(false, false),
+				declinedBeforeRunning: settle(true, false),
+			}, {
+				approvedAfterRunning: { hiddenWhilePending: false, hidden: false },
+				approvedBeforeRunning: { hiddenWhilePending: false, hidden: false },
+				declinedAfterRunning: { hiddenWhilePending: false, hidden: true },
+				declinedBeforeRunning: { hiddenWhilePending: false, hidden: true },
 			});
 		});
 

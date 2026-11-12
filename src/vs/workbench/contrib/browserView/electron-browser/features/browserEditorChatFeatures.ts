@@ -49,6 +49,9 @@ import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatPetAchievementIds, shouldUnlockChatPetIntegratedBrowserShare } from '../../../chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCapture, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolMode, ScreenshotToolOutcome, ScreenshotToolResult } from '../../../screenshotTool/browser/screenshotTool.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
@@ -193,6 +196,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 		@IChatPetService private readonly chatPetService: IChatPetService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super(editor);
 		this._elementSelectionModeContext = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.bindTo(contextKeyService);
@@ -757,36 +761,19 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 
+		const stopWatch = StopWatch.create(false);
+		let result: ScreenshotToolResult = { kind: 'failed', mode: 'page' };
 		try {
 			// Capture the screenshot BEFORE revealing the chat panel or prompting the
 			// user so the image reflects what the user saw when they pressed the button,
 			// not a reflowed version of the page after the panel opens or a later version
 			// after the dialog appears.
 			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
-
-			if (!await this._confirmContentAttachmentRisk(model.url)) {
-				return;
-			}
-
-			const toAttach: IChatRequestVariableEntry[] = [{
-				id: 'browser-screenshot-' + Date.now(),
-				name: localize('browserScreenshot', 'Browser Screenshot'),
-				fullName: localize('browserScreenshot', 'Browser Screenshot'),
-				kind: 'image',
-				value: screenshotBuffer.buffer,
-				mimeType: 'image/jpeg',
-			}];
-
-			if (!await this._attachToChat(toAttach)) {
-				return;
-			}
-
-			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
-				screenshotType: 'viewport'
-			});
+			result = { kind: 'captured', mode: 'page', image: await createScreenshotToolImage(screenshotBuffer, 'image/jpeg') };
 		} catch (error) {
 			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
 		}
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, model.url, stopWatch);
 	}
 
 	/**
@@ -807,6 +794,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 		this.editor.ensureBrowserFocus();
 
+		const stopWatch = StopWatch.create(false);
 		// `onDidPickArea` fires exactly once per session with the user-drawn rectangle
 		// or `undefined` on cancellation, so we don't have to reconcile rect vs.
 		// activation-state events across the IPC boundary.
@@ -814,38 +802,19 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		void model.toggleAreaSelection(true);
 		const rect = await pickPromise;
 
-		if (!rect) {
-			return;
-		}
-
-		try {
-			// Added awaitNextPaint because the area selection UI (a dashed rectangle) was every so often making its way
-			// into the captured screenshot.
-			const screenshotBuffer = await model.captureScreenshot({ quality: 80, pageRect: rect, awaitNextPaint: true });
-
-			if (!await this._confirmContentAttachmentRisk(model.url)) {
-				return;
+		let result: ScreenshotToolResult = { kind: 'cancelled', mode: 'none' };
+		if (rect) {
+			result = { kind: 'failed', mode: 'area' };
+			try {
+				// Added awaitNextPaint because the area selection UI (a dashed rectangle) was every so often making its way
+				// into the captured screenshot.
+				const screenshotBuffer = await model.captureScreenshot({ quality: 80, pageRect: rect, awaitNextPaint: true });
+				result = { kind: 'captured', mode: 'area', image: await createScreenshotToolImage(screenshotBuffer, 'image/jpeg') };
+			} catch (error) {
+				this.logService.error('BrowserEditor.addAreaScreenshotToChat: Failed to capture area screenshot', error);
 			}
-
-			const toAttach: IChatRequestVariableEntry[] = [{
-				id: 'browser-area-screenshot-' + Date.now(),
-				name: localize('browserAreaScreenshot', 'Browser Area Screenshot'),
-				fullName: localize('browserAreaScreenshot', 'Browser Area Screenshot'),
-				kind: 'image',
-				value: screenshotBuffer.buffer,
-				mimeType: 'image/jpeg',
-			}];
-
-			if (!await this._attachToChat(toAttach)) {
-				return;
-			}
-
-			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
-				screenshotType: 'area'
-			});
-		} catch (error) {
-			this.logService.error('BrowserEditor.addAreaScreenshotToChat: Failed to capture area screenshot', error);
 		}
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserAreaScreenshot, result, model.url, stopWatch);
 	}
 
 	/**
@@ -857,33 +826,66 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 			return;
 		}
 
+		const stopWatch = StopWatch.create(false);
+		let result: ScreenshotToolResult = { kind: 'failed', mode: 'fullPage' };
 		try {
 			const screenshotBuffer = await model.captureScreenshot({ fullPage: true, format: 'png' });
-
-			if (!await this._confirmContentAttachmentRisk(model.url)) {
-				return;
-			}
-
-			const toAttach: IChatRequestVariableEntry[] = [{
-				id: 'browser-fullpage-screenshot-' + Date.now(),
-				name: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
-				fullName: localize('browserFullPageScreenshot', 'Browser Full Page Screenshot'),
-				kind: 'image',
-				value: screenshotBuffer.buffer,
-				mimeType: 'image/png',
-			}];
-
-			if (!await this._attachToChat(toAttach)) {
-				return;
-			}
-
-			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
-				screenshotType: 'fullPage'
-			});
+			result = { kind: 'captured', mode: 'fullPage', image: await createScreenshotToolImage(screenshotBuffer, 'image/png') };
 		} catch (error) {
 			this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 		}
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserFullPageScreenshot, result, model.url, stopWatch);
 	}
+
+	/**
+	 * Attaches a capture of the page at `url`, after confirming the risk of its content. The attached screenshot can be
+	 * marked up from chat.
+	 */
+	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, url: string, stopWatch: StopWatch): Promise<void> {
+		let outcome: ScreenshotToolOutcome = result.kind === 'captured' ? 'failed' : result.kind;
+		try {
+			if (result.kind !== 'captured') {
+				return;
+			}
+			if (!await this._confirmContentAttachmentRisk(url)) {
+				outcome = 'cancelled';
+				return;
+			}
+			const name = getScreenshotToolAttachmentName(result);
+			const { data, mimeType } = getScreenshotToolImageData(result.image);
+			const entry: IChatRequestVariableEntry = { id: `browser-screenshot-${generateUuid()}`, name, fullName: name, kind: 'image', value: data.buffer, mimeType };
+			this.screenshotToolService.registerEditableAttachment(entry, { original: result.image, annotationState: undefined });
+			if (!await this._attachToChat([entry])) {
+				return;
+			}
+			outcome = 'attached';
+
+			this.telemetryService.publicLog2<IntegratedBrowserAddScreenshotToChatAddedEvent, IntegratedBrowserAddScreenshotToChatAddedClassification>('integratedBrowser.addScreenshotToChat.added', {
+				screenshotType: result.mode === 'page' ? 'viewport' : result.mode === 'fullPage' ? 'fullPage' : 'area'
+			});
+		} catch (error) {
+			this.logService.error('BrowserEditor: Failed to attach a screenshot', error);
+		} finally {
+			this._logScreenshotCapture(entryPoint, outcome, result.mode, stopWatch);
+		}
+	}
+
+	private _logScreenshotCapture(entryPoint: ScreenshotToolEntryPoint, outcome: ScreenshotToolOutcome, mode: ScreenshotToolMode, stopWatch: StopWatch): void {
+		this.screenshotToolService.logCapture({ entryPoint, outcome, mode, durationMs: stopWatch.elapsed() });
+	}
+}
+
+/**
+ * Names a capture of a page after what it shows.
+ */
+function getScreenshotToolAttachmentName(capture: IScreenshotToolCapture): string {
+	if (capture.mode === 'page') {
+		return localize('browserScreenshot', 'Browser Screenshot');
+	}
+	if (capture.mode === 'fullPage') {
+		return localize('browserFullPageScreenshot', 'Browser Full Page Screenshot');
+	}
+	return localize('browserAreaScreenshot', 'Browser Area Screenshot');
 }
 
 // Register the contribution

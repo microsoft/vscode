@@ -19,7 +19,7 @@ export interface IRemoteAgentHostReconnectPolicy {
 	 * terminal for the automatic path; recovery falls back to an explicit user action.
 	 */
 	readonly maxAttempts: number;
-	/** Optional total recovery budget, including backoff and in-flight preparation/handshakes, excluding reported OS sleep. */
+	/** Optional total recovery budget, including backoff and in-flight preparation/handshakes. Reported OS sleep pauses both the budget and retries. */
 	readonly maxElapsedTimeMs?: number;
 	/** Spread transport retries within the upper half of their backoff interval. */
 	readonly jitter?: boolean;

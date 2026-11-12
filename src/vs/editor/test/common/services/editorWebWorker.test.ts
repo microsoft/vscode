@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
@@ -12,7 +13,10 @@ import { IRange, Range } from '../../../common/core/range.js';
 import { TextEdit } from '../../../common/languages.js';
 import { DefaultLinesDiffComputer } from '../../../common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer.js';
 import { StringEdit } from '../../../common/core/edits/stringEdit.js';
+import { ILinesDiffComputer, LinesDiff } from '../../../common/diff/linesDiffComputer.js';
+import { resolveLinesDiffComputerWithFallback } from '../../../common/diff/linesDiffWithFallback.js';
 import { EditorWorker } from '../../../common/services/editorWebWorker.js';
+import { DiffAlgorithmName } from '../../../common/services/editorWorker.js';
 import { ICommonModel } from '../../../common/services/textModelSync/textModelSync.impl.js';
 import { createTextModel } from '../testTextModel.js';
 
@@ -26,8 +30,10 @@ suite('EditorWebWorker', () => {
 			return this._getModel(uri);
 		}
 
+		private _modelCount = 0;
+
 		addModel(lines: string[], eol: string = '\n') {
-			const uri = 'test:file#' + Date.now();
+			const uri = `test:file#${Date.now()}-${this._modelCount++}`;
 			this.$acceptNewModel({
 				url: uri,
 				versionId: 1,
@@ -55,6 +61,108 @@ suite('EditorWebWorker', () => {
 			}, { isCoarse: hitTimeout, after: 'AAA\nzzz' });
 		});
 	}
+
+	for (const hitTimeout of [false, true]) {
+		test(`raw string diffs preserve unchanged inline text and timeout status (${hitTimeout})`, async () => {
+			const original = 'beforezafter';
+			const modified = 'BEFOREzAFTER';
+			const options = { ignoreTrimWhitespace: false, maxComputationTimeMs: 500, computeMoves: false };
+			const raw = new DefaultLinesDiffComputer().computeDiffWithRawChanges([original], [modified], options);
+			const stub = sinon.stub(DefaultLinesDiffComputer.prototype, 'computeDiffWithRawChanges').returns({ ...raw, diff: { ...raw.diff, hitTimeout } });
+			store.add(toDisposable(() => stub.restore()));
+
+			const result = await worker.$computeStringDiff(original, modified, { maxComputationTimeMs: 500, computeRawChanges: true }, 'advanced');
+
+			assert.deepStrictEqual({ ...result, after: StringEdit.fromJson(result.edit).apply(original) }, {
+				edit: [{ pos: 0, len: 6, txt: 'BEFORE' }, { pos: 7, len: 5, txt: 'AFTER' }],
+				isCoarse: hitTimeout,
+				after: modified,
+			});
+		});
+	}
+
+	suite('diff fallback to the built-in algorithm', () => {
+		const original = ['a', 'b', 'c'];
+		const modified = ['a', 'B', 'c'];
+		const options = { ignoreTrimWhitespace: false, maxComputationTimeMs: 0, computeMoves: false };
+		const builtinDiff = new DefaultLinesDiffComputer().computeDiff(original, modified, options);
+		const invalidDiff = new LinesDiff([], [], false);
+		const fakeComputer = (computeDiff: () => LinesDiff): ILinesDiffComputer => ({ computeDiff });
+		const run = async (algorithm: DiffAlgorithmName, computer: ILinesDiffComputer, verify: boolean) => {
+			const computeDiff = await resolveLinesDiffComputerWithFallback(algorithm, () => computer);
+			const { result, validity, fallback } = computeDiff(original, modified, options, verify);
+			return { usesBuiltin: JSON.stringify(result) === JSON.stringify(builtinDiff), validity, fallback };
+		};
+
+		test('falls back when the package throws', async () => {
+			const errors: unknown[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(e => errors.push(e));
+			try {
+				const result = await run('advanced-wasm', fakeComputer(() => { throw new Error('wasm failed'); }), false);
+				assert.deepStrictEqual({ result, errors: errors.map(e => (e as Error).message) }, {
+					result: { usesBuiltin: true, validity: undefined, fallback: 'error' },
+					errors: ['wasm failed'],
+				});
+			} finally {
+				setUnexpectedErrorHandler(previousHandler);
+			}
+		});
+
+		test('falls back when a verified package diff is invalid, but only checks when verifying', async () => {
+			const computer = fakeComputer(() => invalidDiff);
+			assert.deepStrictEqual([
+				await run('advanced-external', computer, true),
+				await run('advanced-external', computer, false),
+			], [
+				{ usesBuiltin: true, validity: 'valid', fallback: 'invalid' },
+				{ usesBuiltin: false, validity: undefined, fallback: undefined },
+			]);
+		});
+
+		test('falls back when the package fails to load', async () => {
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(() => { });
+			try {
+				const computeDiff = await resolveLinesDiffComputerWithFallback('advanced-wasm', () => Promise.reject(new Error('wasm load failed')));
+				const { result, fallback } = computeDiff(original, modified, options, false);
+				assert.deepStrictEqual({ usesBuiltin: JSON.stringify(result) === JSON.stringify(builtinDiff), fallback }, { usesBuiltin: true, fallback: 'error' });
+			} finally {
+				setUnexpectedErrorHandler(previousHandler);
+			}
+		});
+
+		test('diffs the model state after the backend has loaded', async () => {
+			let finishLoading!: () => void;
+			const loaded = new Promise<void>(resolve => finishLoading = resolve);
+			class SlowBackendWorker extends WorkerWithModels {
+				protected override async _resolveLinesDiffComputer() {
+					await loaded;
+					return new DefaultLinesDiffComputer();
+				}
+			}
+			const slowWorker = new SlowBackendWorker();
+			const originalModel = slowWorker.addModel(['same']);
+			const modifiedModel = slowWorker.addModel(['same']);
+
+			const diff = slowWorker.$computeDiff(originalModel.uri.toString(), modifiedModel.uri.toString(), options, 'advanced-wasm');
+			// An edit arrives while the backend is still loading.
+			slowWorker.$acceptModelChanged(modifiedModel.uri.toString(), {
+				changes: [{ range: new Range(1, 1, 1, 5), rangeOffset: 0, rangeLength: 4, text: 'edited' }],
+				eol: '\n', versionId: 2, isUndoing: false, isRedoing: false,
+			});
+			finishLoading();
+
+			const result = (await diff)!;
+			assert.deepStrictEqual({ identical: result.identical, changes: result.changes.length }, { identical: false, changes: 1 });
+		});
+
+		test('never falls back for the built-in algorithms', async () => {
+			await assert.rejects(run('advanced', fakeComputer(() => { throw new Error('built-in failed'); }), true), /built-in failed/);
+			await assert.rejects(resolveLinesDiffComputerWithFallback('advanced', () => Promise.reject(new Error('built-in load failed'))), /built-in load failed/);
+			assert.deepStrictEqual(await run('advanced', fakeComputer(() => invalidDiff), true), { usesBuiltin: false, validity: 'invalid', fallback: undefined });
+		});
+	});
 
 	setup(() => {
 		worker = new WorkerWithModels();

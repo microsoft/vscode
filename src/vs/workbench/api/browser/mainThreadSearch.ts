@@ -15,6 +15,7 @@ import { revive } from '../../../base/common/marshalling.js';
 import * as Constants from '../../contrib/search/common/constants.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { AISearchKeyword } from '../../services/search/common/searchExtTypes.js';
+import { getOrSet } from '../../../base/common/map.js';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -101,10 +102,13 @@ class SearchOperation {
 
 	private static _idPool = 0;
 
+	/** File-only matches use URI keys, with shared authority strings when casing must be preserved. */
+	private readonly matches = new Map<string, IFileMatch | string | undefined>();
+	private readonly authorities = new Map<string, string>();
+
 	constructor(
 		readonly progress?: (match: IFileMatch | AISearchKeyword) => unknown,
 		readonly id: number = ++SearchOperation._idPool,
-		readonly matches = new Map<string, IFileMatch>(),
 		readonly keywords: AISearchKeyword[] = []
 	) {
 		//
@@ -112,7 +116,7 @@ class SearchOperation {
 
 	addMatch(match: IFileMatch): void {
 		const existingMatch = this.matches.get(match.resource.toString());
-		if (existingMatch) {
+		if (existingMatch && typeof existingMatch !== 'string') {
 			// TODO@rob clean up text/file result types
 			// If a file search returns the same file twice, we would enter this branch.
 			// It's possible that could happen, #90813
@@ -124,6 +128,44 @@ class SearchOperation {
 		}
 
 		this.progress?.(match);
+	}
+
+	addFileMatch(resource: URI): void {
+		const key = resource.toString();
+		if (this.matches.has(key)) {
+			return;
+		}
+
+		const parsed = URI.parse(key);
+		// URI formatting can normalize drive-letter casing.
+		const preservesComponents = parsed.scheme === resource.scheme
+			&& parsed.path === resource.path
+			&& parsed.query === resource.query
+			&& parsed.fragment === resource.fragment;
+		if (!preservesComponents) {
+			this.matches.set(key, { resource });
+		} else {
+			this.matches.set(key, parsed.authority === resource.authority
+				? undefined
+				: getOrSet(this.authorities, resource.authority, resource.authority));
+		}
+	}
+
+	getResults(): IFileMatch[] {
+		const results = new Array<IFileMatch>(this.matches.size);
+		let index = 0;
+		for (const [key, match] of this.matches) {
+			// Release serialized results as their URI objects are materialized.
+			this.matches.delete(key);
+			if (typeof match === 'object') {
+				results[index++] = match;
+			} else {
+				const resource = URI.parse(key);
+				results[index++] = { resource: match === undefined ? resource : resource.with({ authority: match }) };
+			}
+		}
+		this.authorities.clear();
+		return results;
 	}
 
 	addKeyword(result: AISearchKeyword): void {
@@ -179,7 +221,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);
-			return { results: Array.from(search.matches.values()), aiKeywords: Array.from(search.keywords), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
+			return { results: search.getResults(), aiKeywords: Array.from(search.keywords), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
 		}, err => {
 			this._searches.delete(search.id);
 			return Promise.reject(err);
@@ -202,9 +244,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 			if ((<IRawFileMatch2>result).results) {
 				searchOp.addMatch(revive((<IRawFileMatch2>result)));
 			} else {
-				searchOp.addMatch({
-					resource: URI.revive(<UriComponents>result)
-				});
+				searchOp.addFileMatch(URI.revive(<UriComponents>result));
 			}
 		});
 	}

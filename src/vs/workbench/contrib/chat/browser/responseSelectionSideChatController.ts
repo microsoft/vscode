@@ -126,6 +126,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private readonly _autoScrollHold = this._register(new MutableDisposable<IDisposable>());
 	private _chatResource: URI | undefined;
 	private _isReadOnly: IObservable<boolean> = constObservable(true);
+	private _showOnSelection: boolean;
 	/** Bumped on a genuine chat navigation/force-dismiss so a stale submission's completion/error handler can no-op. */
 	private _generation = 0;
 
@@ -141,6 +142,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	) {
 		super();
 
+		this._showOnSelection = this._options.showOnSelection ?? true;
 		this._selectionChangeScheduler = this._register(new dom.AnimationFrameScheduler(this._widget.domNode, () => this._applySelectionChange()));
 		this._input = this._register(new FeedbackInputWidget({
 			placeholder: localize('sessions.selectionSideChat.placeholder', "Ask Question"),
@@ -267,6 +269,18 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 	}
 
+	setShowOnSelection(showOnSelection: boolean): void {
+		if (this._showOnSelection === showOnSelection) {
+			return;
+		}
+		this._showOnSelection = showOnSelection;
+		if (showOnSelection) {
+			this._onSelectionChange();
+		} else {
+			this._dismiss();
+		}
+	}
+
 	private _bindWindow(): void {
 		const window = dom.getWindow(this._widget.domNode);
 		if (this._boundWindow === window) {
@@ -338,7 +352,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 			this._syncHighlight();
 			return;
 		}
-		if (this._options.showOnSelection === false) {
+		if (!this._showOnSelection) {
 			this._dismiss();
 			return;
 		}

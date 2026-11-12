@@ -36,6 +36,8 @@ import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from '.
 import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TextFileEditor } from './editors/textFileEditor.js';
+import { IUntitledDocumentTelemetryService } from '../../../services/untitled/common/untitledDocumentTelemetry.js';
+import { UntitledDocumentTelemetry } from './untitledDocumentTelemetry.js';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -105,6 +107,14 @@ registerWorkbenchContribution2(ExplorerViewletViewsContribution.ID, ExplorerView
 
 // Register Text File Editor Tracker
 registerWorkbenchContribution2(TextFileEditorTracker.ID, TextFileEditorTracker, WorkbenchPhase.BlockStartup);
+
+// Untitled document telemetry: created eagerly so that it sees the untitled documents restored on startup
+registerSingleton(IUntitledDocumentTelemetryService, UntitledDocumentTelemetry, InstantiationType.Eager);
+class UntitledDocumentTelemetryContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.untitledDocumentTelemetry';
+	constructor(@IUntitledDocumentTelemetryService _untitledDocumentTelemetryService: IUntitledDocumentTelemetryService) { }
+}
+registerWorkbenchContribution2(UntitledDocumentTelemetryContribution.ID, UntitledDocumentTelemetryContribution, WorkbenchPhase.BlockStartup);
 
 // Register Text File Save Error Handler
 registerWorkbenchContribution2(TextFileSaveErrorHandler.ID, TextFileSaveErrorHandler, WorkbenchPhase.BlockStartup);
@@ -383,6 +393,17 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog for opening and saving files and folders. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
+		},
+		'files.simpleDialog.selectInitialPath': {
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'enumDescriptions': [
+				nls.localize('files.simpleDialog.selectInitialPath.auto', "Select the pre-filled path only when a screen reader is detected."),
+				nls.localize('files.simpleDialog.selectInitialPath.on', "Always select the pre-filled path so typing replaces it."),
+				nls.localize('files.simpleDialog.selectInitialPath.off', "Never select the pre-filled path; place the cursor at its end.")
+			],
+			'description': nls.localize('files.simpleDialog.selectInitialPath', "Controls whether the pre-filled path in the simple file dialog is selected when the dialog opens."),
+			'default': 'auto'
 		},
 		'files.participants.timeout': {
 			type: 'number',

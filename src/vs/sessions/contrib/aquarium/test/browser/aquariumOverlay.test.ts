@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../browser/media/aquarium.css';
-import '../../../../browser/parts/media/sessionsPart.css';
+import '../../../../../workbench/browser/parts/sessions/media/sessionsPart.css';
+import '../../../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import assert from 'assert';
 import { getWindow } from '../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -19,6 +20,7 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { AquariumService, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from '../../browser/aquariumOverlay.js';
 import { disposeSharedFishDefs, Fish, FishSpecies } from '../../browser/fish.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('AquariumService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -137,6 +139,7 @@ suite('AquariumService', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 
 		const auxiliaryDocument = iframe.contentDocument!;
 		const toggleContainer = document.createElement('div');

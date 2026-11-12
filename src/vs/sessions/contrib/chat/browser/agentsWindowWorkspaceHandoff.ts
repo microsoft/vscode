@@ -17,19 +17,20 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-import { WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { WorkspaceSelectionOrigin } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WorkspaceHandoffState } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
-import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { readNewChatDraftState } from '../common/newChatDraftState.js';
+import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IRemoteWorkspaceHandoffService } from '../../../common/remoteWorkspaceHandoff.js';
 import { IAgentsWindowRemoteWorkspace } from './agentsWindowOpenIntent.js';
+import { isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 
@@ -53,8 +54,15 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _notification = this._register(new MutableDisposable());
 	private _cancelPending: ((state: WorkspaceHandoffState) => void) | undefined;
+	private _startupProvidersRegistered = false;
 
+	/**
+	 * @param whenStartupProvidersRegistered Settles once the providers that register during startup have
+	 * registered. Several of them can accept the same folder, so resolving earlier can pick whichever registered
+	 * first instead of the preferred provider, for example Cloud instead of This Computer for a local folder.
+	 */
 	constructor(
+		private readonly whenStartupProvidersRegistered: Promise<unknown>,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -71,6 +79,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	) {
 		super();
 		this._register(lifecycleService.onWillShutdown(() => this.cancel()));
+		whenStartupProvidersRegistered.finally(() => this._startupProvidersRegistered = true).catch(() => undefined);
 	}
 
 	cancel(): void {
@@ -116,11 +125,11 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 		store.add(Event.once(this.composerService.onWillSendRequest)(() => cancel('sessionAlreadyCreated')));
 		let restoreComplete = this.sessionsService.initialRestoreComplete.get();
 		let previousSession = this._focusedSessionHostService.focusedHost.get().session.get();
-		let previousCreated = previousSession?.isCreated.get() ?? false;
+		let previousCreated = isSessionCreated(previousSession);
 		store.add(autorun(reader => {
 			const restored = this.sessionsService.initialRestoreComplete.read(reader);
 			const session = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			const created = session?.isCreated.read(reader) ?? false;
+			const created = isSessionCreated(session, reader);
 			if (restoreComplete && created && (session !== previousSession || !previousCreated)) {
 				cancel('sessionAlreadyCreated');
 			}
@@ -150,7 +159,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			onState('waitingForSessionView');
 			if (inferredDefault) {
 				await waitForState(this.sessionsService.initialRestoreComplete, complete => complete, undefined, source.token);
-				if (!this._focusedSessionHostService.focusedHost.get().session.get()?.isCreated.get()) {
+				if (!isSessionCreated(this._focusedSessionHostService.focusedHost.get().session.get())) {
 					remoteResolution = startRemoteResolution();
 				}
 			} else {
@@ -183,6 +192,10 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				folderUri = resolution.folderUri ?? folderUri;
 				remoteUnavailableReason = resolution.unavailableReason;
 			}
+			if (folderUri && !this._startupProvidersRegistered) {
+				onState('waitingForProvider');
+				await raceCancellationError(this.whenStartupProvidersRegistered.catch(() => undefined), source.token);
+			}
 			// A remote editor window must not fall back to an unrelated local folder.
 			const remoteWithoutFolder = !!intent.remote && !intent.draft && !folderUri;
 			let draftNeedsNavigation = !!intent.draft && !intent.revealNewSession;
@@ -190,7 +203,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 			const deadline = Date.now() + WORKSPACE_HANDOFF_TIMEOUT_MS;
 			while (!source.token.isCancellationRequested) {
 				const currentSession = this._focusedSessionHostService.focusedHost.get().session.get();
-				if ((!intent.draft && currentSession?.isCreated.get()) || ((intent.draft || intent.revealNewSession) && this._hasDraftInput())) {
+				if ((!intent.draft && isSessionCreated(currentSession)) || ((intent.draft || intent.revealNewSession) && this._hasDraftInput())) {
 					onState('preservedSession');
 					return;
 				}
@@ -205,7 +218,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 					}
 				}
 				const session = this._focusedSessionHostService.focusedHost.get().session.get();
-				if (!draftNeedsNavigation && session?.isCreated.get()) {
+				if (!draftNeedsNavigation && isSessionCreated(session)) {
 					onState('preservedSession');
 					return;
 				}
@@ -289,7 +302,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 
 	private _hasDraftInput(): boolean {
 		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
-		if (!activeSession?.isCreated.get() && !activeSession?.isQuickChat?.get()) {
+		if (!isSessionCreated(activeSession) && !activeSession?.isQuickChat?.get()) {
 			const mountedInput = this.composerService.getDraftInputStateForSession(activeSession?.resource);
 			if (mountedInput !== undefined) {
 				return mountedInput;

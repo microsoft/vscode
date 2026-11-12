@@ -9,7 +9,7 @@ import { basename } from '../../../../base/common/path.js';
 import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { restoreRecordedResponseParts, type IRecordedResponseParts } from './copilotReasoningTiming.js';
+import { hasSavedMessageText, restoreRecordedResponseParts, type IRecordedResponseParts } from './copilotReasoningTiming.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -38,6 +38,7 @@ import { buildMcpResourceUri, buildToolResultResourceUri } from '../../common/mc
 import { ILogService } from '../../../log/common/log.js';
 import { LOCAL_MODEL_META_KEY } from '../../common/localModel.js';
 import { compactAutoModeResolved, createLocalModelTurnExecutionMeta } from '../../common/meta/agentUsageMeta.js';
+import { mergeCopilotCompletionReferences, readCopilotCompletionReferences } from './copilotCompletionReferenceHistory.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -488,6 +489,7 @@ export async function mapSessionEvents(
 	const recordedResponses = await db?.getAssistantResponseParts();
 	const importedTurnDurations = parseImportedTurnDurations(await db?.getMetadata(IMPORTED_TURN_DURATIONS_DB_KEY));
 	const importedToolCalls = parseImportedToolCalls(await db?.getMetadata(IMPORTED_TOOL_CALLS_DB_KEY));
+	const completionReferences = await readCopilotCompletionReferences(db);
 	// First pass: collect tool-arg info and identify edit tool calls so we
 	// can batch-load their stored file edits before the second pass needs
 	// them at `tool.execution_complete` time. We also build the
@@ -887,8 +889,9 @@ export async function mapSessionEvents(
 				}
 				const d = e.data;
 				const messageId = d.interactionId ?? '';
-				const content = stripPromptScaffolding(d.content ?? '');
-				const attachments = sdkAttachmentsToProtocol(d.attachments, pathMapper);
+				const completionReferenceMessage = completionReferences.get(e.id);
+				const content = completionReferenceMessage?.text ?? stripPromptScaffolding(d.content ?? '');
+				const attachments = mergeCopilotCompletionReferences(sdkAttachmentsToProtocol(d.attachments, pathMapper), completionReferenceMessage?.references);
 				// User messages carry no deprecated `parentToolCallId`; route
 				// sub-agent user messages by the envelope `agentId` only.
 				const parentToolCallId = resolveParentToolCallId(e.agentId, undefined);
@@ -985,9 +988,7 @@ export async function mapSessionEvents(
 				builder.responseParts.push(...original);
 				const recorded = recordedResponses?.get(e.id);
 				if (recorded) {
-					const matches = recorded.filter(part => part.kind === ResponsePartKind.Reasoning).map(part => part.content).join('') === (reasoningText ?? '')
-						&& recorded.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content).join('') === content;
-					if (matches && original.length) {
+					if (hasSavedMessageText(recorded, reasoningText, content) && original.length) {
 						builder.recordedResponses.push({ responseId: e.id, original, recorded });
 					} else {
 						options?.logService?.warn(`[Copilot] Recorded response parts no longer match assistant message ${e.id}`);
@@ -1259,18 +1260,11 @@ export async function mapSessionEvents(
 function sdkAttachmentsToProtocol(
 	attachments: readonly Attachment[] | undefined,
 	pathMapper: ICopilotSdkPathMapper,
-): MessageAttachment[] | undefined {
+): (MessageAttachment | undefined)[] | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
-	const out: MessageAttachment[] = [];
-	for (const a of attachments) {
-		const converted = sdkAttachmentToProtocol(a, pathMapper);
-		if (converted) {
-			out.push(converted);
-		}
-	}
-	return out.length > 0 ? out : undefined;
+	return attachments.map(attachment => sdkAttachmentToProtocol(attachment, pathMapper));
 }
 
 function sdkAttachmentToProtocol(

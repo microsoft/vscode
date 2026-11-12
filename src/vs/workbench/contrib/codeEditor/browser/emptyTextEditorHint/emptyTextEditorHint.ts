@@ -30,10 +30,14 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { IChatAgentService } from '../../../chat/common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
+import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
 import './emptyTextEditorHint.css';
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
+
+type EmptyEditorHintAction = 'generateCode' | 'selectLanguage' | 'dontShowAgain';
+
 export class EmptyTextEditorHintContribution extends Disposable implements IEmptyTextEditorHintContribution {
 
 	static readonly ID = EmptyTextEditorHintContributionId;
@@ -150,6 +154,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IUntitledDocumentTelemetryService private readonly untitledDocumentTelemetryService: IUntitledDocumentTelemetryService,
 	) {
 		super();
 
@@ -165,6 +170,26 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 			}
 		}));
 		this.editor.addContentWidget(this);
+		this.logHintEvent('shown');
+	}
+
+	private logHintEvent(kind: 'shown' | 'action', action?: EmptyEditorHintAction): void {
+		type EmptyEditorHintEvent = { kind: 'shown' | 'action'; action: EmptyEditorHintAction | undefined; scheme: string; untitledDocumentId: string | undefined };
+		type EmptyEditorHintClassification = {
+			owner: 'hediet';
+			comment: 'How often the empty editor hint is shown and which of its actions are used.';
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'shown: the hint appeared. action: the user clicked one of its actions.' };
+			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action that was clicked.' };
+			scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The scheme of the document, e.g. untitled or file.' };
+			untitledDocumentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The untitledDocumentId of the untitledDocument events, if the document is untitled.' };
+		};
+		const resource = this.editor.getModel()?.uri;
+		this.telemetryService.publicLog2<EmptyEditorHintEvent, EmptyEditorHintClassification>('emptyEditorHint', {
+			kind,
+			action,
+			scheme: resource?.scheme ?? '',
+			untitledDocumentId: this.untitledDocumentTelemetryService.getUntitledDocumentId(resource),
+		});
 	}
 
 	getId(): string {
@@ -173,6 +198,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 
 	private disableHint(e?: MouseEvent) {
 		const disableHint = () => {
+			this.logHintEvent('action', 'dontShowAgain');
 			this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
 			this.dispose();
 			this.editor.focus();
@@ -225,6 +251,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		const askSomethingCommandId = 'inlineChat.start';
 		const askSomething = async (e: UIEvent) => {
 			e.stopPropagation();
+			this.logHintEvent('action', 'generateCode');
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 				id: askSomethingCommandId,
 				from: 'hint'
@@ -233,6 +260,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		};
 		const languageOnClickOrTap = async (e: UIEvent) => {
 			e.stopPropagation();
+			this.logHintEvent('action', 'selectLanguage');
 			// Need to focus editor before so current editor becomes active and the command is properly executed
 			this.editor.focus();
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
@@ -268,7 +296,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		const ariaLabel = hasInlineChatProvider ?
 			localize('defaultHintAriaLabelWithInlineChat', 'Execute {0} to ask a question, execute {1} to select a language and get started. Start typing to dismiss.', ...keybindingLabels) :
 			localize('defaultHintAriaLabelWithoutInlineChat', 'Execute {0} to select a language and get started. Start typing to dismiss.', ...keybindingLabels);
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		for (const anchor of hintElement.querySelectorAll('a')) {
 			anchor.style.cursor = 'pointer';
 		}

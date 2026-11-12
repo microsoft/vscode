@@ -100,6 +100,7 @@ export class QuickInputController extends Disposable {
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
+	private readonly anchorResizeObserver = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
 	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
@@ -126,6 +127,13 @@ export class QuickInputController extends Disposable {
 		this._container = options.container;
 		this.styles = options.styles;
 		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window: mainWindow, disposables: this._store }));
+		// It is created as it is first used: windows registered before then, such as an auxiliary window opened earlier, need
+		// their modifier keys tracked too, else accepting there never sees them (Alt+Enter to the side accepts as Enter).
+		for (const { window, disposables } of dom.getWindows()) {
+			if (window !== mainWindow) {
+				this.registerKeyModsListeners(window, disposables);
+			}
+		}
 		this._register(dom.onWillUnregisterWindow(window => {
 			if (this.ui && dom.getWindow(this.ui.container) === window) {
 				// The window this quick input is contained in is about to
@@ -796,6 +804,7 @@ export class QuickInputController extends Disposable {
 		ui.container.classList.toggle(QUICK_INPUT_OVERLAY_CLASS, controller.anchorPosition === 'overlay');
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.observeAnchorResize(controller.anchor);
 		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
 		if (controller.anchor) {
@@ -809,6 +818,21 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
+	}
+
+	/** Keeps an element-anchored input aligned when the anchor is resized after the input is shown. */
+	private observeAnchorResize(anchor: IQuickInput['anchor']): void {
+		this.anchorResizeObserver.clear();
+		if (!dom.isHTMLElement(anchor)) {
+			return;
+		}
+		const store = new DisposableStore();
+		const observer = store.add(new dom.DisposableResizeObserver('QuickInputController.anchor', () => {
+			this.overlayLayoutCorrection = undefined;
+			this.updateLayout();
+		}, dom.getWindow(anchor)));
+		store.add(observer.observe(anchor));
+		this.anchorResizeObserver.value = store;
 	}
 
 	isVisible(): boolean {
@@ -871,6 +895,7 @@ export class QuickInputController extends Disposable {
 			return;
 		}
 		controller.willHide(reason);
+		this.anchorResizeObserver.clear();
 
 		const container = this.ui?.container;
 		// The active element of the container's own root: not the deep active element,

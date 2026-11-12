@@ -21,8 +21,8 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { resolveAmdNodeModulePath } from '../../../../amdX.js';
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { DeferredPromise, disposableTimeout, RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotAssignmentFilterProvider, GitHubCoreAssignmentsFilterProvider } from './assignmentFilters.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -32,6 +32,9 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { experimentsEnabled } from '../../telemetry/common/workbenchTelemetryUtils.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
+import { isObject } from '../../../../base/common/types.js';
 
 export interface IAssignmentFilter {
 	/**
@@ -52,6 +55,13 @@ export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentS
  * bare lookup misses. This is an interim workaround until tas-client strips the scope itself.
  */
 const ASSIGNMENTS_SCOPE_PREFIX = '/vscode/';
+const SIGNED_OUT_ASSIGNMENTS_ENDPOINTS = [
+	'https://exp.enterprise.githubcopilot.com/api/v1/assignments',
+	'https://exp.business.githubcopilot.com/api/v1/assignments',
+	'https://exp.individual.githubcopilot.com/api/v1/assignments',
+];
+const SIGNED_OUT_ASSIGNMENTS_TIMEOUT = 5_000;
+const SIGNED_OUT_ASSIGNMENTS_STAGGER = 1_000;
 
 /**
  * Resolves a treatment value preferring the `/vscode/`-scoped key emitted by the new TAS
@@ -250,8 +260,14 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 	private tasClient: Promise<TASClient> | undefined;
 	private readonly tasSetupDisposables = this._register(new DisposableStore());
+	private readonly refetchScheduler = this._register(new RunOnceScheduler(() => this.refetchAssignments(), ASSIGNMENT_REFETCH_INTERVAL));
+	private refetchPromise: Promise<void> | undefined;
+	private refetchAfterFilterChange = false;
 
 	private assignmentsEndpoint: string | undefined;
+	private signedOutAssignmentsEndpoint: string | undefined;
+	private assignmentsAccount: IDefaultAccount | null | undefined;
+	private accountInitialized = false;
 
 	private networkInitialized = false;
 	private setupGeneration = 0;
@@ -277,6 +293,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IRequestService private readonly requestService: IRequestService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -285,14 +302,23 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		if (this.experimentsEnabled) {
 			this.tasClient = this.setupTASClient();
 
-			// The assignments endpoint is sourced from account entitlements, which load
-			// asynchronously. The initial account load resolves the readiness barrier without
-			// firing onDidChangeDefaultAccount, so proactively re-check once it is ready, and
-			// again whenever the account changes later.
-			this.defaultAccountService.getDefaultAccount().then(() => this.recreateTasClientIfEndpointChanged());
-			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.recreateTasClientIfEndpointChanged()));
+			this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.recreateTasClientIfAccountChanged()));
+			this.defaultAccountService.getDefaultAccount().then(() => {
+				if (!this._store.isDisposed) {
+					this.accountInitialized = true;
+					const client = this.tasClient;
+					this.recreateTasClientIfAccountChanged();
+					if (client === this.tasClient && this.defaultAccountService.currentDefaultAccount && !this.assignmentsEndpoint) {
+						this.logMissingAssignmentsEndpoint();
+					}
+				}
+			}, error => {
+				if (!this._store.isDisposed) {
+					this.logService.error('WorkbenchAssignmentService: Failed to initialize account routing', error);
+				}
+			});
 
-			// Stop the final client's auto-polling and revoke its wrappers when the service is disposed.
+			// Revoke the final client's wrappers before disposing it.
 			this._register(toDisposable(() => {
 				this.revokeCurrentSetup?.();
 				WorkbenchAssignmentService.disposeTasClient(this.tasClient);
@@ -375,27 +401,43 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		throw new CancellationError();
 	}
 
-	/**
-	 * Resolves the new TAS assignments API URL from the account entitlements `exp` endpoint,
-	 * or `undefined` when no account/endpoint is available.
-	 */
+	/** Signed-out requests discover a reachable endpoint; signed-in routing remains account-specific. */
 	private getAssignmentsEndpoint(): string | undefined {
 		const account = this.defaultAccountService.currentDefaultAccount;
-		const endpoints = account?.entitlementsData?.endpoints;
-		const exp = endpoints?.exp;
-		if (!exp) {
+		// A known account can be routed before initialization completes; null is ambiguous until then.
+		if (!this.accountInitialized && !account) {
 			return undefined;
+		}
+		if (!account) {
+			return SIGNED_OUT_ASSIGNMENTS_ENDPOINTS[0];
+		}
+		let exp = account?.entitlementsData?.endpoints?.exp;
+		if (!exp) {
+			const plan = account?.entitlementsData?.copilot_plan;
+			const isIndividual = plan === 'free' || plan === 'individual' || plan?.startsWith('individual_');
+			if (this.defaultAccountService.getDefaultAccountAuthenticationProvider().enterprise || account?.enterprise || (account && !isIndividual)) {
+				return undefined;
+			}
+			exp = 'https://exp.individual.githubcopilot.com';
 		}
 		return `${exp.replace(/\/+$/, '')}/api/v1/assignments`;
 	}
 
-	/** Recreates the TAS client when the resolved assignments endpoint has changed. */
-	private recreateTasClientIfEndpointChanged(): void {
-		if (this._store.isDisposed) {
-			return; // the service was disposed before the (async) account load resolved
+	private logMissingAssignmentsEndpoint(): void {
+		this.logService.warn('WorkbenchAssignmentService: Waiting for an account-provided TAS endpoint from account updates.');
+	}
+
+	/** Account changes invalidate new-endpoint assignments even when the endpoint stays the same. */
+	private recreateTasClientIfAccountChanged(): void {
+		if (this._store.isDisposed || !this.accountInitialized) {
+			return;
 		}
 		const next = this.getAssignmentsEndpoint();
-		if (next !== this.assignmentsEndpoint) {
+		const account = this.defaultAccountService.currentDefaultAccount;
+		// Without a new endpoint no account identity is sent, so only an endpoint change matters.
+		const accountChanged = (next !== undefined || this.assignmentsEndpoint !== undefined)
+			&& (account?.sessionId !== this.assignmentsAccount?.sessionId || account?.authenticationProvider.id !== this.assignmentsAccount?.authenticationProvider.id);
+		if (next !== this.assignmentsEndpoint || accountChanged) {
 			this.tasClient = this.setupTASClient();
 		}
 	}
@@ -404,7 +446,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	 * Transport for the new assignments endpoint, backed by the main-process request service
 	 * (avoids renderer CORS). Shape matches tas-client's injectable `assignmentsFetch`.
 	 */
-	private readonly assignmentsFetch = async (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }): Promise<{ status: number; json(): Promise<unknown> }> => {
+	private readonly assignmentsFetch = async (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }, token = CancellationToken.None): Promise<{ status: number; json(): Promise<unknown> }> => {
 		const context = await this.requestService.request({
 			type: init.method,
 			url,
@@ -412,15 +454,98 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			headers: init.headers,
 			disableCache: true,
 			callSite: 'assignmentService.assignments',
-		}, CancellationToken.None);
+		}, token);
 		return {
 			status: context.res.statusCode ?? 0,
 			json: async () => (await asJson(context)) ?? {},
 		};
 	};
 
+	private async fetchSignedOutAssignments(init: Parameters<typeof this.assignmentsFetch>[1], isRevoked: () => boolean): Promise<{ status: number; json(): Promise<unknown> }> {
+		const preferred = this.signedOutAssignmentsEndpoint;
+		const endpoints = preferred
+			? [preferred, ...SIGNED_OUT_ASSIGNMENTS_ENDPOINTS.filter(endpoint => endpoint !== preferred)]
+			: SIGNED_OUT_ASSIGNMENTS_ENDPOINTS;
+		// A remembered host only fails over on errors; time-based hedging is limited to discovery.
+		const hedge = !preferred;
+		const disposables = new DisposableStore();
+		const cancellation = new CancellationTokenSource();
+		disposables.add(toDisposable(() => cancellation.dispose(true)));
+		const result = new DeferredPromise<{ status: number; json(): Promise<unknown> }>();
+		let next = 0;
+		let pending = 0;
+		const launchNext = async () => {
+			if (result.isSettled) {
+				return;
+			}
+			if (isRevoked()) {
+				result.error(new CancellationError());
+				return;
+			}
+			const endpoint = endpoints[next++];
+			pending++;
+			if (hedge && next < endpoints.length) {
+				scheduler.schedule();
+			}
+			try {
+				const response = await this.assignmentsFetch(endpoint, init, cancellation.token);
+				if (response.status < 200 || response.status >= 300) {
+					throw new Error(`TAS returned HTTP ${response.status}`);
+				}
+				const data = await response.json();
+				const fields = isObject(data) ? data as Record<string, unknown> : undefined;
+				if (!fields || !isObject(fields.featureVariables) || typeof fields.assignmentContext !== 'string'
+					|| !Object.values(fields.featureVariables).every(value => typeof value === 'string')) {
+					throw new Error('Invalid TAS assignments response');
+				}
+				if (result.isSettled) {
+					return;
+				}
+				if (isRevoked()) {
+					throw new CancellationError();
+				}
+				this.signedOutAssignmentsEndpoint = endpoint;
+				result.complete({ status: response.status, json: async () => data });
+			} catch (error) {
+				if (result.isSettled) {
+					return;
+				}
+				if (isRevoked()) {
+					result.error(new CancellationError());
+					return;
+				}
+				this.logService.warn(`WorkbenchAssignmentService: Signed-out TAS request failed at ${endpoint}`, error);
+				pending--;
+				if (next < endpoints.length) {
+					scheduler.cancel();
+					void launchNext();
+				} else if (pending === 0) {
+					result.error(new Error('All signed-out TAS endpoints failed'));
+				}
+			}
+		};
+		const scheduler = disposables.add(new RunOnceScheduler(() => { void launchNext(); }, SIGNED_OUT_ASSIGNMENTS_STAGGER));
+		disposableTimeout(() => {
+			this.logService.warn('WorkbenchAssignmentService: Signed-out TAS discovery timed out');
+			// An unresponsive remembered host never fails over, so rediscover with hedging next time.
+			if (preferred && this.signedOutAssignmentsEndpoint === preferred) {
+				this.signedOutAssignmentsEndpoint = undefined;
+			}
+			result.error(new Error('Signed-out TAS discovery timed out'));
+		}, SIGNED_OUT_ASSIGNMENTS_TIMEOUT, disposables);
+		try {
+			void launchNext();
+			return await result.p;
+		} finally {
+			disposables.dispose();
+		}
+	}
+
 	private async setupTASClient(): Promise<TASClient> {
 		this.tasSetupDisposables.clear();
+		this.refetchScheduler.cancel();
+		this.refetchPromise = undefined;
+		this.refetchAfterFilterChange = false;
 
 		// Each setup supersedes the previous client; track a generation so a stale client's
 		// initialFetch cannot flip networkInitialized for a newer client.
@@ -481,32 +606,31 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		const extensionsFilterProvider = this.instantiationService.createInstance(CopilotAssignmentFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider);
-		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
+		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
 
-		// New TAS assignments API. Its endpoint is sourced from account entitlements and it
-		// uses dedicated providers that emit the new userParam key names, so the legacy filter
-		// keys never reach it. Its assignments are merged with the legacy provider's results.
+		// Both endpoints remain active; the assignments API uses its own userParam names.
 		const assignmentsEndpoint = this.getAssignmentsEndpoint();
+		const signedOut = !this.defaultAccountService.currentDefaultAccount;
 		this.assignmentsEndpoint = assignmentsEndpoint;
-		let assignmentsFilterProviders: IExperimentationFilterProvider[] | undefined;
-		if (assignmentsEndpoint) {
-			const coreAssignmentsFilterProvider = new VSCodeCoreAssignmentsFilterProvider(
-				this.productService.version,
-				this.productService.nameLong,
-				this.telemetryService.devDeviceId,
-				targetPopulation,
-				this.productService.date ?? '',
-				this.environmentService.isSessionsWindow ? WindowKind.Agents : WindowKind.Editor
-			);
-			const githubAssignmentsFilterProvider = this.instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider);
-			this.tasSetupDisposables.add(githubAssignmentsFilterProvider);
-			this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
-			assignmentsFilterProviders = [
-				coreAssignmentsFilterProvider,
-				githubAssignmentsFilterProvider,
-				{ getFilters: () => extensionsFilterProvider.getAssignmentsFilters() },
-			];
+		this.assignmentsAccount = this.defaultAccountService.currentDefaultAccount;
+		if (this.assignmentsAccount && !assignmentsEndpoint) {
+			this.logMissingAssignmentsEndpoint();
 		}
+		const coreAssignmentsFilterProvider = new VSCodeCoreAssignmentsFilterProvider(
+			this.productService.version,
+			this.productService.nameLong,
+			this.telemetryService.devDeviceId,
+			targetPopulation,
+			this.productService.date ?? '',
+			this.environmentService.isSessionsWindow ? WindowKind.Agents : WindowKind.Editor
+		);
+		const githubAssignmentsFilterProvider = this.tasSetupDisposables.add(this.instantiationService.createInstance(GitHubCoreAssignmentsFilterProvider));
+		this.tasSetupDisposables.add(githubAssignmentsFilterProvider.onDidChangeFilters(() => this.refetchAssignments(true)));
+		const assignmentsFilterProviders: IExperimentationFilterProvider[] = [
+			coreAssignmentsFilterProvider,
+			githubAssignmentsFilterProvider,
+			{ getFilters: () => extensionsFilterProvider.getAssignmentsFilters() },
+		];
 
 		const tasConfig = this.productService.tasConfig!;
 
@@ -530,22 +654,29 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			endpoint: tasConfig.endpoint,
 			extensionName: 'vscode-core',
 			assignmentsEndpoint,
-			assignmentsFilterProviders,
+			assignmentsFilterProviders: assignmentsEndpoint ? assignmentsFilterProviders : undefined,
 			// Route the assignments request through the main-process request service so it is
 			// not subject to renderer CORS (parity with how core reaches api.github.com).
-			assignmentsFetch: assignmentsEndpoint
-				? (url, init) => (revoked ? Promise.resolve({ status: 0, json: async () => ({}) }) : service.assignmentsFetch(url, init))
-				: undefined,
-			refetchInterval: ASSIGNMENT_REFETCH_INTERVAL,
+			assignmentsFetch: (url, init) => {
+				if (revoked) {
+					throw new CancellationError();
+				}
+				return signedOut ? service.fetchSignedOutAssignments(init, () => revoked) : service.assignmentsFetch(url, init);
+			},
+			// TAS polling only updates persistent storage after treatments have been consumed.
+			refetchInterval: 0,
 		});
 
 		await tasClient.initializePromise;
 		tasClient.initialFetch.then(() => {
-			if (generation !== this.setupGeneration) {
+			if (this._store.isDisposed || generation !== this.setupGeneration) {
 				return; // superseded by a newer setup
 			}
 			this.networkInitialized = true;
 			this.logFetchLatency('initial', fetchStopWatch.elapsed());
+			if (!this.refetchPromise) {
+				this.refetchScheduler.schedule();
+			}
 		}).catch(() => undefined);
 
 		return tasClient;
@@ -570,19 +701,42 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		});
 	}
 
-	private async refetchAssignments(): Promise<void> {
-		if (!this.tasClient) {
-			return; // Setup has not started, assignments will use latest filters
+	private refetchAssignments(filtersChanged = false): Promise<void> {
+		if (!this.tasClient || this._store.isDisposed) {
+			return Promise.resolve();
 		}
 
-		// Await the client to be setup and the initial fetch to complete
-		const tasClient = await this.tasClient;
-		await tasClient.initialFetch;
+		if (this.refetchPromise) {
+			this.refetchAfterFilterChange ||= filtersChanged;
+		} else {
+			this.refetchScheduler.cancel();
+			this.refetchAfterFilterChange = false;
+			this.refetchPromise = this.doRefetchAssignments(this.tasClient);
+		}
+		return this.refetchPromise;
+	}
 
-		// Refresh the assignments and measure the network latency of the refetch.
-		const refetchStopWatch = StopWatch.create();
-		await tasClient.getTreatmentVariableAsync('vscode', 'refresh', false);
-		this.logFetchLatency('refetch', refetchStopWatch.elapsed());
+	private async doRefetchAssignments(client: Promise<TASClient>): Promise<void> {
+		try {
+			const tasClient = await client;
+			await tasClient.initialFetch;
+			if (this._store.isDisposed || client !== this.tasClient) {
+				return;
+			}
+
+			const refetchStopWatch = StopWatch.create();
+			await tasClient.getTreatmentVariableAsync('vscode', 'refresh', false);
+			if (!this._store.isDisposed && client === this.tasClient) {
+				this.logFetchLatency('refetch', refetchStopWatch.elapsed());
+			}
+		} catch (error) {
+			this.logService.error('WorkbenchAssignmentService: Failed to refresh assignments', error);
+		} finally {
+			if (!this._store.isDisposed && client === this.tasClient) {
+				this.refetchPromise = undefined;
+				this.refetchScheduler.schedule(this.refetchAfterFilterChange ? 0 : ASSIGNMENT_REFETCH_INTERVAL);
+			}
+		}
 	}
 
 	async getCurrentExperiments(): Promise<string[] | undefined> {
@@ -603,7 +757,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		this.contextFilter.addFilter(filter);
 	}
 
-	/** Stops a TAS client's auto-polling once it resolves. Safe to call with `undefined`. */
+	/** Disposes a TAS client once it resolves. Safe to call with `undefined`. */
 	private static disposeTasClient(client: Promise<TASClient> | undefined): void {
 		client?.then(c => c.dispose()).catch(() => undefined);
 	}

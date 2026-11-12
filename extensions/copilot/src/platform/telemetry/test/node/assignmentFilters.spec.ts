@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+// eslint-disable-next-line local/code-layering, local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { getUserKind } from '../../../../extension/completions-core/vscode-node/lib/src/auth/orgs';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
@@ -12,7 +13,9 @@ import { CopilotToken, createTestExtendedTokenInfo } from '../../../authenticati
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { packageJson } from '../../../env/common/packagejson';
 import { ILogService } from '../../../log/common/logService';
-import { CopilotAssignmentsFilterProvider } from '../../vscode-node/microsoftExperimentationService';
+import { UserInfoStore } from '../../node/baseExperimentationService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
+import { CopilotAssignmentsFilterProvider, GitHubAccountFilterProvider } from '../../vscode-node/microsoftExperimentationService';
 
 vi.mock('vscode', async importOriginal => ({
 	...await importOriginal<typeof import('vscode')>(),
@@ -30,6 +33,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 
 	function createProvider() {
 		const tokenStore = disposables.add(new CopilotTokenStore());
+		tokenStore.authenticationState = 'signedIn';
 		const logService = new class extends mock<ILogService>() {
 			override trace(): void { }
 			override warn(): void { }
@@ -61,6 +65,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 			github_core_isfcv1: '1',
 			vscode_core_copilotchatextensionversion: packageJson.version.split('-')[0],
 		});
+
 	});
 
 	it('uses current token values after refresh and clears account values on sign-out', () => {
@@ -152,6 +157,33 @@ describe('CopilotAssignmentsFilterProvider', () => {
 			[knownOrganizations[0], knownOrganizations[0]],
 			['', undefined],
 			['', undefined],
+		]);
+	});
+});
+
+describe('GitHubAccountFilterProvider', () => {
+	it('emits Proxima only as a legacy TAS header', () => {
+		let isProxima = false;
+		const userInfoStore = new class extends mock<UserInfoStore>() {
+			override get isProxima(): boolean {
+				return isProxima;
+			}
+		}();
+		const logService = new class extends mock<ILogService>() {
+			override trace(): void { }
+		}();
+		const provider = new GitHubAccountFilterProvider(userInfoStore, logService);
+
+		expect([false, true].map(value => {
+			isProxima = value;
+			const filters = provider.getFilters();
+			return {
+				legacy: filters.get('X-GitHub-Copilot-IsProxima'),
+				edge: filters.get('github_core_isproxima'),
+			};
+		})).toEqual([
+			{ legacy: '0', edge: undefined },
+			{ legacy: '1', edge: undefined },
 		]);
 	});
 });
