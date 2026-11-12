@@ -615,6 +615,7 @@ suite('Sessions chat window provider', () => {
 			'focus main window',
 			'focus active session',
 			'open moved other /elsewhere, session /main, session /subagent',
+			'open other /elsewhere',
 			'focus main window',
 			'focus active session',
 		]);
@@ -628,7 +629,7 @@ suite('Sessions chat window provider', () => {
 
 		await provider.moveToMainWindow([URI.parse('test:/elsewhere'), URI.parse('test:/main'), URI.parse('test:/subagent')], { editors: [{ name: 'file.ts' } as unknown as EditorInput] });
 
-		assert.deepStrictEqual(events, ['open moved other /elsewhere, session /main, session /subagent', 'open editors file.ts (active)', 'focus main window', 'focus active session']);
+		assert.deepStrictEqual(events, ['open moved other /elsewhere, session /main, session /subagent', 'open editors file.ts (active)', 'open other /elsewhere', 'focus main window', 'focus active session']);
 	});
 
 	test('Move to Main Window focuses the main window and its active chat once the chat opened there, and moves no focus where no chat moved', async () => {

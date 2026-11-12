@@ -817,6 +817,9 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		}
 		await this._sessionsService.openMovedChats(moved);
 		await this._openMovedEditors(first.session, editors);
+		if (moved.length > 1) {
+			await this._sessionsService.openChat(first.session, first.chatResource, { preserveFocus: true });
+		}
 		await this._hostService.focus(mainWindow);
 		this._sessionsService.focusActiveSession();
 	}
