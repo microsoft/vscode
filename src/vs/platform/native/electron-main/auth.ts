@@ -164,7 +164,8 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 		let attempt = authInfo.attempt;
 		const configuredCredentials = this.readConfiguredProxyCredentials();
 		if (configuredCredentials) {
-			const key = String(hash(configuredCredentials));
+			// Compare the exact credentials: a hash could collide and skip changed credentials as rejected.
+			const key = JSON.stringify([configuredCredentials.username, configuredCredentials.password]);
 			const state = this.configuredCredentialsStates.get(authInfoHash);
 			if (state?.key !== key) {
 				this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found config/envvar credentials to use');
