@@ -107,25 +107,47 @@ const stickyAssistantResponse = [
 	'Switch between image, Codicons, and no background without rebuilding the sticky row or changing its keyboard and pointer behavior.',
 ].join('\n');
 
-async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions, phoneLayout = false, experimentalComposerLayout = false): Promise<void> {
+/**
+ * Where a session chat shows: the Sessions part of the Agents window; the chat part of a chat window, an editor part of the
+ * Agents window's chat windows; or the chat part of an editor window, an editor part in a window without the Agents
+ * window's classes. The chat styles itself, so it looks the same in all of them.
+ */
+type ChatViewHost = 'agentsWindow' | 'chatWindow' | 'editorWindow';
+
+async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions, phoneLayout = false, experimentalComposerLayout = false, host: ChatViewHost = 'agentsWindow'): Promise<void> {
 	const { container, disposableStore } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
 	const width = options.width ?? fixtureWidth;
 	const height = options.height ?? fixtureHeight;
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
-	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
+	container.classList.add('monaco-workbench');
+	container.classList.toggle('agent-sessions-workbench', host !== 'editorWindow');
 	container.classList.toggle('phone-layout', phoneLayout);
 
-	const part = withBackground
-		? createChatBackgroundPart(container, disposableStore)
-		: dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
+	// A chat part is an editor part in a cell of its window's grid, never the window's own editor part
+	const cell = host !== 'agentsWindow' ? dom.append(container, dom.$('.fixture-chat-part-cell')) : undefined;
+	if (cell) {
+		cell.style.width = '100%';
+		cell.style.height = '100%';
+	}
+	const part = cell
+		? dom.append(cell, dom.$('.part.editor.sessions-chat-surface'))
+		: withBackground
+			? createChatBackgroundPart(container, disposableStore)
+			: dom.append(container, dom.$('.part.sessionspart.sessions-chat-surface'));
 	part.style.position = 'relative';
 	part.style.width = '100%';
 	part.style.height = '100%';
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
+	// A chat part shows the chat in its editor
+	const chatParent = host !== 'agentsWindow' ? dom.append(part, dom.$('.session-chat-view-editor.sessions-window-host')) : part;
+	if (chatParent !== part) {
+		chatParent.style.width = '100%';
+		chatParent.style.height = '100%';
+	}
 
-	const chatView = dom.append(part, dom.$('.chat-view'));
+	const chatView = dom.append(chatParent, dom.$('.chat-view.sessions-chat'));
 	chatView.classList.toggle('chat-view-chat', experimentalComposerLayout);
 	chatView.classList.toggle('experimental-session-composer', experimentalComposerLayout);
 	chatView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
@@ -198,7 +220,7 @@ function renderStatusPills(inputPart: ChatInputPart, instantiationService: IInst
 	row.observe(pills.element, () => pills.getPillElements());
 }
 
-async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
+async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean, host?: ChatViewHost): Promise<void> {
 	const { disposableStore } = context;
 	await renderChatView(context, withBackground, {
 		messages: [{
@@ -206,7 +228,7 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 			assistant: [{ kind: 'markdown', text: assistantResponse }],
 		}],
 		decorateInputPart: (inputPart, instantiationService) => renderStatusPills(inputPart, instantiationService, disposableStore),
-	});
+	}, false, false, host);
 }
 
 async function renderStickyProgress(context: ComponentFixtureContext, options: { pills?: boolean; inline?: boolean; background?: boolean; image?: boolean; pet?: boolean }): Promise<void> {
@@ -622,6 +644,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The Agents chat without a wallpaper keeps the assistant response unboxed. The heading, Markdown table, code editor, and response footer use the normal transcript alignment, while the user request and composer retain their established surfaces.'],
 		render: context => renderAssistantResponse(context, false),
+	}),
+	AssistantResponseInChatWindow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The same chat as AssistantResponsePlain, shown in the chat part of a chat window: the chat styles itself, so its transcript, response and composer look exactly as in the Agents window.'],
+		render: context => renderAssistantResponse(context, false, 'chatWindow'),
+	}),
+	AssistantResponseInEditorWindow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The same chat as AssistantResponseInChatWindow, shown in the chat part of an editor window, without any class of the Agents window: it looks exactly as in a chat window.'],
+		render: context => renderAssistantResponse(context, false, 'editorWindow'),
 	}),
 	RequestLinkKeyboardFocus: defineComponentFixture({
 		labels: { kind: 'screenshot' },

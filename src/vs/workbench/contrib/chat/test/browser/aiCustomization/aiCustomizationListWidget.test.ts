@@ -1447,6 +1447,46 @@ suite('aiCustomizationListWidget', () => {
 			});
 		});
 
+		test('toggles scope groups with a single click on the header', async () => {
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [{
+				id: 'agent-one',
+				uri: URI.file('/workspace/.github/agents/agent-one.agent.md'),
+				name: 'Agent One',
+				filename: 'agent-one.agent.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const labels = () => Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+			const clickWorkspaceHeader = () => [...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'Workspace')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+
+			const initial = labels();
+			clickWorkspaceHeader();
+			const afterCollapse = labels();
+			clickWorkspaceHeader();
+
+			assert.deepStrictEqual({ initial, afterCollapse, afterExpand: labels() }, {
+				initial: ['Agent One'],
+				afterCollapse: [],
+				afterExpand: ['Agent One'],
+			});
+		});
+
 		test('announces updated item count when the model changes after section load', async () => {
 			const ariaHost = document.createElement('div');
 			document.body.appendChild(ariaHost);

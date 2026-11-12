@@ -702,6 +702,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedCodingAgentIdContextKey = ChatContextKeys.lockedCodingAgentId.bindTo(this.contextKeyService);
 		this._readOnlyContextKey = ChatContextKeys.readOnly.bindTo(this.contextKeyService);
 		this._chatIsAgentHostSessionContextKey = ChatContextKeys.chatIsAgentHostSession.bindTo(this.contextKeyService);
+		ChatContextKeys.inSessionsChat.bindTo(this.contextKeyService).set(!!viewOptions.isSessionsWindow);
 		this._chatAgentHostProviderIdContextKey = ChatContextKeys.chatAgentHostProviderId.bindTo(this.contextKeyService);
 		this._chatAgentHostHasImmutablePrimaryWorkingDirectoryContextKey = ChatContextKeys.chatAgentHostHasImmutablePrimaryWorkingDirectory.bindTo(this.contextKeyService);
 		this._chatAgentHostFolderPickerVisibleContextKey = ChatContextKeys.chatAgentHostFolderPickerVisible.bindTo(this.contextKeyService);
@@ -1264,6 +1265,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.createList(this.listContainer, {
 			editable: !isInlineChat(this) && !isQuickChat(this),
 			contentHorizontalPadding: this.viewOptions.isSessionsWindow ? SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING : undefined,
+			isSessionsChat: this.viewOptions.isSessionsWindow,
 			...this.viewOptions.rendererOptions,
 			renderStyle
 		});
@@ -1277,6 +1279,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getTemplateDataForRequestId: (requestId) => this.getTemplateDataForRequestId(requestId),
 				onDidRerenderRow: this.onDidRerenderRow,
 				editorsInUse: () => this.listWidget.editorsInUse(),
+				getCodeBlockInfoForEditor: uri => this.listWidget.getCodeBlockInfoForEditor(uri),
 				getScrollTop: () => this.listWidget.scrollTop,
 				setScrollTop: (scrollTop) => { this.listWidget.scrollTop = scrollTop; },
 				getRenderHeight: () => this.listWidget.renderHeight,
@@ -2141,7 +2144,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async archiveLocalParentSession(sessionResource: URI): Promise<void> {
 		// In the regular workbench, only archive local chat sessions.
 		// In the sessions window, allow archiving any session type after delegation.
-		if (getChatSessionType(sessionResource) !== localChatSessionType && !IsSessionsWindowContext.getValue(this.contextKeyService)) {
+		if (getChatSessionType(sessionResource) !== localChatSessionType && !IsSessionsWindowContext.getValue(this.contextKeyService) && !this.viewOptions.isSessionsWindow) {
 			return;
 		}
 
@@ -3585,7 +3588,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 		const inputValue = query ?? this.getInput();
-		if (!inputValue.trimStart().startsWith(chatAgentLeader) || IsSessionsWindowContext.getValue(this.contextKeyService)) {
+		if (!inputValue.trimStart().startsWith(chatAgentLeader) || IsSessionsWindowContext.getValue(this.contextKeyService) || this.viewOptions.isSessionsWindow) {
 			return undefined;
 		}
 		const parsed = this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionResource, inputValue, this.location, { selectedAgent: this._lastSelectedAgent });

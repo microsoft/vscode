@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 import { posix } from 'path';
 
 const helperModules = [
@@ -17,13 +15,14 @@ const testFunctions = new Set(['test', 'it']);
 const hookFunctions = new Set(['setup', 'teardown', 'suiteSetup', 'suiteTeardown', 'before', 'after', 'beforeEach', 'afterEach']);
 const mochaContextMethods = new Set(['timeout', 'retries', 'slow']);
 
-type FunctionNode = TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression | TSESTree.FunctionDeclaration;
+/** A function with a body, as `FunctionExpression` and `FunctionDeclaration` always have one. */
+type FunctionNode = ESTree.ArrowFunctionExpression | (ESTree.Function & { type: 'FunctionExpression' | 'FunctionDeclaration'; body: ESTree.FunctionBody });
 
-function isFunction(node: TSESTree.Node): node is FunctionNode {
+function isFunction(node: ESTree.Node): node is FunctionNode {
 	return node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration';
 }
 
-function unwrap(node: TSESTree.Node): TSESTree.Node {
+function unwrap(node: ESTree.Node): ESTree.Node {
 	while (node.type === 'AwaitExpression' || node.type === 'TSAsExpression' || node.type === 'TSNonNullExpression' || node.type === 'TSSatisfiesExpression') {
 		node = node.type === 'AwaitExpression' ? node.argument : node.expression;
 	}
@@ -31,7 +30,7 @@ function unwrap(node: TSESTree.Node): TSESTree.Node {
 }
 
 /** Resolves `test`, `test.skip`, `test.only` and `(cond ? test.skip : test)` to `test`. */
-function calleeName(callee: TSESTree.Node): string | undefined {
+function calleeName(callee: ESTree.Node): string | undefined {
 	if (callee.type === 'Identifier') {
 		return callee.name;
 	}
@@ -47,11 +46,11 @@ function calleeName(callee: TSESTree.Node): string | undefined {
 /** The name of the call that `fn` is passed to as a callback, e.g. `test` or `setup`. */
 function callbackOwner(fn: FunctionNode): string | undefined {
 	const parent = fn.parent;
-	return parent?.type === 'CallExpression' && parent.arguments.includes(fn as TSESTree.CallExpressionArgument) ? calleeName(parent.callee) : undefined;
+	return parent?.type === 'CallExpression' && parent.arguments.includes(fn as ESTree.Argument) ? calleeName(parent.callee) : undefined;
 }
 
 /** `this.timeout(...)` and friends configure mocha and may precede the wrapped body. */
-function isMochaContextCall(statement: TSESTree.Statement): boolean {
+function isMochaContextCall(statement: ESTree.Statement): boolean {
 	if (statement.type !== 'ExpressionStatement' || statement.expression.type !== 'CallExpression') {
 		return false;
 	}
@@ -59,11 +58,11 @@ function isMochaContextCall(statement: TSESTree.Statement): boolean {
 	return callee.type === 'MemberExpression' && callee.object.type === 'ThisExpression' && callee.property.type === 'Identifier' && mochaContextMethods.has(callee.property.name);
 }
 
-function bodyStatements(fn: FunctionNode): TSESTree.Statement[] | undefined {
+function bodyStatements(fn: FunctionNode): ESTree.Statement[] | undefined {
 	return fn.body.type === 'BlockStatement' ? fn.body.body.filter(statement => !isMochaContextCall(statement)) : undefined;
 }
 
-function isStatementOf(statement: TSESTree.Statement, call: TSESTree.CallExpression): boolean {
+function isStatementOf(statement: ESTree.Statement, call: ESTree.CallExpression): boolean {
 	if (statement.type === 'ReturnStatement') {
 		return !!statement.argument && unwrap(statement.argument) === call;
 	}
@@ -71,7 +70,7 @@ function isStatementOf(statement: TSESTree.Statement, call: TSESTree.CallExpress
 }
 
 /** Whether `call` is the entire body of `fn`. */
-function isWholeBody(fn: FunctionNode, call: TSESTree.CallExpression): boolean {
+function isWholeBody(fn: FunctionNode, call: ESTree.CallExpression): boolean {
 	const statements = bodyStatements(fn);
 	if (!statements) {
 		return unwrap(fn.body) === call;
@@ -79,7 +78,7 @@ function isWholeBody(fn: FunctionNode, call: TSESTree.CallExpression): boolean {
 	return statements.length === 1 && isStatementOf(statements[0], call);
 }
 
-function isInert(node: TSESTree.Node | null): boolean {
+function isInert(node: ESTree.Node | null): boolean {
 	if (!node) {
 		return true;
 	}
@@ -100,7 +99,7 @@ function isInert(node: TSESTree.Node | null): boolean {
  * the captured history must follow the call. Allow inert variable declarations
  * before it and synchronous calls (assertions) after it.
  */
-function isOnHistoryCapture(fn: FunctionNode, call: TSESTree.CallExpression): boolean {
+function isOnHistoryCapture(fn: FunctionNode, call: ESTree.CallExpression): boolean {
 	const options = call.arguments[0];
 	if (options?.type !== 'ObjectExpression' || !options.properties.some(property => property.type === 'Property' && !property.computed && property.key.type === 'Identifier' && property.key.name === 'onHistory')) {
 		return false;
@@ -116,9 +115,9 @@ function isOnHistoryCapture(fn: FunctionNode, call: TSESTree.CallExpression): bo
 		&& after.every(statement => statement.type === 'ExpressionStatement' && statement.expression.type === 'CallExpression');
 }
 
-export default new class RunWithFakedTimersWholeTest implements eslint.Rule.RuleModule {
+export default new class RunWithFakedTimersWholeTest implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'problem',
 		messages: {
 			partial: '`runWithFakedTimers` must wrap the entire test body: `test(\'...\', () => runWithFakedTimers({}, async () => { ... }))`. Code outside the callback runs on real timers, and the drain after the callback can fire unrelated pending timers (e.g. polls) before the code that follows. Move setup and assertions into the callback.',
@@ -135,62 +134,62 @@ export default new class RunWithFakedTimersWholeTest implements eslint.Rule.Rule
 		}],
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const config = context.options[0] as { exclude?: string[] } | undefined;
 		const filename = context.filename.replace(/\\/g, '/');
 		if (config?.exclude?.some(e => filename.endsWith(e))) {
 			return {};
 		}
 
-		const calls = new Set<TSESTree.CallExpression>();
+		const calls = new Set<ESTree.CallExpression>();
 
-		const check = (call: TSESTree.CallExpression) => {
+		const check = (call: ESTree.CallExpression) => {
 			let parent = call.parent;
 			while (parent?.type === 'TSAsExpression' || parent?.type === 'TSNonNullExpression' || parent?.type === 'TSSatisfiesExpression') {
 				parent = parent.parent;
 			}
 			if (parent?.type === 'ExpressionStatement') {
-				return context.report({ node: call as ESTree.Node, messageId: 'floating' });
+				return context.report({ node: call, messageId: 'floating' });
 			}
 
 			let fn: FunctionNode | undefined;
-			for (let node: TSESTree.Node | undefined = call.parent; node; node = node.parent) {
+			for (let node: ESTree.Node | null = call.parent; node; node = node.parent) {
 				if (isFunction(node)) {
 					fn ??= node;
 					// the callback of another runWithFakedTimers call
 					if (node.parent?.type === 'CallExpression' && calls.has(node.parent) && node.parent.arguments[1] === node) {
-						return context.report({ node: call as ESTree.Node, messageId: 'nested' });
+						return context.report({ node: call, messageId: 'nested' });
 					}
 				}
 			}
 			if (!fn) {
-				return context.report({ node: call as ESTree.Node, messageId: 'partial' });
+				return context.report({ node: call, messageId: 'partial' });
 			}
 
 			const owner = callbackOwner(fn);
 			if (owner && testFunctions.has(owner)) {
 				if (!isWholeBody(fn, call) && !isOnHistoryCapture(fn, call)) {
-					context.report({ node: call as ESTree.Node, messageId: 'partial' });
+					context.report({ node: call, messageId: 'partial' });
 				}
 				return;
 			}
 			if (owner && hookFunctions.has(owner)) {
-				return context.report({ node: call as ESTree.Node, messageId: 'hook' });
+				return context.report({ node: call, messageId: 'hook' });
 			}
 
 			// A wrapper helper such as `function withX(fn) { return runWithFakedTimers({}, ...); }`
 			// is fine, as long as it is not defined within a test or hook.
-			for (let node: TSESTree.Node | undefined = fn.parent; node; node = node.parent) {
+			for (let node: ESTree.Node | null = fn.parent; node; node = node.parent) {
 				const enclosingOwner = isFunction(node) ? callbackOwner(node) : undefined;
 				if (enclosingOwner && testFunctions.has(enclosingOwner)) {
-					return context.report({ node: call as ESTree.Node, messageId: 'partial' });
+					return context.report({ node: call, messageId: 'partial' });
 				}
 				if (enclosingOwner && hookFunctions.has(enclosingOwner)) {
-					return context.report({ node: call as ESTree.Node, messageId: 'hook' });
+					return context.report({ node: call, messageId: 'hook' });
 				}
 			}
 			if (!isWholeBody(fn, call)) {
-				context.report({ node: call as ESTree.Node, messageId: 'partial' });
+				context.report({ node: call, messageId: 'partial' });
 			}
 		};
 
@@ -210,7 +209,7 @@ export default new class RunWithFakedTimersWholeTest implements eslint.Rule.Rule
 					}
 					for (const variable of context.sourceCode.getDeclaredVariables(specifier)) {
 						for (const reference of variable.references) {
-							const identifier = reference.identifier as TSESTree.Identifier;
+							const identifier = reference.identifier;
 							if (identifier.parent?.type === 'CallExpression' && identifier.parent.callee === identifier) {
 								calls.add(identifier.parent);
 							}

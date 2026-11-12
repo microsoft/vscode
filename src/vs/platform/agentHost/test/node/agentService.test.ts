@@ -26,7 +26,7 @@ import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { constObservable, waitForState } from '../../../../base/common/observable.js';
+import { constObservable, waitForState, type IReader } from '../../../../base/common/observable.js';
 import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -111,6 +111,9 @@ import { AgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAc
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { SESSION_CREDENTIAL_PRINCIPAL_KEY } from '../../node/agentHostAuthenticationService.js';
+import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthentication.js';
+import { copilotEntraClientId, copilotEntraDiscoveryResource } from '../../common/copilotEntraAuthentication.js';
+import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
@@ -1283,6 +1286,22 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(creates, 0);
 		});
 
+		test('optional alternatives do not authorize a scoped operation or bypass another required resource', async () => {
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+				override getProtectedResources() {
+					return [{ ...GITHUB_COPILOT_PROTECTED_RESOURCE, required: false }, { resource: copilotEntraDiscoveryResource, required: false }, { resource: 'https://required.example/api', required: true }];
+				}
+			}
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			registerTestAgentProvider(service, provider);
+			const remote = source();
+			await assert.rejects(service.createSession({ legacyChatUris: false, provider: 'copilot', credentials: remote }), { code: AhpErrorCodes.AuthRequired });
+			await service.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'scoped-github' }, remote);
+			await assert.rejects(service.createSession({ legacyChatUris: false, provider: 'copilot', credentials: remote }), { code: AhpErrorCodes.AuthRequired });
+			assert.deepStrictEqual({ sessions: (await service.listSessions()).length, sharedAuthentication: provider.authenticateCalls }, { sessions: 0, sharedAuthentication: [] });
+		});
+
 		test('warm local control and drafts do not request fresh credentials for an isolated session', async () => {
 			let identityRequests = 0;
 			class ScopedAgent extends MockAgent {
@@ -1606,43 +1625,69 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('local cold dispatch validates desktop sponsorship before restoring history without a prior subscription', async () => {
-			const history: (string | undefined)[] = [];
-			const sends: (string | undefined)[] = [];
-			const reached = new DeferredPromise<void>();
-			class ScopedAgent extends MockAgent {
-				readonly supportsScopedCredentials = true;
-				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
-					getMessages: async (chat, context) => {
-						history.push(resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
-						return base.getMessages(chat, context);
-					},
-					sendMessage: async (...args) => {
-						assert.ok(args[7]);
-						sends.push(resolveAgentChatContext(args[7], args[0]).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
-						reached.complete();
-						return base.sendMessage(...args);
-					},
-				}));
-			}
-			const data = createPerSessionDataService();
-			const scopedService = disposables.add(createTestAgentService(
-				new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
-				undefined, NullTelemetryService, undefined, undefined, async () => Response.json({ id: 1, type: 'User' }),
-			));
-			const provider = disposables.add(new ScopedAgent('copilot'));
-			registerTestAgentProvider(scopedService, provider);
-			const previous = source();
-			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote-before-restart' }, previous);
-			const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: previous });
-			const chat = hostDefaultChat(scopedService, session);
-			getStateManager(scopedService).removeSession(session.toString());
-			previous.dispose();
-			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop-for-local' });
-			await scopedService.dispatchAction(chat, chatTurnStarted('local-cold', 'Continue locally'), 'local-client', 1);
-			await reached.p;
-			assert.deepStrictEqual({ history, sends }, { history: ['desktop-for-local'], sends: ['desktop-for-local'] });
-		});
+		for (const withMicrosoft of [false, true]) {
+			test(`GitHub scoped creation and cold continuation honor optional alternatives (microsoft=${withMicrosoft})`, async () => {
+				const history: (string | undefined)[] = [];
+				const sends: (string | undefined)[] = [];
+				const reached = new DeferredPromise<void>();
+				class ScopedAgent extends MockAgent {
+					readonly supportsScopedCredentials = true;
+					override getProtectedResources(reader?: IReader) {
+						return [...super.getProtectedResources().map(resource => ({ ...resource, required: false })), ...microsoft.getProtectedResources(reader)];
+					}
+					validateAuthentication(params: AuthenticateParams) {
+						microsoft.validateAuthentication(params);
+					}
+					handleAuthenticationToken(params: AuthenticateParams) {
+						return microsoft.authenticate(params);
+					}
+					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+						getMessages: async (chat, context) => {
+							history.push(resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
+							return base.getMessages(chat, context);
+						},
+						sendMessage: async (...args) => {
+							assert.ok(args[7]);
+							sends.push(resolveAgentChatContext(args[7], args[0]).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token);
+							reached.complete();
+							return base.sendMessage(...args);
+						},
+					}));
+				}
+				const data = createPerSessionDataService();
+				const scopedService = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, NullTelemetryService, undefined, undefined, async () => Response.json({ id: 1, type: 'User' }),
+				));
+				const microsoft = disposables.add(new CopilotEntraAuthentication(getTestAgentServiceComposition(scopedService).authenticationService));
+				const provider = disposables.add(new ScopedAgent('copilot'));
+				registerTestAgentProvider(scopedService, provider);
+				const request = { kind: 'identity', clientId: copilotEntraClientId, reason: 'signIn' } as const;
+				const cancellation = { isCancellationRequested: false, onCancellationRequested: Event.None };
+				await microsoft.options.tokenProvider?.(request, cancellation);
+				if (withMicrosoft) {
+					await scopedService.authenticate({
+						resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'microsoft-identity',
+						_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: 'microsoft' }),
+					});
+				}
+				const previous = source();
+				await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'remote-before-restart' }, previous);
+				const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: previous });
+				const chat = hostDefaultChat(scopedService, session);
+				getStateManager(scopedService).removeSession(session.toString());
+				previous.dispose();
+				await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'desktop-for-local' });
+				await scopedService.dispatchAction(chat, chatTurnStarted('local-cold', 'Continue locally'), 'local-client', 1);
+				await reached.p;
+				assert.deepStrictEqual({
+					history, sends, microsoftIdentity: await microsoft.options.tokenProvider?.(request, cancellation),
+				}, {
+					history: ['desktop-for-local'], sends: ['desktop-for-local'],
+					microsoftIdentity: withMicrosoft ? { kind: 'identity', accountId: 'microsoft' } : { kind: 'unavailable' },
+				});
+			});
+		}
 
 		test('Agent Merge enablement retains its admitted sponsor when the connection closes during principal persistence', async () => {
 			class ScopedAgent extends MockAgent {
@@ -24477,6 +24522,29 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- authenticate ---------------------------------------------------
 
 	suite('authenticate', () => {
+
+		test('waits for provider completion after canonical acceptance and isolates completion failure', async () => {
+			const provider: IAgent = copilotAgent;
+			const started = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			let visible: string | undefined;
+			provider.completeAuthentication = async params => {
+				visible = getAuthenticationService(service).getAuthToken({ resource: params.resource });
+				started.complete();
+				await finish.p;
+				throw new Error('setup failed');
+			};
+			registerTestAgentProvider(service, provider);
+			const completing = service.authenticate({ resource: 'https://api.github.com', token: 'token' });
+			await started.p;
+			finish.complete();
+			const failed = await completing;
+			const other = disposables.add(new MockAgent('claude'));
+			other.getProtectedResources = () => [{ resource: 'https://api.github.com' }];
+			registerTestAgentProvider(service, other);
+			const accepted = await service.authenticate({ resource: 'https://api.github.com', token: 'next-token' });
+			assert.deepStrictEqual({ failed, accepted, visible }, { failed: { authenticated: false }, accepted: { authenticated: true }, visible: 'next-token' });
+		});
 
 		test('validates MCP authentication targets against top-level and child customizations', async () => {
 			registerTestAgentProvider(service, copilotAgent);

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -47,12 +48,15 @@ suite('MainThreadChatAgents2', function () {
 	let mockChatService: MockChatService;
 	let agentImpl: IChatAgentImplementation;
 	let warnings: string[];
+	let errors: sinon.SinonSpy;
+	let toolsService: ILanguageModelToolsService;
 	let resolveInvoke: (result: unknown) => void;
 
 	setup(async function () {
 		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
 		warnings = [];
+		errors = sinon.spy();
 
 		// `$invokeAgent` is kept pending so the `_pendingProgress` entry registered at
 		// the start of `invoke` stays alive while we route a usage chunk through it.
@@ -94,6 +98,7 @@ suite('MainThreadChatAgents2', function () {
 		});
 		instantiationService.stub(ILogService, new class extends NullLogService {
 			override warn(message: string) { warnings.push(message); }
+			override error = errors;
 		});
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() { });
@@ -105,7 +110,11 @@ suite('MainThreadChatAgents2', function () {
 			override onDidChangeSlashCommands = Event.None;
 			override onDidChangeHooks = Event.None;
 		});
-		instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { });
+		toolsService = new class extends mock<ILanguageModelToolsService>() {
+			override beginToolCall() { return undefined; }
+			override async updateToolStream() { }
+		};
+		instantiationService.stub(ILanguageModelToolsService, toolsService);
 		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() { });
 		instantiationService.stub(ITelemetryService, new class extends mock<ITelemetryService>() { });
 		instantiationService.stub(IAgentPluginService, new class extends mock<IAgentPluginService>() {
@@ -193,5 +202,40 @@ suite('MainThreadChatAgents2', function () {
 
 		assert.strictEqual(forwarded.filter(p => p.kind === 'usage').length, 0);
 		assert.ok(warnings.some(w => w.includes('req-orphan')), `expected a warning mentioning the requestId, got: ${JSON.stringify(warnings)}`);
+	});
+
+	test('logs denied tool chunks without dropping markdown or waiting for streaming callbacks', async function () {
+		const sessionResource = URI.parse('vscode-chat:/streaming-session');
+		addSession(sessionResource, []);
+		const beginError = new Error('Tool disabled by policy');
+		const updateError = new Error('Streaming tool disabled by policy');
+		sinon.stub(toolsService, 'beginToolCall').throws(beginError);
+		const pendingUpdate = new DeferredPromise<void>();
+		const update = sinon.stub(toolsService, 'updateToolStream');
+		update.onFirstCall().rejects(updateError);
+		update.onSecondCall().returns(pendingUpdate.p);
+		const forwarded: IChatProgress[] = [];
+		const invoke = agentImpl.invoke(makeRequest('req-stream', sessionResource), parts => forwarded.push(...parts), [], CancellationToken.None);
+		const before: IChatProgress = { kind: 'markdownContent', content: { value: 'Before' } };
+		const after: IChatProgress = { kind: 'markdownContent', content: { value: 'After' } };
+
+		await mainThread.$handleProgressChunk('req-stream', [
+			before,
+			{ kind: 'beginToolInvocation', toolCallId: 'denied-begin', toolName: 'extensionTool' },
+			{ kind: 'updateToolInvocation', toolCallId: 'denied-update', streamData: { partialInput: {} } },
+			{ kind: 'updateToolInvocation', toolCallId: 'pending-update', streamData: { partialInput: {} } },
+			after,
+		]);
+		await pendingUpdate.complete();
+		resolveInvoke({});
+		await invoke;
+
+		assert.deepStrictEqual({ forwarded, errors: errors.args }, {
+			forwarded: [before, after],
+			errors: [
+				['MainThreadChatAgents2#$handleProgressChunk: Failed to begin tool invocation denied-begin', beginError],
+				['MainThreadChatAgents2#$handleProgressChunk: Failed to update tool invocation denied-update', updateError],
+			],
+		});
 	});
 });

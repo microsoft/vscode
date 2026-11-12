@@ -17,9 +17,8 @@ import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTel
  *   1. Created by the caller and pushed via {@link ClaudePromptQueue.push}.
  *   2. Shifted off the to-yield list and pushed to the yielded list when
  *      the prompt iterable hands it to the SDK.
- *   3. Shifted off the yielded list and {@link deferred} settled when
- *      the matching SDK `result` message arrives (via
- *      {@link ClaudePromptQueue.settleHead}).
+ *   3. Removed from the yielded list when an SDK `result` acknowledges it,
+ *      with {@link deferred} settled when the turn fully drains.
  */
 export interface IPendingSdkMessage {
 	readonly sdkMessage: SDKUserMessage;
@@ -40,8 +39,8 @@ export interface IPendingSdkMessage {
  *   • Pushing wakes the iterable's parked `next()`.
  *   • Each iterator returns `done` when its signal is aborted or
  *     replaced, waking any parked `next()` immediately.
- *   • {@link settleHead} pops the head of the yielded list (called by
- *     the consumer loop on every `result` message).
+ *   • {@link settleResult} removes the yielded entries consumed by each
+ *     SDK `result`, which can acknowledge several prompts at once.
  *   • {@link failAll} rejects every pending deferred and clears both
  *     lists; used by abort and crash fan-out.
  *   • {@link resetForRebind} re-creates the parked deferred for a fresh
@@ -57,7 +56,7 @@ export class ClaudePromptQueue extends Disposable {
 	private _toYield: IPendingSdkMessage[] = [];
 	private _yielded: IPendingSdkMessage[] = [];
 	/**
-	 * Entries that have been popped by {@link settleHead} during the
+	 * Entries that have been popped by {@link settleResult} during the
 	 * current turn but whose deferreds haven't been completed yet — we
 	 * batch-complete them when the turn fully drains so an intermediate
 	 * `result` (steering preempt; CONTEXT.md M10) does NOT settle the
@@ -127,7 +126,7 @@ export class ClaudePromptQueue extends Disposable {
 	}
 	/**
 	 * Push an entry. Resolves with the entry's deferred (which the
-	 * consumer settles on `result` via {@link settleHead}).
+	 * consumer settles on `result` via {@link settleResult}).
 	 */
 	push(entry: IPendingSdkMessage): Promise<void> {
 		this._toYield.push(entry);
@@ -145,31 +144,30 @@ export class ClaudePromptQueue extends Disposable {
 		return this._yielded[0] ?? this._toYield[this._toYield.length - 1];
 	}
 
-	/**
-	 * Pop the head of the yielded list. If the queue is now fully
-	 * drained (no more pending or in-flight entries), batch-complete
-	 * every popped-but-deferred deferred from this turn including the
-	 * one we just popped. Otherwise hold the popped entry's deferred
-	 * until the turn ends — the M10 invariant for steering preempt.
-	 * Called by the consumer on every `result` message.
-	 */
-	settleHead(): IPendingSdkMessage | undefined {
-		const completed = this._yielded.shift();
-		if (!completed) {
+	/** Settle acknowledged prompts, falling back to FIFO for older results without UUIDs; complete deferreds only when the turn drains. */
+	settleResult(consumedUuids?: readonly string[]): IPendingSdkMessage | undefined {
+		const consumed = consumedUuids ? new Set(consumedUuids) : undefined;
+		const completed: IPendingSdkMessage[] = [];
+		this._yielded = this._yielded.filter(entry => {
+			if (consumed ? consumed.has(entry.sdkUuid) : completed.length === 0) {
+				completed.push(entry);
+				return false;
+			}
+			return true;
+		});
+		if (completed.length === 0) {
 			return undefined;
 		}
+		this._popped.push(...completed);
 		if (this.isEmpty) {
-			completed.deferred.complete();
 			for (const e of this._popped) {
 				if (!e.deferred.isSettled) {
 					e.deferred.complete();
 				}
 			}
 			this._popped = [];
-		} else {
-			this._popped.push(completed);
 		}
-		return completed;
+		return completed[0];
 	}
 
 	/** Reject every pending deferred with `err` and clear all lists. */
