@@ -714,6 +714,12 @@ app.on('ready', async () => {
 		if (isCI) {
 			// Hidden windows throttle requestAnimationFrame on Windows even when background throttling is disabled.
 			win.showInactive();
+			// A shown window receives the real desktop pointer wherever it rests, so `:hover` would apply to whatever a test
+			// renders under it. Tests drive input through DOM events or `sendInputEvent`, which this does not block. Under Xvfb,
+			// renderer.js moves the pointer off the window after every top-level suite instead.
+			if (process.platform !== 'linux') {
+				win.setIgnoreMouseEvents(true);
+			}
 		}
 
 		win.webContents.on('did-finish-load', () => {
