@@ -113,6 +113,27 @@ export class BrowserViewDebugger extends Disposable {
 		return readBrowserViewAccessibilityTree((method, params) => this._electronDebugger.sendCommand(method, params));
 	}
 
+	/** Whether a CDP client (for example an agent's Playwright connection) is attached to the page itself. */
+	get hasPageSessions(): boolean {
+		for (const session of this._sessions.values()) {
+			if (session.targetId === this.targetId) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Deliver a CDP event that Chromium did not generate to every session attached to the page itself.
+	 */
+	emitPageEvent(method: string, params: unknown): void {
+		for (const session of this._sessions.values()) {
+			if (session.targetId === this.targetId) {
+				session.emitEvent({ method, params, sessionId: session.sessionId });
+			}
+		}
+	}
+
 	/**
 	 * Send a CDP command. Handles Electron-specific workarounds in a single place.
 	 */

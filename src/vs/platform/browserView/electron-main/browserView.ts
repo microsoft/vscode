@@ -120,8 +120,12 @@ export class BrowserView extends Disposable {
 	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserViewPermissionRequestEvent>());
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent> = this._onDidRequestPermission.event;
 
-	private readonly _prompts = this._register(new BrowserViewPrompts(() => this._wantsVisibility && !this._isDisposed));
+	private readonly _prompts = this._register(new BrowserViewPrompts(() => ({
+		workbench: this._wantsVisibility && !this._isDisposed,
+		agent: !this._isDisposed && this.debugger.hasPageSessions,
+	})));
 	readonly onDidRequestPrompt: Event<IBrowserViewPromptRequestEvent> = this._prompts.onDidRequestPrompt;
+	readonly onDidSettlePrompt: Event<string> = Event.map(this._prompts.onDidSettlePrompt, e => e.requestId);
 
 	private readonly _onDidChangePermissions = this._register(new Emitter<ISerializedBrowserPermissionsSnapshot>());
 	readonly onDidChangePermissions: Event<ISerializedBrowserPermissionsSnapshot> = this._onDidChangePermissions.event;
@@ -262,6 +266,7 @@ export class BrowserView extends Disposable {
 		this.debugger = new BrowserViewDebugger(this);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
+		this._registerPromptCDPBridge();
 
 		this._register(this.session.permissions.onDidRequestPermission(e => {
 			if (e.webContents === this.webContents && !this._isDisposed) {
@@ -1119,6 +1124,34 @@ export class BrowserView extends Disposable {
 	 * Answer an in-progress hardware-device chooser. Pass the chosen device id,
 	 * or `null` to cancel the chooser.
 	 */
+	/**
+	 * Chromium never sees our `prompt()`, so present it to CDP clients as the dialog it replaces. This lets
+	 * Playwright raise its usual `dialog` event and answer it with `Page.handleJavaScriptDialog`.
+	 */
+	private _registerPromptCDPBridge(): void {
+		this._register(this._prompts.onDidOpenPrompt(request => {
+			this.debugger.emitPageEvent('Page.javascriptDialogOpening', {
+				url: request.origin,
+				message: request.message,
+				type: 'prompt',
+				hasBrowserHandler: false,
+				defaultPrompt: request.defaultValue,
+			});
+		}));
+		this._register(this._prompts.onDidSettlePrompt(({ value }) => {
+			this.debugger.emitPageEvent('Page.javascriptDialogClosed', { result: value !== null, userInput: value ?? '' });
+		}));
+		this._register(this.debugger.registerCommandInterceptor((method, params, session) => {
+			if (method !== 'Page.handleJavaScriptDialog' || session?.targetId !== this.debugger.targetId) {
+				return undefined;
+			}
+			const { accept, promptText } = params as { accept?: boolean; promptText?: string };
+			// Only claim the command when it answers our prompt. Otherwise it is for a native dialog.
+			const answered = this._prompts.respondToOldest(accept ? (promptText ?? '') : null);
+			return answered ? Promise.resolve({}) : undefined;
+		}));
+	}
+
 	respondToPrompt(requestId: string, value: string | null): void {
 		this._prompts.respond(requestId, value);
 	}
