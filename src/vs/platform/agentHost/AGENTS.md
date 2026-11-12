@@ -162,6 +162,16 @@ Late ownership adoption moves unowned host Global/Workspace decisions through th
 
 The SDK hook contract currently supplies an event type, opaque action ID, enabled flag, origin, and human-readable source label, but no structured plugin identity, command body, or guaranteed source URI/range. Publish these actions using non-readable `agent-discovery` URIs and show the source-file limitation; do not parse labels or opaque IDs to fabricate ownership or navigation. Hook-only contributions therefore appear as actions, not invented plugin containers. MCP effective-source metadata is optional; keep opaque source/plugin IDs as metadata and do not infer cache paths when it is absent. Discovery describes the SDK's returned inventory, not all contents of disabled installations and not proof that hooks executed or MCP servers connected.
 
+### Microsoft Copilot account context
+
+Behind the startup-effective M365 gate, authenticating the [Microsoft discovery resource](common/copilotEntraAuthentication.ts) starts runtime discovery, and authenticating a discovered service resource activates that service. [CopilotAccountService](node/copilot/copilotAccountService.ts) owns the tool-less SDK setup session that performs both. Keep these invariants:
+
+- **Account state stays in the host.** Runtime selection handles and [account state](common/copilotAccountContext.ts) never enter protocol metadata or root configuration. Clients use ordinary AHP authentication, including revocation, with no window-specific ownership requirement.
+- **A service is ready only once the runtime confirms it.** A service the runtime activates on its own is accepted only after confirming the active derived account, and an empty selected-account catalog is an error rather than a reason to invent models. Readiness does not prove the account has no other usable service.
+- **Optional credentials never choose the account.** Passive forwarding sends an optional resource only when the primary default sign-in already grants its scopes, including as a broader superset; cached optional credentials do not select another service.
+
+The SDK binds Microsoft authentication to a session, so the catalog comes from the setup session's `rpc.model.list()`, not the global token-based API. The runtime cannot resolve managed settings for a Microsoft account yet, so the host applies none to that account's catalog; do not read policy from the setup session to compensate.
+
 ### Copilot Connector authentication
 
 Copilot Connectors use the SDK session's GitHub credentials, including refreshable token providers. At create and resume, `CopilotSessionLauncher` checks `sessionAccountSelection`, obtains the opaque account ID from `session.rpc.connectors.getAccount()`, and reconciles that account without enumerating global accounts or matching tokens. Unsupported runtimes and unavailable accounts are logged and skip Connector reconciliation without preventing ordinary chat.
