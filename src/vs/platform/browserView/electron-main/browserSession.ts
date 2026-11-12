@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { net, session } from 'electron';
+import { session } from 'electron';
 import { createHash } from 'crypto';
 import { normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
@@ -12,6 +12,7 @@ import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
+import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserViewStorageScope, getRemoteResourceRequestDenial, IBrowserViewNetwork, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
@@ -315,6 +316,7 @@ export class BrowserSession {
 		private readonly affinity: string | undefined,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 	) {
 		this._trust = new BrowserSessionTrust(this);
 		this._history = new BrowserSessionHistory(this);
@@ -447,7 +449,7 @@ export class BrowserSession {
 			query: new URLSearchParams({ authority, scheme: Schemas.vscodeRemote }).toString(),
 			fragment: ''
 		});
-		return net.fetch(managedUri.toString(true));
+		return this.protocolMainService.requestManagedRemoteResource(managedUri);
 	}
 
 	/**
