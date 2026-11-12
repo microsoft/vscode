@@ -1,7 +1,8 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "22.21.x"
+      versionSpec: 24.x
+      checkLatest: true
 
   # Check out the private microsoft/vscode-capi repository using the agent's
   # GitHub App (Monaco) credentials instead of cloning it with a PAT. The
@@ -22,7 +23,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), not(contains(variables['Agent.OS'], 'windows')))
     displayName: Setup NPM Registry (non-Windows)
 
-  # Copilot installs only some of the install roots, so its store has its own key.
+  # Copilot installs only some of the projects, so its store has its own key.
   - template: ../common/restore-pnpm-store.yml@self
     parameters:
       keyArgs: copilot
@@ -63,17 +64,23 @@ steps:
     displayName: Install build dependencies
     retryCountOnTaskFailure: 3
 
-  # Only the dependencies of the root project, without the root install scripts that install every
-  # other install root. extensions/copilot is a separate install root.
-  - script: pnpm install --frozen-lockfile --ignore-scripts --filter .
+  # Only the dependencies of the root project, of the local lint rules that Copilot's lint loads
+  # through the root lint configuration, and of Copilot and chat-lib. pnpm runs the root install
+  # scripts, which install the whole repository, on every install that runs scripts, filtered or not:
+  # the install skips the scripts, then builds Copilot's dependencies and runs its postinstall.
+  - script: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
     workingDirectory: $(Build.SourcesDirectory)
-    displayName: Install vscode dependencies
+    displayName: Install vscode and copilot dependencies
     retryCountOnTaskFailure: 3
 
-  - script: pnpm install --frozen-lockfile
-    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-    displayName: Install copilot dependencies
+  - script: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+    workingDirectory: $(Build.SourcesDirectory)
+    displayName: Build copilot dependencies
     retryCountOnTaskFailure: 3
+
+  - script: pnpm run postinstall
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run copilot postinstall
 
   # microsoft/vscode-capi is a separate repository that installs with npm.
   - script: npm ci

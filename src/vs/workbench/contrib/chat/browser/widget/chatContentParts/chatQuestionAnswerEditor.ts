@@ -48,11 +48,6 @@ export function getChatQuestionAnswerSessionResource(uri: URI): URI | undefined 
 
 export interface IChatQuestionAnswerEditorOptions {
 	readonly placeholder: string;
-	/**
-	 * Placeholder shown while the editor is idle, i.e. unfocused and empty. Opts the editor into an idle style
-	 * (see the `ghost` class on {@link ChatQuestionAnswerEditor.domNode}) until it gains focus or content.
-	 */
-	readonly idlePlaceholder?: string;
 	readonly ariaLabel: string;
 	readonly initialValue?: string;
 	/** Chat session the answer belongs to. Used to route completions to the session's agent host. */
@@ -78,11 +73,9 @@ export class ChatQuestionAnswerEditor extends Disposable {
 	private readonly _onDidPressEnter = this._register(new Emitter<void>());
 	readonly onDidPressEnter: Event<void> = this._onDidPressEnter.event;
 
-	private readonly _onDidFocus = this._register(new Emitter<void>());
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
-
-	private readonly _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	private readonly _onDidPressUpAtStart = this._register(new Emitter<void>());
+	/** Fires when Up is pressed with the cursor at the start of the answer, so focus can move to the content above. */
+	readonly onDidPressUpAtStart: Event<void> = this._onDidPressUpAtStart.event;
 
 	/** Root element carrying the input-box styling. */
 	readonly domNode: HTMLElement;
@@ -91,8 +84,6 @@ export class ChatQuestionAnswerEditor extends Disposable {
 	private readonly _editor: CodeEditorWidget;
 	private readonly _model: ITextModel;
 	private readonly _maxHeight: number;
-	private readonly _placeholder: string;
-	private readonly _idlePlaceholder: string | undefined;
 
 	private _width = 0;
 	private _height = 0;
@@ -128,8 +119,6 @@ export class ChatQuestionAnswerEditor extends Disposable {
 		super();
 
 		this._maxHeight = options.maxHeight ?? DEFAULT_MAX_HEIGHT;
-		this._placeholder = options.placeholder;
-		this._idlePlaceholder = options.idlePlaceholder;
 
 		this.domNode = dom.append(container, dom.$('.chat-question-answer-editor'));
 		this._editorElement = dom.append(this.domNode, dom.$('.chat-question-answer-editor-input'));
@@ -145,7 +134,7 @@ export class ChatQuestionAnswerEditor extends Disposable {
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(configurationService),
 			ariaLabel: options.ariaLabel,
-			placeholder: options.idlePlaceholder !== undefined && !options.initialValue ? options.idlePlaceholder : options.placeholder,
+			placeholder: options.placeholder,
 			wordWrap: 'on',
 			wrappingStrategy: 'advanced',
 			overflowWidgetsDomNode: options.overflowWidgetsDomNode,
@@ -175,30 +164,22 @@ export class ChatQuestionAnswerEditor extends Disposable {
 
 		this._register(this._model.onDidChangeContent(() => {
 			this._value = this._model.getValue();
-			this._updateIdle();
 			this._onDidChangeValue.fire(this._value);
 		}));
 
-		this._register(this._editor.onDidFocusEditorText(() => {
-			this._updateIdle();
-			this._onDidFocus.fire();
-		}));
-		this._register(this._editor.onDidBlurEditorText(() => {
-			this._updateIdle();
-			this._onDidBlur.fire();
-		}));
-		this._updateIdle();
-
 		this._register(this._editor.onKeyDown(e => {
-			if (e.keyCode !== KeyCode.Enter || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) {
+			if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || this.isSuggestWidgetVisible()) {
 				return;
 			}
-			if (this.isSuggestWidgetVisible()) {
-				return;
+			if (e.keyCode === KeyCode.Enter) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._onDidPressEnter.fire();
+			} else if (e.keyCode === KeyCode.UpArrow && this._isCursorAtStart()) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._onDidPressUpAtStart.fire();
 			}
-			e.preventDefault();
-			e.stopPropagation();
-			this._onDidPressEnter.fire();
 		}));
 
 		this._register(this._editor.onDidContentSizeChange(e => {
@@ -236,17 +217,9 @@ export class ChatQuestionAnswerEditor extends Disposable {
 		return !!SuggestContext.Visible.getValue(this._editor.contextKeyService);
 	}
 
-	/** Toggles the ghost style and idle placeholder while the editor is unfocused and empty. */
-	private _updateIdle(): void {
-		if (this._idlePlaceholder === undefined) {
-			return;
-		}
-		const idle = !this._value && !this._editor.hasTextFocus();
-		if (idle === this.domNode.classList.contains('ghost')) {
-			return;
-		}
-		this.domNode.classList.toggle('ghost', idle);
-		this._editor.updateOptions({ placeholder: idle ? this._idlePlaceholder : this._placeholder });
+	private _isCursorAtStart(): boolean {
+		const selections = this._editor.getSelections();
+		return selections?.length === 1 && selections[0].isEmpty() && selections[0].startLineNumber === 1 && selections[0].startColumn === 1;
 	}
 
 	private _layout(): void {

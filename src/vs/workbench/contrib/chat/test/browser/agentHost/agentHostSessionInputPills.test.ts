@@ -37,6 +37,8 @@ import type { InitializeResult } from '../../../../../../platform/agentHost/comm
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatResourcesEnabledSettingId } from '../../../browser/chatResources/chatResources.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService, ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -372,6 +374,7 @@ suite('AgentHostSessionInputPills', () => {
 		let workingSetRegistrations = 0;
 		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
+			domNode: persistentContent,
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
@@ -643,6 +646,76 @@ suite('AgentHostSessionInputPills', () => {
 			});
 		});
 	}
+
+	test('pinned pills of files, including files recorded as resources, can show them above the chat input', async () => {
+		const configurationService = new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true });
+		const harness = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'file', label: 'Plan', uri: 'file:///repo/plan.md', type: SessionArtifactType.File, isArtifact: true },
+				{ id: 'file-resource', label: 'Status', uri: 'file:///repo/status.md', type: SessionArtifactType.Resource, isArtifact: true },
+				{ id: 'settings', label: 'Chat settings', uri: 'vscode://settings/chat', type: SessionArtifactType.Resource, isArtifact: true },
+			]),
+		}), undefined, undefined, 'local', undefined, undefined, { configurationService });
+		// The shown file renders only its frame: rendering an editor is not what this test is about.
+		harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: () => Promise.reject(new Error('unreadable')) }));
+		await timeout(0);
+		for (const item of harness.dropdown('3 Artifacts')) {
+			await item.toolbarActions?.find(action => action.label.startsWith('Pin '))?.run();
+		}
+		await timeout(0);
+		const pinnedPills = () => [...harness.persistentContent.querySelectorAll<HTMLElement>('.chat-pill-item')];
+		const choices = () => pinnedPills().map(pill => [pill.textContent, harness.menu(pill).filter(action => action.id.startsWith('chatResources.')).map(action => `${action.label}${action.checked ? ' (checked)' : ''}`)]);
+		const before = choices();
+		await harness.menu(pinnedPills().find(pill => pill.textContent === 'Status'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+		const pressed = () => pinnedPills().filter(pill => pill.classList.contains('chat-pill-checked')).map(pill => pill.textContent);
+		const after = choices();
+		const pressedAfter = pressed();
+		// Unchecking the choice lets the pill open the file in an editor again.
+		await harness.menu(pinnedPills().find(pill => pill.textContent === 'Status'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+
+		assert.deepStrictEqual({ before, after, pressed: pressedAfter, unchecked: choices()[2], pressedAfterUncheck: pressed() }, {
+			before: [
+				['plan.md', ['Show Above Chat Input']],
+				['Chat settings', []],
+				['Status', ['Show Above Chat Input']],
+			],
+			after: [
+				['plan.md', ['Show Above Chat Input']],
+				['Chat settings', []],
+				['Status', ['Show Above Chat Input (checked)']],
+			],
+			pressed: ['Status'],
+			unchecked: ['Status', ['Show Above Chat Input']],
+			pressedAfterUncheck: [],
+		});
+	});
+
+	test('a file shown above the chat input is the agent host\'s file, also in a remote window', async () => {
+		const showFile = async (resourceUris: IAgentHostResourceUriMapper) => {
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: 'vendor-chat:/main', chats: [],
+				_meta: withSessionArtifacts(undefined, [{ id: 'status', label: 'Status', uri: 'file:///repo/status.md', type: SessionArtifactType.Resource, isArtifact: true }]),
+			}), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }), resourceUris });
+			const rendered = new DeferredPromise<string>();
+			harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: resource => { rendered.complete(resource.toString()); return Promise.reject(new Error('unreadable')); } }));
+			await timeout(0);
+			await harness.dropdown('1 Artifact').flatMap(item => item.toolbarActions ?? []).find(action => action.label.startsWith('Pin '))?.run();
+			await timeout(0);
+			const pill = harness.persistentContent.querySelector<HTMLElement>('.chat-pill-item');
+			await harness.menu(pill)?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+			return rendered.p;
+		};
+		const remote = createEditorRemoteAgentHostResourceUriMapper('wsl+debian', agentHostAuthority('vscode-remote://wsl+debian'));
+
+		assert.deepStrictEqual({
+			localWindow: await showFile(identityAgentHostResourceUriMapper),
+			remoteWindow: await showFile(remote),
+		}, {
+			localWindow: 'file:///repo/status.md',
+			remoteWindow: remote.fromAgentHost(URI.file('/repo/status.md')).toString(),
+		});
+	});
 
 	test('legacy artifact rules join the editor pill only when their setting is enabled', async () => {
 		const service = upcastPartial<IChatArtifactsService>({
@@ -1531,7 +1604,7 @@ suite('AgentHostSessionInputPills', () => {
 			}))),
 		}), undefined, createRichGitHubService([]));
 		const icon = () => harness.persistentContent.querySelector<HTMLElement>('.chat-pill-icon');
-		const pending = { open: icon()?.classList.contains('codicon-issue-opened'), color: icon()?.style.color };
+		const pending = { open: icon()?.classList.contains('codicon-issues'), color: icon()?.style.color };
 		await timeout(0);
 
 		assert.deepStrictEqual({

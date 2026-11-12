@@ -586,6 +586,9 @@ export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled'
 /** Root config key forwarded from the renderer for GitHub's Computer Use plugin. */
 export const AgentHostComputerUseEnabledConfigKey = 'computerUseEnabled';
 
+/** Root config key forwarded from the renderer for GitHub's Browser Use plugin. */
+export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
+
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
@@ -692,11 +695,6 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  * Copilot draft starts its SDK session and MCP servers before the first send.
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
-
-// Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
-// setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
-// sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
-export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -959,6 +957,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
 		default: false,
 	}),
+	[AgentHostBrowserUseEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.browserUseEnabled.title', "Browser Use"),
+		description: localize('agentHost.config.browserUseEnabled.description', "Whether local Copilot agent sessions offer GitHub's Browser Use plugin."),
+		default: false,
+	}),
 	[AgentHostMcpToolRoutingEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
@@ -1020,7 +1024,7 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpSkillsEnabled.title', "MCP Skills"),
 		description: localize('agentHost.config.mcpSkillsEnabled.description', "Whether Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
-		default: false,
+		default: true,
 	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -1094,12 +1098,6 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
 		default: false,
 	}),
-	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
-		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
-		default: false,
-	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',
 		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
@@ -1107,7 +1105,7 @@ export const platformRootSchema = createSchema({
 		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
 		enumDescriptions: [
 			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
-			localize('agentHost.config.showExternalSessions.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. At startup, external sessions older than the second-most-recently updated local session are hidden."),
+			localize('agentHost.config.showExternalSessions.recent', "Show the 2 most recently updated external sessions from the last 7 days, hiding any that are older than your 2 newest local sessions."),
 			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
 			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
 			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),
