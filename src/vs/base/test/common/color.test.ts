@@ -709,4 +709,77 @@ suite('Color', () => {
 			assertContrastRatio(0xffffffff, 0x606060ff, 21, 0x000000ff);
 		});
 	});
+
+	suite('OKLab / OKLCh (CSS Color Level 4)', () => {
+
+		test('formatOKLab produces CSS Color 4 syntax', () => {
+			const formatted = Color.Format.CSS.formatOKLab(new Color(new RGBA(255, 0, 0, 1)));
+			assert.ok(/^oklab\(\s*[0-9.]+%\s+[-+0-9.]+\s+[-+0-9.]+\s*\)$/.test(formatted), `Got: ${formatted}`);
+		});
+
+		test('formatOKLCh produces CSS Color 4 syntax', () => {
+			const formatted = Color.Format.CSS.formatOKLCh(new Color(new RGBA(255, 0, 0, 1)));
+			assert.ok(/^oklch\(\s*[0-9.]+%\s+[-+0-9.]+\s+[-+0-9.]+\s*\)$/.test(formatted), `Got: ${formatted}`);
+		});
+
+		test('formatOKLab emits alpha with slash when non-opaque', () => {
+			const formatted = Color.Format.CSS.formatOKLab(new Color(new RGBA(255, 0, 0, 0.5)));
+			assert.ok(formatted.includes('/ 0.5'), `Got: ${formatted}`);
+			assert.ok(formatted.startsWith('oklab('));
+		});
+
+		test('formatOKLCh emits alpha with slash when non-opaque', () => {
+			const formatted = Color.Format.CSS.formatOKLCh(new Color(new RGBA(0, 255, 0, 0.25)));
+			assert.ok(formatted.includes('/ 0.25'), `Got: ${formatted}`);
+			assert.ok(formatted.startsWith('oklch('));
+		});
+
+		test('parseOKLab accepts percentage and unitless lightness', () => {
+			const pct = Color.Format.CSS.parseOKLab('oklab(50% 0.1 -0.05)');
+			const unitless = Color.Format.CSS.parseOKLab('oklab(0.5 0.1 -0.05)');
+			assert.ok(pct);
+			assert.ok(unitless);
+			// Both should land on the same sRGB triple after roundtrip.
+			assert.strictEqual(pct!.rgba.r, unitless!.rgba.r);
+			assert.strictEqual(pct!.rgba.g, unitless!.rgba.g);
+			assert.strictEqual(pct!.rgba.b, unitless!.rgba.b);
+		});
+
+		test('parseOKLCh accepts alpha syntax', () => {
+			const withAlpha = Color.Format.CSS.parseOKLCh('oklch(50% 0.2 120 / 0.5)');
+			assert.ok(withAlpha);
+			assert.strictEqual(withAlpha!.rgba.a, 0.5);
+		});
+
+		test('parseOKLCh roundtrips a red-ish color through format', () => {
+			const red = new Color(new RGBA(200, 30, 30, 1));
+			const serialized = Color.Format.CSS.formatOKLCh(red);
+			const reparsed = Color.Format.CSS.parseOKLCh(serialized);
+			assert.ok(reparsed);
+			// Tolerate ±2 per channel: the conversion clips to the sRGB gamut.
+			assert.ok(Math.abs(reparsed!.rgba.r - red.rgba.r) <= 2, `r drift: ${reparsed!.rgba.r} vs ${red.rgba.r}`);
+			assert.ok(Math.abs(reparsed!.rgba.g - red.rgba.g) <= 2, `g drift: ${reparsed!.rgba.g} vs ${red.rgba.g}`);
+			assert.ok(Math.abs(reparsed!.rgba.b - red.rgba.b) <= 2, `b drift: ${reparsed!.rgba.b} vs ${red.rgba.b}`);
+		});
+
+		test('parseOKLab returns null for malformed input', () => {
+			assert.strictEqual(Color.Format.CSS.parseOKLab('oklab()'), null);
+			assert.strictEqual(Color.Format.CSS.parseOKLab('oklab(50% 0.1)'), null);
+			assert.strictEqual(Color.Format.CSS.parseOKLab('not a color'), null);
+		});
+
+		test('parseOKLCh accepts deg suffix and percentage chroma', () => {
+			const withDeg = Color.Format.CSS.parseOKLCh('oklch(50% 0.2 120deg)');
+			const withPctChroma = Color.Format.CSS.parseOKLCh('oklch(50% 50% 120)');
+			assert.ok(withDeg);
+			assert.ok(withPctChroma);
+		});
+
+		test('Color.Format.CSS.parse routes oklab/oklch through the new parsers', () => {
+			const oklab = Color.Format.CSS.parse('oklab(50% 0 0)');
+			const oklch = Color.Format.CSS.parse('oklch(50% 0 0)');
+			assert.ok(oklab);
+			assert.ok(oklch);
+		});
+	});
 });
