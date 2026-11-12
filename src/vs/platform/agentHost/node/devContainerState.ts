@@ -168,7 +168,8 @@ export interface IDevContainerStateLinkOptions {
 	readonly serverDataFolderName: string;
 	/**
 	 * Keeps folders that exist in the home folders instead of moving them to the volume or replacing them with its state,
-	 * because the container was already running and its processes may be using them.
+	 * because the container was already running and its processes may be using them. If the volume's state replaces such a
+	 * folder later, a copy of the folder is kept next to that state.
 	 */
 	readonly keepExistingFolders?: boolean;
 }
@@ -285,8 +286,12 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    skip file "it is not a folder"; return 0',
 		'  fi',
 		'  if is_other "$dst"; then skip state "$state/$rel is not a folder"; return 0; fi',
-		// Moving or replacing a folder that is in use would lose the changes made to it meanwhile.
-		'  if [ -n "$keep_existing" ] && [ ! -L "$src" ] && [ -d "$src" ]; then skip running "it exists and the container was already running"; return 0; fi',
+		// Moving or replacing a folder that is in use would lose the changes made to it meanwhile. The marker keeps a copy of
+		// these changes when the volume's state replaces the folder later, see below.
+		'  if [ -n "$keep_existing" ] && [ ! -L "$src" ] && [ -d "$src" ]; then',
+		'    if [ -d "$dst" ]; then : > "$dst.deferred"; fi',
+		'    skip running "it exists and the container was already running"; return 0',
+		'  fi',
 		'  for parent in "$@"; do',
 		'    if [ ! -d "$home_prefix/$parent" ]; then',
 		'      mkdir "$home_prefix/$parent" || test -d "$home_prefix/$parent"',
@@ -298,8 +303,15 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  if [ ! -L "$src" ]; then',
 		'    if [ -d "$dst" ]; then',
 		'      result=restored',
-		// Like a volume mount, existing state hides the container's own folder.
-		'      if [ -d "$src" ]; then rm -rf "$src"; fi',
+		// Like a volume mount, existing state hides the container's own folder. A folder kept while the container was running
+		// may have changed meanwhile, so a copy of it stays on the volume.
+		'      if [ -d "$src" ]; then',
+		'        if [ -e "$dst.deferred" ]; then',
+		'          cp -a "$src" "$dst.deferred.$$"',
+		'          echo "Keeping the previous ~/$rel in $state/$rel.deferred.$$" >&2',
+		'        fi',
+		'        rm -rf "$src"',
+		'      fi',
 		'    elif [ -d "$src" ]; then',
 		'      result=moved',
 		// Copies, publishes the complete copy and only then removes the source, so an interrupted move is either retried or
@@ -311,6 +323,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    else',
 		'      result=created',
 		'    fi',
+		'    rm -f "$dst.deferred"',
 		'  fi',
 		'  test -d "$dst" || mkdir "$dst" || test -d "$dst"',
 		'  if [ "$(stat -c %u:%g "$dst")" != "$owner" ]; then chown -R "$owner" "$dst"; fi',
