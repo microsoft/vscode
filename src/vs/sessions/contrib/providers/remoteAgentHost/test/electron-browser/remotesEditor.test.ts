@@ -504,14 +504,16 @@ suite('RemotesEditor', () => {
 				editor.layout(new dom.Dimension(width, 600));
 				let pending = new DeferredPromise<void>();
 				instantiation.stub(INotificationService, 'error', () => { });
-				instantiation.stub(ICommandService, { executeCommand: async () => {
-					await pending.p;
-					if (expanded) {
-						tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'shared', isAttached: false }, serviceInstallFailed: false });
-					} else {
-						tunnel.fireStatus({ type: 'disconnected' });
+				instantiation.stub(ICommandService, {
+					executeCommand: async () => {
+						await pending.p;
+						if (expanded) {
+							tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'shared', isAttached: false }, serviceInstallFailed: false });
+						} else {
+							tunnel.fireStatus({ type: 'disconnected' });
+						}
 					}
-				} });
+				});
 				await editor.setInput(input, undefined, {}, CancellationToken.None);
 				await timeout(0);
 				if (expanded) {
