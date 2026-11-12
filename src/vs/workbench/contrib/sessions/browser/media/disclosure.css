@@ -1,0 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* High contrast uses a dashed boundary for pointer hover. Keyboard-focused rows keep
+ * the solid boundary owned by the tree; pointer-focused rows retain the hover state. */
+.monaco-workbench:is(.hc-black, .hc-light) .sessions-disclosure:is(:hover, .hovered):not(:focus-visible, .focus-visible),
+.monaco-workbench:is(.hc-black, .hc-light) .monaco-list-row.sessions-disclosure-row:is(:hover, .hovered) > .monaco-tl-row {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) :is(.sessions-list-control, .agent-sessions-navigation-container):not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.sessions-disclosure-row.focused:is(:hover, .hovered) > .monaco-tl-row {
+	outline: none;
+}

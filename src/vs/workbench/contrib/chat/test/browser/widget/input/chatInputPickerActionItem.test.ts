@@ -117,6 +117,40 @@ suite('ChatInputPickerSplit', () => {
 			{ tabIndex: -1, disabled: 'true' },
 		]);
 	});
+
+	test('uses dashed high contrast hover and solid focus and open-state outlines per button', () => {
+		const root = dom.append(document.body, dom.$('.monaco-workbench.hc-black'));
+		root.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		root.style.setProperty('--vscode-focusBorder', '#007fd4');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		disposables.add({ dispose: () => root.remove() });
+		const container = dom.append(root, dom.$('.action-label'));
+		const { primaryButton, secondaryButton } = renderChatInputPickerSplit(container);
+		const readOutline = (element: HTMLElement) => {
+			const style = dom.getWindow(element).getComputedStyle(element);
+			return {
+				color: style.outlineColor,
+				offset: style.outlineOffset,
+				style: style.outlineStyle,
+				width: style.outlineWidth,
+			};
+		};
+
+		primaryButton.classList.add('hovered');
+		const hovered = readOutline(primaryButton);
+		primaryButton.classList.add('focus-visible');
+		const focusedAndHovered = readOutline(primaryButton);
+		primaryButton.classList.remove('hovered', 'focus-visible');
+		secondaryButton.ariaExpanded = 'true';
+		secondaryButton.classList.add('hovered');
+		const openAndHovered = readOutline(secondaryButton);
+
+		assert.deepStrictEqual({ hovered, focusedAndHovered, openAndHovered }, {
+			hovered: { color: 'rgb(243, 133, 24)', offset: '-1px', style: 'dashed', width: '1px' },
+			focusedAndHovered: { color: 'rgb(0, 127, 212)', offset: '-1px', style: 'solid', width: '1px' },
+			openAndHovered: { color: 'rgb(243, 133, 24)', offset: '-1px', style: 'solid', width: '1px' },
+		});
+	});
 });
 
 suite('ChatInputPickerFocus', () => {

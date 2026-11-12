@@ -260,6 +260,9 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			header.classList.add('hovered');
 		}
 	}
+	if (options?.headerHovered) {
+		ctx.container.querySelector<HTMLElement>('.ai-customization-header')?.classList.add('hovered');
+	}
 }
 
 // ============================================================================
@@ -321,6 +324,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderWidget(ctx, {
 			extensionSuggestions: true,
 			collapsed: true,
+			counts: { skills: 30, instructions: 16 },
+		}),
+	}),
+	CollapsedHeaderHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The collapsed Customizations header is hovered. In high contrast themes, a dashed active-contrast outline surrounds the header.'],
+		render: ctx => renderWidget(ctx, {
+			collapsed: true,
+			headerHovered: true,
 			counts: { skills: 30, instructions: 16 },
 		}),
 	}),

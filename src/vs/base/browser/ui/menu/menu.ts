@@ -137,6 +137,7 @@ export class Menu extends ActionBar {
 		this._register(Gesture.addTarget(menuElement));
 
 		this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			this.setKeyboardNavigation(true);
 			const event = new StandardKeyboardEvent(e);
 
 			// Stop tab navigation of menus
@@ -202,6 +203,7 @@ export class Menu extends ActionBar {
 			if (e.movementX === 0 && e.movementY === 0) {
 				return;
 			}
+			this.setKeyboardNavigation(false);
 
 			let target = e.target as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
@@ -227,9 +229,14 @@ export class Menu extends ActionBar {
 			}
 		}));
 
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_DOWN, () => {
+			this.setKeyboardNavigation(false);
+		}, true));
+
 		// Support touch on actions list to focus items (needed for submenus)
 		this._register(Gesture.addTarget(this.actionsList));
 		this._register(addDisposableListener(this.actionsList, TouchEventType.Tap, e => {
+			this.setKeyboardNavigation(false);
 			let target = e.initialTarget as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
 				return;
@@ -319,6 +326,11 @@ export class Menu extends ActionBar {
 			}
 			this.scrollableElement.scanDomNode();
 		}));
+	}
+
+	private setKeyboardNavigation(keyboardNavigation: boolean): void {
+		this.menuElement.classList.toggle('keyboard-navigation', keyboardNavigation);
+		this.menuElement.classList.toggle('mouse-navigation', !keyboardNavigation);
 	}
 
 	private initializeOrUpdateStyleSheet(container: HTMLElement, style: IMenuStyles): void {
@@ -1490,18 +1502,40 @@ ${formatRule(Codicon.menuSubmenu)}
 	outline-offset: 0 !important;
 }
 
-/* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
+/* High contrast themes show a solid selection border for keyboard focus. Pointer navigation overrides it with the dashed hover boundary below. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
 .hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
 .hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
-	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
-	outline-offset: -1px !important;
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px)) !important;
+}
+
+.hc-black .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+.hc-light .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+	outline-style: dashed !important;
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-menu-selectionBorder)) !important;
+}
+
+.hc-black .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']),
+.hc-light .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']) {
+	outline-style: solid !important;
 }
 
 /* Keep :host-context separate because WebKit otherwise rejects the valid selectors above. */
 :host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
 :host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
-	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
-	outline-offset: -1px !important;
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px)) !important;
+}
+
+:host-context(.hc-black) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+	outline-style: dashed !important;
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-menu-selectionBorder)) !important;
+}
+
+:host-context(.hc-black) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']),
+:host-context(.hc-light) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']) {
+	outline-style: solid !important;
 }
 
 /* Vertical Action Bar Styles */
