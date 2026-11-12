@@ -64,5 +64,8 @@
   },
   "devDependencies": {
     "@types/node": "24.x"
+  },
+  "dependencies": {
+    "path-browserify": "^1.0.1"
   }
 }

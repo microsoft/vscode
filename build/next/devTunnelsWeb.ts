@@ -7,6 +7,7 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';
+import { assertBundledPackagesDeclared } from '../lib/bundledPackages.ts';
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 
 export const devTunnelsWebOutDir = 'vs/sessions/contrib/providers/remoteAgentHost/browser';
@@ -64,8 +65,12 @@ export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: s
 		outfile: path.join(outDir, 'devTunnelsModule.js'),
 		plugins: [devTunnelsBrowserShimPlugin()],
 		write: false,
+		metafile: true,
 		logLevel: 'warning',
 	});
+	// The polyfills that the shim plugin substitutes for Node.js modules must be production
+	// dependencies of the root, like the SDK, so that the license notices list them.
+	assertBundledPackagesDeclared(result.metafile, { workingDirectory: process.cwd(), project: REPO_ROOT, aliases: ['buffer', 'events', 'stream'] });
 	for (const output of result.outputFiles) {
 		await fs.promises.mkdir(path.dirname(output.path), { recursive: true });
 		await fs.promises.writeFile(output.path, output.path.endsWith('.js')

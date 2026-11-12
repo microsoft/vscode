@@ -46,5 +46,11 @@ function resolveBaseOptions(config: ExtensionRunConfig): esbuild.BuildOptions {
 }
 
 export async function run(config: ExtensionRunConfig, args: string[], didBuild?: (outDir: string) => unknown): Promise<void> {
-	return runBuild(config, resolveBaseOptions(config), args, didBuild);
+	const baseOptions = resolveBaseOptions(config);
+	const additionalAlias = config.additionalOptions?.alias;
+	if (additionalAlias) {
+		// Keep the aliases of the platform, such as `path` in the browser.
+		config = { ...config, additionalOptions: { ...config.additionalOptions, alias: { ...baseOptions.alias, ...additionalAlias } } };
+	}
+	return runBuild(config, baseOptions, args, didBuild);
 }

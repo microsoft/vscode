@@ -487,8 +487,7 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "mocha": "^10.8.2",
-    "util": "^0.12.4"
+    "mocha": "^10.8.2"
   },
   "dependencies": {
     "@emmetio/css-parser": "^0.4.1",
@@ -496,6 +495,7 @@
     "@emmetio/math-expression": "^1.0.5",
     "@vscode/emmet-helper": "^2.8.8",
     "image-size": "~1.0.0",
+    "util": "^0.12.4",
     "vscode-languageserver-textdocument": "^1.0.1"
   },
   "capabilities": {

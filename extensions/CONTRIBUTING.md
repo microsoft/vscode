@@ -17,6 +17,9 @@ TypeScript-based extensions have the following output structure:
 - `out`: Output directory for development builds
 - `dist`: Output directory for production builds.
 
+## Dependencies
+
+The build bundles extensions with esbuild and packages them without `node_modules`. Declare every package that a bundle, webview or notebook renderer includes in `dependencies`, also packages that an alias of the build resolves to (such as `path-browserify` for `path` in browser builds). Use `devDependencies` only for packages that nothing that ships includes, such as test frameworks and type declarations. Component Governance generates the license notices of the product from production dependencies, and the esbuild scripts fail when a bundle includes a package that isn't one (see `build/lib/bundledPackages.ts`).
 
 ## Enabling an Extension in the Browser
 

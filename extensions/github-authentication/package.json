@@ -99,6 +99,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
+    "path-browserify": "^1.0.1",
     "vscode-tas-client": "^0.1.84"
   },
   "devDependencies": {

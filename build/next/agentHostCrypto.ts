@@ -6,6 +6,7 @@
 import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
+import { assertBundledPackagesDeclared } from '../lib/bundledPackages.ts';
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 
 export const agentHostCryptoOutDir = 'vs/platform/agentHost/browser';
@@ -26,8 +27,10 @@ export async function bundleAgentHostCrypto(options: { outDir: string; minify?: 
 		minify: options.minify,
 		sourcemap: 'linked',
 		write: false,
+		metafile: true,
 		logLevel: 'warning',
 	});
+	assertBundledPackagesDeclared(result.metafile, { workingDirectory: process.cwd(), project: repoRoot });
 	for (const output of result.outputFiles) {
 		await fs.promises.mkdir(path.dirname(output.path), { recursive: true });
 		await fs.promises.writeFile(output.path, output.path.endsWith('.js')

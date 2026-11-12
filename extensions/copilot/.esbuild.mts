@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import { copyFile, mkdir, readdir, rename } from 'fs/promises';
 import { glob } from 'glob';
 import * as path from 'path';
+import { assertBundledPackagesDeclared } from '../../build/lib/bundledPackages.ts';
 
 const REPO_ROOT = import.meta.dirname;
 const isWatch = process.argv.includes('--watch');
@@ -313,6 +314,23 @@ async function moveSourceMapsToSeparateDir(): Promise<void> {
 	}
 }
 
+/**
+ * Builds bundles that ship in the extension, and checks that the packages they contain are
+ * production dependencies, so that the license notices list them (see build/lib/bundledPackages.ts).
+ * Dev builds bundle `dotenv` and `source-map-support`, which are dev dependencies, so they aren't checked.
+ */
+async function buildShipped(options: esbuild.BuildOptions, isShipped?: (output: string) => boolean): Promise<void> {
+	const result = await esbuild.build({ ...options, metafile: true });
+	if (!isDev) {
+		assertBundledPackagesDeclared(result.metafile, { workingDirectory: process.cwd(), project: REPO_ROOT, isShipped });
+	}
+}
+
+/** The test bundles of the extension host build don't ship. */
+function isShippedExtensionHostOutput(output: string): boolean {
+	return !output.endsWith('.map') && !/(^|[\\/])(sanity-)?test-extension\.js$/.test(output);
+}
+
 async function main() {
 	if (process.env['BUILD_SOURCEVERSION']) {
 		console.log('Running in CI environment, applying package.json patch for correct versioning and pre-release status...');
@@ -390,15 +408,15 @@ async function main() {
 		rebuild();
 	} else {
 		await Promise.all([
-			esbuild.build(nodeExtHostBuildOptions),
+			buildShipped(nodeExtHostBuildOptions, isShippedExtensionHostOutput),
 			esbuild.build(webExtHostBuildOptions),
 			...(shippedBundlesOnly ? [] : [
 				esbuild.build(nodeSimulationBuildOptions),
 				esbuild.build(nodeSimulationWorkbenchUIBuildOptions),
 				esbuild.build(nodeExtHostSimulationTestOptions),
 			]),
-			esbuild.build(typeScriptServerPluginBuildOptions),
-			esbuild.build(webviewBuildOptions),
+			buildShipped(typeScriptServerPluginBuildOptions),
+			buildShipped(webviewBuildOptions),
 		]);
 
 		// Run postinstall to copy static build assets (wasm, tiktoken, cli) to dist/.

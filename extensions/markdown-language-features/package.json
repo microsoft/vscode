@@ -2136,20 +2136,24 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
+    "@vscode/hubrpc": "0.0.2-20",
     "@vscode/markdown-editor": "0.0.2-179",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-41",
     "dompurify": "^3.4.10",
     "highlight.js": "^11.8.0",
     "katex": "^0.16.33",
+    "lodash.throttle": "^4.1.1",
     "markdown-it": "^14.2.0",
     "morphdom": "^2.7.7",
+    "path-browserify": "^1.0.1",
     "picomatch": "^2.3.2",
     "vscode-languageclient": "^9.0.1",
     "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-markdown-languageserver": "0.5.0",
     "vscode-uri": "^3.0.3",
-    "yaml": "^2.8.3"
+    "yaml": "^2.8.3",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/lodash.throttle": "^4.1.9",
@@ -2159,16 +2163,13 @@
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
-    "@vscode/hubrpc": "0.0.2-20",
     "@vscode/markdown-it-katex": "^1.1.1",
     "json5": "^2.2.3",
-    "lodash.throttle": "^4.1.1",
     "mocha": "^10.8.2",
     "playwright": "^1.61.1",
     "tslib": "^2.6.3",
     "vscode-languageserver-types": "^3.17.2",
-    "vscode-markdown-languageservice": "0.5.0",
-    "zod": "4.4.3"
+    "vscode-markdown-languageservice": "0.5.0"
   },
   "repository": {
     "type": "git",

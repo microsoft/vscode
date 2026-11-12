@@ -31,7 +31,8 @@
     "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
-    "jsonc-parser": "^3.2.0"
+    "jsonc-parser": "^3.2.0",
+    "path-browserify": "^1.0.1"
   },
   "capabilities": {
     "virtualWorkspaces": true,

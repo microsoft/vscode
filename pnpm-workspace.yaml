@@ -139,9 +139,25 @@ overrides:
 # @vscode/extension-telemetry requires @microsoft/applicationinsights-common without declaring it. Each
 # version gets the one of its @microsoft/applicationinsights-web-basic, which the extensions bundle
 # anyway, instead of the one that pnpm happens to hoist for the whole workspace.
+# The packages below require packages that they don't declare either. The bundles of Copilot and of
+# the dev tunnels in the Agents window include them, so they are declared with the versions that the
+# bundles include, and the bundle check (build/lib/bundledPackages.ts) doesn't flag them.
 packageExtensions:
   '@vscode/extension-telemetry':
     dependencies:
       '@microsoft/applicationinsights-common': ^3.3.4
+  '@microsoft/dev-tunnels-management':
+    dependencies:
+      '@microsoft/dev-tunnels-ssh': ^3.12.22
+  '@vscode/webview-ui-toolkit':
+    dependencies:
+      '@microsoft/fast-web-utilities': ^5.4.1
+  cls-hooked:
+    dependencies:
+      stack-chain: ^1.3.7
+  diagnostic-channel-publishers:
+    dependencies:
+      '@opentelemetry/api': ^1.9.0
+      '@opentelemetry/sdk-trace-base': ^2.8.0
 patchedDependencies:
   foundry-local-sdk: build/npm/patches/foundry-local-sdk.patch
