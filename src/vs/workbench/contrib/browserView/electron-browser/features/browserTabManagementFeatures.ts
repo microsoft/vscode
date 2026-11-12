@@ -959,7 +959,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: getDefaultBrowserUserAgent(),
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.userAgent' },
-				"The user agent used by the Integrated Browser. The default follows the user agent of this version of VS Code, so a customized value does not track updates. Some websites block unfamiliar user agents; use a standard browser user agent to work around this. Device emulation overrides this value."
+				"The user agent used by the Integrated Browser. Device emulation overrides this value."
 			),
 			scope: ConfigurationScope.WINDOW,
 		},
