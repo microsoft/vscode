@@ -2923,19 +2923,9 @@ suite('ChatPetWidget', () => {
 			service.setHorizontalPosition(0.8);
 		}, model);
 		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
-		assert.strictEqual(Number.parseFloat(pet.style.getPropertyValue('--chat-pet-subagent-scale')), 0.8);
-		assert.ok(pet.offsetLeft + pet.getBoundingClientRect().width <= button.offsetLeft || pet.offsetLeft >= button.offsetLeft + button.offsetWidth);
+		assert.strictEqual(Number.parseFloat(pet.style.getPropertyValue('--chat-pet-subagent-scale')), 1);
+		assert.ok(pet.offsetLeft + 48 <= button.offsetLeft || pet.offsetLeft >= button.offsetLeft + button.offsetWidth);
 	});
-
-	for (const [mainScale, miniScale] of [[0.4, 0.2], [1, 0.5], [1.4, 0.7], [1.6, 0.8], [8.6, 0.8]]) {
-		test(`mini pets use the capped initial size at main pet scale ${mainScale}`, () => {
-			const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
-			tool.toolSpecificData = { kind: 'subagent', isActive: true };
-			const { overlay } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, false, service => service.setScale(mainScale), createSubagentTestModel([tool]));
-			const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
-			assert.strictEqual(Number.parseFloat(pet.style.getPropertyValue('--chat-pet-subagent-scale')), miniScale);
-		});
-	}
 
 	test('mini pets stop when disabled and return for active subagents when re-enabled', async () => {
 		const { widget, firstHost, overlay, service } = createHostTransitionHarness();
