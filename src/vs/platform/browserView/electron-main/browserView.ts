@@ -7,8 +7,8 @@ import { nativeImage, screen, WebContentsView, webContents } from 'electron';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot, getPageArea } from '../common/browserViewCompositor.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewRect, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -680,6 +680,7 @@ export class BrowserView extends Disposable {
 			permissions: this.session.permissions.serialize(),
 			browserZoomIndex: this._browserZoomIndex,
 			elementSelectionState: this.inspector.elementSelectionState,
+			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device,
 			audiences: [...this._audiences]
 		};
@@ -881,14 +882,6 @@ export class BrowserView extends Disposable {
 			return this._captureFullPageScreenshot(format, quality);
 		}
 
-		if (options?.screenRect && !options.pageRect) {
-			// Captures measure from the page's top-left, which DevTools docked on the left moves away from the view's.
-			const pageArea = await this._getPageArea(options.screenRect);
-			if (!pageArea) {
-				throw new Error('The area to capture only covers DevTools');
-			}
-			options.screenRect = pageArea;
-		}
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
 			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
@@ -904,7 +897,29 @@ export class BrowserView extends Disposable {
 		if (options?.awaitNextPaint) {
 			await this._waitForNextPaint();
 		}
-		const pageImage = await this._capturePage(options?.screenRect);
+		const pageImage = await (async () => {
+			const maxAttempts = 5;
+			let lastError: Error | undefined;
+			for (let i = 0; i < maxAttempts; i++) {
+				try {
+					return await this._view.webContents.capturePage(options?.screenRect, {
+						stayHidden: true
+					});
+				} catch (error) {
+					// `UnknownVizError` is a transient Electron error when no frame is available yet
+					// (e.g. offscreen scenarios where rendering has just been kicked off by `setVisible(true)`),
+					// so retry a few times.
+					if (error instanceof Error && error.message === 'UnknownVizError') {
+						lastError = error;
+						await new Promise(resolve => setTimeout(resolve, 16));
+						continue;
+					} else {
+						throw error;
+					}
+				}
+			}
+			throw new Error(`Failed to capture screenshot after ${maxAttempts} attempts`, { cause: lastError });
+		})();
 		// A docked DevTools panel is a separate web contents, so add it to a capture of the whole view, for placeholders only.
 		const image = options?.includeDevTools && !options.screenRect ? await this._withDevTools(pageImage) : pageImage;
 		const buffer = format === 'png' ? image.toPNG() : image.toJPEG(quality);
@@ -916,76 +931,22 @@ export class BrowserView extends Disposable {
 		return screenshot;
 	}
 
-	/** Captures the page, or an area of it measured from its top-left, retrying while no frame is available yet. */
-	private async _capturePage(rect: IBrowserViewRect | undefined): Promise<Electron.NativeImage> {
-		const maxAttempts = 5;
-		let lastError: Error | undefined;
-		for (let i = 0; i < maxAttempts; i++) {
-			try {
-				return await this._view.webContents.capturePage(rect, {
-					stayHidden: true
-				});
-			} catch (error) {
-				// `UnknownVizError` is a transient Electron error when no frame is available yet
-				// (e.g. offscreen scenarios where rendering has just been kicked off by `setVisible(true)`),
-				// so retry a few times.
-				if (error instanceof Error && error.message === 'UnknownVizError') {
-					lastError = error;
-					await new Promise(resolve => setTimeout(resolve, 16));
-					continue;
-				} else {
-					throw error;
-				}
-			}
-		}
-		throw new Error(`Failed to capture screenshot after ${maxAttempts} attempts`, { cause: lastError });
-	}
-
-	/**
-	 * Measures an area of this view from the page's top-left, as captures do, and keeps only its part over the page. A
-	 * DevTools view docked inside this view leaves the page only part of it.
-	 */
-	private async _getPageArea(area: IBrowserViewRect): Promise<IBrowserViewRect | undefined> {
-		let dockSide: BrowserViewDevToolsDockSide | undefined;
-		try {
-			dockSide = await this._getDevToolsDockSide();
-		} catch (error) {
-			this.logService.warn('Failed to find where DevTools is docked for a browser view screenshot', error);
-		}
-		if (!dockSide) {
-			return area;
-		}
-		// Captures have device pixels, while areas have view pixels.
-		const pageSize = (await this._capturePage(undefined)).getSize();
-		const hostWindow = this._hostWindow;
-		const { scaleFactor } = hostWindow ? screen.getDisplayMatching(hostWindow.getBounds()) : screen.getPrimaryDisplay();
-		const { width, height } = this._view.getBounds();
-		return getPageArea(area, { width, height }, { width: Math.round(pageSize.width / scaleFactor), height: Math.round(pageSize.height / scaleFactor) }, dockSide);
-	}
-
-	/** The side of this view that DevTools is docked on, or `undefined` while it is closed or in a window of its own. */
-	private async _getDevToolsDockSide(): Promise<BrowserViewDevToolsDockSide | undefined> {
-		const webContents = this._view.webContents;
-		const devTools = webContents.devToolsWebContents;
-		if (!devTools || devTools.isDestroyed() || !webContents.isDevToolsOpened()) {
-			return undefined;
-		}
-		// The frontend marks its dock side on <body>; it has none while undocked.
-		const dockSide = await devTools.executeJavaScript(
-			`['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked'`
-		) as BrowserViewDevToolsDockSide | 'undocked';
-		return dockSide === 'undocked' ? undefined : dockSide;
-	}
-
 	/**
 	 * Composes the page screenshot with the DevTools panel when it is open and docked inside this
 	 * view. Undocked DevTools live in their own window, so the page screenshot is returned as is.
 	 */
 	private async _withDevTools(pageImage: Electron.NativeImage): Promise<Electron.NativeImage> {
-		const devTools = this._view.webContents.devToolsWebContents;
+		const webContents = this._view.webContents;
+		const devTools = webContents.devToolsWebContents;
+		if (!devTools || devTools.isDestroyed() || !webContents.isDevToolsOpened()) {
+			return pageImage;
+		}
 		try {
-			const dockSide = await this._getDevToolsDockSide();
-			if (!devTools || !dockSide) {
+			// The frontend marks its dock side on <body>; it has none while undocked.
+			const dockSide = await devTools.executeJavaScript(
+				`['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked'`
+			) as BrowserViewDevToolsDockSide | 'undocked';
+			if (dockSide === 'undocked') {
 				return pageImage;
 			}
 			const devToolsImage = await devTools.capturePage(undefined, { stayHidden: true });

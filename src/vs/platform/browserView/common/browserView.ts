@@ -50,6 +50,7 @@ export enum BrowserViewCommandId {
 	AddElementCommentToChat = `${commandPrefix}.addElementCommentToChat`,
 	AddConsoleLogsToChat = `${commandPrefix}.addConsoleLogsToChat`,
 	AddScreenshotToChat = `${commandPrefix}.addScreenshotToChat`,
+	AddAreaScreenshotToChat = `${commandPrefix}.addAreaScreenshotToChat`,
 	AddFullPageScreenshotToChat = `${commandPrefix}.addFullPageScreenshotToChat`,
 
 	// Dev Tools
@@ -211,10 +212,6 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	 * `'png'` is lossless (no compression artifacts) at the cost of a larger buffer.
 	 */
 	format?: 'jpeg' | 'png';
-	/**
-	 * An area of the view to capture, in view pixels from its top-left. Only its part over the page is captured, so a
-	 * docked DevTools panel is left out.
-	 */
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**
@@ -383,6 +380,7 @@ export interface IBrowserViewState {
 	permissions: ISerializedBrowserPermissionsSnapshot;
 	browserZoomIndex: number;
 	elementSelectionState: IBrowserElementSelectionState;
+	isAreaSelectionActive: boolean;
 	device: IBrowserDeviceProfile | undefined;
 	audiences: IBrowserViewAudience[];
 }
@@ -599,6 +597,8 @@ export interface BrowserViewEventData {
 	onDidSelectElement: IElementData;
 	onDidRemoveElementComment: string;
 	onDidChangeElementSelectionState: IBrowserElementSelectionState;
+	onDidPickArea: IBrowserViewRect | undefined;
+	onDidChangeAreaSelectionActive: boolean;
 	onDidChangeDeviceEmulation: IBrowserDeviceProfile | undefined;
 	onDidChangeAudiences: IBrowserViewAudience[];
 	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
@@ -880,6 +880,17 @@ export interface IBrowserViewService {
 	 * @param update The comment state to synchronize
 	 */
 	setElementComments(id: string, update: IBrowserElementCommentsUpdate): Promise<void>;
+
+	/**
+	 * Toggle drag-to-select area picking on the top frame of a browser view.
+	 * The pick result (rectangle, or `undefined` on cancellation) is delivered via
+	 * {@link onDynamicDidPickArea}. UI toggle state is delivered via
+	 * {@link onDynamicDidChangeAreaSelectionActive}.
+	 *
+	 * @param id The browser view identifier
+	 * @param enabled Whether to enable or disable. Omit to toggle.
+	 */
+	toggleAreaSelection(id: string, enabled?: boolean): Promise<void>;
 
 	/**
 	 * Replace the calling window's configuration for the browser views it owns.

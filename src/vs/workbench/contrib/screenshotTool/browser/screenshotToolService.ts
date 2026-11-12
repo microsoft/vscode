@@ -31,7 +31,7 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { ImageCarouselEditorInput } from '../../imageCarousel/browser/imageCarouselEditorInput.js';
 import { ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 import { getScreenshotSelectionHint, IScreenshotRect, ScreenshotSelection, ScreenshotSelectionOverlay } from './screenshotSelection.js';
-import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCaptureEvent, IScreenshotToolCaptureOptions, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolMarkUp, IScreenshotToolScope, IScreenshotToolService, ScreenshotToolActiveContext, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface, toImageCarouselMarkUp } from './screenshotTool.js';
+import { getScreenshotToolImageData, IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolMarkUp, IScreenshotToolService, ScreenshotToolActiveContext, ScreenshotToolMode, ScreenshotToolResult, ScreenshotToolSurface, toImageCarouselMarkUp } from './screenshotTool.js';
 
 /** How long the window gets to repaint without the overlay before it is captured. */
 const OVERLAY_REMOVAL_DELAY = 100;
@@ -132,30 +132,20 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		}
 	}
 
-	async capture(targetWindow: CodeWindow, token = CancellationToken.None, options?: IScreenshotToolCaptureOptions): Promise<ScreenshotToolResult> {
-		const scope = options?.scope;
-		const scopeBounds = scope && getVisibleRect(targetWindow, scope.element);
-		if (scope && !scopeBounds) {
-			// What the capture is limited to does not show, so there is nothing to select.
-			this.accessibilityService.alert(localize('screenshotFailed', "The screenshot could not be captured."));
-			return { kind: 'failed', mode: 'none' };
-		}
+	async capture(targetWindow: CodeWindow, token = CancellationToken.None): Promise<ScreenshotToolResult> {
 		const session = this.startSession(targetWindow);
 		if (!session) {
 			return { kind: 'cancelled', mode: 'none' };
 		}
 		let mode: ScreenshotToolMode = 'none';
 		try {
-			const selection = await this.select(targetWindow, session, token, scopeBounds);
+			const selection = await this.select(targetWindow, session, token);
 			if (!selection || token.isCancellationRequested) {
 				this.accessibilityService.status(localize('screenshotCancelled', "Screenshot cancelled."));
 				return { kind: 'cancelled', mode };
 			}
 			let image: IScreenshotToolImage | undefined;
-			if (scope && scopeBounds) {
-				mode = selection.kind === 'area' ? 'area' : 'page';
-				image = await this.captureScope(scope, scopeBounds, selection);
-			} else if (selection.kind === 'area') {
+			if (selection.kind === 'area') {
 				mode = 'area';
 				image = await this.captureWindowArea(targetWindow, selection.rect, true);
 			} else {
@@ -367,11 +357,10 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return session;
 	}
 
-	private async select(targetWindow: CodeWindow, session: ISession, token: CancellationToken, scope: IScreenshotRect | undefined): Promise<ScreenshotSelection | undefined> {
+	private async select(targetWindow: CodeWindow, session: ISession, token: CancellationToken): Promise<ScreenshotSelection | undefined> {
 		const store = new DisposableStore();
 		try {
 			const overlay = store.add(new ScreenshotSelectionOverlay(this.layoutService.getContainer(targetWindow), {
-				scope,
 				shouldForwardKey: event => this.isAccessibilityHelpKey(event),
 			}));
 			store.add(token.onCancellationRequested(() => overlay.cancel()));
@@ -380,7 +369,7 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 			session.surface = overlay;
 			store.add(toDisposable(() => session.surface = undefined));
 			overlay.focus();
-			this.accessibilityService.status(this.getSelectionAnnouncement(!!scope));
+			this.accessibilityService.status(this.getSelectionAnnouncement());
 			return await overlay.selection;
 		} finally {
 			store.dispose();
@@ -392,8 +381,8 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return result.kind === ResultKind.KbFound && result.commandId === AccessibilityCommandId.OpenAccessibilityHelp;
 	}
 
-	private getSelectionAnnouncement(scoped: boolean): string {
-		const message = localize('screenshotModeAnnouncement', "Screenshot mode. {0}", getScreenshotSelectionHint(scoped));
+	private getSelectionAnnouncement(): string {
+		const message = localize('screenshotModeAnnouncement', "Screenshot mode. {0}", getScreenshotSelectionHint());
 		if (!this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.ScreenshotTool)) {
 			return message;
 		}
@@ -401,15 +390,6 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		return keybinding
 			? localize('screenshotModeAnnouncementWithHelp', "{0} Use {1} for accessibility help.", message, keybinding)
 			: message;
-	}
-
-	/** Lets a scope capture itself: all of it, or the area of it that the user dragged. */
-	private async captureScope(scope: IScreenshotToolScope, bounds: IScreenshotRect, selection: ScreenshotSelection): Promise<IScreenshotToolImage | undefined> {
-		const area = selection.kind === 'area'
-			? { x: selection.rect.x - bounds.x, y: selection.rect.y - bounds.y, width: selection.rect.width, height: selection.rect.height }
-			: undefined;
-		const content = await scope.capture(area);
-		return content.data.byteLength ? createScreenshotToolImage(content.data, content.mimeType) : undefined;
 	}
 
 	/**
@@ -443,14 +423,6 @@ export class ScreenshotToolService extends Disposable implements IScreenshotTool
 		context.drawImage(windowImage, area.x * scaleX, area.y * scaleY, area.width * scaleX, area.height * scaleY, 0, 0, canvas.width, canvas.height);
 		return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
 	}
-}
-
-function getVisibleRect(targetWindow: CodeWindow, element: HTMLElement): IScreenshotRect | undefined {
-	if (!element.isConnected || getWindow(element) !== targetWindow) {
-		return undefined;
-	}
-	const { left, top, width, height } = element.getBoundingClientRect();
-	return width > 0 && height > 0 ? { x: left, y: top, width, height } : undefined;
 }
 
 function toDataUrl(data: VSBuffer, mimeType: string): string {

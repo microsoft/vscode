@@ -21,7 +21,7 @@ export interface IScreenshotRect {
 
 /** What the user selected, in CSS pixels relative to the window. */
 export type ScreenshotSelection =
-	/** All of the window, or of the scope that the selection is limited to. */
+	/** All of the window. */
 	| { readonly kind: 'all' }
 	| { readonly kind: 'area'; readonly rect: IScreenshotRect };
 
@@ -46,25 +46,19 @@ function getSelectionRect(start: { x: number; y: number }, end: { x: number; y: 
 }
 
 export interface IScreenshotSelectionOverlayOptions {
-	/**
-	 * Limits the selection to an area of the window, such as a browser page: a click in it or Enter selects all of it,
-	 * a drag selects an area of it, and a click outside it cancels.
-	 */
-	readonly scope?: IScreenshotRect;
 	/** Whether a key press should reach the workbench, such as the one that opens accessibility help. */
 	readonly shouldForwardKey: (event: StandardKeyboardEvent) => boolean;
 }
 
 /**
- * A layer above the window that lets the user select a capture: a click or Enter selects all of the window, or of the
- * scope that the selection is limited to, a drag selects an area, and Escape cancels. The window keeps running underneath.
+ * A layer above the window that lets the user select a capture: a click or Enter selects all of the window, a drag
+ * selects an area, and Escape cancels. The window keeps running underneath.
  */
 export class ScreenshotSelectionOverlay extends Disposable {
 
 	static readonly CLASS_NAME = 'screenshot-tool-overlay';
 
 	private readonly element: HTMLElement;
-	private readonly scopeElement: HTMLElement | undefined;
 	private readonly selectionElement: HTMLElement;
 	private readonly result = new DeferredPromise<ScreenshotSelection | undefined>();
 	private drag: { readonly pointerId: number; readonly start: { x: number; y: number }; dragging: boolean } | undefined;
@@ -78,14 +72,8 @@ export class ScreenshotSelectionOverlay extends Disposable {
 		this.element.setAttribute('aria-label', localize('screenshotTool', "Screenshot"));
 		this._register(toDisposable(() => this.element.remove()));
 
-		// Limited to a scope, the selection shows its camera and instructions only there.
-		if (options.scope) {
-			this.element.classList.add('scoped');
-			this.scopeElement = append(this.element, $('.screenshot-tool-scope'));
-			setBounds(this.scopeElement, options.scope);
-		}
-		const hint = append(this.scopeElement ?? this.element, $('.screenshot-tool-hint'));
-		hint.textContent = getScreenshotSelectionHint(!!options.scope);
+		const hint = append(this.element, $('.screenshot-tool-hint'));
+		hint.textContent = getScreenshotSelectionHint();
 		hint.setAttribute('aria-hidden', 'true');
 		this.selectionElement = append(this.element, $('.screenshot-tool-selection'));
 
@@ -119,9 +107,6 @@ export class ScreenshotSelectionOverlay extends Disposable {
 	}
 
 	private get bounds(): IScreenshotRect {
-		if (this.options.scope) {
-			return this.options.scope;
-		}
 		const targetWindow = getWindow(this.element);
 		return { x: 0, y: 0, width: targetWindow.innerWidth, height: targetWindow.innerHeight };
 	}
@@ -131,14 +116,10 @@ export class ScreenshotSelectionOverlay extends Disposable {
 		if (e.button !== 0 || this.drag) {
 			return;
 		}
-		if (this.options.scope && !contains(this.options.scope, e.clientX, e.clientY)) {
-			this.complete(undefined);
-			return;
-		}
 		this.drag = { pointerId: e.pointerId, start: { x: e.clientX, y: e.clientY }, dragging: false };
 		try {
 			// The capturing element's cursor shows while the pointer is down.
-			(this.scopeElement ?? this.element).setPointerCapture(e.pointerId);
+			this.element.setPointerCapture(e.pointerId);
 		} catch {
 			// Only pointers that are down can be captured, so synthetic events cannot.
 		}
@@ -201,14 +182,8 @@ export class ScreenshotSelectionOverlay extends Disposable {
 }
 
 /** The instructions of the selection overlay, shown at its bottom and announced when it opens. */
-export function getScreenshotSelectionHint(scoped: boolean): string {
-	return scoped
-		? localize('screenshotSelectionHintPage', "Click to capture the page, or drag to capture an area of it. Press Enter to capture the page or Escape to cancel.")
-		: localize('screenshotSelectionHint', "Click to capture the window, or drag to capture an area. Press Enter to capture the window or Escape to cancel.");
-}
-
-function contains(rect: IScreenshotRect, x: number, y: number): boolean {
-	return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+export function getScreenshotSelectionHint(): string {
+	return localize('screenshotSelectionHint', "Click to capture the window, or drag to capture an area. Press Enter to capture the window or Escape to cancel.");
 }
 
 function setBounds(element: HTMLElement, rect: IScreenshotRect | undefined): void {

@@ -16,7 +16,7 @@ import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/com
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IScreenshotToolCaptureEvent, IScreenshotToolCaptureOptions, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, IScreenshotToolScope, ScreenshotToolResult } from '../../browser/screenshotTool.js';
+import { IScreenshotToolCaptureEvent, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolImage, ScreenshotToolResult } from '../../browser/screenshotTool.js';
 import { ScreenshotToolService } from '../../browser/screenshotToolService.js';
 
 /** Records screenshot tool events. */
@@ -48,8 +48,6 @@ export class TestScreenshotToolService extends ScreenshotToolService {
 	/** Whether the tool can capture, as on desktop, or not, as on the web. */
 	supported = true;
 	readonly requests: string[] = [];
-	/** What captures were limited to, see {@link IScreenshotToolCaptureOptions.scope}. */
-	readonly scopes: (IScreenshotToolScope | undefined)[] = [];
 	/** What a capture returns. A pending promise holds the capture until it settles. */
 	result: ScreenshotToolResult | Promise<ScreenshotToolResult> = { kind: 'cancelled', mode: 'none' };
 	windowImage: IScreenshotToolImage | undefined;
@@ -64,9 +62,8 @@ export class TestScreenshotToolService extends ScreenshotToolService {
 		return this.supported;
 	}
 
-	override async capture(targetWindow: CodeWindow, _token?: CancellationToken, options?: IScreenshotToolCaptureOptions): Promise<ScreenshotToolResult> {
+	override async capture(targetWindow: CodeWindow, _token?: CancellationToken): Promise<ScreenshotToolResult> {
 		this.requests.push('capture');
-		this.scopes.push(options?.scope);
 		this.runSession(targetWindow);
 		return this.result;
 	}

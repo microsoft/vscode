@@ -51,7 +51,6 @@ import { ChatPetAchievementIds, shouldUnlockChatPetIntegratedBrowserShare } from
 import { IChatPetService } from '../../../chat/browser/chatPetService.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolCapture, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolMode, ScreenshotToolOutcome, ScreenshotToolResult } from '../../../screenshotTool/browser/screenshotTool.js';
 
 // Register tools
@@ -122,6 +121,7 @@ const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEdito
 const BrowserCategory = localize2('browserCategory', "Browser");
 
 const CONTEXT_BROWSER_ELEMENT_SELECTION_MODE = new RawContextKey<BrowserElementSelectionMode | undefined>('browserElementSelectionMode', undefined, localize('browser.elementSelectionMode', "The active element selection mode"));
+const CONTEXT_BROWSER_AREA_SELECTION_ACTIVE = new RawContextKey<boolean>('browserAreaSelectionActive', false, localize('browser.areaSelectionActive', "Whether area selection is currently active"));
 
 class BrowserElementCommentingAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -169,6 +169,7 @@ type IntegratedBrowserAddScreenshotToChatAddedClassification = {
  */
 export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	private readonly _elementSelectionModeContext: IContextKey<BrowserElementSelectionMode | undefined>;
+	private readonly _areaSelectionActiveContext: IContextKey<boolean>;
 	private _elementSelectionMode: BrowserElementSelectionMode | undefined;
 	private readonly _commentReferences = new Map<string, { elementId: string; attachmentIds: readonly string[]; widget: IChatWidget; browserModel: IBrowserViewModel }>();
 	private readonly _commentReferenceListeners = this._register(new DisposableMap<IChatWidget, DisposableStore>());
@@ -199,6 +200,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	) {
 		super(editor);
 		this._elementSelectionModeContext = CONTEXT_BROWSER_ELEMENT_SELECTION_MODE.bindTo(contextKeyService);
+		this._areaSelectionActiveContext = CONTEXT_BROWSER_AREA_SELECTION_ACTIVE.bindTo(contextKeyService);
 
 		// Build share toggle button
 		const hoverDelegate = this._register(instantiationService.createInstance(
@@ -301,6 +303,10 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				this._focusChatInputForComments(model);
 			}
 		}));
+		this._areaSelectionActiveContext.set(model.isAreaSelectionActive);
+		store.add(model.onDidChangeAreaSelectionActive(active => {
+			this._areaSelectionActiveContext.set(active);
+		}));
 	}
 
 	override onModelDetached(): void {
@@ -309,6 +315,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		}
 		this._elementSelectionModeContext.reset();
 		this._elementSelectionMode = undefined;
+		this._areaSelectionActiveContext.reset();
 	}
 
 	// -- Sharing -------------------------------------------------------
@@ -746,35 +753,68 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 	// -- Screenshot ----------------------------------------------------
 
 	/**
-	 * Lets the user capture this page, or drag to capture an area of it, with the screenshot tool, and attaches the
-	 * capture to chat. The page captures itself, as window captures only show its placeholder.
+	 * Capture a viewport screenshot of the current browser view and attach it to chat.
 	 */
 	async addScreenshotToChat(): Promise<void> {
 		const model = this.editor.model;
 		if (!model) {
 			return;
 		}
+
 		const stopWatch = StopWatch.create(false);
-		// The page captures itself once the user has selected, so the content warning is for the URL that it has then.
-		let url = model.url;
-		const result = await this.screenshotToolService.capture(this.editor.window, undefined, {
-			scope: {
-				element: this.editor.browserContainer,
-				capture: async area => {
-					// The page's view has the bounds of its container, times the window's zoom factor.
-					const zoomFactor = getZoomFactor(this.editor.window);
-					const x = Math.round((area?.x ?? 0) * zoomFactor);
-					const y = Math.round((area?.y ?? 0) * zoomFactor);
-					const data = await model.captureScreenshot(area ? {
-						quality: 80,
-						screenRect: { x, y, width: Math.round((area.x + area.width) * zoomFactor) - x, height: Math.round((area.y + area.height) * zoomFactor) - y },
-					} : { quality: 80 });
-					url = model.url;
-					return { data, mimeType: 'image/jpeg' };
-				},
-			},
-		});
-		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, url, stopWatch);
+		let result: ScreenshotToolResult = { kind: 'failed', mode: 'page' };
+		try {
+			// Capture the screenshot BEFORE revealing the chat panel or prompting the
+			// user so the image reflects what the user saw when they pressed the button,
+			// not a reflowed version of the page after the panel opens or a later version
+			// after the dialog appears.
+			const screenshotBuffer = await model.captureScreenshot({ quality: 80 });
+			result = { kind: 'captured', mode: 'page', image: await createScreenshotToolImage(screenshotBuffer, 'image/jpeg') };
+		} catch (error) {
+			this.logService.error('BrowserEditor.addScreenshotToChat: Failed to capture screenshot', error);
+		}
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserScreenshot, result, model.url, stopWatch);
+	}
+
+	/**
+	 * Drive the area-screenshot flow: present the drag-to-select picker, capture the
+	 * user-drawn region, and attach the resulting image to chat.
+	 */
+	async addAreaScreenshotToChat(): Promise<void> {
+		const model = this.editor.model;
+		if (!model) {
+			return;
+		}
+
+		// Toggle off if already active — second invocation cancels.
+		if (model.isAreaSelectionActive) {
+			void model.toggleAreaSelection(false);
+			return;
+		}
+
+		this.editor.ensureBrowserFocus();
+
+		const stopWatch = StopWatch.create(false);
+		// `onDidPickArea` fires exactly once per session with the user-drawn rectangle
+		// or `undefined` on cancellation, so we don't have to reconcile rect vs.
+		// activation-state events across the IPC boundary.
+		const pickPromise = Event.toPromise(Event.once(model.onDidPickArea));
+		void model.toggleAreaSelection(true);
+		const rect = await pickPromise;
+
+		let result: ScreenshotToolResult = { kind: 'cancelled', mode: 'none' };
+		if (rect) {
+			result = { kind: 'failed', mode: 'area' };
+			try {
+				// Added awaitNextPaint because the area selection UI (a dashed rectangle) was every so often making its way
+				// into the captured screenshot.
+				const screenshotBuffer = await model.captureScreenshot({ quality: 80, pageRect: rect, awaitNextPaint: true });
+				result = { kind: 'captured', mode: 'area', image: await createScreenshotToolImage(screenshotBuffer, 'image/jpeg') };
+			} catch (error) {
+				this.logService.error('BrowserEditor.addAreaScreenshotToChat: Failed to capture area screenshot', error);
+			}
+		}
+		return this._attachScreenshotToolResult(ScreenshotToolEntryPoint.BrowserAreaScreenshot, result, model.url, stopWatch);
 	}
 
 	/**
@@ -789,8 +829,8 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 		const stopWatch = StopWatch.create(false);
 		let result: ScreenshotToolResult = { kind: 'failed', mode: 'fullPage' };
 		try {
-			const image = await createScreenshotToolImage(await model.captureScreenshot({ fullPage: true, format: 'png' }), 'image/png');
-			result = { kind: 'captured', mode: 'fullPage', image };
+			const screenshotBuffer = await model.captureScreenshot({ fullPage: true, format: 'png' });
+			result = { kind: 'captured', mode: 'fullPage', image: await createScreenshotToolImage(screenshotBuffer, 'image/png') };
 		} catch (error) {
 			this.logService.error('BrowserEditor.addFullPageScreenshotToChat: Failed to capture full-page screenshot', error);
 		}
@@ -799,7 +839,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 
 	/**
 	 * Attaches a capture of the page at `url`, after confirming the risk of its content. The attached screenshot can be
-	 * edited from chat.
+	 * marked up from chat.
 	 */
 	private async _attachScreenshotToolResult(entryPoint: ScreenshotToolEntryPoint, result: ScreenshotToolResult, url: string, stopWatch: StopWatch): Promise<void> {
 		let outcome: ScreenshotToolOutcome = result.kind === 'captured' ? 'failed' : result.kind;
@@ -824,7 +864,7 @@ export class BrowserEditorChatIntegration extends BrowserEditorContribution {
 				screenshotType: result.mode === 'page' ? 'viewport' : result.mode === 'fullPage' ? 'fullPage' : 'area'
 			});
 		} catch (error) {
-			this.logService.error('BrowserEditor: Failed to attach a screenshot from the screenshot tool', error);
+			this.logService.error('BrowserEditor: Failed to attach a screenshot', error);
 		} finally {
 			this._logScreenshotCapture(entryPoint, outcome, result.mode, stopWatch);
 		}
@@ -1009,6 +1049,34 @@ class AddScreenshotToChatAction extends Action2 {
 	}
 }
 
+class AddAreaScreenshotToChatAction extends Action2 {
+	static readonly ID = BrowserViewCommandId.AddAreaScreenshotToChat;
+
+	constructor() {
+		super({
+			id: AddAreaScreenshotToChatAction.ID,
+			title: localize2('browser.addAreaScreenshotToChatAction', 'Add Area Screenshot to Chat'),
+			category: BrowserActionCategory,
+			icon: Codicon.screenFull,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
+			toggled: CONTEXT_BROWSER_AREA_SELECTION_ACTIVE,
+			menu: {
+				id: MenuId.BrowserChatActionsMenu,
+				group: '3_screenshots',
+				order: 2,
+				when: ChatContextKeys.enabled
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.getContribution(BrowserEditorChatIntegration)?.addAreaScreenshotToChat();
+		}
+	}
+}
+
 class AddFullPageScreenshotToChatAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.AddFullPageScreenshotToChat;
 
@@ -1024,7 +1092,7 @@ class AddFullPageScreenshotToChatAction extends Action2 {
 			menu: {
 				id: MenuId.BrowserChatActionsMenu,
 				group: '3_screenshots',
-				order: 2,
+				order: 3,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, enabledSetting)
 			}
 		});
@@ -1042,6 +1110,7 @@ registerAction2(AddElementCommentToChatAction);
 registerAction2(StopElementSelectionAction);
 registerAction2(AddConsoleLogsToChatAction);
 registerAction2(AddScreenshotToChatAction);
+registerAction2(AddAreaScreenshotToChatAction);
 registerAction2(AddFullPageScreenshotToChatAction);
 
 // Expose the chat actions submenu (Add Element to Chat, etc.) as a split button in the browser actions toolbar.

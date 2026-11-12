@@ -14,7 +14,6 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IImageCarouselMarkUp } from '../../imageCarousel/browser/imageCarouselTypes.js';
 import { IAnnotationEditorState } from './screenshotAnnotation.js';
-import type { IScreenshotRect } from './screenshotSelection.js';
 
 /** True while the screenshot tool lets the user select a capture or mark up a screenshot. */
 export const ScreenshotToolActiveContext = new RawContextKey<boolean>('screenshotToolActive', false, localize('screenshotToolActive', "Whether the screenshot tool is capturing or marking up a screenshot"));
@@ -26,6 +25,7 @@ export const enum ScreenshotToolEntryPoint {
 	ChatAddContext = 'chatAddContext',
 	IssueReporter = 'issueReporter',
 	BrowserScreenshot = 'browserScreenshot',
+	BrowserAreaScreenshot = 'browserAreaScreenshot',
 	BrowserFullPageScreenshot = 'browserFullPageScreenshot',
 }
 
@@ -80,24 +80,6 @@ export interface IScreenshotToolMarkUp extends IDisposable {
 	finish(): void;
 }
 
-/** An element that a capture is limited to, which captures itself, such as the browser page that started it. */
-export interface IScreenshotToolScope {
-	readonly element: HTMLElement;
-	/**
-	 * Captures what the element shows, or the area of it that the user dragged, in CSS pixels from its top left corner.
-	 * A browser page, for example, captures itself, as window captures only show its placeholder.
-	 */
-	capture(area: IScreenshotRect | undefined): Promise<{ readonly data: VSBuffer; readonly mimeType: string }>;
-}
-
-export interface IScreenshotToolCaptureOptions {
-	/**
-	 * Limits the capture to an element: a click on the element or Enter captures what it shows, a drag captures an area
-	 * of it, and a click elsewhere cancels.
-	 */
-	readonly scope?: IScreenshotToolScope;
-}
-
 export interface IScreenshotToolService {
 	readonly _serviceBrand: undefined;
 
@@ -110,8 +92,8 @@ export interface IScreenshotToolService {
 	 */
 	readonly isSupported: boolean;
 
-	/** Lets the user click or press Enter to capture the window, or drag to capture an area, unless `options` limit it. */
-	capture(targetWindow: CodeWindow, token?: CancellationToken, options?: IScreenshotToolCaptureOptions): Promise<ScreenshotToolResult>;
+	/** Lets the user click or press Enter to capture the window, or drag to capture an area. */
+	capture(targetWindow: CodeWindow, token?: CancellationToken): Promise<ScreenshotToolResult>;
 
 	/** Captures the whole window, as the user sees it, without letting the user select. */
 	captureWindow(targetWindow: CodeWindow): Promise<IScreenshotToolImage | undefined>;

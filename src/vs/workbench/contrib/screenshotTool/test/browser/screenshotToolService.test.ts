@@ -21,7 +21,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ImageCarouselEditorInput } from '../../../imageCarousel/browser/imageCarouselEditorInput.js';
 import { createScreenshotToolImage, getScreenshotToolImageData, ScreenshotToolEntryPoint, ScreenshotToolResult, ScreenshotToolSurface } from '../../browser/screenshotTool.js';
-import { IScreenshotRect, resolveScreenshotSelection } from '../../browser/screenshotSelection.js';
+import { resolveScreenshotSelection } from '../../browser/screenshotSelection.js';
 import { ScreenshotToolService } from '../../browser/screenshotToolService.js';
 import { TestScreenshotToolTelemetryService } from './screenshotToolTestUtils.js';
 
@@ -30,13 +30,13 @@ suite('ScreenshotTool', () => {
 
 	test('a press without travel selects everything and a drag selects an area clamped to the bounds', () => {
 		const windowBounds = { x: 0, y: 0, width: 800, height: 600 };
-		const pageBounds = { x: 100, y: 100, width: 400, height: 300 };
+		const offsetBounds = { x: 100, y: 100, width: 400, height: 300 };
 		assert.deepStrictEqual([
 			resolveScreenshotSelection({ x: 100, y: 100 }, { x: 103, y: 97 }, windowBounds),
 			resolveScreenshotSelection({ x: 300, y: 200 }, { x: 100, y: 120 }, windowBounds),
 			resolveScreenshotSelection({ x: 700, y: 500 }, { x: 900, y: 700 }, windowBounds),
 			resolveScreenshotSelection({ x: 790, y: 590 }, { x: 900, y: 700 }, windowBounds),
-			resolveScreenshotSelection({ x: 450, y: 350 }, { x: 20, y: 700 }, pageBounds),
+			resolveScreenshotSelection({ x: 450, y: 350 }, { x: 20, y: 700 }, offsetBounds),
 		], [
 			{ kind: 'all' },
 			{ kind: 'area', rect: { x: 100, y: 120, width: 200, height: 80 } },
@@ -173,86 +173,6 @@ suite('ScreenshotTool', () => {
 			assert.deepStrictEqual({ result: summarize(await result), captures }, {
 				result: { kind: 'captured', mode: 'area', size: '100x70' },
 				captures: [mainWindow],
-			});
-		});
-
-		test('limited to a page, the tool shows its camera and instructions only there, the page captures itself on a click or Enter and an area of itself on a drag, and a click elsewhere cancels', async () => {
-			const { service, container, captures, accessibility } = createService();
-			const page = $('div');
-			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 400px; height: 300px;';
-			container.appendChild(page);
-			const pageCaptures: (IScreenshotRect | undefined)[] = [];
-			const scope = {
-				element: page,
-				capture: async (area: IScreenshotRect | undefined) => {
-					pageCaptures.push(area);
-					return { data: createImage(area?.width ?? 400, area?.height ?? 300, '#ff0000'), mimeType: 'image/png' };
-				},
-			};
-			const getCursor = (element: HTMLElement) => {
-				const cursor = mainWindow.getComputedStyle(element).cursor;
-				return cursor.startsWith('url(') ? 'camera' : cursor;
-			};
-			const describeOverlay = (overlay: HTMLElement) => {
-				const scope = overlay.querySelector<HTMLElement>('.screenshot-tool-scope')!;
-				const bounds = scope.getBoundingClientRect();
-				const hint = scope.querySelector<HTMLElement>('.screenshot-tool-hint')!.getBoundingClientRect();
-				return {
-					cursors: { page: getCursor(scope), elsewhere: getCursor(overlay) },
-					scope: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-					hintCenter: Math.round(hint.left + hint.width / 2),
-					hintInPage: hint.left >= bounds.left && hint.right <= bounds.right && hint.top >= bounds.top && hint.bottom <= bounds.bottom,
-					announced: accessibility.messages.at(-1),
-				};
-			};
-			const capture = async (act: (overlay: HTMLElement) => void) => {
-				const result = service.capture(mainWindow, undefined, { scope });
-				act(getOverlay(container));
-				return summarize(await result);
-			};
-			let shown: ReturnType<typeof describeOverlay> | undefined;
-			const elsewhere = await capture(overlay => {
-				shown = describeOverlay(overlay);
-				pointer(overlay, 'pointerdown', 20, 20);
-			});
-			const click = await capture(overlay => {
-				pointer(overlay, 'pointerdown', 150, 150);
-				pointer(overlay, 'pointerup', 151, 150);
-			});
-			const enter = await capture(overlay => key(overlay, 'Enter', 13));
-			const drag = await capture(overlay => {
-				pointer(overlay, 'pointerdown', 450, 350);
-				pointer(overlay, 'pointermove', 700, 700);
-				pointer(overlay, 'pointerup', 700, 700);
-			});
-			assert.deepStrictEqual({ shown, elsewhere, click, enter, drag, pageCaptures, windowCaptures: captures.length }, {
-				shown: {
-					cursors: { page: 'camera', elsewhere: 'default' },
-					scope: { x: 100, y: 100, width: 400, height: 300 },
-					hintCenter: 300,
-					hintInPage: true,
-					announced: 'Screenshot mode. Click to capture the page, or drag to capture an area of it. Press Enter to capture the page or Escape to cancel.',
-				},
-				elsewhere: { kind: 'cancelled', mode: 'none' },
-				click: { kind: 'captured', mode: 'page', size: '400x300' },
-				enter: { kind: 'captured', mode: 'page', size: '400x300' },
-				drag: { kind: 'captured', mode: 'area', size: '50x50' },
-				pageCaptures: [undefined, undefined, { x: 350, y: 250, width: 50, height: 50 }],
-				windowCaptures: 0,
-			});
-		});
-
-		test('limited to a page that fails to capture itself, the capture fails rather than showing the window', async () => {
-			const { service, container, captures, accessibility } = createService();
-			const page = $('div');
-			page.style.cssText = 'position: fixed; left: 100px; top: 100px; width: 400px; height: 300px;';
-			container.appendChild(page);
-			const result = service.capture(mainWindow, undefined, { scope: { element: page, capture: () => Promise.reject(new Error('The page is gone')) } });
-			key(getOverlay(container), 'Enter', 13);
-			assert.deepStrictEqual({ result: await result, captures, announced: accessibility.messages.at(-1) }, {
-				result: { kind: 'failed', mode: 'page' },
-				captures: [],
-				announced: 'The screenshot could not be captured.',
 			});
 		});
 

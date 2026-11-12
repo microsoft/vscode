@@ -63,6 +63,7 @@ suite('BrowserViewModel', () => {
 			permissions: { origins: {} },
 			browserZoomIndex: browserZoomDefaultIndex,
 			elementSelectionState: { active: false, options: {} },
+			isAreaSelectionActive: false,
 			device: undefined,
 			audiences: [],
 		};
