@@ -934,16 +934,26 @@ suite('Agent Host Session Config Picker', () => {
 		trigger.click();
 		await timeout(0);
 		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
-		const invalidNames = ['', 'HEAD', '-option', 'a b', 'a..b', 'a@{b', '.hidden', 'a/.hidden', 'a.lock', 'a//b', 'a/', 'a.', 'a\\b', 'a?b', 'a[b', 'main', 'feature', 'feature/existing/child'];
+		// Matches `git check-ref-format --branch`, except where the picker is deliberately stricter.
+		const nameCases: [name: string, accepted: boolean][] = [
+			['feature/new', true], ['fix-123', true], ['release/1.2', true], ['a.b', true], ['a@b', true], ['@b', true],
+			['a-', true], ['a{b}', true], ['a]b', true], ['user/a-b_c', true], ['caf\u00e9', true],
+			['', false], ['HEAD', false], ['-option', false], ['a b', false], ['a\tb', false], ['a..b', false], ['a@{b', false],
+			['.hidden', false], ['a/.hidden', false], ['a.lock', false], ['a.lock/b', false], ['a//b', false], ['a/', false],
+			['/a', false], ['a.', false], ['a\\b', false], ['a~b', false], ['a^b', false], ['a:b', false], ['a?b', false],
+			['a*b', false], ['a[b', false], ['a\u0001b', false], ['a\u007fb', false],
+			// Stricter than Git: `@` means HEAD, and a non-breaking space looks like a space.
+			['@', false], ['a\u00a0b', false],
+			// Conflicts with the existing `main` and `feature/existing` branches.
+			['main', false], ['feature', false], ['feature/existing/child', false],
+		];
 		assert.deepStrictEqual({
 			anchor: inputOptions?.anchor,
-			invalid: await Promise.all(invalidNames.map(async name => !!await inputOptions?.validateInput?.(name))),
-			valid: await inputOptions?.validateInput?.('feature/new'),
+			names: await Promise.all(nameCases.map(async ([name]) => [name, !await inputOptions?.validateInput?.(name)])),
 			invocations: services.checkoutInvocations,
 		}, {
 			anchor: undefined,
-			invalid: invalidNames.map(() => true),
-			valid: undefined,
+			names: nameCases,
 			invocations: [],
 		});
 	});

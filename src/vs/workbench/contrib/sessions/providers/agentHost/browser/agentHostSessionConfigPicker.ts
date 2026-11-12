@@ -271,7 +271,7 @@ function getCreateBranchSourceItems(head: SessionConfigValueItem, sources: reado
 function validateCreateBranchName(name: string, branches: readonly SessionConfigValueItem[]): string | { content: string; severity: Severity } | undefined {
 	// Reject names that violate Git's ref-format rules.
 	if (!name || name === 'HEAD' || name === '@' || name.startsWith('-') || name.endsWith('.')
-		|| name.includes('..') || name.includes('@{') || /[\s~^:?*[\]\\]/.test(name)
+		|| name.includes('..') || name.includes('@{') || /[\s~^:?*[\\]/.test(name)
 		|| Array.from(name).some(character => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
 		|| name.split('/').some(part => !part || part.startsWith('.') || part.endsWith('.lock'))) {
 		return localize('agentHostSessionConfig.createBranch.invalid', "Enter a valid Git branch name.");
