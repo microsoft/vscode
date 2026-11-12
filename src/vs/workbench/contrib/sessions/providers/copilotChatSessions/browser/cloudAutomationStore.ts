@@ -137,7 +137,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				this.accountInitialized.read(reader);
 			}
 			const previousStore = this.store.read(undefined);
-			const accountKey = account ? `${account.authenticationProvider.id}:${account.sessionId}` : undefined;
+			const accountKey = account?.sessionId;
 			const initialMutationUncertain = accountKey === this.storeAccountKey && previousStore?.mutationUncertain.read(undefined) === true;
 			let store: GitHubCloudAutomationStore | undefined;
 			const enabled = this.enabled.read(reader);
