@@ -7,7 +7,7 @@ import './media/chatWindow.css';
 import { raceTimeout, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -169,6 +169,8 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 	readonly isUnsentComposer: IObservable<boolean> = derived(this, reader => !!this._composer.read(reader));
 	/** The session the chat was last known in, so that its end is known while the session no longer lists it. */
 	private _knownSession: ISession | undefined;
+	/** Whether its known session was removed, such as deleted: not hidden as its provider goes away, which removes nothing. */
+	private _knownSessionRemoved = false;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -248,7 +250,19 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 			this._heldChat.hold(chatResource, this._boundCheck());
 		}
 
-		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSessions);
+		// Once it knows its session, only sessions added, removed or replaced can change where its chat is: what changes in its
+		// session it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
+		// A replacement, such as a pending session committed under the same ID, comes as a change of another object.
+		const sessionsChanged = observableSignal(this);
+		this._register(_sessionsManagementService.onDidChangeSessions(e => {
+			const known = this._knownSession;
+			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
+				this._knownSessionRemoved = true;
+			}
+			if (!known || e.added.length || e.removed.length || e.changed.some(changed => changed !== known && changed.sessionId === known.sessionId)) {
+				sessionsChanged.trigger(undefined);
+			}
+		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
 			this._update(reader);
@@ -310,6 +324,7 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 				owner.session.loading.read(reader);
 			}
 			this._knownSession = owner.session;
+			this._knownSessionRemoved = false;
 			if (isChatWindowChatGone(owner.session, chatResource, reader)) {
 				this._end();
 				return;
@@ -322,6 +337,11 @@ class SessionsChatWindowChat extends Disposable implements IChatWindowChat, ISes
 				this._heldSession = owner.session;
 				this._gridHold.value = this._sessionsService.hideChatFromGrid(owner.session, owner.chat.resource);
 			}
+			return;
+		}
+		if (this._knownSessionRemoved && !(this._knownSession && this._sessionsManagementService.getSession(this._knownSession.resource))) {
+			// Its session is gone, such as deleted: its chats with it, also while the session's last state still lists them
+			this._end();
 			return;
 		}
 		// Gone once the session it was in has loaded and no longer lists it, such as once it was deleted
