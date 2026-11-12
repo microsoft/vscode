@@ -13,7 +13,8 @@ import { customizationId, type ClientPluginCustomization } from '../../../../../
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptPath, IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { getSkillFolderName } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../../../common/enablement.js';
@@ -79,8 +80,9 @@ export interface ILocalCustomizationFile {
  * Built-in skills bundled with the Agents app (only present when the
  * sessions-aware prompts service is in play) are also enumerated so that
  * `/create-pr`, `/merge`, etc. are available to every agent host without
- * any per-provider plumbing. In the regular VS Code workbench window the
- * built-in lookup returns nothing and this is a no-op.
+ * any per-provider plumbing. A built-in skill is left out when a workspace
+ * or user skill with the same name overrides it. In the regular VS Code
+ * workbench window the built-in lookup returns nothing and this is a no-op.
  */
 export async function enumerateLocalCustomizationsForHarness(
 	promptsService: IPromptsService,
@@ -103,10 +105,16 @@ export async function enumerateLocalCustomizationsForHarness(
 		const lists = await Promise.all(
 			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
+		const overridingSkillNames = type === PromptsType.skill
+			? getOverridingSkillNames(storageSources, lists, harnessSessionType)
+			: undefined;
 		for (let i = 0; i < lists.length; i++) {
 			const source = storageSources[i];
 			const userToggleable = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
+				if (source === PromptsStorage.builtIn && overridingSkillNames?.has(getSkillFolderName(file.uri))) {
+					continue;
+				}
 				if (!fullySyncedStorageSources.includes(source)
 					&& file.source !== PromptFileSource.ConfigWorkspace
 					&& file.source !== PromptFileSource.ConfigPersonal) {
@@ -128,6 +136,32 @@ export async function enumerateLocalCustomizationsForHarness(
 	}
 
 	return result;
+}
+
+/**
+ * Collects the canonical (folder) names of workspace and user skills that
+ * apply to `harnessSessionType`. Built-in skills have the lowest precedence,
+ * so a built-in skill with one of these names is overridden and must not be
+ * forwarded to the agent host next to the workspace or user copy, which the
+ * host discovers itself or receives through the sync.
+ */
+function getOverridingSkillNames(
+	storageSources: readonly PromptsStorage[],
+	lists: readonly (readonly IPromptPath[])[],
+	harnessSessionType: string,
+): ReadonlySet<string> {
+	const names = new Set<string>();
+	for (let i = 0; i < lists.length; i++) {
+		if (storageSources[i] !== PromptsStorage.local && storageSources[i] !== PromptsStorage.user) {
+			continue;
+		}
+		for (const file of lists[i]) {
+			if (matchesSessionType(file.sessionTypes, harnessSessionType)) {
+				names.add(getSkillFolderName(file.uri));
+			}
+		}
+	}
+	return names;
 }
 
 /**

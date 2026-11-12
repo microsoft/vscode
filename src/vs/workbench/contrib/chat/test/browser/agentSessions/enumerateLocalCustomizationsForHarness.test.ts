@@ -254,6 +254,37 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		]);
 	});
 
+	test('omits built-in skills overridden by a workspace or user skill with the same name', async () => {
+		const workspaceSkill = URI.file('/workspace/.github/skills/code-review/SKILL.md');
+		const userSkill = URI.file('/home/user/.copilot/skills/merge/SKILL.md');
+		const claudeOnlySkill = URI.file('/workspace/.claude/skills/create-pr/SKILL.md');
+		const builtinCodeReview = URI.file('/builtin/code-review/SKILL.md');
+		const builtinMerge = URI.file('/builtin/merge/SKILL.md');
+		const builtinCreatePr = URI.file('/builtin/create-pr/SKILL.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.skill}/${PromptsStorage.local}`, [
+				{ ...makePromptPath(workspaceSkill, PromptsType.skill, PromptsStorage.local), source: PromptFileSource.GitHubWorkspace },
+				{ ...makePromptPath(claudeOnlySkill, PromptsType.skill, PromptsStorage.local, ['claude']), source: PromptFileSource.ClaudeWorkspace },
+			]],
+			[`${PromptsType.skill}/${PromptsStorage.user}`, [makePromptPath(userSkill, PromptsType.skill, PromptsStorage.user)]],
+			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
+				makePromptPath(builtinCodeReview, PromptsType.skill, PromptsStorage.builtIn),
+				makePromptPath(builtinMerge, PromptsType.skill, PromptsStorage.builtIn),
+				makePromptPath(builtinCreatePr, PromptsType.skill, PromptsStorage.builtIn),
+			]],
+		]));
+
+		const results = await Promise.all([undefined, { includeUserStorage: true }].map(async options =>
+			(await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, options))
+				.map(item => item.uri.toString())
+		));
+
+		assert.deepStrictEqual(results, [
+			[builtinCreatePr.toString()],
+			[userSkill.toString(), builtinCreatePr.toString()],
+		]);
+	});
+
 	test('returns empty when the prompts service exposes no built-in skills (regular workbench)', async () => {
 		// The regular workbench's PromptsServiceImpl treats `builtin` as a
 		// first-class storage that simply yields no files (rather than
