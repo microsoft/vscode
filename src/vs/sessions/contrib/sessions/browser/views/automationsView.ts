@@ -166,11 +166,9 @@ interface IAutomationCardEntry {
 	readonly startingRuns: ISettableObservable<ReadonlySet<string> | undefined>;
 	readonly scheduleEl: HTMLElement;
 	readonly scheduleHover: MutableDisposable<IDisposable>;
+	readonly scheduleRefresh: MutableDisposable<IDisposable>;
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
-	readonly limitEl: HTMLElement;
-	readonly limitHover: MutableDisposable<IDisposable>;
-	readonly limitRefresh: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
 	readonly disposables: DisposableStore;
 }
@@ -792,9 +790,6 @@ class AutomationCardsSection extends Disposable {
 
 		const metaEl = DOM.append(main, $('.automations-card-meta'));
 		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));
-		const limitEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-limit'));
-		const limitHover = disposables.add(new MutableDisposable());
-		const limitRefresh = disposables.add(new MutableDisposable());
 		const folderEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-folder'));
 		const folderHover = disposables.add(new MutableDisposable());
 
@@ -872,11 +867,9 @@ class AutomationCardsSection extends Disposable {
 			startingRuns,
 			scheduleEl,
 			scheduleHover: disposables.add(new MutableDisposable<IDisposable>()),
+			scheduleRefresh: disposables.add(new MutableDisposable<IDisposable>()),
 			folderEl,
 			folderHover,
-			limitEl,
-			limitHover,
-			limitRefresh,
 			promptEl,
 			disposables,
 		};
@@ -908,10 +901,10 @@ class AutomationCardsSection extends Disposable {
 		card.isCloudContext.set(automation.cloudTrigger !== undefined || automation.ownership !== undefined);
 		card.hasEventTriggerContext.set(hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {}));
 		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
-		const schedule = automation.enabled ? automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
 		const enabledChanged = !previous || previous.enabled !== automation.enabled;
 		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule)
-			|| automationTriggerSummary(previous.cloudTrigger?.triggers ?? {}) !== triggerSummary;
+			|| automationTriggerSummary(previous.cloudTrigger?.triggers ?? {}) !== triggerSummary
+			|| !equals(previous.disableConditions, automation.disableConditions);
 		const nameChanged = !previous || previous.name !== automation.name;
 		if (nameChanged) {
 			card.main.setAttribute('aria-label', localize('editAutomationNamed', "Edit automation {0}", automation.name));
@@ -924,13 +917,7 @@ class AutomationCardsSection extends Disposable {
 			card.card.classList.toggle('automation-disabled', !automation.enabled);
 		}
 		if (scheduleChanged) {
-			const icon = !automation.enabled ? Codicon.circleSlash : automation.schedule.interval === 'manual' ? Codicon.person : Codicon.clockface;
-			DOM.reset(card.scheduleEl,
-				$('span' + ThemeIcon.asCSSSelector(icon), { 'aria-hidden': 'true' }),
-				$('span.automations-card-meta-label', undefined, schedule));
-			card.scheduleHover.value = triggerSummary
-				? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.scheduleEl, triggerSummary)
-				: undefined;
+			this.updateCardSchedule(card, automation);
 		}
 
 		const folderLabel = automation.targetDisplay?.label ?? getAutomationTargetLabel(automation.target);
@@ -947,37 +934,36 @@ class AutomationCardsSection extends Disposable {
 				: undefined;
 		}
 
-		if (!previous || previous.enabled !== automation.enabled || !equals(previous.disableConditions, automation.disableConditions)) {
-			this.updateCardLimit(card, automation);
-		}
 	}
 
-	private updateCardLimit(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+	private updateCardSchedule(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+		const schedule = automation.enabled ? automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
 		const limit = automation.enabled ? formatAutomationLimit(automation) : undefined;
-		card.main.classList.toggle('automations-card-has-limit', !!limit);
-		DOM.reset(card.limitEl, ...(limit ? [
-			$('span' + ThemeIcon.asCSSSelector(Codicon.calendar), { 'aria-hidden': 'true' }),
-			$('span.automations-card-meta-label', undefined, limit.label),
-		] : []));
-		DOM.setVisibility(!!limit, card.limitEl);
+		const label = limit ? localize('automationScheduleWithEndDate', "{0} {1}", schedule, limit.label) : schedule;
+		const icon = !automation.enabled ? Codicon.circleSlash : automation.schedule.interval === 'manual' ? Codicon.person : Codicon.clockface;
+		DOM.reset(card.scheduleEl,
+			$('span' + ThemeIcon.asCSSSelector(icon), { 'aria-hidden': 'true' }),
+			$('span.automations-card-meta-label', undefined, label));
+		card.scheduleHover.value = triggerSummary || limit
+			? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.scheduleEl, triggerSummary ?? limit!.description)
+			: undefined;
 		if (!limit) {
 			card.main.removeAttribute('aria-description');
-			card.limitHover.clear();
-			card.limitRefresh.clear();
+			card.scheduleRefresh.clear();
 			return;
 		}
 		card.main.setAttribute('aria-description', limit.description);
-		card.limitHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.limitEl, limit.description);
-		const targetWindow = DOM.getWindow(card.limitEl);
+		const targetWindow = DOM.getWindow(card.scheduleEl);
 		const now = new Date();
 		const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 		const handle = targetWindow.setTimeout(() => {
 			const currentAutomation = this.latestAutomations.get(automation.id);
 			if (currentAutomation) {
-				this.updateCardLimit(card, currentAutomation);
+				this.updateCardSchedule(card, currentAutomation);
 			}
 		}, nextDay.getTime() - now.getTime());
-		card.limitRefresh.value = toDisposable(() => targetWindow.clearTimeout(handle));
+		card.scheduleRefresh.value = toDisposable(() => targetWindow.clearTimeout(handle));
 	}
 
 	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {

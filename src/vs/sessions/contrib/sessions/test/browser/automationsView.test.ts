@@ -2194,24 +2194,22 @@ suite('AutomationsCardsWidget', () => {
 		editButton.focus();
 		const metadata = states.map(state => {
 			automationService.setAutomations([automation(state)]);
-			const limit = widget.element.querySelector<HTMLElement>('.automations-card-limit')!;
 			const focusTarget = state.enabled === false ? widget.element.querySelector('.automations-disabled-section > summary') : editButton;
 			return {
 				schedule: widget.element.querySelector('.automations-card-schedule')?.textContent,
 				folder: widget.element.querySelector('.automations-card-folder')?.textContent,
-				limit: limit.style.display === 'none' ? undefined : limit.textContent,
 				description: editButton.getAttribute('aria-description'),
 				sameCard: widget.element.querySelector('.automations-card') === card,
 				focusPreserved: document.activeElement === focusTarget,
 			};
 		});
 		assert.deepStrictEqual(metadata, [
-			{ limit: `until ${formattedLabelDate} ${formattedTime}`, description: `Stops scheduling at ${formattedDate}.` },
-			{ limit: undefined, description: null, schedule: 'Disabled' },
-			{ limit: `until ${formattedLabelDate} ${formattedTime}`, description: `Stops scheduling at ${formattedDate}.` },
-			{ limit: undefined, description: null },
-			{ limit: undefined, description: null },
-		].map(expected => ({ schedule: 'Hourly', folder: 'workspace', sameCard: true, focusPreserved: true, ...expected })));
+			{ schedule: `Hourly until ${formattedLabelDate} ${formattedTime}`, description: `Stops scheduling at ${formattedDate}.` },
+			{ schedule: 'Disabled', description: null },
+			{ schedule: `Hourly until ${formattedLabelDate} ${formattedTime}`, description: `Stops scheduling at ${formattedDate}.` },
+			{ schedule: 'Hourly', description: null },
+			{ schedule: 'Hourly', description: null },
+		].map(expected => ({ folder: 'workspace', sameCard: true, focusPreserved: true, ...expected })));
 	});
 
 	test('end date labels use today, tomorrow and short future dates', () => {
@@ -2227,12 +2225,12 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setAutomations([automation({
 				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: date.toISOString() }],
 			})]);
-			return widget.element.querySelector('.automations-card-limit')?.textContent;
+			return widget.element.querySelector('.automations-card-schedule')?.textContent;
 		});
 		assert.deepStrictEqual(labels, [
-			`until today at ${dates[0].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
-			`until tomorrow at ${dates[1].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
-			`until ${dates[2].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${dates[2].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			`Hourly until today at ${dates[0].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			`Hourly until tomorrow at ${dates[1].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			`Hourly until ${dates[2].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${dates[2].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
 		]);
 	});
 
@@ -2245,15 +2243,15 @@ suite('AutomationsCardsWidget', () => {
 			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: endDate.toISOString() }],
 		})]);
 		const card = widget.element.querySelector('.automations-card');
-		const before = widget.element.querySelector('.automations-card-limit')?.textContent;
+		const before = widget.element.querySelector('.automations-card-schedule')?.textContent;
 		clock.tick(2 * 60 * 1000);
 		assert.deepStrictEqual({
 			before,
-			after: widget.element.querySelector('.automations-card-limit')?.textContent,
+			after: widget.element.querySelector('.automations-card-schedule')?.textContent,
 			sameCard: widget.element.querySelector('.automations-card') === card,
 		}, {
-			before: `until tomorrow at ${endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
-			after: `until today at ${endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			before: `Hourly until tomorrow at ${endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			after: `Hourly until today at ${endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
 			sameCard: true,
 		});
 	});
@@ -2263,10 +2261,9 @@ suite('AutomationsCardsWidget', () => {
 		const hoverService: IHoverService = {
 			...NullHoverService,
 			setupManagedHover: (delegate, target, content) => {
-				if (!target.classList.contains('automations-card-limit')) {
+				if (!target.classList.contains('automations-card-schedule') || typeof content !== 'string' || !content.startsWith('Stops scheduling at')) {
 					return NullHoverService.setupManagedHover(delegate, target, content);
 				}
-				assert.ok(typeof content === 'string');
 				const entry = { content, disposed: false };
 				hovers.push(entry);
 				return {
@@ -2290,7 +2287,7 @@ suite('AutomationsCardsWidget', () => {
 		})));
 	});
 
-	test('an end date joins the meta row between schedule and workspace without clamping the prompt further', () => {
+	test('an end date joins the schedule text without adding a metadata item or icon', () => {
 		const { automationService, widget } = setup();
 		const dateCondition = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T15:00:00Z' };
 		const states = [[], [dateCondition], []];
@@ -2298,29 +2295,29 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setAutomations([automation({ disableConditions })]);
 			const main = widget.element.querySelector<HTMLElement>('.automations-card-main')!;
 			const meta = main.querySelector<HTMLElement>('.automations-card-meta')!;
-			const limit = meta.querySelector<HTMLElement>('.automations-card-limit')!;
+			const schedule = meta.querySelector<HTMLElement>('.automations-card-schedule')!;
 			const promptElement = main.querySelector<HTMLElement>('.automations-card-prompt')!;
 			return {
-				limitVisible: limit.style.display !== 'none',
+				schedule: schedule.textContent,
 				metaItems: Array.from(meta.children, element => element.classList[1]),
-				icon: limit.querySelector('.codicon')?.className,
+				icons: Array.from(schedule.querySelectorAll('.codicon'), icon => icon.className),
 				promptLines: getWindow(promptElement).getComputedStyle(promptElement).webkitLineClamp,
 			};
 		});
 		assert.deepStrictEqual(layouts, [false, true, false].map(hasLimit => ({
-			limitVisible: hasLimit,
-			metaItems: ['automations-card-schedule', 'automations-card-limit', 'automations-card-folder'],
-			icon: hasLimit ? 'codicon codicon-calendar' : undefined,
+			schedule: hasLimit ? `Hourly until ${new Date(dateCondition.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${new Date(dateCondition.date).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}` : 'Hourly',
+			metaItems: ['automations-card-schedule', 'automations-card-folder'],
+			icons: ['codicon codicon-clockface'],
 			promptLines: '2',
 		})));
 	});
 
-	test('an end date leaves room for the workspace label on a narrow card', () => {
+	test('a combined schedule and end date leaves room for the workspace label on a narrow card', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation({ disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2099-01-01T15:00:00Z' }] })]);
 		widget.element.querySelector<HTMLElement>('.automations-card-wrapper')!.style.width = '220px';
 		const width = (selector: string) => widget.element.querySelector(`${selector} .automations-card-meta-label`)!.getBoundingClientRect().width;
-		assert.deepStrictEqual({ folder: width('.automations-card-folder') > 0, limit: width('.automations-card-limit') > 0 }, { folder: true, limit: true });
+		assert.deepStrictEqual({ folder: width('.automations-card-folder') > 0, schedule: width('.automations-card-schedule') > 0 }, { folder: true, schedule: true });
 	});
 
 	test('host disablement hides saved limits and re-enabling restores them without changing the definition', () => {
@@ -2339,11 +2336,11 @@ suite('AutomationsCardsWidget', () => {
 			const states = [true, false, true].map(enabled => {
 				const updated = { ...item, enabled };
 				automationService.setAutomations([updated]);
-				const limit = main.querySelector<HTMLElement>('.automations-card-limit')!;
+				const schedule = main.querySelector<HTMLElement>('.automations-card-schedule')!;
 				const prompt = main.querySelector<HTMLElement>('.automations-card-prompt')!;
 				const focusTarget = enabled ? main : widget.element.querySelector('.automations-disabled-section > summary');
 				return {
-					visible: limit.style.display !== 'none',
+					scheduleHasEndDate: schedule.textContent?.includes('until') === true,
 					hasDescription: main.hasAttribute('aria-description'),
 					promptLines: getWindow(prompt).getComputedStyle(prompt).webkitLineClamp,
 					savedConditions: automationService.getAutomation(item.id)?.disableConditions,
@@ -2352,7 +2349,7 @@ suite('AutomationsCardsWidget', () => {
 				};
 			});
 			assert.deepStrictEqual(states, [true, false, true].map(enabled => ({
-				visible: enabled,
+				scheduleHasEndDate: enabled,
 				hasDescription: enabled,
 				promptLines: '2',
 				savedConditions: item.disableConditions,
@@ -4498,12 +4495,12 @@ suite('AutomationsCardsWidget', () => {
 				label: action.label,
 				mutations: automationService.guardedUpdateCalls,
 				definition: { ...updated, updatedAt: source.updatedAt },
-				limitVisible: widget.element.querySelector<HTMLElement>('.automations-card-limit')?.style.display !== 'none',
+				scheduleHasEndDate: widget.element.querySelector<HTMLElement>('.automations-card-schedule')?.textContent?.includes('until') === true,
 			}, {
 				label: 'Remove end date',
 				mutations: [{ id: source.id, patch: { disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }] }, expected: source }],
 				definition: { ...source, disableConditions: [{ kind: AutomationDisableConditionKind.AfterRuns, max: 5 }] },
-				limitVisible: false,
+				scheduleHasEndDate: false,
 			});
 		});
 	}
