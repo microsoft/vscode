@@ -107,6 +107,15 @@ suite('Folder Location in Window Title and Command Center', () => {
 		});
 	});
 
+	test('command center label renders the compact worktree icon for the full worktree icon and for no icon', () => {
+		const iconClasses = (icon: typeof Codicon.worktree | undefined) => {
+			const element = document.createElement('div');
+			renderCommandCenterLabel(element, 'repo', { ...createLocation(), icon }, noHover).dispose();
+			return element.querySelector('.folder-location-icon')?.className;
+		};
+		assert.deepStrictEqual([iconClasses(Codicon.worktree), iconClasses(undefined), iconClasses(Codicon.gitBranch)].map(c => /codicon-(worktree-compact|worktree|git-branch)\b/.exec(c ?? '')?.[1]), ['worktree-compact', 'worktree-compact', 'git-branch']);
+	});
+
 	test('command center label without a description has no branch group', () => {
 		const element = document.createElement('div');
 

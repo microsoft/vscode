@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { errorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -248,15 +249,16 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	suite('switch command', () => {
 
-		async function pickLocation(choose: (items: { label: string; description?: string; iconClass?: string }[]) => number | undefined, switchedWhileOpen?: URI, primaryChangedTo?: URI, atPrimary?: boolean) {
+		async function pickLocation(choose: (items: { label: string; description?: string; iconClass?: string }[]) => number | undefined, switchedWhileOpen?: URI, primaryChangedTo?: URI, atPrimary?: boolean, lookup?: Promise<void>) {
 			const calls: [string, string | undefined, string | undefined][] = [];
 			let shown: { label: string; description?: string; iconClass?: string }[] = [];
 			let activeItem: IQuickPickItem | undefined;
+			let shownAtAccept: string[] = [];
 			let firstShown: { items: readonly { label: string }[]; busy: boolean } | undefined;
 			let workspace = new Workspace('id', [new WorkspaceFolder(atPrimary ? { uri: primary, name: 'project', index: 0 } : { uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
-					: id === IWorkspaceFolderLocationService ? { getLocations: async () => [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }] }
+					: id === IWorkspaceFolderLocationService ? { currentLocation: atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, getLocations: async () => { await lookup; return [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }]; } }
 						: id === IUriIdentityService ? { extUri }
 							: id === IQuickInputService ? {
 								createQuickPick: () => {
@@ -270,7 +272,7 @@ suite('FolderLocationStatusBarContribution', () => {
 											const settle = async () => {
 												await Promise.resolve();
 												await new Promise(r => setTimeout(r, 0));
-												shown = pick.items; activeItem = pick.activeItems[0];
+												shownAtAccept = pick.items.map(item => item.label); shown = pick.items; activeItem = pick.activeItems[0];
 												const index = choose(pick.items);
 												if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, primaryUri: primaryChangedTo ?? primary, name: 'project', index: 0 })], false, null, () => false); }
 												if (index === undefined) { hide.fire(); } else { pick.selectedItems = [pick.items[index]]; accept.fire(); }
@@ -285,12 +287,12 @@ suite('FolderLocationStatusBarContribution', () => {
 			} as unknown as ServicesAccessor;
 
 			await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor);
-			return { shown, calls, activeItem, firstShown };
+			return { shown, calls, activeItem, firstShown, shownAtAccept };
 		}
 
 		test('shows the picker at once in a busy state, then lists the primary and the locations with icons next to their labels, marking the current one', async () => {
 			const { shown, calls, activeItem, firstShown } = await pickLocation(() => undefined);
-			assert.deepStrictEqual({ labels: firstShown!.items.map(item => item.label), busy: firstShown!.busy }, { labels: ['project'], busy: true });
+			assert.deepStrictEqual({ labels: firstShown!.items.map(item => item.label), busy: firstShown!.busy }, { labels: ['project', 'Alternate'], busy: true });
 			assert.deepStrictEqual({ shown: shown.map(item => ({ ...item, uri: (item as unknown as { uri: URI }).uri.toString() })), active: (activeItem as unknown as { uri: URI }).uri.toString(), calls }, {
 				shown: [
 					{ uri: primary.toString(), label: 'project', iconClass: 'codicon codicon-folder', description: 'Primary Location' },
@@ -300,6 +302,32 @@ suite('FolderLocationStatusBarContribution', () => {
 				active: alternate.toString(),
 				calls: []
 			});
+		});
+
+		test('accepting before the locations resolve keeps the current location', async () => {
+			let release!: () => void;
+			const lookup = new Promise<void>(resolve => release = resolve);
+			const early = await pickLocation(items => items.findIndex(item => item.description?.endsWith('(Current)')), undefined, undefined, false, lookup);
+			release();
+			assert.deepStrictEqual({ shownAtAccept: early.shownAtAccept, active: (early.activeItem as unknown as { label: string }).label, calls: early.calls }, { shownAtAccept: ['project', 'Alternate'], active: 'Alternate', calls: [[primary.toString(), alternate.toString(), 'user']] });
+		});
+
+		test('hiding before the locations resolve does nothing, a rejected lookup is reported', async () => {
+			let release!: () => void;
+			assert.deepStrictEqual((await pickLocation(() => undefined, undefined, undefined, false, new Promise<void>(resolve => release = resolve))).calls, []);
+			release();
+
+			const errors: unknown[] = [];
+			const previous = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				const failure = new Error('lookup failed');
+				const rejected = await pickLocation(() => 0, undefined, undefined, false, Promise.reject(failure));
+				await new Promise(resolve => setTimeout(resolve, 0));
+				assert.deepStrictEqual({ calls: rejected.calls, errors }, { calls: [[primary.toString(), undefined, 'user']], errors: [failure] });
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(previous);
+			}
 		});
 
 		test('picking a location switches to it as a user choice, the primary returns, the current one is submitted', async () => {
