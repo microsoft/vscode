@@ -925,7 +925,6 @@ export namespace StructuralDiff {
 			name: entity.name,
 			detail: entity.detail,
 			kind: SymbolKind.from(entity.kind),
-			languageKind: entity.languageKind,
 			range: rangeFrom(node, `${side} entity range`, entity.range),
 			selectionRange: entity.selectionRange && rangeFrom(node, `${side} selection range`, entity.selectionRange),
 		};
@@ -972,7 +971,6 @@ export namespace StructuralDiff {
 			name: entity.name,
 			detail: entity.detail,
 			kind: SymbolKind.to(entity.kind),
-			languageKind: entity.languageKind,
 			range: Range.to(entity.range),
 			selectionRange: entity.selectionRange && Range.to(entity.selectionRange),
 		};

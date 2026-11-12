@@ -1789,7 +1789,6 @@ export interface StructuralDiffEntity {
 	readonly name: string;
 	readonly detail?: string;
 	readonly kind: SymbolKind;
-	readonly languageKind?: string;
 	readonly range: IRange;
 	readonly selectionRange?: IRange;
 }
