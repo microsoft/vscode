@@ -912,7 +912,8 @@ export namespace StructuralDiff {
 			modifiedItem: node.modifiedItem && itemFrom(node, 'modified', node.modifiedItem),
 			originalChanges: node.originalChanges.map(coverage => coverageFrom(node, 'original', coverage)),
 			modifiedChanges: node.modifiedChanges.map(coverage => coverageFrom(node, 'modified', coverage)),
-			children: node.children.map(nodeFrom),
+			// Only a missing list means no children, so that null does not become a valid value.
+			children: node.children === undefined ? [] : node.children.map(nodeFrom),
 		};
 	}
 

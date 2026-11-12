@@ -207,6 +207,7 @@ declare module 'vscode' {
 		 * is changed if a supplied textual change intersects its range in a
 		 * document in which it exists. Unchanged subtrees are omitted. An
 		 * ancestor retained for context can have no directly owned changes.
+		 * Can be omitted when the node has no changed descendants.
 		 *
 		 * Parenthood represents lexical containment, not semantic ownership.
 		 * On each side where a child exists, its parent must also exist and its
@@ -214,7 +215,7 @@ declare module 'vscode' {
 		 * satisfy this shared hierarchy can be represented as a deletion and
 		 * an addition.
 		 */
-		readonly children: readonly StructuralDiffNode[];
+		readonly children?: readonly StructuralDiffNode[];
 	}
 
 	/**

@@ -173,6 +173,14 @@ suite('ExtHost structural diff', () => {
 		});
 	}
 
+	test('converts omitted children to an empty list', async () => {
+		const file = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+		await register({
+			provideStructuralDiff: () => ({ root: { id: 'file', originalItem: file, modifiedItem: file, originalChanges: [], modifiedChanges: [] }, isIncomplete: false }),
+		});
+		assert.deepStrictEqual((await provide())?.root.children, []);
+	});
+
 	for (const side of ['original', 'modified'] as const) {
 		test(`rejects a stale ${side} snapshot before invocation`, async () => {
 			let called = false;
