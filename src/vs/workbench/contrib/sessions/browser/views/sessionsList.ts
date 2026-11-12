@@ -3922,6 +3922,8 @@ interface ISessionsListDndDelegate {
 	getHeaderDrop(header: IDraggedHeader, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined;
 	/** How many rows the element renders: its own row and those of its visible descendants. */
 	getRenderedRowCount(element: SessionListItem): number;
+	/** The list index of the first row of the "+N more" area: its toggle row, or the first workspace it reveals. */
+	getMoreFoldersDropIndex(): number | undefined;
 	/** Move a dragged header to where it lands. */
 	moveHeader(header: IDraggedHeader, drop: SessionHeaderDrop): void;
 	/** Steps the insertion line of a header drop in to the depth where the header lands, or resets it. */
@@ -3972,7 +3974,7 @@ interface IDraggedHeader {
  * groups service orders; or inside a group as its first subgroup.
  */
 type SessionHeaderDrop =
-	| { readonly kind: 'topLevel'; readonly targetId: string; readonly position: 'before' | 'after' }
+	| { readonly kind: 'topLevel'; readonly targetId: string; readonly position: 'before' | 'after'; readonly aboveMore?: boolean }
 	| { readonly kind: 'subgroup'; readonly parentId: string; readonly depth: number; readonly placement: ISessionGroupPlacement }
 	| { readonly kind: 'comparison'; readonly parent: ISessionSection | ISessionGroupItem | ISession; readonly anchor?: ISession | ISessionGroupItem; readonly position: 'before' | 'after'; readonly depth: number }
 	| { readonly kind: 'into'; readonly groupId: string };
@@ -4160,7 +4162,10 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			index: position === 'after' && targetIndex !== undefined ? targetIndex + this.delegate.getRenderedRowCount(target) - 1 : undefined,
 		});
 		if (drop.kind === 'topLevel') {
-			return { reaction: toDropReaction(insertionFeedback(drop.position)), insertionDepth: 0, run };
+			// A header dropped on the "+N more" area lands above it, so draw the line there.
+			const moreIndex = drop.aboveMore ? this.delegate.getMoreFoldersDropIndex() : undefined;
+			const feedback = moreIndex !== undefined ? { position: ListDragOverEffectPosition.Before, index: moreIndex } : insertionFeedback(drop.position);
+			return { reaction: toDropReaction(feedback), insertionDepth: 0, run };
 		}
 		if (drop.kind === 'subgroup') {
 			return { reaction: toDropReaction(insertionFeedback(drop.placement.position)), insertionDepth: drop.depth, run };
@@ -4770,6 +4775,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 */
 	private _topLevelOrder: string[] = [];
 
+	/** The workspace sections capped behind "+N more", shown in the list or not. */
+	private _moreFolderSectionIds: ReadonlySet<string> = new Set();
+
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
 	private readonly _onDidOpenSession = this._register(new Emitter<URI>());
@@ -5254,6 +5262,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					getHeaderDrop: (header, target, sector) => this.options.grouping() === SessionsGrouping.Inbox ? undefined : this.getHeaderDrop(header, target, sector),
 					getRenderedRowCount: element => this.getTree(element).hasElement(element) ? this.getTree(element).getListRenderCount(element) : 1,
+					getMoreFoldersDropIndex: () => this.getMoreFoldersDropIndex(),
 					moveHeader: (header, drop) => this.moveHeader(header, drop),
 					getMovableDraggedChat: item => this.getMovableDraggedChat(item),
 					areChatPositionsShown: () => this.areChatPositionsShown(),
@@ -6357,6 +6366,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Match sessions again before filtering sections: their text may have changed since the last update.
 		this.searchFilter.invalidate();
 		this.hiddenGroupingSections = [];
+		this._moreFolderSectionIds = new Set();
 		if (inbox) {
 			this._topLevelOrder = [];
 			for (const id of sessionInboxSections) {
@@ -6439,6 +6449,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 
 			const moreFolderSections = workspaceSections.filter(s => moreFolderSectionIds.has(s.id));
+			this._moreFolderSectionIds = new Set(moreFolderSections.map(s => s.id));
 			if (moreFolderSections.length > 0) {
 				const kind = grouping === SessionsGrouping.Environment ? 'environments' : grouping === SessionsGrouping.Repository ? 'repositories' : 'folders';
 				if (this.expandedMoreFolders) {
@@ -7997,6 +8008,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const parent = this.tree.getParentElement(target);
 			return parent ? this.getHeaderDrop(header, parent, sector) : undefined;
 		}
+		if (this.isInMoreFolders(target)) {
+			// Workspaces behind "+N more" are not in the reorderable order: a header dropped on
+			// them or on the "+N more" row lands below the last always-visible header, above them.
+			const lastId = this._topLevelOrder.findLast(id => id !== header.id);
+			return lastId !== undefined && !(isSessionSection(target) && target.id === header.id)
+				? { kind: 'topLevel', targetId: lastId, position: 'after', aboveMore: true }
+				: undefined;
+		}
 		const groupTree = this._sessionGroupsService.getTree();
 		const draggedId = header.group?.group.id;
 		const canNestIn = (groupId: string) => draggedId !== undefined
@@ -8038,6 +8057,33 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const groupItem = this.getContainingGroupItem(target);
 		return groupItem && canNestIn(groupItem.group.id) ? { kind: 'into', groupId: groupItem.group.id } : undefined;
+	}
+
+	/** Whether the element is the "+N more" row, a workspace it reveals, or a row inside one. */
+	private isInMoreFolders(element: SessionListItem): boolean {
+		if (isSessionShowMore(element) && element.sectionId === SHOW_MORE_FOLDERS_LABEL) {
+			return true;
+		}
+		if (this._moreFolderSectionIds.size === 0 || !this.tree.hasElement(element)) {
+			return false;
+		}
+		let topLevel = element;
+		for (let parent = this.tree.getParentElement(element); parent; parent = this.tree.getParentElement(parent)) {
+			topLevel = parent;
+		}
+		return isSessionSection(topLevel) && this._moreFolderSectionIds.has(topLevel.id);
+	}
+
+	/** The list index of the first row of the "+N more" area, or `undefined` when the list has none. */
+	private getMoreFoldersDropIndex(): number | undefined {
+		let index = 0;
+		for (const child of this.getRootNode().children) {
+			if (child.element && this.isInMoreFolders(child.element)) {
+				return index;
+			}
+			index += this.tree.getListRenderCount(child.element);
+		}
+		return undefined;
 	}
 
 	/**
