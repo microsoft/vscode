@@ -19,13 +19,14 @@ export class FloatingWidgetRoom extends Disposable {
 
 	private readonly _zone: IViewZone = { afterLineNumber: 0, heightInPx: 0, domNode: dom.$('div'), showInHiddenAreas: true };
 	private _zoneId: string | undefined;
-	private readonly _scheduler = this._register(new dom.AnimationFrameScheduler(this._editor.getContainerDomNode(), () => this._update()));
+	private readonly _scheduler: dom.AnimationFrameScheduler;
 
 	/**
 	 * @param _getWidgets The areas, in document coordinates, of the widgets that are shown in the editor.
 	 */
 	constructor(private readonly _editor: ICodeEditor, private readonly _getWidgets: () => Iterable<IRect | undefined>) {
 		super();
+		this._scheduler = this._register(new dom.AnimationFrameScheduler(_editor.getContainerDomNode(), () => this._update()));
 		// A new model gets a new view, which doesn't have the space.
 		this._register(_editor.onDidChangeModel(() => this._zoneId = undefined));
 		// Edits and hidden lines move the end of the content.
