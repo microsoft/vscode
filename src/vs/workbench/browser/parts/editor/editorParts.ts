@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { EditorGroupLayout, GroupActivationReason, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent, ICreateEditorPartOptions, IContentPart, getWindowMainPart } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
 import { EditorPart, IEditorPartUIState, MainEditorPart } from './editorPart.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
@@ -843,10 +843,47 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				if (!options?.preserveFocus || !activeElement || activeElement === activeElement.ownerDocument.body || isEditorFocus()) {
 					mostRecentActivePart.activeGroup.focus();
 				}
+
+				if (options?.preserveFocus) {
+					this.recoverLostFocusSoon(mostRecentActivePart);
+				}
 			}
 		}
 
 		return true;
+	}
+
+	private readonly lostFocusRecovery = this._register(new MutableDisposable());
+
+	/**
+	 * Closing editors and the focus handling of other widgets (e.g. a quick input that hides)
+	 * can still take focus away from an editor shortly after the state was applied, leaving it
+	 * on the body. For a short time, focus that is lost like that goes back to the active editor.
+	 * Focus that moved to another element is never taken.
+	 */
+	private recoverLostFocusSoon(part: EditorPart): void {
+		const container = part.getContainer();
+		if (!container) {
+			return;
+		}
+
+		const targetWindow = getWindow(container);
+		const store = new DisposableStore();
+		this.lostFocusRecovery.value = store;
+
+		const recover = () => {
+			const activeElement = getActiveElement();
+			if (!activeElement || activeElement === activeElement.ownerDocument.body) {
+				part.activeGroup.focus();
+			}
+		};
+		store.add(addDisposableListener(targetWindow.document, EventType.FOCUS_OUT, () => {
+			const handle = targetWindow.setTimeout(recover, 0);
+			store.add(toDisposable(() => targetWindow.clearTimeout(handle)));
+		}, true));
+
+		const stop = targetWindow.setTimeout(() => store.dispose(), 1000);
+		store.add(toDisposable(() => targetWindow.clearTimeout(stop)));
 	}
 
 	private indexOfWorkingSet(workingSet: IEditorWorkingSet): number | undefined {
