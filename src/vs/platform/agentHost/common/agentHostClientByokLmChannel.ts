@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Throttler } from '../../../base/common/async.js';
+import { raceCancellationError, Throttler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -37,7 +37,7 @@ export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
  */
 export function createAgentHostClientByokLmConnection(channel: IChannel): IByokLmBridgeConnection {
 	return {
-		chat: (request) => channel.call('chat', request) as Promise<IByokLmChatResult>,
+		chat: (request, token) => channel.call('chat', request, token) as Promise<IByokLmChatResult>,
 		onDidChangeModels: channel.listen<IByokLmModelInfo[]>('models'),
 	};
 }
@@ -106,10 +106,10 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 		return emitter.event;
 	}
 
-	async call<T>(_ctx: unknown, command: string, arg?: unknown): Promise<T> {
+	async call<T>(_ctx: unknown, command: string, arg?: unknown, token: CancellationToken = CancellationToken.None): Promise<T> {
 		switch (command) {
 			case 'chat': {
-				const result = await this._handler.chat(arg as IByokLmChatRequest, CancellationToken.None);
+				const result = await raceCancellationError(this._handler.chat(arg as IByokLmChatRequest, token), token);
 				return result as T;
 			}
 		}

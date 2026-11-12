@@ -7,6 +7,7 @@ import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CopilotClient, defineTool } from '@github/copilot-sdk';
+import { DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
@@ -80,6 +81,27 @@ suite('Agent Host Provider Integration - Copilot BYOK Responses', function () {
 			}
 		}
 	}
+
+	test('bundled SDK abort cancels the pending BYOK bridge request', async function () {
+		this.timeout(30_000);
+		const started = new DeferredPromise<void>();
+		const cancelled = new DeferredPromise<void>();
+		await withSdkSession('byok-responses-cancellation', async (_request, token) => {
+			assert.ok(token);
+			const listener = token.onCancellationRequested(() => cancelled.complete());
+			try {
+				started.complete();
+				return await raceCancellationError(new Promise<never>(() => {}), token);
+			} finally {
+				listener.dispose();
+			}
+		}, async session => {
+			await session.send({ prompt: 'Reply hello.' });
+			await started.p;
+			await session.abort();
+			await cancelled.p;
+		});
+	});
 
 	test('bundled SDK consumes structured reasoning and text from the proxy', async function () {
 		this.timeout(120_000);

@@ -4,13 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type * as http from 'http';
+import { AddressInfo } from 'net';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ChannelClient, ChannelServer } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import { AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService, type IByokLmProxyHandle, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { BYOK_MAX_TOOLS } from '../../node/copilot/byokResponsesTranslation.js';
+import { IProxyInFlight } from '../../node/shared/loopbackProxyServer.js';
 
 /**
  * Exercises the inference path end-to-end without the Copilot SDK runtime:
@@ -26,6 +34,17 @@ suite('ByokLmProxyService', () => {
 
 	const sessionId = 'sess-1';
 
+	class TestByokLmProxyService extends ByokLmProxyService {
+		inFlight: ReadonlySet<IProxyInFlight> = new Set();
+		response: http.ServerResponse | undefined;
+
+		protected override async handleRequest(...args: Parameters<ByokLmProxyService['handleRequest']>): Promise<void> {
+			this.inFlight = args[2].inFlight;
+			this.response = args[1];
+			return super.handleRequest(...args);
+		}
+	}
+
 	/**
 	 * A serving bridge connection: it pushes its model snapshot (default empty)
 	 * synchronously when the registry subscribes, so it is a valid routing target.
@@ -38,19 +57,27 @@ suite('ByokLmProxyService', () => {
 	}
 
 	async function withProxy(
-		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
-		run: (handle: IByokLmProxyHandle, service: ByokLmProxyService) => Promise<void>,
+		chat: IByokLmBridgeConnection['chat'],
+		run: (handle: IByokLmProxyHandle, service: TestByokLmProxyService, disconnect: () => void) => Promise<void>,
 	): Promise<void> {
+		const transport = new DisposableStore();
+		const toRenderer = transport.add(new Emitter<VSBuffer>());
+		const toHost = transport.add(new Emitter<VSBuffer>());
+		const client = transport.add(new ChannelClient({ onMessage: toHost.event, send: buffer => toRenderer.fire(buffer) }));
+		const server = transport.add(new ChannelServer({ onMessage: toRenderer.event, send: buffer => toHost.fire(buffer) }, undefined));
+		server.registerChannel('byok', new AgentHostClientByokLmChannel({ _serviceBrand: undefined, chat, listModels: async () => [] }, new NullLogService()));
+		const connection = createAgentHostClientByokLmConnection(client.getChannel('byok'));
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client-1', servingConnection(chat));
-		const service = new ByokLmProxyService(new NullLogService(), registry);
+		const registration = registry.register('client-1', servingConnection(connection.chat));
+		const service = new TestByokLmProxyService(new NullLogService(), registry);
 		const handle = await service.start();
 		try {
-			await run(handle, service);
+			await run(handle, service, () => transport.dispose());
 		} finally {
 			handle.dispose();
 			registration.dispose();
 			service.dispose();
+			transport.dispose();
 		}
 	}
 
@@ -61,6 +88,101 @@ suite('ByokLmProxyService', () => {
 	function authHeaders(handle: IByokLmProxyHandle, selectedSessionId = sessionId): Record<string, string> {
 		return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${handle.nonce}.${selectedSessionId}` };
 	}
+
+	for (const phase of ['prompt', 'stream'] as const) {
+		for (const stop of ['client', 'shutdown', 'disconnect'] as const) {
+			test(`aborts the upstream HTTP request during ${phase} on ${stop}`, async function () {
+				this.timeout(10_000);
+				const http = await import('http');
+				const started = new DeferredPromise<void>();
+				const stopped = new DeferredPromise<void>();
+				let activeListeners = 0;
+				let activeProcessing = 0;
+				const provider = http.createServer(async (req, res) => {
+					assert.strictEqual(req.url, '/v1/chat/completions');
+					for await (const _chunk of req) {}
+					activeProcessing++;
+					res.once('close', () => {
+						activeProcessing--;
+						stopped.complete();
+					});
+					if (phase === 'stream') {
+						res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+						res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: { content: 'hello' }, finish_reason: null }] })}\n\n`);
+					}
+					started.complete();
+				});
+				await new Promise<void>(resolve => provider.listen(0, '127.0.0.1', resolve));
+				try {
+					await withProxy(async (request, token) => {
+						assert.ok(token);
+						const controller = new AbortController();
+						const listener = token.onCancellationRequested(() => controller.abort());
+						activeListeners++;
+						try {
+							const upstream = await fetch(`http://127.0.0.1:${(provider.address() as AddressInfo).port}/v1/chat/completions`, {
+								method: 'POST',
+								body: JSON.stringify({ model: request.modelId, messages: [], stream: phase === 'stream' }),
+								signal: controller.signal,
+							});
+							await upstream.text();
+							return { output: [] };
+						} finally {
+							listener.dispose();
+							activeListeners--;
+						}
+					}, async (handle, service, disconnect) => {
+						const controller = new AbortController();
+						const pending = fetch(responsesUrl(handle, 'acme'), {
+							method: 'POST', headers: authHeaders(handle),
+							body: JSON.stringify({ model: 'm', input: 'hello', stream: true }),
+							signal: controller.signal,
+						});
+						const settled = pending.then(response => response.text(), () => undefined);
+						await started.p;
+						if (stop === 'client') {
+							controller.abort();
+						} else if (stop === 'shutdown') {
+							service.dispose();
+						} else {
+							disconnect();
+						}
+						await stopped.p;
+						await settled;
+						assert.deepStrictEqual({ activeProcessing, activeListeners, pending: service.inFlight.size, closeListeners: service.response?.listenerCount('close') }, {
+							activeProcessing: 0, activeListeners: 0, pending: 0, closeListeners: 0,
+						});
+					});
+				} finally {
+					provider.closeAllConnections();
+					await new Promise<void>((resolve, reject) => provider.close(error => error ? reject(error) : resolve()));
+				}
+			});
+		}
+	}
+
+	test('releases a cancelled proxy request before a late bridge completion', async () => {
+		const started = new DeferredPromise<void>();
+		const late = new DeferredPromise<IByokLmChatResult>();
+		await withProxy(async () => {
+			started.complete();
+			return late.p;
+		}, async (handle, service) => {
+			const controller = new AbortController();
+			const pending = fetch(responsesUrl(handle, 'acme'), {
+				method: 'POST', headers: authHeaders(handle),
+				body: JSON.stringify({ model: 'm', input: 'hello' }), signal: controller.signal,
+			});
+			const rejected = assert.rejects(pending);
+			await started.p;
+			controller.abort();
+			await rejected;
+			await new Promise<void>(resolve => service.response!.once('close', resolve));
+			await new Promise<void>(resolve => setImmediate(resolve));
+			assert.strictEqual(service.inFlight.size, 0);
+			late.complete({ responseId: 'late', output: [{ type: 'message', content: [{ type: 'text', text: 'late' }] }] });
+		});
+	});
 
 	test('serves the unauthenticated health check', async () => {
 		await withProxy(

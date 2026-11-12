@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as http from 'http';
+import { raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -289,15 +291,21 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		// Both surface through the shared `AbortController`, which we re-check
 		// after the async bridge hop before touching the response.
 		const entry: IProxyInFlight = { ac: new AbortController(), res, clientGone: false };
+		const cancellation = new CancellationTokenSource();
+		const onAbort = () => cancellation.cancel();
+		entry.ac.signal.addEventListener('abort', onAbort, { once: true });
 		runtime.inFlight.add(entry);
 		const onClose = () => {
 			entry.clientGone = true;
 			entry.ac.abort();
 		};
 		res.on('close', onClose);
+		if (res.destroyed) {
+			onClose();
+		}
 
 		try {
-			const result = await connection.chat(bridgeRequest);
+			const result = await raceCancellationError(connection.chat(bridgeRequest, cancellation.token), cancellation.token);
 			if (entry.ac.signal.aborted || res.writableEnded) {
 				return;
 			}
@@ -345,6 +353,8 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				try { res.end(); } catch { /* ignore */ }
 			}
 		} finally {
+			entry.ac.signal.removeEventListener('abort', onAbort);
+			cancellation.dispose();
 			res.removeListener('close', onClose);
 			runtime.inFlight.delete(entry);
 		}
