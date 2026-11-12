@@ -631,7 +631,7 @@ export class InMemoryWorkingCopyBackupService extends Disposable implements IWor
 
 	toBackupResource(identifier: IWorkingCopyIdentifier): URI {
 		// Prevent single-letter URI schemes from being normalised as drive letters.
-		return URI.from({ scheme: Schemas.inMemory, path: `/backup/${identifier.resource.toString()}`, query: identifier.typeId });
+		return URI.from({ scheme: Schemas.inMemory, path: `/backup/${identifier.resource.toString()}`, query: JSON.stringify(identifier.typeId) });
 	}
 
 	async joinBackups(): Promise<void> {
