@@ -390,6 +390,23 @@ suite('Editor Parts', () => {
 		parts.deleteWorkingSet(workingSet);
 	});
 
+	test('applying a working set does not pull the focus back to the editor when it moved elsewhere while applying', async () => {
+		const { parts } = await createServices();
+		const mainPart = parts.testMainPart;
+		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+		disposables.add({ dispose: () => outside.remove() });
+
+		const first = disposables.add(new TestFileEditorInput(URI.file('/first.txt'), 'testTypeId'));
+		await mainPart.activeGroup.openEditor(first, { pinned: true });
+		focusIn(mainPart.activeGroup.element.querySelector<HTMLElement>('.editor-container')!.firstElementChild as HTMLElement);
+
+		const applied = parts.applyWorkingSet('empty', { preserveFocus: true });
+		outside.focus(); // the user moves on while the apply is pending
+		await applied;
+
+		assert.strictEqual(mainWindow.document.activeElement, outside);
+	});
+
 	async function moveGroupAcrossParts(inputs: (instantiationService: IInstantiationService) => EditorInput[]) {
 		const { instantiationService, parts } = await createServices();
 		const partA = createOwnedPart(instantiationService, parts);
