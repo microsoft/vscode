@@ -438,6 +438,7 @@ export function setup(logger: Logger, quality: Quality) {
 			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
 			settings: {
 				'chat.remoteAgentHostsEnabled': true,
+				'chat.agentHost.githubEnvironments.enabled': true,
 			},
 		});
 
@@ -468,6 +469,26 @@ export function setup(logger: Logger, quality: Quality) {
 					}
 				}
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL Kerberos proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			}
+		});
+
+		// Sharing itself needs a GitHub account; this verifies that a WSL AgentHost of the client's build reports a
+		// GitHub Environment status, which offers the Share action.
+		it('Offers to share a WSL AgentHost as a GitHub Environment', async function () {
+			this.timeout(5 * 60 * 1000);
+			const app = this.app as Application;
+			const fixture = context.remoteFixture;
+			assert.ok(fixture, 'Expected the WSL connection fixture');
+			if (!fixture.hostMatchesClientCommit) {
+				logger.log('Skipping the GitHub Environment share action: the WSL AgentHost is of another commit than the client');
+				this.skip();
+			}
+			try {
+				await app.workbench.agentsWindow.waitForRemoteAction(fixture.name, `Share ${fixture.name} as GitHub Environment`, 2 * 60 * 1000);
+			} catch (error) {
+				logger.log(`Agents Window (WSL GitHub Environment) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL GitHub Environment)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
 			}
 		});

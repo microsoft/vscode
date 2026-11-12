@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -33,7 +34,7 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, isFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { createFileEditDiscardRecord } from '../../node/fileEditDiscard.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
-import { computeSessionDiffs, computeTurnDiffs, computeWorkingSetDiffs } from '../../node/sessionDiffAggregator.js';
+import { computeSessionDiffs, computeTurnDiffs, computeWorkingSetDiffs, computeWorkingSetFiles } from '../../node/sessionDiffAggregator.js';
 import { createNoopChangesetService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 
@@ -1606,6 +1607,28 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 			after: { content: lines({ 0: 'L1', 2: 'U3' }), workingSet: 0, session: 1, turns: [1, 0] },
 			discardedTurns: [{ owner: chat, turnIds: ['turn-1', 'turn-2'] }],
 			message: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' },
+		});
+	});
+
+	// Linux tells paths apart by their case, so there these edits are of two files.
+	(isLinux ? test.skip : test)('discards the changes to a file whose edits spell its path differently, with the nonce of its working set file', async () => {
+		const { trackedDb, edit, discard, describe, diskFileService, session } = setupWorkingSet();
+		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+		trackedDb.addEdit({
+			turnId: 'turn-2', toolCallId: 'tc2', filePath: URI.file('/repo/SRC/file.ts').fsPath, kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString(lines({ 0: 'L1' })), afterContent: encodeString(lines({ 0: 'L1', 4: 'L5' })),
+		});
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+		const shown = (await computeWorkingSetFiles([{ sessionUri: session.toString(), db: trackedDb }], new InProcessDiffComputeService()))
+			.map(file => ({ uri: file.diff.after?.uri, nonce: file.nonce }));
+
+		const result = await discard(undefined, undefined, shown[0].nonce);
+
+		assert.deepStrictEqual({ shown, message: result.message, after: await describe() }, {
+			shown: [{ uri: target.toString(), nonce: 'tc2' }],
+			message: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' },
+			after: { content: lines(), workingSet: 0, session: 0, turns: [0, 0] },
 		});
 	});
 

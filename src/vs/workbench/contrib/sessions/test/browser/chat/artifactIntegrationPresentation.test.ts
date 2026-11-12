@@ -2833,18 +2833,29 @@ suite('Artifact Integration Presentation', () => {
 			});
 		});
 
-		test('Autopilot partial enablement is explicit and failed writes never fabricate saved consent', async () => {
+		test('Autopilot master is on while any rule is on, revokes only enabled rules, and failed writes keep saved state', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { ...contribution.configuration.values, fix: true } } }));
 			const panel = await open(f, a);
 			const master = panel.querySelector<HTMLElement>('.artifact-card-heading [role="switch"]')!;
+			const summary = () => panel.querySelector('.artifact-autopilot-summary')?.textContent;
 			const before = master.getAttribute('aria-checked');
 			a.setConfigureResult(Promise.reject(new Error('Consent revision changed')));
 			master.click();
 			await settle(f);
-			assert.deepStrictEqual({ before, after: master.getAttribute('aria-checked'), summary: panel.querySelector('.artifact-autopilot-summary')?.textContent, errors: f.errors, invoked: a.invoked }, {
-				before: 'false', after: 'false', summary: '1 of 3 on',
+			const failed = { checked: master.getAttribute('aria-checked'), summary: summary() };
+			a.setConfigureResult(Promise.resolve());
+			master.click();
+			await settle(f);
+			assert.deepStrictEqual({ before, failed, after: { checked: master.getAttribute('aria-checked'), summary: summary() }, configured: a.configured, errors: f.errors, invoked: a.invoked }, {
+				before: 'true',
+				failed: { checked: 'true', summary: '1 of 3 on' },
+				after: { checked: 'false', summary: '0 of 3 on' },
+				configured: [
+					{ integrationId: 'test', revision: 4, values: { fix: false } },
+					{ integrationId: 'test', revision: 4, values: { fix: false } },
+				],
 				errors: ['The artifact operation failed: Consent revision changed'], invoked: [],
 			});
 		});
