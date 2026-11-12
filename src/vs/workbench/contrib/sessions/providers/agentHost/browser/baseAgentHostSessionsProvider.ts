@@ -978,6 +978,7 @@ function toSessionRemoteConnectionStatus(owner: object, connectionStatus: IObser
 				switch (status.reason) {
 					case AgentHostTransportFailureReason.Unknown:
 					case AgentHostTransportFailureReason.AuthenticationFailed:
+					case AgentHostTransportFailureReason.SSHAuthenticationFailed:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.Unknown };
 					case AgentHostTransportFailureReason.HostNotRunning:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.HostNotRunning };

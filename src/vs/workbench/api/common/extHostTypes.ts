@@ -300,6 +300,18 @@ export class DocumentSymbol {
 	}
 }
 
+export enum StructuralDiffClassification {
+	Declaration = 1,
+	Header = 2,
+	Implementation = 3,
+	Dependency = 4,
+	Other = 5,
+}
+
+export enum StructuralDiffTag {
+	Test = 1,
+}
+
 
 export enum CodeActionTriggerKind {
 	Invoke = 1,

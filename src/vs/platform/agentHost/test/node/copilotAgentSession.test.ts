@@ -29818,6 +29818,31 @@ Use the attached image as context.
 			]);
 		});
 
+		test('reports whether a completed native view call named a file or a directory', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-view');
+			const views: Record<string, { readonly viewType?: string; readonly success?: boolean; readonly mcpServerName?: string }> = {
+				file: { viewType: 'file' },
+				image: { viewType: 'image' },
+				directory: { viewType: 'directory' },
+				failed: { viewType: 'file', success: false },
+				unreported: {},
+				mcp: { viewType: 'file', mcpServerName: 'server' },
+			};
+			for (const [toolCallId, { viewType, success = true, mcpServerName }] of Object.entries(views)) {
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: 'view', arguments: { path: `/workspace/${toolCallId}` }, mcpServerName });
+				mockSession.fire('tool.execution_complete', {
+					toolCallId, success, toolTelemetry: viewType ? { properties: { viewType } } : undefined,
+					...(success ? { result: { content: 'Contents' } } : { error: { message: 'Path does not exist' } }),
+				});
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
+			}
+			assert.deepStrictEqual(Object.fromEntries(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete ? [[action.toolCallId, readToolCallMeta(action)['vscode.viewedResourceType']]] : [])), {
+				file: 'file', image: 'file', directory: 'directory', failed: undefined, unreported: undefined, mcp: undefined,
+			});
+		});
+
 		test('permission before a held client-tool start retains the owning client', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client'),
