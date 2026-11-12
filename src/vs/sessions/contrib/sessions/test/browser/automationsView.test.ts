@@ -5547,7 +5547,8 @@ suite('AutomationsCardsWidget', () => {
 			eventDuplication: content.includes('is unavailable for event-triggered automations'),
 			cloudExport: content.includes('Cloud automations do not currently offer Export'),
 			sharedOwnership: content.includes('Your automations and Shared automations sections'),
-		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, requiredHover: true, sharedFilters: true, eventDuplication: true, cloudExport: true, sharedOwnership: true });
+			weeklyPickerName: content.includes('For Weekly schedules, open Day of week to choose days'),
+		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, requiredHover: true, sharedFilters: true, eventDuplication: true, cloudExport: true, sharedOwnership: true, weeklyPickerName: true });
 	});
 
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {

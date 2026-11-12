@@ -1892,6 +1892,7 @@ suite('Automation dialog creation', () => {
 		assert.deepStrictEqual({ selected: time.selectedOptions[0].textContent, count: time.options.length }, { selected: '11:07 PM', count: 97 });
 		await dialog.setCloud(true);
 		const message = dialog.container.querySelector('.automation-dialog-notification-center')!;
+		const dayButton = dialog.container.querySelector<HTMLElement>('.automation-form-days-button')!;
 		assert.deepStrictEqual({
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
 			error: dialog.container.querySelector('.automation-form-content > .automation-target-error')?.textContent,
@@ -1899,11 +1900,13 @@ suite('Automation dialog creation', () => {
 			errorRole: message.getAttribute('role'),
 			errorLive: message.getAttribute('aria-live'),
 			selected: time.selectedOptions[0].textContent,
+			dayInvalid: dayButton.getAttribute('aria-invalid'),
+			dayDescribedBy: dayButton.getAttribute('aria-describedby'),
 		}, {
 			disabled: 'true',
 			error: 'Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.',
 			message: 'Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.',
-			errorRole: 'alert', errorLive: 'polite', selected: '11:07 PM',
+			errorRole: 'alert', errorLive: 'polite', selected: '11:07 PM', dayInvalid: 'false', dayDescribedBy: null,
 		});
 		const interval = dialog.container.querySelector<HTMLSelectElement>('.automation-form-schedule-group select[aria-label="Trigger"]')!;
 		const setInterval = (label: string) => {
@@ -1919,6 +1922,29 @@ suite('Automation dialog creation', () => {
 		await dialog.setCloud(false);
 		dialog.saveButton.click();
 		assert.deepStrictEqual((await dialog.result)?.value.schedule, automation.schedule);
+	});
+
+	test('cloud multi-day errors describe the Day of week control', async () => {
+		const dialog = openDialog({
+			initialValues: {
+				name: 'Multi-day review', prompt: 'Review changes', enabled: false,
+				target: { kind: 'workspace', folderUri: FOLDER, providerId: 'host', sessionTypeId: 'copilotcli', isolation: { kind: 'folder' } },
+				schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, scheduleDays: [1, 3, 5] },
+			},
+		}, cloudConfiguration());
+		await dialog.setCloud(true);
+		const dayButton = dialog.container.querySelector<HTMLElement>('.automation-form-days-button')!;
+		assert.deepStrictEqual({
+			invalid: dayButton.getAttribute('aria-invalid'),
+			describedBy: dayButton.getAttribute('aria-describedby'),
+			error: dialog.container.querySelector('#automation-schedule-error')?.textContent,
+		}, {
+			invalid: 'true',
+			describedBy: 'automation-schedule-error',
+			error: 'Cloud automations support only one day per weekly schedule. Select one day or run locally.',
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
 	});
 
 	test('changing the time after an exact-minute option uses the selected option, not quarter-hour index arithmetic', async () => {

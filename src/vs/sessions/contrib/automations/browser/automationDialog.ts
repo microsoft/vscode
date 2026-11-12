@@ -2238,8 +2238,10 @@ export function renderForm(
 			scheduleError.textContent = message ?? '';
 			setAutomationControlVisible(scheduleError, message !== undefined);
 			setDialogMessage('scheduleValidation', message ? { severity: 'error', text: message } : undefined);
-			dayButton.element.setAttribute('aria-invalid', String(state.interval === 'weekly' && message !== undefined));
-			if (state.interval === 'weekly' && message !== undefined) {
+			const daySelectionError = message !== undefined && !state.cloudTrigger && state.interval === 'weekly'
+				&& (state.days?.length === 0 || (state.timeZone === 'UTC' && (state.days?.length ?? 1) > 1));
+			dayButton.element.setAttribute('aria-invalid', String(daySelectionError));
+			if (daySelectionError) {
 				dayButton.element.setAttribute('aria-describedby', scheduleError.id);
 			} else {
 				dayButton.element.removeAttribute('aria-describedby');
