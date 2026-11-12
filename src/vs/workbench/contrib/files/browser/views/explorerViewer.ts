@@ -20,7 +20,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, 
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExplorerFindProviderActive, IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
-import { dirname, isEqual, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
+import { dirname, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
@@ -1123,9 +1123,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private getRootLabel(stat: ExplorerItem): string {
 		const location = this.folderLocationService.currentLocation;
-		const workspace = this.contextService.getWorkspace();
-		const atAlternateLocation = this.folderLocationService.isAtAlternateLocation() && (isEqual(workspace.folders[0].uri, stat.resource) || (!!workspace.identity && isEqual(workspace.identity, stat.resource)));
-		return atAlternateLocation && location ? localize('explorerRootAtLocation', "{0} ({1})", stat.name, this.folderLocationService.getLocationText(location)) : stat.name;
+		return stat.isRoot && this.folderLocationService.isAtAlternateLocation() && location ? localize('explorerRootAtLocation', "{0} ({1})", stat.name, this.folderLocationService.getLocationText(location)) : stat.name;
 	}
 
 	getAriaLevel(element: ExplorerItem): number {
