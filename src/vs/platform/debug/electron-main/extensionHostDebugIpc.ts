@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow } from 'electron';
-import type { Server } from 'http';
-import { Socket } from 'net';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
-import { upgradeToISocket } from '../../../base/parts/ipc/node/ipc.net.js';
 import { OPTIONS, parseArgs } from '../../environment/node/argv.js';
 import { IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IOpenExtensionWindowResult } from '../common/extensionHostDebug.js';
 import { ExtensionHostDebugBroadcastChannel } from '../common/extensionHostDebugIpc.js';
+import { createRendererDebugBridge } from '../node/rendererDebugBridge.js';
 
 export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
 
@@ -71,66 +68,13 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		return this.openCdp(win, false);
 	}
 
-	private async openCdpServer(ident: string, onSocket: (socket: ISocket) => void): Promise<{ server: Server; wsUrl: string; port: number }> {
-		const { createServer } = await import('http'); // Lazy due to https://github.com/nodejs/node/issues/59686
-		const server = createServer((req, res) => {
-			if (req.url === '/json/list' || req.url === '/json') {
-				res.setHeader('Content-Type', 'application/json');
-				res.end(JSON.stringify([{
-					description: 'VS Code Renderer',
-					devtoolsFrontendUrl: '',
-					id: ident,
-					title: 'VS Code Renderer',
-					type: 'page',
-					url: 'vscode://renderer',
-					webSocketDebuggerUrl: wsUrl
-				}]));
-				return;
-			} else if (req.url === '/json/version') {
-				res.setHeader('Content-Type', 'application/json');
-				res.end(JSON.stringify({
-					'Browser': 'VS Code Renderer',
-					'Protocol-Version': '1.3',
-					'webSocketDebuggerUrl': wsUrl
-				}));
-				return;
-			}
-
-			res.statusCode = 404;
-			res.end();
-		});
-
-		await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
-		const serverAddr = server.address();
-		const port = typeof serverAddr === 'object' && serverAddr ? serverAddr.port : 0;
-		const serverAddrBase = typeof serverAddr === 'string' ? serverAddr : `ws://127.0.0.1:${serverAddr?.port}`;
-		const wsUrl = `${serverAddrBase}/${ident}`;
-
-		server.on('upgrade', (req, socket) => {
-			if (!req.url?.includes(ident)) {
-				socket.end();
-				return;
-			}
-			const upgraded = upgradeToISocket(req, socket as Socket, {
-				debugLabel: 'extension-host-cdp-' + generateUuid(),
-				enableMessageSplitting: false,
-			});
-
-			if (upgraded) {
-				onSocket(upgraded);
-			}
-		});
-
-		return { server, wsUrl, port };
-	}
-
 	private async openCdp(win: BrowserWindow, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
 		const debug = win.webContents.debugger;
 
 		let listeners = debug.isAttached() ? Infinity : 0;
 		const ident = generateUuid();
 		const pageSessionId = debugRenderer ? `page-${ident}` : undefined;
-		const { server, wsUrl, port } = await this.openCdpServer(ident, listener => {
+		const { server, wsUrl, port } = await createRendererDebugBridge(ident, listener => {
 			if (listeners++ === 0) {
 				debug.attach();
 			}

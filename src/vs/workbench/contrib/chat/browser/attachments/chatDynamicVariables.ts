@@ -239,7 +239,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}
 	}
 
-	addReference(ref: IDynamicVariable): void {
+	addReference(ref: IDynamicVariable, replaceCoveredReferences = false): void {
 		if (!isValidEditorRange(ref.range)) {
 			return;
 		}
@@ -247,6 +247,18 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		const existingAttachment = this.widget.input.attachmentModel.attachments.find(attachment => attachment.id === ref.id && !attachment.range);
 		if (existingAttachment) {
 			ref = toAttachedContextDynamicVariable(existingAttachment, ref.range);
+		}
+
+		if (replaceCoveredReferences) {
+			const removed: IDynamicVariable[] = [];
+			this._variables = this._variables.filter(existing => {
+				if (Range.containsRange(ref.range, existing.range)) {
+					removed.push(existing);
+					return false;
+				}
+				return true;
+			});
+			dispose(removed.filter(isDisposable));
 		}
 
 		this._variables.push(ref);

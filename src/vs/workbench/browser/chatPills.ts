@@ -110,6 +110,11 @@ export interface IChatPillEntry {
 	readonly inlinePill?: IChatPill;
 	/** Starts resolving metadata for this entry without opening it. */
 	readonly prefetch?: () => void;
+	/**
+	 * Whether the pill showing this entry is pressed, such as while the entry is shown in the chat; it then acts as a
+	 * toggle button. Absent for entries whose pill opens them.
+	 */
+	readonly checked?: boolean;
 	open(): void;
 }
 
@@ -846,6 +851,16 @@ export abstract class ChatPillActionViewItemBase extends BaseActionViewItem {
 
 	protected onDidClickButton(): void {
 		this.actionRunner.run(this._action, this._context);
+	}
+
+	/** Shows whether the pill's entry is pressed; see {@link IChatPillEntry.checked}. */
+	protected updateEntryChecked(checked: boolean | undefined): void {
+		this.element?.classList.toggle('chat-pill-checked', !!checked);
+		if (checked === undefined) {
+			this.button?.element.removeAttribute('aria-pressed');
+		} else {
+			this.button?.element.setAttribute('aria-pressed', String(checked));
+		}
 	}
 
 	protected updatePromotedAction(action: IChatPillAction | undefined, icon: ThemeIcon | undefined, hoverService?: IHoverService): void {

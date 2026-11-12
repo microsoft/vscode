@@ -19,16 +19,16 @@ import { IGitRepository, IGitService } from '../../../../../workbench/contrib/gi
 import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../chat/browser/newSessionComposerService.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { INewSessionComposerService, INewSessionPromptOptionsController, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
-import { IGitHubRecentUserWork } from '../../../github/browser/fetchers/githubRecentUserWorkFetcher.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
+import { IGitHubRecentUserWork } from '../../../../../workbench/contrib/sessions/browser/github/fetchers/githubRecentUserWorkFetcher.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { INewSessionPromptRunnerOptions, NewSessionViewV3PromptRunner, selectNewSessionViewV3GitHubCandidate } from '../../browser/newSessionViewV3Prompt.js';
 import { NEW_SESSION_VIEW_V3_TOUR_ID } from '../../browser/tours/newSessionViewV3Tour.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestAssignmentService extends NullWorkbenchAssignmentService {
 	constructor(private readonly _treatments: Partial<Record<string, string>>) {
@@ -364,24 +364,24 @@ suite('NewSessionViewV3Prompt', () => {
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
-						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issues', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issues', color: 'charts.green' } },
 						STANDARD_OPTIONS[0],
 					],
 				},
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
-						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issues', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issues', color: 'charts.green' } },
 						{ title: 'Resolve conflicts #20', description: 'Conflicted PR', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
 					],
 				},
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
-						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #14', description: 'Newest assigned issue', icon: { id: 'issues', color: 'charts.green' } },
+						{ title: 'Tackle issue #12', description: 'Older assigned issue', icon: { id: 'issues', color: 'charts.green' } },
 						{ title: 'Resolve conflicts #20', description: 'Conflicted PR', icon: { id: 'git-pull-request-error', color: 'charts.orange' } },
 					],
 				},
@@ -508,7 +508,7 @@ suite('NewSessionViewV3Prompt', () => {
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issues', color: 'charts.green' } },
 						STANDARD_OPTIONS[0],
 						STANDARD_OPTIONS[1],
 					],
@@ -516,7 +516,7 @@ suite('NewSessionViewV3Prompt', () => {
 				{
 					kind: 'resolved',
 					options: [
-						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issue-opened', color: 'charts.green' } },
+						{ title: 'Tackle issue #7', description: 'Ready issue', icon: { id: 'issues', color: 'charts.green' } },
 						STANDARD_OPTIONS[0],
 						STANDARD_OPTIONS[1],
 					],
@@ -557,7 +557,7 @@ suite('NewSessionViewV3Prompt', () => {
 			},
 			{ reviewLookupNeverResolves: true },
 		);
-		const issueOption = { title: 'Tackle issue #14', description: 'Assigned issue', icon: { id: 'issue-opened', color: 'charts.green' } };
+		const issueOption = { title: 'Tackle issue #14', description: 'Assigned issue', icon: { id: 'issues', color: 'charts.green' } };
 		const ciOption = { title: 'Fix CI #21', description: 'CI is failing', icon: { id: 'git-pull-request-error', color: 'charts.orange' } };
 
 		assert.deepStrictEqual({
@@ -648,7 +648,7 @@ suite('NewSessionViewV3Prompt', () => {
 			{ pullRequests: [], issues: [issue('Unknown linkage', '2026-08-07T13:00:00Z', 9)] },
 			{ issueLinkageLookupNeverResolves: true },
 		);
-		const issueOption = { title: 'Tackle issue #9', description: 'Unknown linkage', icon: { id: 'issue-opened', color: 'charts.green' } };
+		const issueOption = { title: 'Tackle issue #9', description: 'Unknown linkage', icon: { id: 'issues', color: 'charts.green' } };
 
 		assert.deepStrictEqual({
 			states: summarizePromptOptionStates(result.promptOptionStates),
@@ -879,10 +879,11 @@ suite('NewSessionViewV3Prompt', () => {
 
 	test('waits for Agent Host git metadata instead of requiring the Git extension', async () => {
 		const workspace = observableValue('workspace', createWorkspace(URI.file('C:\\repo'), 'r', false));
-		const activeSession = new class extends mock<IActiveSession>() {
+		const activeSession = new class extends mock<ITestSessionWithChat>() {
 			override readonly providerId = 'local-agent-host';
 			override readonly sessionType = 'copilotcli';
 			override readonly isCreated = constObservable(false);
+			override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 			override readonly workspace = workspace;
 		}();
 		let gitServiceCalled = false;
@@ -890,7 +891,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const runner = new NewSessionViewV3PromptRunner(
 			new TestAssignmentService({ 'onb.newSessionViewV3.variation': 'githubPrompt' }),
 			new TestConfigurationService(),
-			constObservable<IActiveSession | undefined>(activeSession),
+			constObservable<ITestSessionWithChat | undefined>(activeSession),
 			new class extends mock<INewSessionComposerService>() {
 				override readonly activeComposer = constObservable({
 					animatePrompt: async (text: string) => {
@@ -939,7 +940,7 @@ suite('NewSessionViewV3Prompt', () => {
 		const secondWorkspace = createWorkspace(URI.file('C:\\second'), 'second');
 		const firstSession = createSession(firstWorkspace);
 		const secondSession = createSession(secondWorkspace);
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', firstSession);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', firstSession);
 		const requests: { owner: string; repo: string }[] = [];
 		let prompt: string | undefined;
 		const runner = new NewSessionViewV3PromptRunner(
@@ -1029,7 +1030,7 @@ async function runPrompt(
 	const workspace = createWorkspace(workspaceUri, 'r', options.includeGitHubInfo !== false);
 	const activeSession = createSession(workspace);
 	const sessionsService = new class extends mock<ISessionsService>() {
-		readonly activeSession = constObservable<IActiveSession | undefined>(activeSession);
+		readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 	}();
 	const composerService = new class extends mock<INewSessionComposerService>() {
 		override readonly activeComposer = constObservable({
@@ -1210,11 +1211,12 @@ function createWorkspace(uri: URI, repo: string, includeGitHubInfo = true): ISes
 	};
 }
 
-function createSession(workspace: ISessionWorkspace): IActiveSession {
-	return new class extends mock<IActiveSession>() {
+function createSession(workspace: ISessionWorkspace): ITestSessionWithChat {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly providerId = 'test';
 		override readonly sessionType = 'test';
 		override readonly isCreated = constObservable(false);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly workspace = constObservable(workspace);
 	}();
 }

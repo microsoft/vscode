@@ -40,6 +40,12 @@ import { IEditorOptions, ViewColumn } from '../../../platform/editor/common/edit
 import { IExtensionIdWithVersion } from '../../../platform/extensionManagement/common/extensionStorage.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
+import { PageOptions, RepositoryRef } from '../../../platform/github/common/client/types.js';
+import { Connection } from '../../../platform/github/common/core/core.js';
+import { CreatePullRequestRequest, ListPullRequestsOptions, PullRequestSummary } from '../../../platform/github/common/core/pullRequests.js';
+import { Branch, CreateRepositoryRequest, ListRepositoriesOptions, Repository, RepositoryAssignableUser, RepositoryCommitAuthor, RepositoryRulesetNode, RepositoryViewerInfo } from '../../../platform/github/common/core/repositories.js';
+import { RepositorySearchItem } from '../../../platform/github/common/core/search.js';
+import { User } from '../../../platform/github/common/core/users.js';
 import { ResourceLabelFormatter } from '../../../platform/label/common/label.js';
 import { ILoggerOptions, ILoggerResource, LogLevel } from '../../../platform/log/common/log.js';
 import { IMarkerData } from '../../../platform/markers/common/markers.js';
@@ -602,8 +608,12 @@ export interface MainThreadLanguagesShape extends IDisposable {
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
 	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }>;
 	$computeFullSyntaxHighlighting(source: string, languageId: string): Promise<ISyntaxHighlightingResultDto>;
-	$setLanguageStatus(handle: number, status: ILanguageStatus): void;
+	$setLanguageStatus(handle: number, status: ILanguageStatusDto): void;
 	$removeLanguageStatus(handle: number): void;
+}
+
+export interface ILanguageStatusDto extends Omit<ILanguageStatus, 'detail'> {
+	readonly detail: string;
 }
 
 export interface ISyntaxHighlightingTokenDto {
@@ -3486,7 +3496,7 @@ export interface ExtHostWindowShape {
 	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
 }
 
-/** Public error category of the proposed GitHub API; cancellation is reported separately. */
+/** Internal GitHub module error category; cancellation is reported separately. */
 export type GitHubErrorCodeDto = 'authentication' | 'authorization' | 'notFound' | 'validation' | 'rateLimit' | 'network' | 'timeout' | 'server' | 'invalidResponse' | 'disposed' | 'unknown';
 
 export interface IGitHubErrorDto {
@@ -3529,6 +3539,19 @@ export interface MainThreadGitHubShape extends IDisposable {
 	$releaseClient(handle: number): void;
 	$getGist(handle: number, gistId: string, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
 	$createGist(handle: number, gist: IGitHubCreateGistDto, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>>;
+	$getGitHubUser(handle: number, token: CancellationToken): Promise<GitHubResultDto<User>>;
+	$getGitHubRepository(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Repository>>;
+	$listGitHubRepositories(handle: number, query: ListRepositoriesOptions['query'], token: CancellationToken): Promise<GitHubResultDto<readonly Repository[]>>;
+	$searchGitHubRepositories(handle: number, query: string, token: CancellationToken): Promise<GitHubResultDto<readonly RepositorySearchItem[]>>;
+	$listGitHubBranches(handle: number, repository: RepositoryRef, query: PageOptions | undefined, token: CancellationToken): Promise<GitHubResultDto<readonly Branch[]>>;
+	$createGitHubRepository(handle: number, request: CreateRepositoryRequest, token: CancellationToken): Promise<GitHubResultDto<Repository>>;
+	$forkGitHubRepository(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Repository>>;
+	$listGitHubPullRequests(handle: number, repository: RepositoryRef, query: ListPullRequestsOptions['query'], token: CancellationToken): Promise<GitHubResultDto<readonly PullRequestSummary[]>>;
+	$createGitHubPullRequest(handle: number, repository: RepositoryRef, request: CreatePullRequestRequest, token: CancellationToken): Promise<GitHubResultDto<PullRequestSummary>>;
+	$getGitHubRepositoryViewerInfo(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<RepositoryViewerInfo | null>>;
+	$listGitHubRulesetConnection(handle: number, repository: RepositoryRef, after: string | undefined, maxPages: number | undefined, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryRulesetNode> | null>>;
+	$listGitHubAssignableUsers(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryAssignableUser> | null>>;
+	$getGitHubCommitAuthor(handle: number, repository: RepositoryRef, ref: string, token: CancellationToken): Promise<GitHubResultDto<RepositoryCommitAuthor | null>>;
 }
 
 export type PowerSystemIdleState = 'active' | 'idle' | 'locked' | 'unknown';
@@ -3948,6 +3971,12 @@ export interface ITestControllerPatch {
 	capabilities?: TestControllerCapability;
 }
 
+export type TestRunUpdate =
+	| { type: 'tests'; tests: ITestItem.Serialized[] }
+	| { type: 'state'; taskId: string; testId: string; state: TestResultState; duration?: number }
+	| { type: 'messages'; taskId: string; testId: string; messages: ITestMessage.Serialized[] }
+	| { type: 'output'; taskId: string; output: string | VSBuffer; location?: ILocationDto; testId?: string };
+
 export interface MainThreadTestingShape {
 	// --- test lifecycle:
 
@@ -3977,6 +4006,9 @@ export interface MainThreadTestingShape {
 
 
 	// --- test run handling:
+
+	/** Applies ordered test run updates sent in a single message. */
+	$applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>): void;
 
 	/** Request by an extension to run tests. */
 	$runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string>;

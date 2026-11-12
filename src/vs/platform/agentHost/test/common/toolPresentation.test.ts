@@ -42,6 +42,7 @@ suite('Copilot app tool presentation compatibility', () => {
 		{ names: ['exit_plan_mode'], kind: undefined, completed: 'Finished plan' },
 		{ names: ['respond_to_session_plan'], kind: undefined, completed: 'Responded to plan' },
 		{ names: ['skill'], kind: undefined, completed: 'Read skill' },
+		{ names: ['read_resource'], kind: undefined, completed: 'Read MCP resource' },
 		{ names: ['show_file'], kind: undefined, completed: 'Showed file' },
 		{ names: ['web_search'], kind: undefined, completed: 'Searched the web' },
 		{ names: ['web_fetch'], kind: undefined, completed: 'Fetched webpage' },

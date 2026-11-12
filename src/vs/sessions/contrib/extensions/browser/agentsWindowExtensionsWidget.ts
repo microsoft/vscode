@@ -28,7 +28,9 @@ import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IAllowedExtensionsService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -36,7 +38,9 @@ import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, IExtensionMa
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -54,8 +58,12 @@ import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../
 import { getSessionsWindowMissingFeatures, getSessionsWindowSuggestedContributions, IExtensionManifestPropertiesService, SessionsWindowLLMContributionPoint, SessionsWindowMissingFeature } from '../../../../workbench/services/extensions/common/extensionManifestPropertiesService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../workbench/services/history/common/history.js';
+import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IExtensionEditorOptions } from '../../../../workbench/contrib/extensions/common/extensionsInput.js';
+import { AgentsWindowExtensionPage } from './agentsWindowExtensionPage.js';
 import { AgentsWindowMarketplaceSearch, getMarketplaceExtensionAriaLabel, getMarketplaceStatisticsLabels, IAgentsWindowMarketplaceEntry, IAgentsWindowMarketplaceMessageEntry, IMarketplaceSearchResult, MARKETPLACE_MESSAGE_TEMPLATE_ID, MARKETPLACE_ROW_TEMPLATE_ID, MarketplaceExtensionRowRenderer, MarketplaceMessageRenderer, MarketplaceSearchStatus } from './agentsWindowExtensionsMarketplace.js';
-import { IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
+import { IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 
 const $ = DOM.$;
 
@@ -66,6 +74,12 @@ const EXTENSION_ROW_TEMPLATE_ID = 'agentsWindowExtensionRow';
 
 /** Whether uninstalling an extension from the Extensions section of Agent Customizations asks for confirmation first. */
 export const AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING = 'extensions.experimental.agentsWindowConfirmUninstall';
+
+/** Returns from the page of an extension to the list of the Extensions section of Agent Customizations. */
+export const AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID = 'workbench.action.agentsWindowExtensions.backToList';
+
+/** Whether the Extensions section of Agent Customizations shows the page of an extension, where the focus is. */
+export const AgentsWindowExtensionPageContext = new RawContextKey<boolean>('agentsWindowExtensionPage', false, localize('agentsWindowExtensionPage', "Whether the Extensions section of Agent Customizations shows the page of an extension, where the focus is."));
 
 /**
  * How the user changed whether an extension runs in the Agents window: from its row, with its switch, Space or Enter, or its
@@ -445,11 +459,13 @@ class ExtensionRowRenderer implements IListRenderer<IAgentsWindowExtensionEntry,
 /**
  * Lists installed extensions in the Agent Customizations editor and lets users choose which run in
  * the Agents window. Changes are stored as enablement of the Agents window workspace, so they never
- * affect editor windows.
+ * affect editor windows. Shows the page of an extension in place of the list when users open it,
+ * like the Extensions editor shows it in editor windows.
  */
 export class AgentsWindowExtensionsWidget extends Disposable implements IAICustomizationManagementSectionWidget {
 
 	private readonly element: HTMLElement;
+	private readonly backButton: HTMLButtonElement;
 	private readonly runtimeActionButton: Button;
 	private readonly description: HTMLElement;
 	private readonly searchInput: InputBox;
@@ -478,9 +494,18 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 	private runtimeAction: ExtensionRuntimeActionType | undefined;
 	private visible = false;
 	private renderPending = true;
+	/** Shows the page of an extension in place of the list, created the first time that users open an extension. */
+	private page: AgentsWindowExtensionPage | undefined;
+	/** The extension whose page is shown, if any. */
+	private pageExtension: IExtension | undefined;
+	/** Whether the section returned to the list when users pressed the mouse's Back button, until they release it. */
+	private handlingMouseBack = false;
+	private readonly contextKeyService: IContextKeyService;
+	private readonly showsPageContextKey: IContextKey<boolean>;
 
 	constructor(
 		container: HTMLElement,
+		private readonly group: IEditorGroup,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
@@ -498,13 +523,50 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
 		@IExtensionService extensionService: IExtensionService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
 		this.element = DOM.append(container, $('.agents-window-extensions'));
+		// The page of an extension, and the webviews that show its content, inherit their context from the section's.
+		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
+		this.showsPageContextKey = AgentsWindowExtensionPageContext.bindTo(this.contextKeyService);
 
 		const header = DOM.append(this.element, $('.agents-window-extensions-header'));
 		const titleRow = DOM.append(header, $('.agents-window-extensions-title-row'));
+		// Like the Back buttons of the other pages of Agent Customizations, shown while an extension's page is shown.
+		this.backButton = DOM.append(titleRow, $<HTMLButtonElement>('button.editor-back-button.agents-window-extensions-back-button'));
+		this.backButton.type = 'button';
+		const backLabel = localize('agentsWindowExtensions.back', "Back to Extensions");
+		this.backButton.setAttribute('aria-label', backLabel);
+		DOM.append(this.backButton, $(ThemeIcon.asCSSSelector(Codicon.arrowLeft), { 'aria-hidden': 'true' }));
+		this._register(hoverService.setupDelayedHover(this.backButton, { content: backLabel, style: HoverStyle.Pointer }));
+		this._register(DOM.addDisposableListener(this.backButton, DOM.EventType.CLICK, () => this.closeExtensionPage(true)));
+		// The mouse's Back button returns to the list from an extension's page, like it returns to the previous editor from the
+		// Extensions editor in editor windows. The Agents window moves between sessions when users press it, and does so before
+		// the section can, so the section handles it on the way down from the window instead. Go Back's keybindings run the
+		// command below while the page shows.
+		const targetWindow = DOM.getWindow(container);
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.MOUSE_DOWN, event => this.handleMouseBack(event, true), true));
+		this._register(DOM.addDisposableListener(targetWindow, DOM.EventType.MOUSE_UP, event => this.handleMouseBack(event, false), true));
+		this._register(CommandsRegistry.registerCommand({
+			id: AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID,
+			handler: () => this.closeExtensionPage(true),
+			metadata: { description: backLabel },
+		}));
+		// Agent Customizations is a modal, which stops the keys of most workbench commands before they reach the keybindings, as
+		// it resolves them without the context of the section, where Go Back's keybindings run the command above instead.
+		this._register(DOM.addStandardDisposableListener(this.element, DOM.EventType.KEY_DOWN, event => {
+			if (!this.pageExtension) {
+				return;
+			}
+			const resolved = this.keybindingService.softDispatch(event, event.target);
+			if (resolved.kind === ResultKind.KbFound && resolved.commandId === AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.closeExtensionPage(true);
+			}
+		}));
 		DOM.append(titleRow, $('h2.agents-window-extensions-title')).textContent = localize('agentsWindowExtensions.title', "Extensions");
 		this.runtimeActionButton = this._register(new Button(titleRow, { ...defaultButtonStyles, secondary: true, small: true }));
 		this._register(this.runtimeActionButton.onDidClick(() => this.runRuntimeAction(this.runtimeAction)));
@@ -568,8 +630,17 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: entry => entry.type === 'group-header' ? entry.label : entry.type === 'message' ? entry.text : entry.extension.displayName,
 				},
+				// Like the Extensions view, clicking an extension opens its page.
+				openOnSingleClick: true,
 			},
 		));
+		this._register(this.tree.onDidOpen(event => {
+			const entry = event.element;
+			// Opens extensions that users click. The section handles Enter itself, like Space.
+			if (entry?.type === 'extension' || entry?.type === 'marketplace') {
+				this.openExtensionPage(entry.extension, undefined);
+			}
+		}));
 		this._register(this.tree.onDidChangeCollapseState(event => {
 			const entry = event.node.element;
 			if (entry?.type === 'group-header') {
@@ -586,14 +657,18 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 				return;
 			}
 			const entry = this.tree.getFocus()[0];
-			if ((entry?.type === 'extension' || entry?.type === 'marketplace') && (event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter)) {
-				event.preventDefault();
-				event.stopPropagation();
-				if (entry.type === 'marketplace') {
-					this.marketplaceRowRenderer.install(entry.extension);
-				} else if (this.canChangeEnablement(entry.extension)) {
-					this.setEnabled(entry.extension, !this.isEnabled(entry.extension));
-				}
+			if ((entry?.type !== 'extension' && entry?.type !== 'marketplace') || (event.keyCode !== KeyCode.Enter && event.keyCode !== KeyCode.Space)) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			if (event.keyCode === KeyCode.Enter) {
+				// Like in the Extensions view.
+				this.openExtensionPage(entry.extension, undefined);
+			} else if (entry.type === 'marketplace') {
+				this.marketplaceRowRenderer.install(entry.extension);
+			} else if (this.canChangeEnablement(entry.extension)) {
+				this.setEnabled(entry.extension, !this.isEnabled(entry.extension));
 			}
 		}));
 		this._register(this.tree.onContextMenu(event => {
@@ -653,20 +728,119 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 			if (this.renderPending) {
 				this.render();
 			}
+		} else {
+			// Like the other pages of Agent Customizations, leaving the section leaves the page, which releases its webviews.
+			this.closeExtensionPage(false);
 		}
 		this.layoutTree();
 	}
 
 	layout(): void {
 		this.layoutTree();
+		this.page?.layout();
 	}
 
 	focus(): void {
-		this.searchInput.focus();
+		if (this.pageExtension) {
+			this.backButton.focus();
+		} else {
+			this.searchInput.focus();
+		}
 	}
 
 	setSearchQuery(query: string): void {
+		this.closeExtensionPage(false);
 		this.searchInput.value = query;
+	}
+
+	/**
+	 * Shows the page of an extension in place of the list, with the editor that shows it in editor windows, or the page of
+	 * another extension while one is shown, such as of one of its dependencies.
+	 */
+	private openExtensionPage(extension: IExtension, options: IExtensionEditorOptions | undefined): void {
+		if (!this.page) {
+			const pageInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
+			this.page = this._register(pageInstantiationService.createInstance(AgentsWindowExtensionPage, this.element, this.group, {
+				openExtensionPage: (extension, options) => this.openExtensionPage(extension, options),
+				search: text => this.search(text),
+				uninstall: (extension, uninstall) => this.uninstall(extension, uninstall),
+				didInstall: extension => this.onDidInstall(extension),
+			}));
+		}
+		const showsOtherExtension = !this.pageExtension || !ExtensionIdentifier.equals(this.pageExtension.identifier.id, extension.identifier.id);
+		this.pageExtension = extension;
+		this.showsPageContextKey.set(true);
+		this.element.classList.add('shows-extension-page');
+		this.page.show(extension, options).catch(error => {
+			if (!isCancellationError(error)) {
+				this.notificationService.error(error);
+			}
+		});
+		this.page.layout();
+		if (showsOtherExtension) {
+			// The list is hidden, or the page's content is replaced, so the page's Back button gets the focus. Reading whether
+			// it is shown updates its styles, which WebKit doesn't do for the class above before focusing it, from Enter.
+			if (DOM.getComputedStyle(this.backButton).display !== 'none') {
+				this.backButton.focus();
+			}
+			status(localize('agentsWindowExtensions.pageStatus', "{0}, extension details", extension.displayName));
+		}
+	}
+
+	/**
+	 * Shows the list in place of an extension's page. With `focus`, focuses the extension that users opened, like after
+	 * closing the Extensions editor, or the search box if it is no longer listed.
+	 */
+	private closeExtensionPage(focus: boolean): void {
+		if (!this.pageExtension) {
+			return;
+		}
+		this.pageExtension = undefined;
+		this.showsPageContextKey.set(false);
+		this.element.classList.remove('shows-extension-page');
+		this.page?.clear();
+		this.layoutTree();
+		if (focus) {
+			const [focused] = this.tree.getFocus();
+			if (focused && this.tree.hasElement(focused)) {
+				this.tree.reveal(focused);
+				this.tree.domFocus();
+			} else {
+				this.searchInput.focus();
+			}
+		}
+	}
+
+	/**
+	 * Shows the list and searches it, such as for the extensions of a publisher that users chose on an extension's page.
+	 */
+	private search(text: string): void {
+		this.setSearchQuery(text);
+		this.searchInput.focus();
+	}
+
+	/**
+	 * Returns to the list when users press the mouse's Back button over an extension's page, unless they turned off
+	 * navigating with it. Also handles releasing it, which would otherwise navigate.
+	 */
+	private handleMouseBack(event: MouseEvent, isMouseDown: boolean): void {
+		if (event.button !== 3) {
+			return;
+		}
+		if (isMouseDown) {
+			this.handlingMouseBack = !!this.pageExtension
+				&& DOM.isHTMLElement(event.target) && DOM.isAncestor(event.target, this.element)
+				&& !!this.configurationService.getValue<boolean>(MOUSE_BACK_FORWARD_NAVIGATION_SETTING);
+		}
+		if (!this.handlingMouseBack) {
+			return;
+		}
+		DOM.EventHelper.stop(event, true);
+		if (isMouseDown) {
+			this.closeExtensionPage(true);
+		} else {
+			this.handlingMouseBack = false;
+		}
 	}
 
 	private scheduleRender(): void {
@@ -848,9 +1022,9 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 	}
 
 	/**
-	 * Logs that installing an extension from the Marketplace group enabled it in the Agents window. The extensions service
-	 * enables it as it installs it, only when the Agents window disables it by default, which leaves it enabled for the
-	 * Agents window's workspace.
+	 * Logs that installing an extension from the section, from its Marketplace group or its page, enabled it in the Agents
+	 * window. The extensions service enables it as it installs it, only when the Agents window disables it by default, which
+	 * leaves it enabled for the Agents window's workspace.
 	 */
 	private onDidInstall(extension: IExtension): void {
 		const installed = this.extensionsWorkbenchService.local.find(local => local.local && ExtensionIdentifier.equals(local.identifier.id, extension.identifier.id));
@@ -981,7 +1155,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 					? localize('agentsWindowExtensions.uninstall', "Uninstall...")
 					: localize('agentsWindowExtensions.uninstallWithoutConfirmation', "Uninstall"),
 			enabled: canUninstall,
-			run: () => this.uninstall(extension),
+			run: () => this.uninstall(extension, () => this.runUninstallAction(extension)),
 		})];
 
 		return Separator.join(state, manage);
@@ -1001,7 +1175,11 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 	/**
 	 * Uninstalls an extension like the Extensions view's Uninstall action, once users confirm, as it is also uninstalled from VS Code.
 	 */
-	private async uninstall(extension: IExtension): Promise<void> {
+	/**
+	 * Uninstalls an extension with `uninstall`, like the Extensions view does, once users confirm it, as it is also
+	 * uninstalled from VS Code, and returns whether it did.
+	 */
+	private async uninstall(extension: IExtension, uninstall: () => Promise<void>): Promise<boolean> {
 		// The Extensions service confirms uninstalling an extension from all profiles itself.
 		if (!this.uninstallsFromAllProfiles(extension) && this.confirmsUninstall()) {
 			const { confirmed, checkboxChecked } = await this.dialogService.confirm({
@@ -1012,7 +1190,7 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 				checkbox: { label: localize('agentsWindowExtensions.doNotAskAgain', "Do not ask me again") },
 			});
 			if (!confirmed) {
-				return;
+				return false;
 			}
 			if (checkboxChecked) {
 				await this.configurationService.updateValue(AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING, false);
@@ -1021,18 +1199,26 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 
 		// Uninstalling an extension pack or a dependency can also uninstall other extensions.
 		const installed = [...this.extensionsWorkbenchService.local];
+		await uninstall();
+		// Running extensions keep running until extensions restart, which the section offers once they are no longer listed.
+		const keepRunning = installed.filter(uninstalled => uninstalled.state === ExtensionState.Uninstalled && uninstalled.runtimeState);
+		if (keepRunning.length) {
+			keepRunning.forEach(uninstalled => this.uninstalledExtensions.add(uninstalled));
+			this.scheduleRender();
+		}
+		return true;
+	}
+
+	/**
+	 * Uninstalls an extension with the Extensions view's Uninstall action, which reports why it can't.
+	 */
+	private async runUninstallAction(extension: IExtension): Promise<void> {
 		const uninstallAction = this.instantiationService.createInstance(UninstallAction);
 		try {
 			uninstallAction.extension = extension;
 			await uninstallAction.run();
 		} finally {
 			uninstallAction.dispose();
-		}
-		// Running extensions keep running until extensions restart, which the section offers once they are no longer listed.
-		const keepRunning = installed.filter(uninstalled => uninstalled.state === ExtensionState.Uninstalled && uninstalled.runtimeState);
-		if (keepRunning.length) {
-			keepRunning.forEach(uninstalled => this.uninstalledExtensions.add(uninstalled));
-			this.scheduleRender();
 		}
 	}
 

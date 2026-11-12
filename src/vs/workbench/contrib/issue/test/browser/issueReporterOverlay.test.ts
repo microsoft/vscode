@@ -50,6 +50,8 @@ import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterDat
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 class TestContextViewService implements IContextViewService {
 	declare readonly _serviceBrand: undefined;
@@ -247,6 +249,7 @@ suite('IssueReporterOverlay', () => {
 		const frame = document.createElement('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		frame.contentDocument!.body.appendChild(container);
 		overlay.reparentFloatingBar();
 		const stayedWithSource = bar.ownerDocument === document && document.body.contains(bar);
@@ -540,6 +543,7 @@ suite('IssueReporterOverlay', () => {
 			instantiation.stub(IEditorService, {});
 			instantiation.stub(ITreeViewsDnDService, {});
 			instantiation.stub(IWorkspaceContextService, {});
+			instantiation.stub(IDialogService, {});
 			store.add(instantiation.createInstance(EditorDropTarget, groupsView, container, { supportsSplitting: false }));
 			const transfer = new DataTransfer();
 			transfer.items.add(images(1)[0]);

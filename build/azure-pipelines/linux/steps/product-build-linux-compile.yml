@@ -26,6 +26,33 @@ parameters:
   - name: VSCODE_PRIVILEGED_CONNECTIONS
     type: boolean
     default: true
+  # What the job builds. The product and flaky-smoke builds build everything; a CI test job builds
+  # only what its tests use (see product-build-linux-ci.yml).
+  - name: VSCODE_BUILD_CLIENT
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_SERVER
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_SERVER_WEB
+    type: boolean
+    default: true
+  # The files that the product ships but no test uses: the lists of telemetry events, and the Agent
+  # SDK and dictation runtime tarballs, which only publishing builds upload and stamp into the product.
+  - name: VSCODE_BUILD_PRODUCT_ASSETS
+    type: boolean
+    default: true
+  # The extensions of the integration tests, and the smoke and browser integration test suites
+  - name: VSCODE_BUILD_INTEGRATION_TESTS
+    type: boolean
+    default: true
+  - name: VSCODE_COMPILE_TEST_SUITES
+    type: boolean
+    default: true
+  # See product-build-linux-setup.yml
+  - name: VSCODE_WORKSPACE_IMAGE
+    type: string
+    default: none
 
 steps:
   - template: product-build-linux-setup.yml@self
@@ -33,6 +60,7 @@ steps:
       VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
       VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: ${{ parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL }}
       VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+      VSCODE_WORKSPACE_IMAGE: ${{ parameters.VSCODE_WORKSPACE_IMAGE }}
 
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
@@ -49,7 +77,7 @@ steps:
   - script: node build/npm/electronTypes.ts
     displayName: Prepare Electron types
 
-  - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+  - ${{ if and(ne(parameters.VSCODE_ARCH, 'armhf'), eq(parameters.VSCODE_BUILD_PRODUCT_ASSETS, true)) }}:
     - template: ../../common/agent-sdk-produce.yml@self
       parameters:
         vscodePlatform: linux
@@ -60,11 +88,6 @@ steps:
         vscodePlatform: linux
         VSCODE_PRIVILEGED_CONNECTIONS: ${{ parameters.VSCODE_PRIVILEGED_CONNECTIONS }}
 
-  - script: pnpm exec deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Download Copilot VSIX (background)
-
   - template: ../../common/mixin-vscode-capi.yml@self
 
   - script: pnpm run gulp core-ci
@@ -72,11 +95,20 @@ steps:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
 
-  - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+  # The client and the servers package the built-in Copilot
+  - ${{ if or(eq(parameters.VSCODE_BUILD_CLIENT, true), eq(parameters.VSCODE_BUILD_SERVER, true), eq(parameters.VSCODE_BUILD_SERVER_WEB, true)) }}:
+    - template: ../../copilot/builtin-steps.yml@self
+
+  # One Compile job uploads the Copilot source maps, in publishing builds only: CI builds never publish, and the
+  # SDK validation build has no CDN connection.
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true)) }}:
+    - template: ../../copilot/upload-sourcemaps-steps.yml@self
+
+  - ${{ if and(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_BUILD_PRODUCT_ASSETS, true)) }}:
     - script: node build/azure-pipelines/common/extract-telemetry.ts
       displayName: Generate lists of telemetry events
 
-  - ${{ if gt(length(parameters.VSCODE_TEST_IDS), 0) }}:
+  - ${{ if and(gt(length(parameters.VSCODE_TEST_IDS), 0), eq(parameters.VSCODE_COMPILE_TEST_SUITES, true)) }}:
     - script: |
         set -e
         pnpm -C test/smoke run compile
@@ -88,11 +120,6 @@ steps:
     - script: pnpm -C build run copy-policy-dto && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc linux
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
-
-  - script: pnpm exec deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
-    env:
-      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
-    displayName: Download Copilot VSIX
 
   # Block on the CG NOTICE download and overwrite ThirdPartyNotices.txt
   # right before gulp packages it. Non-fatal: falls back to legacy on any problem.
@@ -110,15 +137,16 @@ steps:
       # downloadNotice.ts never fails; keep the step non-fatal for any other problem.
       continueOnError: true
 
-  - script: |
-      set -e
-      pnpm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
-    env:
-      GITHUB_TOKEN: "$(github-token-code-oss)"
-      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
-    displayName: Build client
+  - ${{ if eq(parameters.VSCODE_BUILD_CLIENT, true) }}:
+    - script: |
+        set -e
+        pnpm run gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+      env:
+        GITHUB_TOKEN: "$(github-token-code-oss)"
+        AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+      displayName: Build client
 
-  - ${{ if ne(parameters.VSCODE_ARCH, 'armhf') }}:
+  - ${{ if and(ne(parameters.VSCODE_ARCH, 'armhf'), eq(parameters.VSCODE_BUILD_SERVER, true)) }}:
     - script: |
         set -e
         pnpm run gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
@@ -134,6 +162,7 @@ steps:
       - script: node build/azure-pipelines/common/smokeTestAgentHost.ts "$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)"
         displayName: 🧪 Smoke test packaged Agent Host
 
+  - ${{ if and(ne(parameters.VSCODE_ARCH, 'armhf'), eq(parameters.VSCODE_BUILD_SERVER_WEB, true)) }}:
     - script: |
         set -e
         pnpm run gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
@@ -143,7 +172,7 @@ steps:
         AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
       displayName: Build server (web)
 
-  - ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
+  - ${{ if and(or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')), eq(parameters.VSCODE_BUILD_SERVER, true)) }}:
     - script: |
         set -e
 
@@ -169,6 +198,8 @@ steps:
     - template: product-build-linux-test.yml@self
       parameters:
         VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+        VSCODE_BUILD_CLIENT: ${{ parameters.VSCODE_BUILD_CLIENT }}
+        VSCODE_BUILD_INTEGRATION_TESTS: ${{ parameters.VSCODE_BUILD_INTEGRATION_TESTS }}
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_BUILD_ONLY, true)) }}:
     - template: product-build-linux-package-finalize.yml@self
