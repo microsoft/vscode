@@ -58,7 +58,7 @@ export class AgentHostCheckoutOperationHandler implements IChangesetOperationHan
 			}
 			this._throwIfCancelled(token);
 			try {
-				await this._gitService.createBranch(workingDirectory, input.branchName, { checkout: input.checkout, startPoint: input.startPoint });
+				await this._gitService.createBranch(workingDirectory, input.branchName, { checkout: true, startPoint: input.startPoint });
 			} catch (error) {
 				throw new ProtocolError(JsonRpcErrorCodes.InternalError, localize('agentHost.changeset.createBranch.failed', "Failed to create branch '{0}': {1}", input.branchName, error instanceof Error ? error.message : String(error)));
 			}

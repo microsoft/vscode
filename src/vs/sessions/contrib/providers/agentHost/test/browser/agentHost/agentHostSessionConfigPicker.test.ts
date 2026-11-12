@@ -515,7 +515,7 @@ suite('Agent Host Session Config Picker', () => {
 				callsBeforeCreation: 0,
 				invocations: [{
 					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'HEAD', checkout: true } },
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'HEAD' } },
 				}],
 				selection: 'feature/new',
 				label: 'feature/new',
@@ -582,7 +582,7 @@ suite('Agent Host Session Config Picker', () => {
 				matchOnDetail: true,
 				invocations: [{
 					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: selectedRef, checkout: true } },
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: selectedRef } },
 				}],
 			});
 		});
@@ -879,7 +879,7 @@ suite('Agent Host Session Config Picker', () => {
 				prompt: nameShown ? 'Enter a name for the new branch, starting from \'dev\'.' : undefined,
 				invocations: outcome === 'created' ? [{
 					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'dev', checkout: true } },
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'dev' } },
 				}] : [],
 				writes: outcome === 'created' ? [{ sessionId: SESSION_ID, property: 'branch', value: 'feature/new' }] : [],
 			});
@@ -981,7 +981,7 @@ suite('Agent Host Session Config Picker', () => {
 			distinct: undefined,
 			invocations: [{
 				operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-				_meta: { 'vscode.createBranch': { branchName: 'feature/existing', startPoint: 'HEAD', checkout: true } },
+				_meta: { 'vscode.createBranch': { branchName: 'feature/existing', startPoint: 'HEAD' } },
 			}],
 			selection: 'feature/existing',
 		});

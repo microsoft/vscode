@@ -296,9 +296,6 @@ interface ICreateBranchContext {
 	readonly config: ResolveSessionConfigResult;
 	readonly chat: URI | undefined;
 	readonly workspaceUri: URI | undefined;
-	readonly isolationKey: string;
-	readonly isolationValue: unknown;
-	readonly isWorktree: boolean;
 }
 
 interface IBranchPickerContext {
@@ -1161,18 +1158,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		const chat = this._getChat(provider, sessionId);
 		const workspaceUri = this._session.get()?.workspace.get()?.uri;
-		const workspaceConfigProperties = getSessionWorkspaceProperties(config.schema);
-		const isolationKey = workspaceConfigProperties.isolationKey;
-		const isolationValue = config.values[isolationKey] ?? config.schema.properties[isolationKey]?.default;
-		const context: ICreateBranchContext = {
-			property,
-			config,
-			chat,
-			workspaceUri,
-			isolationKey,
-			isolationValue,
-			isWorktree: isWorktreeSessionIsolation(workspaceConfigProperties.isolation, isolationValue),
-		};
+		const context: ICreateBranchContext = { property, config, chat, workspaceUri };
 		const focusProperty = this._property ?? property;
 		this._propertyTriggers.get(focusProperty)?.focus();
 		const inputDisposables = new DisposableStore();
@@ -1268,23 +1254,21 @@ export class AgentHostSessionConfigPicker extends Disposable {
 
 	/**
 	 * Creates the branch on the agent host and selects it, unless the session, chat,
-	 * workspace, branch, or isolation changed since the user started creating it.
+	 * workspace, or branch changed since the user started creating it. Selecting
+	 * worktree isolation meanwhile makes {@link _getCreateBranchChangeset} return nothing.
 	 */
 	private async _runCreateBranchOperation(provider: IAgentHostSessionsProvider, sessionId: string, context: ICreateBranchContext, branchName: string, startPoint: string): Promise<void> {
-		const { property, config, chat, workspaceUri, isolationKey, isolationValue } = context;
+		const { property, config, chat, workspaceUri } = context;
 		const currentConfig = this._getSessionConfig(provider, sessionId);
 		const changeset = this._getCreateBranchChangeset(provider, sessionId);
 		if (!this._isCurrentSession(provider, sessionId) || !changeset
 			|| provider.isSessionConfigResolving(sessionId, this._requireChat(provider, sessionId)).get()
 			|| !isEqual(this._getChat(provider, sessionId), chat)
 			|| !isEqual(this._session.get()?.workspace.get()?.uri, workspaceUri)
-			|| currentConfig?.values[property] !== config.values[property]
-			|| (currentConfig?.values[isolationKey] ?? currentConfig?.schema.properties[isolationKey]?.default) !== isolationValue) {
+			|| currentConfig?.values[property] !== config.values[property]) {
 			return;
 		}
-		await changeset.invokeOperation(AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, undefined,
-			// Worktree sessions create a separate branch but must keep the original checkout untouched.
-			createBranchOperationMeta(branchName, startPoint, !context.isWorktree));
+		await changeset.invokeOperation(AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID, undefined, createBranchOperationMeta(branchName, startPoint));
 		if (this._isCurrentSession(provider, sessionId)
 			&& isEqual(this._getChat(provider, sessionId), chat)
 			&& isEqual(this._session.get()?.workspace.get()?.uri, workspaceUri)) {

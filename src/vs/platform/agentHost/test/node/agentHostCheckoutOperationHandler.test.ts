@@ -21,39 +21,37 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 suite('AgentHostCheckoutOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const checkout of [true, false]) {
-		test(`creates a branch from the selected base with checkout=${checkout}`, async () => {
-			const session = 'agent:/session';
-			const workingDirectory = URI.file('/repo');
-			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-			stateManager.createSession({
-				resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
-				createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(),
-				workingDirectories: [workingDirectory.toString()], defaultChat: buildDefaultChatUri(session),
-			});
-			const calls: object[] = [];
-			const git = new class extends mock<IAgentHostGitService>() {
-				override async branchExists(_root: URI, name: string) { return name === 'main'; }
-				override async createBranch(root: URI, name: string, options?: { readonly checkout?: boolean; readonly startPoint?: string }) {
-					calls.push({ root: root.toString(), name, options });
-				}
-			}();
-			const handler = new AgentHostCheckoutOperationHandler(
-				key => stateManager.getSessionState(key), () => { calls.push({ refresh: true }); }, git, new NullLogService(), stateManager,
-			);
-			const invoke = (name: string) => handler.invoke({
-				channel: buildUncommittedChangesetUri(session), operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
-				_meta: createBranchOperationMeta(name, 'main', checkout),
-			}, CancellationToken.None);
-			await invoke('feature/new');
-			await assert.rejects(invoke('main'), /already exists/);
-			await assert.rejects(invoke('-option'), /Enter a branch name/);
-			assert.deepStrictEqual(calls, [
-				{ root: workingDirectory.toString(), name: 'feature/new', options: { checkout, startPoint: 'main' } },
-				{ refresh: true },
-			]);
+	test('creates and checks out a branch from the selected base', async () => {
+		const session = 'agent:/session';
+		const workingDirectory = URI.file('/repo');
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		stateManager.createSession({
+			resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
+			createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(),
+			workingDirectories: [workingDirectory.toString()], defaultChat: buildDefaultChatUri(session),
 		});
-	}
+		const calls: object[] = [];
+		const git = new class extends mock<IAgentHostGitService>() {
+			override async branchExists(_root: URI, name: string) { return name === 'main'; }
+			override async createBranch(root: URI, name: string, options?: { readonly checkout?: boolean; readonly startPoint?: string }) {
+				calls.push({ root: root.toString(), name, options });
+			}
+		}();
+		const handler = new AgentHostCheckoutOperationHandler(
+			key => stateManager.getSessionState(key), () => { calls.push({ refresh: true }); }, git, new NullLogService(), stateManager,
+		);
+		const invoke = (name: string) => handler.invoke({
+			channel: buildUncommittedChangesetUri(session), operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+			_meta: createBranchOperationMeta(name, 'main'),
+		}, CancellationToken.None);
+		await invoke('feature/new');
+		await assert.rejects(invoke('main'), /already exists/);
+		await assert.rejects(invoke('-option'), /Enter a branch name/);
+		assert.deepStrictEqual(calls, [
+			{ root: workingDirectory.toString(), name: 'feature/new', options: { checkout: true, startPoint: 'main' } },
+			{ refresh: true },
+		]);
+	});
 
 	test('checks out the selected branch without probing the working directory', async () => {
 		const session = URI.parse('agent:/session');
