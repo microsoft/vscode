@@ -80,6 +80,11 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { readNewChatDraftState, writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
+import { CloudSandboxEnabledSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
@@ -90,7 +95,7 @@ import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING }
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
-import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -832,6 +837,8 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IAutomationRunner, runner);
 		instantiationService.stub(ISessionsService, sessionsService);
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
 		instantiationService.stub(IMissionControlEnvironmentService, missionControlEnvironmentService);
@@ -1316,11 +1323,81 @@ suite('AutomationsCardsWidget', () => {
 			dropdown: ['Create Manually'],
 			executed: [
 				['sessions.automations.createWithAgent'],
-				['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }],
+				['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true, replaceDraft: true }],
 				['sessionsView.newAutomation'],
 			],
 		});
 	});
+
+	for (const content of ['empty', 'text', 'attachment', 'mounted'] as const) {
+		for (const confirmed of [false, true]) {
+			test(`Create with Agent confirms replacing a ${content} draft (confirmed: ${confirmed})`, async () => {
+				const storageService = disposables.add(new InMemoryStorageService());
+				const { commandService, dialogService, instantiationService } = setup('archive', NullHoverService, undefined, storageService);
+				const draft = {
+					inputText: content === 'text' ? 'Keep my draft' : '',
+					attachments: content === 'attachment' ? [toPasteVariableEntry('Notes', 'Attached notes', { id: 'notes' })] : [],
+				};
+				writeNewChatDraftState(storageService, draft);
+				const savedDraft = readNewChatDraftState(storageService);
+				if (content === 'mounted') {
+					instantiationService.stub(INewSessionComposerService, { hasDraftInput: true });
+				}
+				dialogService.confirmResult = { confirmed };
+				const execute = stub(commandService, 'executeCommand').resolves();
+				disposables.add(toDisposable(() => execute.restore()));
+
+				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
+
+				assert.deepStrictEqual({
+					confirmations: dialogService.confirmations.map(confirmation => confirmation.primaryButton),
+					commands: execute.args,
+					savedDraft: readNewChatDraftState(storageService),
+				}, {
+					confirmations: content === 'empty' ? [] : ['Replace Draft'],
+					commands: content === 'empty' || confirmed
+						? [['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true, replaceDraft: true }]]
+						: [],
+					savedDraft,
+				});
+			});
+		}
+	}
+
+	for (const scenario of [
+		{ sessionType: SessionType.CopilotCloud, sandbox: false, remotes: true, fallback: true },
+		{ sessionType: SessionType.CopilotCloud, sandbox: true, remotes: false, fallback: true },
+		{ sessionType: SessionType.CopilotCloud, sandbox: true, remotes: true, fallback: false },
+		{ sessionType: SessionType.AgentHostCopilot, sandbox: false, remotes: true, fallback: false },
+		{ sessionType: 'remote-copilot', sandbox: false, remotes: true, fallback: false },
+	]) {
+		test(`Create with Agent only switches original Cloud to Copilot (${scenario.sessionType}, sandbox: ${scenario.sandbox}, remotes: ${scenario.remotes})`, async () => {
+			const { commandService, configurationService, instantiationService } = setup();
+			let revealed = 0;
+			let focused = 0;
+			configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, scenario.sandbox);
+			configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, scenario.remotes);
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				activeSession: constObservable(upcastPartial<ITestSessionWithChat>({ sessionType: scenario.sessionType })),
+				focusActiveSession: () => { focused++; },
+			}));
+			instantiationService.stub(ICustomViewService, { hideCustomView: () => { revealed++; } });
+			stubMissingSessionHostsFromSessionsService(instantiationService);
+			const execute = stub(commandService, 'executeCommand').resolves();
+			disposables.add(toDisposable(() => execute.restore()));
+
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
+
+			assert.deepStrictEqual({ commands: execute.args, revealed, focused }, {
+				commands: [['workbench.action.sessions.newChat', {
+					prompt: '/automate ', prefillPrompt: true, replaceDraft: true,
+					...(scenario.fallback ? { noWorkspace: true, agentHostProvider: SessionType.CopilotCLI } : {}),
+				}]],
+				revealed: scenario.fallback ? 1 : 0,
+				focused: scenario.fallback ? 1 : 0,
+			});
+		});
+	}
 
 	for (const chatEnabled of [true, false]) {
 		test(`header split button supports toolbar navigation and manual creation (chat enabled: ${chatEnabled})`, async () => {
@@ -5600,6 +5677,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.startsWith('Create with Agent')), [
 			'Create with Agent opens a new session with /automate prefilled and the input focused. This button is in the empty state, or in the view header once automations exist. Choose Create Manually from its adjacent More Actions dropdown to open the automation dialog. In the header, use Left Arrow and Right Arrow to move between the button and dropdown; in the empty state, use Tab and Shift+Tab. Press Enter or Space to activate either control. Create Manually remains available while chat is not ready.',
 		]);
+		assert.ok(provider.provideContent().includes('Choose Cancel to keep the draft, or Replace Draft to clear its text and attachments.'));
 	});
 
 	test('accessibility help explains the disconnected remote management link', () => {

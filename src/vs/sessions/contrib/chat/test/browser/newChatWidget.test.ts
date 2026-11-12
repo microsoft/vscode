@@ -993,6 +993,7 @@ suite('NewChatWidget', () => {
 					isNoWorkspaceSelected: () => noWorkspaceSelected,
 					whenWorkspaceRestored: async () => true,
 					getEnvironmentWorkspace: () => undefined,
+					get selectionSnapshot() { return { state: noWorkspaceSelected ? 'noWorkspace' : 'none' }; },
 					selectNoWorkspace: () => { selectedFolder = undefined; noWorkspaceSelected = true; },
 					clearSelection: () => {
 						selectedFolder = undefined;
@@ -1211,6 +1212,19 @@ suite('NewChatWidget', () => {
 			state.widget.selectNoWorkspace({ providerId: state.remote.id });
 			assert.deepStrictEqual({ providerId: state.session.get()?.providerId, environment: state.picked.get()?.id }, {
 				providerId: state.remote.id, environment: state.remote.id,
+			});
+		});
+
+		test('applying an explicit workspace-less target leaves Cloud and updates the displayed environment', async () => {
+			const state = createFolderlessHarness();
+			await state.select(cloud);
+			const result = state.widget.applyNoWorkspace({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli', userSelection: false, preserveNavigation: true });
+			assert.deepStrictEqual({
+				result, providerId: state.session.get()?.providerId, sessionType: state.session.get()?.sessionType,
+				environment: state.picked.get()?.id, noWorkspaceSelected: state.noWorkspaceSelected,
+			}, {
+				result: 'applied', providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: 'copilotcli',
+				environment: local.id, noWorkspaceSelected: true,
 			});
 		});
 

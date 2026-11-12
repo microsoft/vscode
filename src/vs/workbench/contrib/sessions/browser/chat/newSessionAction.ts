@@ -107,7 +107,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		}
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;
+		const sessionsPartService = options?.prompt || options?.agentHostProvider ? accessor.get(ISessionsPartService) : undefined;
 		// New sessions open in the main window, from the session it shows.
 		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
 		const activeSession = mainWindowHost.session.get();
@@ -120,7 +120,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 				throw new Error(localize('sessions.newSession.chatUnavailable', "The new session chat is unavailable."));
 			}
 			if (options.prefillPrompt) {
-				sessionView.prefillInput(options.prompt);
+				sessionView.prefillInput(options.prompt, options.replaceDraft);
 			} else {
 				sessionView.sendQuery(options.prompt);
 			}
@@ -136,6 +136,11 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			const availableTarget = target && sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined;
 			if (options.agentHostProvider && !availableTarget) {
 				throw new Error(localize('sessions.newSession.agentUnavailable', "The requested Agent Host provider '{0}' is unavailable.", options.agentHostProvider));
+			}
+			const view = options.agentHostProvider ? sessionsPartService?.getSessionView(activeSession?.sessionId) : undefined;
+			if (view?.selectNoWorkspace({ ...availableTarget, userSelection: false, preserveNavigation: true }) === 'applied') {
+				sendPrompt();
+				return mainWindowHost.session.get()?.resource;
 			}
 			const session = sessionsService.openQuickChat(availableTarget, true);
 			if (options.agentHostProvider && !session) {

@@ -2880,8 +2880,8 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	prefillInput(text: string): void {
-		this._newChatInput.prefillInput(text);
+	prefillInput(text: string, replaceDraft?: boolean): void {
+		this._newChatInput.prefillInput(text, replaceDraft);
 	}
 
 	setHostVisible(visible: boolean): void {
@@ -2996,7 +2996,8 @@ export class NewChatWidget extends Disposable {
 			return blocked;
 		}
 		// Without a quick chat, for example while the environment has no compatible target yet, the previous draft is still the session.
-		const session = this.selectNoWorkspace(undefined, options);
+		const target = options?.providerId || options?.sessionTypeId ? { providerId: options.providerId, sessionTypeId: options.sessionTypeId } : undefined;
+		const session = this.selectNoWorkspace(target, options);
 		return session && this._workspacePicker.selectionSnapshot.state === 'noWorkspace' ? 'applied' : 'notReady';
 	}
 

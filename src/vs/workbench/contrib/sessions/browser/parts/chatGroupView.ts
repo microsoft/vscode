@@ -553,8 +553,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.selectNoWorkspace(options) ?? 'notReady';
 	}
 
-	prefillInput(text: string): void {
-		this._currentView.value?.prefillInput(text);
+	prefillInput(text: string, replaceDraft?: boolean): void {
+		this._currentView.value?.prefillInput(text, replaceDraft);
 	}
 
 	sendQuery(text: string): void {

@@ -63,6 +63,33 @@ suite('Sessions - Session View', () => {
 		}
 	}
 
+	for (const hasSession of [false, true]) {
+		test(`prefilling a session view forwards explicit draft replacement through its content (existing session: ${hasSession})`, () => {
+			const store = disposables.add(new DisposableStore());
+			const { instantiationService } = createSessionViewTestServices(store);
+			const inputs: { text: string; replaceDraft: boolean | undefined }[] = [];
+			const createView = (kind: ChatViewKind) => new class extends TestNewSessionView {
+				override prefillInput(text: string, replaceDraft?: boolean): void {
+					inputs.push({ text, replaceDraft });
+				}
+			}(kind);
+			instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+				override createNewChatView(): AbstractChatView { return createView('newSession'); }
+				override createChatView(): AbstractChatView { return createView('chat'); }
+			}());
+			stubSessionsHostLayout(instantiationService);
+			const view = store.add(instantiationService.createInstance(SessionView, undefined));
+			view.openPane(testPaneOf(hasSession ? createTestActiveSession('existing') : undefined), {});
+			view.prefillInput('Ordinary prefill');
+			view.prefillInput('/automate ', true);
+
+			assert.deepStrictEqual(inputs, [
+				{ text: 'Ordinary prefill', replaceDraft: undefined },
+				{ text: '/automate ', replaceDraft: true },
+			]);
+		});
+	}
+
 	for (const hasDraft of [false, true]) {
 		test(`new-session panes have a blank full-width drag area that preserves toolbar clicks and resize boundaries (draft: ${hasDraft})`, () => {
 			const store = disposables.add(new DisposableStore());

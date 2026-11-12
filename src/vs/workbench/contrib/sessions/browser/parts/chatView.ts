@@ -355,7 +355,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * a no-op; subclasses that host an input widget (e.g. `NewChatView`)
 	 * override this.
 	 */
-	prefillInput(_text: string): void {
+	prefillInput(_text: string, _replaceDraft?: boolean): void {
 		// no-op by default
 	}
 
