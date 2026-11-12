@@ -58,6 +58,8 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoAppro
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { CopilotEntraAuthentication } from './copilotEntraAuthentication.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
+import { toCopilotMessageSource } from './copilotMessageSource.js';
+import type { AgentMessageProvenance } from '../../common/agentMessageProvenance.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
 import { buildCopilotBuiltinSkillsContainer } from './copilotBuiltinSkills.js';
@@ -1497,6 +1499,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _readOnlyChatInputErrors = new Map<string, ErrorInfo>();
 	/** Live session -> the turn whose `prepareTurn` launched it; dropped with the session. */
 	private readonly _preparedTurnLaunches = new WeakMap<CopilotAgentSession, string>();
+	/** Chats an import is resuming, whose launch keeps the permission mode the runtime restored. */
+	private readonly _chatsKeepingRestoredPermissionMode = new Set<string>();
 	/**
 	 * Last host-published customization snapshot per configuration scope (AGENTS.md section 8b).
 	 * Updated only from host call boundaries; absence is distinct from an empty list.
@@ -5596,7 +5600,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (reloaded) {
 					current = this._resolveChatContext(chat, operationContext);
 				}
-				const entry = current.target ?? await this._ensureResolvedChatSession(current);
+				// A resume here keeps the mode the runtime restored, which the import then adopts. A chat the host restored
+				// just before this call already resumed without one, because its configuration was not loaded yet.
+				this._chatsKeepingRestoredPermissionMode.add(current.chatKey);
+				let entry: CopilotAgentSession | undefined;
+				try {
+					entry = current.target ?? await this._ensureResolvedChatSession(current);
+				} finally {
+					this._chatsKeepingRestoredPermissionMode.delete(current.chatKey);
+				}
 				if (!entry) {
 					return undefined;
 				}
@@ -8909,7 +8921,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const sdkMode = this._resolveSdkMode(current.ownerSession, current.chat);
 				enterUnboundedPhase();
 				stageRecorder?.mark('turnPrepare');
-				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, sendContext?.agentMergeTurn === true, stageRecorder, sendContext?.originalMessageText);
+				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, sendContext?.agentMergeTurn === true, stageRecorder, sendContext?.originalMessageText, toCopilotMessageSource(sendContext?.messageProvenance));
 				if (!token.isCancellationRequested) {
 					this._deliverPendingSteering(chat, entry);
 				}
@@ -9024,12 +9036,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._pendingSteeringMessages.delete(chatKey);
 	}
 
-	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | Promise<boolean> {
+	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender, provenance?: AgentMessageProvenance): boolean | Promise<boolean> {
 		const target = this._findChatByUri(chat);
 		if (this._isShuttingDown || !target?.hasRunningTurn || this._preparedTurnLaunches.has(target)) {
 			return false;
 		}
-		return target.sendSteering(message, sender);
+		return target.sendSteering(message, sender, provenance);
 	}
 
 	withdrawSteeringMessage(chat: URI, messageId: string): void {
@@ -10126,6 +10138,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workspaceless: storedMetadata.workspaceless,
 				stageRecorder,
 				...context.surface,
+				...(this._chatsKeepingRestoredPermissionMode.has(chatKey) ? { keepsRestoredPermissionMode: true } : {}),
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
 			agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.ownerRef, chatChannelUri: chat, resource: context.resource });
@@ -11056,6 +11069,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workspaceless: storedMetadata.workspaceless,
 				stageRecorder,
 				...surface,
+				...(this._chatsKeepingRestoredPermissionMode.has(chatChannelUri.toString()) ? { keepsRestoredPermissionMode: true } : {}),
 				fallback: {
 					model: storedMetadata.model,
 					longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),

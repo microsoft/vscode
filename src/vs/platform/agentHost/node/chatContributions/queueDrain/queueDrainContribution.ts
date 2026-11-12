@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
+import { resolveAgentMessageProvenance } from '../../../common/agentMessageProvenance.js';
 import { getPendingSteeringMessages } from '../../../common/agentSessionMessage.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
@@ -200,7 +201,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			}
 			submitted.set(new Set([...submitted.get(), message.id]), undefined);
 			const sender = this._context.memento(PendingSender, channel, message.id).get();
-			const handoff = provider.sendSteeringMessage(URI.parse(channel), message, sender);
+			const handoff = provider.sendSteeringMessage(URI.parse(channel), message, sender, resolveAgentMessageProvenance(message.message, state.origin));
 			if (handoff === false) {
 				submitted.set(new Set([...submitted.get()].filter(id => id !== message.id)), undefined);
 			} else if (isThenable(handoff)) {
