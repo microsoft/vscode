@@ -1243,9 +1243,9 @@ export function registerTerminalActions() {
 				}
 
 				let instance: ITerminalInstance | undefined;
-				if (folders.length <= 1) {
+				if (eventOrOptions.cwd || c.service.getDefaultCwd() || folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a
-					// single root
+					// single root or a context-specific default is available.
 					instance = await c.service.createTerminal(eventOrOptions);
 				} else {
 					const cwd = (await pickTerminalCwd(accessor))?.cwd;

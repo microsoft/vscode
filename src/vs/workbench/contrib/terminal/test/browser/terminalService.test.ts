@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fail, strictEqual } from 'assert';
+import { deepStrictEqual, fail, strictEqual } from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -11,7 +11,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalService } from '../../browser/terminalService.js';
 import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
@@ -80,6 +81,29 @@ suite('Workbench - TerminalService', () => {
 				strictEqual(backgroundedTerminalDisposables.size, 0);
 				strictEqual(disposalEmitters[i].hasListeners(), false);
 			}
+		});
+	});
+
+	test('applies the default cwd only to visible local terminals', async () => {
+		const home = URI.file('/home/user');
+		terminalService.setDefaultCwd(home);
+		const resolveCwd = Reflect.get(terminalService, '_resolveCwd') as (shellLaunchConfig: IShellLaunchConfig, split: boolean, options: undefined, useDefaultCwd: boolean) => Promise<void>;
+		const local: IShellLaunchConfig = {};
+		const hidden: IShellLaunchConfig = { hideFromUser: true };
+		const contributed: IShellLaunchConfig = {};
+
+		await resolveCwd.call(terminalService, local, false, undefined, true);
+		await resolveCwd.call(terminalService, hidden, false, undefined, true);
+		await resolveCwd.call(terminalService, contributed, false, undefined, false);
+
+		deepStrictEqual({
+			local: local.cwd,
+			hidden: hidden.cwd,
+			contributed: contributed.cwd,
+		}, {
+			local: home,
+			hidden: undefined,
+			contributed: undefined,
 		});
 	});
 

@@ -352,7 +352,15 @@ MenuRegistry.appendMenuItem(AgentsWindowMenus.TitleBarAccessibility, {
 });
 
 // The Session Activity Bar hosts these toggles in place of the title bar while it shows its layout actions.
-const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate(), SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate());
+const titleBarPanelWhen = ContextKeyExpr.and(
+	IsAuxiliaryWindowContext.toNegated(),
+	SessionsWelcomeVisibleContext.toNegated(),
+	IsPhoneLayoutContext.negate(),
+	ContextKeyExpr.or(
+		CustomViewAllowsPanelContext,
+		ContextKeyExpr.and(SessionActivityBarLayoutActionsContext.negate(), SessionActivityBarDockedContext.negate()),
+	),
+);
 const sessionActivityBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionActivityBarLayoutActionsContext);
 const panelAvailable = ContextKeyExpr.or(CustomViewVisibleContext.negate(), CustomViewAllowsPanelContext);
 

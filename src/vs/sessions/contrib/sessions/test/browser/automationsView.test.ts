@@ -5411,7 +5411,7 @@ suite('AutomationsCardsWidget', () => {
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
 		const describesBuiltInTemplates = () => {
-			const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
+			const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
 			assert.ok(provider);
 			disposables.add(provider);
 			return provider.provideContent().includes('Built-in Templates section');
@@ -5442,6 +5442,16 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider);
 		disposables.add(provider);
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+	});
+
+	test('accessibility help explains Terminal and Output access', () => {
+		const { instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
+		assert.ok(help);
+		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
+		assert.ok(provider.provideContent().includes('New local terminals start in your user profile because this view has no active session workspace.'));
 	});
 
 	test('accessibility help explains the disconnected remote management link', () => {

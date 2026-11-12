@@ -1361,10 +1361,11 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this._customViewVisibleKey = CustomViewVisibleContext.bindTo(contextKeyService);
 		this._customViewAllowsPanelKey = CustomViewAllowsPanelContext.bindTo(contextKeyService);
 		this.sessionActivityBarSizeKey = SessionActivityBarSizeContext.bindTo(accessor.get(IContextKeyService));
+		const isPhoneLayout = derived(this, reader => this.layoutPolicy.viewportClass.read(reader) === 'phone');
 		this._register(autorun(reader => {
 			this._applyCustomViewGridVisibility(
 				this.customViewService.activeCustomViewOpen.read(reader)?.descriptor,
-				this.layoutPolicy.viewportClass.read(reader),
+				isPhoneLayout.read(reader),
 			);
 		}));
 
@@ -2027,14 +2028,16 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		};
 
 		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && this.getPanelAlignment() === 'center') {
-			const chatColumn: ISerializedNode = {
+			const customViewOwnsPanel = this.partVisibility.customViewGrid && this._customViewAllowsPanel;
+			const panelOwner = customViewOwnsPanel ? customViewGridNode : sessionsNode;
+			const panelColumn: ISerializedNode = {
 				type: 'branch',
 				data: [
-					{ ...sessionsNode, size: topRightHeight },
+					{ ...panelOwner, size: topRightHeight },
 					panelNode,
 				],
-				size: sessionsWidth,
-				visible: sessionsNode.visible === false && panelNode.visible === false ? false : undefined,
+				size: customViewOwnsPanel ? rightSectionWidth : sessionsWidth,
+				visible: panelOwner.visible === false && panelNode.visible === false ? false : undefined,
 			};
 
 			return {
@@ -2047,7 +2050,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 							type: 'branch',
 							data: [
 								sideBarNode,
-								...this._topRightSectionChildren(chatColumn, editorNode, auxiliaryBarNode, customViewGridNode),
+								...this._topRightSectionChildren(
+									customViewOwnsPanel ? sessionsNode : panelColumn,
+									editorNode,
+									auxiliaryBarNode,
+									customViewOwnsPanel ? panelColumn : customViewGridNode,
+								),
 								...sessionActivityBarColumnNodes,
 							],
 							size: contentHeight,
@@ -2843,7 +2851,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 			// Focus the chat bar when hiding the panel if it had focus
 			if (panelHadFocus) {
-				this.focusPart(Parts.SESSIONS_PART);
+				this.focusPart(this.partVisibility.customViewGrid ? Parts.CUSTOM_VIEW_GRID_PART : Parts.SESSIONS_PART);
 			}
 		}
 
@@ -2891,9 +2899,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	 * covers keep their desired visibility while it is shown, so the restore
 	 * reflects whatever the layout controller last asked for.
 	 */
-	private _applyCustomViewGridVisibility(descriptor: ICustomViewDescriptor | undefined, viewportClass = this.layoutPolicy.viewportClass.get()): void {
+	private _applyCustomViewGridVisibility(descriptor: ICustomViewDescriptor | undefined, isPhoneLayout = this.layoutPolicy.viewportClass.get() === 'phone'): void {
 		const visible = !!descriptor;
-		const allowsPanel = descriptor?.allowPanel === true && this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && viewportClass !== 'phone';
+		const allowsPanel = descriptor?.allowPanel === true && this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !isPhoneLayout;
 		const wasCustomViewVisible = this.partVisibility.customViewGrid;
 		const customViewAllowedPanel = this._customViewAllowsPanel;
 		if (this.partVisibility.customViewGrid === visible && this._customViewAllowsPanel === allowsPanel) {
@@ -3111,6 +3119,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 						: this.sessionsPartView;
 					this.workbenchGrid.moveView(this.panelPartView, panelSize, panelTarget, Direction.Down);
 				} else {
+					if (this.partVisibility.customViewGrid && this._customViewAllowsPanel) {
+						this.workbenchGrid.moveView(this.panelPartView, this._viewMoveSizing(this.panelPartView, 'height'), this.sessionsPartView, Direction.Down);
+					}
 					const sessionsWidth = this.workbenchGrid.isViewVisible(this.sessionsPartView)
 						? this.workbenchGrid.getViewSize(this.sessionsPartView).width
 						: undefined;

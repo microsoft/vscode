@@ -39,7 +39,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ICustomViewService } from '../../../../workbench/contrib/sessions/browser/customView.js';
-import { timeout } from '../../../../base/common/async.js';
 
 interface ISessionTerminalInfo {
 	/** The cwd to use for terminal matching/creation. For agent host sessions this is the unwrapped file URI. */
@@ -195,7 +194,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (this._customViewService.activeCustomView.read(reader)?.allowPanel) {
 				const cwd = userHome.read(reader).value;
 				this._terminalService.setDefaultCwd(cwd);
-				this._agentHostTerminalService.setDefaultCwd(cwd);
+				this._agentHostTerminalService.setDefaultCwd(undefined);
 				return;
 			}
 			this._terminalService.setDefaultCwd(undefined);
@@ -220,7 +219,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 				this._activeKey = undefined;
 				this._activeAgentHostAddress = undefined;
 				this._activeSessionId = undefined;
-				void this._showStandaloneTerminals().catch(error => this._logService.error('[SessionsTerminal] Failed to show standalone terminals', error));
 				return;
 			}
 			const session = this._mainWindowHost.session.read(reader);
@@ -279,16 +277,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
 			if (instance.shellLaunchConfig.hideFromUser) {
 				return;
-			}
-			if (!instance.shellLaunchConfig.attachPersistentProcess) {
-				void timeout(0).then(() => {
-					if (!this._store.isDisposed
-						&& !instance.isDisposed
-						&& this._customViewService.activeCustomView.get()?.allowPanel
-						&& !this._isTerminalTracked(instance.instanceId)) {
-						this._standaloneTerminalIds.add(instance.instanceId);
-					}
-				});
 			}
 			if (instance.shellLaunchConfig.attachPersistentProcess && this._activeKey) {
 				instance.getInitialCwd().then(cwd => {
@@ -567,7 +555,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (this._activeKey !== targetKey || this._activeAgentHostAddress !== targetAgentHostAddress || this._activeSessionId !== session.sessionId) {
 				return;
 			}
-			await this._updateTerminalVisibility(session, targetKey, targetAgentHostAddress, instances.map(instance => instance.instanceId));
+			await this._updateTerminalVisibility(session, targetKey, targetAgentHostAddress, instances.map(instance => instance.instanceId), generation);
 		} finally {
 			this._endTerminalOperation(session.sessionId);
 		}
@@ -771,12 +759,15 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	private async _updateTerminalVisibility(activeSession: ISession, activeKey: string, activeAgentHostAddress: string | undefined, forceForegroundTerminalIds: number[]): Promise<void> {
+	private async _updateTerminalVisibility(activeSession: ISession, activeKey: string, activeAgentHostAddress: string | undefined, forceForegroundTerminalIds: number[], generation: number): Promise<void> {
 		const toShow: ITerminalInstance[] = [];
 		const toHide: ITerminalInstance[] = [];
 		const trackedTerminalIds = new Set(this._getTrackedTerminalsForSession(activeSession.sessionId).map(instance => instance.instanceId));
 
 		for (const instance of [...this._terminalService.instances]) {
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+				return;
+			}
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
 			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
@@ -788,6 +779,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 			const isForeground = this._terminalService.foregroundInstances.includes(currentInstance);
 			const matchesActiveScope = await this._terminalMatchesScope(currentInstance, activeKey, activeAgentHostAddress);
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+				return;
+			}
 			const isForceVisible = forceForegroundTerminalIds.includes(currentInstance.instanceId) && matchesActiveScope;
 			let belongsToActiveSession = trackedTerminalIds.has(currentInstance.instanceId) && matchesActiveScope;
 			if (!belongsToActiveSession && !this._isTerminalTracked(currentInstance.instanceId)) {
@@ -801,12 +795,18 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 
 		for (const instance of toShow) {
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+				return;
+			}
 			const availableInstance = this._getAvailableTerminal(instance, 'show background terminal');
 			if (availableInstance) {
 				await this._terminalService.showBackgroundTerminal(availableInstance, true);
 			}
 		}
 		for (const instance of toHide) {
+			if (this._isTerminalOperationCancelled(activeSession, generation) || this._customViewService.activeCustomView.get()?.allowPanel) {
+				return;
+			}
 			const availableInstance = this._getAvailableTerminal(instance, 'move terminal to background');
 			if (availableInstance) {
 				this._logService.debug(`[SessionsTerminal] Hiding terminal ${availableInstance.instanceId} (does not belong to active key ${activeKey})`);
@@ -834,43 +834,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 		if (mostRecent) {
 			this._terminalService.setActiveInstance(mostRecent);
-		}
-	}
-
-	private async _showStandaloneTerminals(): Promise<void> {
-		const toShow: ITerminalInstance[] = [];
-		const toHide: ITerminalInstance[] = [];
-		for (const instance of [...this._terminalService.instances]) {
-			if (instance.shellLaunchConfig.hideFromUser || this._chatWindowTerminalIds.has(instance.instanceId)) {
-				continue;
-			}
-			const availableInstance = this._getAvailableTerminal(instance, 'show standalone terminals');
-			if (!availableInstance) {
-				continue;
-			}
-			const isForeground = this._terminalService.foregroundInstances.includes(availableInstance);
-			if (this._standaloneTerminalIds.has(availableInstance.instanceId)) {
-				if (!isForeground) {
-					toShow.push(availableInstance);
-				}
-			} else if (isForeground) {
-				toHide.push(availableInstance);
-			}
-		}
-		for (const instance of toShow) {
-			if (!this._customViewService.activeCustomView.get()?.allowPanel) {
-				return;
-			}
-			await this._terminalService.showBackgroundTerminal(instance, true);
-		}
-		for (const instance of toHide) {
-			if (!this._customViewService.activeCustomView.get()?.allowPanel) {
-				return;
-			}
-			this._terminalService.moveToBackground(instance);
-		}
-		if (toShow.length > 0 && this._customViewService.activeCustomView.get()?.allowPanel) {
-			this._terminalService.setActiveInstance(toShow.at(-1)!);
 		}
 	}
 
