@@ -2049,6 +2049,35 @@ suite('RemotesWidget', () => {
 		})));
 	});
 
+	test('first run preference save preserves layout when the saved badge wraps', async () => {
+		const { parent, model } = createWidget(OperatingSystem.Windows, 'status', 240);
+		feedbackStyles(parent);
+		const remote = model.remotes.get()[2];
+		runMenuAction(parent, remote.id, 'locationPreference');
+		const details = parent.querySelector<HTMLElement>('.remotes-environment-details')!;
+		const choice = details.querySelectorAll<HTMLElement>('[role="radio"]')[1];
+		const badge = choice.querySelector<HTMLElement>('.remotes-choice-current')!;
+		const title = parent.ownerDocument.createRange();
+		title.selectNodeContents(choice.firstChild!);
+		choice.click();
+		const save = details.querySelector<HTMLElement>('.remotes-details-footer .monaco-button:not(.secondary)')!;
+		save.focus();
+		const geometry = () => feedbackGeometry(details, ['.remotes-run-choices', '.remotes-details-footer', '.remotes-run-hint']);
+		const before = geometry();
+		const initiallySaved = choice.getAttribute('aria-label')!.includes('Saved preference');
+		model.pendingManagement = new DeferredPromise<void>();
+		save.click();
+		const during = geometry();
+		await model.pendingManagement.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			during, after: geometry(), initiallySaved,
+			saved: choice.getAttribute('aria-label')!.includes('Saved preference'),
+			badgeWraps: badge.getBoundingClientRect().top >= title.getBoundingClientRect().bottom,
+			focused: dom.getActiveElement() === save,
+		}, { during: before, after: before, initiallySaved: false, saved: true, badgeWraps: true, focused: true });
+	});
+
 	for (const width of [900, 360]) {
 		test(`unknown connection failures offer method documentation without guessed instructions at width ${width}`, () => {
 			const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'status', width);
