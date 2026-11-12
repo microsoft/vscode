@@ -105,8 +105,8 @@ suite('ExtHost structural diff', () => {
 						id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [],
 						children: [{
 							id: 'member',
-							original: { name: 'oldName', detail: 'old', kind: types.SymbolKind.Method, languageKind: 'method', range: entity.range, selectionRange: entity.range },
-							modified: { name: 'newName', detail: 'new', kind: types.SymbolKind.Method, languageKind: 'method', range: entity.range, selectionRange: entity.range },
+							original: { name: 'oldName', detail: 'old', kind: types.SymbolKind.Method, range: entity.range, selectionRange: entity.range },
+							modified: { name: 'newName', detail: 'new', kind: types.SymbolKind.Method, range: entity.range, selectionRange: entity.range },
 							originalChanges: [{ textChangeIndex: 0, range: entity.range, classification: types.StructuralDiffClassification.Header, tags: [types.StructuralDiffTag.Test] }],
 							modifiedChanges: [{ textChangeIndex: 0, range: entity.range, classification: types.StructuralDiffClassification.Implementation, tags: [] }],
 							children: [],
@@ -126,8 +126,8 @@ suite('ExtHost structural diff', () => {
 			},
 			child: {
 				id: 'member',
-				original: { name: 'oldName', detail: 'old', kind: SymbolKind.Method, languageKind: 'method', range, selectionRange: range },
-				modified: { name: 'newName', detail: 'new', kind: SymbolKind.Method, languageKind: 'method', range, selectionRange: range },
+				original: { name: 'oldName', detail: 'old', kind: SymbolKind.Method, range, selectionRange: range },
+				modified: { name: 'newName', detail: 'new', kind: SymbolKind.Method, range, selectionRange: range },
 				originalChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Header, tags: [StructuralDiffTag.Test] }],
 				modifiedChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Implementation, tags: [] }],
 				children: [],
@@ -293,7 +293,7 @@ suite('ExtHost structural diff API command', () => {
 	teardown(() => rpc.sync());
 
 	test('forwards both resources and converts the result to API types', async () => {
-		const entity = { name: 'file.ts', detail: 'detail', kind: SymbolKind.File, languageKind: 'file', range, selectionRange: range };
+		const entity = { name: 'file.ts', detail: 'detail', kind: SymbolKind.File, range, selectionRange: range };
 		internalResult = {
 			root: {
 				id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [],
@@ -310,7 +310,7 @@ suite('ExtHost structural diff API command', () => {
 			context: { changes: [{ originalRange: range, modifiedRange: range }] },
 		};
 		const result = await commands.executeCommand<vscode.StructuralDiffResult | undefined>('vscode.executeStructuralDiffProvider', originalUri, modifiedUri);
-		const apiEntity = { name: 'file.ts', detail: 'detail', kind: types.SymbolKind.File, languageKind: 'file', range: apiRange, selectionRange: apiRange };
+		const apiEntity = { name: 'file.ts', detail: 'detail', kind: types.SymbolKind.File, range: apiRange, selectionRange: apiRange };
 		assert.deepStrictEqual({ executed, result }, {
 			executed: [{ id: '_executeStructuralDiffProvider', uris: [originalUri.toString(), modifiedUri.toString()] }],
 			result: {
