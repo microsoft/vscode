@@ -159,7 +159,6 @@ const CHAT_PET_DIZZY_SOURCE_HEIGHT = 128;
 const CHAT_PET_MAX_VERTICAL_OFFSET = 10;
 const CHAT_PET_DEFAULT_RIGHT_INSET = 32;
 const CHAT_PET_MIN_SCALE = 0.4;
-const CHAT_PET_MIN_SUBAGENT_SCALE = CHAT_PET_MIN_SCALE * 0.5;
 const CHAT_PET_SCALE_STEP = 0.2;
 const CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG = 20;
 const CHAT_PET_SLEEP_RIGHT_OVERHANG = (CHAT_PET_SLEEP_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
@@ -3247,11 +3246,6 @@ export class ChatPetWidget extends Disposable {
 		const platform = getChatPetFallTarget(input.left + input.width / 2, movement.top - 1, 0, 0, this._getPlatforms(), input.top).platform;
 		const { left, right } = this._getSubagentHorizontalBounds(overlay, input, movement, platform);
 		const bottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
-		const height = bottom - (movement.top - overlay.top);
-		const width = right - left;
-		if (width < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE || height < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE) {
-			return;
-		}
 		let displaced = false;
 		for (const pet of pets) {
 			const petLeft = Number.parseFloat(pet.element.style.left);
@@ -3280,14 +3274,8 @@ export class ChatPetWidget extends Disposable {
 		const bounds = this._getSubagentHorizontalBounds(overlay, input, movement, platform);
 		const minimumLeft = bounds.left;
 		const maximumRight = bounds.right;
-		const minimumTop = movement.top - overlay.top;
 		// The input's top edge is the floor; the movement bounds also include the input itself.
 		const maximumBottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
-		const width = maximumRight - minimumLeft;
-		const height = maximumBottom - minimumTop;
-		if (width < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE || height < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE) {
-			return;
-		}
 		for (const pet of activePets) {
 			const left = Number.parseFloat(pet.element.style.left);
 			const top = Number.parseFloat(pet.element.style.top);
