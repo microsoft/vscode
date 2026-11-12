@@ -242,7 +242,9 @@ const conversationFinishedKey = 'finished';
  * streaming a bold span, which may yet be the heading that names the reasoning.
  */
 function getReasoningPreview(text: string): string | undefined {
-	const firstLine = text.split(/\r?\n/, 1)[0];
+	// Whitespace before the line is dropped, as it is from a line a heading is extracted from, so that
+	// an unfinished heading is recognized however the text starts.
+	const firstLine = text.trimStart().split(/\r?\n/, 1)[0];
 	if (firstLine.startsWith('**') && !firstLine.includes('**', 2)) {
 		return undefined;
 	}
