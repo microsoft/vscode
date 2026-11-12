@@ -2242,6 +2242,36 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(remainingGroups.length, 0, 'groups should be removed when empty');
 	});
 
+	test('rekeys a reused history list before the native block splits', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const leftResource = SESSION_RESOURCE.with({ path: '/history-left' });
+		const rightResource = SESSION_RESOURCE.with({ path: '/history-right' });
+		sessionsManagementService.addSession(leftResource, 'Left');
+		sessionsManagementService.addSession(rightResource, 'Right');
+		sessionsManagementService.addSession(SECOND_SESSION_RESOURCE, 'Split');
+		const anchor = run({ id: 'run-anchor', status: 'running', sessionResource: undefined, externalResource: URI.parse('https://github.com/microsoft/vscode/actions/runs/1') });
+		const split = run({ id: 'run-split', status: 'running', sessionResource: undefined, externalResource: URI.parse('https://github.com/microsoft/vscode/actions/runs/2') });
+		const left = run({ id: 'run-left', sessionResource: leftResource });
+		const right = run({ id: 'run-right', sessionResource: rightResource });
+
+		automationService.setRuns([anchor, split, left, right]);
+		const reusedList = widget.element.querySelector('.automations-run-session-list');
+		automationService.setRuns([anchor, { ...split, sessionResource: SECOND_SESSION_RESOURCE }, left, right]);
+		automationService.setRuns([anchor, left, split, right]);
+		const lists = [...widget.element.querySelectorAll('.automations-run-session-list')];
+
+		assert.deepStrictEqual({
+			reused: lists[0] === reusedList,
+			listCount: lists.length,
+			rowCounts: lists.map(list => list.querySelectorAll('.session-item').length),
+		}, {
+			reused: true,
+			listCount: 2,
+			rowCounts: [1, 1],
+		});
+	});
+
 	test('run feedback survives acknowledgement and refresh until the new run session appears', async () => {
 		const clock = useFakeTimersWithRealAnimationFrames();
 		const { automationService, runner, widget } = setup();
