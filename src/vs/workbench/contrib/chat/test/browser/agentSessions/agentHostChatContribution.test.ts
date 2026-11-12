@@ -985,7 +985,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		agentHostService,
 		new NullRemoteAgentHostService(),
 		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-		new NullLogService(),
+		upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 	)));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });

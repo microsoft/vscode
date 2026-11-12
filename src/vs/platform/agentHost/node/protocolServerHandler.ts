@@ -118,7 +118,7 @@ import {
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { getAgentHostAhpLogDirectoryMeta } from '../common/meta/agentHostDebugLogsMeta.js';
-import type { Implementation, SubscribeParams } from '../common/state/protocol/common/commands.js';
+import type { HostEnvironment, Implementation, SubscribeParams } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
@@ -640,6 +640,8 @@ export interface IProtocolServerConfig {
 
 	/** Default directory advertised to clients and used for relay sessions when no working directory is supplied. */
 	readonly defaultDirectory?: string;
+	/** Default execution environment advertised to clients. */
+	readonly environment?: HostEnvironment;
 	/**
 	 * Whether to expose VS Code host-control methods outside the Agent Host
 	 * Protocol. Defaults to `true` for existing remote listeners. Session-data
@@ -1173,6 +1175,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...getAgentHostAhpLogDirectoryMeta(this._config.ahpLogDirectory),
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
+				environment: this._config.environment,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 				terminalCommandPrefix: this._config.terminalCommandPrefix,

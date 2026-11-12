@@ -5,6 +5,8 @@ applyTo: "src/vs/platform/agentHost/**,src/vs/workbench/contrib/chat/browser/age
 
 # AHP interoperability
 
+This document contains durable, cross-cutting interoperability rules for VS Code's AHP clients and hosts. Keep it focused on stable protocol boundaries and reusable implementation guidance; do not add task-specific details, historical facts, or individual bug-fix behavior that belongs in code, tests, issues, or pull requests.
+
 AHP clients communicate with any conforming Agent Host, not only the local VS Code Agent Host. Treat host-advertised session and chat URIs, identifiers, state, and capabilities as authoritative. Do not derive or reinterpret them using the local host's URI format, provider names, or implementation conventions. Helpers that construct IDs for the local host are not a substitute for reading IDs supplied by a remote host.
 
 Use standard AHP fields and negotiated capabilities for shared behavior. If VS Code needs an optional extension, use a namespaced `_meta` value with a typed reader that validates its shape before use. Do not make the extension a requirement for other hosts, and do not use `_meta` to replace a standard protocol field or to justify assuming a particular host implementation.
