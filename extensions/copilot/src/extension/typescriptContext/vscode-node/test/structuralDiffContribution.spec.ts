@@ -122,7 +122,7 @@ suite('TypeScript structural diff contribution', () => {
 			const range = new vscode.Range(0, 0, 0, 0);
 			const entity = { name: 'file.ts', kind: vscode.SymbolKind.File, range };
 			const expected: vscode.StructuralDiff = {
-				root: { id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [], children: [] },
+				root: { id: 'file', originalItem: entity, modifiedItem: entity, originalChanges: [], modifiedChanges: [], children: [] },
 				isIncomplete: false,
 			};
 			mocks.provide[version].mockReturnValue(expected);

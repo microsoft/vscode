@@ -58,14 +58,14 @@ export class SCMStructuralDiffRenderer implements ICompressibleTreeRenderer<SCMS
 
 	renderElement(node: ITreeNode<SCMStructuralDiffElement, FuzzyScore>, _index: number, template: StructuralDiffTemplate): void {
 		const element = node.element;
-		const entity = element.type === 'structuralDiff' ? element.node.modified ?? element.node.original : undefined;
+		const item = element.type === 'structuralDiff' ? element.node.modifiedItem ?? element.node.originalItem : undefined;
 		const change = getSCMStructuralDiffChange(element);
 		const annotation = getSCMStructuralDiffChangeAnnotation(element);
 		template.elementDisposables.clear();
 		template.icon.className = 'scm-structural-change-icon';
-		template.icon.classList.add(...ThemeIcon.asClassNameArray(entity ? SymbolKinds.toIcon(entity.kind) : Codicon.warning));
-		template.icon.classList.toggle('codicon-colored', !!entity);
-		template.label.setLabel(getSCMStructuralDiffLabel(element), entity?.detail, {
+		template.icon.classList.add(...ThemeIcon.asClassNameArray(item ? SymbolKinds.toIcon(item.kind) : Codicon.warning));
+		template.icon.classList.toggle('codicon-colored', !!item);
+		template.label.setLabel(getSCMStructuralDiffLabel(element), item?.detail, {
 			title: getSCMStructuralDiffAriaLabel(element),
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
@@ -117,15 +117,15 @@ export async function openSCMStructuralDiff(element: SCMStructuralDiffNode, opti
 	if (!isDiffEditor(control) || !isCurrent()) {
 		return;
 	}
-	const { original, modified } = element.node;
+	const { originalItem, modifiedItem } = element.node;
 	let target: ICodeEditor;
 	let range: IRange;
-	if (modified) {
+	if (modifiedItem) {
 		target = control.getModifiedEditor();
-		range = modified.selectionRange ?? modified.range;
+		range = modifiedItem.selectionRange ?? modifiedItem.range;
 	} else if (control.renderSideBySide || !element.deletedAt) {
 		target = control.getOriginalEditor();
-		range = original!.selectionRange ?? original!.range;
+		range = originalItem!.selectionRange ?? originalItem!.range;
 	} else {
 		// An inline diff hides the original editor and shows deleted text where it was deleted from the modified document.
 		target = control.getModifiedEditor();

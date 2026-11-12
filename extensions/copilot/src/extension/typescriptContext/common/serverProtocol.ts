@@ -720,10 +720,10 @@ export enum StructuralDiffTag {
 }
 
 /**
- * A structural entity as it appears in one text. Groups of import and export statements use the
+ * A structural item as it appears in one text. Groups of import and export statements use the
  * language kinds `imports` and `exports`. Their names are not localized.
  */
-export type StructuralDiffEntity = {
+export type StructuralDiffItem = {
 	name: string;
 	kind: StructuralDiffSymbolKind;
 	languageKind?: string;
@@ -740,8 +740,8 @@ export type StructuralDiffCoverage = {
 
 export type StructuralDiffNode = {
 	id: string;
-	original?: StructuralDiffEntity;
-	modified?: StructuralDiffEntity;
+	original?: StructuralDiffItem;
+	modified?: StructuralDiffItem;
 	originalChanges: StructuralDiffCoverage[];
 	modifiedChanges: StructuralDiffCoverage[];
 	children: StructuralDiffNode[];

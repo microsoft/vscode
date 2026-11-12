@@ -58,11 +58,11 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A structural entity as it appears in one document.
+	 * A structural item, such as a class or a function, as it appears in one document.
 	 */
-	export interface StructuralDiffEntity {
+	export interface StructuralDiffItem {
 		/**
-		 * The name of the entity.
+		 * The name of the item.
 		 */
 		readonly name: string;
 
@@ -77,13 +77,13 @@ declare module 'vscode' {
 		readonly kind: SymbolKind;
 
 		/**
-		 * The complete entity range in the corresponding document.
+		 * The complete range of the item in the corresponding document.
 		 */
 		readonly range: Range;
 
 		/**
-		 * The range to select when navigating to this entity.
-		 * Must be contained in {@link StructuralDiffEntity.range range}.
+		 * The range to select when navigating to this item.
+		 * Must be contained in {@link StructuralDiffItem.range range}.
 		 */
 		readonly selectionRange?: Range;
 	}
@@ -94,12 +94,12 @@ declare module 'vscode' {
 	 */
 	export enum StructuralDiffClassification {
 		/**
-		 * A complete entity was introduced or removed.
+		 * A complete item was introduced or removed.
 		 */
 		Declaration = 1,
 
 		/**
-		 * An entity's header, including its signature, modifiers, attributes,
+		 * An item's header, including its signature, modifiers, attributes,
 		 * decorators, or inheritance clauses.
 		 */
 		Header = 2,
@@ -145,7 +145,7 @@ declare module 'vscode' {
 		/**
 		 * A non-empty range contained in the corresponding side of the
 		 * referenced textual change and in the range of the containing node's
-		 * entity in the same document.
+		 * item in the same document.
 		 *
 		 * The containing node's {@link StructuralDiffNode.originalChanges originalChanges}
 		 * or {@link StructuralDiffNode.modifiedChanges modifiedChanges} property
@@ -167,9 +167,9 @@ declare module 'vscode' {
 	/**
 	 * A node in a sparse, file-local structural diff tree.
 	 *
-	 * A node with both versions asserts that the entities correspond; different names
+	 * A node with both versions asserts that the items correspond; different names
 	 * on those versions represent a detected rename. Providers
-	 * are not required to detect renames or moves. Unmatched entities can be
+	 * are not required to detect renames or moves. Unmatched items can be
 	 * represented as separate additions and deletions.
 	 */
 	export interface StructuralDiffNode {
@@ -180,25 +180,25 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The entity in the original document. Absent when the entity was added.
+		 * The item in the original document. Absent when the item was added.
 		 */
-		readonly original?: StructuralDiffEntity;
+		readonly originalItem?: StructuralDiffItem;
 
 		/**
-		 * The entity in the modified document. Absent when the entity was removed.
-		 * At least one of original or modified must be present.
+		 * The item in the modified document. Absent when the item was removed.
+		 * At least one of originalItem or modifiedItem must be present.
 		 */
-		readonly modified?: StructuralDiffEntity;
+		readonly modifiedItem?: StructuralDiffItem;
 
 		/**
 		 * Original-side changes owned directly by this node, excluding coverage
-		 * owned by descendants. Must be empty when original is absent.
+		 * owned by descendants. Must be empty when originalItem is absent.
 		 */
 		readonly originalChanges: readonly StructuralDiffCoverage[];
 
 		/**
 		 * Modified-side changes owned directly by this node, excluding coverage
-		 * owned by descendants. Must be empty when modified is absent.
+		 * owned by descendants. Must be empty when modifiedItem is absent.
 		 */
 		readonly modifiedChanges: readonly StructuralDiffCoverage[];
 

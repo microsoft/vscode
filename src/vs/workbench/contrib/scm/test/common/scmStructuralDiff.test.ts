@@ -180,21 +180,21 @@ suite('SCM structural diff model', () => {
 	});
 
 	function createResult(): StructuralDiff {
-		const originalEntity = { name: 'Calculator', kind: SymbolKind.Class, range: original.getFullModelRange() };
-		const modifiedEntity = { name: 'Calculator', kind: SymbolKind.Class, range: modified.getFullModelRange() };
+		const originalItem = { name: 'Calculator', kind: SymbolKind.Class, range: original.getFullModelRange() };
+		const modifiedItem = { name: 'Calculator', kind: SymbolKind.Class, range: modified.getFullModelRange() };
 		// All compared versions differ only in the returned digit. Covering it on the file keeps the result complete
 		// without annotating the symbols.
 		const change = { textChangeIndex: 0, range: new Range(2, 17, 2, 18), classification: StructuralDiffClassification.Implementation };
 		return {
 			root: {
-				id: 'file', original: { ...originalEntity, kind: SymbolKind.File }, modified: { ...modifiedEntity, kind: SymbolKind.File },
+				id: 'file', originalItem: { ...originalItem, kind: SymbolKind.File }, modifiedItem: { ...modifiedItem, kind: SymbolKind.File },
 				originalChanges: [change], modifiedChanges: [change],
 				children: [{
-					id: 'class', original: originalEntity, modified: modifiedEntity, originalChanges: [], modifiedChanges: [],
+					id: 'class', originalItem, modifiedItem, originalChanges: [], modifiedChanges: [],
 					children: [{
 						id: 'method',
-						original: { name: 'run', kind: SymbolKind.Method, range: new Range(2, 1, 2, original.getLineMaxColumn(2)), selectionRange: new Range(2, 2, 2, 5) },
-						modified: { name: 'run', kind: SymbolKind.Method, range: new Range(2, 1, 2, modified.getLineMaxColumn(2)), selectionRange: new Range(2, 2, 2, 5) },
+						originalItem: { name: 'run', kind: SymbolKind.Method, range: new Range(2, 1, 2, original.getLineMaxColumn(2)), selectionRange: new Range(2, 2, 2, 5) },
+						modifiedItem: { name: 'run', kind: SymbolKind.Method, range: new Range(2, 1, 2, modified.getLineMaxColumn(2)), selectionRange: new Range(2, 2, 2, 5) },
 						originalChanges: [], modifiedChanges: [], children: [],
 					}],
 				}],
@@ -227,13 +227,13 @@ suite('SCM structural diff model', () => {
 
 	/** A result for the current documents in which the class contains the given methods. Changes are not covered. */
 	function createResultWithMethods(...methods: StructuralDiffNode[]): StructuralDiff {
-		const entity = (name: string, kind: SymbolKind, document: ITextModel) => ({ name, kind, range: document.getFullModelRange() });
+		const item = (name: string, kind: SymbolKind, document: ITextModel) => ({ name, kind, range: document.getFullModelRange() });
 		return {
 			root: {
-				id: 'file', original: entity('file.ts', SymbolKind.File, original), modified: entity('file.ts', SymbolKind.File, modified),
+				id: 'file', originalItem: item('file.ts', SymbolKind.File, original), modifiedItem: item('file.ts', SymbolKind.File, modified),
 				originalChanges: [], modifiedChanges: [],
 				children: [{
-					id: 'class', original: entity('Calculator', SymbolKind.Class, original), modified: entity('Calculator', SymbolKind.Class, modified),
+					id: 'class', originalItem: item('Calculator', SymbolKind.Class, original), modifiedItem: item('Calculator', SymbolKind.Class, modified),
 					originalChanges: [], modifiedChanges: [], children: methods,
 				}],
 			},
@@ -243,11 +243,11 @@ suite('SCM structural diff model', () => {
 
 	/** A method that spans the given line of each document in which it exists. */
 	function createMethod(id: string, name: string, originalLine: number | undefined, modifiedLine: number | undefined): StructuralDiffNode {
-		const entity = (document: ITextModel, line: number) => ({ name, kind: SymbolKind.Method, range: new Range(line, 2, line, document.getLineMaxColumn(line)) });
+		const item = (document: ITextModel, line: number) => ({ name, kind: SymbolKind.Method, range: new Range(line, 2, line, document.getLineMaxColumn(line)) });
 		return {
 			id,
-			original: originalLine === undefined ? undefined : entity(original, originalLine),
-			modified: modifiedLine === undefined ? undefined : entity(modified, modifiedLine),
+			originalItem: originalLine === undefined ? undefined : item(original, originalLine),
+			modifiedItem: modifiedLine === undefined ? undefined : item(modified, modifiedLine),
 			originalChanges: [], modifiedChanges: [], children: [],
 		};
 	}
@@ -442,7 +442,7 @@ suite('SCM structural diff model', () => {
 		});
 	}
 
-	test('keeps the ids of entities and status rows when a file is reloaded', async () => {
+	test('keeps the ids of items and status rows when a file is reloaded', async () => {
 		provider.result = { ...createResult(), isIncomplete: true };
 		const before = await model.getChildren(resource);
 		modified.setValue('class Calculator {\n\trun() { return 3; }\n}');
@@ -460,7 +460,7 @@ suite('SCM structural diff model', () => {
 		});
 	});
 
-	test('derives distinct ids for same-name siblings and keeps the id of a renamed entity', async () => {
+	test('derives distinct ids for same-name siblings and keeps the id of a renamed item', async () => {
 		const result = createResult();
 		const method = result.root.children[0].children[0];
 		const withMethods = (renamedTo: string, idSuffix: string): StructuralDiff => ({
@@ -472,8 +472,8 @@ suite('SCM structural diff model', () => {
 					children: [
 						{ ...method, id: `first${idSuffix}` },
 						{ ...method, id: `second${idSuffix}` },
-						{ ...method, id: `renamed${idSuffix}`, original: { ...method.original!, name: 'compute' }, modified: { ...method.modified!, name: renamedTo } },
-						{ ...method, id: `added${idSuffix}`, original: undefined, modified: { ...method.modified!, name: 'helper' } },
+						{ ...method, id: `renamed${idSuffix}`, originalItem: { ...method.originalItem!, name: 'compute' }, modifiedItem: { ...method.modifiedItem!, name: renamedTo } },
+						{ ...method, id: `added${idSuffix}`, originalItem: undefined, modifiedItem: { ...method.modifiedItem!, name: 'helper' } },
 					],
 				}],
 			},
@@ -505,12 +505,12 @@ suite('SCM structural diff model', () => {
 		}, { kept: { second: true, added: true }, distinct: 3 });
 	});
 
-	test('locates deleted entities in the modified document', async () => {
+	test('locates deleted items in the modified document', async () => {
 		original.setValue('class Calculator {\n\trun() { return 1; }\n\t// Stops.\n\tstop() { return 2; }\n}');
 		modified.setValue('class Calculator {\n\t// Stops.\n}');
 		// The range of stop starts at its comment, which is unchanged.
 		const stop = createMethod('stop', 'stop', 4, undefined);
-		provider.result = createResultWithMethods(createMethod('run', 'run', 2, undefined), { ...stop, original: { ...stop.original!, range: new Range(3, 2, 4, original.getLineMaxColumn(4)) } });
+		provider.result = createResultWithMethods(createMethod('run', 'run', 2, undefined), { ...stop, originalItem: { ...stop.originalItem!, range: new Range(3, 2, 4, original.getLineMaxColumn(4)) } });
 		const [calculator] = await model.getChildren(resource);
 		assert.ok(calculator.type === 'structuralDiff' && provider.context);
 		// Deleted text is located where it was deleted, unchanged text where it is in the modified document.
@@ -683,10 +683,10 @@ suite('SCM structural diff model', () => {
 		}
 	});
 
-	test('describes deleted entities without relying on color', async () => {
+	test('describes deleted items without relying on color', async () => {
 		const result = createResult();
 		const node = result.root.children[0];
-		provider.result = { ...result, root: { ...result.root, children: [{ ...node, modified: undefined, children: [] }] } };
+		provider.result = { ...result, root: { ...result.root, children: [{ ...node, modifiedItem: undefined, children: [] }] } };
 		const child = (await model.getChildren(resource))[0];
 		assert.deepStrictEqual({
 			label: getSCMStructuralDiffLabel(child), description: getSCMStructuralDiffDescription(child), aria: getSCMStructuralDiffAriaLabel(child),
@@ -699,8 +699,8 @@ suite('SCM structural diff model', () => {
 		const change = { textChangeIndex: 0, range: new Range(2, 2, 2, 5), classification: StructuralDiffClassification.Implementation };
 		const candidates = [
 			element,
-			{ ...element, node: { ...element.node, original: undefined } },
-			{ ...element, node: { ...element.node, modified: undefined } },
+			{ ...element, node: { ...element.node, originalItem: undefined } },
+			{ ...element, node: { ...element.node, modifiedItem: undefined } },
 			{ ...element, node: { ...element.node, originalChanges: [change] } },
 			{ ...element, node: { ...element.node, modifiedChanges: [change] } },
 		];
@@ -737,8 +737,8 @@ suite('SCM structural diff model', () => {
 			withChanges([StructuralDiffClassification.Implementation], [StructuralDiffClassification.Header]),
 			withChanges([StructuralDiffClassification.Dependency], [StructuralDiffClassification.Other]),
 			element,
-			{ ...element, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, original: undefined } },
-			{ ...element, node: { ...withChanges([StructuralDiffClassification.Implementation], []).node, modified: undefined } },
+			{ ...element, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, originalItem: undefined } },
+			{ ...element, node: { ...withChanges([StructuralDiffClassification.Implementation], []).node, modifiedItem: undefined } },
 		];
 		assert.deepStrictEqual(candidates.map(getSCMStructuralDiffChangeAnnotation), [
 			{ label: 'decl', description: 'Declaration changed' },
@@ -751,12 +751,12 @@ suite('SCM structural diff model', () => {
 		]);
 	});
 
-	test('represents paired entities with different names as renames without annotations', async () => {
+	test('represents paired items with different names as renames without annotations', async () => {
 		const element = (await model.getChildren(resource))[0];
 		assert.ok(element.type === 'structuralDiff');
 		const renamed = {
 			...element,
-			node: { ...element.node, modified: { ...element.node.modified!, name: 'RenamedCalculator' } },
+			node: { ...element.node, modifiedItem: { ...element.node.modifiedItem!, name: 'RenamedCalculator' } },
 		};
 		const candidates = [
 			[],

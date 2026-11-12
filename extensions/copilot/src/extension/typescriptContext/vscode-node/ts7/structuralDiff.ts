@@ -31,7 +31,7 @@ interface EntityInfo {
 }
 
 interface Entity {
-	readonly value: vscode.StructuralDiffEntity;
+	readonly value: vscode.StructuralDiffItem;
 	/** A language-specific category, such as `getter` or `imports`, that tells apart entities of the same kind and name. */
 	readonly languageKind?: string;
 	readonly node: ts.Node;
@@ -100,8 +100,8 @@ export function computeStructuralDiff(originalFile: ts.SourceFile, modifiedFile:
 		checkCancellation();
 		const result: MutableDiffNode = {
 			id: String(nextId++),
-			original: left?.value,
-			modified: right?.value,
+			originalItem: left?.value,
+			modifiedItem: right?.value,
 			originalChanges: [],
 			modifiedChanges: [],
 			children: [],

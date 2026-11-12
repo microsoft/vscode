@@ -136,15 +136,15 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 				modifiedRange: new vscode.Range(modifiedDocument.positionAt(modifiedStart + prefix), modifiedDocument.positionAt(modifiedStart + after.length - suffix)),
 			}]);
 			const allNodes = flatten(result.root);
-			const renamed = allNodes.filter(node => node.modified?.name === after);
+			const renamed = allNodes.filter(node => node.modifiedItem?.name === after);
 			assert.deepStrictEqual({
 				renamed: renamed.map(node => ({
-					original: node.original?.name,
-					modified: node.modified?.name,
-					originalSelection: node.original?.selectionRange,
-					modifiedSelection: node.modified?.selectionRange,
+					original: node.originalItem?.name,
+					modified: node.modifiedItem?.name,
+					originalSelection: node.originalItem?.selectionRange,
+					modifiedSelection: node.modifiedItem?.selectionRange,
 				})),
-				unmatched: allNodes.filter(node => !node.original || !node.modified).map(node => (node.modified ?? node.original)?.name),
+				unmatched: allNodes.filter(node => !node.originalItem || !node.modifiedItem).map(node => (node.modifiedItem ?? node.originalItem)?.name),
 			}, {
 				renamed: [{ original: before, modified: after, originalSelection: originalName, modifiedSelection: modifiedName }],
 				unmatched: [],
@@ -160,7 +160,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			{ originalRange: rangeOf(original, 'before', original.indexOf('set')), modifiedRange: rangeOf(modified, 'after', modified.indexOf('set')) },
 		]);
 		assert.deepStrictEqual(result.root.children[0].children.map(node => [
-			node.original?.name, node.modified?.name, declarationKeyword(node.original, original), declarationKeyword(node.modified, modified),
+			node.originalItem?.name, node.modifiedItem?.name, declarationKeyword(node.originalItem, original), declarationKeyword(node.modifiedItem, modified),
 		]), [
 			['before', 'after', 'get', 'get'], ['before', 'after', 'set', 'set'],
 		]);
@@ -170,7 +170,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const original = 'class Example { before() { return 1; } unchangedName() { return 1; } }';
 		const modified = 'class Example { after() { return 1; } unchangedName() { return 2; } }';
 		const result = await compute(original, modified);
-		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [
 			['before', 'after'], ['unchangedName', 'unchangedName'],
 		]);
 	});
@@ -183,7 +183,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			{ originalRange: rangeOf(original, 'before'), modifiedRange: rangeOf(modified, 'after') },
 			{ originalRange: rangeOf(original, 'before', original.indexOf('new Example')), modifiedRange: rangeOf(modified, 'after', modified.indexOf('new Example')) },
 		]);
-		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [['before', 'after']]);
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [['before', 'after']]);
 	});
 
 	test('ignores formatting trivia without changing the syntax fingerprint', async () => {
@@ -192,7 +192,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const result = await compute(original, modified, [{
 			originalRange: rangeOf(original, 'before'), modifiedRange: rangeOf(modified, 'after'),
 		}]);
-		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [['before', 'after']]);
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [['before', 'after']]);
 	});
 
 	for (const [original, modified] of [
@@ -207,8 +207,8 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 	] as const) {
 		test(`does not infer a rename when syntax outside the name changes: ${original}`, async () => {
 			const result = await compute(original, modified);
-			assert.deepStrictEqual(flatten(result.root).filter(node => node.original?.name === 'before' || node.modified?.name === 'after').map(node => [
-				node.original?.name, node.modified?.name,
+			assert.deepStrictEqual(flatten(result.root).filter(node => node.originalItem?.name === 'before' || node.modifiedItem?.name === 'after').map(node => [
+				node.originalItem?.name, node.modifiedItem?.name,
 			]), [[undefined, 'after'], ['before', undefined]]);
 		});
 	}
@@ -220,7 +220,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 	] as const) {
 		test(`does not infer ambiguous one-to-one rename candidates: ${beforeMembers} -> ${afterMembers}`, async () => {
 			const result = await compute(`class Example { ${beforeMembers} }`, `class Example { ${afterMembers} }`);
-			assert.strictEqual(result.root.children[0].children.every(node => !node.original || !node.modified), true);
+			assert.strictEqual(result.root.children[0].children.every(node => !node.originalItem || !node.modifiedItem), true);
 		});
 	}
 
@@ -228,7 +228,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const original = 'function before(value: string): void;\nfunction before(value: number): void;\nfunction before(value: string | number) {}';
 		const modified = original.replaceAll('before', 'after');
 		const result = await compute(original, modified);
-		assert.strictEqual(result.root.children.every(node => !node.original || !node.modified), true);
+		assert.strictEqual(result.root.children.every(node => !node.originalItem || !node.modifiedItem), true);
 	});
 
 	test('requires paired name-location evidence instead of equating independent additions and deletions', async () => {
@@ -238,7 +238,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			{ originalRange: rangeOf(original, '\tbefore() { return 1; }\n'), modifiedRange: new vscode.Range(1, 0, 1, 0) },
 			{ originalRange: new vscode.Range(3, 0, 3, 0), modifiedRange: rangeOf(modified, '\tafter() { return 1; }\n') },
 		]);
-		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [
 			[undefined, 'after'], ['before', undefined],
 		]);
 	});
@@ -248,8 +248,8 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const modified = 'class First {}\nclass Second { after() {} }';
 		const result = await compute(original, modified);
 		assert.deepStrictEqual(result.root.children.map(node => ({
-			parent: node.modified?.name,
-			children: node.children.map(child => [child.original?.name, child.modified?.name]),
+			parent: node.modifiedItem?.name,
+			children: node.children.map(child => [child.originalItem?.name, child.modifiedItem?.name]),
 		})), [
 			{ parent: 'First', children: [['before', undefined]] },
 			{ parent: 'Second', children: [[undefined, 'after']] },
@@ -260,7 +260,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const original = 'class Example { [before]() {} }';
 		const modified = 'class Example { [after]() {} }';
 		const result = await compute(original, modified);
-		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.original?.name, node.modified?.name]), [
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [
 			[undefined, '[after]'], ['[before]', undefined],
 		]);
 	});
@@ -272,7 +272,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			{ originalRange: rangeOf(original, 'return 1'), modifiedRange: rangeOf(modified, 'return 2') },
 			{ originalRange: rangeOf(original, 'consume(value)'), modifiedRange: rangeOf(modified, 'consume(value + 1)') },
 		]);
-		assert.deepStrictEqual(result.root.children[0].children.map(node => [declarationKeyword(node.original, original), declarationKeyword(node.modified, modified)]), [
+		assert.deepStrictEqual(result.root.children[0].children.map(node => [declarationKeyword(node.originalItem, original), declarationKeyword(node.modifiedItem, modified)]), [
 			['get', 'get'], ['set', 'set'],
 		]);
 	});
@@ -283,7 +283,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const result = await compute(original, modified, [{
 			originalRange: rangeOf(original, 'value: number'), modifiedRange: rangeOf(modified, 'value: boolean'),
 		}]);
-		assert.deepStrictEqual(result.root.children.map(node => [node.original?.name, node.modified?.name]), [
+		assert.deepStrictEqual(result.root.children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [
 			[undefined, 'overloaded'], ['overloaded', undefined],
 		]);
 	});
@@ -359,11 +359,11 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const result = await compute(original, modified, changes);
 		const group = result.root.children[0];
 		assert.deepStrictEqual({
-			groups: result.root.children.map(node => node.modified?.name),
+			groups: result.root.children.map(node => node.modifiedItem?.name),
 			original: group.originalChanges.map(change => [change.textChangeIndex, change.classification, modifiedText(change.range, original)]),
 			modified: group.modifiedChanges.map(change => [change.textChangeIndex, change.classification, modifiedText(change.range, modified)]),
 			root: [result.root.originalChanges, result.root.modifiedChanges],
-			selection: group.modified?.selectionRange,
+			selection: group.modifiedItem?.selectionRange,
 		}, {
 			groups: ['Imports'],
 			original: [
@@ -392,7 +392,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		test(`groups standalone export syntax: ${original}`, async () => {
 			const result = await compute(original, modified);
 			assert.deepStrictEqual({
-				groups: result.root.children.map(node => node.modified?.name),
+				groups: result.root.children.map(node => node.modifiedItem?.name),
 				classifications: result.root.children[0].modifiedChanges.map(change => change.classification),
 				root: [result.root.originalChanges, result.root.modifiedChanges],
 			}, { groups: ['Exports'], classifications: [classification], root: [[], []] });
@@ -408,8 +408,8 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		}));
 		const result = await compute(original, modified, changes);
 		assert.deepStrictEqual(result.root.children.map(node => ({
-			name: node.modified?.name,
-			kind: node.modified?.kind,
+			name: node.modifiedItem?.name,
+			kind: node.modifiedItem?.kind,
 			classifications: node.modifiedChanges.map(change => [change.classification, modifiedText(change.range, modified)]),
 		})), [
 			{ name: 'Calculator', kind: vscode.SymbolKind.Class, classifications: [[vscode.StructuralDiffClassification.Header, 'export ']] },
@@ -428,7 +428,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 				originalRange: rangeOf(original, '1'), modifiedRange: rangeOf(modified, '2'),
 			}]);
 			const name = original.includes('class') ? 'Calculator' : 'calculate';
-			assert.deepStrictEqual(result.root.children.map(node => [node.original?.name, node.modified?.name]), [[name, name]]);
+			assert.deepStrictEqual(result.root.children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [[name, name]]);
 		});
 	}
 
@@ -444,7 +444,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const modified = original.replaceAll('first', 'firstChanged').replaceAll('second', 'secondChanged').replaceAll('1', '2');
 		const result = await compute(original, modified);
 		assert.deepStrictEqual({
-			names: result.root.children.map(node => node.modified?.name),
+			names: result.root.children.map(node => node.modifiedItem?.name),
 			imports: result.root.children[0].modifiedChanges.map(change => modifiedText(change.range, modified)),
 			exports: result.root.children[2].modifiedChanges.map(change => modifiedText(change.range, modified)),
 			functionCoverage: result.root.children[1].modifiedChanges.map(change => modifiedText(change.range, modified)).join(''),
@@ -464,7 +464,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const result = await compute(original, modified, [{
 			originalRange: rangeOf(original, 'return 1'), modifiedRange: rangeOf(modified, 'return 2'),
 		}]);
-		assert.deepStrictEqual(result.root.children.map(node => [node.original?.name, node.modified?.name]), [['calculate', 'calculate']]);
+		assert.deepStrictEqual(result.root.children.map(node => [node.originalItem?.name, node.modifiedItem?.name]), [['calculate', 'calculate']]);
 	});
 
 	test('keeps import/export groups within their enclosing namespace', async () => {
@@ -486,7 +486,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		const modified = original.replaceAll('1', '2').replaceAll('oldName', 'newName');
 		const result = await compute(original, modified);
 		assert.deepStrictEqual(result.root.children.map(node => [
-			node.original?.name, node.modified?.name, declarationKeyword(node.original, original), declarationKeyword(node.modified, modified),
+			node.originalItem?.name, node.modifiedItem?.name, declarationKeyword(node.originalItem, original), declarationKeyword(node.modifiedItem, modified),
 		]), [
 			['Imports', 'Imports', 'namespace', 'namespace'],
 			['Imports', 'Imports', 'import', 'import'],
@@ -572,7 +572,7 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 			{ originalRange: rangeOf(original, '😀'), modifiedRange: rangeOf(modified, '🙂') },
 			{ originalRange: rangeOf(original, 'return 1; }\r\nfunction second() { return 2'), modifiedRange: rangeOf(modified, 'return 3; }\r\nfunction second() { return 4') },
 		]);
-		assert.deepStrictEqual(result.root.children.map(node => node.modified?.name), ['emoji', 'first', 'second']);
+		assert.deepStrictEqual(result.root.children.map(node => node.modifiedItem?.name), ['emoji', 'first', 'second']);
 	});
 
 	test('classifies file-level comments as other syntax', async () => {
@@ -605,7 +605,7 @@ function modifiedText(range: vscode.Range, text: string): string {
 /**
  * The first word of the text of an entity, such as `get` or `namespace`, which tells what declares the entity.
  */
-function declarationKeyword(entity: vscode.StructuralDiffEntity | undefined, text: string): string | undefined {
+function declarationKeyword(entity: vscode.StructuralDiffItem | undefined, text: string): string | undefined {
 	return entity && modifiedText(entity.range, text).split(' ')[0];
 }
 
@@ -619,12 +619,12 @@ export function summarize(diff: vscode.StructuralDiff, original: string, modifie
 		modifiedChanges: [number, vscode.StructuralDiffClassification, string, readonly vscode.StructuralDiffTag[] | undefined][];
 	}[] = [];
 	const visit = (node: vscode.StructuralDiffNode, parent: string[]) => {
-		const path = [...parent, (node.modified ?? node.original)!.name];
+		const path = [...parent, (node.modifiedItem ?? node.originalItem)!.name];
 		result.push({
 			path,
-			original: node.original?.name,
-			modified: node.modified?.name,
-			kind: (node.modified ?? node.original)?.kind,
+			original: node.originalItem?.name,
+			modified: node.modifiedItem?.name,
+			kind: (node.modifiedItem ?? node.originalItem)?.kind,
 			originalChanges: node.originalChanges.map(change => [change.textChangeIndex, change.classification, modifiedText(change.range, original), change.tags]),
 			modifiedChanges: node.modifiedChanges.map(change => [change.textChangeIndex, change.classification, modifiedText(change.range, modified), change.tags]),
 		});
@@ -638,18 +638,19 @@ function assertContract(diff: vscode.StructuralDiff, original: vscode.TextDocume
 	const ids = new Set<string>();
 	const errors: string[] = [];
 	const coverage: Record<'original' | 'modified', vscode.StructuralDiffCoverage[]> = { original: [], modified: [] };
+	const getItem = (node: vscode.StructuralDiffNode, side: 'original' | 'modified') => side === 'original' ? node.originalItem : node.modifiedItem;
 	const visit = (node: vscode.StructuralDiffNode, parent?: vscode.StructuralDiffNode) => {
-		if (ids.has(node.id) || (!node.original && !node.modified)) {
+		if (ids.has(node.id) || (!node.originalItem && !node.modifiedItem)) {
 			errors.push(`Invalid entity ${node.id}`);
 		}
 		ids.add(node.id);
 		for (const side of ['original', 'modified'] as const) {
-			const entity = node[side];
+			const entity = getItem(node, side);
 			const changes = side === 'original' ? node.originalChanges : node.modifiedChanges;
 			if (entity === undefined && changes.length > 0) {
 				errors.push(`Missing ${side} entity ${node.id}`);
 			}
-			if (entity !== undefined && parent !== undefined && !parent[side]?.range.contains(entity.range)) {
+			if (entity !== undefined && parent !== undefined && !getItem(parent, side)?.range.contains(entity.range)) {
 				errors.push(`Invalid ${side} parent ${node.id}`);
 			}
 			if (entity?.selectionRange !== undefined && !entity.range.contains(entity.selectionRange)) {
@@ -686,8 +687,8 @@ function assertContract(diff: vscode.StructuralDiff, original: vscode.TextDocume
 	}
 	assert.deepStrictEqual({
 		errors, isIncomplete: diff.isIncomplete,
-		rootOriginal: diff.root.original?.range, rootModified: diff.root.modified?.range,
-		kinds: [diff.root.original?.kind, diff.root.modified?.kind],
+		rootOriginal: diff.root.originalItem?.range, rootModified: diff.root.modifiedItem?.range,
+		kinds: [diff.root.originalItem?.kind, diff.root.modifiedItem?.kind],
 	}, {
 		errors: [], isIncomplete: false, rootOriginal: fullRange(original), rootModified: fullRange(modified),
 		kinds: [vscode.SymbolKind.File, vscode.SymbolKind.File],

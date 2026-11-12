@@ -99,16 +99,16 @@ suite('ExtHost structural diff', () => {
 		await register({
 			provideStructuralDiff: (original, modified, value) => {
 				received = { texts: [original.getText(), modified.getText()], uris: [original.uri.toString(), modified.uri.toString()], context: value };
-				const entity = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+				const item = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
 				return {
 					root: {
-						id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [],
+						id: 'file', originalItem: item, modifiedItem: item, originalChanges: [], modifiedChanges: [],
 						children: [{
 							id: 'member',
-							original: { name: 'oldName', detail: 'old', kind: types.SymbolKind.Method, range: entity.range, selectionRange: entity.range },
-							modified: { name: 'newName', detail: 'new', kind: types.SymbolKind.Method, range: entity.range, selectionRange: entity.range },
-							originalChanges: [{ textChangeIndex: 0, range: entity.range, classification: types.StructuralDiffClassification.Header, tags: [types.StructuralDiffTag.Test] }],
-							modifiedChanges: [{ textChangeIndex: 0, range: entity.range, classification: types.StructuralDiffClassification.Implementation, tags: [] }],
+							originalItem: { name: 'oldName', detail: 'old', kind: types.SymbolKind.Method, range: item.range, selectionRange: item.range },
+							modifiedItem: { name: 'newName', detail: 'new', kind: types.SymbolKind.Method, range: item.range, selectionRange: item.range },
+							originalChanges: [{ textChangeIndex: 0, range: item.range, classification: types.StructuralDiffClassification.Header, tags: [types.StructuralDiffTag.Test] }],
+							modifiedChanges: [{ textChangeIndex: 0, range: item.range, classification: types.StructuralDiffClassification.Implementation, tags: [] }],
 							children: [],
 						}],
 					},
@@ -126,8 +126,8 @@ suite('ExtHost structural diff', () => {
 			},
 			child: {
 				id: 'member',
-				original: { name: 'oldName', detail: 'old', kind: SymbolKind.Method, range, selectionRange: range },
-				modified: { name: 'newName', detail: 'new', kind: SymbolKind.Method, range, selectionRange: range },
+				originalItem: { name: 'oldName', detail: 'old', kind: SymbolKind.Method, range, selectionRange: range },
+				modifiedItem: { name: 'newName', detail: 'new', kind: SymbolKind.Method, range, selectionRange: range },
 				originalChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Header, tags: [StructuralDiffTag.Test] }],
 				modifiedChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Implementation, tags: [] }],
 				children: [],
@@ -137,16 +137,16 @@ suite('ExtHost structural diff', () => {
 	});
 
 	for (const side of ['original', 'modified'] as const) {
-		test(`preserves ${side}-only entities and incomplete results`, async () => {
+		test(`preserves ${side}-only items and incomplete results`, async () => {
 			await register({
 				provideStructuralDiff: () => {
-					const entity = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+					const item = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
 					return {
 						root: {
-							id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [],
+							id: 'file', originalItem: item, modifiedItem: item, originalChanges: [], modifiedChanges: [],
 							children: [{
 								id: side,
-								[side]: { name: 'member', kind: types.SymbolKind.Property, range: entity.range },
+								[`${side}Item`]: { name: 'member', kind: types.SymbolKind.Property, range: item.range },
 								originalChanges: [], modifiedChanges: [], children: [],
 							}],
 						},
@@ -158,7 +158,7 @@ suite('ExtHost structural diff', () => {
 			assert.deepStrictEqual({ child: result?.root.children[0], isIncomplete: result?.isIncomplete }, {
 				child: {
 					id: side,
-					[side]: { name: 'member', kind: SymbolKind.Property, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 } },
+					[`${side}Item`]: { name: 'member', kind: SymbolKind.Property, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 } },
 					originalChanges: [], modifiedChanges: [], children: [],
 				},
 				isIncomplete: true,
@@ -221,7 +221,7 @@ suite('ExtHost structural diff', () => {
 		const file = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
 		return {
 			root: {
-				id: 'file', original: file, modified: file, originalChanges: [], modifiedChanges: [],
+				id: 'file', originalItem: file, modifiedItem: file, originalChanges: [], modifiedChanges: [],
 				children: [{ id: 'member', originalChanges: [], modifiedChanges: [], children: [], ...member }],
 			},
 			isIncomplete: true,
@@ -232,11 +232,11 @@ suite('ExtHost structural diff', () => {
 	const change = { textChangeIndex: 0, range: member.range, classification: types.StructuralDiffClassification.Implementation };
 	const nullLine = { start: { line: null, character: 0 }, end: { line: 0, character: 1 } } as unknown as vscode.Range;
 	const convertibleValues: [string, Partial<vscode.StructuralDiffNode>, RegExp][] = [
-		['an unknown kind', { modified: { ...member, kind: 99 as vscode.SymbolKind } }, /Invalid structural diff: node 'member' has an invalid modified entity kind/],
-		['a kind that is a numeric string', { modified: { ...member, kind: '0' as unknown as vscode.SymbolKind } }, /Invalid structural diff: node 'member' has an invalid modified entity kind/],
-		['an entity range with a line that is not a number', { original: { ...member, range: nullLine } }, /Invalid structural diff: node 'member' has an invalid original entity range/],
-		['a selection range with a line that is not a number', { modified: { ...member, selectionRange: nullLine } }, /Invalid structural diff: node 'member' has an invalid modified selection range/],
-		['a change range with a line that is not a number', { modified: member, modifiedChanges: [{ ...change, range: nullLine }] }, /Invalid structural diff: node 'member' has an invalid modified change range/],
+		['an unknown kind', { modifiedItem: { ...member, kind: 99 as vscode.SymbolKind } }, /Invalid structural diff: node 'member' has an invalid modified item kind/],
+		['a kind that is a numeric string', { modifiedItem: { ...member, kind: '0' as unknown as vscode.SymbolKind } }, /Invalid structural diff: node 'member' has an invalid modified item kind/],
+		['an item range with a line that is not a number', { originalItem: { ...member, range: nullLine } }, /Invalid structural diff: node 'member' has an invalid original item range/],
+		['a selection range with a line that is not a number', { modifiedItem: { ...member, selectionRange: nullLine } }, /Invalid structural diff: node 'member' has an invalid modified selection range/],
+		['a change range with a line that is not a number', { modifiedItem: member, modifiedChanges: [{ ...change, range: nullLine }] }, /Invalid structural diff: node 'member' has an invalid modified change range/],
 	];
 	for (const [description, node, expected] of convertibleValues) {
 		test(`rejects ${description} instead of converting it to a valid value`, async () => {
@@ -246,7 +246,7 @@ suite('ExtHost structural diff', () => {
 	}
 
 	test('passes tags that are not an array on for validation instead of dropping them', async () => {
-		await register({ provideStructuralDiff: () => resultWith({ modified: member, modifiedChanges: [{ ...change, tags: null as unknown as vscode.StructuralDiffTag[] }] }) });
+		await register({ provideStructuralDiff: () => resultWith({ modifiedItem: member, modifiedChanges: [{ ...change, tags: null as unknown as vscode.StructuralDiffTag[] }] }) });
 		assert.strictEqual((await provide())?.root.children[0].modifiedChanges[0].tags, null);
 	});
 
@@ -293,14 +293,14 @@ suite('ExtHost structural diff API command', () => {
 	teardown(() => rpc.sync());
 
 	test('forwards both resources and converts the result to API types', async () => {
-		const entity = { name: 'file.ts', detail: 'detail', kind: SymbolKind.File, range, selectionRange: range };
+		const item = { name: 'file.ts', detail: 'detail', kind: SymbolKind.File, range, selectionRange: range };
 		internalResult = {
 			root: {
-				id: 'file', original: entity, modified: entity, originalChanges: [], modifiedChanges: [],
+				id: 'file', originalItem: item, modifiedItem: item, originalChanges: [], modifiedChanges: [],
 				children: [{
 					id: 'member',
-					original: { ...entity, name: 'oldName', kind: SymbolKind.Method },
-					modified: { ...entity, name: 'newName', kind: SymbolKind.Method },
+					originalItem: { ...item, name: 'oldName', kind: SymbolKind.Method },
+					modifiedItem: { ...item, name: 'newName', kind: SymbolKind.Method },
 					originalChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Header, tags: [StructuralDiffTag.Test] }],
 					modifiedChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Implementation, tags: [] }],
 					children: [],
@@ -310,16 +310,16 @@ suite('ExtHost structural diff API command', () => {
 			context: { changes: [{ originalRange: range, modifiedRange: range }] },
 		};
 		const result = await commands.executeCommand<vscode.StructuralDiffResult | undefined>('vscode.executeStructuralDiffProvider', originalUri, modifiedUri);
-		const apiEntity = { name: 'file.ts', detail: 'detail', kind: types.SymbolKind.File, range: apiRange, selectionRange: apiRange };
+		const apiItem = { name: 'file.ts', detail: 'detail', kind: types.SymbolKind.File, range: apiRange, selectionRange: apiRange };
 		assert.deepStrictEqual({ executed, result }, {
 			executed: [{ id: '_executeStructuralDiffProvider', uris: [originalUri.toString(), modifiedUri.toString()] }],
 			result: {
 				root: {
-					id: 'file', original: apiEntity, modified: apiEntity, originalChanges: [], modifiedChanges: [],
+					id: 'file', originalItem: apiItem, modifiedItem: apiItem, originalChanges: [], modifiedChanges: [],
 					children: [{
 						id: 'member',
-						original: { ...apiEntity, name: 'oldName', kind: types.SymbolKind.Method },
-						modified: { ...apiEntity, name: 'newName', kind: types.SymbolKind.Method },
+						originalItem: { ...apiItem, name: 'oldName', kind: types.SymbolKind.Method },
+						modifiedItem: { ...apiItem, name: 'newName', kind: types.SymbolKind.Method },
 						originalChanges: [{ textChangeIndex: 0, range: apiRange, classification: types.StructuralDiffClassification.Header, tags: [types.StructuralDiffTag.Test] }],
 						modifiedChanges: [{ textChangeIndex: 0, range: apiRange, classification: types.StructuralDiffClassification.Implementation, tags: [] }],
 						children: [],

@@ -37,7 +37,7 @@ const MAX_LOAD_TIME_MS = 30_000;
 
 interface SCMStructuralDiffElementBase {
 	/**
-	 * Identifies the entity or status that the element shows. It stays the same when the structural
+	 * Identifies the item or status that the element shows. It stays the same when the structural
 	 * changes of a file are reloaded, so the tree keeps focus, selection and collapse state.
 	 */
 	readonly id: string;
@@ -53,8 +53,8 @@ export interface SCMStructuralDiffNode extends SCMStructuralDiffElementBase {
 	readonly parent: ISCMResource | SCMStructuralDiffNode;
 	readonly children: readonly SCMStructuralDiffNode[];
 	/**
-	 * For an entity that only exists in the original document, the position in the modified document where it was
-	 * deleted. An inline diff only shows the modified document, so it shows a deleted entity there.
+	 * For an item that only exists in the original document, the position in the modified document where it was
+	 * deleted. An inline diff only shows the modified document, so it shows a deleted item there.
 	 */
 	readonly deletedAt?: IPosition;
 }
@@ -68,12 +68,12 @@ export interface SCMStructuralDiffStatus extends SCMStructuralDiffElementBase {
 export type SCMStructuralDiffElement = SCMStructuralDiffNode | SCMStructuralDiffStatus;
 
 /**
- * A step from a parent to a structural entity: its kind and name, whether it was added, where it starts in the original
+ * A step from a parent to a structural item: its kind and name, whether it was added, where it starts in the original
  * document, and its position among siblings that have all of these in common.
  */
-type EntityKey = readonly [kind: SymbolKind, name: string, added: boolean, line: number, column: number, ordinal: number];
+type ItemKey = readonly [kind: SymbolKind, name: string, added: boolean, line: number, column: number, ordinal: number];
 
-function createElementId(resource: ISCMResource, path: readonly (EntityKey | string)[]): string {
+function createElementId(resource: ISCMResource, path: readonly (ItemKey | string)[]): string {
 	const group = resource.resourceGroup;
 	return SCM_STRUCTURAL_DIFF_ID_PREFIX + JSON.stringify([group.provider.id, group.id, resource.sourceUri.toString(), ...path]);
 }
@@ -91,23 +91,23 @@ export function getSCMStructuralDiffLabel(element: SCMStructuralDiffElement): st
 				? localize('structuralDiff.timedOut', "Structural changes took too long to load")
 				: localize('structuralDiff.error', "Unable to load structural changes");
 	}
-	return (element.node.modified ?? element.node.original)!.name;
+	return (element.node.modifiedItem ?? element.node.originalItem)!.name;
 }
 
 export function getSCMStructuralDiffChange(element: SCMStructuralDiffElement): { readonly type: 'added' | 'deleted' | 'modified' | 'renamed'; readonly label: string } | undefined {
 	if (element.type === 'structuralDiffStatus') {
 		return undefined;
 	}
-	if (!element.node.original) {
+	if (!element.node.originalItem) {
 		return { type: 'added', label: localize('structuralDiff.added', "Added") };
 	}
-	if (!element.node.modified) {
+	if (!element.node.modifiedItem) {
 		return { type: 'deleted', label: localize('structuralDiff.deleted', "Deleted") };
 	}
-	if (element.node.original.name !== element.node.modified.name) {
+	if (element.node.originalItem.name !== element.node.modifiedItem.name) {
 		return {
 			type: 'renamed',
-			label: localize('structuralDiff.renamed', "Renamed from {0} to {1}", element.node.original.name, element.node.modified.name),
+			label: localize('structuralDiff.renamed', "Renamed from {0} to {1}", element.node.originalItem.name, element.node.modifiedItem.name),
 		};
 	}
 	if (element.node.originalChanges.length > 0 || element.node.modifiedChanges.length > 0) {
@@ -117,8 +117,8 @@ export function getSCMStructuralDiffChange(element: SCMStructuralDiffElement): {
 }
 
 export function getSCMStructuralDiffChangeAnnotation(element: SCMStructuralDiffElement): { readonly label: string; readonly description: string } | undefined {
-	if (element.type === 'structuralDiffStatus' || !element.node.original || !element.node.modified
-		|| element.node.original.name !== element.node.modified.name) {
+	if (element.type === 'structuralDiffStatus' || !element.node.originalItem || !element.node.modifiedItem
+		|| element.node.originalItem.name !== element.node.modifiedItem.name) {
 		return undefined;
 	}
 	const changes = [...element.node.originalChanges, ...element.node.modifiedChanges];
@@ -149,7 +149,7 @@ export function getSCMStructuralDiffDescription(element: SCMStructuralDiffElemen
 	if (element.type === 'structuralDiffStatus') {
 		return undefined;
 	}
-	const details = (element.node.modified ?? element.node.original)!.detail;
+	const details = (element.node.modifiedItem ?? element.node.originalItem)!.detail;
 	const status = getSCMStructuralDiffChangeAnnotation(element)?.description ?? getSCMStructuralDiffChange(element)?.label;
 	return [status, details].filter(value => !!value).join(', ') || undefined;
 }
@@ -158,11 +158,11 @@ export function getSCMStructuralDiffAriaLabel(element: SCMStructuralDiffElement)
 	if (element.type === 'structuralDiffStatus') {
 		return getSCMStructuralDiffLabel(element);
 	}
-	const entity = (element.node.modified ?? element.node.original)!;
+	const item = (element.node.modifiedItem ?? element.node.originalItem)!;
 	const description = getSCMStructuralDiffDescription(element);
 	return description
-		? localize('structuralDiff.ariaLabelWithDescription', "{0}, {1}, {2}", entity.name, symbolKindNames[entity.kind], description)
-		: localize('structuralDiff.ariaLabel', "{0}, {1}", entity.name, symbolKindNames[entity.kind]);
+		? localize('structuralDiff.ariaLabelWithDescription', "{0}, {1}, {2}", item.name, symbolKindNames[item.kind], description)
+		: localize('structuralDiff.ariaLabel', "{0}, {1}", item.name, symbolKindNames[item.kind]);
 }
 
 class StructuralDiffEntry extends Disposable {
@@ -437,23 +437,23 @@ export class SCMStructuralDiffModel extends Disposable {
 			const toOriginal = toModified.reverse();
 			// A position in changed text maps to the start of the change in the other document.
 			const startOf = (mapped: PositionOrRange) => mapped.range?.getStartPosition() ?? mapped.position!;
-			const wrap = (nodes: readonly StructuralDiffNode[], parent: ISCMResource | SCMStructuralDiffNode, path: readonly EntityKey[]): SCMStructuralDiffNode[] => {
+			const wrap = (nodes: readonly StructuralDiffNode[], parent: ISCMResource | SCMStructuralDiffNode, path: readonly ItemKey[]): SCMStructuralDiffNode[] => {
 				const ordinals = new Map<string, number>();
 				return nodes.map((node, order) => {
-					const entity = (node.original ?? node.modified)!;
-					// Edits of the working file do not change the original document, so a position in it identifies an entity,
-					// even when siblings with the same name start or stop changing. An added entity is located through the text changes.
-					const start = node.original ? Range.getStartPosition(node.original.range) : startOf(toOriginal.mapPosition(Range.getStartPosition(node.modified!.range)));
-					const identity = [entity.kind, entity.name, !node.original, start.lineNumber, start.column] as const;
+					const item = (node.originalItem ?? node.modifiedItem)!;
+					// Edits of the working file do not change the original document, so a position in it identifies an item,
+					// even when siblings with the same name start or stop changing. An added item is located through the text changes.
+					const start = node.originalItem ? Range.getStartPosition(node.originalItem.range) : startOf(toOriginal.mapPosition(Range.getStartPosition(node.modifiedItem!.range)));
+					const identity = [item.kind, item.name, !node.originalItem, start.lineNumber, start.column] as const;
 					const key = JSON.stringify(identity);
 					const ordinal = ordinals.get(key) ?? 0;
 					ordinals.set(key, ordinal + 1);
-					const nodePath: EntityKey[] = [...path, [...identity, ordinal]];
+					const nodePath: ItemKey[] = [...path, [...identity, ordinal]];
 					const children: SCMStructuralDiffNode[] = [];
 					const element: SCMStructuralDiffNode = {
 						type: 'structuralDiff', id: createElementId(resource, nodePath),
 						generation: entry.generation, resource, node, parent, order, children,
-						...(node.modified ? {} : { deletedAt: startOf(toModified.mapPosition(start)) }),
+						...(node.modifiedItem ? {} : { deletedAt: startOf(toModified.mapPosition(start)) }),
 					};
 					children.push(...wrap(node.children, element, nodePath));
 					return element;

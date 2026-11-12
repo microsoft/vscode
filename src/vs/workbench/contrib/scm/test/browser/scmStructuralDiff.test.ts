@@ -104,7 +104,7 @@ suite('SCM structural diff tree', () => {
 		parent = {
 			type: 'structuralDiff', id: 'class', generation: 1, resource, parent: resource, order: 0, children,
 			node: {
-				id: 'class', original: { name: 'Calculator', kind: SymbolKind.Class, range }, modified: { name: 'Calculator', kind: SymbolKind.Class, range },
+				id: 'class', originalItem: { name: 'Calculator', kind: SymbolKind.Class, range }, modifiedItem: { name: 'Calculator', kind: SymbolKind.Class, range },
 				originalChanges: [], modifiedChanges: [], children: [],
 			},
 		};
@@ -112,8 +112,8 @@ suite('SCM structural diff tree', () => {
 			type: 'structuralDiff', id: 'method', generation: 1, resource, parent, order: 0, children: [],
 			node: {
 				id: 'method',
-				original: { name: 'run', kind: SymbolKind.Method, range: new Range(2, 1, 4, 1), selectionRange: new Range(2, 2, 2, 5) },
-				modified: { name: 'run', kind: SymbolKind.Method, range: new Range(3, 1, 5, 1), selectionRange: new Range(3, 2, 3, 5) },
+				originalItem: { name: 'run', kind: SymbolKind.Method, range: new Range(2, 1, 4, 1), selectionRange: new Range(2, 2, 2, 5) },
+				modifiedItem: { name: 'run', kind: SymbolKind.Method, range: new Range(3, 1, 5, 1), selectionRange: new Range(3, 2, 3, 5) },
 				originalChanges: [], modifiedChanges: [], children: [],
 			},
 		};
@@ -213,8 +213,8 @@ suite('SCM structural diff tree', () => {
 
 		test(`preserves provider order instead of applying file sorting in ${mode} mode`, () => {
 			const sorter = new SCMTreeSorter(() => mode, () => { throw new Error('Must not sort structural children as files'); });
-			const first = { ...child, order: 0, node: { ...child.node, modified: { ...child.node.modified!, name: 'zeta' } } };
-			const second = { ...child, id: 'second', order: 1, node: { ...child.node, modified: { ...child.node.modified!, name: 'alpha' } } };
+			const first = { ...child, order: 0, node: { ...child.node, modifiedItem: { ...child.node.modifiedItem!, name: 'zeta' } } };
+			const second = { ...child, id: 'second', order: 1, node: { ...child.node, modifiedItem: { ...child.node.modifiedItem!, name: 'alpha' } } };
 			assert.strictEqual(sorter.compare(first, second), -1);
 		});
 	}
@@ -344,7 +344,7 @@ suite('SCM structural diff tree', () => {
 		}, 0, template);
 		render(parent);
 		const classIcon = !!container.querySelector('.codicon-colored.codicon-symbol-class');
-		render({ ...child, node: { ...child.node, modified: undefined } });
+		render({ ...child, node: { ...child.node, modifiedItem: undefined } });
 		const methodIcon = !!container.querySelector('.codicon-colored.codicon-symbol-method');
 		const deletedText = template.label.element.textContent;
 		const deletedMarker = template.status.textContent;
@@ -400,8 +400,8 @@ suite('SCM structural diff tree', () => {
 			override readonly element = element;
 			override readonly filterData = FuzzyScore.Default;
 		};
-		const added = { ...child, node: { ...child.node, original: undefined, modified: { ...child.node.modified!, detail: '(value: number)' } } };
-		const deleted = { ...child, node: { ...child.node, modified: undefined } };
+		const added = { ...child, node: { ...child.node, originalItem: undefined, modifiedItem: { ...child.node.modifiedItem!, detail: '(value: number)' } } };
+		const deleted = { ...child, node: { ...child.node, modifiedItem: undefined } };
 		const modified = {
 			...child,
 			node: {
@@ -409,7 +409,7 @@ suite('SCM structural diff tree', () => {
 				modifiedChanges: [{ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification: StructuralDiffClassification.Implementation }],
 			},
 		};
-		const renamed = { ...modified, node: { ...modified.node, modified: { ...modified.node.modified!, name: 'runNext' } } };
+		const renamed = { ...modified, node: { ...modified.node, modifiedItem: { ...modified.node.modifiedItem!, name: 'runNext' } } };
 		const rows = [added, deleted, modified, renamed, modified].map(element => {
 			renderer.renderElement(makeNode(element), 0, template);
 			const color = getWindow(container).getComputedStyle(template.status).color;
@@ -451,7 +451,7 @@ suite('SCM structural diff tree', () => {
 			...child,
 			node: {
 				...child.node,
-				modified: { ...child.node.modified!, detail: '(value: number)' },
+				modifiedItem: { ...child.node.modifiedItem!, detail: '(value: number)' },
 				originalChanges: original.map(classification => ({ textChangeIndex: 0, range: new Range(2, 2, 2, 5), classification })),
 				modifiedChanges: modified.map(classification => ({ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification })),
 			},
@@ -474,7 +474,7 @@ suite('SCM structural diff tree', () => {
 			withChanges([StructuralDiffClassification.Header], [StructuralDiffClassification.Implementation]),
 		].map(render);
 		const ancestor = render(parent);
-		const added = render({ ...child, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, original: undefined } });
+		const added = render({ ...child, node: { ...withChanges([], [StructuralDiffClassification.Header]).node, originalItem: undefined } });
 		assert.deepStrictEqual({ rows, ancestor, added, hovers: hoverService.labels }, {
 			rows: [
 				{ text: 'run(value: number)', annotation: 'decl', aria: 'run, method, Declaration changed, (value: number)', marker: 'M' },
@@ -495,8 +495,8 @@ suite('SCM structural diff tree', () => {
 			...child,
 			node: {
 				...child.node,
-				original: { ...child.node.original!, name: 'runNext' },
-				modified: { ...child.node.modified!, name: 'runNext2' },
+				originalItem: { ...child.node.originalItem!, name: 'runNext' },
+				modifiedItem: { ...child.node.modifiedItem!, name: 'runNext2' },
 				modifiedChanges: [{ textChangeIndex: 0, range: new Range(3, 9, 3, 10), classification: StructuralDiffClassification.Header }],
 			},
 		};
@@ -546,8 +546,8 @@ suite('SCM structural diff tree', () => {
 				...child,
 				node: {
 					...child.node,
-					original: change === 'added' ? undefined : { ...child.node.original!, name: change === 'renamed' ? 'previousName' : name },
-					modified: change === 'deleted' ? undefined : { ...child.node.modified!, name },
+					originalItem: change === 'added' ? undefined : { ...child.node.originalItem!, name: change === 'renamed' ? 'previousName' : name },
+					modifiedItem: change === 'deleted' ? undefined : { ...child.node.modifiedItem!, name },
 					modifiedChanges: classifications.map(classification => ({ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification })),
 				},
 			};
@@ -633,8 +633,8 @@ suite('SCM structural diff tree', () => {
 					...child,
 					node: {
 						...child.node,
-						original: letter === 'A' ? undefined : { ...child.node.original!, name: letter === 'R' ? 'previousName' : name },
-						modified: letter === 'D' ? undefined : { ...child.node.modified!, name },
+						originalItem: letter === 'A' ? undefined : { ...child.node.originalItem!, name: letter === 'R' ? 'previousName' : name },
+						modifiedItem: letter === 'D' ? undefined : { ...child.node.modifiedItem!, name },
 						modifiedChanges: [{ textChangeIndex: 0, range: new Range(3, 2, 3, 5), classification: StructuralDiffClassification.Implementation }],
 					},
 				};
@@ -688,9 +688,9 @@ suite('SCM structural diff tree', () => {
 				const editorService = new class extends mock<IEditorService>() {
 					override async openEditor(input: IUntypedEditorInput): Promise<ITextDiffEditorPane> { inputs.push(input); return pane; }
 				};
-				const element = { ...child, resource: comparisonResource, node: side === 'modified' ? child.node : { ...child.node, modified: undefined } };
+				const element = { ...child, resource: comparisonResource, node: side === 'modified' ? child.node : { ...child.node, modifiedItem: undefined } };
 				await openSCMStructuralDiff(element, { preserveFocus, pinned: true }, editorService, () => true);
-				const range = element.node[side]!.selectionRange!;
+				const range = (side === 'original' ? element.node.originalItem : element.node.modifiedItem)!.selectionRange!;
 				assert.deepStrictEqual({
 					inputs,
 					original: { selections: originalEditor.selections, reveals: originalEditor.reveals, focused: originalEditor.focused },
@@ -723,7 +723,7 @@ suite('SCM structural diff tree', () => {
 		const editorService = new class extends mock<IEditorService>() {
 			override async openEditor(): Promise<ITextDiffEditorPane> { return pane; }
 		};
-		await openSCMStructuralDiff({ ...child, node: { ...child.node, modified: undefined }, deletedAt: { lineNumber: 2, column: 1 } }, {}, editorService, () => true);
+		await openSCMStructuralDiff({ ...child, node: { ...child.node, modifiedItem: undefined }, deletedAt: { lineNumber: 2, column: 1 } }, {}, editorService, () => true);
 		const range = new Range(2, 1, 2, 1);
 		assert.deepStrictEqual({
 			original: { selections: originalEditor.selections, reveals: originalEditor.reveals, focused: originalEditor.focused },
