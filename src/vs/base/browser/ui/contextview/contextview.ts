@@ -633,6 +633,7 @@ export class ContextView extends Disposable {
 		this.view.style.top = `${top - positioningOrigin.top}px`;
 		this.view.style.left = `${left - positioningOrigin.left}px`;
 		this.view.style.width = 'initial';
+		DOM.alignToDevicePixels(this.view);
 	}
 
 	hide(data?: unknown, skipAnimation = false): void {

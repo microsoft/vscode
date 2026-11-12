@@ -873,6 +873,39 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	return zoom;
 }
 
+/**
+ * Moves an element positioned with inline pixel insets so that its border box starts on a whole
+ * device pixel. Chromium paints a transformed (e.g. scaling) element from a pixel-snapped offset,
+ * but its untransformed content at the exact fractional offset, so content that animates a scale
+ * at a fractional device position jumps by a device pixel when the animation ends.
+ *
+ * Horizontally, `left` is adjusted when it is a pixel value, otherwise `right` when that is;
+ * vertically the same applies to `top` and `bottom`. Other insets are left unchanged.
+ */
+export function alignToDevicePixels(element: HTMLElement): void {
+	const devicePixelRatio = getWindow(element).devicePixelRatio;
+	const zoom = getDomNodeZoomLevel(element);
+	const rect = element.getBoundingClientRect();
+	const offset = (value: number) => (Math.round(value * devicePixelRatio) / devicePixelRatio - value) / zoom;
+	alignInset(element, 'left', 'right', offset(rect.left));
+	alignInset(element, 'top', 'bottom', offset(rect.top));
+}
+
+function alignInset(element: HTMLElement, start: 'left' | 'top', end: 'right' | 'bottom', offset: number): void {
+	if (Math.abs(offset) < 0.001) {
+		return;
+	}
+	const startValue = element.style[start];
+	if (startValue.endsWith('px')) {
+		element.style[start] = `${parseFloat(startValue) + offset}px`;
+		return;
+	}
+	const endValue = element.style[end];
+	if (endValue.endsWith('px')) {
+		element.style[end] = `${parseFloat(endValue) - offset}px`;
+	}
+}
+
 
 // Adapted from WinJS
 // Gets the width of the element, including margins.

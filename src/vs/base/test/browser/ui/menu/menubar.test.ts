@@ -186,5 +186,46 @@ suite('Menubar', () => {
 				{ topLevel, submenu: [{ label: 'Undo', checked: '' }] },
 			]);
 		});
+
+		test('opens menus on whole device pixels from a fractional title position (#347796)', async () => {
+			// Mirrors menubar.css, which unit tests do not load
+			const style = compactContainer.appendChild($('style'));
+			style.textContent = '.compact-container .menubar-menu-items-holder { position: fixed; }';
+			compactContainer.style.position = 'fixed';
+			compactContainer.style.left = '10.3px';
+			compactContainer.style.top = '20.7px';
+			const dpr = getWindow(compactContainer).devicePixelRatio;
+			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+			const result: Record<string, unknown> = {};
+			for (const [name, horizontal] of [['expandsRight', HorizontalDirection.Right], ['expandsLeft', HorizontalDirection.Left]] as const) {
+				const menubar = new MenuBar(compactContainer, {
+					enableMnemonics: true,
+					visibility: 'classic',
+					compactMode: { horizontal, vertical: VerticalDirection.Below },
+					getCompactMenuActions: () => [toAction({ id: 'web.nav', label: 'Go Home', run: () => { } })]
+				}, unthemedMenuStyles);
+				menubar.push([{ label: '&File', actions: [toAction({ id: 'undo', label: 'Undo', run: () => { } })] }]);
+				menubar.update();
+				await nextAnimationFrame();
+
+				const overflowButton = compactContainer.querySelector<HTMLElement>('.menubar-menu-button[aria-label="Application Menu"]');
+				assert.ok(overflowButton);
+				dispatchKeyUp(overflowButton);
+				const holder = overflowButton.querySelector<HTMLElement>('.menubar-menu-items-holder');
+				assert.ok(holder);
+				const rect = holder.getBoundingClientRect();
+				result[name] = {
+					aligned: misalignment(rect.left) <= 0.02 && misalignment(rect.top) <= 0.02,
+					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right'
+				};
+				menubar.blur();
+				menubar.dispose();
+			}
+
+			assert.deepStrictEqual(result, {
+				expandsRight: { aligned: true, horizontalInset: 'left' },
+				expandsLeft: { aligned: true, horizontalInset: 'right' }
+			});
+		});
 	});
 });

@@ -318,6 +318,43 @@ suite('ContextView', () => {
 		container.remove();
 	});
 
+	test('places views at fractional anchors on whole device pixels (#347796)', () => {
+		const dpr = getWindow(document.body).devicePixelRatio;
+		const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+		const anchor = { x: 100.3, y: 50.6, width: 1, height: 0.7 };
+		const result: Record<string, unknown> = {};
+		for (const [name, domPosition] of [['absolute', ContextViewDOMPosition.ABSOLUTE], ['fixed', ContextViewDOMPosition.FIXED]] as const) {
+			const container = document.body.appendChild($('.container'));
+			const contextView = new ContextView(container, domPosition);
+			contextView.show({
+				getAnchor: () => anchor,
+				render: view => {
+					view.style.width = '10px';
+					view.style.height = '10px';
+					return null;
+				}
+			});
+			const view = contextView.getViewElement();
+			const read = () => [view.style.left, view.style.top].join();
+			const first = read();
+			contextView.layout();
+			contextView.layout();
+			const rect = view.getBoundingClientRect();
+			result[name] = {
+				aligned: misalignment(rect.left) <= 0.02 && misalignment(rect.top) <= 0.02,
+				nearAnchor: Math.abs(rect.left - anchor.x) * dpr <= 0.52 && Math.abs(rect.top - (anchor.y + anchor.height)) * dpr <= 0.52,
+				stableAcrossLayouts: read() === first
+			};
+			contextView.dispose();
+			container.remove();
+		}
+
+		assert.deepStrictEqual(result, {
+			absolute: { aligned: true, nearAnchor: true, stableAcrossLayouts: true },
+			fixed: { aligned: true, nearAnchor: true, stableAcrossLayouts: true }
+		});
+	});
+
 	test('menu motion does not retain a containing block for submenus (#326248)', () => {
 		const container = $('.container');
 		container.classList.add('modern-ui', 'monaco-enable-motion');

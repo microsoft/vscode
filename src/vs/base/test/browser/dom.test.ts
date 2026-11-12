@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, alignToDevicePixels } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -750,6 +750,68 @@ suite('dom', () => {
 			}
 
 			assert.deepStrictEqual({ received, retained: emitter.keyStatus.event }, { received: ['keydown', 'keyup'], retained: undefined });
+		});
+	});
+
+	suite('alignToDevicePixels', () => {
+		let host: HTMLElement;
+
+		setup(() => {
+			host = mainWindow.document.body.appendChild($('div'));
+		});
+
+		teardown(() => {
+			host.remove();
+		});
+
+		/** Whether the element starts on a whole device pixel, within Blink's 1/64 CSS px layout precision. */
+		function isDeviceAligned(element: HTMLElement): boolean {
+			const rect = element.getBoundingClientRect();
+			const dpr = getWindow(element).devicePixelRatio;
+			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+			return misalignment(rect.left) <= 0.02 && misalignment(rect.top) <= 0.02;
+		}
+
+		function createPositioned(parent: HTMLElement, insets: Partial<Record<'left' | 'top' | 'right' | 'bottom', string>>): HTMLElement {
+			const element = parent.appendChild($('div'));
+			element.style.position = 'fixed';
+			element.style.width = '50px';
+			element.style.height = '20px';
+			Object.assign(element.style, insets);
+			return element;
+		}
+
+		test('moves fractional left/top or right/bottom insets onto whole device pixels without drifting', () => {
+			const leftTop = createPositioned(host, { left: '10.3px', top: '20.7px' });
+			const rightBottom = createPositioned(host, { right: '10.3px', bottom: '20.7px' });
+			const percent = createPositioned(host, { left: '10.3%', top: '20.7%' });
+			const results = [leftTop, rightBottom].map(element => {
+				const before = isDeviceAligned(element);
+				alignToDevicePixels(element);
+				const styleAfterFirst = [element.style.left, element.style.top, element.style.right, element.style.bottom];
+				alignToDevicePixels(element);
+				const styleAfterSecond = [element.style.left, element.style.top, element.style.right, element.style.bottom];
+				return { before, after: isDeviceAligned(element), stable: styleAfterFirst.join() === styleAfterSecond.join(), untouchedInsets: styleAfterSecond.filter(value => value === '').length };
+			});
+			alignToDevicePixels(percent);
+
+			assert.deepStrictEqual({ results, percentInsets: [percent.style.left, percent.style.top, percent.style.right, percent.style.bottom] }, {
+				results: [
+					{ before: false, after: true, stable: true, untouchedInsets: 2 },
+					{ before: false, after: true, stable: true, untouchedInsets: 2 },
+				],
+				percentInsets: ['10.3%', '20.7%', '', '']
+			});
+		});
+
+		test('accounts for CSS zoom on ancestors', () => {
+			const zoomed = host.appendChild($('div'));
+			zoomed.style.zoom = '2';
+			const element = createPositioned(zoomed, { left: '10.3px', top: '20.7px' });
+			const before = isDeviceAligned(element);
+			alignToDevicePixels(element);
+
+			assert.deepStrictEqual({ before, after: isDeviceAligned(element) }, { before: false, after: true });
 		});
 	});
 
