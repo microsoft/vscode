@@ -85,6 +85,8 @@ suite('IssueReporterOverlay', () => {
 		resolveExtensionIssueData?: (extensionId: string) => Promise<IssueReporterData | undefined>;
 		captureContainer?: HTMLElement;
 		layout?: IssueReporterLayout;
+		/** The report to build the form for again, as when it moves to another pane. */
+		input?: IssueReporterEditorInput;
 	} = {}) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.fontFamily': 'monospace', 'editor.fontSize': 28 }));
@@ -118,14 +120,14 @@ suite('IssueReporterOverlay', () => {
 			},
 		});
 		instantiation.stub(IMarkdownRendererService, markdownRenderer);
-		const data: IssueReporterData = {
+		const data: IssueReporterData = options.input?.data ?? {
 			styles: {}, zoomLevel: 0, enabledExtensions: [], restrictedMode: false,
 			isInstallationPure: true, isSessionsWindow: false, githubAccessToken: '',
 			issueSource: IssueSource.VSCode, issueType: IssueType.Bug,
 			issueTitle: 'Repository selection', issueBody: 'Issue description',
 			...overrides,
 		};
-		const input = store.add(instantiation.createInstance(IssueReporterEditorInput, data, options.layout ?? 'detailed'));
+		const input = options.input ?? store.add(instantiation.createInstance(IssueReporterEditorInput, data, options.layout ?? 'detailed'));
 		const editor = input.descriptionInput;
 		const container = document.createElement('div');
 		container.style.width = '800px';
@@ -1348,6 +1350,43 @@ suite('IssueReporterOverlay', () => {
 				cancelled: [true, false],
 			});
 		}));
+
+		test('the simple layout checks the report again once its title is generated, since the form can change meanwhile', async () => {
+			const { overlay, editor, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'simple' });
+			const submitted: string[] = [];
+			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
+			setText('Tabs flicker');
+			preview.click();
+			setText('');
+			overlay.setGeneratedTitle('Tabs flicker while dragging');
+			await timeout(0);
+			const afterClearing = { submitted: [...submitted], descriptionInvalid: editor.getAttribute('aria-invalid') };
+			setText('Tabs flicker while they are dragged');
+			preview.click();
+			assert.deepStrictEqual({ afterClearing, submitted }, {
+				afterClearing: { submitted: [], descriptionInvalid: 'true' },
+				submitted: ['Tabs flicker while dragging'],
+			});
+		});
+
+		test('the simple layout generates no title for an external reporter, which opens without it', () => {
+			const { overlay, preview } = createReporter({ issueTitle: '', uri: URI.parse('https://example.com/issues/new') }, { layout: 'simple' });
+			const requests: string[] = [];
+			const submitted: string[] = [];
+			store.add(overlay.onDidRequestGenerateTitle(({ description }) => requests.push(description)));
+			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
+			preview.click();
+			assert.deepStrictEqual({ requests, submitted }, { requests: [], submitted: [''] });
+		});
+
+		test('the simple layout still asks for no category after the report moves to another pane', () => {
+			const { input } = createReporter({ issueType: undefined }, { layout: 'simple' });
+			const { overlay, preview } = createReporter({}, { input });
+			const bodies: string[] = [];
+			store.add(overlay.onDidSubmit(event => bodies.push(event.body)));
+			preview.click();
+			assert.deepStrictEqual(bodies.map(body => body.includes('Issue Category')), [false]);
+		});
 
 		test('the simple layout includes or leaves out all diagnostics with one checkbox, and asks for no category', () => {
 			const { overlay, container, preview } = createReporter({ issueType: undefined }, { layout: 'simple' });

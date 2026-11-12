@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, GroupIdentifier } from '../../../common/editor.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IssueReporterAttachment, IssueReporterData, IssueReporterLayout } from '../common/issue.js';
+import { IssueReporterAttachment, IssueReporterData, IssueReporterLayout, IssueType } from '../common/issue.js';
 import { IIssueReporterDiagnosticsState, IScreenshot } from './issueReporterOverlay.js';
 import { $, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { DisposableMap, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -25,6 +25,8 @@ export class IssueReporterEditorInput extends EditorInput {
 	static readonly RESOURCE = URI.from({ scheme: 'vscode-issue-reporter', path: 'reporter' });
 
 	readonly data: IssueReporterData | undefined;
+	/** The category that the report was opened with, unlike the draft's category in {@link data}, which the form sets to a default. */
+	readonly initialIssueType: IssueType | undefined;
 	/** Both hosts reuse the draft's native text control rather than reconstructing its contents. */
 	readonly descriptionInput = $<HTMLTextAreaElement>('textarea.wizard-description-input');
 	private descriptionScrollTop = 0;
@@ -123,6 +125,7 @@ export class IssueReporterEditorInput extends EditorInput {
 	) {
 		super();
 		this.data = data;
+		this.initialIssueType = data?.issueType;
 		this.initialTitle = data?.issueTitle ?? '';
 		this.initialDescription = data?.issueBody ?? '';
 		this.descriptionInput.value = this.initialDescription;

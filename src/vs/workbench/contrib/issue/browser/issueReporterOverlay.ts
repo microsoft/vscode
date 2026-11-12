@@ -264,7 +264,8 @@ export class IssueReporterOverlay {
 			includeExtensionData: hasStandaloneExtensionData,
 		}));
 		this.selectedIssueType = data.issueType;
-		this.explicitIssueType = data.issueType;
+		// The draft's category can be the default of an earlier form, from before the report moved to another pane.
+		this.explicitIssueType = input.initialIssueType;
 		this.selectedIssueSource = data.issueSource ?? (data.extensionId ? IssueSource.Extension : undefined);
 		this.model.update(this.getDiagnosticOptions());
 
@@ -1784,7 +1785,8 @@ export class IssueReporterOverlay {
 		if (!this.canSubmit()) {
 			return;
 		}
-		if (!resolveIssueReporterTarget(this.data, product)?.external) {
+		const external = !!resolveIssueReporterTarget(this.data, product)?.external;
+		if (!external) {
 			const automaticScreenshot = this.input.automaticScreenshot;
 			this.telemetryService.publicLog2<IssueReporterPreviewClickedEvent, IssueReporterPreviewClickedClassification>('issueReporter.previewClicked', {
 				layout: this.input.layout,
@@ -1792,13 +1794,36 @@ export class IssueReporterOverlay {
 			});
 		}
 		this.didAttemptSubmit = true;
+		if (!this.validateReport()) {
+			return;
+		}
+
+		let title = this.titleInput.value.trim();
+		// The simple layout generates a missing title, except for an external reporter, which opens without it.
+		if (!title && !external) {
+			title = await this.generateTitleForPreview(this.descriptionInput.value.trim());
+			// The form can change while the title is generated, so it is checked again.
+			if (this.disposed || !this.canSubmit() || !this.validateReport()) {
+				return;
+			}
+		}
+		const description = this.descriptionInput.value.trim();
+		this.updateIssueSourceFlags();
+		this.model.update({ issueDescription: description, issueTitle: title, ...(this.selectedIssueType !== undefined ? { issueType: this.selectedIssueType } : {}) });
+
+		const body = this.buildIssueBody();
+		this.submittedDraftKey = this.getDraftKey();
+		this._onDidSubmit.fire({ title, body });
+	}
+
+	/** Returns whether the report has every field it needs, and otherwise marks the missing fields and focuses the first of them. */
+	private validateReport(): boolean {
 		const hasIssueSource = this.selectedIssueSource !== undefined;
 		const hasExtension = this.selectedIssueSource !== IssueSource.Extension || !!this.selectedExtension && !!this.getSelectedExtensionIssueUrl();
 		const hasIssueType = this.getIssueTypeOptions().some(option => option.type === this.selectedIssueType);
 		const hasDescription = this.hasDescriptionContent();
-		let title = this.titleInput.value.trim();
 		// The simple layout generates a missing title from the description.
-		const hasTitle = !!title || this.simpleLayout;
+		const hasTitle = !!this.titleInput.value.trim() || this.simpleLayout;
 		this.setFieldError(this.sourceButtonGroup, this.sourceError, !hasIssueSource);
 		this.setFieldError(this.extensionField, this.extensionError, !hasExtension);
 		this.setFieldError(this.typeButtonGroup, this.typeError, !hasIssueType);
@@ -1808,36 +1833,23 @@ export class IssueReporterOverlay {
 			this.classificationNeedsAttention = true;
 			this.updateClassificationVisibility();
 		}
-		if (!hasIssueSource || !hasExtension || !hasIssueType || !hasTitle || !hasDescription) {
-			// Focus the first field to fix, in the order of the form.
-			if (!hasDescription) {
-				this.setDescriptionPreview(false);
-				this.descriptionInput.focus();
-			} else if (!hasTitle) {
-				this.titleInput.focus();
-			} else if (!hasIssueSource) {
-				this.issueSourceButtons.find(button => !button.element.classList.contains('hidden'))?.element.focus();
-			} else if (!hasExtension) {
-				this.extensionSelect.focus();
-			} else {
-				this.issueTypeButtons[0]?.element.focus();
-			}
-			return;
+		if (hasIssueSource && hasExtension && hasIssueType && hasTitle && hasDescription) {
+			return true;
 		}
-
-		const description = this.descriptionInput.value.trim();
-		if (!title) {
-			title = await this.generateTitleForPreview(description);
-			if (this.disposed) {
-				return;
-			}
+		// Focus the first field to fix, in the order of the form.
+		if (!hasDescription) {
+			this.setDescriptionPreview(false);
+			this.descriptionInput.focus();
+		} else if (!hasTitle) {
+			this.titleInput.focus();
+		} else if (!hasIssueSource) {
+			this.issueSourceButtons.find(button => !button.element.classList.contains('hidden'))?.element.focus();
+		} else if (!hasExtension) {
+			this.extensionSelect.focus();
+		} else {
+			this.issueTypeButtons[0]?.element.focus();
 		}
-		this.updateIssueSourceFlags();
-		this.model.update({ issueDescription: description, issueTitle: title, ...(this.selectedIssueType !== undefined ? { issueType: this.selectedIssueType } : {}) });
-
-		const body = this.buildIssueBody();
-		this.submittedDraftKey = this.getDraftKey();
-		this._onDidSubmit.fire({ title, body });
+		return false;
 	}
 
 	/** Generates a title from the description, or takes its first line when none is generated in time. */
