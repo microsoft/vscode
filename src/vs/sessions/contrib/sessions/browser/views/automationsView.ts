@@ -2766,7 +2766,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true, undefined, undefined, localize('importShort', "Import"));
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true);
 		}));
 		this._register(actionViewItemService.register(AgentsWindowMenus.CustomViewAutomations, 'sessions.automations.refresh', (action, options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
@@ -2885,7 +2885,7 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	private refreshRequested = false;
 	private actionRunning = false;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>, private readonly onboardingTargetId?: string, private readonly labelOverride?: string) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>, private readonly onboardingTargetId?: string) {
 		super(context, action, options);
 	}
 
@@ -2968,14 +2968,14 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 			this.button.label = `$(${busy ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.refresh.id})`;
 			return;
 		}
-		DOM.reset(this.button.element, this.labelOverride ?? this._action.label);
+		DOM.reset(this.button.element, this._action.label);
 	}
 }
 
-/** A header pill split into its action and a chevron that opens `dropdownActions`, using the shared segmented chat pill. */
+/** Header Create with Agent split button, using the same {@link ButtonWithDropdown} as the empty state. */
 class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 
-	private primary: Button | undefined;
+	private button: ButtonWithDropdown | undefined;
 
 	constructor(
 		action: IAction,
@@ -2989,35 +2989,24 @@ class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		this.element = container;
-		container.classList.add('chat-pill-item', 'chat-pill-segmented');
-		const primary = this.primary = this._register(new Button(container, { ...defaultButtonStyles, title: this._action.label, ariaLabel: this._action.label }));
-		primary.element.classList.add('monaco-text-button', 'chat-pill-button');
-		primary.label = localize('createWithAgent', "Create with Agent");
-		this._register(primary.onDidClick(() => this.actionRunner.run(this._action, this._context)));
+		const label = localize('createWithAgent', "Create with Agent");
+		const button = this.button = this._register(new ButtonWithDropdown(container, {
+			...defaultButtonStyles,
+			title: this._action.label,
+			contextMenuProvider: this.contextMenuService,
+			actions: this.dropdownActions,
+			addPrimaryActionToDropdown: false,
+		}));
+		button.label = label;
+		this._register(button.onDidClick(() => this.actionRunner.run(this._action, this._context)));
 		if (this.onboardingTargetId) {
-			this._register(markOnboardingTarget(primary.element, this.onboardingTargetId, {
-				onDidActivate: Event.map(primary.onDidClick, () => undefined),
+			this._register(markOnboardingTarget(button.primaryButton.element, this.onboardingTargetId, {
+				onDidActivate: Event.map(button.onDidClick, () => undefined),
 			}));
 		}
-		const sections = DOM.append(container, $('.chat-pill-sections'));
-		const chevron = this._register(new Button(sections, { ...defaultButtonStyles, supportIcons: true, title: localize('moreCreateOptions', "More Create Options") }));
-		chevron.element.classList.add('monaco-text-button', 'chat-pill-button', 'automations-create-split-chevron');
-		chevron.element.setAttribute('aria-haspopup', 'menu');
-		chevron.element.setAttribute('aria-expanded', 'false');
-		chevron.label = `$(${Codicon.chevronDown.id})`;
-		this._register(chevron.onDidClick(() => {
-			chevron.element.setAttribute('aria-expanded', 'true');
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => chevron.element,
-				getActions: () => this.dropdownActions,
-				onHide: () => chevron.element.setAttribute('aria-expanded', 'false'),
-			});
-		}));
 	}
 
-	override focus(): void { if (this.primary) { this.primary.element.tabIndex = 0; this.primary.focus(); } }
-	override blur(): void { if (this.primary) { this.primary.element.tabIndex = -1; this.primary.element.blur(); } }
-	override setFocusable(focusable: boolean): void { if (this.primary) { this.primary.element.tabIndex = focusable ? 0 : -1; } }
+	override focus(): void { this.button?.focus(); }
 }
 
 async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService, options?: IAutomationRefreshOptions): Promise<void> {

@@ -430,22 +430,11 @@
 .automations-cards-create-dropdown > .automations-cards-state-create-button {
 	max-width: none;
 	margin-top: 0;
-	padding: 6px 16px;
-	font-size: 12px;
 	white-space: nowrap;
 }
 
 .automations-cards-state > .automations-cards-create-dropdown {
 	margin-top: var(--vscode-spacing-size120);
-}
-
-.automations-create-split-chevron.monaco-button {
-	padding-inline: 4px;
-}
-
-.custom-view-header-actions .chat-pill-item.chat-pill-segmented {
-	display: inline-flex;
-	align-items: stretch;
 }
 
 /* Loading and error states */
