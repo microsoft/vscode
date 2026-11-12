@@ -28,7 +28,6 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { IAgentFeedbackCommentsArbitrationService } from '../../browser/agentFeedbackCommentsArbitration.js';
 
 suite('AgentFeedbackEditorOverlay', () => {
 
@@ -71,12 +70,6 @@ suite('AgentFeedbackEditorOverlay', () => {
 		});
 		instantiationService.stub(ICodeReviewService, new class extends mock<ICodeReviewService>() { });
 		stubHosts(instantiationService, undefined);
-		instantiationService.stub(IAgentFeedbackCommentsArbitrationService, new class extends mock<IAgentFeedbackCommentsArbitrationService>() {
-			override readonly onDidChange = Event.None;
-			override resolve(): Promise<boolean> {
-				return Promise.resolve(false);
-			}
-		});
 
 		const group = editorPart.activeGroup;
 		assert.ok(group instanceof EditorGroupView);

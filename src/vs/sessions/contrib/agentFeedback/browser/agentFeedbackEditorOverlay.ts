@@ -24,7 +24,6 @@ import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/bro
 import { getAcceptedAgentFeedbackCommentCount, getSessionEditorComments } from './sessionEditorComments.js';
 import { ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
-import { IAgentFeedbackCommentsArbitrationService } from './agentFeedbackCommentsArbitration.js';
 
 export interface IAgentFeedbackOverlayEditorGroup extends IEditorGroup {
 	readonly editorPaneContainer: HTMLElement;
@@ -51,7 +50,6 @@ export class AgentFeedbackOverlayController {
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeReviewService codeReviewService: ICodeReviewService,
-		@IAgentFeedbackCommentsArbitrationService commentsArbitrationService: IAgentFeedbackCommentsArbitrationService,
 	) {
 		const container = group.editorPaneContainer;
 		container.classList.add('agent-feedback-editor-overlay-host');
@@ -96,7 +94,6 @@ export class AgentFeedbackOverlayController {
 			agentFeedbackService.onDidChangeFeedbackVisibility,
 			agentFeedbackService.onDidChangeNavigation,
 			agentFeedbackService.onDidChangeFeedbackScope,
-			commentsArbitrationService.onDidChange,
 		));
 
 		this._store.add(autorun(r => {
@@ -106,9 +103,6 @@ export class AgentFeedbackOverlayController {
 			const candidates = getAgentFeedbackOverlayResourceCandidates(activeInput);
 			// In a window that shows a session of its own, such as a chat window, its files are that session's, whichever is active.
 			const host = hostSession?.read(r);
-			for (const candidate of candidates) {
-				void commentsArbitrationService.resolve(candidate);
-			}
 			let navigationBearings = undefined;
 			let acceptedFeedbackCount = 0;
 			for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate, host))) {

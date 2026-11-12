@@ -16,6 +16,12 @@ export const COMMENTS_SECTION = 'comments';
 export const COMMENTS_THREAD_EXPERIMENTAL_STYLE_SETTING = 'comments.thread.experimental.style';
 
 /**
+ * Whether the Agents window shows comments with the editor's comment widgets.
+ * Registered by the Agents window, which hides these widgets unless it is enabled.
+ */
+export const AGENTS_WINDOW_EDITOR_COMMENTS_SETTING = 'chat.experimental.agentsWindowEditorComments';
+
+/**
  * How comment threads are shown in the editor: between the lines of code, or floating above them.
  */
 export type CommentThreadStyle = 'inline' | 'floating';

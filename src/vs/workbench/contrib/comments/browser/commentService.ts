@@ -26,14 +26,9 @@ import { Schemas } from '../../../../base/common/network.js';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
-export interface IResourceCommentThreadEvent {
+interface IResourceCommentThreadEvent {
 	resource: URI;
 	commentInfos: ICommentInfo[];
-}
-
-export interface IFetchedDocumentCommentsEvent {
-	resource: URI;
-	commentInfos: readonly (ICommentInfo | null)[];
 }
 
 export interface ICommentInfo<T = IRange> extends CommentInfo<T> {
@@ -88,7 +83,6 @@ export interface IContinueOnCommentProvider {
 export interface ICommentService {
 	readonly _serviceBrand: undefined;
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
-	readonly onDidFetchDocumentComments: Event<IFetchedDocumentCommentsEvent>;
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<ICommentThreadChangedEvent>;
 	readonly onDidUpdateNotebookCommentThreads: Event<INotebookCommentThreadChangedEvent>;
@@ -142,9 +136,6 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
-
-	private readonly _onDidFetchDocumentComments: Emitter<IFetchedDocumentCommentsEvent> = this._register(new Emitter<IFetchedDocumentCommentsEvent>());
-	readonly onDidFetchDocumentComments: Event<IFetchedDocumentCommentsEvent> = this._onDidFetchDocumentComments.event;
 
 	private readonly _onDidSetAllCommentThreads: Emitter<IWorkspaceCommentThreadsEvent> = this._register(new Emitter<IWorkspaceCommentThreadsEvent>());
 	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = this._onDidSetAllCommentThreads.event;
@@ -497,7 +488,6 @@ export class CommentService extends Disposable implements ICommentService {
 
 		const commentInfos = await Promise.all(commentControlResult);
 		this._updateResourcesWithCommentingRanges(resource, commentInfos);
-		this._onDidFetchDocumentComments.fire({ resource, commentInfos });
 		return commentInfos;
 	}
 

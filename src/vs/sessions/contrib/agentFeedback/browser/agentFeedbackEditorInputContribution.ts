@@ -42,7 +42,7 @@ import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR } from '../../../../workbenc
 import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from '../../../../workbench/browser/feedbackInputWidget.js';
 import { ICodeReviewService, IPRReviewCommentTarget } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
-import { IAgentFeedbackCommentsArbitrationService } from './agentFeedbackCommentsArbitration.js';
+import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';
@@ -207,7 +207,6 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAgentFeedbackCommentsArbitrationService private readonly _commentsArbitrationService: IAgentFeedbackCommentsArbitrationService,
 	) {
 		super();
 
@@ -285,7 +284,10 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 				}
 			}
 		}));
-		this._store.add(this._commentsArbitrationService.onDidChange(() => {
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
+				return;
+			}
 			this._clearHoverGlyph();
 			this._sessionResource = this._getSessionForModel();
 			if (!this._sessionResource) {
@@ -654,14 +656,9 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _getSessionForModel(): URI | undefined {
 		const model = this._editor.getModel();
-		if (!model || !this._contextKeyService.contextMatchesRules(agentFeedbackEnabledForEditor)) {
-			this._hasAgentFeedbackSessionContext.set(false);
-			this._sessionResource = undefined;
-			return undefined;
-		}
-
-		void this._commentsArbitrationService.resolve(model.uri);
-		if (!this._commentsArbitrationService.usesNativeComments(model.uri)) {
+		if (!model
+			|| !this._contextKeyService.contextMatchesRules(agentFeedbackEnabledForEditor)
+			|| this._configurationService.getValue<boolean>(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
 			this._hasAgentFeedbackSessionContext.set(false);
 			this._sessionResource = undefined;
 			return undefined;

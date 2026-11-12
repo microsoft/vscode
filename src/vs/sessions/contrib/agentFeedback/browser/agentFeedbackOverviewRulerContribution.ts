@@ -16,7 +16,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { IAgentFeedbackCommentsArbitrationService } from './agentFeedbackCommentsArbitration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(
 	'editorOverviewRuler.agentFeedbackForeground',
@@ -34,7 +35,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IAgentFeedbackCommentsArbitrationService private readonly _commentsArbitrationService: IAgentFeedbackCommentsArbitrationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -46,9 +47,11 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 			this._resolveSession();
 			this._updateDecorations();
 		}));
-		this._store.add(this._commentsArbitrationService.onDidChange(() => {
-			this._resolveSession();
-			this._updateDecorations();
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
+				this._resolveSession();
+				this._updateDecorations();
+			}
 		}));
 		this._store.add(this._editor.onDidChangeModel(() => {
 			this._resolveSession();
@@ -61,12 +64,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 
 	private _resolveSession(): void {
 		const model = this._editor.getModel();
-		if (!model) {
-			this._sessionResource = undefined;
-			return;
-		}
-		void this._commentsArbitrationService.resolve(model.uri);
-		if (!this._commentsArbitrationService.usesNativeComments(model.uri)) {
+		if (!model || this._configurationService.getValue<boolean>(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
 			this._sessionResource = undefined;
 			return;
 		}
