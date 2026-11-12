@@ -2153,7 +2153,6 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		}
 	}
 
-	/** The sessions the main window's panes and the other session hosts, such as a chat window's composer, show, each with the chat it shows. */
 	private _readShownSessions(reader: IReader | undefined): readonly { readonly session: ISession; readonly chat: URI }[] {
 		const shown = new Map<string, { readonly session: ISession; readonly chat: URI }>();
 		const add = (session: ISession | undefined, chat: IChat | undefined) => {
