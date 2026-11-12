@@ -43,6 +43,8 @@ export async function fetchFromUpdateServer<T extends Pick<Response, 'ok' | 'sta
 				return response as T;
 			}
 			lastFailure = `HTTP ${response.status} ${response.statusText}`.trim();
+			// Release the connection of a response we will not read.
+			(response as { body?: { destroy?(): void } }).body?.destroy?.();
 		} catch (error) {
 			lastFailure = error instanceof Error ? error.message : String(error);
 		}
