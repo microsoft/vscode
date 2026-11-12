@@ -542,6 +542,14 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 
 			this._onDidChangeAnchorCell.fire();
 
+			// If the selection already covered the word, the user had explicitly
+			// selected it before pressing Cmd/Ctrl+D.  Mirror the regular editor
+			// behaviour: immediately find and select the *next* match as well,
+			// instead of requiring a second invocation.
+			if (!inputSelection.isEmpty()) {
+				return this.findAndTrackNextSelection(focusedCell);
+			}
+
 		} else if (this.state === NotebookMultiCursorState.Selecting) { // use the word we stored from idle state transition to find next match, track it
 			const notebookTextModel = this.notebookEditor.textModel;
 			if (!notebookTextModel) {
