@@ -307,8 +307,10 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		// may have changed meanwhile, so a copy of it stays on the volume.
 		'      if [ -d "$src" ]; then',
 		'        if [ -e "$dst.deferred" ]; then',
-		'          cp -a "$src" "$dst.deferred.$$"',
-		'          echo "Keeping the previous ~/$rel in $state/$rel.deferred.$$" >&2',
+		// A new folder, because the user owns earlier copies and could plant symlinks in them.
+		'          copy=$(mktemp -d "$dst.deferred.XXXXXX")',
+		'          cp -a "$src/." "$copy"',
+		'          echo "Keeping the previous ~/$rel in $state/${copy#./}" >&2',
 		'        fi',
 		'        rm -rf "$src"',
 		'      fi',
