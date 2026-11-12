@@ -65,6 +65,8 @@ suite('PluginUrlHandler', () => {
 		agentFinderIdentity?: string | null;
 		agentFinderProviderPlugin?: boolean;
 		agentFinderProviderPluginSource?: string;
+		agentFinderBrowseError?: boolean;
+		agentFinderBrowseDuplicate?: boolean;
 		agentFinderPaginated?: boolean;
 		agentFinderSourceError?: boolean;
 		createFailed?: boolean;
@@ -134,31 +136,27 @@ suite('PluginUrlHandler', () => {
 			uninstall: async () => { },
 		};
 		const marketplaceSources = options.agentFinderAvailable ? [CustomizationMarketplaceSources.AgentFinderPublicFeed] : [];
+		const agentFinderProviderPlugin = {
+			identifier: 'agentFinder/accessibility-agents',
+			displayName: 'Accessibility Agents',
+			description: '',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: {
+				kind: 'providerPlugin' as const,
+				name: 'accessibility-agents',
+				marketplace: 'awesome-copilot',
+				marketplaceSource: options.agentFinderProviderPluginSource ?? 'GitHub: github/awesome-copilot',
+			},
+		};
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = marketplaceSources;
 			override async query(query: ICustomizationMarketplaceQuery) {
 				calls.push(`agentFinderQuery:${query.query ?? ''}:${query.cursor?.token ?? ''}`);
 				fail('agentFinderQuery');
-				if (options.agentFinderProviderPlugin && !query.query) {
-					return {
-						items: [{
-							identifier: 'agentFinder/accessibility-agents',
-							displayName: 'Accessibility Agents',
-							description: '',
-							mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-							sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
-							tags: [],
-							capabilities: [],
-							representativeQueries: [],
-							installation: {
-								kind: 'providerPlugin' as const,
-								name: 'accessibility-agents',
-								marketplace: 'awesome-copilot',
-								marketplaceSource: options.agentFinderProviderPluginSource ?? 'GitHub: github/awesome-copilot',
-							},
-						}],
-					};
-				}
 				const paginatedFirstPage = options.agentFinderPaginated && !query.cursor;
 				return {
 					items: Array.from({ length: options.agentFinderMatchCount ?? 1 }, (_, index) => ({
@@ -174,11 +172,22 @@ suite('PluginUrlHandler', () => {
 							kind: 'providerCatalog' as const,
 							resourceKind: 'plugin' as const,
 							selectionId: `my-plugin-${index}`,
-							catalogIdentity: options.agentFinderIdentity === null ? undefined : options.agentFinderIdentity ?? (paginatedFirstPage ? 'other-plugin' : 'my-plugin'),
+							catalogIdentity: options.agentFinderIdentity === null ? undefined : options.agentFinderIdentity ?? `urn:air:github.com:github:awesome-copilot:${paginatedFirstPage ? 'other-plugin' : 'my-plugin'}`,
 						},
 					})),
 					...(paginatedFirstPage ? { nextCursor: { token: 'next' } } : {}),
 					...(options.agentFinderSourceError ? { sourceErrors: [{ sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id, message: 'feed failed' }] } : {}),
+				};
+			}
+			override async getBrowseSections() {
+				calls.push('agentFinderBrowse');
+				return {
+					sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+					sections: options.agentFinderProviderPlugin ? [
+						{ id: 'featured', title: 'Featured', items: [agentFinderProviderPlugin] },
+						...(options.agentFinderBrowseDuplicate ? [{ id: 'more', title: 'More', items: [agentFinderProviderPlugin] }] : []),
+					] : [],
+					...(options.agentFinderBrowseError ? { error: 'browse failed' } : {}),
 				};
 			}
 		}());
@@ -365,7 +374,7 @@ suite('PluginUrlHandler', () => {
 		}, {
 			calls: [
 				'agentFinderQuery:accessibility-agents:',
-				'agentFinderQuery::',
+				'agentFinderBrowse',
 			],
 			errors: 1,
 			commands: [],
@@ -405,7 +414,7 @@ suite('PluginUrlHandler', () => {
 		}, {
 			calls: [
 				'agentFinderQuery:accessibility-agents:',
-				'agentFinderQuery::',
+				'agentFinderBrowse',
 				`install:${sessionResource}:agentFinder/accessibility-agents`,
 			],
 			errors: [],
@@ -419,6 +428,7 @@ suite('PluginUrlHandler', () => {
 	for (const options of [
 		{ agentFinderMatchCount: 0 },
 		{ agentFinderMatchCount: 2 },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: 'my-plugin' },
 		{ agentFinderMatchCount: 1, agentFinderIdentity: 'other-plugin' },
 		{ agentFinderMatchCount: 1, agentFinderIdentity: 'urn:air:github.com:other:awesome-copilot:my-plugin' },
 		{ agentFinderMatchCount: 1, agentFinderIdentity: null },
@@ -432,16 +442,72 @@ suite('PluginUrlHandler', () => {
 				errors: fixture.errors.length,
 				commands: fixture.commands,
 			}, {
-				calls: options.agentFinderMatchCount === 0 || options.agentFinderIdentity === 'other-plugin' ||
+				calls: options.agentFinderMatchCount === 0 || options.agentFinderIdentity === 'my-plugin' ||
+					options.agentFinderIdentity === 'other-plugin' ||
 					options.agentFinderIdentity === 'urn:air:github.com:other:awesome-copilot:my-plugin' ||
 					options.agentFinderIdentity === null
-					? ['agentFinderQuery:my-plugin:', 'agentFinderQuery::']
+					? ['agentFinderQuery:my-plugin:', 'agentFinderBrowse']
 					: ['agentFinderQuery:my-plugin:'],
 				errors: 1,
 				commands: [],
 			});
 		});
 	}
+
+	test('rejects a full Agent Finder identity from another repository', async () => {
+		const catalogIdentity = 'urn:air:github.com:other:awesome-copilot:my-plugin';
+		const fixture = createHandler({ agentFinderAvailable: true, agentFinderIdentity: catalogIdentity });
+		await fixture.handler.handleURL(uri('/install', `source=github%2Fawesome-copilot&plugin=${encodeURIComponent(catalogIdentity)}`));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors.length,
+			commands: fixture.commands,
+		}, {
+			calls: [`agentFinderQuery:${catalogIdentity}:`],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	test('surfaces Agent Finder browse failures without adding the legacy marketplace', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderBrowseError: true,
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors.length,
+			commands: fixture.commands,
+		}, {
+			calls: ['agentFinderQuery:my-plugin:', 'agentFinderBrowse'],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	test('deduplicates an external Awesome Copilot listing across Agent Finder browse sections', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			managementUnavailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderProviderPlugin: true,
+			agentFinderBrowseDuplicate: true,
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=accessibility-agents'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors,
+		}, {
+			calls: [
+				'agentFinderQuery:accessibility-agents:',
+				'agentFinderBrowse',
+				`install:${sessionResource}:agentFinder/accessibility-agents`,
+			],
+			errors: [],
+		});
+	});
 
 	test('follows Agent Finder pagination to find an exact catalog identity', async () => {
 		const fixture = createHandler({ agentFinderAvailable: true, agentFinderPaginated: true });
@@ -463,6 +529,19 @@ suite('PluginUrlHandler', () => {
 			calls: ['agentFinderQuery:my-plugin:'],
 			errors: 1,
 			commands: [],
+		});
+	});
+
+	test('preserves a pinned Awesome Copilot reference on the configured marketplace path', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot%23v1.2.3&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [
+				`add:${sessionResource}:github/awesome-copilot#v1.2.3`,
+				`query:${sessionResource}:catalog:`,
+				`install:${sessionResource}:catalog/my-plugin`,
+			],
+			errors: [],
 		});
 	});
 

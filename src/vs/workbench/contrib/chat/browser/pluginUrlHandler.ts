@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -120,7 +120,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			}
 
 			if (pluginName && installProvider) {
-				const agentFinderPlugin = isDefaultPluginMarketplace(ref)
+				const agentFinderPlugin = !ref.ref && isDefaultPluginMarketplace(ref)
 					? await this.resolveAgentFinderPlugin(pluginName)
 					: undefined;
 				if (agentFinderPlugin) {
@@ -166,14 +166,19 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		const requestedIdentity = pluginName.toLowerCase();
 		const matches = await this.queryAgentFinderPlugins(pluginName, item => {
 			const installation = item.installation;
-			const catalogIdentity = installation?.kind === 'providerCatalog' && installation.catalogIdentity?.toLowerCase();
+			const catalogIdentity = installation?.kind === 'providerCatalog'
+				? installation.catalogIdentity?.toLowerCase()
+				: undefined;
+			const expectedIdentity = requestedIdentity.startsWith(awesomeCopilotCatalogIdentityPrefix)
+				? requestedIdentity
+				: `${awesomeCopilotCatalogIdentityPrefix}${requestedIdentity}`;
 			return installation?.kind === 'providerCatalog' &&
 				installation.resourceKind === 'plugin' &&
-				(catalogIdentity === requestedIdentity ||
-					catalogIdentity === `${awesomeCopilotCatalogIdentityPrefix}${requestedIdentity}`);
+				catalogIdentity?.startsWith(awesomeCopilotCatalogIdentityPrefix) === true &&
+				catalogIdentity === expectedIdentity;
 		});
 		if (matches.length === 0 && !requestedIdentity.startsWith('urn:')) {
-			matches.push(...await this.queryAgentFinderPlugins('', item => {
+			matches.push(...await this.getAgentFinderBrowsePlugins(item => {
 				const installation = item.installation;
 				const reference = installation?.kind === 'providerPlugin' && installation.marketplaceSource
 					? parseProviderMarketplaceReference(installation.marketplaceSource)
@@ -192,6 +197,27 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			throw new Error(localize('pluginLinkAgentFinderPluginAmbiguous', "Multiple GitHub Feed plugins matched '{0}'.", pluginName));
 		}
 		return matches[0];
+	}
+
+	private async getAgentFinderBrowsePlugins(
+		predicate: (item: ICustomizationMarketplaceResource) => boolean,
+	): Promise<ICustomizationMarketplaceResource[]> {
+		const result = await this.marketplaceService.getBrowseSections?.({
+			sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
+		}, CancellationToken.None);
+		if (result?.error) {
+			throw new Error(result.error);
+		}
+
+		const matches = new Map<string, ICustomizationMarketplaceResource>();
+		for (const section of result?.sections ?? []) {
+			for (const item of section.items) {
+				if (predicate(item)) {
+					matches.set(getCustomizationMarketplaceResourceKey(item), item);
+				}
+			}
+		}
+		return [...matches.values()];
 	}
 
 	private async queryAgentFinderPlugins(
