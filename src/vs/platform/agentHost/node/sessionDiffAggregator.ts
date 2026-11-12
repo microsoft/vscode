@@ -11,7 +11,7 @@ import type { IDiffComputeService } from '../common/diffComputeService.js';
 import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionState.js';
 import { buildSessionDbUri } from '../common/sessionDbUri.js';
 import { isFileEditAcceptRecord } from './fileEditAccept.js';
-import { getFileEditPathKey, isSameFileEditPath } from './fileEditPath.js';
+import { getFileEditPathKey, getFileEditResourceKey, isSameFileEditPath, toFileEditResource } from './fileEditPath.js';
 import { computeWorkingSetFileContents } from './workingSetFileContents.js';
 
 /** The recorded changes among `records`, leaving out rows that record accepting changes. */
@@ -26,7 +26,7 @@ function getFileEditUri(diff: ISessionFileDiff): string | undefined {
 /** The key of the file that `diff` shows, which {@link getFileEditPathKey} gives for its recorded paths. */
 function getFileDiffKey(diff: ISessionFileDiff): string | undefined {
 	const uri = getFileEditUri(diff);
-	return uri === undefined ? undefined : extUriBiasedIgnorePathCase.getComparisonKey(URI.parse(uri));
+	return uri === undefined ? undefined : getFileEditResourceKey(URI.parse(uri));
 }
 
 /**
@@ -61,13 +61,13 @@ function createSessionFileDiff(beforeSessionUri: string, afterSessionUri: string
 	return {
 		...(hasBefore ? {
 			before: {
-				uri: URI.file(identity.acceptedPath ?? identity.firstFilePath).toString(),
+				uri: toFileEditResource(identity.acceptedPath ?? identity.firstFilePath).toString(),
 				content: { uri: buildSessionDbUri(beforeSessionUri, identity.firstToolCallId, identity.firstFilePath, 'before') },
 			},
 		} : {}),
 		...(hasAfter ? {
 			after: {
-				uri: URI.file(identity.terminalPath).toString(),
+				uri: toFileEditResource(identity.terminalPath).toString(),
 				content: { uri: buildSessionDbUri(afterSessionUri, identity.lastToolCallId, identity.lastFilePath, 'after') },
 			},
 		} : {}),
@@ -573,7 +573,7 @@ async function computeSingleSourceWorkingSetDiff(
 	const counts = await diffService.computeDiffCounts(beforeText, afterText);
 	const hasBefore = baseline !== undefined;
 	const hasAfter = current !== undefined;
-	const uri = URI.file(resourcePath).toString();
+	const uri = toFileEditResource(resourcePath).toString();
 	return {
 		...(hasBefore ? {
 			before: {
@@ -606,7 +606,7 @@ async function computeSingleSourceWorkingSetDiff(
  * case-sensitive elsewhere) rather than doing a naive string prefix compare.
  */
 export function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[]): boolean {
-	const fileUri = URI.file(filePath);
+	const fileUri = toFileEditResource(filePath);
 	return folderRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, root));
 }
 

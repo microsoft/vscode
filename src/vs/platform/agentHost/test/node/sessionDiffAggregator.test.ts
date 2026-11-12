@@ -1036,6 +1036,28 @@ suite('sessionDiffAggregator - path spellings', () => {
 		}, { session: expected, incremental: expected, turn: expected, workingSet: expected });
 	});
 
+	test('shows a file once, at its path without `.` segments, when an edit spells its path with them', async () => {
+		const db = new TestSessionDatabase();
+		addEdit(db, 't1', 'tc1', '/repo/./src/file.ts', 'zero', 'one');
+		addEdit(db, 't1', 'tc2', '/repo/src/file.ts', 'one', 'one\ntwo');
+		const diffService = createTestDiffService();
+		const scope = [URI.file('/repo/src')];
+		const session = await computeSessionDiffs(TEST_SESSION_URI, db, diffService, undefined, scope);
+
+		const expected = [simpleDiff('/repo/src/file.ts', 1, 0)];
+		assert.deepStrictEqual({
+			session: sorted(session),
+			incremental: sorted(await computeSessionDiffs(TEST_SESSION_URI, db, diffService, { changedTurnId: 't1', previousDiffs: [] }, scope)),
+			turn: sorted(await computeTurnDiffs(TEST_SESSION_URI, db, diffService, 't1', scope)),
+			workingSet: sorted(await computeWorkingSetDiffs([{ sessionUri: TEST_SESSION_URI, db }], diffService, scope)),
+			// Content is still read with the paths the edits recorded.
+			recordedPaths: session.map(diff => [diff.before?.uri, parseSessionDbUri(diff.before!.content.uri)?.filePath, parseSessionDbUri(diff.after!.content.uri)?.filePath]),
+		}, {
+			session: expected, incremental: expected, turn: expected, workingSet: expected,
+			recordedPaths: [[URI.file('/repo/src/file.ts').toString(), '/repo/./src/file.ts', '/repo/src/file.ts']],
+		});
+	});
+
 	test('shows a rename that only changes the case of a path as a rename', async () => {
 		const db = new TestSessionDatabase();
 		addEdit(db, 't1', 'tc1', '/repo/a.txt', 'one', 'two');

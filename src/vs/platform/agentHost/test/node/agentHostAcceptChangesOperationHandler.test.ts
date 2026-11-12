@@ -193,6 +193,22 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 		});
 	});
 
+	test('accepts a file whose edits spell its path with and without `.` segments, with the nonce of its one working set file', async () => {
+		const { db, tracked, invoke, workingSet, rows } = setup(disposables);
+		await storeEdit(db, 't1', 'tc1', URI.file('/repo/./src/file.ts'), FileEditKind.Create, undefined, 'v1');
+		await storeEdit(db, 't1', 'tc2', FILE, FileEditKind.Edit, 'v1', 'v2');
+		const shown = (await computeWorkingSetFiles(tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new TestDiffComputeService(), tracked.folderScope))
+			.map(file => ({ uri: file.diff.after?.uri, nonce: file.nonce }));
+
+		await invoke(FILE, undefined, undefined, shown[0].nonce);
+
+		assert.deepStrictEqual({ shown, workingSet: await workingSet(), rows: await rows() }, {
+			shown: [{ uri: FILE.toString(), nonce: 'tc2' }],
+			workingSet: [],
+			rows: ['tc1', 'tc2', 'accept:t1:edit'],
+		});
+	});
+
 	test('accepts a file whose rows a forked chat copied from its parent, in the session and in the fork', async () => {
 		const fork = buildChatUri(SESSION, 'fork');
 		const arrange = async () => {

@@ -10,7 +10,6 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -21,6 +20,7 @@ import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
+import { getFileEditResourceKey } from '../fileEditPath.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
@@ -238,7 +238,7 @@ export class FileEditTracker extends Disposable {
 		this._releaseEdits(edits.completed.splice(0, Math.max(completedIndex, 0)));
 		const [edit] = edits.completed.splice(0, 1);
 		this._deleteIfSettled(filePath, edits);
-		return this._completedEditSequencer.queue(extUriBiasedIgnorePathCase.getComparisonKey(this._paths.toUri(filePath)), () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel, copilotTrackingId))
+		return this._completedEditSequencer.queue(getFileEditResourceKey(this._paths.toUri(filePath)), () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, isSubagent, clientContext, chatUri, autoTierSnapshot, fusionModel, copilotTrackingId))
 			.finally(() => this._runningEdits.delete(edit.lease));
 	}
 
