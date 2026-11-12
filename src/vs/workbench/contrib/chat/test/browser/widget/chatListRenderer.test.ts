@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
+import type { IManagedHoverContentOrFactory } from '../../../../../../base/browser/ui/hover/hover.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../base/common/async.js';
@@ -47,6 +48,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -70,8 +72,10 @@ import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfir
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import type { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
 import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
@@ -126,6 +130,8 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { GitHubResourceDetailsResolver } from '../../../../github/browser/githubResourceDetails.js';
 import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatSelection, IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -3022,6 +3028,66 @@ suite('ChatListRenderer', () => {
 					inline: kinds('.rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment'),
 					links: template.value.querySelectorAll('.rendered-markdown a[data-href^="file:"]').length,
 				}, { above: ['image'], inline: ['image', 'file'], links: 0 });
+			});
+		}
+
+		for (const [inline, path, kind] of [[true, 'issues', 'issue'], [false, 'pull', 'pullRequest']] as const) {
+			test(`previews and opens the GitHub ${kind} of a request instead of editing the request (inline=${inline})`, async () => {
+				const { disposables, instantiationService, configurationService, model, request, viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+				configurationService.setUserConfiguration(ChatConfiguration.InlineAttachmentsEnabled, inline);
+				configurationService.setUserConfiguration('chat.editRequests', 'inline');
+				instantiationService.stub(IWorkbenchGitHubService, upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None }));
+				instantiationService.stub(IChatAttachmentWidgetRegistry, new ChatAttachmentWidgetRegistry());
+				const opened: string[] = [];
+				instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
+					open: async resource => {
+						opened.push(resource.toString());
+						return true;
+					},
+				}));
+				const previews = new Map<HTMLElement, IManagedHoverContentOrFactory>();
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupManagedHover: (delegate, target, content) => {
+						previews.set(target, content);
+						return NullHoverService.setupManagedHover(delegate, target, content);
+					},
+				});
+				const createHover = sinon.stub(GitHubResourceDetailsResolver.prototype, 'createHover').returns({
+					hover: { content: () => dom.$('div') },
+					pillHover: { element: () => dom.$('div') },
+					prefetch: () => { },
+				});
+				disposables.add(toDisposable(() => createHover.restore()));
+				let editRequests = 0;
+				disposables.add(renderer.onDidClickRequest(() => editRequests++));
+				request.response?.complete();
+				const link = `https://github.com/microsoft/vscode/${path}/346788`;
+				const text = `Investigate ${link}`;
+				model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] }, { variables: [...getGitHubIssueOrPullRequestAttachments(link)] }, 0);
+				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
+				const pill = template.value.querySelector<HTMLElement>('.chat-attached-context-attachment');
+				assert.ok(pill);
+
+				const preview = previews.get(pill);
+				if (typeof preview === 'function') {
+					preview();
+				}
+				pill.click();
+				pill.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				await timeout(0);
+				const reference = createHover.firstCall?.args[1];
+				assert.deepStrictEqual({
+					inline: !!pill.closest('.rendered-markdown .chat-request-inline-attachment'),
+					preview: { kind: reference?.kind, target: reference?.target },
+					opened,
+					editRequests,
+				}, {
+					inline,
+					preview: { kind, target: { owner: 'microsoft', repo: 'vscode', number: 346788 } },
+					opened: [link, link],
+					editRequests: 0,
+				});
 			});
 		}
 	});

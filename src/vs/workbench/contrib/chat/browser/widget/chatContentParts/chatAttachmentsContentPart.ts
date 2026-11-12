@@ -280,8 +280,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 			// skip workspace attachments
 			return;
 		} else {
+			// These attachments are shown rather than edited, so a GitHub issue or pull request previews its details and opens when activated.
 			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container, this.sessionResource)
-				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false, supportsReferencePreview: true }, container, this._contextResourceLabels);
 		}
 
 		let ariaLabel: string | null = null;

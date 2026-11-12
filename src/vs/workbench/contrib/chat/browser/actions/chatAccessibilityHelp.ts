@@ -246,6 +246,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 			}
 			content.push(localize('chat.attachments.removal', 'To remove attached contexts, focus an attachment and press Delete or Backspace.'));
 		}
+		content.push(localize('chat.attachments.githubRequestPills', "A GitHub issue or pull request pill in a sent request previews its details after the configured workbench hover delay when you hover over it or use Tab to focus it. Click the pill, or press Enter or Space while it is focused, to open the referenced item instead of editing the request. Escape dismisses the preview."));
 		content.push(localize('workbench.action.chat.toggleSpeechToText', 'To dictate your request into the input box, invoke the Dictate command{0}. Invoke it again to stop; recording start and stop are indicated by accessibility signals.', '<keybinding:workbench.action.chat.toggleSpeechToText>'));
 		content.push(localize('workbench.action.chat.cancelSpeechToText', 'While dictating, invoke the Cancel Dictation command{0} to stop and discard the dictated text.', '<keybinding:workbench.action.chat.cancelSpeechToText>'));
 		content.push(localize('chat.speechToText.contextMenu', 'To choose a microphone or turn off dictation or Voice Mode, focus the microphone button in the input toolbar and open its context menu{0} (for example Shift+F10).', '<keybinding:editor.action.showContextMenu>'));
