@@ -49,6 +49,7 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
 	) { }
 
 	async provideLocations(primary: URI, token: CancellationToken): Promise<IFolderLocation[]> {
@@ -66,10 +67,15 @@ export class AgentsViewFolderLocationProvider implements IWorkspaceFolderLocatio
 			if (token.isCancellationRequested) {
 				return [];
 			}
-			const gitFile = entry.isDirectory ? await this._readLink(joinPath(entry.resource, 'gitdir'), entry.resource) : undefined;
-			const location = gitFile && basename(gitFile) === '.git' ? await this._resolveLocation(primary, worktreesDir, dirname(gitFile)) : undefined;
-			if (location) {
-				locations.push(location);
+			try {
+				const gitFile = entry.isDirectory ? await this._readLink(joinPath(entry.resource, 'gitdir'), entry.resource) : undefined;
+				const location = gitFile && basename(gitFile) === '.git' ? await this._resolveLocation(primary, worktreesDir, dirname(gitFile)) : undefined;
+				if (location) {
+					locations.push(location);
+				}
+			} catch (error) {
+				// One worktree that fails to read, such as a pruned one, does not hide the others
+				this._logService.warn(`[agentsView] could not read the worktree ${entry.resource.toString()}`, error);
 			}
 		}
 		return token.isCancellationRequested ? [] : locations;
