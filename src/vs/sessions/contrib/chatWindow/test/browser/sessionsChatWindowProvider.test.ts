@@ -192,7 +192,8 @@ suite('Sessions chat window provider', () => {
 			override getSessionForChatResource(resource: URI) {
 				lookups.count++;
 				for (const session of sessions) {
-					const chat = session.chats.get().find(candidate => candidate.resource.toString() === resource.toString());
+					// A chat is also found by a previous identity of its session, such as before a migration
+					const chat = session.chats.get().find(candidate => candidate.resource.toString() === resource.toString() || (candidate as { readonly previousResource?: URI }).previousResource?.toString() === resource.toString());
 					if (chat) {
 						return { session, chat };
 					}
@@ -1396,6 +1397,16 @@ suite('Sessions chat window provider', () => {
 			afterRestore: '/main',
 			resolvedAfterRestore: '/main',
 		});
+	});
+
+	test('a stored chat by a previous identity of its session opens as the chat by its current resource, also when its window failed before resolving it, so that restoration retires the stored alias', () => {
+		const store = disposables.add(new DisposableStore());
+		const peer = Object.assign(createChat('peer'), { previousResource: URI.parse('test:/legacy-peer') });
+		const session = createSession('session', [createChat('main'), peer]);
+		const { provider } = createProvider(store, [session]);
+		const canonical = (resource: string) => provider.canonicalChatOf(URI.parse(resource))?.path;
+
+		assert.deepStrictEqual({ alias: canonical('test:/legacy-peer'), current: canonical('test:/peer'), session: canonical('test:/session') }, { alias: '/peer', current: undefined, session: '/main' });
 	});
 
 	test('chat windows that failed to open are retired once the chats their stored chats open as show, a composer whose send started its session as that session\'s main chat and a session stored as such as its main chat, and closing those does not bring them back; an unsent composer beside them stays stored', async () => {
