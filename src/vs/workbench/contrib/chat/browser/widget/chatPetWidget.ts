@@ -3025,7 +3025,7 @@ export class ChatPetWidget extends Disposable {
 				continue;
 			}
 			const element = dom.append(this._subagentLayer, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
-			const miniScale = Math.max(CHAT_PET_MIN_SUBAGENT_SCALE, 0.5 * (this._scale || 1));
+			const miniScale = 0.5 * this._scale;
 			const miniWidth = CHAT_PET_DISPLAY_SIZE * miniScale;
 			const overlayBounds = this._overlay.getBoundingClientRect();
 			const { left, top } = this._getSubagentLanding(miniWidth);
@@ -3335,6 +3335,15 @@ export class ChatPetWidget extends Disposable {
 	private _setScale(scale: number): void {
 		this._stopJumpGame('restore');
 		this._scale = scale;
+		for (const pet of this._subagentPets.values()) {
+			const previousScale = Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale'));
+			const miniScale = scale * 0.5;
+			pet.element.style.top = `${Number.parseFloat(pet.element.style.top) + CHAT_PET_DISPLAY_SIZE * (previousScale - miniScale)}px`;
+			pet.element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
+		}
+		if (this._subagentPets.size && !this._subagentResizeScheduler.isScheduled()) {
+			this._subagentResizeScheduler.schedule();
+		}
 		const displaySize = this._getDisplaySize();
 		this._button.element.style.width = `${displaySize}px`;
 		this._button.element.style.height = `${displaySize}px`;

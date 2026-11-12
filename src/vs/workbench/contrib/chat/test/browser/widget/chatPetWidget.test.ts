@@ -3326,6 +3326,11 @@ suite('ChatPetWidget', () => {
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
 		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
 		pet.classList.remove('arriving');
+		for (const scale of [1.6, 0.4, 1]) {
+			service.setScale(scale);
+			assert.strictEqual(Number.parseFloat(pet.style.getPropertyValue('--chat-pet-subagent-scale')), scale * 0.5);
+			assert.ok(Math.abs(pet.getBoundingClientRect().width - button.getBoundingClientRect().width / 2) < 0.1);
+		}
 		const body = pet.querySelector<HTMLImageElement>('img')!;
 		await whenSpriteLoaded(body);
 		setReducedMotion(true);
