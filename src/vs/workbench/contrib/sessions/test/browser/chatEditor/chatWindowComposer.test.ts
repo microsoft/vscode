@@ -470,6 +470,33 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a composer does not follow its host to another folder while it sends: from the user\'s submit, before its request is accepted, until the request ends', () => {
+		const store = disposables.add(new DisposableStore());
+		const { onDidAccept, onDidEnd, slots, createComposer } = createServices(store);
+		const composer = store.add(createComposer());
+		const { slot } = slots[0];
+		const aimsAt = () => composer.requestedTarget.get()?.folderUri?.path;
+		const retarget = (folder: string, from: string) => ({ done: composer.retargetFolder(URI.file(folder), URI.file(from)), aimsAt: aimsAt() });
+
+		// Submitted: its checks and the draft's preparation are under way, its request not accepted yet
+		const attempt = composer.input.beginSendAttempt({ inputText: 'hello', attachments: [] });
+		const beforeAccepted = retarget('/repo.worktrees/a', '/repo');
+		// Accepted: its request is under way
+		const draft = createSession('draft', { folder: '/repo' });
+		onDidAccept.fire({ session: draft, owner: slot, background: false });
+		const accepted = retarget('/repo.worktrees/a', '/repo');
+		// It did not start its session: the composer shows its draft again and follows its host again
+		onDidEnd.fire({ session: draft, owner: slot, started: false, readopted: false });
+		composer.input.endSendAttempt(attempt);
+		const afterEnded = retarget('/repo.worktrees/a', '/repo');
+
+		assert.deepStrictEqual({ beforeAccepted, accepted, afterEnded }, {
+			beforeAccepted: { done: false, aimsAt: '/repo' },
+			accepted: { done: false, aimsAt: '/repo' },
+			afterEnded: { done: true, aimsAt: '/repo.worktrees/a' },
+		});
+	});
+
 	test('the composers of chat windows are stored as the state is saved, not as their input changes, with what they aim for, their group, their input and a send that did not end; they restore as a composer with that input or with what the send sent, or as the session a send started; a discarded composer and a malformed entry are not stored', async () => {
 		const store = disposables.add(new DisposableStore());
 		const started = createSession('started', { folder: '/repo', status: constObservable(SessionStatus.Completed) });

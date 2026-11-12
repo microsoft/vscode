@@ -290,13 +290,13 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 
 	/**
 	 * Aims it at `folderUri`, such as the location the window's folder moved to, while it aims at the folder its host
-	 * aimed it at (`from`, when given): not at one the user picked, and not while a request it sent is under way.
-	 * Returns whether it does.
+	 * aimed it at (`from`, when given): not at one the user picked, and not while it sends: from the user's submit, through
+	 * the checks and preparation before its request is accepted, until that request ends. Returns whether it does.
 	 */
 	retargetFolder(folderUri: URI, from?: URI): boolean {
 		const target = this._requestedTarget.get();
 		const current = target?.folderUri;
-		if (this._sending.get() || !target || !current || !this._hostFolder || !extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder)
+		if (this.input.get().attempt || this._sending.get() || !target || !current || !this._hostFolder || !extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder)
 			|| (from && !extUriBiasedIgnorePathCase.isEqual(current, from)) || extUriBiasedIgnorePathCase.isEqual(current, folderUri)) {
 			return false;
 		}
