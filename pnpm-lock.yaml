@@ -17,7 +17,7 @@ overrides:
   '@vscode/web-editors@0.0.2-41>@vscode/hubrpc': 0.0.2-15
   '@azure/msal-node-extensions@5.3.2>keytar': file:extensions/microsoft-authentication/packageMocks/keytar
 
-packageExtensionsChecksum: sha256-hEMMTAFgGzw4mGnzRRe054b9j0b0pAas190lwXAci5s=
+packageExtensionsChecksum: sha256-Fi0Uu1fzo/M0JP2ysNyxhlBdAZhZ2MVo5UgkZMEUjek=
 
 pnpmfileChecksum: sha256-RvI1MUtrmmQk7tkmroskFwrMO+nsJ522YtxOLkd6hCs=
 
@@ -157,12 +157,18 @@ importers:
       '@xterm/xterm':
         specifier: ^6.1.0-beta.304
         version: 6.1.0-beta.304
+      buffer:
+        specifier: ^5.7.1
+        version: 5.7.1
       chrome-remote-interface:
         specifier: ^0.33.0
         version: 0.33.0
       detect-libc:
         specifier: ^2.1.2
         version: 2.1.2
+      events:
+        specifier: ^3.3.0
+        version: 3.3.0
       foundry-local-sdk:
         specifier: 2.2.1
         version: 2.2.1(patch_hash=144dc233226af4a735d3bbf7e0476ef09c2c7336c8f47d488703c483b013745e)
@@ -205,6 +211,9 @@ importers:
       playwright-core:
         specifier: 1.61.0-alpha-2026-06-04
         version: 1.61.0-alpha-2026-06-04
+      readable-stream:
+        specifier: ^3.6.0
+        version: 3.6.0
       ssh2:
         specifier: ^1.16.0
         version: 1.17.0
@@ -350,9 +359,6 @@ importers:
       asar:
         specifier: ^3.0.3
         version: 3.0.3
-      buffer:
-        specifier: ^5.7.1
-        version: 5.7.1
       c8:
         specifier: ^9.1.0
         version: 9.1.0
@@ -371,9 +377,6 @@ importers:
       event-stream:
         specifier: 3.3.4
         version: 3.3.4
-      events:
-        specifier: ^3.3.0
-        version: 3.3.0
       fancy-log:
         specifier: ^1.3.3
         version: 1.3.3
@@ -467,9 +470,6 @@ importers:
       rcedit:
         specifier: ^1.1.0
         version: 1.1.0
-      readable-stream:
-        specifier: ^3.6.0
-        version: 3.6.0
       rimraf:
         specifier: ^2.2.8
         version: 2.6.3
@@ -589,9 +589,6 @@ importers:
       minimatch:
         specifier: ^3.1.5
         version: 3.1.5
-      path-browserify:
-        specifier: ^1.0.1
-        version: 1.0.1
       vscode-grammar-updater:
         specifier: ^1.1.0
         version: 1.1.0
@@ -601,6 +598,9 @@ importers:
       jsonc-parser:
         specifier: ^3.2.0
         version: 3.2.0
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
     devDependencies:
       '@types/mocha':
         specifier: ^10.0.10
@@ -686,6 +686,9 @@ importers:
       '@sinclair/typebox':
         specifier: ^0.34.41
         version: 0.34.41
+      '@typescript/native':
+        specifier: npm:typescript@7.1.0-dev.20261105.1
+        version: typescript@7.1.0-dev.20261105.1
       '@unicode/unicode-15.0.0':
         specifier: 2.1.0
         version: 2.1.0
@@ -740,15 +743,39 @@ importers:
       minimatch:
         specifier: ^10.2.1
         version: 10.2.4
+      picomatch:
+        specifier: ^4.0.4
+        version: 4.0.4
+      shiki:
+        specifier: ~1.15.0
+        version: 1.15.2
+      tar:
+        specifier: ^7.5.16
+        version: 7.5.21
       undici:
         specifier: ^7.24.1
         version: 7.29.1
+      vscode-languageserver-protocol:
+        specifier: ^3.17.5
+        version: 3.17.5
+      vscode-languageserver-textdocument:
+        specifier: ^1.0.12
+        version: 1.0.12
+      vscode-languageserver-types:
+        specifier: ^3.17.5
+        version: 3.17.5
       vscode-tas-client:
         specifier: ^0.3.3
         version: 0.3.3
       web-tree-sitter:
         specifier: ^0.23.0
         version: 0.23.2
+      yaml:
+        specifier: ^2.8.0
+        version: 2.8.3
+      zod:
+        specifier: 3.25.76
+        version: 3.25.76
     devDependencies:
       '@azure/identity':
         specifier: 4.9.1
@@ -813,9 +840,6 @@ importers:
       '@types/yargs':
         specifier: ^17.0.24
         version: 17.0.33
-      '@typescript/native':
-        specifier: npm:typescript@7.1.0-dev.20261105.1
-        version: typescript@7.1.0-dev.20261105.1
       '@vitest/snapshot':
         specifier: ^1.5.0
         version: 1.6.1
@@ -888,9 +912,6 @@ importers:
       outdent:
         specifier: ^0.8.0
         version: 0.8.0
-      picomatch:
-        specifier: ^4.0.4
-        version: 4.0.4
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
@@ -906,18 +927,12 @@ importers:
       run-script-os:
         specifier: ^1.1.6
         version: 1.1.6
-      shiki:
-        specifier: ~1.15.0
-        version: 1.15.2
       sinon:
         specifier: ^21.0.0
         version: 21.0.1
       source-map-support:
         specifier: ^0.5.21
         version: 0.5.21
-      tar:
-        specifier: ^7.5.16
-        version: 7.5.21
       ts-dedent:
         specifier: ^2.2.0
         version: 2.2.0
@@ -936,24 +951,9 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
-      vscode-languageserver-protocol:
-        specifier: ^3.17.5
-        version: 3.17.5
-      vscode-languageserver-textdocument:
-        specifier: ^1.0.12
-        version: 1.0.12
-      vscode-languageserver-types:
-        specifier: ^3.17.5
-        version: 3.17.5
-      yaml:
-        specifier: ^2.8.0
-        version: 2.8.3
       yargs:
         specifier: ^17.7.2
         version: 17.7.2
-      zod:
-        specifier: 3.25.76
-        version: 3.25.76
 
   extensions/copilot/chat-lib:
     dependencies:
@@ -1048,6 +1048,9 @@ importers:
 
   extensions/css-language-features:
     dependencies:
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
       vscode-languageclient:
         specifier: ^10.1.1
         version: 10.1.1
@@ -1110,6 +1113,9 @@ importers:
       image-size:
         specifier: ~1.0.0
         version: 1.0.2
+      util:
+        specifier: ^0.12.4
+        version: 0.12.5
       vscode-languageserver-textdocument:
         specifier: ^1.0.1
         version: 1.0.12
@@ -1123,9 +1129,6 @@ importers:
       mocha:
         specifier: ^10.8.2
         version: 10.8.2
-      util:
-        specifier: ^0.12.4
-        version: 0.12.5
 
   extensions/extension-editing:
     dependencies:
@@ -1234,6 +1237,9 @@ importers:
       '@vscode/extension-telemetry':
         specifier: ^0.9.8
         version: 0.9.8(tslib@2.8.1)
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
       vscode-tas-client:
         specifier: ^0.1.84
         version: 0.1.84
@@ -1271,6 +1277,9 @@ importers:
       '@vscode/extension-telemetry':
         specifier: ^0.9.9
         version: 0.9.9(tslib@2.8.1)
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
       vscode-languageclient:
         specifier: ^10.1.1
         version: 10.1.1
@@ -1321,6 +1330,9 @@ importers:
       detect-indent:
         specifier: ^6.0.0
         version: 6.1.0
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
     devDependencies:
       '@jupyterlab/nbformat':
         specifier: ^3.2.9
@@ -1411,6 +1423,9 @@ importers:
       '@vscode/extension-telemetry':
         specifier: ^0.9.8
         version: 0.9.8(tslib@2.8.1)
+      '@vscode/hubrpc':
+        specifier: 0.0.2-20
+        version: 0.0.2-20(zod@4.4.3)
       '@vscode/markdown-editor':
         specifier: 0.0.2-179
         version: 0.0.2-179
@@ -1429,12 +1444,18 @@ importers:
       katex:
         specifier: ^0.16.33
         version: 0.16.47
+      lodash.throttle:
+        specifier: ^4.1.1
+        version: 4.1.1
       markdown-it:
         specifier: ^14.2.0
         version: 14.3.2
       morphdom:
         specifier: ^2.7.7
         version: 2.7.7
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
       picomatch:
         specifier: ^2.3.2
         version: 2.3.2
@@ -1453,6 +1474,9 @@ importers:
       yaml:
         specifier: ^2.8.3
         version: 2.9.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/lodash.throttle':
         specifier: ^4.1.9
@@ -1475,18 +1499,12 @@ importers:
       '@types/vscode-webview':
         specifier: ^1.57.0
         version: 1.57.0
-      '@vscode/hubrpc':
-        specifier: 0.0.2-20
-        version: 0.0.2-20(zod@4.4.3)
       '@vscode/markdown-it-katex':
         specifier: ^1.1.1
         version: 1.1.1
       json5:
         specifier: ^2.2.3
         version: 2.2.3
-      lodash.throttle:
-        specifier: ^4.1.1
-        version: 4.1.1
       mocha:
         specifier: ^10.8.2
         version: 10.8.2
@@ -1502,9 +1520,6 @@ importers:
       vscode-markdown-languageservice:
         specifier: 0.5.0
         version: 0.5.0
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
 
   extensions/markdown-language-features/test-workspace/checkbox-count-extension:
     dependencies:
@@ -1562,6 +1577,9 @@ importers:
       '@mermaid-js/mermaid-zenuml':
         specifier: ^1.0.1
         version: 1.0.1(mermaid@12.2.0)
+      '@vscode/codicons':
+        specifier: ^0.0.36
+        version: 0.0.36
       '@vscode/web-editors':
         specifier: ^0.0.2-104
         version: 0.0.2-104(zod@4.4.3)
@@ -1578,9 +1596,6 @@ importers:
       '@types/vscode-notebook-renderer':
         specifier: ^1.72.0
         version: 1.72.4
-      '@vscode/codicons':
-        specifier: ^0.0.36
-        version: 0.0.36
       '@vscode/hubrpc':
         specifier: 0.0.2-54
         version: 0.0.2-54(zod@4.4.3)
@@ -1669,6 +1684,9 @@ importers:
       minimatch:
         specifier: ^5.1.8
         version: 5.1.8
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
       request-light:
         specifier: ^0.7.0
         version: 0.7.0
@@ -1736,12 +1754,20 @@ importers:
         version: 24.12.4
 
   extensions/search-result:
+    dependencies:
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
     devDependencies:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
 
   extensions/simple-browser:
+    dependencies:
+      '@vscode/codicons':
+        specifier: ^0.0.36
+        version: 0.0.36
     devDependencies:
       '@types/node':
         specifier: 24.x
@@ -1749,9 +1775,6 @@ importers:
       '@types/vscode-webview':
         specifier: ^1.57.0
         version: 1.57.0
-      '@vscode/codicons':
-        specifier: ^0.0.36
-        version: 0.0.36
 
   extensions/terminal-suggest:
     devDependencies:
@@ -1791,6 +1814,9 @@ importers:
       jsonc-parser:
         specifier: ^3.2.0
         version: 3.2.0
+      path-browserify:
+        specifier: ^1.0.1
+        version: 1.0.1
       semver:
         specifier: 7.5.2
         version: 7.5.2
@@ -14838,6 +14864,7 @@ snapshots:
   '@microsoft/dev-tunnels-management@1.3.61':
     dependencies:
       '@microsoft/dev-tunnels-contracts': 1.3.61
+      '@microsoft/dev-tunnels-ssh': 3.12.22
       axios: 1.20.0(debug@4.4.3)
       buffer: 5.7.1
       debug: 4.4.3
@@ -16797,6 +16824,7 @@ snapshots:
       '@microsoft/fast-element': 1.14.0
       '@microsoft/fast-foundation': 2.50.0
       '@microsoft/fast-react-wrapper': 0.3.25(react@17.0.2)
+      '@microsoft/fast-web-utilities': 5.4.1
       react: 17.0.2
       tslib: 2.8.1
 
@@ -17817,6 +17845,7 @@ snapshots:
       async-hook-jl: 1.7.6
       emitter-listener: 1.1.2
       semver: 5.7.2
+      stack-chain: 1.3.7
 
   clsx@2.1.1: {}
 
@@ -18418,6 +18447,8 @@ snapshots:
 
   diagnostic-channel-publishers@1.0.8(diagnostic-channel@1.1.1):
     dependencies:
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/sdk-trace-base': 2.8.0(@opentelemetry/api@1.9.0)
       diagnostic-channel: 1.1.1
 
   diagnostic-channel@1.1.1:

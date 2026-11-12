@@ -7,6 +7,7 @@ import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import esbuild from 'esbuild';
 import { BuildLifecycle } from '../build/lib/buildEvents.ts';
+import { assertBundledPackagesDeclared, findProjectFolder } from '../build/lib/bundledPackages.ts';
 
 export interface RunConfig {
 	readonly srcDir: string;
@@ -40,6 +41,7 @@ const buildLifecycle = new BuildLifecycle(undefined, () => esbuild.stop());
 
 async function buildOnce(
 	options: esbuild.BuildOptions,
+	project: string,
 	beforeBuild?: () => Promise<unknown> | unknown,
 	didBuild?: () => Promise<unknown> | unknown,
 ): Promise<esbuild.BuildResult> {
@@ -47,7 +49,14 @@ async function buildOnce(
 	let failed = false;
 	try {
 		await beforeBuild?.();
-		const result = await esbuild.build(options);
+		const result = await esbuild.build({ ...options, metafile: true });
+		// The packaged extension doesn't install packages: what the bundles contain must be
+		// production dependencies, so that the license notices list them.
+		assertBundledPackagesDeclared(result.metafile!, {
+			workingDirectory: options.absWorkingDir ?? process.cwd(),
+			project,
+			aliases: Object.keys(options.alias ?? {}),
+		});
 		await didBuild?.();
 		return result;
 	} catch (error) {
@@ -82,10 +91,14 @@ export async function runBuild(
 		...(config.additionalOptions || {}),
 	};
 
+	// The project of the esbuild script that runs this build (in the extension's folder).
+	const project = findProjectFolder(process.argv[1] ?? path.join(config.srcDir, 'index'));
+
 	const isWatch = args.indexOf('--watch') >= 0;
 	if (isWatch) {
 		await watchWithParcel(
 			resolvedOptions,
+			project,
 			config.srcDir,
 			config.additionalWatchPaths ?? [],
 			config.beforeBuild,
@@ -93,7 +106,7 @@ export async function runBuild(
 		);
 	} else {
 		try {
-			await buildOnce(resolvedOptions, config.beforeBuild, () => didBuild?.(outdir));
+			await buildOnce(resolvedOptions, project, config.beforeBuild, () => didBuild?.(outdir));
 		} catch (error) {
 			console.error(error);
 			process.exitCode = 1;
@@ -104,6 +117,7 @@ export async function runBuild(
 // We use @parcel/watcher as it has much lower cpu usage when idle compared to esbuild's watch mode
 async function watchWithParcel(
 	options: esbuild.BuildOptions,
+	project: string,
 	srcDir: string,
 	additionalWatchPaths: readonly string[],
 	beforeBuild?: () => Promise<unknown> | unknown,
@@ -118,7 +132,7 @@ async function watchWithParcel(
 			try {
 				// Also instead of retaining the esbuild context, we are re-running the entire build on each change.
 				// This reduces memory usage since most projects don't need to be re-built often.
-				await buildOnce(options, beforeBuild, didBuild);
+				await buildOnce(options, project, beforeBuild, didBuild);
 			} catch (error) {
 				console.error('[watch] build error:', error);
 			}
