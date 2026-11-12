@@ -51,7 +51,7 @@ suite('Dev Container Agent Host Connector', () => {
 	const devContainerSamplesProperty = configurationRegistry.getConfigurationProperties()[DevContainerSamplesEnabledSettingId];
 
 	for (const sandboxEnabled of [false, true]) {
-		test(`relay reconnect retains requested sandbox options (requested: ${sandboxEnabled})`, async () => {
+		test(`relay reconnect retains requested sandbox options and reads the state volume setting again (requested: ${sandboxEnabled})`, async () => {
 			const configs: IDevContainerAgentHostConfig[] = [];
 			const events: Array<{ eventName: string; data: unknown }> = [];
 			const service = new class extends mock<IDevContainerAgentHostMainService>() {
@@ -68,6 +68,11 @@ suite('Dev Container Agent Host Connector', () => {
 				}
 				override async disconnect() { }
 			}();
+			const configuration = new TestConfigurationService({
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+			});
 			const connector = store.add(new DevContainerAgentHostConnector(
 				new class extends mock<ISharedProcessService>() {
 					override getChannel(): IChannel {
@@ -80,11 +85,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 				store.add(new TestInstantiationService()),
 				store.add(new NullLogService()),
-				new TestConfigurationService({
-					[DevContainerSamplesEnabledSettingId]: true,
-					[DevContainerAgentHostEnabledSettingId]: true,
-					[RemoteAgentHostsEnabledSettingId]: true,
-				}),
+				configuration,
 				new class extends mock<IEnvironmentService>() { }(),
 				new class extends mock<IOutputService>() {
 					override getChannel() {
@@ -109,21 +110,23 @@ suite('Dev Container Agent Host Connector', () => {
 			const first = store.add(target.transportFactory());
 			assert.ok(isClientTransport(first));
 			await first.connect();
+			// A container created on reconnect follows the current setting.
+			await configuration.setUserConfiguration(DevContainerStateVolumeEnabledSettingId, true);
 			const reconnected = store.add(target.transportFactory());
 			assert.ok(isClientTransport(reconnected));
 			await reconnected.connect();
-			const connected = { success: true, cancelled: false, stateVolume: false, sample: true, remote: false };
+			const connected = { success: true, cancelled: false, sample: true, remote: false };
 			assert.deepStrictEqual({
-				configs: configs.map(config => ({ resume: config.resume, sandboxEnabled: config.sandboxEnabled })),
+				configs: configs.map(config => ({ resume: config.resume, sandboxEnabled: config.sandboxEnabled, persistUserState: config.persistUserState })),
 				events,
 			}, {
 				configs: [
-					{ resume: true, sandboxEnabled },
-					{ resume: false, sandboxEnabled },
+					{ resume: true, sandboxEnabled, persistUserState: undefined },
+					{ resume: false, sandboxEnabled, persistUserState: true },
 				],
 				events: [
-					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: false } },
-					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: true } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: false, stateVolume: false } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: true, stateVolume: true } },
 				],
 			});
 		});

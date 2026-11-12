@@ -479,16 +479,19 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		const connectionId = generateUuid();
 		const source = sample ? { sampleId: sample.id } : { workspaceFolder: devContainerSourcePath(workspaceUri) };
 		const name = sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
-		const persistUserState = this._configurationService.getValue<boolean>(DevContainerStateVolumeEnabledSettingId) === true;
 		const connectionStore = new DisposableStore();
 		const outputWriter = connectionStore.add(new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService));
-		const connectionIds = new Set([connectionId]);
+		// Whether each connection keeps user state on a volume.
+		const connectionIds = new Map<string, boolean>();
 		const cancellationListener = token.onCancellationRequested(() => {
 			void mainService.disconnect(connectionId).catch(error => {
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
 			});
 		});
 		const connect = async (config: IDevContainerAgentHostConfig, reconnect: boolean) => {
+			// Read on every connect, so a container created on reconnect follows the current setting.
+			const persistUserState = this._configurationService.getValue<boolean>(DevContainerStateVolumeEnabledSettingId) === true;
+			connectionIds.set(config.connectionId, persistUserState);
 			const stopWatch = StopWatch.create(false);
 			const report = (success: boolean, cancelled: boolean) => this._telemetryService.publicLog2<DevContainerConnectEvent, DevContainerConnectClassification>('vscodeAgents.devContainer/connect', {
 				success,
@@ -500,7 +503,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				durationMs: stopWatch.elapsed(),
 			});
 			try {
-				const connected = await mainService.connect(config);
+				const connected = await mainService.connect(persistUserState ? { ...config, persistUserState } : config);
 				report(true, false);
 				return connected;
 			} catch (error) {
@@ -518,7 +521,8 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			}
 			if (mainService.onDidReportUserState) {
 				connectionStore.add(mainService.onDidReportUserState(event => {
-					if (connectionIds.has(event.connectionId)) {
+					const persistUserState = connectionIds.get(event.connectionId);
+					if (persistUserState !== undefined) {
 						reportDevContainerUserState(this._telemetryService, event, persistUserState, !!sample, !!sourceEntry);
 					}
 				}));
@@ -529,7 +533,6 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				name,
 				resume: options?.resume ?? true,
 				...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
-				...(persistUserState ? { persistUserState } : {}),
 			}, false);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -553,7 +556,6 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				}
 
 				const reconnectConnectionId = generateUuid();
-				connectionIds.add(reconnectConnectionId);
 				outputWriter.addConnection(reconnectConnectionId);
 				try {
 					result = await connect({
@@ -562,7 +564,6 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 						name,
 						resume: false,
 						...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
-						...(persistUserState ? { persistUserState } : {}),
 					}, true);
 					return {
 						connectionId: reconnectConnectionId,
