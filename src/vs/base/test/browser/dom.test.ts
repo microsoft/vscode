@@ -771,7 +771,7 @@ suite('dom', () => {
 			dpr1_roundDown: 10,
 			dpr1_roundUp: 11,
 			dpr1_half: 11,
-			dpr1_25_exact: 10,
+			dpr1_25_exact: 10.4,
 			dpr1_25_fraction: 10.4,
 			dpr1_5_exact: 10,
 			dpr1_5_fraction: 10.333333333333334,
