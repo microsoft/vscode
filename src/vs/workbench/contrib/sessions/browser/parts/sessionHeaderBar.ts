@@ -322,7 +322,7 @@ export class SessionHeaderBar extends Disposable {
 			this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
 
 			// The header's own drag, of its session or of its chat, can open it in a window of its own
-			if (e.target === this._container && this._session) {
+			if (e.target === this._container && this._session && !this._dragsEditor) {
 				onDidEndSessionChatDrag(e, this._container, this._session, this._actionsTargetChat ? this._activeChat?.resource : undefined, this._titlePath);
 			}
 		}));
