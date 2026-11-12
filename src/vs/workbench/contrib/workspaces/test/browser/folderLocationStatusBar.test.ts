@@ -368,9 +368,13 @@ suite('FolderLocationStatusBarContribution', () => {
 								: id === IActionWidgetService ? widget
 									: id === IWorkspaceEditingService ? { setFolderLocation: async (_p: URI, l: URI | undefined) => { calls.push(l?.toString()); } } : undefined
 				} as unknown as ServicesAccessor;
-				await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
+				const running = CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
+				// the list is not shown while the key press that opened it is still being handled
+				const shownDuringKeyPress = shownItems.length > 0;
+				await running;
 				release();
 				assert.deepStrictEqual({
+					shownDuringKeyPress,
 					anchored: shownAnchor === anchor,
 					options: shownOptions,
 					items: shownItems.map(item => ({ id: item.item.id, aria: aria!(item), icon: item.labelIcon.id, check: item.group.icon.id })),
@@ -378,6 +382,7 @@ suite('FolderLocationStatusBarContribution', () => {
 					calls,
 					focusReturnedToLabel: mainWindow.document.activeElement === label
 				}, {
+					shownDuringKeyPress: false,
 					anchored: true,
 					options: { preferredAnchorPosition: AnchorPosition.ABOVE, inlineDescription: true },
 					items: [
