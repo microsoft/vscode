@@ -108,6 +108,10 @@ function isTerminalConnectError(err: unknown): boolean {
 	return err instanceof NonReconnectableTransportError || isCancellationError(err);
 }
 
+function isAuthenticationFailureReason(reason: AgentHostTransportFailureReason | undefined): boolean {
+	return reason === AgentHostTransportFailureReason.AuthenticationFailed || reason === AgentHostTransportFailureReason.SSHAuthenticationFailed;
+}
+
 /** Builds WebSocket-backed protocol clients without performing their handshake. */
 class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostConnectionFactory {
 	readonly kind = RemoteAgentHostEntryType.WebSocket;
@@ -871,8 +875,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			observer?.('reconnecting');
 			entry.connected = false;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(reason ?? AgentHostTransportFailureReason.Unknown);
-			entry.lastConnectionError = reason === AgentHostTransportFailureReason.AuthenticationFailed
-				? localize('remoteAgentHost.authenticationFailed', "Authentication failed. Reconnect to sign in again.")
+			entry.lastConnectionError = isAuthenticationFailureReason(reason)
+				? reason === AgentHostTransportFailureReason.SSHAuthenticationFailed
+					? localize('remoteAgentHost.sshAuthenticationFailed', "SSH authentication failed. Check your username, key, or SSH agent, then reconnect.")
+					: localize('remoteAgentHost.authenticationFailed', "Authentication failed. Reconnect to sign in again.")
 				: undefined;
 			entry.client = undefined;
 			disposeEntry(entry);
@@ -881,7 +887,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// the "fatal" path — the protocol client already gave up its own
 			// soft-reconnect attempts (or it was never enabled), so we rebuild
 			// from scratch.
-			if (createdConnection.reconnectManagedByClient || reason === AgentHostTransportFailureReason.AuthenticationFailed) {
+			if (createdConnection.reconnectManagedByClient || isAuthenticationFailureReason(reason)) {
 				this._rejectPendingConnectionWait(address, new Error(entry.lastConnectionError ?? localize('remoteAgentHost.recoveryClosed', "Connection to {0} closed before recovery completed.", address)));
 				observer?.('failed');
 			} else if (!this._scheduleReconnect(address, entryToCreate.connectionToken)) {
@@ -1009,7 +1015,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
-			if (disconnectReason !== AgentHostTransportFailureReason.AuthenticationFailed) {
+			if (!isAuthenticationFailureReason(disconnectReason)) {
 				entry.lastConnectionError = attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined;
 			}
 			entry.client = undefined;
@@ -1018,7 +1024,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._rejectPendingConnectionWait(address, err);
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
-			if (disconnectReason === AgentHostTransportFailureReason.AuthenticationFailed || createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			if (isAuthenticationFailureReason(disconnectReason) || createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
 				observer?.('failed');
 			}
 		}

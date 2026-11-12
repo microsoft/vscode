@@ -1579,35 +1579,39 @@ suite('RemoteAgentHostService', () => {
 			});
 		}));
 
-		for (const scenario of ['automatic', 'manual', 'recovery'] as const) {
-			test(`rejected authentication retains its recovery guidance without retrying (${scenario})`, () => runWithFakedTimers({}, async () => {
-				const factory = createFactory();
-				const entry = cloudSandboxEntry('Environment', 'cloudsandbox:rejected-auth');
-				const address = getEntryAddress(entry);
-				const client = disposables.add(new MockProtocolClient(address));
-				if (scenario === 'recovery') {
-					await reconnectStagedConnection(factory, entry, client);
-					client.fireConnectionState('reconnecting');
-					const waiting = assert.rejects(service.waitForConnection(address), /Authentication failed/);
-					client.fireClose(AgentHostTransportFailureReason.AuthenticationFailed);
-					await waiting;
-				} else {
-					factory.stage(entry, client);
-					service.reconnect(address, scenario === 'manual');
-					const waiting = assert.rejects(service.waitForConnection(address), /Authentication failed/);
-					await waitForFactoryConnection(factory, 1);
-					client.fireClose(AgentHostTransportFailureReason.AuthenticationFailed);
-					await client.connectDeferred.error(new InitialAuthenticationError(new Error('credential rejected')));
-					await waiting;
-				}
-				await timeout(60_000);
-				assert.deepStrictEqual({ creations: factory.createdConnectionCount, status: service.connections[0].status, error: service.connections[0].lastConnectionError }, {
-					creations: 1,
-					status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.AuthenticationFailed),
-					error: 'Authentication failed. Reconnect to sign in again.',
-				});
-				service.dispose();
-			}));
+		for (const kind of [RemoteAgentHostEntryType.CloudSandbox, RemoteAgentHostEntryType.SSH]) {
+			for (const scenario of ['automatic', 'manual', 'recovery'] as const) {
+				test(`rejected agent authentication retains its recovery guidance without retrying (${kind}, ${scenario})`, () => runWithFakedTimers({}, async () => {
+					const factory = createFactory(kind);
+					const entry: IRemoteAgentHostEntry = kind === RemoteAgentHostEntryType.SSH
+						? { name: 'Machine', connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:rejected-auth', sshConfigHost: 'rejected-auth', hostName: 'machine.example' } }
+						: cloudSandboxEntry('Environment', 'cloudsandbox:rejected-auth');
+					const address = getEntryAddress(entry);
+					const client = disposables.add(new MockProtocolClient(address));
+					if (scenario === 'recovery') {
+						await reconnectStagedConnection(factory, entry, client);
+						client.fireConnectionState('reconnecting');
+						const waiting = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+						client.fireClose(AgentHostTransportFailureReason.AuthenticationFailed);
+						await waiting;
+					} else {
+						factory.stage(entry, client);
+						service.reconnect(address, scenario === 'manual');
+						const waiting = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+						await waitForFactoryConnection(factory, 1);
+						client.fireClose(AgentHostTransportFailureReason.AuthenticationFailed);
+						await client.connectDeferred.error(new InitialAuthenticationError(new Error('credential rejected')));
+						await waiting;
+					}
+					await timeout(60_000);
+					assert.deepStrictEqual({ creations: factory.createdConnectionCount, status: service.connections[0].status, error: service.connections[0].lastConnectionError }, {
+						creations: 1,
+						status: RemoteAgentHostConnectionStatus.disconnectedBecause(AgentHostTransportFailureReason.AuthenticationFailed),
+						error: 'Authentication failed. Reconnect to sign in again.',
+					});
+					service.dispose();
+				}));
+			}
 		}
 
 		for (const initiallyConnected of [false, true]) {
