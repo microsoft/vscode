@@ -8,7 +8,7 @@ import { join } from '../../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IRawFileWorkspaceFolder, toWorkspaceIdentifier, Workspace, WorkspaceFolder } from '../../common/workspace.js';
+import { getWorkspaceFolderIdentity, IRawFileWorkspaceFolder, isWorkspaceFolderAtAlternateLocation, IWorkspaceFolder, toWorkspaceIdentifier, Workspace, WorkspaceFolder } from '../../common/workspace.js';
 import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -54,6 +54,13 @@ suite('Workspace', () => {
 		assert.deepStrictEqual(
 			{ alternate: toWorkspaceIdentifier(alternate), primary: toWorkspaceIdentifier(primary), json: alternate.folders[0].toJSON().identity?.toString() },
 			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, json: mainFolderUri.toString() });
+	});
+
+	test('interface folders without an identity fall back to their uri', () => {
+		const folder: IWorkspaceFolder = { uri: test1FolderUri, name: '', index: 0, toResource: () => test1FolderUri };
+		assert.deepStrictEqual(
+			{ identity: getWorkspaceFolderIdentity(folder).toString(), alternate: isWorkspaceFolderAtAlternateLocation(folder) },
+			{ identity: test1FolderUri.toString(), alternate: false });
 	});
 
 	test('getFolder returns the closest folder if the uri is sub', () => {
