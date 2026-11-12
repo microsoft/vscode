@@ -3553,7 +3553,15 @@ export class CommandCenter {
 		}
 
 		try {
-			await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+			const createdWorktreePath = await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+
+			// Remember the location picked by the user so that it is used as the default next time
+			const worktreeRootStorageKey = `${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`;
+			const worktreeRoot = path.dirname(createdWorktreePath);
+			const lastWorktreeRoot = this.globalState.get<string>(worktreeRootStorageKey);
+			if (!lastWorktreeRoot || !pathEquals(worktreeRoot, lastWorktreeRoot)) {
+				await this.globalState.update(worktreeRootStorageKey, worktreeRoot);
+			}
 		} catch (err) {
 			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
 				await this.handleWorktreeAlreadyExists(err);
