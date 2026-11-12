@@ -160,7 +160,7 @@ export interface IAICustomizationWorkspaceService {
 
 	/**
 	 * Targets customization management at a specific session or chat resource.
-	 * Pass `undefined` to follow the focused session or new-session composer.
+	 * Pass `undefined` to follow the window's focused session, new-session composer, or workspace.
 	 */
 	setActiveSessionResource?(resource: URI | undefined): void;
 
