@@ -370,6 +370,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			);
 		},
 		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.AutomateTipEnabled}`, true),
 			IsSessionsWindowContext,
 			ChatContextKeys.enabled,
 			ChatAutomationsEnabledContext,

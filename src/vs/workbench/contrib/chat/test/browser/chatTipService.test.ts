@@ -637,10 +637,11 @@ suite('ChatTipService', () => {
 		);
 	});
 
-	test('automate tip is limited to the Agents window with chat and automations enabled', () => {
+	test('automate tip is controlled by its experiment setting and limited to the Agents window with chat and automations enabled', () => {
 		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.automate');
 		assert.ok(tip?.when);
 
+		const isEnabled = contextKeyService.createKey<boolean>(`config.${ChatConfiguration.AutomateTipEnabled}`, true);
 		const isSessionsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, false);
 		const isChatEnabled = contextKeyService.createKey<boolean>(ChatContextKeys.enabled.key, false);
 		const isAutomationsEnabled = contextKeyService.createKey<boolean>('chatAutomationsEnabled', false);
@@ -652,13 +653,17 @@ suite('ChatTipService', () => {
 		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 		isAutomationsEnabled.set(true);
 		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isEnabled.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isEnabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 		isSessionsWindow.set(false);
 		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 		isSessionsWindow.set(true);
 		isChatEnabled.set(false);
 		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 
-		assert.deepStrictEqual(eligibility, [false, false, false, true, false, false]);
+		assert.deepStrictEqual(eligibility, [false, false, false, true, false, true, false, false]);
 		assert.strictEqual(
 			tip.buildMessage({
 				keybindingService: { lookupKeybinding: () => undefined } as Partial<IKeybindingService> as IKeybindingService,
