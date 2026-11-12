@@ -86,9 +86,11 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.artifact-header-actions {
+.artifact-details-header .artifact-header-actions {
 	flex-shrink: 0;
-	flex-wrap: nowrap;
+	/* A row of actions wider than the header wraps instead of clipping trailing buttons, such as Close. */
+	max-width: 100%;
+	justify-content: flex-end;
 	gap: var(--vscode-spacing-size20);
 	margin-left: auto;
 }

@@ -1051,26 +1051,39 @@ suite('Artifact Integration Presentation', () => {
 		});
 	});
 
-	test('header actions share the title row until the title would be squeezed, then move below it', async () => {
+	test('header actions share the title row until the title would be squeezed, then move below it and wrap instead of overflowing', async () => {
 		const f = fixture();
+		// The test page does not load the codicon font, so give header glyphs their product size.
+		append(f.host, $('style')).textContent = '.artifact-header-actions .codicon { display: inline-block; width: 16px; height: 16px; }';
 		const a = f.artifact();
 		const panel = await open(f, a);
+		const measure = () => {
+			const header = panel.querySelector('.artifact-details-header')!.getBoundingClientRect();
+			const icon = panel.querySelector('.artifact-details-title-icon')!.getBoundingClientRect();
+			const title = panel.querySelector('.artifact-details-title')!.getBoundingClientRect();
+			const actions = [...panel.querySelectorAll('.artifact-header-actions .monaco-button')].map(button => button.getBoundingClientRect());
+			return {
+				count: actions.length,
+				actionsBelowTitle: actions.every(action => action.top >= title.bottom),
+				iconBesideTitle: Math.abs(icon.top - title.top) < 1,
+				actionRows: new Set(actions.map(action => Math.round(action.top))).size,
+				withinHeader: actions.every(action => action.left >= header.left - 0.5 && action.right <= header.right + 0.5),
+			};
+		};
 		const layout = [];
 		for (const width of [540, 200]) {
 			f.host.style.width = `${width}px`;
 			await settle(f);
-			const icon = panel.querySelector('.artifact-details-title-icon')!.getBoundingClientRect();
-			const title = panel.querySelector('.artifact-details-title')!.getBoundingClientRect();
-			const actions = [...panel.querySelectorAll('.artifact-header-actions .monaco-button')].map(button => button.getBoundingClientRect());
-			layout.push({
-				actionsBelowTitle: actions.every(action => action.top >= title.bottom),
-				iconBesideTitle: Math.abs(icon.top - title.top) < 1,
-				actionRows: new Set(actions.map(action => Math.round(action.top))).size,
-			});
+			layout.push(measure());
 		}
+		updateContribution(a, c => ({ ...c, view: { ...c.view, stateActions: [], generalActions: ['fix', 'reviews', 'merge'].map(id => ({ id, enabled: true })) } }));
+		f.host.style.width = '160px';
+		await settle(f);
+		layout.push(measure());
 		assert.deepStrictEqual(layout, [
-			{ actionsBelowTitle: false, iconBesideTitle: true, actionRows: 1 },
-			{ actionsBelowTitle: true, iconBesideTitle: true, actionRows: 1 },
+			{ count: 3, actionsBelowTitle: false, iconBesideTitle: true, actionRows: 1, withinHeader: true },
+			{ count: 3, actionsBelowTitle: true, iconBesideTitle: true, actionRows: 1, withinHeader: true },
+			{ count: 6, actionsBelowTitle: true, iconBesideTitle: true, actionRows: 2, withinHeader: true },
 		]);
 	});
 
