@@ -335,9 +335,9 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 		this.welcomeContainer = dom.append(container, dom.$('.customizations-marketplace-welcome-container.hide'));
 		this._register(this.instantiationService.createInstance(CustomizationMarketplaceWelcome, this.welcomeContainer, {
-			title: localize('agentPlugins.welcome.title', "Find Agent Plugins in Customizations"),
-			description: new MarkdownString(localize('agentPlugins.welcome.description', "Browse and install [agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins) from the Customizations marketplace.")),
-			buttonLabel: localize('agentPlugins.welcome.openCustomizationsButton', "Browse Agent Plugins"),
+			title: localize('agentPlugins.welcome.title', "Agent Plugins have moved"),
+			description: new MarkdownString(localize('agentPlugins.welcome.description', "Browse and manage agent plugins in Customizations")),
+			buttonLabel: localize('agentPlugins.welcome.openCustomizationsButton', "Browse"),
 			section: AICustomizationManagementSection.Plugins,
 		}));
 
@@ -699,7 +699,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 			{
 				id: InstalledAgentPluginsViewId,
 				name: localize2('agent-plugins-installed', "Agent Plugins - Installed"),
-				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{ installedOnly: true }]),
+				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{ installedOnly: true, showMarketplaceWelcome: true }]),
 				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				weight: 30,
 				order: 5,
