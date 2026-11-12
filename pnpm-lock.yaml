@@ -35,8 +35,8 @@ importers:
         specifier: 0.88.0
         version: 0.88.0
       '@github/copilot-sdk':
-        specifier: 1.0.32-preview.1
-        version: 1.0.32-preview.1
+        specifier: 1.0.32-preview.3
+        version: 1.0.32-preview.3
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -694,7 +694,7 @@ importers:
         version: 0.5.2
       '@vscode/extension-telemetry':
         specifier: ^1.5.1
-        version: 1.5.1
+        version: 1.5.1(tslib@2.8.1)
       '@vscode/l10n':
         specifier: ^0.0.18
         version: 0.0.18
@@ -830,7 +830,7 @@ importers:
         version: 2.5.2
       '@vscode/test-web':
         specifier: ^0.0.81
-        version: 0.0.81
+        version: 0.0.81(kerberos@2.1.1)
       '@vscode/vsce':
         specifier: 3.6.0
         version: 3.6.0
@@ -884,7 +884,7 @@ importers:
         version: 10.1.2
       openai:
         specifier: ^6.7.0
-        version: 6.7.0(zod@3.25.76)
+        version: 6.7.0(ws@8.21.0)(zod@3.25.76)
       outdent:
         specifier: ^0.8.0
         version: 0.8.0
@@ -989,7 +989,7 @@ importers:
         version: 0.44.0
       openai:
         specifier: ^6.7.0
-        version: 6.7.0(zod@3.25.76)
+        version: 6.7.0(ws@8.21.0)(zod@4.4.3)
       undici:
         specifier: ^7.24.1
         version: 7.29.1
@@ -1011,7 +1011,7 @@ importers:
     devDependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.82.0
-        version: 0.82.0(zod@3.25.76)
+        version: 0.82.0(zod@4.4.3)
       '@octokit/types':
         specifier: ^14.1.0
         version: 14.1.0
@@ -1041,10 +1041,10 @@ importers:
         version: '@typescript/typescript6@6.0.2'
       vite:
         specifier: ^8.0.16
-        version: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
+        version: 8.0.16(@types/node@24.13.2)(tsx@4.22.4)(yaml@2.8.3)
       vitest:
         specifier: ^4.1.8
-        version: 4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3))
+        version: 4.1.11(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(tsx@4.22.4)(yaml@2.8.3))
 
   extensions/css-language-features:
     dependencies:
@@ -1561,7 +1561,7 @@ importers:
         version: 1.0.1(mermaid@12.2.0)
       '@mermaid-js/mermaid-zenuml':
         specifier: ^1.0.1
-        version: 1.0.1(mermaid@12.2.0)
+        version: 1.0.1(mermaid@12.2.0)(playwright-core@1.61.0-alpha-2026-06-04)
       '@vscode/web-editors':
         specifier: ^0.0.2-104
         version: 0.0.2-104(zod@4.4.3)
@@ -3567,52 +3567,52 @@ packages:
     libc: [musl]
     hasBin: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.32-preview.1':
-    resolution: {integrity: sha512-uFL98qqpnFLEZBLln9r1bY4KM8aFLuN1lLv8MmV/KZzykhk+yp0UWsTSjg2GfleYKSn4JhxGyO6VkCokDtFPAQ==}
+  '@github/copilot-sdk-darwin-arm64@1.0.32-preview.3':
+    resolution: {integrity: sha512-oFG1kfYFkWo8/l9SUVboWZPvAy9Jt0SFMl3XDQtfYIcfb6M3jGm4LA66v9Vd9R11AwiKWG7HDC41qYp0ImvEOQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@github/copilot-sdk-darwin-x64@1.0.32-preview.1':
-    resolution: {integrity: sha512-/N32W3QX1FTDVFRuChJcCmlARHO16CHyNByjZw8oZpW1IF9J5i+0EUG+D7VCHsBFk74M6Efz8N5nx9GX2j0MiA==}
+  '@github/copilot-sdk-darwin-x64@1.0.32-preview.3':
+    resolution: {integrity: sha512-YmOTQVcJoN913jBeYl/Pih9uskSat0V3ueAj7fG8CO4xXVT0vd21E0/ADTYYdStXJVRIp89SmP0GrmR7WLSP/w==}
     cpu: [x64]
     os: [darwin]
 
-  '@github/copilot-sdk-linux-arm64@1.0.32-preview.1':
-    resolution: {integrity: sha512-dsSMtzEozPn8HPmtBdgOzBNJoRUmKROdlZW/J35ifuWrJd+480PXPeGE6fjjIDfCgrbIIYzBT8K/UhJMqXD5bA==}
+  '@github/copilot-sdk-linux-arm64@1.0.32-preview.3':
+    resolution: {integrity: sha512-ispivEaVev0hoGbnDv4fI6NTukTijsdSYnqeUdGIhtrL289F071Y1O7Cp0XdxnTMkvUfNWcXMFiFpttDctmbxQ==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linux-x64@1.0.32-preview.1':
-    resolution: {integrity: sha512-OQ+4EAe3640dMnYBrWrLsOLa4KQ4WBqcC9wNTVhPGx2/R0UkrHmoiOotSzX6xv3pUzCZT4kXWHhrz1eOe+/0Mg==}
+  '@github/copilot-sdk-linux-x64@1.0.32-preview.3':
+    resolution: {integrity: sha512-IxF6E1Thtv8zF6HaapZokK7mQ8oz1Zu9dBwX/mNll588iKsE2rtjPxMTL5YPrqX1ifmkvIJ4h7j2fWpXQTEcNw==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.32-preview.1':
-    resolution: {integrity: sha512-lWKTtSeMrC9rAQfup003wNYsw4/JG+3ZTAQuH5XbJhnNakmG+bR7l2KtcL4ezHJJHgYNTjJAimIYWpGTJvHv/Q==}
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.32-preview.3':
+    resolution: {integrity: sha512-mWSbThpeD5U90BJpWgY6yF3nfGYYv07BvtPwroHwzVD5mre5txmFy+sx+5UEcRTQFoCwG4TA/tjZFilkWq4KZg==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.32-preview.1':
-    resolution: {integrity: sha512-17ho52G7L3es9yiplpo01/ejju6pufhbVNqAJEIUFBteO+iX+phBXABuF9psAiffsrrTgvthSpqNo/Z2j+6/bg==}
+  '@github/copilot-sdk-linuxmusl-x64@1.0.32-preview.3':
+    resolution: {integrity: sha512-SQgxPKk5cpFKvjwA7FowRjG/d7Xeb4ygCZCmp9uOY7/vg8XgGAmwf9eeCGTczQyx3vEXbNOODRQvErORRDZP8A==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-win32-arm64@1.0.32-preview.1':
-    resolution: {integrity: sha512-rv1KdIfxV9bHXXTvhXcpqkSwQqikMRmDU8vMLsQNF7aw+cMxjZgozWYnybO8svB/bhhvK9MlxBgXfVDHPr4DxA==}
+  '@github/copilot-sdk-win32-arm64@1.0.32-preview.3':
+    resolution: {integrity: sha512-50H9GD8Pm5UwyaVZ6lPZ5kVaarr/s32xsB55RyKgOns+tXrN1YnVAnAuDorfWf+Mv087RHxiTcIKL2Om6qo/KA==}
     cpu: [arm64]
     os: [win32]
 
-  '@github/copilot-sdk-win32-x64@1.0.32-preview.1':
-    resolution: {integrity: sha512-ehwPZ2FN8AitQwiANvHNfM5BHl+EDRBu7nDeIbAp+DdrjgXzPffDzwTetQ2wfOGADr3bpFBFhRhADDsgWB6K2g==}
+  '@github/copilot-sdk-win32-x64@1.0.32-preview.3':
+    resolution: {integrity: sha512-3Ea8V39vZHqqY7+O9lYu2QbuF5PkCeoCf1tkabWQlCJ/Gf3w5/eld6NEVaTSjIZC1pbdWvVaLCwVMJBfBPPLBw==}
     cpu: [x64]
     os: [win32]
 
-  '@github/copilot-sdk@1.0.32-preview.1':
-    resolution: {integrity: sha512-tpmP2WxWYDNM5kl81dq+Nx0hPNAkAeA49BvjQV42/XezmLH5szIkp+IRL8yDzwRafIvTzAHO/WqvhxN5IKfvmw==}
+  '@github/copilot-sdk@1.0.32-preview.3':
+    resolution: {integrity: sha512-yn2vdGJmk1KSmjynvHeFl9mC4qriTaPu6G0uRpoEp9CETB1HWbmBh32A2DKl/N/8BspJ4n3i0wRf74oF0X2Onw==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@github/copilot-win32-arm64@1.0.73':
@@ -14322,45 +14322,45 @@ snapshots:
   '@github/copilot-linuxmusl-x64@1.0.73':
     optional: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.32-preview.1':
+  '@github/copilot-sdk-darwin-arm64@1.0.32-preview.3':
     optional: true
 
-  '@github/copilot-sdk-darwin-x64@1.0.32-preview.1':
+  '@github/copilot-sdk-darwin-x64@1.0.32-preview.3':
     optional: true
 
-  '@github/copilot-sdk-linux-arm64@1.0.32-preview.1':
+  '@github/copilot-sdk-linux-arm64@1.0.32-preview.3':
     optional: true
 
-  '@github/copilot-sdk-linux-x64@1.0.32-preview.1':
+  '@github/copilot-sdk-linux-x64@1.0.32-preview.3':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.32-preview.1':
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.32-preview.3':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.32-preview.1':
+  '@github/copilot-sdk-linuxmusl-x64@1.0.32-preview.3':
     optional: true
 
-  '@github/copilot-sdk-win32-arm64@1.0.32-preview.1':
+  '@github/copilot-sdk-win32-arm64@1.0.32-preview.3':
     optional: true
 
-  '@github/copilot-sdk-win32-x64@1.0.32-preview.1':
+  '@github/copilot-sdk-win32-x64@1.0.32-preview.3':
     optional: true
 
-  '@github/copilot-sdk@1.0.32-preview.1':
+  '@github/copilot-sdk@1.0.32-preview.3':
     dependencies:
       koffi: 3.2.1
       lossless-json: 4.3.3
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.32-preview.1
-      '@github/copilot-sdk-darwin-x64': 1.0.32-preview.1
-      '@github/copilot-sdk-linux-arm64': 1.0.32-preview.1
-      '@github/copilot-sdk-linux-x64': 1.0.32-preview.1
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.32-preview.1
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.32-preview.1
-      '@github/copilot-sdk-win32-arm64': 1.0.32-preview.1
-      '@github/copilot-sdk-win32-x64': 1.0.32-preview.1
+      '@github/copilot-sdk-darwin-arm64': 1.0.32-preview.3
+      '@github/copilot-sdk-darwin-x64': 1.0.32-preview.3
+      '@github/copilot-sdk-linux-arm64': 1.0.32-preview.3
+      '@github/copilot-sdk-linux-x64': 1.0.32-preview.3
+      '@github/copilot-sdk-linuxmusl-arm64': 1.0.32-preview.3
+      '@github/copilot-sdk-linuxmusl-x64': 1.0.32-preview.3
+      '@github/copilot-sdk-win32-arm64': 1.0.32-preview.3
+      '@github/copilot-sdk-win32-x64': 1.0.32-preview.3
 
   '@github/copilot-win32-arm64@1.0.73':
     optional: true
@@ -14656,9 +14656,9 @@ snapshots:
       d3: 7.9.0
       mermaid: 12.2.0
 
-  '@mermaid-js/mermaid-zenuml@1.0.1(mermaid@12.2.0)':
+  '@mermaid-js/mermaid-zenuml@1.0.1(mermaid@12.2.0)(playwright-core@1.61.0-alpha-2026-06-04)':
     dependencies:
-      '@zenuml/core': 3.50.1
+      '@zenuml/core': 3.50.1(playwright-core@1.61.0-alpha-2026-06-04)
       mermaid: 12.2.0
     transitivePeerDependencies:
       - '@babel/core'
@@ -14679,9 +14679,9 @@ snapshots:
     transitivePeerDependencies:
       - tslib
 
-  '@microsoft/1ds-core-js@4.3.10':
+  '@microsoft/1ds-core-js@4.3.10(tslib@2.8.1)':
     dependencies:
-      '@microsoft/applicationinsights-core-js': 3.3.10
+      '@microsoft/applicationinsights-core-js': 3.3.10(tslib@2.8.1)
       '@microsoft/applicationinsights-shims': 3.0.1
       '@microsoft/dynamicproto-js': 2.0.3
       '@nevware21/ts-async': 0.5.4
@@ -14707,9 +14707,9 @@ snapshots:
     transitivePeerDependencies:
       - tslib
 
-  '@microsoft/1ds-post-js@4.3.10':
+  '@microsoft/1ds-post-js@4.3.10(tslib@2.8.1)':
     dependencies:
-      '@microsoft/1ds-core-js': 4.3.10
+      '@microsoft/1ds-core-js': 4.3.10(tslib@2.8.1)
       '@microsoft/applicationinsights-shims': 3.0.1
       '@microsoft/dynamicproto-js': 2.0.3
       '@nevware21/ts-async': 0.5.4
@@ -14727,14 +14727,15 @@ snapshots:
     transitivePeerDependencies:
       - tslib
 
-  '@microsoft/applicationinsights-channel-js@3.3.10':
+  '@microsoft/applicationinsights-channel-js@3.3.10(tslib@2.8.1)':
     dependencies:
-      '@microsoft/applicationinsights-common': 3.3.10
-      '@microsoft/applicationinsights-core-js': 3.3.10
+      '@microsoft/applicationinsights-common': 3.3.10(tslib@2.8.1)
+      '@microsoft/applicationinsights-core-js': 3.3.10(tslib@2.8.1)
       '@microsoft/applicationinsights-shims': 3.0.1
       '@microsoft/dynamicproto-js': 2.0.3
       '@nevware21/ts-async': 0.5.4
       '@nevware21/ts-utils': 0.14.0
+      tslib: 2.8.1
 
   '@microsoft/applicationinsights-channel-js@3.3.4(tslib@2.8.1)':
     dependencies:
@@ -14746,12 +14747,13 @@ snapshots:
       '@nevware21/ts-utils': 0.14.0
       tslib: 2.8.1
 
-  '@microsoft/applicationinsights-common@3.3.10':
+  '@microsoft/applicationinsights-common@3.3.10(tslib@2.8.1)':
     dependencies:
-      '@microsoft/applicationinsights-core-js': 3.3.10
+      '@microsoft/applicationinsights-core-js': 3.3.10(tslib@2.8.1)
       '@microsoft/applicationinsights-shims': 3.0.1
       '@microsoft/dynamicproto-js': 2.0.3
       '@nevware21/ts-utils': 0.14.0
+      tslib: 2.8.1
 
   '@microsoft/applicationinsights-common@3.3.4(tslib@2.8.1)':
     dependencies:
@@ -14767,12 +14769,13 @@ snapshots:
       '@microsoft/dynamicproto-js': 1.1.9
       tslib: 2.8.1
 
-  '@microsoft/applicationinsights-core-js@3.3.10':
+  '@microsoft/applicationinsights-core-js@3.3.10(tslib@2.8.1)':
     dependencies:
       '@microsoft/applicationinsights-shims': 3.0.1
       '@microsoft/dynamicproto-js': 2.0.3
       '@nevware21/ts-async': 0.5.4
       '@nevware21/ts-utils': 0.14.0
+      tslib: 2.8.1
 
   '@microsoft/applicationinsights-core-js@3.3.4(tslib@2.8.1)':
     dependencies:
@@ -14788,15 +14791,16 @@ snapshots:
     dependencies:
       '@nevware21/ts-utils': 0.14.0
 
-  '@microsoft/applicationinsights-web-basic@3.3.10':
+  '@microsoft/applicationinsights-web-basic@3.3.10(tslib@2.8.1)':
     dependencies:
-      '@microsoft/applicationinsights-channel-js': 3.3.10
-      '@microsoft/applicationinsights-common': 3.3.10
-      '@microsoft/applicationinsights-core-js': 3.3.10
+      '@microsoft/applicationinsights-channel-js': 3.3.10(tslib@2.8.1)
+      '@microsoft/applicationinsights-common': 3.3.10(tslib@2.8.1)
+      '@microsoft/applicationinsights-core-js': 3.3.10(tslib@2.8.1)
       '@microsoft/applicationinsights-shims': 3.0.1
       '@microsoft/dynamicproto-js': 2.0.3
       '@nevware21/ts-async': 0.5.4
       '@nevware21/ts-utils': 0.14.0
+      tslib: 2.8.1
 
   '@microsoft/applicationinsights-web-basic@3.3.4(tslib@2.8.1)':
     dependencies:
@@ -14913,7 +14917,7 @@ snapshots:
     dependencies:
       '@hono/node-server': 1.19.17(hono@4.13.13)
       ajv: 8.18.0
-      ajv-formats: 3.0.1(ajv@8.18.0)
+      ajv-formats: 3.0.1
       content-type: 1.0.5
       cors: 2.8.6
       cross-spawn: 7.0.6
@@ -16236,6 +16240,14 @@ snapshots:
     optionalDependencies:
       vite: 8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)
 
+  '@vitest/mocker@4.1.11(vite@8.0.16(@types/node@24.13.2)(tsx@4.22.4)(yaml@2.8.3))':
+    dependencies:
+      '@vitest/spy': 4.1.11
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 8.0.16(@types/node@24.13.2)(tsx@4.22.4)(yaml@2.8.3)
+
   '@vitest/pretty-format@4.1.11':
     dependencies:
       tinyrainbow: 3.1.0
@@ -16339,12 +16351,12 @@ snapshots:
     transitivePeerDependencies:
       - tslib
 
-  '@vscode/extension-telemetry@1.5.1':
+  '@vscode/extension-telemetry@1.5.1(tslib@2.8.1)':
     dependencies:
-      '@microsoft/1ds-core-js': 4.3.10
-      '@microsoft/1ds-post-js': 4.3.10
-      '@microsoft/applicationinsights-common': 3.3.10
-      '@microsoft/applicationinsights-web-basic': 3.3.10
+      '@microsoft/1ds-core-js': 4.3.10(tslib@2.8.1)
+      '@microsoft/1ds-post-js': 4.3.10(tslib@2.8.1)
+      '@microsoft/applicationinsights-common': 3.3.10(tslib@2.8.1)
+      '@microsoft/applicationinsights-web-basic': 3.3.10(tslib@2.8.1)
     transitivePeerDependencies:
       - tslib
 
@@ -16622,30 +16634,6 @@ snapshots:
       ora: 8.2.0
       semver: 7.7.4
     transitivePeerDependencies:
-      - supports-color
-
-  '@vscode/test-web@0.0.81':
-    dependencies:
-      '@koa/cors': 5.0.0
-      '@koa/router': 15.6.0(koa@3.2.1)
-      '@playwright/browser-chromium': 1.61.1
-      gunzip-maybe: 1.4.2
-      http-proxy-agent: 9.1.0
-      https-proxy-agent: 9.1.0
-      koa: 3.2.1
-      koa-morgan: 1.0.1
-      koa-mount: 4.2.0
-      koa-static: 5.0.0
-      minimist: 1.2.8
-      playwright: 1.61.1
-      tar-fs: 3.1.3
-      tinyglobby: 0.2.17
-      vscode-uri: 3.1.0
-    transitivePeerDependencies:
-      - bare-abort-controller
-      - bare-buffer
-      - kerberos
-      - react-native-b4a
       - supports-color
 
   '@vscode/test-web@0.0.81(kerberos@2.1.1)':
@@ -16953,7 +16941,7 @@ snapshots:
 
   '@xtuc/long@4.2.2': {}
 
-  '@zenuml/core@3.50.1':
+  '@zenuml/core@3.50.1(playwright-core@1.61.0-alpha-2026-06-04)':
     dependencies:
       '@floating-ui/react': 0.27.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@headlessui/react': 2.2.10(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -16972,6 +16960,7 @@ snapshots:
       tailwind-merge: 3.6.0
     optionalDependencies:
       '@napi-rs/canvas': 0.1.100
+      playwright-core: 1.61.0-alpha-2026-06-04
     transitivePeerDependencies:
       - '@babel/core'
       - '@babel/template'
@@ -17026,10 +17015,6 @@ snapshots:
 
   ajv-formats@3.0.1:
     dependencies:
-      ajv: 8.18.0
-
-  ajv-formats@3.0.1(ajv@8.18.0):
-    optionalDependencies:
       ajv: 8.18.0
 
   ajv-keywords@3.5.2(ajv@6.14.0):
@@ -19717,15 +19702,6 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  http-proxy-agent@9.1.0:
-    dependencies:
-      agent-base: 9.0.0
-      debug: 4.4.3
-      proxy-agent-negotiate: 1.1.0
-    transitivePeerDependencies:
-      - kerberos
-      - supports-color
-
   http-proxy-agent@9.1.0(kerberos@2.1.1):
     dependencies:
       agent-base: 9.0.0
@@ -19752,15 +19728,6 @@ snapshots:
       agent-base: 7.1.4
       debug: 4.4.3
     transitivePeerDependencies:
-      - supports-color
-
-  https-proxy-agent@9.1.0:
-    dependencies:
-      agent-base: 9.0.0
-      debug: 4.4.3
-      proxy-agent-negotiate: 1.1.0
-    transitivePeerDependencies:
-      - kerberos
       - supports-color
 
   https-proxy-agent@9.1.0(kerberos@2.1.1):
@@ -21529,9 +21496,15 @@ snapshots:
       is-inside-container: 1.0.0
       is-wsl: 3.1.0
 
-  openai@6.7.0(zod@3.25.76):
+  openai@6.7.0(ws@8.21.0)(zod@3.25.76):
     optionalDependencies:
+      ws: 8.21.0
       zod: 3.25.76
+
+  openai@6.7.0(ws@8.21.0)(zod@4.4.3):
+    optionalDependencies:
+      ws: 8.21.0
+      zod: 4.4.3
 
   opentype.js@2.0.0: {}
 
@@ -21990,8 +21963,6 @@ snapshots:
     dependencies:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
-
-  proxy-agent-negotiate@1.1.0: {}
 
   proxy-agent-negotiate@1.1.0(kerberos@2.1.1):
     optionalDependencies:
@@ -23677,6 +23648,19 @@ snapshots:
       tsx: 4.22.4
       yaml: 2.8.3
 
+  vite@8.0.16(@types/node@24.13.2)(tsx@4.22.4)(yaml@2.8.3):
+    dependencies:
+      lightningcss: 1.32.0
+      picomatch: 4.0.4
+      postcss: 8.5.26
+      rolldown: 1.0.3
+      tinyglobby: 0.2.17
+    optionalDependencies:
+      '@types/node': 24.13.2
+      fsevents: 2.3.3
+      tsx: 4.22.4
+      yaml: 2.8.3
+
   vitest@4.1.11(@opentelemetry/api@1.9.0)(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(esbuild@0.28.1)(tsx@4.22.4)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.11
@@ -23701,6 +23685,33 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
+      '@types/node': 24.13.2
+    transitivePeerDependencies:
+      - msw
+
+  vitest@4.1.11(@types/node@24.13.2)(vite@8.0.16(@types/node@24.13.2)(tsx@4.22.4)(yaml@2.8.3)):
+    dependencies:
+      '@vitest/expect': 4.1.11
+      '@vitest/mocker': 4.1.11(vite@8.0.16(@types/node@24.13.2)(tsx@4.22.4)(yaml@2.8.3))
+      '@vitest/pretty-format': 4.1.11
+      '@vitest/runner': 4.1.11
+      '@vitest/snapshot': 4.1.11
+      '@vitest/spy': 4.1.11
+      '@vitest/utils': 4.1.11
+      es-module-lexer: 2.1.0
+      expect-type: 1.3.0
+      magic-string: 0.30.21
+      obug: 2.1.3
+      pathe: 2.0.3
+      picomatch: 4.0.4
+      std-env: 4.1.0
+      tinybench: 2.9.0
+      tinyexec: 1.2.4
+      tinyglobby: 0.2.17
+      tinyrainbow: 3.1.0
+      vite: 8.0.16(@types/node@24.13.2)(tsx@4.22.4)(yaml@2.8.3)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
       '@types/node': 24.13.2
     transitivePeerDependencies:
       - msw
