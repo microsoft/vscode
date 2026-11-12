@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { Severity } from '../../../../../platform/notification/common/notification.js';
@@ -30,6 +31,15 @@ export class BrowserPromptFeature extends BrowserEditorContribution {
 	}
 
 	private async _showPrompt(model: IBrowserViewModel, request: IBrowserViewPromptRequestEvent): Promise<void> {
+		const cts = new CancellationTokenSource();
+		const cleanup = new DisposableStore();
+		cleanup.add(cts);
+		cleanup.add(model.onDidSettlePrompt(requestId => {
+			if (requestId === request.requestId) {
+				cts.cancel();
+				cleanup.dispose();
+			}
+		}));
 		let value: string | null = null;
 		try {
 			const result = await this._dialogService.input({
@@ -37,9 +47,11 @@ export class BrowserPromptFeature extends BrowserEditorContribution {
 				message: localize('browser.prompt.title', "{0} says", displayOrigin(request.origin)),
 				detail: request.message,
 				inputs: [{ type: 'text', value: request.defaultValue }],
+				token: cts.token,
 			});
 			value = result.confirmed ? (result.values?.[0] ?? '') : null;
 		} finally {
+			cleanup.dispose();
 			void model.respondToPrompt(request.requestId, value);
 		}
 	}

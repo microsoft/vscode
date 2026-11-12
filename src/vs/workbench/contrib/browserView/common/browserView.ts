@@ -579,6 +579,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent>;
 	readonly onDidRequestPrompt: Event<IBrowserViewPromptRequestEvent>;
+	readonly onDidSettlePrompt: Event<string>;
 	readonly onDidRequestOpenExternal: Event<string>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
@@ -637,6 +638,7 @@ export function createBrowserViewEventEmitters(store: DisposableStore): BrowserV
 		onDidRemoveElementComment: store.add(new Emitter<BrowserViewEventData['onDidRemoveElementComment']>()),
 		onDidRequestPermission: store.add(new Emitter<BrowserViewEventData['onDidRequestPermission']>()),
 		onDidRequestPrompt: store.add(new Emitter<BrowserViewEventData['onDidRequestPrompt']>()),
+		onDidSettlePrompt: store.add(new Emitter<BrowserViewEventData['onDidSettlePrompt']>()),
 		onDidRequestOpenExternal: store.add(new Emitter<BrowserViewEventData['onDidRequestOpenExternal']>()),
 		onDidSelectElement: store.add(new Emitter<BrowserViewEventData['onDidSelectElement']>()),
 	};
@@ -687,6 +689,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get onDidPickArea() { return this._remoteEvents.onDidPickArea.event; }
 	get onDidChangeAreaSelectionActive() { return this._remoteEvents.onDidChangeAreaSelectionActive.event; }
 	get onDidRequestPermission() { return this._remoteEvents.onDidRequestPermission.event; }
+	get onDidSettlePrompt() { return this._remoteEvents.onDidSettlePrompt.event; }
 	get onDidRequestOpenExternal() { return this._remoteEvents.onDidRequestOpenExternal.event; }
 
 	private readonly _onDidRequestPrompt = this._register(new Emitter<IBrowserViewPromptRequestEvent>());

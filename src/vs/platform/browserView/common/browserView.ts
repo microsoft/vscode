@@ -615,6 +615,7 @@ export interface BrowserViewEventData {
 	onDidChangeAudiences: IBrowserViewAudience[];
 	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
 	onDidRequestPrompt: IBrowserViewPromptRequestEvent;
+	onDidSettlePrompt: string;
 	onDidChangePermissions: ISerializedBrowserPermissionsSnapshot;
 	onDidRequestOpenExternal: string;
 }

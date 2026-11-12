@@ -539,6 +539,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			onDidChangeAudiences: view.onDidChangeAudiences,
 			onDidRequestPermission: view.onDidRequestPermission,
 			onDidRequestPrompt: view.onDidRequestPrompt,
+			onDidSettlePrompt: view.onDidSettlePrompt,
 			onDidChangePermissions: view.onDidChangePermissions,
 			onDidRequestOpenExternal: view.onDidRequestOpenExternal,
 		};
