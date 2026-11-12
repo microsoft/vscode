@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SESSION_WORKTREE_ICON } from '../../common/sessionWorktreeIcon.js';
 import { SessionInlineActions } from './sessionInlineActions.js';
 import '../media/sessionsList.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
@@ -489,7 +488,7 @@ function getSessionSectionIcon(sectionId: string, sessions: readonly ISession[] 
 		default:
 			if (sectionId.startsWith(WORKTREE_SECTION_PREFIX)) {
 				// A worktree shows the icon of the new-session isolation picker's Branch option; a main checkout, a folder's.
-				return isWorktreeSection(sessions) ? SESSION_WORKTREE_ICON : Codicon.folder;
+				return isWorktreeSection(sessions) ? Codicon.gitBranchCheckout : Codicon.folder;
 			}
 			if (sectionId.startsWith(ENVIRONMENT_SECTION_PREFIX)) {
 				return sectionId === `${ENVIRONMENT_SECTION_PREFIX}local` ? Codicon.deviceDesktop
