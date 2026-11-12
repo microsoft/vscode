@@ -30,8 +30,8 @@ import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_
 
 function identityFake(getWorkspace: () => Workspace) {
 	return {
-	isAtAlternateLocation: () => { const workspace = getWorkspace(); return workspace.identity?.toString() !== workspace.folders[0].uri.toString(); },
-	getLocationText: (location: Pick<IFolderLocation, 'label' | 'description'>) => location.description ? `${location.label} · ${location.description}` : location.label,
+		isAtAlternateLocation: () => { const workspace = getWorkspace(); return workspace.identity?.toString() !== workspace.folders[0].uri.toString(); },
+		getLocationText: (location: Pick<IFolderLocation, 'label' | 'description'>) => location.description ? `${location.label} · ${location.description}` : location.label,
 	};
 }
 

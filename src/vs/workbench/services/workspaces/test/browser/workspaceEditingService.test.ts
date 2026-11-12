@@ -186,8 +186,10 @@ suite('WorkspaceEditingService', () => {
 			));
 			return {
 				service, primary, alt, trustInfo,
-				changeWorkspace: () => { folders = [{ uri: URI.file('/work/other') }];
-					identity = URI.file('/work/other'); },
+				changeWorkspace: () => {
+					folders = [{ uri: URI.file('/work/other') }];
+					identity = URI.file('/work/other');
+				},
 				state: () => ({ trusted: trusted.map(u => u.toString()), switched: switched.map(u => u?.toString()), currentLocations: currentLocations.length })
 			};
 		}
