@@ -13,10 +13,12 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getWindowHost, IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { getChatWindowOfHost, revealEditorsOfHost } from '../../../../workbench/contrib/sessionChanges/browser/chatWindowEditorTarget.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 interface ISessionTransientTurnChanges {
@@ -41,6 +43,7 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 		@ISessionsHostLayoutService private readonly _layoutService: ISessionsHostLayoutService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 	) {
 		super();
 	}
@@ -194,13 +197,18 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 	}
 
 	private async _openSessionTurnChanges(session: ISession, chat: IChat, transientTurn?: ISessionTransientTurnChanges): Promise<void> {
+		const chatHost = this._sessionHostService.getHostOfChat(chat.resource);
+		// A chat a chat window shows is already shown there; the main window, which may be the focused host, stays as it is.
+		const inChatWindow = !!getChatWindowOfHost(this._chatWindowService, chatHost);
 		const activeSession = this._focusedSessionHostService.focusedHost.get().session.get();
-		if (!transientTurn && (!activeSession || !isEqual(activeSession.resource, session.resource) || !isEqual(this._focusedSessionHostService.focusedHost.get().chat.get()?.resource, chat.resource))) {
+		if (inChatWindow) {
+			// Nothing to activate.
+		} else if (!transientTurn && (!activeSession || !isEqual(activeSession.resource, session.resource) || !isEqual(this._focusedSessionHostService.focusedHost.get().chat.get()?.resource, chat.resource))) {
 			await this._sessionsService.openChat(session, chat.resource, { preserveFocus: true });
 		} else if (!isEqual(activeSession?.resource, session.resource)) {
 			this._sessionsService.showSession(session.resource, { preserveFocus: true });
 		}
-		this._layoutService.revealEditorPartExplicitly();
+		const chatWindow = revealEditorsOfHost(this._layoutService, this._chatWindowService, chatHost);
 		const changesetSelection: ISessionChangesEditorOptions['changesetSelection'] = transientTurn
 			? {
 				kind: 'transient',
@@ -221,10 +229,9 @@ export class SessionsChatResponseFileChangesService extends AbstractChatResponse
 				} satisfies ISessionChangeset,
 			}
 			: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID };
-		const chatHost = this._sessionHostService.getHostOfChat(chat.resource);
 		await this._sessionChangesService.openChangesEditor(session.resource, {
 			changesetSelection,
-			chatResource: chatHost && getWindowHost(chatHost).kind === SessionHostKind.ChatWindow ? chat.resource : undefined,
-		});
+			chatResource: chatWindow ? chat.resource : undefined,
+		}, chatWindow?.mainPart.activeGroup);
 	}
 }
