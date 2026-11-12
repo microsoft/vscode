@@ -588,6 +588,43 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	}
 
+	for (const host of ['rich', 'older'] as const) {
+		test(`lists the default branch first when creating a branch from ${host} host sources`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('feature', 'folder');
+			services.workspaceObs.set(makeWorkspace(undefined, 'feature', 'origin/feature', undefined, { name: 'main', remoteName: 'origin/main' }), undefined);
+			if (host === 'rich') {
+				services.provider.branchCreationSources = [
+					{ value: 'HEAD', label: 'HEAD (feature, abc1234)' },
+					{ value: 'refs/heads/feature', label: 'feature' },
+					{ value: 'refs/heads/main', label: 'main' },
+					{ value: 'refs/remotes/origin/feature', label: 'origin/feature' },
+					{ value: 'refs/remotes/origin/main', label: 'origin/main' },
+					{ value: 'refs/tags/v1', label: 'v1' },
+				];
+			} else {
+				services.provider.branchCreationSources = [];
+				services.provider.completions = ['feature', 'main'].map(value => ({ value, label: value }));
+			}
+			let rows: (string | undefined)[] = [];
+			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> & { canPickMany: true }): Promise<T[] | undefined>;
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
+				override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[]): Promise<T | T[] | undefined> {
+					rows = (await picks).map(item => item.type === 'separator' ? `--- ${item.label}` : item.label);
+					return undefined;
+				}
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			assert.deepStrictEqual(rows, host === 'rich'
+				? ['--- Default Branch', 'origin/main', 'main', '--- Current Branch', 'HEAD (feature, abc1234)', '--- Branches', 'feature', '--- Remote Branches', 'origin/feature', '--- Tags', 'v1']
+				: ['--- Default Branch', 'main', '--- Current Branch', 'HEAD (Commit Details Unavailable)', '--- Branches', 'feature']);
+		});
+	}
+
 	test('renders branch source names and commit details separately from their icons in Quick Pick', async () => {
 		const services = setupServices(store, { createBranchSupported: true });
 		services.provider.config = makeDynamicBranchConfig('main', 'folder');

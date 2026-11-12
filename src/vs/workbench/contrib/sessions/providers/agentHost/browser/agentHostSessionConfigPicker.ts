@@ -246,12 +246,33 @@ function toCreateBranchSourceItem(source: SessionConfigValueItem): CreateBranchS
 }
 
 /**
- * Builds the starting points for Create New Branch From..., with HEAD first,
- * then local branches, remote branches, and tags under separate headings.
+ * Builds the starting points for Create New Branch From.... The repository's default
+ * branch comes first (its remote-tracking branch, then its local branch), followed by
+ * HEAD, then local branches, remote branches, and tags under separate headings.
  */
-function getCreateBranchSourceItems(head: SessionConfigValueItem, sources: readonly SessionConfigValueItem[]): QuickPickInput<CreateBranchSourceItem>[] {
-	const items: QuickPickInput<CreateBranchSourceItem>[] = [toCreateBranchSourceItem(head)];
-	const otherSources = sources.filter(source => source.value !== 'HEAD');
+function getCreateBranchSourceItems(head: SessionConfigValueItem, sources: readonly SessionConfigValueItem[], defaultBranchName: string | undefined, defaultRemoteBranchName: string | undefined): QuickPickInput<CreateBranchSourceItem>[] {
+	const defaultValues = [
+		defaultRemoteBranchName && `refs/remotes/${defaultRemoteBranchName}`,
+		defaultBranchName && `refs/heads/${defaultBranchName}`,
+		// Older hosts provide ordinary completions, which name local branches without a ref prefix.
+		defaultBranchName,
+	];
+	const defaultSources: SessionConfigValueItem[] = [];
+	for (const value of defaultValues) {
+		const source = value ? sources.find(candidate => candidate.value === value) : undefined;
+		if (source) {
+			defaultSources.push(source);
+		}
+	}
+	const items: QuickPickInput<CreateBranchSourceItem>[] = defaultSources.length
+		? [
+			{ type: 'separator', label: localize('agentHostSessionConfig.defaultBranchGroup', "Default Branch") },
+			...defaultSources.map(toCreateBranchSourceItem),
+			{ type: 'separator', label: localize('agentHostSessionConfig.currentBranchGroup', "Current Branch") },
+			toCreateBranchSourceItem(head),
+		]
+		: [toCreateBranchSourceItem(head)];
+	const otherSources = sources.filter(source => source.value !== 'HEAD' && !defaultSources.includes(source));
 	for (const [label, group] of [
 		[localize('agentHostSessionConfig.createBranch.localBranches', "Branches"), otherSources.filter(source => !source.value.startsWith('refs/remotes/') && !source.value.startsWith('refs/tags/'))],
 		[localize('agentHostSessionConfig.createBranch.remoteBranches', "Remote Branches"), otherSources.filter(source => source.value.startsWith('refs/remotes/'))],
@@ -1192,7 +1213,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			let sourceLabel = head.label;
 			if (from) {
 				// Rich sources include remote branches and tags; older hosts provide only ordinary completions.
-				const items = getCreateBranchSourceItems(head, sourceDetails?.length ? sourceDetails : branches);
+				const { defaultBranchName, defaultRemoteBranchName } = this._getRepositoryBranchState(sessionId);
+				const items = getCreateBranchSourceItems(head, sourceDetails?.length ? sourceDetails : branches, defaultBranchName, defaultRemoteBranchName);
 				const sourcePromise = this._quickInputService.pick(items, {
 					value: loadingValue,
 					placeHolder: localize('agentHostSessionConfig.createBranch.selectSource', "Select a branch or tag to create the new branch from"),
