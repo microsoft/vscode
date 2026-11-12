@@ -215,6 +215,27 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('a header that drags the editor of its chat carries the session and its chat from anywhere but its toolbar, which keeps the mouse', () => {
+		const { header, session, mainChat } = createHarness(disposables);
+		header.setDragsEditor(true);
+		const titleActions = header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')!;
+
+		const fromToolbar = simulateDragFrom(header, titleActions);
+		const fromHeader = simulateDragFrom(header, header.element);
+
+		assert.deepStrictEqual({
+			toolbarPrevented: fromToolbar.defaultPrevented,
+			headerPrevented: fromHeader.defaultPrevented,
+			session: JSON.parse(fromHeader.dataTransfer!.getData(SessionsDataTransfers.SESSION) || '{}').sessionId,
+			chat: getSessionChatDragData(fromHeader),
+		}, {
+			toolbarPrevented: true,
+			headerPrevented: false,
+			session: session.sessionId,
+			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
+		});
+	});
+
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 

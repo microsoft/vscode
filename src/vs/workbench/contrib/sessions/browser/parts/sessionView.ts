@@ -133,9 +133,6 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 	private readonly _headerHeight = observableValue<number>(this, 0);
 
 
-	/** The title of the session header. */
-	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
-
 	/**
 	 * The services of its own scope, which what it shows is created with: disposed after it, as what disposes may still
 	 * use them, such as a composer whose input clears as it goes away; see {@link dispose}.
