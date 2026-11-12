@@ -1276,6 +1276,14 @@ suite('Artifact Integrations', () => {
 		});
 	}));
 
+	test('prompt presentation carries how the action describes itself while it runs', () => run(async store => {
+		const f = fixture(store, { id: 'act', label: 'Analyse', iconId: 'graph', activityLabel: 'Analysing', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Analyse' } }) });
+		const model = store.add(await f.service.acquireArtifact('session', artifact.id)).object;
+		const requested = await model.invoke('test', 'act', 'invoking-chat', 'manual');
+		await waitForState(f.service.ledger.state, state => state.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+		assert.deepStrictEqual(f.submitted[0].presentation?.action, { label: 'Analyse', iconId: 'graph', activityLabel: 'Analysing' });
+	}));
+
 	test('prompt-supplied details replace the linked details in the presentation and are not part of the prompt', () => run(async store => {
 		const promptDetails = {
 			title: 'Failing', availability: { kind: 'available' as const }, links: [{ kind: 'action' as const, actionId: 'act' }],
