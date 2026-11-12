@@ -625,11 +625,13 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 		const detailsId = data.contribution.view.main?.detailsId;
 		const expectedDetails = detailsId ? data.details[detailsId] : undefined;
 		const availability = data.contribution.view.availability;
-		const expectedTitle = availability.kind === 'authenticationRequired' ? data.artifact.label : expectedDetails?.title;
-		const expectedContent = availability.kind === 'authenticationRequired' ? [availability.reason, 'Sign In'] : expectedDetails ? [expectedDetails.title] : undefined;
+		const authenticationRequired = availability.kind === 'authenticationRequired';
+		const expectedTitle = authenticationRequired ? data.artifact.label : expectedDetails?.title;
+		const expectedContent = authenticationRequired ? [availability.reason] : expectedDetails ? [expectedDetails.title] : undefined;
 		const panel = container.querySelector('.artifact-integration-panel');
 		if (!expectedTitle || !expectedContent || panel?.querySelector('h2')?.textContent !== expectedTitle
-			|| expectedContent.some(text => !panel.textContent?.includes(text))) {
+			|| expectedContent.some(text => !panel.textContent?.includes(text))
+			|| (authenticationRequired && !panel.querySelector('.artifact-header-actions [aria-label^="Sign In"]'))) {
 			throw new Error(`The artifact details did not render: ${openDetails}`);
 		}
 		if (options.showListInfo !== undefined) {
