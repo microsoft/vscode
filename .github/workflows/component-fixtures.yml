@@ -9,6 +9,10 @@ on:
     branches:
       - main
       - 'release/*'
+  # Screenshots & Tests is a required check, which the merge queue waits for
+  merge_group:
+    types:
+      - checks_requested
 
 permissions:
   contents: read
@@ -25,7 +29,8 @@ concurrency:
 jobs:
   playwright:
     name: Playwright Fixture Tests
-    runs-on: vscode-large-runners-ubuntu-8-core
+    # The merge queue runs on runners of its own, like pr.yml (see the comment at the top of its jobs)
+    runs-on: &runner ${{ github.event_name == 'merge_group' && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
     steps:
       # The jobs start from a workspace image of main, like the test jobs of pr.yml (see
       # .github/workflows/workspace_image/README.md): its dependencies are installed, and its .git
@@ -79,7 +84,8 @@ jobs:
         run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-linux-x64.img --branch "$WORKSPACE_IMAGE_BRANCH" --timeout-seconds 240
         env:
           GH_TOKEN: ${{ github.token }}
-          WORKSPACE_IMAGE_BRANCH: ${{ github.base_ref || github.ref_name }}
+          # The merge queue, whose temporary branches have no images, uses the images of main
+          WORKSPACE_IMAGE_BRANCH: ${{ github.base_ref || github.event_name == 'merge_group' && 'main' || github.ref_name }}
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -129,7 +135,7 @@ jobs:
         uses: ./.github/actions/restore-playwright
         with:
           browsers: chromium
-          save-cache: ${{ github.event_name != 'pull_request' }}
+          save-cache: ${{ github.event_name == 'push' }}
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
@@ -148,7 +154,7 @@ jobs:
 
   screenshots:
     name: Screenshots
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *runner
     steps:
       - *image-scripts
       - *image-node
@@ -204,7 +210,7 @@ jobs:
         uses: ./.github/actions/restore-playwright
         with:
           browsers: chromium
-          save-cache: ${{ github.event_name != 'pull_request' }}
+          save-cache: ${{ github.event_name == 'push' }}
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
@@ -294,7 +300,7 @@ jobs:
               exit 0
             fi
           else
-            # For push events, diff against the parent commit.
+            # For push events and merge groups, diff against the parent commit.
             BASE_SHA=$(git rev-parse "$EVENT_SHA^")
           fi
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
@@ -538,7 +544,7 @@ jobs:
     needs:
       - playwright
       - screenshots
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *runner
     steps:
       - name: Verify fixture test results
         run: |
