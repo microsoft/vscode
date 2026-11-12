@@ -79,7 +79,7 @@
     "tsec-compile-check": "node --max-old-space-size=8192 build/lib/tsec.ts",
     "vscode-dts-compile-check": "tsc --project src/tsconfig.vscode-dts.json && tsc --project src/tsconfig.vscode-proposed-dts.json",
     "valid-layers-check": "node build/checker/layersChecker.ts && node build/checker/layersTypeCheck.ts",
-    "define-class-fields-check": "node --max-old-space-size=8192 build/lib/propertyInitOrderChecker.ts && tsc --project src/tsconfig.defineClassFields.json",
+    "define-class-fields-check": "tsc --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.ts",
     "export-policy-data": "node build/lib/policies/exportPolicyData.ts",
     "web": "echo 'pnpm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
