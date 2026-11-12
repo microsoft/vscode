@@ -399,6 +399,7 @@ export async function computeUnionedDiffs(
  * chat's database holds (see {@link computeWorkingSetSources}). When several
  * databases leave changes to a file, its diff spans them, from the record
  * that starts them to the one that ends them (see {@link findWorkingSetEnds}).
+ * A file whose changes across the databases cancel out has no diff.
  */
 export async function computeWorkingSetDiffs(
 	sources: readonly ISessionDiffSource[],
@@ -430,17 +431,18 @@ export async function computeWorkingSetFiles(
 			continue;
 		}
 		diffPromises.push((async () => {
-			const { pending } = await computeWorkingSetSources(databases, identity.sourceRows ?? [], diffService);
-			if (pending.length === 0) {
+			const workingSet = await computeWorkingSetSources(databases, identity.sourceRows ?? [], diffService);
+			const ends = await findWorkingSetEnds(databases, workingSet);
+			if (!ends) {
 				return;
 			}
-			const { first, last, baseline, current, rebased } = await findWorkingSetEnds(databases, pending);
+			const { first, last, baseline, current, rebased } = ends;
 			const counts = await diffService.computeDiffCounts(baseline ? new TextDecoder().decode(baseline) : '', current ? new TextDecoder().decode(current) : '');
 			const hasBefore = baseline !== undefined;
 			const hasAfter = current !== undefined;
 			const lastSessionUri = sources[last.sourceIdx].sessionUri;
 			results.push({
-				nonce: getWorkingSetNonce(pending),
+				nonce: getWorkingSetNonce(workingSet.pending),
 				diff: {
 					...(hasBefore ? {
 						before: {

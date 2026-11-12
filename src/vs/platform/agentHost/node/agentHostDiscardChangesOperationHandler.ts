@@ -303,7 +303,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 			if (records.length === 0) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.notInTurn', "'{0}' has no changes in the last turn.", basename(resource)));
 			}
-			await this._throwIfEditedByOtherChats(source.otherChatDatabases, resource, this._getFileEditRecords(await source.db.getAllFileEdits(), resource, source.folderScope));
+			await this._throwIfEditedByOtherChats(source.otherChatDatabases, resource, await source.db.getAllFileEdits());
 
 			this._logService.info(`[AgentHostDiscardChangesOperationHandler] Discarding last turn changes to '${resource.fsPath}' for ${owner} (turn ${turnId})`);
 			await this._discardRecordedEdits(resource, {
@@ -471,6 +471,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 							throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, this._getChangedDuringDiscardMessage(resource));
 						}
 					}
+					await this._throwIfEditedByOtherChats(tracked.otherChatDatabases, resource, rowsPerSource.flat());
 				} : undefined,
 				recompute: () => this._onSessionFileEditsDiscarded(source.chat),
 			};

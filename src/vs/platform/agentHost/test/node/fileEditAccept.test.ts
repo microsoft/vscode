@@ -494,6 +494,35 @@ suite('fileEditAccept', () => {
 		});
 	});
 
+	test('leaves out a file whose changes a forked chat undid after its parent made them', async () => {
+		const diffService = new TestDiffComputeService();
+		const fork = async (kind: FileEditKind, before: string | undefined, after: string) => {
+			const parent = disposables.add(await SessionDatabase.open(':memory:'));
+			const child = disposables.add(await SessionDatabase.open(':memory:'));
+			await storeEdit(parent, 't1', 'tc1', kind, before, after);
+			// A forked chat's database starts as a copy of its parent's rows.
+			await storeEdit(child, 't1', 'tc1', kind, before, after);
+			return { parent, child, sources: [{ sessionUri: SESSION, db: parent }, { sessionUri: PEER, db: child }] };
+		};
+		const workingSet = async (sources: ISessionDiffSource[]) => readDiffs(sources, await computeWorkingSetDiffs(sources, diffService));
+
+		// The parent creates a file and changes it, then the fork deletes it.
+		const deleted = await fork(FileEditKind.Create, undefined, 'a');
+		await storeEdit(deleted.parent, 't2', 'tc2', FileEditKind.Edit, 'a', 'b');
+		const beforeDeleting = await workingSet(deleted.sources);
+		await storeEdit(deleted.child, 'c1', 'tc3', FileEditKind.Delete, 'b', undefined);
+		// The parent changes a file twice, then the fork restores it.
+		const restored = await fork(FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+		await storeEdit(restored.parent, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1' }), lines({ 0: 'L1', 1: 'P2' }));
+		await storeEdit(restored.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2' }), lines());
+
+		assert.deepStrictEqual({ beforeDeleting, deleted: await workingSet(deleted.sources), restored: await workingSet(restored.sources) }, {
+			beforeDeleting: [{ file: 'file:///repo/file.ts', before: undefined, after: 'b' }],
+			deleted: [],
+			restored: [],
+		});
+	});
+
 	// Linux tells paths apart by their case, so there these edits are of two files.
 	(isLinux ? test.skip : test)('combines the working sets of a session and a fork that spells the file\'s path differently', async () => {
 		const alias = '/REPO/file.ts';

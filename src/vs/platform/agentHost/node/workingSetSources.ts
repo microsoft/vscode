@@ -31,7 +31,7 @@ export interface IWorkingSetSource {
 export interface IWorkingSetSources {
 	/** Databases whose rows leave changes, which the file's Working Set shows. */
 	readonly pending: readonly IWorkingSetSource[];
-	/** Databases whose rows leave none. Accepting the file's changes accepts them too, or an accept row elsewhere could leave only some of them counted. */
+	/** Databases whose rows leave none, which can still follow the pending ones. Accepting the file's changes accepts them too, or an accept row elsewhere could leave only some of them counted. */
 	readonly unchanged: readonly IWorkingSetSource[];
 }
 
@@ -87,14 +87,19 @@ function getWorkingSetEnds({ sourceIdx, rows, contents }: IWorkingSetSource): IW
 }
 
 /**
- * Picks the rows that the changes of `sources`, the pending databases of a file, start and end with. Across
- * databases, a row follows the one that left the content it starts from. Without such a row, the order of
- * the databases decides.
+ * Picks the rows that a file's Working Set changes start and end with, or `undefined` when no database leaves
+ * changes or the changes of all of them cancel out. Across databases, a row follows the one that left the
+ * content it starts from. Without such a row, the order of the databases decides.
  */
-export async function findWorkingSetEnds(databases: readonly FileEditContentReader[], sources: readonly IWorkingSetSource[]): Promise<IWorkingSetEnds> {
-	if (sources.length === 1) {
-		return getWorkingSetEnds(sources[0]);
+export async function findWorkingSetEnds(databases: readonly FileEditContentReader[], { pending, unchanged }: IWorkingSetSources): Promise<IWorkingSetEnds | undefined> {
+	if (pending.length === 0) {
+		return undefined;
 	}
+	const single = pending.length === 1 ? pending[0] : undefined;
+	if (single && unchanged.length === 0) {
+		return getWorkingSetEnds(single);
+	}
+	const sources = [...pending, ...unchanged].sort((a, b) => a.sourceIdx - b.sourceIdx);
 	const steps = await Promise.all(sources.map(async source => {
 		const all = await Promise.all(source.rows.map(async record => ({ record, ...await readStep(databases[source.sourceIdx], record) })));
 		// A row that accepted every change makes none, so the changes start with the row after it.
@@ -103,14 +108,19 @@ export async function findWorkingSetEnds(databases: readonly FileEditContentRead
 	const keys = sources.map(source => new Set(source.rows.map(getFileEditKey)));
 	const hasRowElsewhere = (index: number, side: 'start' | 'end', content: Uint8Array | undefined) => steps.some((others, otherIndex) => otherIndex !== index
 		&& others.some(other => !keys[index].has(getFileEditKey(other.record)) && fileEditContentMatches(other[side], content)));
-	const firstIndex = Math.max(steps.findIndex((own, index) => !hasRowElsewhere(index, 'end', own[0].start)), 0);
+	const unpreceded = steps.findIndex((own, index) => !hasRowElsewhere(index, 'end', own[0].start));
 	const unfollowed = steps.findLastIndex((own, index) => !hasRowElsewhere(index, 'start', own[own.length - 1].end));
+	const isOrdered = unpreceded >= 0 && unfollowed >= 0;
+	const firstIndex = Math.max(unpreceded, 0);
 	const lastIndex = unfollowed < 0 ? steps.length - 1 : unfollowed;
 	const first = steps[firstIndex][0];
 	const last = steps[lastIndex][steps[lastIndex].length - 1];
+	if (single && (!isOrdered || sources[lastIndex] === single)) {
+		return getWorkingSetEnds(single);
+	}
 	if (toText(first.start) === toText(last.end)) {
 		// Contents that recur across the databases leave no order to tell, so one database's own changes show the file.
-		return getWorkingSetEnds(sources[sources.length - 1]);
+		return isOrdered ? undefined : getWorkingSetEnds(pending[pending.length - 1]);
 	}
 	return {
 		first: { sourceIdx: sources[firstIndex].sourceIdx, record: first.record },

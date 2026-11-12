@@ -17,7 +17,7 @@ import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams, type
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { FileEditKind, type TextRange, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
-import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, readFileEditEndContent, storeFileEditAcceptRecord } from './fileEditAccept.js';
+import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, storeFileEditAcceptRecord } from './fileEditAccept.js';
 import { isFileEditPath } from './fileEditPath.js';
 import { isPathWithinFolderScope } from './sessionDiffAggregator.js';
 import { createChangedSinceShownError } from './workingSetNonce.js';
@@ -82,9 +82,10 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 			for (const workingSet of pending.length > 0 ? [...pending, ...unchanged] : []) {
 				const source = tracked.sources[workingSet.sourceIdx];
 				const last = workingSet.rows[workingSet.rows.length - 1];
-				const current = await readFileEditEndContent(source.db, last);
+				// The content read with the rows, so a record rewritten since then fails the check in the transaction.
+				const current = workingSet.contents.current;
 				const row = target.kind === ChangesetOperationTargetKind.Range && pending.includes(workingSet)
-					? await this._createRangeAcceptRecord(last, workingSet.contents, target, resource, current)
+					? await this._createRangeAcceptRecord(last, workingSet.contents, target, resource)
 					: createFileEditAcceptRecord(last.turnId, last.filePath, current);
 
 				this._logService.info(`[AgentHostAcceptChangesOperationHandler] Accepting ${target.kind === ChangesetOperationTargetKind.Range ? 'a range of the ' : ''}changes to '${resource.fsPath}' for ${source.chat}`);
@@ -111,10 +112,11 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 
 	/**
 	 * Builds the row that accepts the hunks that `target` touches of a file's unaccepted changes, `contents`,
-	 * whose `last` record leaves it with `current` content. A range that touches every hunk accepts every change.
+	 * which its `last` record ends. A range that touches every hunk accepts every change.
 	 */
-	private async _createRangeAcceptRecord(last: IFileEditRecord, contents: IWorkingSetFileContents, target: { readonly side?: 'before' | 'after'; readonly range: TextRange }, resource: URI, current: Uint8Array | undefined): Promise<IFileEditRecord & IFileEditContent> {
+	private async _createRangeAcceptRecord(last: IFileEditRecord, contents: IWorkingSetFileContents, target: { readonly side?: 'before' | 'after'; readonly range: TextRange }, resource: URI): Promise<IFileEditRecord & IFileEditContent> {
 		const changes = await computeWorkingSetRangeChanges(contents, target.side, target.range, this._diffComputeService);
+		const current = contents.current;
 		if (!changes || !current) {
 			throw this._createWholeFileOnlyError(resource);
 		}

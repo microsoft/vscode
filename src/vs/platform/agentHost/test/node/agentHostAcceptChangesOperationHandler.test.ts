@@ -34,9 +34,18 @@ const SESSION = 'agent:/session';
 const FILE = URI.file('/repo/src/file.ts');
 const OTHER_FILE = URI.file('/repo/src/other.ts');
 
-/** Runs a callback just before storing edits, standing in for an edit recorded while the handler reads the file's rows. */
+/** Runs a callback just before storing edits, or after reading an edit's content, standing in for an edit recorded while the handler reads the file's rows. */
 class RacingSessionDatabase extends SessionDatabase {
 	beforeStore: (() => Promise<void>) | undefined;
+	afterRead: (() => Promise<void>) | undefined;
+
+	override async readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
+		const content = await super.readFileEditContent(toolCallId, filePath);
+		const afterRead = this.afterRead;
+		this.afterRead = undefined;
+		await afterRead?.();
+		return content;
+	}
 
 	override async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
 		const beforeStore = this.beforeStore;
@@ -327,6 +336,20 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 		assert.deepStrictEqual({ contents: await contents(), rows: await rows() }, {
 			contents: { baseline: lines({ 0: 'L1', 4: 'L5' }), current: lines({ 0: 'L1', 4: 'L5' }) },
 			rows: ['tc1', 'accept:t1:edit', 'accept:t1:edit'],
+		});
+	});
+
+	test('rejects a range whose record was rewritten with another hunk after its hunks were read, without accepting that hunk', async () => {
+		const { db, invoke, contents, rows } = setup(disposables);
+		await storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+		db.afterRead = () => storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'L1', 4: 'L5' }));
+
+		const error = await toError(invoke(FILE, undefined, { range: lineRange(0) }));
+
+		assert.deepStrictEqual({ error, contents: await contents(), rows: await rows() }, {
+			error: { code: JsonRpcErrorCodes.InvalidParams, message: `'file.ts' changed while its changes were being accepted. Try again.` },
+			contents: { baseline: lines(), current: lines({ 0: 'L1', 4: 'L5' }) },
+			rows: ['tc1'],
 		});
 	});
 
