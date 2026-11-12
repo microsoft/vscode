@@ -32,6 +32,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IInputOptions, IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { CONFIGURATION_KEY_HOST_NAME, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { getIconsStyleSheet } from '../../../../../../platform/theme/browser/iconsStyleSheet.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { EditorInputCapabilities, IVisibleEditorPane } from '../../../../../../workbench/common/editor.js';
 import { AICustomizationManagementEditorInput } from '../../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -486,6 +487,76 @@ suite('RemotesEditor', () => {
 				actions: [...toolbar.querySelectorAll('.action-label')].map(element => element.getAttribute('aria-label')),
 			}, { visible: true, actions: ['Change Sharing Name'] });
 		});
+	}
+
+	for (const width of [900, 360]) {
+		for (const expanded of [true, false]) {
+			test(`sharing feedback retains controls through pending, failure and retry at width ${width}, expanded=${expanded}`, async () => {
+				const { editor, container, input, instantiation, tunnel } = createEditor({
+					[REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING]: true, [GitHubEnvironmentsEnabledSettingId]: true,
+				});
+				for (const size of [40, 60, 80, 120, 160, 200, 240, 320, 360]) {
+					container.style.setProperty(`--vscode-spacing-size${size}`, `${size / 10}px`);
+				}
+				container.style.setProperty('--vscode-codiconFontSize', '16px');
+				dom.append(container, dom.$('style')).textContent = store.add(getIconsStyleSheet(undefined)).getCSS().toString();
+				container.style.width = `${width}px`;
+				editor.layout(new dom.Dimension(width, 600));
+				let pending = new DeferredPromise<void>();
+				instantiation.stub(INotificationService, 'error', () => { });
+				instantiation.stub(ICommandService, { executeCommand: async () => {
+					await pending.p;
+					if (expanded) {
+						tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'shared', isAttached: false }, serviceInstallFailed: false });
+					} else {
+						tunnel.fireStatus({ type: 'disconnected' });
+					}
+				} });
+				await editor.setInput(input, undefined, {}, CancellationToken.None);
+				await timeout(0);
+				if (expanded) {
+					container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!.click();
+					container.querySelector<HTMLElement>('[data-sharing-method="devTunnel"]')!.click();
+				} else {
+					tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'shared', isAttached: false }, serviceInstallFailed: false });
+				}
+				const selector = expanded ? '.remotes-sharing-footer .monaco-button:not(.secondary)' : '.remotes-this-computer-share .monaco-button-dropdown .monaco-text-button:not(.monaco-dropdown-button)';
+				const control = container.querySelector<HTMLElement>(selector)!;
+				control.focus();
+				const geometry = () => [selector, expanded ? '.remotes-sharing-help' : '.remotes-editor-table'].map(selector => {
+					const rect = container.querySelector(selector)!.getBoundingClientRect();
+					return [rect.x, rect.y, rect.width, rect.height];
+				});
+				const before = geometry();
+				control.click();
+				const during = geometry();
+				await pending.error(new Error('Connection failed'));
+				await timeout(0);
+				const failed = geometry();
+				const error = container.querySelector('.remotes-sharing-feedback')?.textContent;
+				pending = new DeferredPromise<void>();
+				control.click();
+				const retry = geometry();
+				await pending.error(new Error('Connection failed'));
+				await timeout(0);
+				const retried = geometry();
+				const focused = dom.getActiveElement() === control;
+				pending = new DeferredPromise<void>();
+				control.click();
+				const finalPending = geometry();
+				await pending.complete();
+				await timeout(0);
+				assert.deepStrictEqual({
+					during, controlAfterFailure: failed[0], retry, retried, finalPending,
+					focused, same: control === container.querySelector(selector), actionable: error?.includes('Open the sharing log'),
+					completed: container.querySelector<HTMLElement>('.remotes-sharing-details')!.hidden,
+					errorCleared: container.querySelector<HTMLElement>('.remotes-sharing-feedback-container')!.hidden,
+				}, {
+					during: before, controlAfterFailure: before[0], retry: failed, retried: failed, finalPending: failed,
+					focused: true, same: true, actionable: true, completed: true, errorCleared: true,
+				});
+			});
+		}
 	}
 
 	test('failed sharing stays on the page with explicit feedback and can be retried', async () => {

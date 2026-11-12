@@ -6,7 +6,8 @@
 import './media/thisComputerSection.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
-import { Button, ButtonWithDropdown } from '../../../../../../base/browser/ui/button/button.js';
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
+import { Button, ButtonWithDropdown, ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { AnchorAlignment } from '../../../../../../base/browser/ui/contextview/contextview.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -79,7 +80,7 @@ export class ThisComputerSection extends Disposable {
 	private readonly feedback: HTMLElement;
 	private readonly feedbackContainer: HTMLElement;
 	private readonly feedbackLog: HTMLElement;
-	private readonly applyButton: Button;
+	private readonly applyButton: ButtonWithIcon;
 	private readonly cancelButton: Button;
 	private readonly backAction: Action;
 	private readonly backToolbar: WorkbenchToolBar;
@@ -292,8 +293,10 @@ export class ThisComputerSection extends Disposable {
 		this.cancelButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true, hoverDelegate }));
 		this.cancelButton.label = localize('thisComputer.cancel', "Cancel");
 		this._register(this.cancelButton.onDidClick(() => this.close()));
-		this.applyButton = this._register(new Button(footer, { ...defaultButtonStyles, hoverDelegate }));
+		this.applyButton = this._register(new ButtonWithIcon(footer, { ...defaultButtonStyles, hoverDelegate }));
 		this.applyButton.label = localize('thisComputer.start', "Start Sharing");
+		this.applyButton.icon = Codicon.radioTower;
+		this.applyButton.iconElement.setAttribute('aria-hidden', 'true');
 		this.applyButton.element.setAttribute('aria-describedby', `${this.pageDescription.id} ${this.feedback.id}`);
 		this.stopButton.element.setAttribute('aria-describedby', this.feedback.id);
 		this._register(this.applyButton.onDidClick(() => {
@@ -381,11 +384,12 @@ export class ThisComputerSection extends Disposable {
 			return;
 		}
 		this.applying = true;
-		this.changeFailed = false;
 		this.failedMethod = method === 'off' ? this.sharing.usesGitHubEnvironment ? 'githubEnvironment' : 'devTunnel' : method;
-		this.feedback.textContent = method === 'off'
-			? localize('thisComputer.stopping', "Stopping sharing...")
-			: localize('thisComputer.starting', "Starting sharing via {0}...", sharingChoices[method].label);
+		if (this.showingOptions) {
+			status(method === 'off'
+				? localize('thisComputer.stopping', "Stopping sharing...")
+				: localize('thisComputer.starting', "Starting sharing via {0}...", sharingChoices[method].label));
+		}
 		this.update();
 		let error: string | undefined;
 		try {
@@ -395,6 +399,7 @@ export class ThisComputerSection extends Disposable {
 			if (!this._store.isDisposed) {
 				this.update();
 				if (!error && this.sharing.activeMethod === method) {
+					this.changeFailed = false;
 					this.feedback.textContent = '';
 					this.close();
 				} else {
@@ -489,10 +494,11 @@ export class ThisComputerSection extends Disposable {
 				feedbackParent.appendChild(this.feedbackContainer);
 			}
 		}
-		this.feedbackContainer.hidden = !this.changeFailed && !this.applying;
+		this.feedbackContainer.hidden = !this.changeFailed;
 		this.feedbackContainer.classList.toggle('sharing-failed', this.changeFailed);
 		this.feedbackLog.hidden = !this.changeFailed;
 		this.applyButton.label = active === 'off' ? localize('thisComputer.start', "Start Sharing") : localize('thisComputer.switch', "Switch Method");
+		this.applyButton.icon = this.applying ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.radioTower;
 		this.applyButton.setTitle(active === 'off'
 			? localize('thisComputer.startDetail', "Share this computer using the selected connection method and sharing name")
 			: localize('thisComputer.switchDetail', "Stop sharing with the current method and start with the selected method"));

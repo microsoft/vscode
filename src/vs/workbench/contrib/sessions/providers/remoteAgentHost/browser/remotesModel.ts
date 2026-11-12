@@ -148,6 +148,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	private readonly pickerVisibility: RemoteAgentHostPickerVisibility;
 	private remoteTunnelStatus: TunnelStatus | undefined;
 	private receivedTunnelStatusEvent = false;
+	private refreshVersion = 0;
 	private tunnelDiscoveryVersion = 0;
 	/** Account that the most recent successful tunnel discovery listed tunnels for, if any. */
 	private tunnelDiscoveryAuthProvider: 'github' | 'microsoft' | undefined;
@@ -252,19 +253,21 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (!this.enabled || token.isCancellationRequested) {
 			return [];
 		}
+		const refreshVersion = ++this.refreshVersion;
 		let discoveredTunnelAuthProvider: 'github' | 'microsoft' | undefined;
 		const discover = async (kind: RemoteKind, task: () => Promise<readonly RemoteTarget[]>, afterApply?: () => Promise<void>): Promise<RemoteKind | undefined> => {
 			const tunnelDiscoveryVersion = this.tunnelDiscoveryVersion;
 			const sshDiscoveryVersion = this.sshDiscoveryVersion;
+			const isCurrent = () => refreshVersion === this.refreshVersion && !token.isCancellationRequested && !this._store.isDisposed && this.enabled
+				&& (kind !== 'tunnel' || tunnelDiscoveryVersion === this.tunnelDiscoveryVersion)
+				&& (kind !== 'ssh' || sshDiscoveryVersion === this.sshDiscoveryVersion);
 			progress?.report({ kind, refreshing: true });
 			this.checkingKinds.add(kind);
 			this.update();
 			let failed = false;
 			try {
 				const targets = await task();
-				if (!token.isCancellationRequested && !this._store.isDisposed && this.enabled
-					&& (kind !== 'tunnel' || tunnelDiscoveryVersion === this.tunnelDiscoveryVersion)
-					&& (kind !== 'ssh' || sshDiscoveryVersion === this.sshDiscoveryVersion)) {
+				if (isCurrent()) {
 					for (const [id, target] of this.targets) {
 						if (target.kind === kind) {
 							this.targets.delete(id);
@@ -295,7 +298,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					await afterApply?.();
 				}
 			} catch (error) {
-				if (!token.isCancellationRequested && !isCancellationError(error)) {
+				if (isCurrent() && !isCancellationError(error)) {
 					if (kind === 'ssh' && !this._store.isDisposed) {
 						this.sshConfigAddresses = undefined;
 						this.sshReachability.clear();
@@ -319,8 +322,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					return kind;
 				}
 			} finally {
-				this.checkingKinds.delete(kind);
-				if (!this._store.isDisposed) {
+				if (refreshVersion === this.refreshVersion && !this._store.isDisposed) {
+					this.checkingKinds.delete(kind);
 					this.update();
 				}
 				progress?.report({ kind, refreshing: false, failed });

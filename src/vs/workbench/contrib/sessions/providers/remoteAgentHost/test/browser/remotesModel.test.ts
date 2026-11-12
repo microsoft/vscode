@@ -1097,6 +1097,33 @@ suite('RemotesModel', () => {
 		});
 	});
 
+	for (const olderFails of [false, true]) {
+		test(`newer discovery survives an older ${olderFails ? 'authentication failure' : 'offline result'} arriving last`, async () => {
+			const { model, setTunnelDiscovery, logEntries } = setup();
+			const older = new DeferredPromise<ITunnelInfo[]>();
+			const started = new DeferredPromise<void>();
+			setTunnelDiscovery(() => {
+				started.complete();
+				return older.p;
+			});
+			const refreshing = model.refresh(CancellationToken.None);
+			await started.p;
+			setTunnelDiscovery(async () => [tunnel]);
+			await model.refresh(CancellationToken.None);
+			if (olderFails) {
+				await older.error(new TunnelAuthenticationRequiredError('github'));
+			} else {
+				await older.complete([{ ...tunnel, hostConnectionCount: 0 }]);
+			}
+			const olderFailures = await refreshing;
+			assert.deepStrictEqual({
+				availability: model.remotes.get().find(remote => remote.id === 'tunnel:laptop')?.availability,
+				authenticationRequired: model.tunnelAuthenticationRequired.get(),
+				olderFailures, logEntries,
+			}, { availability: 'online', authenticationRequired: undefined, olderFailures: [], logEntries: [] });
+		});
+	}
+
 	test('reports each source finishing independently, including discovery failures', async () => {
 		const { model, setSSHDiscovery, setTunnelDiscovery } = setup();
 		const ssh = new DeferredPromise<string[]>();

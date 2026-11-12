@@ -99,8 +99,10 @@ export class RemotesWidget extends Disposable {
 	private readonly messageText: HTMLElement;
 	private readonly emptyStateBody: HTMLElement;
 	private readonly emptyStateDisposables = this._register(new DisposableStore());
-	private readonly emptyStateActions = new Map<string, { readonly element: HTMLElement; readonly enabled: boolean }>();
+	private readonly emptyStateActions = new Map<string, { readonly element: HTMLElement; readonly enabled: boolean; readonly button?: Button }>();
+	private readonly emptyStateCards = new Map<RemoteKind, HTMLElement>();
 	private emptyStateKey = '';
+	private emptyStateContext = '';
 	private emptyStateContent = '';
 	private readonly searchInput: InputBox;
 	private readonly clearFilterAction: Action;
@@ -383,7 +385,7 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'newSession') {
 				void this.newSession(entry.remote.id);
 			} else if (action === 'rename') {
-				void this.manageRemote(entry.remote.id, 'rename');
+				void this.manageRemote(entry.remote, 'rename');
 			} else if (action === 'copyAddress') {
 				void this.copyAddress(entry.remote.id);
 			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
@@ -391,9 +393,9 @@ export class RemotesWidget extends Disposable {
 			} else if (action === 'troubleshoot') {
 				this.openDetails(entry.remote, 'troubleshoot');
 			} else if (action === 'githubEnvironment' && entry.remote.gitHubEnvironment?.state !== 'unavailable' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
-				void this.manageRemote(entry.remote.id, 'githubEnvironment');
+				void this.manageRemote(entry.remote, 'githubEnvironment');
 			} else if (action === 'updateServer') {
-				void this.manageRemote(entry.remote.id, 'updateServer');
+				void this.manageRemote(entry.remote, 'updateServer');
 			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && entry.remote.canDelete)) {
 				void this.deleteRemote(entry.remote.id, entry.remote.kind);
 			}
@@ -751,11 +753,9 @@ export class RemotesWidget extends Disposable {
 		const entries = show && !this.query && this.filterKind ? [this.filterKind].map(kind => {
 			const refreshing = this.refreshingKinds.has(kind);
 			const unsearched = !this.hasRefreshed && !this.refreshedKinds.has(kind) && !this.failedKinds.includes(kind) && !(kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get());
-			const entry: IRemoteEmptyEntry = refreshing
-				? { type: 'empty', id: `remote-empty-${kind}`, label: localize('remotes.empty.searchingType', "Looking for {0}...", remoteKindLabels[kind]) }
-				: unsearched
-					? { type: 'empty', id: `remote-empty-${kind}`, label: localize('remotes.empty.findType', "Refresh to look for {0}.", remoteKindLabels[kind]) }
-					: this.getEmptyEntry(kind);
+			const entry: IRemoteEmptyEntry = unsearched
+				? { type: 'empty', id: `remote-empty-${kind}`, label: localize('remotes.empty.findType', "Refresh to look for {0}.", remoteKindLabels[kind]) }
+				: this.getEmptyEntry(kind);
 			return { kind, entry, refreshing, unsearched };
 		}) : [];
 		const title = !show ? '' : this.query
@@ -764,7 +764,24 @@ export class RemotesWidget extends Disposable {
 				: loading ? localize('remotes.empty.searching', "Looking for environments...")
 					: failed ? localize('remotes.empty.refreshFailed', "Couldn't refresh environments.")
 						: localize('remotes.empty.none', "No environments found.");
-		const key = JSON.stringify([show, title, this.filterKind, this.query, entries, loading, failed, this.signingInToTunnels, this.refreshAction.enabled]);
+		const context = JSON.stringify([show, this.filterKind, this.query]);
+		this.message.setAttribute('aria-busy', String(loading || this.signingInToTunnels));
+		for (const { kind, refreshing } of entries) {
+			this.emptyStateCards.get(kind)?.setAttribute('aria-busy', String(refreshing || kind === 'tunnel' && this.signingInToTunnels));
+		}
+		for (const [id, action] of this.emptyStateActions) {
+			if (action.button) {
+				action.button.enabled = id.endsWith('refresh') ? this.refreshAction.enabled
+					: id.endsWith('signIn') ? !this.signingInToTunnels && !loading : !loading || id === 'clearFilter';
+			}
+		}
+		this.messageText.textContent = title;
+		this.emptyStateContent = [title, ...this.emptyStateContent.split('\n').slice(1)].join('\n');
+		if (show && loading && this.emptyStateContext === context && this.emptyStateBody.childElementCount) {
+			return;
+		}
+		this.emptyStateContext = context;
+		const key = JSON.stringify([show, this.filterKind, this.query, entries.map(({ entry }) => entry), failed]);
 		if (key === this.emptyStateKey) {
 			return;
 		}
@@ -774,6 +791,7 @@ export class RemotesWidget extends Disposable {
 		const focusedAction = [...this.emptyStateActions].find(([, action]) => action.element === active)?.[0];
 		this.emptyStateDisposables.clear();
 		this.emptyStateActions.clear();
+		this.emptyStateCards.clear();
 		dom.clearNode(this.emptyStateBody);
 		this.messageText.textContent = title;
 		const content = title ? [title] : [];
@@ -782,7 +800,7 @@ export class RemotesWidget extends Disposable {
 			button.label = label;
 			button.enabled = enabled;
 			button.element.dataset.emptyAction = id;
-			this.emptyStateActions.set(id, button);
+			this.emptyStateActions.set(id, { element: button.element, get enabled() { return button.enabled; }, button });
 			this.emptyStateDisposables.add(button.onDidClick(run));
 			content.push(label);
 		};
@@ -807,11 +825,11 @@ export class RemotesWidget extends Disposable {
 		};
 		if (show && !entries.length) {
 			const card = dom.append(this.emptyStateBody, dom.$('.remotes-empty-state-search'));
-			if (!loading && !this.query && failed) {
+			if (!this.query && failed) {
 				const guidance = localize('remotes.empty.retryGuidance', "Check your connection and try refreshing.");
 				dom.append(card, dom.$('p.remotes-empty-state-description', undefined, guidance));
 				content.push(guidance);
-			} else if (!loading && !this.query) {
+			} else if (!this.query) {
 				addDocumentation(card, 'documentation', {
 					label: localize('remotes.docs.overview', "Run and manage remote agent sessions"),
 					href: 'https://code.visualstudio.com/docs/agents/run/remote-agent-sessions#_make-a-host-available-for-remote-access',
@@ -825,6 +843,7 @@ export class RemotesWidget extends Disposable {
 		}
 		for (const { kind, entry, refreshing, unsearched } of entries) {
 			const card = dom.append(this.emptyStateBody, dom.$('.remotes-empty-state-kind', { 'data-remote-kind': kind, 'aria-busy': String(refreshing || kind === 'tunnel' && this.signingInToTunnels) }));
+			this.emptyStateCards.set(kind, card);
 			dom.append(card, dom.$('p', { role: 'status' }, entry.label));
 			content.push(entry.label);
 			if (entry.description) {
@@ -835,19 +854,17 @@ export class RemotesWidget extends Disposable {
 			if (entry.action) {
 				addButton(actions, `${kind}.signIn`, entry.action.label, () => void this.signInToTunnels(), entry.action.enabled);
 			}
-			if (!refreshing) {
-				if (kind === 'ssh') {
-					addButton(actions, `${kind}.configure`, localize('remotes.ssh.configure', "Open SSH Configuration"), () => void this.openConfiguration(kind));
-				}
-				if (unsearched || this.failedKinds.includes(kind) && !entry.action) {
-					addButton(actions, `${kind}.refresh`, localize('remotes.empty.retry', "Refresh"), () => void this.refresh(), this.refreshAction.enabled);
-				}
+			if (kind === 'ssh') {
+				addButton(actions, `${kind}.configure`, localize('remotes.ssh.configure', "Open SSH Configuration"), () => void this.openConfiguration(kind), !refreshing);
+			}
+			if (unsearched || this.failedKinds.includes(kind) && !entry.action) {
+				addButton(actions, `${kind}.refresh`, localize('remotes.empty.retry', "Refresh"), () => void this.refresh(), this.refreshAction.enabled);
 			}
 			addClearFilter(actions);
 			if (actions.childElementCount) {
 				card.appendChild(actions);
 			}
-			if (!refreshing && entry.documentation) {
+			if (entry.documentation) {
 				addDocumentation(card, `${kind}.documentation`, entry.documentation);
 			}
 		}
@@ -872,7 +889,8 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async manageRemote(id: string, action: 'rename' | 'githubEnvironment' | 'updateServer'): Promise<void> {
+	private async manageRemote(remote: ICustomizationRemote, action: 'rename' | 'githubEnvironment' | 'updateServer'): Promise<void> {
+		const { id } = remote;
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
@@ -882,8 +900,7 @@ export class RemotesWidget extends Disposable {
 		this.render();
 		try {
 			if (action === 'githubEnvironment') {
-				const remote = this.model.remotes.get().find(remote => remote.id === id);
-				await this.model.setSharedAsGitHubEnvironment(id, !remote?.gitHubEnvironment);
+				await this.model.setSharedAsGitHubEnvironment(id, !remote.gitHubEnvironment);
 			} else if (action === 'updateServer') {
 				await this.model.updateServer(id);
 			} else {

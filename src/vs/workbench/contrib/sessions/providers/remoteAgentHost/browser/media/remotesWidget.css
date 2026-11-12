@@ -628,7 +628,7 @@
 }
 
 .remotes-choice-current[hidden] {
-	display: none;
+	visibility: hidden;
 }
 
 .remotes-choice-description {
