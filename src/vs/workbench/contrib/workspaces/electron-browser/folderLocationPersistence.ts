@@ -11,7 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkspaceFolderLocationService, IResolvedFolderLocation } from '../../../../platform/workspace/common/folderLocations.js';
-import { getWorkspaceFolderIdentity, isWorkspaceFolderAtAlternateLocation, IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWindowFolderLocation } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -67,7 +67,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 
 	private isAtAlternate(location: URI): boolean {
 		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
-		return !!folder && isWorkspaceFolderAtAlternateLocation(folder, this.uriIdentityService.extUri) && this.uriIdentityService.extUri.isEqual(folder.uri, location);
+		return !!folder && this.folderLocationService.isFolderAtAlternateLocation(folder) && this.uriIdentityService.extUri.isEqual(folder.uri, location);
 	}
 
 	private async restore(persisted: IWindowFolderLocation, token: CancellationToken): Promise<void> {
@@ -80,7 +80,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			return;
 		}
 
-		const primary = getWorkspaceFolderIdentity(this.contextService.getWorkspace().folders[0]);
+		const primary = this.folderLocationService.getFolderIdentity(this.contextService.getWorkspace().folders[0]);
 		const resolved = await this.resolve(primary, location, token);
 		if (token.isCancellationRequested || this.folderLocationService.currentLocation || !this.isAtAlternate(location)) {
 			return; // disposed, or switched by someone else in the meantime
@@ -156,7 +156,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		}
 
 		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
-		if (folder && !isWorkspaceFolderAtAlternateLocation(folder, this.uriIdentityService.extUri)) {
+		if (folder && !this.folderLocationService.isFolderAtAlternateLocation(folder)) {
 			this.discard(persisted);
 		}
 	}

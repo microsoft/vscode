@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWindowFolderLocation } from '../../../../../platform/window/common/window.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, Workspace, WorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder, Workspace, WorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FOLDER_LOCATION_RESTORE_TIMEOUT, FolderLocationPersistenceContribution } from '../../electron-browser/folderLocationPersistence.js';
@@ -55,6 +55,8 @@ suite('FolderLocationPersistenceContribution', () => {
 		const locationService = {
 			onDidChangeProviders: onDidChangeProviders.event,
 			onDidChangeCurrentLocation: onDidChangeCurrentLocation.event,
+			getFolderIdentity: (folder: IWorkspaceFolder) => folder.identity ?? folder.uri,
+			isFolderAtAlternateLocation: (folder: IWorkspaceFolder) => !extUri.isEqual(folder.uri, folder.identity ?? folder.uri),
 			get currentLocation() { return currentLocation; },
 			setCurrentLocation(location: IResolvedFolderLocation | undefined) { currentLocation = location; onDidChangeCurrentLocation.fire({ reason: 'programmatic' }); },
 			resolveLocation: options.resolveLocation ?? (async () => providerAvailable ? resolvedLocation : undefined)
