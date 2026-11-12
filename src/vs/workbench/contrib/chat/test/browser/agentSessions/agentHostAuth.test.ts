@@ -1226,6 +1226,9 @@ suite('resolveMcpServerAuthentication', () => {
 		assert.strictEqual(await authenticate('ALICE'), undefined);
 		assert.strictEqual(await authenticate('Alice'), 'upper-token');
 		assert.strictEqual(await authenticate('BOB@EXAMPLE.COM'), 'bob-token');
+		// Equal labels do not uniquely identify an account, even with exact case.
+		sessions.push({ id: 'other-bob', accessToken: 'other-bob-token', scopes: ['read'], account: { id: 'other-bob', label: 'bob@example.com' } });
+		assert.strictEqual(await authenticate('bob@example.com'), undefined);
 	});
 
 	for (const { allowInteraction, rootMetadata } of [
