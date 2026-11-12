@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
@@ -66,9 +66,7 @@ interface IScenario {
 }
 
 suite('AgentHostUtilityModelService', () => {
-	const disposables = new DisposableStore();
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function run(scenario: IScenario, includeInput = false): Promise<unknown> {
 		const rootValues: Record<string, unknown> = {
@@ -96,6 +94,7 @@ suite('AgentHostUtilityModelService', () => {
 				return { output: [{ type: 'message', content: [{ type: 'text', text: 'byok ' }, { type: 'text', text: 'text' }] }] };
 			},
 			onDidChangeModels: Event.None,
+			onDidDelta: Event.None,
 		};
 		const bridgeRegistry = upcastPartial<IByokLmBridgeRegistry>({
 			getModels: () => rendererConnected ? BYOK_MODELS : [],
@@ -111,6 +110,7 @@ suite('AgentHostUtilityModelService', () => {
 		});
 		const providerService = new class extends mock<IAgentHostProviderService>() {
 			override getProviderForSession() { return agent; }
+			override getProviderForChat() { return agent; }
 		}();
 		const authenticationService = scenario.authenticationService ?? disposables.add(new class extends AgentHostAuthenticationService {
 			override getSessionCredentialSource(resource: string) {

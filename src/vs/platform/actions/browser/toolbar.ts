@@ -44,6 +44,13 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 	hiddenItemStrategy?: HiddenItemStrategy;
 
 	/**
+	 * Items of the primary group that cannot be hidden, by command id or, for submenus, by submenu id. They always
+	 * show, are not listed among the items that can be shown or hidden, and do not count as the last item that
+	 * cannot be hidden. Right-clicking one of them lists the items that can be shown or hidden.
+	 */
+	alwaysShownItems?: readonly string[];
+
+	/**
 	 * Optional menu id which is used for a "Reset Menu" command. This should be the
 	 * menu id that defines the contents of this workbench menu
 	 */
@@ -118,6 +125,11 @@ export class WorkbenchToolBar extends ToolBar {
 		}
 	}
 
+	private _isAlwaysShown(action: IAction): boolean {
+		const id = action instanceof SubmenuItemAction ? action.item.submenu.id : action.id;
+		return !!this._options?.alwaysShownItems?.includes(id);
+	}
+
 	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
 
 		this._sessionDisposables.clear();
@@ -128,7 +140,8 @@ export class WorkbenchToolBar extends ToolBar {
 
 		const extraSecondary: Array<IAction | undefined> = [];
 
-		let someAreHidden = false;
+		let someAreModified = false;
+		let someAreAlwaysShown = false;
 		// unless disabled, move all hidden items to secondary group or ignore them
 		if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.NoHide) {
 			for (let i = 0; i < primary.length; i++) {
@@ -138,6 +151,10 @@ export class WorkbenchToolBar extends ToolBar {
 					// their original groups in the overflow menu (relevant when
 					// all menu groups are treated as primary).
 					extraSecondary[i] = action;
+					continue;
+				}
+				if (action && this._isAlwaysShown(action)) {
+					someAreAlwaysShown = true;
 					continue;
 				}
 				if (!(action instanceof MenuItemAction) && !(action instanceof SubmenuItemAction)) {
@@ -154,9 +171,12 @@ export class WorkbenchToolBar extends ToolBar {
 					toggleActionsCheckedCount++;
 				}
 
+				if (action.hideActions.isModifiedFromDefault) {
+					someAreModified = true;
+				}
+
 				// hidden items move into overflow or ignore
 				if (action.hideActions.isHidden) {
-					someAreHidden = true;
 					primary[i] = undefined;
 					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
 						extraSecondary[i] = action;
@@ -221,8 +241,8 @@ export class WorkbenchToolBar extends ToolBar {
 				if (toggleActions.length > 0) {
 					let noHide = false;
 
-					// last item cannot be hidden when using ignore strategy
-					if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore) {
+					// last item cannot be hidden when using ignore strategy, unless items that cannot be hidden show
+					if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore && !someAreAlwaysShown) {
 						noHide = true;
 						for (let i = 0; i < toggleActions.length; i++) {
 							if (toggleActions[i].checked) {
@@ -238,8 +258,9 @@ export class WorkbenchToolBar extends ToolBar {
 						}
 					}
 
-					// add "hide foo" actions
-					if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
+					// add "hide foo" actions; items that cannot be hidden list only the items that can be
+					const alwaysShown = this._isAlwaysShown(action);
+					if (!noHide && !alwaysShown && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
 						if (!action.hideActions) {
 							// no context menu for MenuItemAction instances that support no hiding
 							// those are fake actions and need to be cleaned up
@@ -247,7 +268,7 @@ export class WorkbenchToolBar extends ToolBar {
 						}
 						primaryActions.push(action.hideActions.hide);
 
-					} else {
+					} else if (!alwaysShown) {
 						primaryActions.push(toAction({
 							id: 'label',
 							label: localize('hide', "Hide"),
@@ -257,13 +278,14 @@ export class WorkbenchToolBar extends ToolBar {
 					}
 				}
 
-				const actions = Separator.join(primaryActions, toggleActions);
+				// a copy: join returns `toggleActions` itself when there are no primary actions, and the actions are added to
+				const actions = [...Separator.join(primaryActions, toggleActions)];
 
 				// add "Reset Menu" action
 				if (this._options?.resetMenu && !menuIds) {
 					menuIds = [this._options.resetMenu];
 				}
-				if (someAreHidden && menuIds) {
+				if (someAreModified && menuIds) {
 					actions.push(new Separator());
 					actions.push(toAction({
 						id: 'resetThisMenu',

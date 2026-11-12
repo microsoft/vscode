@@ -197,7 +197,7 @@ export class GitHubHostCapabilitiesService extends Disposable implements IGitHub
 			{},
 			AbortSignal.any([signal, credential.signal]),
 			'enrichment',
-			{ caller: 'github.capabilities' },
+			{ caller: 'github.capabilities', domain: 'capabilities' },
 		);
 		if (response.errors.length > 0) {
 			const schemaValidation = response.errors.every(isSchemaValidationError);

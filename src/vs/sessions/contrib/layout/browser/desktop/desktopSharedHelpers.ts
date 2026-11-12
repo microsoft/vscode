@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../../base/common/network.js';
+import { IReader } from '../../../../../base/common/observable.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../../workbench/common/editor.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
-import { MultiDiffEditorInput } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
+import { ISessionWorkspace, isWorkspacelessQuickChat } from '../../../../../workbench/services/sessions/common/session.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
+import { WindowCanvasInput } from '../../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 
 const PULL_REQUEST_OVERVIEW_VIEW_TYPE = 'PullRequestOverview';
 const ISSUE_OVERVIEW_VIEW_TYPE = 'IssueOverview';
@@ -31,11 +32,23 @@ export function isMainPartEmpty(editorGroupsService: IEditorGroupsService): bool
 	return true;
 }
 
+/** Whether the main window lays `shown` out as a Quick Chat: a workspace-less chat of a quick chat. */
+export function isQuickChatShown(shown: IShownChat | undefined, reader?: IReader): boolean {
+	return !!shown && isWorkspacelessQuickChat(shown.session, shown.chat, reader);
+}
+
+/**
+ * The workspace the main window lays `shown` out for: its session's, or, for a chat of a quick chat, which works in a
+ * folder of its own rather than in its session's, the chat's.
+ */
+export function getLayoutWorkspace(shown: IShownChat, reader?: IReader): ISessionWorkspace | undefined {
+	const isQuickChat = shown.session.isQuickChat ? (reader ? shown.session.isQuickChat.read(reader) : shown.session.isQuickChat.get()) : false;
+	const workspace = isQuickChat ? shown.chat.workspace : shown.session.workspace;
+	return reader ? workspace.read(reader) : workspace.get();
+}
+
 /** Whether `editor` is (or shows) a managed Changes multi-diff for some session. Shared by the New/Existing detail-panel mapping. */
 export function isChangesEditorInput(editor: EditorInput, sessionChangesService: ISessionChangesService): boolean {
-	if (editor instanceof DiffEditorInput || editor instanceof MultiDiffEditorInput) {
-		return true;
-	}
 	const resource = editor.resource;
 	return !!resource && sessionChangesService.getSessionResource(resource) !== undefined;
 }
@@ -65,10 +78,23 @@ export function getFilesDetailsState(editor: EditorInput, workspace: ISessionWor
 		: FilesDetailsState.Available;
 }
 
+/** Files remain useful alongside built-in Markdown webviews in floating presentation. */
+export function getFloatingMarkdownDetailsState(editor: EditorInput, workspace: ISessionWorkspace): FilesDetailsState | undefined {
+	if (!(editor instanceof WebviewInput)
+		|| (editor.viewType !== 'vscode.markdown.editor'
+			&& editor.viewType !== 'vscode.markdown.preview.editor'
+			&& editor.viewType !== 'mainThreadWebview-markdown.preview'
+			&& editor.providerId !== 'markdown.preview')) {
+		return undefined;
+	}
+	return editor instanceof CustomEditorInput ? getFilesDetailsState(editor, workspace) : FilesDetailsState.Active;
+}
+
 /** Whether `editor` owns its full presentation and must hide the docked Details panel. */
 export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
 	return editor instanceof BrowserEditorInput
 		|| editor instanceof CanvasInput
+		|| editor instanceof WindowCanvasInput
 		|| (editor instanceof CustomEditorInput && editor.resource?.scheme !== Schemas.untitled)
 		|| (editor instanceof WebviewInput
 			&& (editor.viewType === PULL_REQUEST_OVERVIEW_VIEW_TYPE

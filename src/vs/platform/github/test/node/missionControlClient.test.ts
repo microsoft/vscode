@@ -8,6 +8,7 @@ import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -20,18 +21,24 @@ import { parse, SchemaError } from '../../common/client/schema.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
-import { AutomationDetail, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
 import { ClientTokenResponse } from '../../common/missionControl/environments.js';
-import { ApiRequestError, MissionControlClient } from '../../common/missionControl/missionControlClient.js';
+import { ApiRequestError, MissionControlClient, MutationUncertainError, paginated } from '../../common/missionControl/missionControlClient.js';
 import { Task } from '../../common/missionControl/tasks.js';
 
 const signal = () => new AbortController().signal;
-const repository = { owner: 'owner', name: 'repo' };
+const repository = { owner: 'owner', repo: 'repo' };
 const apiBaseUri = 'https://api.githubcopilot.com';
 const collection = '/agents/repos/owner/repo/automations';
 const date = '2026-01-01T00:00:00Z';
 const serverDate = 'Thu, 01 Jan 2026 00:00:00 GMT';
 const emptyPage = { automations: [], total_count: 0 };
+const automationConfiguration: AutomationRepositoryConfiguration = {
+	automations_enabled: true,
+	can_manage_automations: false,
+	allow_read_access_triggers: false,
+	require_trigger_scoped_writes: true,
+};
 const automation: AutomationDetail = {
 	id: 'automation-1', name: 'Triage', description: 'Triage issues', prompt: 'Triage the issue',
 	created_at: date, updated_at: date, created_by: { id: 101 },
@@ -220,20 +227,89 @@ suite('Mission Control client', () => {
 		const { client, providers } = setup(() => Response.json(emptyPage));
 		const options = { caller: 'test.automations', deadline: Date.now() + 10_000 };
 		const sandbox = sinon.createSandbox();
-		try {
-			assert.ok(providers.missionControl);
-			const request = sandbox.spy(providers.missionControl, 'request');
-			await client.automations.list(repository, signal(), { ...options, query: { page: 2, disabled: false } });
-			const { path, options: requestOptions } = request.firstCall.args[0];
-			assert.deepStrictEqual({ path, options: requestOptions }, {
-				path: '/repos/owner/repo/automations/v2?page=2&disabled=false', options,
-			});
-		} finally {
-			sandbox.restore();
+		store.add(toDisposable(() => sandbox.restore()));
+		assert.ok(providers.missionControl);
+		const request = sandbox.spy(providers.missionControl, 'request');
+		await client.automations.list(repository, signal(), { ...options, query: { page: 2, disabled: false } });
+		const { path, options: requestOptions } = request.firstCall.args[0];
+		assert.deepStrictEqual({ path, options: requestOptions }, {
+			path: '/repos/owner/repo/automations/v2?page=2&disabled=false', options,
+		});
+	});
+
+	test('configuration reads honor server no-store and preserve caller options and false values', async () => {
+		const disabled: AutomationRepositoryConfiguration = {
+			automations_enabled: false, can_manage_automations: false,
+			allow_read_access_triggers: true, require_trigger_scoped_writes: false,
+		};
+		const responses = [automationConfiguration, disabled];
+		const { client, providers, requests } = setup(() => Response.json(responses.shift(), { headers: { etag: '"configuration"', 'cache-control': 'private, no-store' } }));
+		const options = { caller: 'test.automationConfiguration', deadline: Date.now() + 10_000, priority: 'visible' as const, noCache: false };
+		const sandbox = sinon.createSandbox();
+		store.add(toDisposable(() => sandbox.restore()));
+		assert.ok(providers.missionControl);
+		const request = sandbox.spy(providers.missionControl, 'request');
+		const values = [
+			await client.automations.getConfiguration(repository, signal(), options),
+			await client.automations.getConfiguration(repository, signal(), options),
+		];
+		assert.deepStrictEqual({
+			values,
+			requests: requests.map(({ url, init }) => {
+				const headers = new Headers(init.headers);
+				return [init.method, url.href, headers.get('If-None-Match'), headers.has('Authorization'), headers.get('Copilot-Integration-Id')];
+			}),
+			metadata: request.getCalls().map(call => ({ domain: call.args[0].domain, options: call.args[0].options })),
+			callerNoCache: options.noCache,
+		}, {
+			values: [automationConfiguration, disabled],
+			requests: Array(2).fill(['GET', `${apiBaseUri}${collection}/configuration`, null, true, 'test-integration']),
+			metadata: Array(2).fill({ domain: 'automations', options }),
+			callerNoCache: false,
+		});
+	});
+
+	test('configuration reads encode repository identifiers and validate them before credential lookup', async () => {
+		const { client, requests, identities } = setup(() => Response.json(automationConfiguration));
+		const configuration = await client.automations.getConfiguration({ owner: 'owner name', repo: 'repo/#?' }, signal());
+		assert.deepStrictEqual({ configuration, paths: requests.map(request => request.url.pathname) }, {
+			configuration: automationConfiguration,
+			paths: ['/agents/repos/owner%20name/repo%2F%23%3F/automations/configuration'],
+		});
+		const before = { identities: identities.length, requests: requests.length };
+		for (const repository of [{ owner: '', repo: 'repo' }, { owner: 'owner', repo: '..' }]) {
+			await assert.rejects(async () => client.automations.getConfiguration(repository, signal()), { kind: 'validation' });
+		}
+		assert.deepStrictEqual({ identities: identities.length, requests: requests.length }, before);
+	});
+
+	test('configuration reads reject cancellation before credential lookup', async () => {
+		const { client, requests, identities } = setup(() => Response.json(automationConfiguration));
+		const reason = new Error('cancelled configuration read');
+		await assert.rejects(client.automations.getConfiguration(repository, AbortSignal.abort(reason)), error => error === reason);
+		assert.deepStrictEqual({ identities: identities.length, requests: requests.length }, { identities: 0, requests: 0 });
+	});
+
+	test('configuration responses require all four boolean fields', async () => {
+		for (const key of Object.keys(automationConfiguration)) {
+			for (const invalid of [undefined, null, 'false', 0]) {
+				const { client } = setup(() => Response.json({ ...automationConfiguration, [key]: invalid }));
+				await assert.rejects(client.automations.getConfiguration(repository, signal()), SchemaError);
+			}
 		}
 	});
 
-	test('collects automation, task, run, and event pages with final metadata and unsummed totals', async () => {
+	for (const status of [401, 404, 503]) {
+		test(`configuration HTTP ${status} is an error rather than disabled defaults`, async () => {
+			const { client } = setup(() => Response.json({
+				message: 'Configuration unavailable', documentation_url: 'https://docs.github.com',
+			}, { status, headers: { 'Retry-After': '30' } }));
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), error =>
+				error instanceof ApiRequestError && error.statusCode === status && error.outcome === undefined);
+		});
+	}
+
+	test('collects automation, task, run, and event pages with conservative metadata and unsummed totals', async () => {
 		const { prompt, ...summary } = automation;
 		const event = { id: 'event', timestamp: date, parentId: null, type: 'message', data: { text: 'Hello' } };
 		const { client, requests } = setup(({ url }) => {
@@ -246,7 +322,13 @@ suite('Mission Control client', () => {
 				: url.pathname.endsWith('/events')
 					? { events: [{ ...event, id: `event-${number}` }], total: 2 }
 					: { tasks: [{ ...task, id: `task-${number}` }], total_active_count: 2 };
-			return Response.json(data, { headers: { date: serverDate, ...(second ? {} : { link: `<${next.href}>; rel="next"` }) } });
+			return Response.json(data, {
+				headers: {
+					date: second ? 'Thu, 01 Jan 2026 00:01:00 GMT' : serverDate,
+					'retry-after': second ? '30' : '120',
+					...(second ? {} : { link: `<${next.href}>; rel="next"` }),
+				},
+			});
 		});
 		const results = [
 			await client.automations.list(repository, signal(), { maxPages: 2 }),
@@ -260,7 +342,7 @@ suite('Mission Control client', () => {
 				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
 				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
 				{ events: [1, 2].map(number => ({ ...event, id: `event-${number}` })), total: 2 },
-			].map(data => ({ data, nextLink: undefined, serverDate })),
+			].map(data => ({ data, nextLink: undefined, serverDate, retryAfterSeconds: 120 })),
 			requests: [
 				`${collection}/v2`, `${collection}/v2?page=2`,
 				'/agents/tasks', '/agents/tasks?page=2',
@@ -270,12 +352,37 @@ suite('Mission Control client', () => {
 		});
 	});
 
+	test('page parsers receive original metadata while only the collection aggregates it', async () => {
+		const laterDate = 'Thu, 01 Jan 2026 00:01:00 GMT';
+		const { providers } = setup(({ url }) => {
+			const second = url.searchParams.has('page');
+			return Response.json([second ? 'second' : 'first'], {
+				headers: {
+					date: second ? laterDate : serverDate, 'retry-after': second ? '30' : '120',
+					...(second ? {} : { link: `<${apiBaseUri}/agents/tasks?page=2>; rel="next"` }),
+				},
+			});
+		});
+		const client = new MissionControlClient(providers.missionControl);
+		const observed: { serverDate: string | undefined; retryAfterSeconds: number | undefined }[] = [];
+		const result = await client.requestPages({
+			method: 'GET', path: '/tasks', expectedStatus: 200, options: { maxPages: 2 },
+		}, signal(), response => {
+			observed.push({ serverDate: response.metadata?.serverDate, retryAfterSeconds: response.metadata?.retryAfterSeconds });
+			return paginated(response, parse.strings(response.data));
+		}, pages => ({ ...pages[pages.length - 1], data: pages.flatMap(page => page.data) }));
+		assert.deepStrictEqual({ observed, result }, {
+			observed: [{ serverDate, retryAfterSeconds: 120 }, { serverDate: laterDate, retryAfterSeconds: 30 }],
+			result: { data: ['first', 'second'], nextLink: undefined, serverDate, retryAfterSeconds: 120 },
+		});
+	});
+
 	test('partial Mission Control pages keep a continuation but later errors still reject', async () => {
-		let failSecondPage = false;
+		let failure: 'http' | 'schema' | undefined;
 		const { client } = setup(({ url }) => {
 			const page = Number(url.searchParams.get('page') ?? 1);
-			if (page === 2 && failSecondPage) {
-				return Response.json({ message: 'Denied' }, { status: 403 });
+			if (page === 2 && failure) {
+				return failure === 'http' ? Response.json({ message: 'Denied' }, { status: 403 }) : Response.json({ tasks: [{}] });
 			}
 			return Response.json({ tasks: [{ ...task, id: `task-${page}` }], total_active_count: 3 }, {
 				headers: { link: `<${apiBaseUri}/agents/tasks?page=${page + 1}>; rel="next"`, date: serverDate },
@@ -291,17 +398,180 @@ suite('Mission Control client', () => {
 			data: { tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 3 },
 			nextLink: `${apiBaseUri}/agents/tasks?page=3`, serverDate,
 		});
-		failSecondPage = true;
-		await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }), { kind: 'authorization' });
+		for (failure of ['http', 'schema'] as const) {
+			await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }),
+				failure === 'http' ? { kind: 'authorization' } : SchemaError);
+		}
 	});
 
 	test('single-page Mission Control limits reject invalid or repeated continuations', async () => {
-		for (const link of ['not-a-link; rel="next"', `<${apiBaseUri}/agents/tasks>; rel="next"`]) {
+		for (const link of [
+			'not-a-link; rel="next"',
+			`<${apiBaseUri}/agents/tasks>; rel="next"`,
+			'<https://unapproved.example.test/agents/tasks?page=2>; rel="next"',
+			'<https://user:secret@api.github.com/agents/tasks?page=2>; rel="next"',
+			'<https://api.github.com/agents/environments?page=2>; rel="next"',
+			'<https://api.githubcopilot.com/agents/tasks/task/events?page=2>; rel="next"',
+			'<https://api.github.com/agents/tasks?page=2#fragment>; rel="next"',
+		]) {
 			const { client, requests } = setup(() => Response.json({ tasks: [task] }, { headers: { link } }));
 			await assert.rejects(client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
 			assert.strictEqual(requests.length, 1);
 		}
 	});
+
+	test('task lists reject page and cursor together before resolving credentials', async () => {
+		const { client, requests, identities } = setup(() => Response.json({ tasks: [] }));
+		for (const maxPages of [undefined, 3]) {
+			await assert.rejects(client.tasks.list(signal(), {
+				// @ts-expect-error Runtime callers must also be rejected when both pagination modes are supplied.
+				query: { page: 1, cursor: 'next' }, maxPages,
+			}), { kind: 'validation' });
+		}
+		const rejectedRequests = { requests: requests.length, identities: identities.length };
+		await client.tasks.list(signal(), { query: { cursor: 'next', per_page: 100 } });
+		assert.deepStrictEqual({
+			rejectedRequests,
+			pagination: requests.map(({ url }) => ({ page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor') })),
+		}, {
+			rejectedRequests: { requests: 0, identities: 0 },
+			pagination: [{ page: null, cursor: 'next' }],
+		});
+	});
+
+	test('task reads preserve nullable and provisioning compute metadata', async () => {
+		const provisioning = { ...task, compute: { provider: '' }, current_environment: { id: 'environment', kind: 'managed-sandbox' } };
+		const unbound = { ...task, id: 'unbound', compute: null };
+		const { client } = setup(({ url }) => Response.json(url.pathname === '/agents/tasks' ? { tasks: [unbound, provisioning] } : provisioning));
+		const listed = await client.tasks.list(signal());
+		const detail = await client.tasks.get(task.id, signal());
+		assert.deepStrictEqual({ tasks: listed.data.tasks, detail }, { tasks: [unbound, provisioning], detail: provisioning });
+	});
+
+	test('task batches accept 50 IDs and reject unsupported sizes before resolving credentials', async () => {
+		const ids = Array.from({ length: 50 }, (_, index) => `task-${index}`);
+		const returned = [{ ...task, id: ids[0], compute: null }, { ...task, id: ids[49] }];
+		const { client, requests, identities } = setup(() => Response.json({ tasks: returned }));
+		for (const invalid of [[], [...ids, 'extra']]) {
+			await assert.rejects(client.tasks.getBatch(invalid, signal()), { kind: 'validation' });
+		}
+		const rejectedRequests = { requests: requests.length, identities: identities.length };
+		const tasks = await client.tasks.getBatch(ids, signal());
+		assert.deepStrictEqual({
+			rejectedRequests, tasks,
+			requests: requests.map(({ url, init }) => ({
+				method: init.method, path: url.pathname, ids: url.searchParams.get('task_ids')?.split(','),
+			})),
+		}, {
+			rejectedRequests: { requests: 0, identities: 0 }, tasks: returned,
+			requests: [{ method: 'GET', path: '/agents/tasks/batch', ids }],
+		});
+	});
+
+	test('task batches reject malformed and unrequested rows instead of treating them as omissions', async () => {
+		for (const returned of [{ id: task.id }, { ...task, id: 'unrequested' }]) {
+			const { client } = setup(() => Response.json({ tasks: [returned] }));
+			await assert.rejects(client.tasks.getBatch([task.id], signal()), SchemaError);
+		}
+	});
+
+	test('task continuations preserve omitted filters across page and cursor transitions', async () => {
+		const links = [
+			'https://api.github.com/agents/tasks?page=2',
+			'?cursor=next&per_page=50',
+			'?page=3',
+		];
+		let page = 0;
+		const { client, requests } = setup(() => {
+			const link = links[page++];
+			return Response.json({ tasks: [] }, { headers: link ? { link: `<${link}>; rel="next"` } : {} });
+		});
+		await client.tasks.list(signal(), {
+			query: {
+				page: 1, per_page: 100, with_repo: false, is_archived: true, since: date,
+				sort: 'updated_at', direction: 'desc', include_environment_kinds: 'managed-sandbox',
+				artifact_type: 'pull', artifact_state: ['open', 'draft'],
+			},
+			maxPages: 4,
+		});
+		assert.deepStrictEqual(requests.map(({ url }) => ({
+			origin: url.origin, path: url.pathname,
+			page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor'), size: url.searchParams.get('per_page'),
+			repository: url.searchParams.get('with_repo'), archived: url.searchParams.get('is_archived'),
+			since: url.searchParams.get('since'), sort: url.searchParams.get('sort'), direction: url.searchParams.get('direction'),
+			environments: url.searchParams.get('include_environment_kinds'),
+			artifact: url.searchParams.get('artifact_type'), states: url.searchParams.getAll('artifact_state'),
+		})), [
+			{ page: '1', cursor: null, size: '100' },
+			{ page: '2', cursor: null, size: '100' },
+			{ page: null, cursor: 'next', size: '50' },
+			{ page: '3', cursor: null, size: '50' },
+		].map(pagination => ({
+			origin: apiBaseUri, path: '/agents/tasks', ...pagination,
+			repository: 'false', archived: 'true', since: date, sort: 'updated_at', direction: 'desc',
+			environments: 'managed-sandbox', artifact: 'pull', states: ['open', 'draft'],
+		})));
+	});
+
+	test('task lists bound normalized proxy and cursor walks through empty pages', async () => {
+		const dates = ['Thu, 01 Jan 2026 00:01:00 GMT', serverDate, 'Thu, 01 Jan 2026 00:02:00 GMT'];
+		const hints = [120, 30, 60];
+		const scope = 'per_page=100&with_repo=false&is_archived=true&since=2026-01-01T00%3A00%3A00Z&include_counts=false';
+		let page = 0;
+		const { client, requests } = setup(() => {
+			const index = page++;
+			return Response.json({ tasks: index === 0 ? [] : [{ ...task, id: `task-${index}` }] }, {
+				headers: {
+					date: dates[index], 'retry-after': String(hints[index]),
+					link: index === 0 ? `<https://API.GITHUB.COM:443/agents/tasks?page=2&${scope}>; rel="next"`
+						: `<?cursor=cursor-${index + 2}&${scope}>; rel="next"`,
+				},
+			});
+		}, {
+			...clientOptions(),
+			missionControl: {
+				endpoint: { apiBaseUri: 'https://API.GITHUBCOPILOT.COM:443/agents/', integrationId: 'test-integration' },
+			},
+		});
+		const result = await client.tasks.list(signal(), {
+			query: { page: 1, per_page: 100, with_repo: false, is_archived: true, since: date, include_counts: false },
+			maxPages: 3, pageLimitBehavior: 'returnPartial',
+		});
+		assert.deepStrictEqual({
+			tasks: result.data.tasks,
+			next: result.nextLink, serverDate: result.serverDate, retryAfterSeconds: result.retryAfterSeconds,
+			requests: requests.map(({ url }) => ({
+				origin: url.origin, path: url.pathname, repository: url.searchParams.get('with_repo'),
+				archived: url.searchParams.get('is_archived'), since: url.searchParams.get('since'),
+				size: url.searchParams.get('per_page'), counts: url.searchParams.get('include_counts'),
+				page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor'),
+			})),
+		}, {
+			tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })),
+			next: `?cursor=cursor-4&${scope}`, serverDate, retryAfterSeconds: 120,
+			requests: [
+				{ page: '1', cursor: null }, { page: '2', cursor: null }, { page: null, cursor: 'cursor-3' },
+			].map(pagination => ({
+				origin: apiBaseUri, path: '/agents/tasks', repository: 'false', archived: 'true', since: date,
+				size: '100', counts: 'false', ...pagination,
+			})),
+		});
+	});
+
+	test('successful list polling hints are exposed without blocking unrelated work', () => runWithFakedTimers({ startTime: Date.parse(date) }, async () => {
+		const { service, client, requests } = setup(({ url }) => url.pathname === '/agents/tasks'
+			? Response.json({ tasks: [] }, { headers: { 'retry-after': '120' } })
+			: Response.json({ id: 'env', name: 'Environment', kind: 'managed-sandbox', status: 'online' }));
+		try {
+			const page = await client.tasks.list(signal());
+			await client.environments.get('env', signal());
+			assert.deepStrictEqual({ retryAfterSeconds: page.retryAfterSeconds, attempts: requests.map(request => request.at - Date.parse(date)) }, {
+				retryAfterSeconds: 120, attempts: [0, 0],
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
 
 	test('automation discovery preserves public metadata without inventing internal fields or defaults', async () => {
 		const tools: readonly AutomationToolGroup[] = [{
@@ -322,6 +592,13 @@ suite('Mission Control client', () => {
 			client.automations.listTools(signal()), client.automations.listTriggers(signal()),
 		]), [tools, triggers]);
 	});
+
+	for (const wrapped of [false, true]) {
+		test(`trigger catalog accepts ${wrapped ? 'wrapped' : 'array'} responses`, async () => {
+			const { client } = setup(() => Response.json(wrapped ? { triggers: triggerDefinitions } : triggerDefinitions));
+			assert.deepStrictEqual(await client.automations.listTriggers(signal()), triggerDefinitions);
+		});
+	}
 
 	for (const method of ['listTools', 'listTriggers'] as const) {
 		test(`${method} returns an empty catalog without pagination or additional requests`, async () => {
@@ -346,7 +623,7 @@ suite('Mission Control client', () => {
 		{ method: 'listTools', name: 'a tool without a description', data: [{ id: 'issues', tools: [{ id: 'github/issue_read' }] }] },
 		{ method: 'listTools', name: 'an invalid permission scope', data: [{ id: 'issues', tools: [{ id: 'tool', description: '', scope: 'admin' }] }] },
 		{ method: 'listTools', name: 'a null optional name', data: [{ ...toolGroups[0], name: null }] },
-		{ method: 'listTriggers', name: 'a wrapped catalog', data: { triggers: triggerDefinitions } },
+		{ method: 'listTriggers', name: 'an invalid wrapped catalog', data: { triggers: null } },
 		{ method: 'listTriggers', name: 'missing fields', data: [{ title: 'Schedule', description: '' }] },
 		{ method: 'listTriggers', name: 'a missing required-field flag', data: [{ ...triggerDefinitions[0], fields: [{ name: 'types' }] }] },
 		{ method: 'listTriggers', name: 'non-string options', data: [{ ...triggerDefinitions[0], fields: [{ name: 'types', required: true, options: [1] }] }] },
@@ -368,6 +645,7 @@ suite('Mission Control client', () => {
 	for (const operation of [
 		{ name: 'list', status: 201, run: (client: IGitHubAccountClient) => client.automations.list(repository, signal()) },
 		{ name: 'get', status: 201, run: (client: IGitHubAccountClient) => client.automations.get(repository, automation.id, signal()) },
+		{ name: 'getConfiguration', status: 201, run: (client: IGitHubAccountClient) => client.automations.getConfiguration(repository, signal()) },
 		{ name: 'create', status: 200, run: (client: IGitHubAccountClient) => client.automations.create(repository, automation, signal()) },
 		{ name: 'update', status: 201, run: (client: IGitHubAccountClient) => client.automations.update(repository, automation.id, { name: 'Updated' }, signal()) },
 		{ name: 'delete', status: 200, run: (client: IGitHubAccountClient) => client.automations.delete(repository, automation.id, signal()) },
@@ -384,8 +662,17 @@ suite('Mission Control client', () => {
 	}
 
 	test('retains only documented diagnostics and response metadata', async () => {
-		const response = { message: 'Invalid revision', documentation_url: 'https://docs.github.com', code: 'stale_revision' };
-		const { client, requests } = setup(() => Response.json({ ...response, internal: 'not-public' }, {
+		const response = {
+			message: 'Invalid revision', documentation_url: 'https://docs.github.com', code: 'stale_revision',
+			errors: [{ code: 'custom', message: 'Retry later' }],
+			activation_context: { version: 2, sequence: '1', traceparent: 'parent', tracestate: 'state' },
+		};
+		const { client, requests } = setup(() => Response.json({
+			...response,
+			internal: 'not-public',
+			errors: response.errors.map(error => ({ ...error, internal: 'not-public' })),
+			activation_context: { ...response.activation_context, internal: 'not-public' },
+		}, {
 			status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'retry-after': '2' },
 		}));
 		await assert.rejects(client.automations.update(repository, automation.id, { name: 'New name' }, signal()), error => {
@@ -577,6 +864,96 @@ suite('Mission Control client', () => {
 		}, { connections: [{ status: 200, data: connection }, { status: 200, data: connection }], attempts: 5, validators: Array(5).fill(null) });
 	});
 
+	test('mints identity credentials only on the approved gateway without sharing or caching', async () => {
+		const options = clientOptions();
+		const identity = { token: 'identity-secret', expires_in: 3600, expires_at: date };
+		const { client, requests } = setup(() => Response.json(identity, { headers: { etag: '"private"' } }), {
+			...options,
+			missionControl: { endpoint: { ...options.missionControl!.endpoint, identityApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
+		});
+		const credentials = await Promise.all([client.environments.mintIdentityToken(signal()), client.environments.mintIdentityToken(signal())]);
+		assert.deepStrictEqual({
+			credentials,
+			requests: requests.map(request => ({
+				url: request.url.href, method: request.init.method, body: request.init.body,
+				integration: new Headers(request.init.headers).get('Copilot-Integration-Id'),
+				validator: new Headers(request.init.headers).get('If-None-Match'),
+			})),
+		}, {
+			credentials: [identity, identity],
+			requests: Array.from({ length: 2 }, () => ({
+				url: 'https://api.github.com/cmc_internal/api/agents/environments/tokens',
+				method: 'POST', body: '{}', integration: 'test-integration', validator: null,
+			})),
+		});
+	});
+
+	test('does not guess an identity endpoint when its gateway is not configured', async () => {
+		const { client, requests } = setup(() => Response.json({ token: 'must-not-be-requested' }));
+		await assert.rejects(client.environments.mintIdentityToken(signal()), { kind: 'validation' });
+		assert.deepStrictEqual(requests, []);
+	});
+
+	test('negotiates task feed credentials on the approved gateway without caching or coalescing', async () => {
+		const feed = {
+			url: 'wss://relay.example.test/?access_token=feed-secret',
+			subprotocol: 'json.webpubsub.azure.v1', group: 'opaque-group',
+			expires_at: date, reconnect_after: date, expires_in: 600_000, reconnect_in: 480_000, frame_schema_version: 1,
+		};
+		const options = clientOptions();
+		const { client, requests } = setup(request => Response.json(request.url.pathname.endsWith('/feed/connect')
+			? { ...feed, access_token: 'unused-secret', hub: 'unused-hub', wps_endpoint: 'wss://unused.example.test/' }
+			: { tasks: [] }, {
+			headers: { etag: '"credential"' },
+		}), {
+			...options,
+			missionControl: { endpoint: { ...options.missionControl!.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
+		});
+		const connections = await Promise.all([client.tasks.connectFeed(signal()), client.tasks.connectFeed(signal())]);
+		await client.tasks.list(signal());
+		assert.deepStrictEqual({
+			connections,
+			requests: requests.map(request => ({
+				url: request.url.href, method: request.init.method,
+				integration: new Headers(request.init.headers).get('Copilot-Integration-Id'),
+				validator: new Headers(request.init.headers).get('If-None-Match'),
+			})),
+		}, {
+			connections: [feed, feed],
+			requests: [
+				{ url: 'https://api.github.com/cmc_internal/api/agents/feed/connect', method: 'GET', integration: 'test-integration', validator: null },
+				{ url: 'https://api.github.com/cmc_internal/api/agents/feed/connect', method: 'GET', integration: 'test-integration', validator: null },
+				{ url: 'https://api.githubcopilot.com/agents/tasks', method: 'GET', integration: 'test-integration', validator: null },
+			],
+		});
+	});
+
+	test('does not guess a feed endpoint when its gateway is not configured', async () => {
+		const { client, requests } = setup(() => Response.json({}));
+		await assert.rejects(client.tasks.connectFeed(signal()), { kind: 'validation' });
+		assert.deepStrictEqual(requests, []);
+	});
+
+	for (const status of [401, 403, 404, 503]) {
+		test(`feed negotiation HTTP ${status} preserves retry diagnostics without credentials`, async () => {
+			const options = clientOptions();
+			const { client, requests } = setup(() => Response.json({ message: 'feed-secret', access_token: 'feed-secret' }, {
+				status, headers: { 'retry-after': '30' },
+			}), {
+				...options,
+				missionControl: { endpoint: { ...options.missionControl!.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
+			});
+			await assert.rejects(client.tasks.connectFeed(signal()), error => {
+				assert.ok(error instanceof ApiRequestError);
+				assert.deepStrictEqual({
+					status: error.statusCode, retry: error.retryAfterSeconds, attempts: requests.length,
+					containsSecret: JSON.stringify(error).includes('feed-secret'),
+				}, { status, retry: 30, attempts: 1, containsSecret: false });
+				return true;
+			});
+		});
+	}
+
 	test('sensitive HTTP failures do not retain credentials in messages or diagnostics', async () => {
 		const secret = 'do-not-retain-this-credential';
 		const { client } = setup(() => Response.json({ message: secret, documentation_url: secret, access_token: secret }, {
@@ -740,7 +1117,7 @@ suite('Mission Control client', () => {
 			await response.p;
 			return Response.json(emptyPage);
 		});
-		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, name: `repo-${index}` }, signal()));
+		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, repo: `repo-${index}` }, signal()));
 		await started.p;
 		await timeout(0);
 		const controller = new AbortController();
@@ -770,7 +1147,7 @@ suite('Mission Control client', () => {
 			return Response.json(emptyPage, { headers: { etag: `"${token}"` } });
 		}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
 		await client.automations.list(repository, signal());
-		const rejected = assert.rejects(client.automations.list(repository, signal()), { kind: 'authentication' });
+		const rejected = assert.rejects(client.automations.list(repository, signal()), { kind: 'unknown', message: 'GitHub credential generation was superseded' });
 		await started.p;
 		token = 'replacement';
 		await client.tasks.list(signal());
@@ -832,15 +1209,104 @@ suite('Mission Control client', () => {
 		await assert.rejects(client.tasks.get(task.id, signal()), new SchemaError('Task response did not match the requested task'));
 	});
 
+	test('preserves independent task and session client attribution in lists and details', async () => {
+		const clients = [
+			{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: false },
+			{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: true },
+			{ integration_id: 'future-client', slug: 'future-client', creator: false },
+		];
+		const sessions = [{ id: 'session-1', state: 'idle', created_at: date, clients: clients.map(client => ({ ...client, creator: false })) }];
+		const response = { ...task, clients, sessions };
+		const { client } = setup(request => Response.json(request.url.pathname === '/agents/tasks' ? { tasks: [response] } : response));
+		const listed = await client.tasks.list(signal());
+		const detail = await client.tasks.get(task.id, signal());
+		assert.deepStrictEqual({ listed: listed.data.tasks[0].clients, task: detail.clients, sessions: detail.sessions }, {
+			listed: clients, task: clients, sessions,
+		});
+	});
+
+	test('rejects malformed client attribution rather than dropping it', async () => {
+		for (const clients of [
+			[{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: 'true' }],
+			[{ integration_id: 'vscode-chat', slug: '', creator: true }],
+		]) {
+			const { client } = setup(() => Response.json({ ...task, clients }));
+			await assert.rejects(client.tasks.get(task.id, signal()), SchemaError);
+		}
+	});
+
+	for (const identity of ['task', 'session']) {
+		test(`rejects whitespace-only ${identity} identifiers before returning creation receipts`, async () => {
+			const response = identity === 'task' ? { ...task, id: ' ' }
+				: { ...task, sessions: [{ id: '\t\n', state: 'idle', created_at: date }] };
+			const { client } = setup(() => Response.json(response, { status: 201 }));
+			await assert.rejects(client.tasks.create({ prompt: 'Work' }, signal()), MutationUncertainError);
+		});
+	}
+
+	test('creation and reservation claims preserve receipts and serialize repository names on the wire', async () => {
+		const requestId = 'ABCD:1234:5678:90AB:CDEF';
+		const { client, requests } = setup(({ init }) => {
+			const reserve = JSON.parse(String(init.body)).reserve === true;
+			return Response.json({
+				...task, ...(reserve ? { reserved: true, reservation_expires_at: date } : { claimed: true }),
+			}, { status: reserve ? 201 : 200, headers: { 'x-github-request-id': requestId } });
+		});
+		const results = [
+			await client.tasks.create({ prompt: '', repositories: [repository], reserve: true }, signal()),
+			await client.tasks.create({ prompt: 'Work', repositories: [repository], reserved_task_id: task.id }, signal()),
+		];
+		assert.deepStrictEqual({
+			receipts: results.map(result => ({ status: result.status, data: result.data, requestId: result.metadata?.requestId })),
+			bodies: requests.map(request => JSON.parse(String(request.init.body))),
+		}, {
+			receipts: [
+				{ status: 201, data: { ...task, reserved: true, reservation_expires_at: date }, requestId },
+				{ status: 200, data: { ...task, claimed: true }, requestId },
+			],
+			bodies: [
+				{ prompt: '', repositories: [{ owner: 'owner', name: 'repo' }], reserve: true },
+				{ prompt: 'Work', repositories: [{ owner: 'owner', name: 'repo' }], reserved_task_id: task.id },
+			],
+		});
+	});
+
+	test('model discovery preserves catalog metadata and uses its API version only for the models route', async () => {
+		const catalog = {
+			data: [{
+				id: 'future-model', name: 'Future', model_picker_enabled: false, policy: { state: 'disabled' },
+				billing: { multiplier: 2, tiers: [{ name: 'future-tier', multiplier: 3 }] },
+				capabilities: { supports: { vision: true, reasoning_effort: ['future-effort'] } },
+			}],
+			default_model: 'future-model',
+		};
+		const options = clientOptions();
+		const { client, requests } = setup(({ url }) => Response.json(url.pathname.endsWith('/swe/models') ? catalog : { tasks: [] }), {
+			...options, missionControl: { endpoint: { ...options.missionControl!.endpoint, apiVersion: '2022-11-28' } },
+		});
+		const result = await client.missionControlModels.list(signal());
+		await client.tasks.list(signal());
+		assert.deepStrictEqual({
+			catalog: result,
+			requests: requests.map(request => ({ path: request.url.pathname, version: new Headers(request.init.headers).get('X-GitHub-Api-Version') })),
+		}, {
+			catalog,
+			requests: [
+				{ path: '/agents/swe/models', version: '2026-06-01' },
+				{ path: '/agents/tasks', version: '2022-11-28' },
+			],
+		});
+	});
+
 	test('tasks use their existing contracts and configured service routes', async () => {
 		const { client, requests } = setup(request => request.init.method === 'DELETE' ? new Response(null, { status: 204 })
 			: Response.json(task, { status: request.init.method === 'POST' && request.url.pathname === '/agents/tasks' ? 201 : 200 }));
 		const results = [
-			await client.tasks.create({ prompt: 'Do the task' }, signal()),
+			(await client.tasks.create({ prompt: 'Do the task' }, signal())).data,
 			await client.tasks.get(task.id, signal()),
 			await client.tasks.update(task.id, { name: 'Renamed' }, signal()),
-			await client.tasks.archive(task.id, signal()),
-			await client.tasks.unarchive(task.id, signal()),
+			await client.tasks.setArchived(task.id, true, signal()),
+			await client.tasks.setArchived(task.id, false, signal()),
 			await client.tasks.delete(task.id, signal()),
 		];
 		assert.deepStrictEqual({ results, routes: requests.map(request => request.url.pathname) }, {

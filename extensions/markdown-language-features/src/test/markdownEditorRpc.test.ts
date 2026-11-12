@@ -153,15 +153,18 @@ suite('Markdown editor RPC', () => {
 	});
 
 	test('updates highlight configuration without reloading or acknowledging the renderer', async () => {
-		const seen: boolean[] = [];
+		const seen: { highlightActiveBlock: boolean; renderWhitespace: boolean }[] = [];
 		const { host, rendererInbox, hostInbox, errors } = pair({}, {
-			configurationChanged: ({ highlightActiveBlock }) => { seen.push(highlightActiveBlock); },
+			configurationChanged: configuration => { seen.push(configuration); },
 		});
 		const renderer = host.get(markdownEditorRenderer);
-		renderer.configurationChanged({ highlightActiveBlock: false });
-		renderer.configurationChanged({ highlightActiveBlock: true });
-		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: 'false' });
-		assert.deepStrictEqual(seen, [false, true]);
+		renderer.configurationChanged({ highlightActiveBlock: false, renderWhitespace: true });
+		renderer.configurationChanged({ highlightActiveBlock: true, renderWhitespace: false });
+		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: 'false', renderWhitespace: false });
+		assert.deepStrictEqual(seen, [
+			{ highlightActiveBlock: false, renderWhitespace: true },
+			{ highlightActiveBlock: true, renderWhitespace: false },
+		]);
 		assert.strictEqual(rendererInbox.messages.length, 3);
 		assert.deepStrictEqual(hostInbox.messages, []);
 		assert.deepStrictEqual(errors, []);

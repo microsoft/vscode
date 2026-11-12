@@ -175,7 +175,8 @@
     "@vscode/extension-telemetry": "^0.9.8"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/node": "24.x",
+    "tslib": "^2.6.3"
   },
   "repository": {
     "type": "git",

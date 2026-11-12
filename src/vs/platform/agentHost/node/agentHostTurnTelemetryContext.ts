@@ -9,7 +9,7 @@ import type { IAgentProviderTurnTelemetryContext } from '../common/agentHostTele
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, isCopilotHydraFusionModelId } from '../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import type { SessionConfigState, URI as ProtocolURI } from '../common/state/sessionState.js';
+import type { SessionConfigState, URI as ProtocolURI, ModelSelection } from '../common/state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
 import { refineModelSelectionKindForLocalModels, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind } from './agentHostTelemetryReporter.js';
 import { getCodexAccountTelemetryData } from './codex/codexAccountTelemetry.js';
@@ -18,6 +18,8 @@ export interface IAgentHostTurnTelemetryContext {
 	readonly model: string | undefined;
 	readonly modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	readonly modelSelectionKind: AgentHostModelSelectionKind;
+	/** The Auto tier the turn was sent with, for Copilot turns on Auto. */
+	readonly autoTier: string | undefined;
 	readonly permissionLevel: string | undefined;
 	readonly interactionMode: SessionMode | undefined;
 }
@@ -39,23 +41,47 @@ export function getConfiguredSessionMode(config: SessionConfigState | undefined)
 	}
 }
 
+/**
+ * The model a turn's message selects for its chat, or `undefined` when the chat keeps its current one: a chat whose
+ * agent is not its session's ignores a model that agent does not offer. Older clients, unaware of a chat's own agent,
+ * offer the session agent's models. A same-agent chat, or an agent whose model list is not known, takes the model as is.
+ */
+export function getApplicableTurnModel<T extends { readonly id: string }>(agent: IAgent, sessionProvider: string | undefined, model: T | undefined): T | undefined {
+	if (model === undefined || sessionProvider === undefined || agent.id === sessionProvider) {
+		return model;
+	}
+	const models = agent.models.get();
+	return models.length === 0 || models.some(candidate => candidate.id === model.id) ? model : undefined;
+}
+
 /** `config` is the chat's effective config, which may set its own approvals and mode. */
-export function getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, context: IAgentChatContext, config: SessionConfigState | undefined, modelId: string | undefined): IAgentHostTurnTelemetryContext {
+export function getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, context: IAgentChatContext, config: SessionConfigState | undefined, selection: ModelSelection | undefined): IAgentHostTurnTelemetryContext {
 	const permissionValue = config?.values[SessionConfigKey.AutoApprove];
 	const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
 	const interactionMode = getConfiguredSessionMode(config);
-	const effectiveModelId = modelId ?? agent.chats.getModel?.(URI.parse(chat), context)?.id;
+	const modelId = selection?.id;
+	const effectiveSelection = selection ?? agent.chats.getModel?.(URI.parse(chat), context);
+	const effectiveModelId = effectiveSelection?.id;
+	const autoTier = agent.id === COPILOT_CLI_AGENT_PROVIDER_ID && effectiveModelId === 'auto' ? getSelectedAutoTier(effectiveSelection) : undefined;
 	const models = agent.models.get();
-	const modelSelectionKind = refineModelSelectionKindForLocalModels(getModelSelectionKind(agent.id, modelId, effectiveModelId), models.find(model => model.id === effectiveModelId), models);
+	const modelSelectionKind = refineModelSelectionKindForLocalModels(getModelSelectionKind(agent.id, modelId, effectiveModelId, autoTier), models.find(model => model.id === effectiveModelId), models);
 	const modelContext = effectiveModelId === undefined || (modelId === undefined && effectiveModelId === 'auto')
 		? { model: undefined, modelTelemetryKind: undefined }
 		: getModelTelemetryContext(agent, effectiveModelId);
-	return { ...modelContext, modelSelectionKind, permissionLevel, interactionMode };
+	return { ...modelContext, modelSelectionKind, autoTier, permissionLevel, interactionMode };
 }
 
-function getModelSelectionKind(provider: string, modelId: string | undefined, effectiveModelId = modelId): AgentHostModelSelectionKind {
-	if (provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(effectiveModelId)) {
-		return effectiveModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? 'hydrafusionMax' : 'hydrafusion';
+/** The Auto tier on a selection, read from its current `tier` key or the legacy `autoTier` alias. */
+function getSelectedAutoTier(selection: ModelSelection | undefined): string | undefined {
+	const tier = selection?.config?.tier ?? selection?.config?.autoTier;
+	return typeof tier === 'string' && tier ? tier : undefined;
+}
+
+function getModelSelectionKind(provider: string, modelId: string | undefined, effectiveModelId = modelId, autoTier?: string): AgentHostModelSelectionKind {
+	// Copilot Fusion runs HydraFusion as an Auto tier, so the same HydraFusion IDs classify it.
+	const hydraFusionModelId = effectiveModelId === 'auto' ? autoTier : effectiveModelId;
+	if (provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(hydraFusionModelId)) {
+		return hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? 'hydrafusionMax' : 'hydrafusion';
 	}
 	if (effectiveModelId === 'auto') {
 		return 'auto';

@@ -236,6 +236,48 @@ suite('GitHub link presentations', () => {
 		});
 	});
 
+	test('presents a closed draft pull request as closed', async () => {
+		const linkPresentationService = new TestLinkPresentationService();
+		store.add(new GitHubLinkPresentationContribution(
+			createGitHubService(
+				() => { },
+				undefined,
+				{
+					value: {
+						repositoryNameWithOwner: 'microsoft/vscode',
+						number: 8,
+						title: 'Pull request title',
+						url: 'https://github.com/microsoft/vscode/pull/8',
+						state: 'closed',
+						draft: true,
+						headSha: 'head',
+						headRef: 'feature',
+						baseSha: 'base',
+						baseRef: 'main',
+					},
+					status: 'ready',
+					complete: true,
+				},
+			),
+			linkPresentationService,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override resolveGitHubUrl(path: string): string {
+					return `https://github.com/${path}`;
+				}
+			}(),
+			new NullLogService(),
+			new TestNotificationService(),
+		));
+
+		const watcher = store.add(linkPresentationService.createWatcher(URI.parse('https://github.com/microsoft/vscode/pull/8')));
+		await Promise.resolve();
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual(watcher.presentation.get()?.status, { kind: 'closed', label: 'Closed' });
+	});
+
 	test('prompts to sign in when a pull request subscription reports an authentication error', async () => {
 		const linkPresentationService = new TestLinkPresentationService();
 		const notificationService = new TestNotificationService();

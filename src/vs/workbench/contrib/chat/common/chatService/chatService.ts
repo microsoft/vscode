@@ -39,6 +39,7 @@ import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
 import type { ChatToolInvocationSummary } from '../tools/toolInvocationSummary.js';
+import type { McpServerAuthenticateTarget } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
@@ -265,6 +266,8 @@ export interface IChatMarkdownContent {
 	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
+	/** Structured metadata for a standalone file block synthesized by the annotation renderer. */
+	codeblockUri?: IChatResponseCodeblockUriPart;
 }
 
 export interface IChatTreeData {
@@ -335,6 +338,12 @@ export interface IChatProgressMessage {
 	 * appended, so live progress doesn't stack up rows.
 	 */
 	id?: string;
+	/**
+	 * With {@link id}, removes the progress message with that id instead of
+	 * showing this one, so the response falls back to its generic working
+	 * progress once the reported activity ends.
+	 */
+	remove?: boolean;
 }
 
 export interface IChatSystemNotificationPart {
@@ -349,8 +358,10 @@ export interface IChatSystemNotificationPart {
 	collapsible?: boolean;
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
+	/** Keep the notification visible after the response completes instead of folding it into the completed steps. */
+	alwaysVisible?: boolean;
 	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
-	presentation?: 'workspaceTransition' | 'workflow' | 'workflowDescription';
+	presentation?: 'workspaceTransition' | 'workflow';
 	/** Workspace folder name emphasized by the transition presentation. */
 	workspaceName?: string;
 	/** Complete accessible description for non-visual presentation and announcements. */
@@ -430,6 +441,8 @@ export interface IChatResponseCodeblockUriPart {
 	isEdit?: boolean;
 	undoStopId?: string;
 	subAgentInvocationId?: string;
+	/** A file reference with no surrounding streamed Markdown code fence. */
+	isStandalone?: boolean;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -623,6 +636,11 @@ export interface IChatElicitationRequest {
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
 	hide?(): void;
+	/**
+	 * Keeps the buttons available after one is used while {@link state} stays pending, e.g. an entry point the user may
+	 * reopen; they follow {@link state} and disappear once it settles. By default, using a button hides them.
+	 */
+	readonly keepActionsWhilePending?: boolean;
 	toJSON(): IChatElicitationRequestSerialized;
 }
 
@@ -644,7 +662,11 @@ export interface IChatThinkingPart {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
-	/** Elapsed reasoning time in milliseconds, persisted so the duration survives reload. */
+	/** Marks provider-managed reasoning boundaries, including runs without recorded timing. */
+	reasoningTimingSource?: 'provider';
+	/** Provider-reported epoch milliseconds when reasoning started, persisted so the span survives reload. */
+	reasoningStartedAt?: number;
+	/** Provider-reported reasoning duration in milliseconds; never inferred from client observation or replay. */
 	reasoningDurationMs?: number;
 }
 
@@ -662,6 +684,24 @@ export interface IChatAutoModeResolutionPart {
 	 * of the pick; it already names the model.
 	 */
 	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
+	/** A router other than Auto, such as a host-side model router. */
+	router?: string;
+	/** The name of the route a host-side model router chose, when the route has one. */
+	routeName?: string;
+	/** The chosen route's `when`, when it decided the pick. */
+	preference?: string;
+	/** The thinking effort the router chose for this turn. */
+	effort?: string;
+	/** The context window a host-side model router asked for, in tokens. */
+	contextSize?: number;
+	/** Display name of the model the router moved off on this turn. */
+	switchedFrom?: string;
+	/** The router had no confident pick and used its first route. */
+	defaulted?: boolean;
+	/** The chat stayed on the model it was already running. */
+	kept?: boolean;
+	/** Auto is presented as Copilot Fusion, so the row names it that way. */
+	fusion?: boolean;
 }
 
 /**
@@ -723,6 +763,18 @@ export interface IChatTerminalToolInvocationData {
 	/** The working directory URI for the terminal */
 	cwd?: UriComponents;
 	/**
+	 * Where an Agent Host command runs, shown before approval because the same
+	 * relative command line runs a different program in another directory or
+	 * environment. The built-in terminal tool leaves this unset and names a
+	 * changed directory in its confirmation title instead.
+	 */
+	executionTarget?: {
+		/** The working directory, verbatim in its execution environment's path syntax. */
+		readonly workingDirectory?: string;
+		/** The execution environment, when it is not the agent host's own machine. */
+		readonly environment?: string;
+	};
+	/**
 	 * Pre-computed confirmation display data (localization must happen at source).
 	 * Contains the command line to show in confirmation (potentially without cd prefix)
 	 * and the formatted cwd label if a cd prefix was extracted.
@@ -756,8 +808,6 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandId?: string;
 	/** Whether the terminal command was started as a background execution */
 	isBackground?: boolean;
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
-	autoApproveRuleResolvable?: boolean;
 	/** Whether the command was explicitly approved to run outside the sandbox */
 	requestUnsandboxedExecution?: boolean;
 	/** The model-provided reason for requesting sandbox bypass */
@@ -842,6 +892,8 @@ export type ChatMcpAppData =
 		connectionAuthority: string;
 		/** AHP `mcp://` channel URI for the originating server. */
 		channel: string;
+		/** Host-provided name of the originating server, used to observe availability. */
+		serverName?: string;
 		/**
 		 * Stable identifier for the originating server, used as the
 		 * additional key when computing the webview origin. Typically the
@@ -912,6 +964,12 @@ export interface IChatToolInvocation {
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
+	 * What the user typed into the optional feedback field of a confirmation that offers one
+	 * (see {@link IToolConfirmationMessages.feedback}). Active-only: it is sent with the decision
+	 * and omitted when the invocation is serialized.
+	 */
+	confirmationFeedback?: string;
+	/**
 	 * Observable that tracks the `kind` of `toolSpecificData`. Used by the
 	 * tool invocation part to re-render when the kind changes (e.g. from
 	 * `'input'` to `'terminal'` when terminal content arrives).
@@ -927,6 +985,10 @@ export interface IChatToolInvocation {
 	readonly icon?: ThemeIcon;
 	readonly state: IObservable<IChatToolInvocation.State>;
 	readonly summary?: ChatToolInvocationSummary;
+	/** Epoch milliseconds when the invocation appeared in the response. */
+	readonly startedAt?: number;
+	/** Epoch milliseconds when the invocation completed or was cancelled. */
+	readonly completedAt?: number;
 	generatedTitle?: string;
 	isAttachedToThinking: boolean;
 
@@ -1230,6 +1292,10 @@ export interface IChatToolInvocationSerialized {
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
 	readonly summary?: ChatToolInvocationSummary;
+	/** Epoch milliseconds when the invocation appeared in the response. */
+	readonly startedAt?: number;
+	/** Epoch milliseconds when the invocation completed or was cancelled. */
+	readonly completedAt?: number;
 	generatedTitle?: string;
 	isAttachedToThinking?: boolean;
 	kind: 'toolInvocationSerialized';
@@ -1263,6 +1329,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Whether the child has reported a turn; false defers its entry, while undefined preserves legacy publication. */
 	hasStarted?: boolean;
 	isActive?: boolean;
+	/** Whether the latest observed child turn failed, independently of the task tool's result. */
+	isError?: boolean;
 	activity?: 'markdown' | 'reasoning';
 	description?: string;
 	/** Provider-supplied display name for the subagent type. */
@@ -1503,6 +1571,7 @@ export interface IChatMcpAuthenticationRequired {
 }
 
 export interface IChatMcpAuthenticationRequiredServer {
+	readonly target?: McpServerAuthenticateTarget;
 	readonly id: string;
 	readonly name: string;
 	readonly resource: string;
@@ -2014,10 +2083,17 @@ export interface IRemotePendingRequest {
 	readonly agentHostMessageOrigin?: MessageOrigin;
 	readonly metadata?: Record<string, unknown>;
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: IChatRequestModel['requestSource'];
+	readonly artifactRequest?: IChatRequestModel['artifactRequest'];
 	readonly systemInitiatedLabel?: string;
 }
 
 export interface IChatSendRequestOptions {
+	/**
+	 * Invoked after a silent slash command has completed successfully. This is
+	 * intentionally not called when command execution throws.
+	 */
+	onDidExecuteSlashCommand?: () => void;
 	/** UI-only observation of this send's response and dispatch outcome. Queued/rejected sends have no response. Not persisted or sent to an agent. */
 	onDidCreateResponse?: (response: IChatResponseModel | undefined, kind?: ChatSendResult['kind']) => void;
 	modeInfo?: IChatRequestModeInfo;
@@ -2207,6 +2283,8 @@ export interface IChatService {
 	 * Removes a pending request from the session's queue.
 	 */
 	removePendingRequest(sessionResource: URI, requestId: string): void;
+	/** Correlates a remotely consumed queue entry with its actual request, without canceling its submission. */
+	consumePendingRequest(sessionResource: URI, pendingRequestId: string, requestId: string): void;
 	/**
 	 * Sets the pending requests for a session, allowing for deletions/reordering.
 	 * Adding new requests should go through sendRequest with the queue option.

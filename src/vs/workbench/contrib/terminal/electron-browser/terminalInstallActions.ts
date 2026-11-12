@@ -8,6 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { combinedDisposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -23,8 +24,16 @@ import { ITerminalGroupService, ITerminalService } from '../browser/terminal.js'
 import { ChatEntitlementContextKeys, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 const copilotCliEnabled = ContextKeyExpr.equals(`config.${ChatConfiguration.CopilotCliCommandEnabled}`, true);
-const copilotCliAvailable = ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), copilotCliEnabled);
-const copilotCliUnavailable = ContextKeyExpr.or(ChatEntitlementContextKeys.Setup.hidden, ContextKeyExpr.notEquals(`config.${ChatConfiguration.CopilotCliCommandEnabled}`, true));
+const copilotCliAvailable = ContextKeyExpr.and(
+	ChatEntitlementContextKeys.Setup.hidden.negate(),
+	copilotCliEnabled,
+	ContextKeyExpr.notEquals(`config.${ChatAIDisabledSettingId}`, true)
+);
+const copilotCliUnavailable = ContextKeyExpr.or(
+	ChatEntitlementContextKeys.Setup.hidden,
+	ContextKeyExpr.notEquals(`config.${ChatConfiguration.CopilotCliCommandEnabled}`, true),
+	ContextKeyExpr.equals(`config.${ChatAIDisabledSettingId}`, true)
+);
 
 interface IInstallCopilotPickItem extends IQuickPickItem {
 	readonly installCopilot: boolean;
@@ -53,7 +62,9 @@ export class InstallShellScriptWithCopilotAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const installLegacyCommand = () => instantiationService.invokeFunction(legacyAccessor => legacyAction.run(legacyAccessor));
 
-		if (chatEntitlementService.sentiment.hidden || !configurationService.getValue<boolean>(ChatConfiguration.CopilotCliCommandEnabled)) {
+		if (chatEntitlementService.sentiment.hidden
+			|| configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true
+			|| !configurationService.getValue<boolean>(ChatConfiguration.CopilotCliCommandEnabled)) {
 			return installLegacyCommand();
 		}
 
@@ -94,7 +105,9 @@ export class InstallShellScriptWithCopilotAction extends Action2 {
 		terminalService: ITerminalService,
 		terminalGroupService: ITerminalGroupService
 	): Promise<void> {
-		if (chatEntitlementService.sentiment.hidden || !configurationService.getValue<boolean>(ChatConfiguration.CopilotCliCommandEnabled)) {
+		if (chatEntitlementService.sentiment.hidden
+			|| configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true
+			|| !configurationService.getValue<boolean>(ChatConfiguration.CopilotCliCommandEnabled)) {
 			return;
 		}
 
@@ -106,7 +119,9 @@ export class InstallShellScriptWithCopilotAction extends Action2 {
 				return;
 			}
 
-			if (chatEntitlementService.sentiment.hidden || !configurationService.getValue<boolean>(ChatConfiguration.CopilotCliCommandEnabled)) {
+			if (chatEntitlementService.sentiment.hidden
+				|| configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true
+				|| !configurationService.getValue<boolean>(ChatConfiguration.CopilotCliCommandEnabled)) {
 				return;
 			}
 

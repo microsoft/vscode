@@ -11,6 +11,7 @@ import { ILogService } from '../../../log/common/log.js';
 import type { IAgent, IAgentChatContext, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { readSessionExternal } from '../../common/state/sessionState.js';
 import { createAgentChatContext } from '../agentChatContext.js';
 import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
@@ -133,7 +134,7 @@ export class MissionControlSdkEventSource extends Disposable {
 		const summary = this._stateManager.getSessionSummary(session);
 		const chat = summary?.defaultChat;
 		const provider = this._providers.getProviderForSession(session);
-		if (!summary || !chat || !provider?.onDidChatSessionEvent) {
+		if (!summary || readSessionExternal(summary._meta) || !chat || !provider?.onDidChatSessionEvent) {
 			return;
 		}
 		// A session ending by moving its default chat under another still advertises it until it is removed: it replicates nothing.

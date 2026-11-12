@@ -24,6 +24,8 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostGitHubArtifactIgnoredChecksConfigKey } from '../../common/agentHostSchema.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
 import { GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
@@ -307,6 +309,7 @@ suite('AgentHostPullRequestStatusService', () => {
 				}));
 			}
 		}();
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 		const service = disposables.add(new AgentHostPullRequestStatusService(
 			stateManager,
 			subscriptions,
@@ -314,6 +317,7 @@ suite('AgentHostPullRequestStatusService', () => {
 			gitHubService,
 			logService,
 			createTestChatOwnershipService(stateManager),
+			configurationService,
 		));
 
 		const session = 'copilot:/pr-status';
@@ -326,7 +330,7 @@ suite('AgentHostPullRequestStatusService', () => {
 			{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 		));
 
-		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session, observedTokens, statusLogs, errors };
+		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session, observedTokens, statusLogs, errors, configurationService };
 	}
 
 	test('logs unavailable real background sponsorship without creating a legacy watcher', async () => {
@@ -613,6 +617,34 @@ suite('AgentHostPullRequestStatusService', () => {
 				readyForReview: undefined,
 			},
 		});
+	});
+
+	test('leaves the user\'s check exclusions, or else the folder\'s workspace ones, out of review readiness', async () => {
+		const { service, stateManager, subscriptions, resources, session, configurationService } = createHarness();
+		const agentMerge = (readyIgnoredChecks?: readonly string[]) => ({
+			[SessionConfigKey.AgentMerge]: { enabled: true, ...(readyIgnoredChecks ? { readyIgnoredChecks } : {}) },
+			[SessionConfigKey.AgentMergeController]: {
+				target: { branchName: 'feature', pullRequestUrl, enabledAt: new Date(1).toISOString(), commentWatermark: '' },
+			},
+		});
+		stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: agentMerge() });
+		const ready = agentMergeReadySnapshot({ ...account, owner: 'octo', repo: 'repo', number: 7 });
+		// A required check that waits for approvals never finishes on a draft.
+		resources.setNextSubscriptionSnapshot({
+			...ready,
+			checks: { ...ready.checks, value: { ...ready.checks.value!, requiredContexts: ['VS Code PR Check'], checks: [{ id: 'approval', type: 'checkRun', name: 'VS Code PR Check', status: 'IN_PROGRESS', required: true }] } },
+		});
+		subscriptions.addSubscription(session, `${session}/changes`);
+		await waitForWatch(resources);
+		const readiness = () => service.getPullRequestStatus(session)?.agentMergeReadyForReview;
+		const withoutExclusions = readiness();
+		configurationService.updateRootConfig({ [AgentHostGitHubArtifactIgnoredChecksConfigKey]: ['VS Code *'] });
+		const userExclusions = readiness();
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionConfigChanged, config: agentMerge([]), replace: true });
+		await pump();
+		const emptyWorkspaceExclusions = readiness();
+
+		assert.deepStrictEqual({ withoutExclusions, userExclusions, emptyWorkspaceExclusions }, { withoutExclusions: false, userExclusions: true, emptyWorkspaceExclusions: false });
 	});
 
 	test('optimistically records a successful merge in host pull request state', async () => {

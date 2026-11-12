@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -138,7 +138,7 @@ suite('VoiceChat', () => {
 		recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> { throw new Error('Method not implemented.'); }
 	}
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let emitter: Emitter<ISpeechToTextEvent>;
 
 	let service: VoiceChatService;
@@ -156,10 +156,6 @@ suite('VoiceChat', () => {
 	setup(() => {
 		emitter = disposables.add(new Emitter<ISpeechToTextEvent>());
 		service = disposables.add(new VoiceChatService(new TestSpeechService(), new TestChatAgentService(), new MockContextKeyService()));
-	});
-
-	teardown(() => {
-		disposables.clear();
 	});
 
 	test('Agent and slash command detection (useAgents: false)', async () => {
@@ -376,5 +372,4 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event.waitingForInput, true);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

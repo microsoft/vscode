@@ -57,7 +57,7 @@ export interface IChatInputModelSelectionRuntime {
 	/** Omitted by a surface that drives reconciliation itself rather than being notified. */
 	readonly subscribeToModelChanges?: (listener: () => void) => IDisposable;
 	/** Omitted by a surface with no per-model configuration to restore. */
-	readonly restoreModelConfiguration?: (modelId: string, configuration: Record<string, unknown> | undefined) => void;
+	readonly restoreModelConfiguration?: (modelId: string, configuration: Record<string, unknown> | undefined, persist?: boolean) => void;
 }
 
 /** One caller's request waiting for its model to publish. Not the conversation's intended model. */
@@ -389,7 +389,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		this._diagnostics.report('restore-remembered-model', { model: model.identifier, remembered: remembered.modelId, reason: remembered.reason }, 'info');
 		if (exact && remembered.configuration) {
-			this._runtime.restoreModelConfiguration?.(remembered.modelId, remembered.configuration);
+			this._runtime.restoreModelConfiguration?.(remembered.modelId, remembered.configuration, !remembered.configurationIsTransient);
 		}
 		this._applyModel(model, remembered.reason);
 		return true;
@@ -403,6 +403,7 @@ export class ChatInputModelSelectionController extends Disposable {
 		conversationKey: string,
 		isRemoteEdit = false,
 		restoredAs: RestoredModelReason = ModelSelectionReason.SessionRestore,
+		configurationIsTransient = false,
 	): void {
 		// Ignore a late sync for a conversation this input has left. Not yet bound is not "left".
 		const boundConversationKey = this._runtime.getBoundConversationKey();
@@ -440,13 +441,13 @@ export class ChatInputModelSelectionController extends Disposable {
 			action: syncResult.action,
 		}, syncResult.action === 'keep' ? 'debug' : 'info');
 		if (syncResult.action === 'apply' || syncResult.action === 'keep') {
-			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, restoredAs, keepsAwaitedModel);
+			this._applySessionRestore(desiredModel, syncResult.action === 'apply', modelConfiguration, restoredAs, keepsAwaitedModel, configurationIsTransient);
 			return;
 		}
 
 		// Not published yet. Remember it and show the nearest thing until it arrives.
 		if (!keepsAwaitedModel) {
-			this._rememberOnBoundConversation(desiredModel, modelConfiguration, conversationKey, restoredAs);
+			this._rememberOnBoundConversation(desiredModel, modelConfiguration, conversationKey, restoredAs, configurationIsTransient);
 		}
 		this._clearPendingProgrammaticSelection();
 		const pool = this._pool(sessionType);
@@ -520,11 +521,12 @@ export class ChatInputModelSelectionController extends Disposable {
 		configuration: Record<string, unknown> | undefined,
 		conversationKey: string,
 		restoredAs: RestoredModelReason,
+		configurationIsTransient: boolean,
 	): void {
 		if (this._runtime.getBoundConversationKey() !== conversationKey) {
 			return;
 		}
-		this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration });
+		this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration, configurationIsTransient });
 	}
 
 	revalidateForSessionType(initialize: () => void): void {
@@ -554,14 +556,15 @@ export class ChatInputModelSelectionController extends Disposable {
 		configuration: Record<string, unknown> | undefined,
 		restoredAs: RestoredModelReason,
 		keepsAwaitedModel = false,
+		configurationIsTransient = false,
 	): void {
 		this._clearPendingProgrammaticSelection();
 		this._selectionReason = restoredAs;
 		if (!keepsAwaitedModel) {
-			this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration });
+			this._remember({ modelId: model.identifier, model, reason: restoredAs, configuration, configurationIsTransient });
 		}
 		if (configuration) {
-			this._runtime.restoreModelConfiguration?.(model.identifier, configuration);
+			this._runtime.restoreModelConfiguration?.(model.identifier, configuration, !configurationIsTransient);
 		}
 		if (applyModel) {
 			this._applyModel(model, restoredAs);

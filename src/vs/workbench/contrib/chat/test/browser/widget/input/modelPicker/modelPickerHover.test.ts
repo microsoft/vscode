@@ -147,7 +147,7 @@ suite('ModelPickerHover', () => {
 			const model = createModel(id === 'fusion' ? 'auto' : id, id);
 			model.metadata = {
 				...model.metadata,
-				...(id === 'fusion' && { autoModelFusion: { balanceUsesHydraFusion: false } }),
+				...(id === 'fusion' && { autoModelFusion: true }),
 				configurationSchema: {
 					properties: {
 						navigationOption: {

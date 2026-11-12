@@ -132,7 +132,7 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 export class MainThreadAuthentication extends Disposable implements MainThreadAuthenticationShape {
 	private readonly _proxy: Proxied<ExtHostAuthenticationShape>;
 
-	private readonly _registrations = this._register(new DisposableMap<string>());
+	private readonly _registrations = this._register(new DisposableMap<string, { emitter: Emitter<AuthenticationSessionsChangeEvent>; dispose(): void }>());
 	private _sentProviderUsageEvents = new Set<string>();
 	private _suppressUnregisterEvent = false;
 
@@ -162,6 +162,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationService.onDidChangeSessions(e => this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label)));
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(e => {
 			if (!this._suppressUnregisterEvent) {
+				this._registrations.deleteAndDispose(e.id);
 				this._proxy.$onDidUnregisterAuthenticationProvider(e.id);
 			}
 		}));
@@ -178,8 +179,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(authenticationService.registerAuthenticationProviderHostDelegate({
 			// Prefer Node.js extension hosts when they're available. No CORS issues etc.
 			priority: extHostContext.extensionHostKind === ExtensionHostKind.LocalWebWorker ? 0 : 1,
-			create: async (authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret) => {
-				const authProviderId = getDynamicAuthenticationProviderId(authorizationServer, resource);
+			create: async (authorizationServer, serverMetadata, resource, overrideClientId, overrideClientSecret, providerId) => {
+				const authProviderId = providerId ?? getDynamicAuthenticationProviderId(authorizationServer, resource);
 				const clientDetails = await this.dynamicAuthProviderStorageService.getClientRegistration(authProviderId);
 				let clientId = overrideClientId ?? clientDetails?.clientId;
 				const clientSecret = overrideClientId
@@ -199,7 +200,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					resource,
 					clientId,
 					clientSecret,
-					initialTokens
+					initialTokens,
+					authProviderId
 				);
 			},
 			createXaa: async (issuer) => {
@@ -248,7 +250,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			this.telemetryService.publicLog2<{ id: string }, AuthProviderNotDeclaredClassification>('authentication.providerNotDeclared', { id });
 		}
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
-		this._registrations.set(id, emitter);
 		const supportedAuthorizationServerUris = (supportedAuthorizationServers ?? []).map(i => URI.revive(i));
 		const provider =
 			supportsChallenges
@@ -270,18 +271,24 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 					resourceServer ? URI.revive(resourceServer) : undefined,
 					emitter
 				);
+		this._registrations.set(id, {
+			emitter,
+			dispose: () => {
+				emitter.dispose();
+				// Suppress the owning host's unregister event during cleanup.
+				this._suppressUnregisterEvent = true;
+				try {
+					this.authenticationService.unregisterAuthenticationProvider(id);
+				} finally {
+					this._suppressUnregisterEvent = false;
+				}
+			}
+		});
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
 	async $unregisterAuthenticationProvider(id: string): Promise<void> {
 		this._registrations.deleteAndDispose(id);
-		// The ext host side already unregisters the provider, so we can suppress the event here.
-		this._suppressUnregisterEvent = true;
-		try {
-			this.authenticationService.unregisterAuthenticationProvider(id);
-		} finally {
-			this._suppressUnregisterEvent = false;
-		}
 	}
 
 	async $ensureProvider(id: string): Promise<void> {
@@ -291,9 +298,9 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $sendDidChangeSessions(providerId: string, event: Dto<AuthenticationSessionsChangeEvent>): Promise<void> {
-		const obj = this._registrations.get(providerId);
-		if (obj instanceof Emitter) {
-			obj.fire({
+		const registration = this._registrations.get(providerId);
+		if (registration) {
+			registration.emitter.fire({
 				added: event.added?.map(reviveAuthenticationSession),
 				removed: event.removed?.map(reviveAuthenticationSession),
 				changed: event.changed?.map(reviveAuthenticationSession)

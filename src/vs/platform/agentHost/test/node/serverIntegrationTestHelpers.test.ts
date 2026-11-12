@@ -12,7 +12,6 @@ import { DeferredPromise, Promises, raceTimeout, retry, timeout } from '../../..
 import { getErrorCode } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import type { killTree } from '../../../../base/node/processes.js';
 import { realTimeApi, runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { collectServerDescendants, isSameServerProcess, isSameWindowsProcessRunning, killServer, stopServer } from './serverIntegrationTestHelpers.js';
@@ -34,7 +33,7 @@ suite('Agent Host test server cleanup', () => {
 	for (const { name, cleanup } of [
 		{
 			name: 'graceful shutdown fallback',
-			cleanup: (process: ChildProcess, killProcessTree: typeof killTree) => stopServer({ process, port: 0 }, async () => [], 0, {
+			cleanup: (process: ChildProcess, killProcessTree: NonNullable<Parameters<typeof killServer>[1]>) => stopServer({ process, port: 0 }, async () => [], 0, {
 				killTree: killProcessTree,
 				killProcess: () => assert.fail('No descendant kills expected'),
 				isSameProcessRunning: async () => assert.fail('No descendant identity checks expected'),
@@ -42,7 +41,7 @@ suite('Agent Host test server cleanup', () => {
 		},
 		{
 			name: 'forceful shutdown',
-			cleanup: (process: ChildProcess, killProcessTree: typeof killTree) => killServer({ process, port: 0 }, killProcessTree, async () => []),
+			cleanup: (process: ChildProcess, killProcessTree: NonNullable<Parameters<typeof killServer>[1]>) => killServer({ process, port: 0 }, killProcessTree, async () => []),
 		},
 	]) {
 		for (const queued of [false, true]) {

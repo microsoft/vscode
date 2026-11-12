@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-function isStringLiteral(node: TSESTree.Node | ESTree.Node | null | undefined): node is TSESTree.StringLiteral {
-	return !!node && node.type === AST_NODE_TYPES.Literal && typeof node.value === 'string';
+function isStringLiteral(node: ESTree.Node | null | undefined): node is ESTree.StringLiteral {
+	return !!node && node.type === 'Literal' && typeof node.value === 'string';
 }
 
-function isDoubleQuoted(node: TSESTree.StringLiteral): boolean {
-	return node.raw[0] === '"' && node.raw[node.raw.length - 1] === '"';
+function isDoubleQuoted(node: ESTree.StringLiteral): boolean {
+	const raw = node.raw;
+	return raw !== null && raw[0] === '"' && raw[raw.length - 1] === '"';
 }
 
 /**
@@ -24,11 +23,11 @@ function isDoubleQuoted(node: TSESTree.StringLiteral): boolean {
 const enableDoubleToSingleQuoteFixes = false;
 
 
-export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModule {
+export default new class NoUnexternalizedStrings implements CreateRule {
 
 	private static _rNlsKeys = /^[_a-zA-Z0-9][ .\-_a-zA-Z0-9]*$/;
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			doubleQuoted: 'Only use double-quoted strings for externalized strings.',
 			badKey: 'The key \'{{key}}\' doesn\'t conform to a valid localize identifier.',
@@ -39,18 +38,18 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 		fixable: enableDoubleToSingleQuoteFixes ? 'code' : undefined,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
-		const externalizedStringLiterals = new Map<string, { call: TSESTree.CallExpression; message: TSESTree.Node }[]>();
-		const doubleQuotedStringLiterals = new Set<TSESTree.Node>();
+		const externalizedStringLiterals = new Map<string, { call: ESTree.CallExpression; message: ESTree.Node }[]>();
+		const doubleQuotedStringLiterals = new Set<ESTree.Node>();
 
-		function collectDoubleQuotedStrings(node: ESTree.Literal) {
+		function collectDoubleQuotedStrings(node: ESTree.Node) {
 			if (isStringLiteral(node) && isDoubleQuoted(node)) {
 				doubleQuotedStringLiterals.add(node);
 			}
 		}
 
-		function visitLocalizeCall(node: TSESTree.CallExpression) {
+		function visitLocalizeCall(node: ESTree.CallExpression) {
 
 			// localize(key, message)
 			const [keyNode, messageNode] = node.arguments;
@@ -62,18 +61,18 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 				doubleQuotedStringLiterals.delete(keyNode);
 				key = keyNode.value;
 
-			} else if (keyNode.type === AST_NODE_TYPES.TemplateLiteral && keyNode.expressions.length === 0 && keyNode.quasis.length === 1) {
+			} else if (keyNode.type === 'TemplateLiteral' && keyNode.expressions.length === 0 && keyNode.quasis.length === 1) {
 				key = keyNode.quasis[0].value.cooked ?? undefined;
 
-			} else if (keyNode.type === AST_NODE_TYPES.ObjectExpression) {
+			} else if (keyNode.type === 'ObjectExpression') {
 				for (const property of keyNode.properties) {
-					if (property.type === AST_NODE_TYPES.Property && !property.computed) {
-						if (property.key.type === AST_NODE_TYPES.Identifier && property.key.name === 'key') {
+					if (property.type === 'Property' && !property.computed) {
+						if (property.key.type === 'Identifier' && property.key.name === 'key') {
 							if (isStringLiteral(property.value)) {
 								doubleQuotedStringLiterals.delete(property.value);
 								key = property.value.value;
 								break;
-							} else if (property.value.type === AST_NODE_TYPES.TemplateLiteral && property.value.expressions.length === 0 && property.value.quasis.length === 1) {
+							} else if (property.value.type === 'TemplateLiteral' && property.value.expressions.length === 0 && property.value.quasis.length === 1) {
 								key = property.value.quasis[0].value.cooked ?? undefined;
 								break;
 							}
@@ -98,22 +97,22 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 				context.report({
 					loc: messageNode.loc,
 					messageId: 'badMessage',
-					data: { message: context.sourceCode.getText(node as ESTree.Node) }
+					data: { message: context.sourceCode.getText(node) }
 				});
 			}
 		}
 
-		function visitL10NCall(node: TSESTree.CallExpression) {
+		function visitL10NCall(node: ESTree.CallExpression) {
 
 			// localize(key, message)
-			const [messageNode] = (node as TSESTree.CallExpression).arguments;			// remove message-argument from doubleQuoted list and make
+			const [messageNode] = node.arguments;			// remove message-argument from doubleQuoted list and make
 			// sure it is a string-literal
 			if (isStringLiteral(messageNode)) {
 				doubleQuotedStringLiterals.delete(messageNode);
-			} else if (messageNode.type === AST_NODE_TYPES.ObjectExpression) {
+			} else if (messageNode.type === 'ObjectExpression') {
 				for (const prop of messageNode.properties) {
-					if (prop.type === AST_NODE_TYPES.Property) {
-						if (prop.key.type === AST_NODE_TYPES.Identifier && prop.key.name === 'message') {
+					if (prop.type === 'Property') {
+						if (prop.key.type === 'Identifier' && prop.key.name === 'message') {
 							doubleQuotedStringLiterals.delete(prop.value);
 							break;
 						}
@@ -131,7 +130,7 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 					messageId: 'doubleQuoted',
 					fix: enableDoubleToSingleQuoteFixes ? (fixer) => {
 						// Get the raw string content, unescaping any escaped quotes
-						const content = (node as ESTree.SimpleLiteral).raw!
+						const content = (node as ESTree.StringLiteral).raw!
 							.slice(1, -1)
 							.replace(/(?<!\\)\\'/g, `'`)
 							.replace(/(?<!\\)\\"/g, `"`);
@@ -166,7 +165,7 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 				// report all invalid duplicates (same key, different message)
 				if (values.length > 1) {
 					for (let i = 1; i < values.length; i++) {
-						if (context.sourceCode.getText(values[i - 1].message as ESTree.Node) !== context.sourceCode.getText(values[i].message as ESTree.Node)) {
+						if (context.sourceCode.getText(values[i - 1].message) !== context.sourceCode.getText(values[i].message)) {
 							context.report({ loc: values[i].call.loc, messageId: 'duplicateKey', data: { key } });
 						}
 					}
@@ -174,24 +173,39 @@ export default new class NoUnexternalizedStrings implements eslint.Rule.RuleModu
 			}
 		}
 
+		function getName(node: ESTree.Node): string | undefined {
+			return 'name' in node && typeof node.name === 'string' ? node.name : undefined;
+		}
+
+		function visitCallExpression(node: ESTree.CallExpression) {
+			const callee = node.callee;
+			if (callee.type === 'MemberExpression') {
+				const objectName = getName(callee.object);
+				const propertyName = getName(callee.property);
+				if (objectName === 'nls' && (propertyName === 'localize' || propertyName === 'localize2')) {
+					// nls.localize(...), nls.localize2(...)
+					visitLocalizeCall(node);
+				} else if (propertyName === 't' && (objectName === 'l10n' || ('property' in callee.object && getName(callee.object.property) === 'l10n'))) {
+					// l10n.t(...), vscode.l10n.t(...)
+					visitL10NCall(node);
+				}
+			} else {
+				// localize(...), localize2(...)
+				const calleeName = getName(callee);
+				if ((calleeName === 'localize' || calleeName === 'localize2') && node.arguments.length >= 2) {
+					visitLocalizeCall(node);
+				}
+			}
+		}
+
 		return {
-			['Literal']: (node: ESTree.Literal) => collectDoubleQuotedStrings(node),
-			['ExpressionStatement[directive] Literal:exit']: (node: TSESTree.Literal) => doubleQuotedStringLiterals.delete(node),
-
-			// localize(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize"]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
-
-			// localize2(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.name="nls"][callee.property.name="localize2"]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
-
-			// vscode.l10n.t(...)
-			['CallExpression[callee.type="MemberExpression"][callee.object.property.name="l10n"][callee.property.name="t"]:exit']: (node: TSESTree.CallExpression) => visitL10NCall(node),
-
-			// l10n.t(...)
-			['CallExpression[callee.object.name="l10n"][callee.property.name="t"]:exit']: (node: TSESTree.CallExpression) => visitL10NCall(node),
-
-			['CallExpression[callee.name="localize"][arguments.length>=2]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
-			['CallExpression[callee.name="localize2"][arguments.length>=2]:exit']: (node: TSESTree.CallExpression) => visitLocalizeCall(node),
+			['Literal']: (node: ESTree.Node) => collectDoubleQuotedStrings(node),
+			['ExpressionStatement:exit']: (node: ESTree.ExpressionStatement) => {
+				if (typeof node.directive === 'string') {
+					doubleQuotedStringLiterals.delete(node.expression);
+				}
+			},
+			['CallExpression:exit']: (node: ESTree.CallExpression) => visitCallExpression(node),
 			['Program:exit']: reportBadStringsAndBadKeys,
 		};
 	}

@@ -38,6 +38,7 @@ import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js
 import { IExtHostAuthentication } from './extHostAuthentication.js';
 import { ExtHostBulkEdits } from './extHostBulkEdits.js';
 import { ExtHostChatAgents2 } from './extHostChatAgents2.js';
+import { ExtHostChatArtifactIntegrations } from './extHostChatArtifactIntegrations.js';
 import { ExtHostChatOutputRenderer } from './extHostChatOutputRenderer.js';
 import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostChatStatus } from './extHostChatStatus.js';
@@ -244,6 +245,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHostLabelService, new ExtHostLabelService(rpcProtocol));
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
+	const extHostChatArtifactIntegrations = rpcProtocol.set(ExtHostContext.ExtHostChatArtifactIntegrations, new ExtHostChatArtifactIntegrations(rpcProtocol, extHostLogService));
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.remote, extHostWorkspace, extHostLogService, extHostApiDeprecation));
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
@@ -726,6 +728,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentSymbolProvider(extension, checkSelector(selector), provider, metadata);
+			},
+			registerStructuralDiffProvider(selector: vscode.DocumentSelector, provider: vscode.StructuralDiffProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerStructuralDiffProvider(extension, checkSelector(selector), provider);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerWorkspaceSymbolProvider(extension, provider);
@@ -1473,13 +1478,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'tunnelFactory');
 				return extHostTunnelService.registerTunnelProvider(tunnelProvider, information);
 			},
-			registerTimelineProvider: (scheme: string | readonly string[], provider: vscode.TimelineProvider) => {
-				checkProposedApiEnabled(extension, 'timeline');
-				return extHostTimeline.registerTimelineProvider(scheme, provider, extension.identifier, extHostCommands.converter);
+			registerTimelineProvider: (id: string, label: string, scheme: string | readonly string[], provider: vscode.TimelineProvider) => {
+				return extHostTimeline.registerTimelineProvider(id, label, scheme, provider, extension.identifier, extHostCommands.converter);
 			},
-			registerWorkspaceTimelineProvider: (provider: vscode.WorkspaceTimelineProvider) => {
-				checkProposedApiEnabled(extension, 'timeline');
-				return extHostTimeline.registerWorkspaceTimelineProvider(provider, extension.identifier, extHostCommands.converter);
+			registerWorkspaceTimelineProvider: (id: string, label: string, provider: vscode.WorkspaceTimelineProvider) => {
+				return extHostTimeline.registerWorkspaceTimelineProvider(id, label, provider, extension.identifier, extHostCommands.converter);
 			},
 			get isTrusted() {
 				return extHostWorkspace.trusted;
@@ -1739,6 +1742,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: chatregisterMcpServerDefinitionProvider
 		const chat: typeof vscode.chat = {
+			registerArtifactIntegrationProvider(id: string, provider: vscode.ChatArtifactIntegrationProvider) {
+				checkProposedApiEnabled(extension, 'chatArtifactIntegrations');
+				return extHostChatArtifactIntegrations.registerProvider(extension, id, provider);
+			},
 			registerMappedEditsProvider(_selector: vscode.DocumentSelector, _provider: vscode.MappedEditsProvider) {
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				// no longer supported
@@ -2123,6 +2130,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SnippetString: extHostTypes.SnippetString,
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StandardTokenType: extHostTypes.StandardTokenType,
+			StructuralDiffClassification: extHostTypes.StructuralDiffClassification,
+			StructuralDiffTag: extHostTypes.StructuralDiffTag,
 			SyntaxHighlightingTokenFontStyle: extHostTypes.SyntaxHighlightingTokenFontStyle,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,

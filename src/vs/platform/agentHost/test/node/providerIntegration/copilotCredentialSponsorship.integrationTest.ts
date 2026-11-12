@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { createHash } from 'crypto';
 import { execFileSync } from 'child_process';
+import { writeFileSync } from 'fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'fs/promises';
 import type { Server } from 'http';
 import { tmpdir } from 'os';
@@ -16,16 +17,18 @@ import { isWindows } from '../../../../../base/common/platform.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqualOrParent } from '../../../../../base/common/resources.js';
-import { AgentSession, fixedChatOwnerRef, type AgentSignal, type IAgentChatContext } from '../../../common/agent.js';
+import { AgentSession, fixedChatOwnerRef, type AgentSignal, type IAgentChatContext, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { captureCredentialSource } from '../../../common/agentHostCredentials.js';
+import { subagentChatUri } from '../../../common/agentHostChatMinting.js';
 import { AgentHostMcpConnectorsEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ToolResultContentType } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ChatOriginKind, MessageKind, ToolResultContentType, type Turn } from '../../../common/state/sessionState.js';
 import { AgentHostAuthenticationScope } from '../../../node/agentHostAuthenticationScope.js';
 import { getAppNodeModulesUri } from '../../../node/appNodeModules.js';
 import { resolveCopilotRuntimePaths } from '../../../node/copilot/copilotRuntimePaths.js';
+import { preserveAgentHostE2ELogs } from '../e2e/harness/agentHostE2EDiagnostics.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
 import { createTestDirectory } from '../e2e/harness/testDirectories.js';
 import { createLocalEndpointCopilotAgent } from './copilotAgentIntegrationTestHarness.js';
@@ -34,6 +37,10 @@ import { credentialEnvironmentSentinels, fakeCapiCredentialForLabel, labelTestCr
 interface ModelRequest {
 	messages: { role: string; content?: string; tool_call_id?: string }[];
 	tools: { type: string; name?: string; function?: { name: string }; custom?: { name: string } }[];
+}
+
+interface ModelCatalog {
+	data: { id: string; supported_endpoints: string[] }[];
 }
 
 interface ModelTraffic {
@@ -52,7 +59,10 @@ suite('Copilot Agent credential sponsorship', function () {
 	this.timeout(120_000);
 
 	const resource = 'https://api.github.com';
+	const modelId = 'gpt-5.3-codex';
 	const metadata = [{ resource }];
+	// Trace runtime logs stay in the isolated home, which only a failed test keeps (see preserveFailureDiagnostics).
+	const rootConfiguration = { [AgentHostMcpConnectorsEnabledConfigKey]: true, [CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace' };
 	let server: Server;
 	let directory: string;
 	let endpoint: string;
@@ -64,6 +74,13 @@ suite('Copilot Agent credential sponsorship', function () {
 	let unexpectedRequests: string[];
 	let originalEnvironment: Map<string, string | undefined>;
 	const signals: AgentSignal[] = [];
+
+	function onProgress(signal: AgentSignal): void {
+		signals.push(signal);
+		if (signal.kind === 'pending_confirmation') {
+			agent.respondToPermissionRequest(signal.state.toolCallId, true);
+		}
+	}
 
 	setup(async () => {
 		originalEnvironment = new Map(Object.entries(process.env).filter(([key]) =>
@@ -86,7 +103,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		signals.length = 0;
 		const { runtimePath } = await resolveCopilotRuntimePaths(getAppNodeModulesUri());
 		const skillsRoot = join(dirname(runtimePath), '..', '..', 'builtin-skills');
-		assert.deepStrictEqual((await readdir(skillsRoot)).sort(), ['customize-cloud-agent', 'discover-resources', 'github-pr-media']);
+		assert.deepStrictEqual((await readdir(skillsRoot)).sort(), ['customize-cloud-agent', 'discover-resources', 'github-pr-media', 'pr-stack']);
 		assert.ok((await readFile(join(skillsRoot, 'github-pr-media', 'SKILL.md'), 'utf8')).includes('gh auth token'), 'Excluded SDK skill no longer has its reviewed ambient-auth behavior');
 		directory = createTestDirectory(join(tmpdir(), 'copilot-sponsorship-'));
 		assert.ok(!isEqualOrParent(URI.file(directory), URI.file(process.cwd())), 'Synthetic provider data must be outside the source workspace');
@@ -175,7 +192,9 @@ suite('Copilot Agent credential sponsorship', function () {
 					},
 				];
 				const calls = modelTraffic.filter(traffic => traffic.probe === probe).length;
-				const operation = probe.includes('-') ? undefined : operations[calls - 1];
+				const operation = probe === 'A-DELEGATED' && calls === 1
+					? { name: 'task', arguments: { name: 'fixture-child', agent_type: 'explore', model: modelId, description: 'Read-only fixture child', prompt: 'CREDENTIAL_PROBE:A-CHILD. Reply briefly without using tools.' } }
+					: probe.includes('-') ? undefined : operations[calls - 1];
 				if (operation && !tools.includes(operation.name)) {
 					unexpectedRequests.push(`Unavailable coding tool: ${probe}:${operation.name}`);
 				}
@@ -200,7 +219,16 @@ suite('Copilot Agent credential sponsorship', function () {
 						githubTokens.push(authorization);
 					}
 					response.writeHead(stub.status, stub.headers);
-					response.end(stub.body.replaceAll('${capi}', endpoint));
+					let stubBody = stub.body.replaceAll('${capi}', endpoint);
+					if (request.method === 'GET' && (path === '/models' || path === '/meta')) {
+						const catalog: ModelCatalog | { models: ModelCatalog } = JSON.parse(stubBody);
+						const model = (hasKey(catalog, { models: true }) ? catalog.models : catalog).data.find(model => model.id === modelId);
+						assert.ok(model);
+						// Keep the coding model's freeform tools while using this fixture's Chat Completions transport.
+						model.supported_endpoints = ['/chat/completions'];
+						stubBody = JSON.stringify(catalog);
+					}
+					response.end(stubBody);
 				} else {
 					unexpectedRequests.push(`${request.method} ${path}`);
 					response.writeHead(500, { 'x-should-retry': 'false' });
@@ -212,16 +240,12 @@ suite('Copilot Agent credential sponsorship', function () {
 		const address = server.address();
 		assert.ok(address && typeof address !== 'string');
 		endpoint = `http://127.0.0.1:${address.port}`;
-		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
-		store.add(agent.onDidChatProgress(signal => {
-			signals.push(signal);
-			if (signal.kind === 'pending_confirmation') {
-				agent.respondToPermissionRequest(signal.state.toolCallId, true);
-			}
-		}));
+		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, rootConfiguration);
+		store.add(agent.onDidChatProgress(onProgress));
 	});
 
-	teardown(async () => {
+	teardown(async function () {
+		const failedTest = this.currentTest?.state === 'failed' ? this.currentTest.fullTitle() : undefined;
 		try {
 			try {
 				await agent?.shutdown();
@@ -232,7 +256,13 @@ suite('Copilot Agent credential sponsorship', function () {
 					await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 				}
 				if (directory) {
-					await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+					try {
+						if (failedTest) {
+							preserveFailureDiagnostics(failedTest);
+						}
+					} finally {
+						await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+					}
 				}
 			}
 		} finally {
@@ -249,6 +279,19 @@ suite('Copilot Agent credential sponsorship', function () {
 		}
 	});
 
+	/**
+	 * Keeps what a failure needs once the isolated home is removed: the runtime logs, and which
+	 * prompt context each model request had, in order, so a context missing only on a chat's first turn shows as such.
+	 */
+	function preserveFailureDiagnostics(title: string): void {
+		// One directory per test, since setup resets the recorded traffic and several tests can fail in one run.
+		const testDirectory = title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 80);
+		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `copilot-sponsorship-${process.pid}`, testDirectory);
+		preserveAgentHostE2ELogs(directory, directory, destination, title);
+		writeFileSync(join(destination, 'prompt-contexts.json'), JSON.stringify(modelTraffic.map(({ probe, instructions, environment, ancestorInstructions, workspaceSkill }) =>
+		({ probe, instructions, environment, ancestorInstructions, workspaceSkill })), undefined, '\t'));
+	}
+
 	async function createScope(token: string): Promise<AgentHostAuthenticationScope> {
 		const scope = store.add(new AgentHostAuthenticationScope(async params => params, () => { }, { apiOrigin: resource, userId: '1' }));
 		await scope.authenticate({ resource, token, scopes: ['contents:read'], expiresIn: 7200 }, [resource]);
@@ -259,12 +302,12 @@ suite('Copilot Agent credential sponsorship', function () {
 		const session = AgentSession.uri('copilotcli', `sponsorship-${name}`);
 		return {
 			resource: session, owner: fixedChatOwnerRef(session),
-			sessionSettings: undefined, launchWorkingDirectories: undefined,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false,
 			...(scope ? { credentials: captureCredentialSource(scope, metadata) } : {}),
 		};
 	}
 
-	async function createChat(name: string, scope?: AgentHostAuthenticationScope): Promise<void> {
+	async function createChat(name: string, scope?: AgentHostAuthenticationScope): Promise<IAgentCreateChatResult> {
 		const workspace = join(directory, name);
 		await mkdir(workspace);
 		// The nested repository bounds instruction discovery to synthetic files.
@@ -277,10 +320,12 @@ suite('Copilot Agent credential sponsorship', function () {
 		await mkdir(skill, { recursive: true });
 		await writeFile(join(skill, 'SKILL.md'), '---\nname: sponsorship-workspace-skill\ndescription: Synthetic workspace discovery proof\n---\nSynthetic skill for credential parity tests.\n');
 		const chatContext = context(name, scope);
-		await agent.chats.createChat(URI.parse(buildDefaultChatUri(chatContext.resource)), chatContext, {
-			deferBacking: true, model: { id: 'gpt-4o' }, workingDirectories: [URI.file(workspace)],
+		const created = await agent.chats.createChat(URI.parse(buildDefaultChatUri(chatContext.resource)), chatContext, {
+			deferBacking: true, model: { id: modelId }, workingDirectories: [URI.file(workspace)],
 			config: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 		});
+		assert.ok(created);
+		return created;
 	}
 
 	async function send(probe: string, scope?: AgentHostAuthenticationScope): Promise<void> {
@@ -301,6 +346,96 @@ suite('Copilot Agent credential sponsorship', function () {
 			listener.dispose();
 		}
 	}
+
+	test('after restart, isolated history matches live history without authentication, activation or network traffic', async () => {
+		const scope = await createScope('scope-a');
+		const created = await createChat('A', scope);
+		await send('A', scope);
+		await send('A-DELEGATED', scope);
+		const original = context('A', scope);
+		const chat = URI.parse(buildDefaultChatUri(original.resource));
+		const live = await agent.chats.getMessages(chat, original);
+		const child = URI.parse(subagentChatUri('shaped', original.resource.toString(), chat.toString(), 'call-A-DELEGATED-1'));
+		const childContext = { ...original, origin: { kind: ChatOriginKind.Tool as const, chat: chat.toString(), toolCallId: 'call-A-DELEGATED-1' } };
+		const liveChild = await agent.chats.getMessages(child, childContext);
+		assert.ok(liveChild.length > 0, `The fixture must generate a real child transcript: ${JSON.stringify({
+			probes: modelTraffic.map(request => request.probe),
+			task: signals.filter(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === 'call-A-DELEGATED-1'),
+		})}`);
+		await agent.chats.releaseChat(chat, original);
+		await agent.shutdown();
+		agent = createLocalEndpointCopilotAgent(store, directory, endpoint, rootConfiguration);
+		store.add(agent.onDidChatProgress(onProgress));
+		const observing = {
+			...original,
+			credentials: { getCredential: () => { assert.fail('History must not acquire execution credentials'); } },
+		};
+		const beforeRead = { github: githubTokens.length, model: modelTraffic.length, connectors: connectorTokens.length, clients: agent.clients.length };
+		const metadata = await agent.getChatMetadata(chat, observing, created.providerData);
+		assert.ok(metadata);
+		await agent.materializeChat(chat, observing, created.providerData);
+		const [restored, restoredChild] = await Promise.all([
+			agent.chats.getMessages(chat, observing),
+			agent.chats.getMessages(child, { ...childContext, credentials: observing.credentials }),
+		]);
+		const canvases = await agent.listSessionCanvases(original.resource, chat, observing);
+		const transcript = (turns: readonly Turn[]) => turns.map(turn => ({
+			...turn,
+			id: turn.message.origin.kind === MessageKind.Tool ? 'generated-tool-turn' : turn.id,
+			responseParts: turn.responseParts.map(part => {
+				if (!hasKey(part, { id: true })) {
+					return part;
+				}
+				const { id, ...content } = part;
+				return content;
+			}),
+		}));
+		assert.deepStrictEqual({
+			history: transcript(restored),
+			child: transcript(restoredChild),
+			canvases,
+			traffic: { github: githubTokens.length, model: modelTraffic.length, connectors: connectorTokens.length },
+			clients: agent.clients.slice(beforeRead.clients).map(entry => ({
+				mode: entry.options.mode, token: entry.options.gitHubToken, stops: entry.client.stopCount, errors: entry.client.stopErrorCount,
+			})),
+			unexpectedRequests,
+		}, {
+			history: transcript(live),
+			child: transcript(liveChild),
+			canvases: undefined,
+			traffic: { github: beforeRead.github, model: beforeRead.model, connectors: beforeRead.connectors },
+			clients: [0, 1].map(() => ({ mode: 'empty', token: undefined, stops: 1, errors: 0 })),
+			unexpectedRequests: [],
+		});
+		await agent.chats.releaseChat(chat, observing);
+		const snapshotStarted = new DeferredPromise<void>();
+		const snapshotGate = new DeferredPromise<void>();
+		agent.onClientStarted = (client, options) => {
+			if (options.mode === 'empty') {
+				const read = client.rpc.sessions.readPersistedEvents;
+				client.rpc.sessions.readPersistedEvents = async params => {
+					const page = await read(params);
+					snapshotStarted.complete();
+					await snapshotGate.p;
+					return page;
+				};
+			}
+		};
+		const snapshot = agent.chats.getMessages(chat, observing);
+		try {
+			await Promise.race([snapshotStarted.p, snapshot]);
+			await send('A-CONTINUED', scope);
+		} finally {
+			snapshotGate.complete();
+			agent.onClientStarted = undefined;
+		}
+		assert.deepStrictEqual(transcript(await snapshot), transcript(restored));
+		await agent.chats.releaseChat(chat, original);
+		const afterContinuation = await agent.chats.getMessages(chat, observing);
+		assert.deepStrictEqual(afterContinuation.map(turn => turn.message.text), [
+			...restored.map(turn => turn.message.text), 'CREDENTIAL_PROBE:A-CONTINUED',
+		]);
+	});
 
 	test('real Agent startup preserves coding tools and separates A, B and legacy credentials through idle rotation', async () => {
 		const [a, b] = await Promise.all([createScope('scope-a'), createScope('scope-b')]);

@@ -16,6 +16,21 @@ outputs:
   copilot:
     description: "'true' when the Copilot extension checks in extensions/copilot/ need to run."
     value: ${{ steps.detect.outputs.copilot }}
+  unit-tests:
+    description: "'true' when the Electron, node.js and browser unit tests need to run."
+    value: ${{ steps.detect.outputs.unit-tests }}
+  browser-integration:
+    description: "'true' when the browser integration and smoke tests need to run."
+    value: ${{ steps.detect.outputs.browser-integration }}
+  product-tests:
+    description: "'true' when the Electron integration, Electron smoke and remote tests need to run."
+    value: ${{ steps.detect.outputs.product-tests }}
+  monaco-editor:
+    description: "'true' when the Monaco Editor checks need to run."
+    value: ${{ steps.detect.outputs.monaco-editor }}
+  telemetry:
+    description: "'true' when the telemetry extraction check needs to run."
+    value: ${{ steps.detect.outputs.telemetry }}
 
 runs:
   using: composite

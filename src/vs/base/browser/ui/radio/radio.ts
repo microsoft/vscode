@@ -44,6 +44,8 @@ export interface IRadioOptions {
 	readonly ariaLabel?: string;
 	/** Extra class added to {@link Radio.domNode}, e.g. `segmented` for rounded-rectangle segments. */
 	readonly className?: string;
+	/** Leaves every item unchecked when none is marked active, without removing the group from the tab order. */
+	readonly allowNoSelection?: boolean;
 	/**
 	 * How arrow keys behave. `select` (default) moves focus and selects, matching the
 	 * ARIA radiogroup pattern. `focus` only moves focus, and Enter or Space selects —
@@ -65,6 +67,7 @@ export class Radio extends Widget {
 
 	private readonly hoverDelegate: IHoverDelegate;
 	private readonly arrowKeyBehavior: 'select' | 'focus';
+	private readonly allowNoSelection: boolean;
 
 	private items: ReadonlyArray<IRadioOptionItem> = [];
 	private activeItem: IRadioOptionItem | undefined;
@@ -80,6 +83,7 @@ export class Radio extends Widget {
 
 		this.hoverDelegate = opts.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this.arrowKeyBehavior = opts.arrowKeyBehavior ?? 'select';
+		this.allowNoSelection = opts.allowNoSelection ?? false;
 
 		this.domNode = $('.monaco-custom-radio');
 		if (opts.className) {
@@ -126,7 +130,7 @@ export class Radio extends Widget {
 		this.selectionIndicatorBounds = undefined;
 		this.domNode.classList.remove('selection-indicator-ready', 'animate-selection');
 		this.items = items;
-		this.activeItem = this.items.find(item => item.isActive) ?? this.items[0];
+		this.activeItem = this.items.find(item => item.isActive) ?? (this.allowNoSelection ? undefined : this.items[0]);
 		const segmented = this.domNode.classList.contains('segmented');
 		this.domNode.classList.toggle('multi-row', segmented && this.items.some((item, index) => index > 0 && item.startsRow));
 		for (let index = 0; index < this.items.length; index++) {
@@ -207,7 +211,7 @@ export class Radio extends Widget {
 
 	/** Moves focus to the active item, for callers that rebuild the row after a selection. */
 	focusActiveItem(): void {
-		const index = this.activeItem ? this.items.indexOf(this.activeItem) : -1;
+		const index = this.activeItem ? this.items.indexOf(this.activeItem) : this.orderedButtons.findIndex(button => button.enabled);
 		if (index !== -1) {
 			this.focusItem(index);
 		}
@@ -262,13 +266,14 @@ export class Radio extends Widget {
 
 	private updateButtons(animate = false): void {
 		let isActive = false;
+		const tabStop = this.activeItem ?? this.items.find(item => !item.disabled);
 		for (const [button, { item }] of this.buttons) {
 			const isPreviousActive = isActive;
 			isActive = item === this.activeItem;
 			button.element.classList.toggle('active', isActive);
 			button.element.classList.toggle('previous-active', isPreviousActive);
 			button.element.setAttribute('aria-checked', String(isActive));
-			button.element.tabIndex = isActive ? 0 : -1;
+			button.element.tabIndex = item === tabStop ? 0 : -1;
 			this.setButtonLabel(button, item.text);
 		}
 		this.layoutSelectionIndicator(animate);

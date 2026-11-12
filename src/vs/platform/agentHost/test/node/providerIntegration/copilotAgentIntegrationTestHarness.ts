@@ -24,6 +24,7 @@ import { IAgentHostOTelService, NullAgentHostOTelService } from '../../../common
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import type { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { createAgentServiceFoundation } from '../../../node/agentServiceFoundation.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../../node/agentHostClientConnectionService.js';
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../../node/agentHostServices.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { CopilotAgent } from '../../../node/copilot/copilotAgent.js';
@@ -36,6 +37,13 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService { }
 
 /** Tracks disposal without replacing SDK session creation. */
 class ObservedCopilotClient extends CopilotClient {
+	onStarted: (() => void) | undefined;
+
+	override async start(): Promise<void> {
+		await super.start();
+		this.onStarted?.();
+	}
+
 	stopCount = 0;
 	stopErrorCount = 0;
 
@@ -52,6 +60,7 @@ class LocalEndpointCopilotAgent extends CopilotAgent {
 	home = '';
 	configuration: IAgentConfigurationService | undefined;
 	readonly clients: { options: CopilotClientOptions; client: ObservedCopilotClient }[] = [];
+	onClientStarted: ((client: CopilotClient, options: CopilotClientOptions) => void) | undefined;
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
 		for (const [key, value] of Object.entries(options.env ?? {})) {
@@ -78,6 +87,7 @@ class LocalEndpointCopilotAgent extends CopilotAgent {
 			},
 			client,
 		});
+		client.onStarted = () => this.onClientStarted?.(client, options);
 		return client;
 	}
 }
@@ -98,6 +108,7 @@ export function createLocalEndpointCopilotAgent(store: DisposableStore, home: st
 		[ISessionDataService, sessionDataService],
 		[ITelemetryService, NullTelemetryService],
 		[IByokLmBridgeRegistry, new NullByokLmBridgeRegistry()],
+		[IAgentHostClientConnectionService, store.add(new AgentHostClientConnectionService())],
 	);
 	const localFetch: typeof globalThis.fetch = (input, init) => {
 		const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);

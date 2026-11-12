@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CopilotClient, ToolSet, type CopilotSession, type ManagedSettingsPermissions, type PermissionRequest, type SessionConfig } from '@github/copilot-sdk';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -85,6 +85,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 			const models = store.add(new Emitter<IByokLmModelInfo[]>());
 			store.add(registry.register('client', {
 				onDidChangeModels: models.event,
+				onDidDelta: Event.None,
 				chat: async () => ({
 					responseId: 'managed-permissions-response',
 					output: [{ type: 'message', content: [{ type: 'text', text: 'ready' }] }],
@@ -169,7 +170,8 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					await session.rpc.tools.initializeAndValidate();
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
 					requests.length = 0;
-					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? 'Get-Location' : 'pwd', description: 'Read working directory' } });
+					// A script retains the approval boundary even when native analysis auto-approves safe commands.
+					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: 'node -e "console.log(process.cwd())"', description: 'Read working directory' } });
 					const readResult = await session.rpc.tools.execute({ name: 'view', arguments: { path: join(directory, 'input.txt') } });
 					const outputPath = join(directory, `${phase}.txt`);
 					const writeResult = await session.rpc.tools.execute({ name: 'create', arguments: { path: outputPath, file_text: phase } });
@@ -193,7 +195,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						requests: phase === 'removed' ? [{ kind: 'url', managedApprovalRequired: false }] : [],
 					} : {
 						result: 'success',
-						requests: [{ kind: 'shell', managedApprovalRequired: managedShellApprovalRequired }],
+						requests: managedShellApprovalRequired ? [{ kind: 'shell', managedApprovalRequired: true }] : [],
 					}, phase);
 
 					if (managedShellApprovalRequired) {

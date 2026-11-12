@@ -255,7 +255,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		// A policy can also react to the mere *presence* of managed settings rather than to a
 		// declared key, so probe for that too and attribute it to the governing channels.
 		if (source === PolicyValueSource.Account && policyData.managedSettingsActive === true
-			&& valueProvider({ ...policyData, managedSettingsActive: false }) !== value) {
+			&& valueProvider({ ...policyData, managedSettings: undefined, managedSettingsActive: false }) !== value) {
 			if (activeManagedSettingsSources.length > 0) {
 				source = activeManagedSettingsSources.length === 1
 					? policyValueSourceForManagedSettingsChannel(activeManagedSettingsSources[0])
@@ -295,16 +295,15 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			this._managedSettings = pick.values;
 			this._onDidChangeManagedSettings.fire();
 		}
-		if (!accountPolicyData && activeManagedSettingsSources.length === 0) {
-			return undefined;
-		}
-
 		const declaredManagedSettings = collectManagedSettingsDefinitions(this.policyDefinitions);
 		const managedSettingsData = projectManagedSettings(
 			pick.values,
 			declaredManagedSettings,
 			msg => this.logService.warn(`[AccountPolicy] ${msg}`)
 		);
+		if (!accountPolicyData && activeManagedSettingsSources.length === 0 && Object.keys(managedSettingsData).length === 0) {
+			return undefined;
+		}
 
 		return {
 			policyData: {

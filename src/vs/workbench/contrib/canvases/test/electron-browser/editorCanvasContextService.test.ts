@@ -22,8 +22,9 @@ import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatModel } from '../../../chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
-import { CanvasInput, ICanvas, ICanvasContext, ICanvasOwner } from '../../common/canvas.js';
+import { CanvasInput, ICanvasContextService, ICanvasContext } from '../../common/canvas.js';
 import { EditorCanvasContextService } from '../../electron-browser/editorCanvasContextService.js';
+import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
 class TestChatInput extends EditorInput {
 	constructor(override readonly resource: URI) { super(); }
@@ -103,7 +104,7 @@ suite('EditorCanvasContextService', () => {
 			models.set([...models.get(), model], undefined);
 			widgets.push(widget);
 			widgetAdded.fire(widget);
-			const input = store.add(new CanvasInput({ ...owner, canvas: canvas.resource }, canvas, groupsService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false })));
+			const input = store.add(new CanvasInput({ ...owner, canvas: canvas.resource }, canvas, groupsService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }), upcastPartial<ICanvasContextService>({})));
 			return {
 				owner, input, widget, model, canvases, canvasContext,
 				setVisible: (value: boolean) => { visible = value; visibilityChanged.fire(widget); },
@@ -134,9 +135,10 @@ suite('EditorCanvasContextService', () => {
 			const owner = harness.createOwner('materialized', harness.groups[0], editorResource);
 			assert.deepStrictEqual({
 				visible: harness.service.isOwnerVisible(owner.owner),
+				sessionResource: harness.service.getFrontendSessionResource(owner.owner)?.toString(),
 				target: harness.service.getEditorGroup(owner.owner, owner.input)?.id,
 				additions: harness.additions,
-			}, { visible: true, target: 2, additions: [1] });
+			}, { visible: true, sessionResource: 'agent-host-copilotcli:/materialized', target: 2, additions: [1] });
 		});
 	}
 

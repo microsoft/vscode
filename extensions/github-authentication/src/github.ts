@@ -870,7 +870,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('loginFailed');
 
-			vscode.window.showErrorMessage(vscode.l10n.t('Sign in failed: {0}', `${e}`));
+			vscode.window.showErrorMessage(vscode.l10n.t('Sign in failed: {0}', `${e}`), { notificationId: 'githubAuthentication.signIn.failed' });
 			this._logger.error(e);
 			throw e;
 		}
@@ -1010,7 +1010,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 			*/
 			this._telemetryReporter?.sendTelemetryEvent('logoutFailed');
 
-			vscode.window.showErrorMessage(vscode.l10n.t('Sign out failed: {0}', `${e}`));
+			vscode.window.showErrorMessage(vscode.l10n.t('Sign out failed: {0}', `${e}`), { notificationId: 'githubAuthentication.signOut.failed' });
 			this._logger.error(e);
 			throw e;
 		}

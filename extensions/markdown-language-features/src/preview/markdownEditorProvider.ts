@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { HubRpcConnection, type InterfaceHandlers } from '@vscode/hubrpc';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { Disposable } from '../util/dispose';
+import { Disposable, disposeAll } from '../util/dispose';
 import { getRangeFromPositionOrRange, MdLinkOpener } from '../util/openDocumentLink';
 import { areUrisEqual, getMarkdownLocalResourceRoots } from '../util/resources';
 import { ChangedLineRange, MarkdownPreviewLineDiffProvider } from './lineDiff';
@@ -50,6 +50,8 @@ interface MarkdownCodeBlockEditorProviderApi {
 		transport: MarkdownCodeBlockEditorHostTransport,
 		token: vscode.CancellationToken,
 	): vscode.ProviderResult<vscode.Disposable>;
+	/** Fires when {@link resolve} would return a different descriptor, for example after a setting changed. Open editors resolve again. */
+	readonly onDidChange?: vscode.Event<void>;
 }
 
 interface ProviderResolvedCodeBlockEditor {
@@ -275,6 +277,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #providerApis = new Map<string, Promise<MarkdownCodeBlockEditorProviderApi | undefined>>();
 	readonly #resolvedCodeBlockEditors = new Map<string, Promise<ResolvedCodeBlockEditor | undefined>>();
 	readonly #resolvedCodeBlockEditorResources = new Set<string>();
+	readonly #providerApiListeners: vscode.Disposable[] = [];
+	readonly #onDidChangeCodeBlockEditorProvider = this._register(new vscode.EventEmitter<void>());
 
 	constructor(
 		extensionUri: vscode.Uri,
@@ -295,6 +299,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this._register(new vscode.Disposable(() => {
 			void vscode.commands.executeCommand('setContext', 'markdownEditorFocus', false);
 		}));
+		this._register(new vscode.Disposable(() => disposeAll(this.#providerApiListeners.splice(0))));
 	}
 
 	public async resolveCustomTextEditor(
@@ -302,6 +307,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		webviewPanel: vscode.WebviewPanel,
 		token: vscode.CancellationToken,
 	): Promise<void> {
+		// Opening a new plain text file in the Markdown editor turns it into a Markdown scratchpad
+		if (document.uri.scheme === 'untitled' && document.languageId === 'plaintext') {
+			document = await vscode.languages.setTextDocumentLanguage(document, 'markdown');
+		}
 		await this.#resolveEditor(document, webviewPanel, token);
 	}
 
@@ -353,7 +362,18 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders, webview);
 	}
 
-	#configureWebview(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, editEpoch: number): void {
+	/**
+	 * New untitled and empty documents open in edit mode: there is nothing to read yet, so the
+	 * user wants to write. Other documents open in the last chosen mode.
+	 */
+	#getInitialReadonly(document: vscode.TextDocument): boolean {
+		if (document.uri.scheme === 'untitled' || document.getText().length === 0) {
+			return false;
+		}
+		return this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true);
+	}
+
+	#configureWebview(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, editEpoch: number, readonly: boolean): void {
 		const webview = editorWebview.webview;
 		const codeBlockEditorResourceRoots = vscode.workspace.isTrusted
 			? this.#contributions.contributions.codeBlockEditorProviders.map(provider => provider.extension.extensionUri)
@@ -364,7 +384,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				includeWorkspaceResources: vscode.workspace.isTrusted,
 			}),
 		};
-		webview.html = this.#getHtml(document, webview, editorWebview.messageSecret, editEpoch);
+		webview.html = this.#getHtml(document, webview, editorWebview.messageSecret, editEpoch, readonly);
 	}
 
 	#wireSingle(
@@ -377,7 +397,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		let expectedWebviewContent: { readonly content: string; readonly epoch: number } | undefined;
 		let webviewText = document.getText();
 		let webviewReady = false;
-		let readonly = this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true);
+		let readonly = this.#getInitialReadonly(document);
 		let codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] | undefined;
 		let contributionUpdate = 0;
 		const resolveCancellation = new vscode.CancellationTokenSource();
@@ -637,6 +657,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (e.document.uri.toString() !== document.uri.toString()) {
 				return;
 			}
+			// Dirty-state changes (e.g. on save) fire without content changes. Publishing then
+			// would advance the epoch and drop edits the webview has already made.
+			if (e.contentChanges.length === 0) {
+				return;
+			}
 			diagnosticsChanged();
 			if (
 				e.document.getText() === expectedWebviewContent?.content
@@ -669,7 +694,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				expectedWebviewContent = undefined;
 				webviewText = document.getText();
 				editorWebview.reset();
-				this.#configureWebview(document, editorWebview, epoch);
+				this.#configureWebview(document, editorWebview, epoch, readonly);
 				await refreshCodeBlockEditorProviders(true, true);
 			});
 		};
@@ -697,6 +722,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onContributionsChanged = this.#contributions.onContributionsChanged(() => {
 			void refreshCodeBlockEditorProviders(true, false);
 		});
+		const onDidChangeCodeBlockEditorProvider = this.#onDidChangeCodeBlockEditorProvider.event(() => {
+			void refreshCodeBlockEditorProviders(false, true);
+		});
 		const invalidateResourceCache = (resources: readonly vscode.Uri[]): void => {
 			const resourceKeys = resources.map(resource => resource.toString());
 			const dynamicResourceChanged = resourceKeys.some(resource => this.#resolvedCodeBlockEditorResources.has(resource));
@@ -716,7 +744,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
 				reloadWebview();
 			}
-			if (event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri) && editorWebview.ready) {
+			if ((event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri)
+				|| event.affectsConfiguration('markdown.editor.renderWhitespace', document.uri)) && editorWebview.ready) {
 				postConfiguration();
 			}
 		});
@@ -724,7 +753,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			reloadWebview();
 		});
 
-		this.#configureWebview(document, editorWebview, editQueue.epoch);
+		this.#configureWebview(document, editorWebview, editQueue.epoch, readonly);
 
 		webviewPanel.onDidDispose(() => {
 			navigation.dispose();
@@ -748,6 +777,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			comments.dispose();
 			onDidGrantWorkspaceTrust.dispose();
 			onContributionsChanged.dispose();
+			onDidChangeCodeBlockEditorProvider.dispose();
 			onDidSaveTextDocument.dispose();
 			onDidCreateFiles.dispose();
 			onDidDeleteFiles.dispose();
@@ -923,6 +953,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 					this.#logger.trace('Markdown code block editor', `Extension ${contribution.extension.id} did not return provider ${contribution.providerId}`);
 					return undefined;
 				}
+				if (provider.onDidChange) {
+					this.#providerApiListeners.push(provider.onDidChange(() => this.#onDidChangeCodeBlockEditorProvider.fire()));
+				}
 				return provider;
 			})();
 			this.#providerApis.set(contribution.id, cached);
@@ -987,6 +1020,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	}
 
 	#clearCodeBlockEditorCaches(): void {
+		disposeAll(this.#providerApiListeners.splice(0));
 		this.#providerApis.clear();
 		this.#resolvedCodeBlockEditors.clear();
 		this.#resolvedCodeBlockEditorResources.clear();
@@ -1126,7 +1160,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 	}
 
-	#getHtml(document: vscode.TextDocument, webview: vscode.Webview, messageSecret: string, editEpoch: number): string {
+	#getHtml(document: vscode.TextDocument, webview: vscode.Webview, messageSecret: string, editEpoch: number, readonly: boolean): string {
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.js'));
 		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.css'));
 		const baseUri = webview.asWebviewUri(document.uri);
@@ -1141,7 +1175,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			content: document.getText(),
 			documentVersion: document.version,
 			editEpoch,
-			readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true),
+			readonly,
 			richLinksEnabled: vscode.workspace.getConfiguration('markdown').get<boolean>('experimental.richLinks.enabled', true),
 			linkPresentationRules: vscode.window.linkPresentationRules.map(rule => ({
 				id: rule.id,
@@ -1177,6 +1211,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	#getEditorConfiguration(resource: vscode.Uri): MarkdownEditorConfiguration {
 		return {
 			highlightActiveBlock: vscode.workspace.getConfiguration('markdown.editor', resource).get<boolean>('highlightActiveBlock', true),
+			renderWhitespace: vscode.workspace.getConfiguration('markdown.editor', resource).get<boolean>('renderWhitespace', false),
 		};
 	}
 }
@@ -1247,7 +1282,8 @@ function isMarkdownCodeBlockEditorApi(value: unknown): value is MarkdownCodeBloc
 function isMarkdownCodeBlockEditorProviderApi(value: unknown): value is MarkdownCodeBlockEditorProviderApi {
 	return typeof value === 'object'
 		&& value !== null
-		&& typeof (value as Record<string, unknown>).resolve === 'function';
+		&& typeof (value as Record<string, unknown>).resolve === 'function'
+		&& ['undefined', 'function'].includes(typeof (value as Record<string, unknown>).onDidChange);
 }
 
 function isProviderResolvedCodeBlockEditor(value: unknown): value is ProviderResolvedCodeBlockEditor {

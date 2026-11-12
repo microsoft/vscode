@@ -24,16 +24,18 @@ import { logBrowserOpen } from '../../../../../platform/browserView/common/brows
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
-import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
+import { registerBuiltInExternalUriOpener } from '../../../externalUriOpener/common/configuration.js';
+import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from '../../../externalUriOpener/common/externalUriOpenerService.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+import { NewTabButtonEntryAction } from '../../../../browser/parts/editor/newTabButton.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
@@ -46,9 +48,10 @@ import { IPreferencesService } from '../../../../services/preferences/common/pre
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
 import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
+import { IExternalUriOpenContext } from '../../../../../platform/opener/common/opener.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
 
@@ -555,6 +558,21 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
+registerAction2(class OpenIntegratedBrowserFromNewTabButtonAction extends NewTabButtonEntryAction {
+	constructor() {
+		super({
+			id: BrowserViewCommandId.Open + '.fromNewTabButton',
+			title: localize2('browser.openFromNewTabButton', "New Integrated Browser"),
+			icon: Codicon.globe,
+			order: 4,
+		});
+	}
+
+	// Opens where the browser opens new tabs, by default in the (now active) group of the button.
+	protected override openTab(accessor: ServicesAccessor): Promise<unknown> {
+		return accessor.get(ICommandService).executeCommand(BrowserViewCommandId.Open);
+	}
+});
 registerAction2(OpenFileInIntegratedBrowserAction);
 registerAction2(OpenOrListBrowsersAction);
 registerAction2(NewTabAction);
@@ -591,13 +609,22 @@ class BrowserEditorOpenContextKeyContribution extends Disposable implements IWor
 registerWorkbenchContribution2(BrowserEditorOpenContextKeyContribution.ID, BrowserEditorOpenContextKeyContribution, WorkbenchPhase.AfterRestored);
 
 /**
- * Opens localhost URLs and all-interfaces URLs in the Integrated Browser when the setting is enabled.
+ * Offers the Integrated Browser as an external URI opener for http(s) links. It is preferred for
+ * localhost URLs and all-interfaces URLs when the setting is enabled.
  */
-export class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
+export class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpenerProvider {
 	static readonly ID = 'workbench.contrib.localhostLinkOpener';
+	static readonly OPENER_ID = 'workbench.integratedBrowser';
+
+	private readonly _opener: IExternalUriOpener = {
+		id: LocalhostLinkOpenerContribution.OPENER_ID,
+		label: localize('browser.externalUriOpener', "Open in Integrated Browser"),
+		canOpen: async uri => this.opensByDefault(uri) ? ExternalUriOpenerPriority.Preferred : ExternalUriOpenerPriority.Option,
+		openExternalUri: (href, ctx) => this.open(href, ctx),
+	};
 
 	constructor(
-		@IOpenerService openerService: IOpenerService,
+		@IExternalUriOpenerService externalUriOpenerService: IExternalUriOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -605,39 +632,44 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 	) {
 		super();
 
-		this._register(openerService.registerExternalOpener(this));
+		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
+		// The Simple Browser opener delegates to the Integrated Browser, so only this one is offered
+		this._register(registerBuiltInExternalUriOpener(LocalhostLinkOpenerContribution.OPENER_ID, localize('browser.externalUriOpener.description', "Open in the Integrated Browser."), ['simpleBrowser.open']));
 	}
 
-	async openExternal(href: string, ctx: { sourceUri: URI; preferredOpenerId?: string; viewColumn?: ViewColumn }, _token: CancellationToken): Promise<boolean> {
+	async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {
+		if (matchesSomeScheme(targetUri, Schemas.http, Schemas.https)) {
+			yield this._opener;
+		}
+	}
+
+	private opensByDefault(uri: URI): boolean {
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
 		}
 
-		// If we are in a remote session, always use the original source URI (and not the href which may be the forwarded address)
-		if (this.browserViewWorkbenchService.willUseRemoteProxy() && ctx.sourceUri) {
-			href = ctx.sourceUri.toString();
-		}
-
 		try {
-			const parsed = new URL(href);
-			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-				return false;
-			}
-			if (!isLocalhostAuthority(parsed.host) && !isAllInterfacesAuthority(parsed.host)) {
-				return false;
-			}
+			const { host } = new URL(uri.toString(true));
+			return isLocalhostAuthority(host) || isAllInterfacesAuthority(host);
 		} catch {
 			return false;
+		}
+	}
+
+	private async open(href: string, ctx: IExternalUriOpenContext): Promise<boolean> {
+		// Remote browsers need the original URL, not the forwarded address or a re-encoded URI.
+		if (this.browserViewWorkbenchService.resolveNetwork({ type: 'user' })) {
+			href = ctx.sourceHref;
 		}
 
 		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
 
 		// Check whether the setting was explicitly set by the user or is still at its default value.
 		// When it is a default, tag the viewState so that the hint pill can be shown.
-		const isDefaultLinkOpen = !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
+		const isDefaultLinkOpen = this.opensByDefault(ctx.sourceUri) && !isConfigured(this.configurationService.inspect('workbench.browser.openLocalhostLinks'));
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup(ctx.viewColumn === ViewColumn.Beside ? SIDE_GROUP : undefined));
+		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true, viewState: { url: href, isDefaultLinkOpen } } }, await this.browserViewWorkbenchService.getPreferredGroup(ctx.viewColumn === ViewColumn.Beside ? SIDE_GROUP : undefined, ctx.sourceWindowId));
 		return true;
 	}
 }
@@ -940,6 +972,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			),
 			agentsWindow: { default: true },
+		},
+		[BrowserDimOverlaySettingId]: {
+			type: 'boolean',
+			default: true,
+			experiment: { mode: 'startup' },
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.dimOnOverlay' },
+				"Controls whether the Integrated Browser page is dimmed when a temporary element, such as a context menu or tooltip, overlaps it and causes it to pause. The page is paused regardless of this setting."
+			),
 		},
 		[BrowserNewTabPlacementSettingId]: {
 			type: 'string',

@@ -35,6 +35,8 @@ export class MockCliSdkSession {
 	};
 	public summary?: string;
 	public context?: { cwd?: string; gitRoot?: string; repository?: string };
+	/** Defaults to `startTime`; tests bump it to simulate `events.jsonl` changing. */
+	public modifiedTime?: Date;
 	constructor(public readonly sessionId: string, public readonly startTime: Date) { }
 	getChatContextMessages(): Promise<{}[]> { return Promise.resolve(this.messages); }
 	getEvents(): {}[] { return this.events; }
@@ -91,12 +93,33 @@ export class MockCliSdkSessionManager {
 		}
 		return Promise.resolve(undefined);
 	}
-	listSessions() {
-		return Promise.resolve(Array.from(this.sessions.values()).map(s => ({ sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.startTime, summary: s.summary, name: s.name, clientName: s.clientName, context: s.context })));
+	readonly listSessionsCalls: ({ metadataLimit?: number; includeDetached?: boolean } | undefined)[] = [];
+	readonly enrichedSessionIds: string[] = [];
+	/** Sessions `enrichSessionMetadata` prunes, like the SDK does for sessions with no user message and no name. */
+	readonly emptySessionIds = new Set<string>();
+	listSessions(options?: { metadataLimit?: number; includeDetached?: boolean }) {
+		this.listSessionsCalls.push(options);
+		return Promise.resolve(Array.from(this.sessions.values()).map((s, index) => options?.metadataLimit !== undefined && index >= options.metadataLimit
+			? { sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.modifiedTime ?? s.startTime, isRemote: false as const, isDetached: false }
+			: this.toMetadata(s)));
+	}
+	enrichSessionMetadata(sessions: readonly { readonly sessionId: string }[]) {
+		this.enrichedSessionIds.push(...sessions.map(s => s.sessionId));
+		const enriched = [];
+		for (const { sessionId } of sessions) {
+			const session = this.sessions.get(sessionId);
+			if (session && !this.emptySessionIds.has(sessionId)) {
+				enriched.push(this.toMetadata(session));
+			}
+		}
+		return Promise.resolve(enriched);
 	}
 	getSessionMetadata({ sessionId }: { sessionId: string }) {
 		const session = this.sessions.get(sessionId);
-		return Promise.resolve(session ? { sessionId: session.sessionId, startTime: session.startTime, modifiedTime: session.startTime, summary: session.summary, name: session.name, clientName: session.clientName, context: session.context, isRemote: false } : undefined);
+		return Promise.resolve(session ? this.toMetadata(session) : undefined);
+	}
+	private toMetadata(s: MockCliSdkSession) {
+		return { sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.modifiedTime ?? s.startTime, summary: s.summary, name: s.name, clientName: s.clientName, context: s.context, isRemote: false as const };
 	}
 	deleteSession(id: string) { this.sessions.delete(id); return Promise.resolve(); }
 	closeSession(_id: string) { return Promise.resolve(); }

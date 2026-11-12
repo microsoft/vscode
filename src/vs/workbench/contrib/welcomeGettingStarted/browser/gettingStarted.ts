@@ -20,6 +20,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { splitRecentLabel } from '../../../../base/common/labels.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILink, LinkedText } from '../../../../base/common/linkedText.js';
+import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
 import { OS } from '../../../../base/common/platform.js';
@@ -71,6 +72,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { GettingStartedIndexList } from './gettingStartedList.js';
 import { createAgentsBanner } from '../../chat/browser/agentSessions/agentSessionsBanner.js';
+import { AgentsWindowGraphic } from '../../chat/browser/agentSessions/agentsWindowGraphic.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
@@ -119,6 +121,16 @@ type GettingStartedActionEvent = {
 
 type RecentEntry = (IRecentFolder | IRecentWorkspace) & { id: string };
 
+/**
+ * Sets the classes through which the page's CSS lays out the Agents window graphic: shown with room
+ * to spare, shown with tighter spacing, or dropped so that only the Agents window button is shown.
+ */
+function setAgentsWindowGraphicLayout(categoriesContainer: HTMLElement, layout: 'spacious' | 'compact' | 'dropped' | undefined): void {
+	categoriesContainer.classList.toggle('agents-window-graphic-shown', layout === 'spacious' || layout === 'compact');
+	categoriesContainer.classList.toggle('agents-window-graphic-spacious', layout === 'spacious');
+	categoriesContainer.classList.toggle('agents-window-graphic-dropped', layout === 'dropped');
+}
+
 const REDUCED_MOTION_KEY = 'workbench.welcomePage.preferReducedMotion';
 export class GettingStartedPage extends EditorPane {
 
@@ -165,6 +177,8 @@ export class GettingStartedPage extends EditorPane {
 	private detailsRenderer: GettingStartedDetailsRenderer;
 
 	private readonly categoriesSlideDisposables: DisposableStore;
+	private readonly categoriesSlideShown = observableValue<boolean>(this, false);
+	private layoutAgentsWindowGraphic: (() => void) | undefined;
 	private showFeaturedWalkthrough = true;
 
 	get editorInput(): GettingStartedInput | undefined {
@@ -255,9 +269,9 @@ export class GettingStartedPage extends EditorPane {
 			ourCategory.title = category.title;
 			ourCategory.description = category.description;
 
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelectorAll<HTMLDivElement>(`[x-category-title-for="${category.id}"]`).forEach(step => (step as HTMLDivElement).innerText = ourCategory.title);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelectorAll<HTMLDivElement>(`[x-category-description-for="${category.id}"]`).forEach(step => (step as HTMLDivElement).innerText = ourCategory.description);
 		}));
 
@@ -283,7 +297,7 @@ export class GettingStartedPage extends EditorPane {
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const badgeelements = assertReturnsDefined(this.window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
@@ -398,7 +412,7 @@ export class GettingStartedPage extends EditorPane {
 	private registerDispatchListeners() {
 		this.dispatchListeners.clear();
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this.container.querySelectorAll('[x-dispatch]').forEach(element => {
 			const dispatch = element.getAttribute('x-dispatch') ?? '';
 			let command, argument;
@@ -813,11 +827,11 @@ export class GettingStartedPage extends EditorPane {
 			return;
 		}
 		if (id) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
 			if (!stepElement) {
 				// Selected an element that is not in-context, just fallback to whatever.
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id]`);
 				if (!stepElement) {
 					// No steps around... just ignore.
@@ -825,12 +839,12 @@ export class GettingStartedPage extends EditorPane {
 				}
 				id = assertReturnsDefined(stepElement.getAttribute('data-step-id'));
 			}
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
 				if (node.getAttribute('data-step-id') !== id) {
 					node.classList.remove('expanded');
 					node.setAttribute('aria-expanded', 'false');
-					// eslint-disable-next-line no-restricted-syntax
+					// eslint-disable-next-line eslint-js/no-restricted-syntax
 					const codiconElement = node.querySelector('.codicon');
 					if (codiconElement) {
 						codiconElement.removeAttribute('tabindex');
@@ -846,7 +860,7 @@ export class GettingStartedPage extends EditorPane {
 			stepElement.classList.add('expanded');
 			stepElement.setAttribute('aria-expanded', 'true');
 			this.buildMediaComponent(id, true);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const codiconElement = stepElement.querySelector('.codicon');
 			if (codiconElement) {
 				codiconElement.setAttribute('tabindex', '0');
@@ -938,10 +952,11 @@ export class GettingStartedPage extends EditorPane {
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
 		const footerChildren: HTMLElement[] = [];
+		const agentsWindowGraphic = this.categoriesSlideDisposables.add(this.instantiationService.createInstance(AgentsWindowGraphic));
 		const agentsBanner = createAgentsBanner(
 			{
 				cssClass: 'getting-started-category.agents-banner',
-				source: 'welcomePage',
+				graphic: { element: agentsWindowGraphic.element, shownDesign: agentsWindowGraphic.shownDesign, isExposed: this.categoriesSlideShown, hasMultipleEditorWindows: agentsWindowGraphic.hasMultipleEditorWindows },
 			},
 			this.commandService,
 			this.telemetryService,
@@ -957,6 +972,9 @@ export class GettingStartedPage extends EditorPane {
 		));
 
 		const footer = $('.footer', {}, ...footerChildren);
+		const categoriesContainer = $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,);
+		const graphic = derived(reader => agentsBanner.visible.read(reader) ? agentsWindowGraphic.shownDesign.read(reader) : undefined);
+		const layoutAgentsWindowGraphic = () => this.fitAgentsWindowGraphic(categoriesContainer, graphic.get() !== undefined);
 
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
@@ -969,6 +987,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
 			layoutRecentList();
+			layoutAgentsWindowGraphic();
 		};
 
 		const layoutRecentList = () => {
@@ -983,10 +1002,20 @@ export class GettingStartedPage extends EditorPane {
 		};
 
 		gettingStartedList.onDidChange(layoutLists);
+		recentList.onDidChange(layoutAgentsWindowGraphic);
 		layoutLists();
 
-		reset(this.categoriesSlide, $('.gettingStartedCategoriesContainer', {}, header, leftColumn, rightColumn, footer,));
+		reset(this.categoriesSlide, categoriesContainer);
 		this.categoriesPageScrollbar?.scanDomNode();
+
+		// The graphics and section styles differ in height, so fit again whenever either changes
+		this.categoriesSlideDisposables.add(autorun(reader => {
+			graphic.read(reader);
+			categoriesContainer.setAttribute('data-agents-window-section-style', agentsWindowGraphic.sectionStyle.read(reader));
+			layoutAgentsWindowGraphic();
+		}));
+		this.layoutAgentsWindowGraphic = layoutAgentsWindowGraphic;
+		this.categoriesSlideDisposables.add(toDisposable(() => this.layoutAgentsWindowGraphic = undefined));
 
 		this.updateCategoryProgress();
 		this.registerDispatchListeners();
@@ -1015,6 +1044,7 @@ export class GettingStartedPage extends EditorPane {
 			const telemetryNotice = $('p.telemetry-notice');
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
+			layoutAgentsWindowGraphic();
 		} else if (!this.productService.openToWelcomeMainPage && this.showFeaturedWalkthrough && this.storageService.isNew(StorageScope.APPLICATION) && !this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {
 			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION) || new Date().toUTCString();
 			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
@@ -1286,14 +1316,38 @@ export class GettingStartedPage extends EditorPane {
 		this.container.classList.toggle('height-constrained', size.height <= 600);
 		this.container.classList.toggle('width-constrained', size.width <= 400);
 		this.container.classList.toggle('width-semi-constrained', size.width <= 950);
+		this.layoutAgentsWindowGraphic?.();
 
 		this.categoriesPageScrollbar?.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
 		this.detailsScrollbar.value?.scanDomNode();
 	}
 
+	/**
+	 * Shows the Agents window graphic above the Agents window button only if the page then fits without
+	 * scrolling. With room to spare, the graphic and button are set apart from the startup checkbox.
+	 * Otherwise tighter spacing makes room for the graphic, and if that isn't enough only the button is shown.
+	 */
+	private fitAgentsWindowGraphic(categoriesContainer: HTMLElement, graphicAvailable: boolean): void {
+		let layout: 'spacious' | 'compact' | 'dropped' | undefined;
+		if (graphicAvailable) {
+			layout = 'dropped';
+			if (categoriesContainer.isConnected && this.categoriesSlide.clientHeight > 0) {
+				for (const candidate of ['spacious', 'compact'] as const) {
+					setAgentsWindowGraphicLayout(categoriesContainer, candidate);
+					if (this.categoriesSlide.scrollHeight <= this.categoriesSlide.clientHeight) {
+						layout = candidate;
+						break;
+					}
+				}
+			}
+		}
+		setAgentsWindowGraphicLayout(categoriesContainer, layout);
+		this.categoriesPageScrollbar?.scanDomNode();
+	}
+
 	private updateCategoryProgress() {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this.window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
 			const category = this.gettingStartedCategories.find(c => c.id === categoryID);
@@ -1301,7 +1355,7 @@ export class GettingStartedPage extends EditorPane {
 
 			const stats = this.getWalkthroughCompletionStats(category);
 
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const bar = assertReturnsDefined(element.querySelector('.progress-bar-inner')) as HTMLDivElement;
 			bar.setAttribute('aria-valuemin', '0');
 			bar.setAttribute('aria-valuenow', '' + stats.stepsComplete);
@@ -1726,34 +1780,35 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private setSlide(toEnable: 'details' | 'categories', firstLaunch: boolean = false) {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const slideManager = assertReturnsDefined(this.container.querySelector('.gettingStarted'));
+		this.categoriesSlideShown.set(toEnable === 'categories', undefined);
 		if (toEnable === 'categories') {
 			slideManager.classList.remove('showDetails');
 			slideManager.classList.add('showCategories');
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelector<HTMLButtonElement>('.prev-button.button-link')!.style.display = 'none';
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = false);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = false);
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
 			prevButton!.style.display = this.editorInput?.showWelcome || this.editorInput?.returnToCommand || this.prevWalkthrough ? 'block' : 'none';
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const moreTextElement = prevButton!.querySelector('.moreText');
 			moreTextElement!.textContent = firstLaunch ? localize('welcome', "Welcome") : localize('goBack', "Go Back");
 
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = false);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = true);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = true);
 		}
 	}

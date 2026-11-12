@@ -105,6 +105,19 @@ suite('Windows State Storing', () => {
 		assertRestoring(windowState, 'multiple windows');
 
 		windowState = {
+			openedWindows: [{ backupPath: testBackupPath1, uiState: { ...getUIState(), minimized: true }, folderUri: testFolderURI }]
+		};
+		assertRestoring(windowState, 'minimized window');
+
+		windowState = {
+			openedWindows: [
+				{ backupPath: testBackupPath1, uiState: { ...getUIState(), alwaysOnTop: true }, folderUri: testFolderURI },
+				{ backupPath: testBackupPath2, uiState: { ...getUIState(), alwaysOnTop: false }, folderUri: testRemoteFolderURI, remoteAuthority: 'bar' }
+			]
+		};
+		assertRestoring(windowState, 'independent always-on-top states');
+
+		windowState = {
 			lastActiveWindow: { backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI },
 			openedWindows: []
 		};

@@ -61,6 +61,7 @@ import { DelaySession } from '../../inlineEdits/common/delay';
 import { getOrDeduceSelectionFromLastEdit } from '../../inlineEdits/common/nearbyCursorInlineEditProvider';
 import { UserInteractionMonitor } from '../../inlineEdits/common/userInteractionMonitor';
 import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFiltering';
+import { selectRejectedEditsForPrompt } from '../common/diffHistoryForPrompt';
 import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
@@ -297,9 +298,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const rejectedEditHistory = xtabPromptOptions.isRejectedEditMemoryEnabled(promptOptions)
-				? request.xtabRejectedEditHistory
-				: [];
+			const rejectedEditHistory = selectRejectedEditsForPrompt(promptOptions.memory, request.xtabRejectedEditHistory, request.xtabEditHistory, activeDocument);
 			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
@@ -868,6 +867,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		endpoint: IChatEndpoint,
 		messages: Raw.ChatMessage[],
 		prediction: Prediction | undefined,
+		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
 		requestId: string,
 		fetchMetadata: FetchMetadata,
 		shouldRemoveCursorTagFromResponse: boolean,
@@ -895,13 +895,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		telemetry.setFetchStartedAt();
 		logContext.setFetchStartTime();
 
-		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
-		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)
-			&& !this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService)) {
-			// ChatMLFetcher adds { max_tokens: endpoint.maxOutputTokens, ...requestOptions } when not using prediction.
-			// Explicit undefined overrides that default. JSON serialization then omits max_tokens
-			requestOptions.max_tokens = undefined;
-		}
+		const requestOptions = this.prepareRequestOptions(prediction, modelServiceConfig);
 
 		// we must not await this promise because we want to stream edits as they come in
 		const fetchResultPromise = endpoint.makeChatRequest2(
@@ -998,6 +992,31 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		return new FetchResult.Lines(linesStream, () => responseSoFar, fetchRequestStopWatch);
 	}
 
+	private prepareRequestOptions(
+		prediction: Prediction | undefined,
+		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
+	): OptionalChatRequestParams {
+		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
+		if (modelServiceConfig.reasoningEffort !== undefined) {
+			requestOptions.reasoning_effort = modelServiceConfig.reasoningEffort;
+		}
+
+		// Prediction requests do not support token limits.
+		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)) {
+			const useMaxTokens = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService);
+			if (!useMaxTokens) {
+				// Explicit undefined suppresses the fetcher's default max_tokens limit.
+				requestOptions.max_tokens = undefined;
+			} else if (modelServiceConfig.maxCompletionTokens !== undefined) {
+				// Replace the fetcher's default max_tokens limit for reasoning models.
+				requestOptions.max_tokens = undefined;
+				requestOptions.max_completion_tokens = modelServiceConfig.maxCompletionTokens;
+			}
+		}
+
+		return requestOptions;
+	}
+
 	private async *_streamEditsImpl(
 		request: StatelessNextEditRequest,
 		editStreamCtx: EditStreamContext,
@@ -1018,7 +1037,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		// Phase 1: Fetch lifecycle — initiate HTTP request and produce a clean line stream
 		const fetchResult = await this._performFetch(
-			endpoint, messages, prediction, request.headerRequestId,
+			endpoint, messages, prediction, editStreamCtx.modelServiceConfig, request.headerRequestId,
 			fetchMetadata, responseOpts.shouldRemoveCursorTagFromResponse,
 			editWindow, request.documentBeforeEdits,
 			fetchCancellationToken, tracing,

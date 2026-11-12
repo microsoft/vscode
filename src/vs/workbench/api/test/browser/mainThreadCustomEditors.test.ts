@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../base/common/errors.js';
@@ -277,24 +277,22 @@ suite('MainThreadCustomEditors', () => {
 	});
 
 	test('navigation resolution is canceled when its panel closes before completion', async () => {
-		let pendingToken: CancellationToken | undefined;
-		let complete: (() => void) | undefined;
+		const navigationRequested = new DeferredPromise<CancellationToken>();
+		const navigation = new DeferredPromise<{ selection: undefined }>();
 		const fixture = createCustomEditors({
 			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
 			resolveNavigation: (_handle, token) => {
-				pendingToken = token;
-				return new Promise(resolve => { complete = () => resolve({ selection: undefined }); });
+				navigationRequested.complete(token);
+				return navigation.p;
 			}
 		});
 		const { input } = fixture.createInput();
 		const resolution = input.resolve();
-		while (!complete) {
-			await timeout(0);
-		}
+		const pendingToken = await navigationRequested.p;
 		input.dispose();
-		assert.strictEqual(pendingToken?.isCancellationRequested, true);
+		assert.strictEqual(pendingToken.isCancellationRequested, true);
 		await resolution;
-		complete();
+		navigation.complete({ selection: undefined });
 		assert.strictEqual(input.navigation, undefined);
 		assert.strictEqual(fixture.outlineChanges(), 0);
 		assert.deepStrictEqual(unexpectedErrors, []);
@@ -329,23 +327,21 @@ suite('MainThreadCustomEditors', () => {
 	});
 
 	test('selection notifications during navigation resolution supersede its initial snapshot', async () => {
-		let publish: (() => void) | undefined;
-		let panelHandle: string | undefined;
+		const navigationRequested = new DeferredPromise<string>();
+		const navigation = new DeferredPromise<{ selection: undefined }>();
 		const fixture = createCustomEditors({
 			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
 			resolveNavigation: (handle) => {
-				panelHandle = handle;
-				return new Promise(resolve => { publish = () => resolve({ selection: undefined }); });
+				navigationRequested.complete(handle);
+				return navigation.p;
 			}
 		});
 		const { input } = fixture.createInput();
 		const resolution = input.resolve();
-		while (!publish) {
-			await timeout(0);
-		}
+		const panelHandle = await navigationRequested.p;
 		const selection = { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 3 };
-		fixture.customEditors.$onDidChangeCustomTextEditorSelection(panelHandle!, selection);
-		publish();
+		fixture.customEditors.$onDidChangeCustomTextEditorSelection(panelHandle, selection);
+		navigation.complete({ selection: undefined });
 		await resolution;
 		assert.strictEqual(input.navigation?.selection, selection);
 		input.dispose();

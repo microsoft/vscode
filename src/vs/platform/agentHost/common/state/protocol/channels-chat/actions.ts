@@ -10,7 +10,7 @@ import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, FileEditCollection, UsageInfo, URI } from '../common/state.js';
 import type { CanvasReference } from '../channels-canvas/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
-import type { McpAuthRequirement } from '../channels-session/state.js';
+import type { McpAuthRequirement, SessionConfigSchema } from '../channels-session/state.js';
 import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type BackgroundWork, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ErrorResponsePart, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
 
 // ─── Tool Call Action Base ───────────────────────────────────────────────────
@@ -43,8 +43,6 @@ interface ToolCallActionBase {
 
 /**
  * A new message has been sent to the agent, and a new turn starts.
- *
- * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Chat Actions
  * @version 1
@@ -678,7 +676,8 @@ export interface ChatUsageAction {
  * Reasoning/thinking text from the model, appended to a specific reasoning response part.
  *
  * The server MUST first emit a `chat/responsePart` to create the target
- * reasoning part, then use this action to append text to it.
+ * reasoning part, then use this action to append text or record its timing.
+ * An empty `content` updates only the supplied timing fields.
  *
  * @category Chat Actions
  * @version 1
@@ -691,6 +690,10 @@ export interface ChatReasoningAction {
 	partId: string;
 	/** Reasoning text chunk */
 	content: string;
+	/** Producer-recorded ISO 8601 start of the reasoning interval; omitted to preserve the existing value. */
+	startedAt?: string;
+	/** Final elapsed reasoning time in non-negative integer milliseconds, measured by the producer's clock; omitted to preserve the existing value. Zero is a recorded duration, not unknown. */
+	duration?: number;
 	/**
 	 * Additional provider-specific metadata for this action.
 	 *
@@ -758,8 +761,6 @@ export interface ChatTurnsLoadedAction {
  *
  * If the chat is idle when a queued message is set, the server SHOULD
  * immediately consume it and start a new turn.
- *
- * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Chat Actions
  * @version 1
@@ -887,10 +888,10 @@ export interface ChatIsArchivedChangedAction {
  * Config values set on a chat changed.
  *
  * Merges `config` into the chat's
- * {@link ChatConfigState | `ChatState.config`} overlay, or replaces the
- * overlay when `replace` is `true`. Only properties with `chatMutable: true`
- * in the session's config schema may be set. To reset a property to the
- * session's value, replace the overlay with one that omits the property.
+ * {@link ChatConfigState | `ChatState.config`} values, or replaces them when
+ * `replace` is `true`; keys missing after a replace take their property's
+ * `default`. Only properties with `chatMutable: true` in
+ * the effective schema may be set.
  *
  * @category Chat Actions
  * @version 1
@@ -902,6 +903,30 @@ export interface ChatConfigChangedAction {
 	config: Record<string, unknown>;
 	/** When `true`, replaces the chat's config values instead of merging */
 	replace?: boolean;
+}
+
+/**
+ * The chat moved to another session.
+ *
+ * Dispatched by the host on the moved chat's channel after a cross-session
+ * `moveChat`. `provider` and `schema` are the chat's
+ * {@link ChatState.provider | `provider`} and
+ * {@link ChatConfigState.schema | `config.schema`} relative to the new
+ * session; absent clears them. `ChatState` has no session field, so the
+ * reducer does not store `session`; it tells subscribers which session now
+ * owns the chat.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatMovedAction {
+	type: ActionType.ChatMoved;
+	/** The new owning session URI. */
+	session: URI;
+	/** The chat's provider in the new session; absent clears it. */
+	provider?: string;
+	/** The chat's config schema in the new session; absent clears it. */
+	schema?: SessionConfigSchema;
 }
 
 // ─── Session Input Actions ──────────────────────────────────────────────────
@@ -999,6 +1024,7 @@ export type ChatAction =
 	| ChatIsReadChangedAction
 	| ChatIsArchivedChangedAction
 	| ChatConfigChangedAction
+	| ChatMovedAction
 	| ChatInputRequestedAction
 	| ChatInputAnswerChangedAction
 	| ChatInputCompletedAction

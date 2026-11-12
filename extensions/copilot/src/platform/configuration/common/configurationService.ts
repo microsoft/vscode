@@ -718,12 +718,6 @@ export namespace ConfigKey {
 	 * Advanced settings that are available for all users to configure.
 	 */
 	export namespace Advanced {
-		/** Allows forcing a particular model.
-		 * Note: this should not be used while self-hosting because it might lead to
-		 * a fundamental different experience compared to our end-users.
-		*/
-		export const DebugPromptOverrideString = defineSetting<string | null>('chat.debug.promptOverrideString', ConfigType.Simple, null);
-		export const DebugPromptOverrideFile = defineSetting<string | null>('chat.debug.promptOverrideFile', ConfigType.Simple, null);
 		export const FeedbackOnChange = defineAndMigrateSetting('chat.advanced.feedback.onChange', 'chat.feedback.onChange', false);
 		export const ReviewIntent = defineAndMigrateSetting('chat.advanced.review.intent', 'chat.review.intent', false);
 		/** Enable the new notebook priorities experiment */
@@ -739,7 +733,7 @@ export namespace ConfigKey {
 		export const SummarizeAgentConversationHistoryThreshold = defineAndMigrateSetting<number | undefined>('chat.advanced.summarizeAgentConversationHistoryThreshold', 'chat.summarizeAgentConversationHistoryThreshold', undefined);
 		export const AgentHistorySummarizationMode = defineAndMigrateSetting<string | undefined>('chat.advanced.agentHistorySummarizationMode', 'chat.agentHistorySummarizationMode', undefined);
 		export const UseResponsesApiTruncation = defineAndMigrateSetting<boolean | undefined>('chat.advanced.useResponsesApiTruncation', 'chat.useResponsesApiTruncation', false);
-		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false);
+		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false, { userScopeOnly: true });
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
 		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
 		export const CLIModelDetailsEnabled = defineSetting<boolean>('chat.agent.modelDetails.enabled', ConfigType.Simple, true);
@@ -753,6 +747,8 @@ export namespace ConfigKey {
 		export const CLIIsolationOption = defineSetting<boolean>('chat.cli.isolationOption.enabled', ConfigType.Simple, true);
 		export const CLIAutoCommitEnabled = defineSetting<boolean>('chat.cli.autoCommit.enabled', ConfigType.Simple, true);
 		export const CLISessionController = defineSetting<boolean>('chat.cli.sessionController.enabled', ConfigType.Simple, false);
+		/** Whether the extension-host Copilot CLI session provider is registered. Ramped off by experiment ahead of its removal. */
+		export const CLILegacyProviderEnabled = defineSetting<boolean>('chat.cli.legacyProvider.enabled', ConfigType.ExperimentBased, true);
 		export const CLIRemoteEnabled = defineSetting<boolean>('chat.cli.remote.enabled', ConfigType.Simple, true);
 		export const CLISessionControllerForSessionsApp = defineSetting<boolean>('chat.cli.sessionControllerForSessionsApp.enabled', ConfigType.Simple, false);
 		export const CLITerminalLinks = defineSetting<boolean>('chat.cli.terminalLinks.enabled', ConfigType.Simple, true);
@@ -819,11 +815,6 @@ export namespace ConfigKey {
 		export const Gemini3MultiReplaceString = defineSetting<boolean>('chat.edits.gemini3MultiReplaceString', ConfigType.ExperimentBased, false);
 		export const BatchReplaceStringDescriptions = defineSetting<boolean>('chat.edits.batchReplaceStringDescriptions', ConfigType.ExperimentBased, false);
 		export const AgentOmitFileAttachmentContents = defineSetting<boolean>('chat.agent.omitFileAttachmentContents', ConfigType.ExperimentBased, false);
-
-		/**
-		 * Settings for switch between old tools and new skills
-		 */
-		export const InstallExtensionSkillEnabled = defineSetting<boolean>('chat.installExtensionSkill.enabled', ConfigType.ExperimentBased, false);
 
 		/**
 		 * When enabled, large tool results (above the threshold in bytes) are written to disk
@@ -1145,7 +1136,6 @@ export namespace ConfigKey {
 	export const CodeFeedback = defineSetting('chat.reviewSelection.enabled', ConfigType.Simple, true);
 	export const CodeFeedbackInstructions = defineSetting('chat.reviewSelection.instructions', ConfigType.Simple, [] as CodeGenerationInstruction[]);
 
-	export const UseProjectTemplates = defineSetting('chat.useProjectTemplates', ConfigType.Simple, true);
 	export const ExplainScopeSelection = defineSetting('chat.scopeSelection', ConfigType.Simple, false);
 	export const EnableCodeActions = defineSetting('editor.enableCodeActions', ConfigType.Simple, true);
 	export const LocaleOverride = defineSetting('chat.localeOverride', ConfigType.Simple, 'auto');
@@ -1159,8 +1149,6 @@ export namespace ConfigKey {
 	export const InlineEditsAllowWhitespaceOnlyChanges = defineSetting<boolean>('nextEditSuggestions.allowWhitespaceOnlyChanges', ConfigType.ExperimentBased, true);
 	/** Because of migration the value returned may be `boolean | "onlyWithEdit" | "jump" | undefined` */
 	export const InlineEditsNextCursorPredictionEnabled = defineSetting<boolean>('nextEditSuggestions.extendedRange', ConfigType.ExperimentBased, true, undefined, { oldKey: 'chat.advanced.inlineEdits.nextCursorPrediction.enabled' });
-	export const NewWorkspaceCreationAgentEnabled = defineSetting<boolean>('chat.newWorkspaceCreation.enabled', ConfigType.Simple, true);
-	export const NewWorkspaceUseContext7 = defineSetting<boolean>('chat.newWorkspace.useContext7', ConfigType.Simple, false);
 	export const SummarizeAgentConversationHistory = defineSetting<boolean>('chat.summarizeAgentConversationHistory.enabled', ConfigType.Simple, true);
 	export const VirtualToolThreshold = defineSetting<number>('chat.virtualTools.threshold', ConfigType.ExperimentBased, HARD_TOOL_LIMIT);
 	export const CurrentEditorAgentContext = defineSetting<boolean>('chat.agent.currentEditorContext.enabled', ConfigType.Simple, true);
@@ -1192,6 +1180,7 @@ export namespace ConfigKey {
 	export const CloudAgentEnabled = defineSetting<boolean>('chat.cloudAgent.enabled', ConfigType.Simple, true);
 	export const AdditionalReadAccessPaths = defineSetting<string[]>('chat.additionalReadAccessPaths', ConfigType.Simple, []);
 	export const SwitchAgentEnabled = defineSetting<boolean>('chat.switchAgent.enabled', ConfigType.ExperimentBased, false);
+	export const RecordVideoSkillEnabled = defineSetting<boolean>('chat.recordVideoSkill.enabled', ConfigType.ExperimentBased, false);
 
 	/** Additional tools to enable for the Plan agent (additive to base tools) */
 	export const PlanAgentAdditionalTools = defineSetting<string[]>('chat.planAgent.additionalTools', ConfigType.Simple, []);

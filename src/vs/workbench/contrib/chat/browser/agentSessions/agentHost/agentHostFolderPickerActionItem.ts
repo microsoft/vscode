@@ -136,9 +136,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		// differ from the current workspace's first folder (e.g. a single-folder
 		// session opened inside a multi-root workspace), so show its own folder
 		// rather than the workspace default.
-		const sessionWorkingDirectory = sessionResource ? this._customizationService.getWorkingDirectory(sessionResource) : undefined;
+		const sessionWorkingDirectory = sessionResource ? this._customizationService.getClientWorkingDirectoryUris(sessionResource)[0] : undefined;
 		if (sessionWorkingDirectory) {
-			return URI.parse(sessionWorkingDirectory);
+			return sessionWorkingDirectory;
 		}
 		// No explicit choice for this session yet: default to the folder the
 		// user last picked in this window (if still valid) so a new chat keeps

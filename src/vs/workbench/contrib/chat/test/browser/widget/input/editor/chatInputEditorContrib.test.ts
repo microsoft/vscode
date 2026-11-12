@@ -32,6 +32,7 @@ suite('ChatTokenDeleter', () => {
 	test('deletes inserted slash, agent, and variable tokens on immediate backspace', () => {
 		const testCases = [
 			{ initialValue: '/', insertedText: '/fix ', deleteRange: new Range(1, 5, 1, 6) },
+			{ initialValue: '/', insertedText: '/fork ', deleteRange: new Range(1, 6, 1, 7) },
 			{ initialValue: '@', insertedText: '@workspace ', deleteRange: new Range(1, 11, 1, 12) },
 			{ initialValue: '#', insertedText: '#selection', deleteRange: new Range(1, 10, 1, 11) },
 		];

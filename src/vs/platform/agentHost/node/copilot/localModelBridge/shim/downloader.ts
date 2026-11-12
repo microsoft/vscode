@@ -854,6 +854,8 @@ export class ModelDownloader {
 					response.body.resume();
 				}
 			});
+			// Armed before `data`: attaching it delivers buffered chunks at once, and one the disk can't take yet clears it until `drain`.
+			armIdle();
 			// `error` and `end` before `data` (see readResponseText): one buffered before the flow starts reaches them.
 			response.body.on('error', () => settle(new LocalModelDownloadError(signal.aborted ? 'cancelled' : 'network', 'The transfer was interrupted', !signal.aborted)));
 			response.body.on('end', () => settle(undefined));
@@ -877,7 +879,6 @@ export class ModelDownloader {
 					response.body.pause();
 				}
 			});
-			armIdle();
 		});
 	}
 

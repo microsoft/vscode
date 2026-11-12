@@ -438,6 +438,28 @@ suite('AgentPlugin format detection', () => {
 		});
 	}));
 
+	test('discovers an Agent Plugin containing only userPromptTransformed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = pluginUri('/plugins/prompt-transform');
+		await writeFile('/plugins/prompt-transform/plugin.json', JSON.stringify({
+			$schema: AGENT_PLUGIN_SCHEMA,
+			name: 'prompt-transform',
+			extensions: { 'com.github.copilot': {} },
+		}));
+		await writeFile('/plugins/prompt-transform/com.github.copilot/hooks/hooks.json', JSON.stringify({
+			hooks: { userPromptTransformed: [{ type: 'command', command: 'echo context' }] },
+		}));
+
+		const discovery = createDiscovery();
+		discovery.start(mockEnablementModel);
+		await discovery.setSourcesAndRefresh([uri]);
+
+		const plugin = getDiscoveredPlugins(discovery)[0];
+		await waitForState(plugin.hooks, hooks => hooks.length > 0);
+		assert.deepStrictEqual(plugin.hooks.get().map(hook => ({ type: hook.type, originalId: hook.originalId })), [
+			{ type: 'UserPromptTransformed', originalId: 'userPromptTransformed' },
+		]);
+	}));
+
 	test('recognized Agent Plugin without a name uses the directory label without legacy fallback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const uri = pluginUri('/plugins/rejected-agent-plugin');
 		await writeFile('/plugins/rejected-agent-plugin/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA }));

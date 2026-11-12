@@ -1,4 +1,14 @@
-# Agent Host startup performance telemetry
+# Agent Host performance diagnostics
+
+## Copilot fork diagnostic logs
+
+Copilot chat and session forks emit `[CopilotFork]` records through the existing Agent Host logger at Info level, independently of product telemetry and opt-in OTel. Each creation attempt has a random `attemptId`; its start record identifies the target chat, source chat, and source turn. The SDK fork request identifies the source SDK session, source turn count, whether the source turn ID matched the reconstructed history, and whether an exclusive boundary was supplied; the result also identifies the new SDK session. No prompt text, file contents, credentials, or working-directory paths are added.
+
+Each stage emits `Stage started` and `Stage settled` with the same attempt ID. Settled stages include `outcome`, producer-local monotonic `elapsedMs`, and cumulative `totalElapsedMs`. Stages cover queue wait, credentials, working-directory/metadata resolution, client/customization preparation, source-session resolution, source-history reading, fork-boundary resolution, the `sessions.fork` RPC, opening/preparing/copying the database (`VACUUM INTO`), runtime configuration and initialization, optional turn-ID remapping, runtime registration (including connector refresh and telemetry revalidation), backing registration, and optional reviewed-ref copying. These are sequential stage durations, not cross-process or client-perceived timings; SDK resume logs provide additional detail within runtime initialization.
+
+A stage still pending after 60 seconds emits `Stage stalled`, even while waiting to enter the creation queue. The final `Settled` record reports total duration and `success`, `error`, or `successWithWarnings`. Best-effort database/review-copy failures retain their existing warnings, record the failed stage, and produce `successWithWarnings` if creation otherwise succeeds. An unavailable source database records a skipped copy. If creation never settles, its last started stage and stall warning identify the outstanding work. Pair records by `attemptId`, not source session, since forks can overlap. The `sdkFork` stage times the runtime RPC as a whole; diagnosing work inside that RPC still requires runtime instrumentation.
+
+## Startup telemetry
 
 Agent Host emits content-free product telemetry through its existing `ITelemetryService`. This is separate from the opt-in [OTel pipeline](OTEL.md). It respects the effective usage-telemetry level, including launch-time and host-configuration restrictions. The same records are available in the Agent Host log at trace level, without enabling product telemetry.
 
@@ -195,7 +205,7 @@ Provider processing and host registration can overlap: Copilot emits multiple ba
 
 The result milestone observes the first normally completed processing pass, including zero candidates after filtering or deduplication. Copilot and Codex do not emit empty candidate events; their result milestone can therefore exist without a registration operation. Claude's existing empty event still takes the existing host path. A deferred/unavailable provider, thrown processing failure, or shutdown-abandoned result does not record this milestone. Later readiness/discovery can record it, even after scan sampling stops. Provider restarts do not reset either first-discovery milestone within the host lifetime.
 
-Migration and discovery scans exist for Copilot, Claude and Codex; metadata prewarming is Copilot-only. Codex scan end markers also include `pageCount` and `truncated`. Legacy migration or catalog backfill can start discovery before the startup-settled barrier. Providers may defer scanning until later use, so not every startup produces every marker.
+Migration and discovery scans exist for Copilot, Claude and Codex; metadata prewarming is Copilot-only. Codex scan end markers also include `pageCount` and `truncated`. Catalog backfill on a cold host can start discovery before the startup-settled barrier. Providers may defer scanning until later use, so not every startup produces every marker.
 
 Copilot background discovery coalesces changes and paces SDK catalog listings by candidate. A session folder created while discovery observes the root, or a session first seen without `events.jsonl` that later gains one, may trigger up to four listings at least five seconds apart, so new external sessions appear promptly. Every other listing (history that was already ready when first observed, sessions that exhausted their fast budget, and retries) waits at least one minute after the preceding successful scan; due retries join any listing that runs. Candidates that cannot be classified until their metadata changes (an incomplete marker, or `workspace.yaml` without `cwd` or `client_name`) wait for a file change instead of retrying. Unwatched candidates park only when their readiness fingerprint was unchanged across the listing, so they may need one confirming listing first. Other unresolved candidates back off to an hourly retry. Shallow watchers and bounded, rotating readiness probes cover both watched candidates and overflow beyond the 32-watcher cap, so readiness that depends on an overflow probe can take longer. Discovery still needs a bulk listing: the SDK's exact `getSessionMetadata` API does not retain the `clientName` required for provenance filtering.
 
@@ -258,7 +268,6 @@ For process readiness by **provider-wide** volume, join `hostReady` to a success
 `hostReady`, `firstSessionList`, and `startupSettled` include a small snapshot:
 
 - `copilotRegistered`, `claudeRegistered`, `codexRegistered`: whether each provider is registered at that milestone, not whether it is authenticated, connected, or has its SDK installed.
-- `migrateLegacyEnabled`: the frozen decision, when known. Taking the snapshot does not initialize or freeze the decision.
 - `externalSessionsMode`: the mode at the milestone; on `firstSessionList`, this is the winning computation's mode rather than a concurrent request's mode.
 
 Each observed `sessionMigration` end marker carries `migrationState`: `backfilled`, `required`, or `unknown` if the existing backfill check failed. `migrationForced` distinguishes forced enumeration of an already-backfilled catalog. The values come from the migration's existing decision, before work runs, and survive deferred/unavailable/error outcomes; telemetry does not repeat the database read. These describe catalog warmness, not OS cache state.
@@ -283,6 +292,21 @@ Markers use the existing telemetry transport without awaiting a flush on the sta
 Outcomes are `success`, `error`, `unavailable`, `deferred`, `partial`, and `cancelled`. Open observations are cancelled on runtime disposal. Failed or partial attempts keep only measurements actually observed. After three unsuccessful attempts there are no further operation markers for that key; `firstSessionList`, `startupSettled`, and `firstSessionDiscoveryRegistration` still report a later first success. `firstSessionDiscoveryResult` similarly does not depend on a sampled scan handle. A start without an end can indicate in-flight work, a crash, a consent change, or delivery loss; it is not a successful zero-duration operation. Hard process termination, failures before telemetry exists, and transport loss can leave gaps; absence is not evidence of success. Existing process-failure telemetry continues to cover failures outside the runtime.
 
 The implementation is in [`node/agentHostStartupPerformance.ts`](node/agentHostStartupPerformance.ts). Bootstrap records named milestones and publishes them only after composition has applied the host telemetry configuration. Providers report at their existing enumeration and processed-result boundaries; the orchestrator reports at its existing listing, migration and discovery registration boundaries. Startup telemetry does not use chat lifecycle contributions, since no turn or hydration hook owns these operations.
+
+## Copilot account discovery
+
+`agentHost.copilotAccountDiscovery` reports one completed `/copilot_internal/user` HTTP lookup from `CopilotApiService`, not cache reads or individual model calls. It uses the existing usage-telemetry transport and consent controls. Local endpoint overrides that skip discovery do not emit it.
+
+| Field | Meaning |
+| --- | --- |
+| `trigger` | `initial`, `cacheRefresh`, or `entitlementChange`. |
+| `outcome` | `published` when the result updated the discovery cache; `superseded` when a newer revalidation or invalidation prevented publication; `failed` for transport, HTTP, or response-processing failure. |
+| `copilotSku`, `copilotTrackingId` | SKU and analytics ID returned by this lookup, when available. These are not copied from the client's entitlement hint or a process-wide common property. |
+| `previousSku`, `cacheAgeMs` | Prior cached SKU and its age when lookup was requested. Age is derived from the cache entry's creation/expiry time, not a model request's entitlement age. Both can be absent on initial discovery. |
+| `httpStatus`, `gitHubRequestId` | HTTP status and validated `x-github-request-id` header, when a response supplied them. The request ID belongs to discovery, not model inference. |
+| `durationMs` | Time from starting HTTP discovery through completion/failure, including response-body consumption. |
+
+Superseded successful responses retain their returned metadata in this event even though they did not update the cache. Coalesced callers share a single lookup/event; failed attempts do not include response bodies, error messages, credentials, login names, or endpoint URLs. Events are not emitted after service disposal, and transport/consent gaps can leave missing observations. No discovery snapshot ID or additional fields on turn/tool/SDK response events are introduced. Account/time comparisons can reveal inconsistent responses but cannot prove which discovery snapshot or backend authorization decision served an individual model request.
 
 ## Canvas rollout and load telemetry
 

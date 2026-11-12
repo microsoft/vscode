@@ -8,6 +8,7 @@ import { createHash, randomBytes } from 'crypto';
 import sodium from 'libsodium-wrappers';
 import { stub, restore, useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
@@ -315,6 +316,22 @@ suite('Mission Control sealed authentication', () => {
 			});
 		});
 	}
+
+	test('targeted MCP tokens sharing the identity origin never reauthenticate the relay owner', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const identityTokens: string[] = [];
+		const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async (_input, init) => {
+			identityTokens.push(new Headers(init?.headers).get('Authorization')!);
+			return Response.json({ id: 123, type: 'User' });
+		}, false));
+		const target = { kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId: 'mcp' };
+		await assert.rejects(auth.authenticate({ resource, token: '', target }), /Authenticate the relay identity/);
+		await auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
+		const accepted = await auth.authenticate({ resource, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token'), target });
+		assert.deepStrictEqual({ accepted, identityTokens, authorized: auth.authenticated }, {
+			accepted: { resource, token: 'mcp-token', target }, identityTokens: ['Bearer owner-token'], authorized: true,
+		});
+	});
 
 	test('preserves repository and MCP credentials and scopes', async () => {
 		const sealing = store.add(new MissionControlSealing());

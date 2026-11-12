@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts, TestLayoutService, TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
+import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider, GroupActivationReason, IEditorGroupActivationEvent } from '../../common/editorGroupsService.js';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -23,6 +24,8 @@ import { IContextKeyService, RawContextKey } from '../../../../../platform/conte
 import { Emitter } from '../../../../../base/common/event.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { CloseAllEditorGroupsAction } from '../../../../browser/parts/editor/editorActions.js';
+import { IWorkbenchLayoutService, Parts, Position } from '../../../layout/browser/layoutService.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 
 suite('EditorGroupsService', () => {
 
@@ -245,6 +248,25 @@ suite('EditorGroupsService', () => {
 		part.activateGroup(rootGroup);
 		await part.sideGroup.openEditor(input3, { pinned: true });
 		assert.strictEqual(part.count, 2);
+	});
+
+	test('main part shows the new tab button of its menu in the tab bar of its groups', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const requestedMenus: MenuId[] = [];
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+				requestedMenus.push(id);
+				return super.createMenu(id, contextKeyService);
+			}
+		});
+		const [part] = await createPart(instantiationService);
+		part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+
+		assert.deepStrictEqual({
+			requested: requestedMenus.filter(id => id === MenuId.EditorTabsBarAddTab).length,
+			// Hidden while its menu has no entries, as while the setting is off.
+			hidden: [...part.element.querySelectorAll('.tabs-bar-add-tab')].map(element => element.classList.contains('hidden')),
+		}, { requested: 2, hidden: [true, true] });
 	});
 
 	test('save & restore state', async function () {
@@ -1520,6 +1542,54 @@ suite('EditorGroupsService', () => {
 		assert.ok(typeof layout.groups[2].size === 'number');
 	});
 
+	test('compact editor layout reserves only the borders present at its left edge', async () => {
+		let floating = true;
+		let compact = false;
+		let neighborVisible = true;
+		const layoutService = new class extends TestLayoutService {
+			override isFloatingPanelsEnabled(): boolean { return floating; }
+			override isModernUICompact(): boolean { return compact; }
+			override getPanelPosition(): Position { return Position.LEFT; }
+			override isVisible(part: Parts): boolean {
+				return part === Parts.EDITOR_PART || part === Parts.TITLEBAR_PART || part === Parts.STATUSBAR_PART || (part === Parts.PANEL_PART && neighborVisible);
+			}
+		};
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IWorkbenchLayoutService, layoutService);
+		const [part] = await createPart(instantiationService);
+		part.floatingBorderWidth = 1;
+		const measure = () => {
+			part.layout(500, 300, 0, 0);
+			return {
+				width: part.contentDimension.width,
+				height: part.contentDimension.height,
+				outerLeft: part.element.classList.contains('floating-editor-outer-left'),
+			};
+		};
+		const defaultDensity = measure();
+		compact = true;
+		const compactShared = measure();
+		neighborVisible = false;
+		const compactOuter = measure();
+		neighborVisible = true;
+		part.floatingBorderWidth = 0.8;
+		const fractionalBorder = measure();
+		part.floatingBorderWidth = 1;
+		compact = false;
+		const restoredDefault = measure();
+		floating = false;
+		const classic = measure();
+
+		assert.deepStrictEqual({ defaultDensity, compactShared, compactOuter, fractionalBorder, restoredDefault, classic }, {
+			defaultDensity: { width: 490, height: 294, outerLeft: false },
+			compactShared: { width: 499, height: 298, outerLeft: false },
+			compactOuter: { width: 498, height: 298, outerLeft: true },
+			fractionalBorder: { width: 499.2, height: 298.4, outerLeft: false },
+			restoredDefault: { width: 490, height: 294, outerLeft: false },
+			classic: { width: 500, height: 300, outerLeft: false },
+		});
+	});
+
 	test('centeredLayout', async function () {
 		const [part] = await createPart();
 
@@ -2256,6 +2326,35 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group2ContextKeyValue, group2.id);
 		assert.strictEqual(group3ContextKeyValue, group3.id);
 
+		disposables.dispose();
+	});
+
+	test('group context keys follow a group restored with the id of the group it replaces', async function () {
+		const disposables = new DisposableStore();
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const parts = await createEditorParts(instantiationService, disposables);
+
+		const providerContextKey = new RawContextKey<string>('restoredGroupProviderKey', '');
+		disposables.add(parts.registerContextKeyProvider({
+			contextKey: providerContextKey,
+			getGroupContextKeyValue: group => `group-${group.id}`
+		}));
+
+		await parts.activeGroup.openEditor(createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID), { pinned: true });
+		const groupBefore = parts.activeGroup;
+		// Restoring the state, as applying a working set does, creates a new group with the same id.
+		await parts.testMainPart.applyState(parts.testMainPart.createState());
+		const groupAfter = parts.activeGroup;
+		await groupAfter.openEditor(createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID), { pinned: true });
+
+		assert.deepStrictEqual({
+			replaced: groupAfter !== groupBefore,
+			sameId: groupAfter.id === groupBefore.id,
+			activeEditor: groupAfter.scopedContextKeyService.getContextKeyValue(ActiveEditorContext.key),
+			providerKey: groupAfter.scopedContextKeyService.getContextKeyValue(providerContextKey.key),
+		}, { replaced: true, sameId: true, activeEditor: TEST_EDITOR_ID, providerKey: `group-${groupAfter.id}` });
+
+		await groupAfter.closeAllEditors();
 		disposables.dispose();
 	});
 

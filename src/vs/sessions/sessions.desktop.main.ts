@@ -28,6 +28,7 @@ registerOpenAgentsWindowCommand();
 // Per-session layout controller (desktop / web desktop layout).
 import './contrib/layout/browser/sessions.layout.contribution.js';
 import './contrib/canvases/electron-browser/sessionCanvases.contribution.js';
+import './contrib/sessionInputBanners/electron-browser/sessionDiskSpace.contribution.js';
 
 //#endregion
 
@@ -53,7 +54,6 @@ import './services/title/electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
 import '../workbench/services/github/electron-browser/githubService.js';
-import '../platform/copilotConnectors/electron-browser/copilotConnectorsRequestService.js';
 import '../platform/customizationMarketplace/electron-browser/customizationMarketplaceService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
 import '../workbench/services/contextmenu/electron-browser/contextmenuService.js';
@@ -112,8 +112,6 @@ import { ILocalGitService } from '../platform/git/common/localGitService.js';
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentsWindowRemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
-import { IRemoteAgentHostLocationPreferenceService } from '../platform/agentHost/common/remoteAgentHostLocationPreference.js';
-import { RemoteAgentHostLocationPreferenceService } from '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
 import { ISSHHostKeyTrustService } from '../platform/agentHost/common/sshHostKeyTrust.js';
 import { SSHHostKeyTrustService } from '../platform/agentHost/browser/sshHostKeyTrustService.js';
 import { registerSharedProcessRemoteService } from '../platform/ipc/electron-browser/services.js';
@@ -128,7 +126,6 @@ registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataIni
 // runs git locally via the shared process.
 registerSingleton(IPluginGitService, NativePluginGitCommandService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostService, AgentsWindowRemoteAgentHostService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreferenceService, InstantiationType.Delayed);
 registerSingleton(ISSHHostKeyTrustService, SSHHostKeyTrustService, InstantiationType.Delayed);
 registerSharedProcessRemoteService(ILocalGitService, 'localGit');
 
@@ -199,6 +196,7 @@ import '../workbench/contrib/webview/electron-browser/webview.contribution.js';
 
 // Browser
 import '../workbench/contrib/browserView/electron-browser/browserView.contribution.js';
+import './contrib/editor/electron-browser/browserEmptyState.contribution.js';
 
 // Splash
 import '../workbench/contrib/splash/electron-browser/splash.contribution.js';
@@ -233,6 +231,9 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 // Keybindings Export
 import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExport.contribution.js';
 
+// Computer Use setup: drag Copilot Computer Use into System Settings
+import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelperApp.contribution.js';
+
 //#endregion
 
 
@@ -240,6 +241,7 @@ import '../workbench/contrib/keybindingsExport/electron-browser/keybindingsExpor
 
 import './electron-browser/sessions.desktop.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
+import './contrib/openAgentsWindow/electron-browser/openAgentsWindowKeybindingTip.js';
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';
@@ -252,8 +254,10 @@ import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution
 import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/sshAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
-import './contrib/providers/remoteAgentHost/browser/devContainerAgentHostService.js';
+import './contrib/providers/remoteAgentHost/browser/devContainerAgentHostService.contribution.js';
+import './contrib/providers/remoteAgentHost/browser/remoteWorkspaceHandoffService.js';
 import './contrib/providers/remoteAgentHost/electron-browser/devContainerAgentHostConnector.contribution.js';
+import './contrib/providers/remoteAgentHost/electron-browser/remotes.contribution.js';
 // Change Preferred Remote Agent Location (Chat: ... command)
 import './contrib/providers/remoteAgentHost/electron-browser/remoteAgentHostLocationPreferenceCommand.js';
 import './contrib/providers/remoteAgentHost/electron-browser/forgetSSHHostKeyCommand.js';
@@ -271,8 +275,8 @@ import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
 import './contrib/providers/agentHost/browser/agentMergeActions.js';
-import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
-import './contrib/providers/agentHost/browser/openSubagentChat.js';
+import './contrib/providers/agentHost/browser/agentHostSkillButtons.contribution.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.contribution.js';
 import './contrib/providers/agentHost/electron-browser/agentHost.contribution.js';
 
 // Tunnel Host (allow remote connections to local agent host)

@@ -13,7 +13,7 @@ export const ChatMoveConfigKey = {
 	Enabled: 'chatMoves.enabled',
 } as const;
 
-/** Workbench settings mirrored into {@link ChatMoveConfigKey}. */
+/** Workbench settings for moving chats. `Enabled` is mirrored into {@link ChatMoveConfigKey}. */
 export const ChatMoveSettingId = {
 	Enabled: 'chat.agentHost.moveChats.enabled',
 } as const;
@@ -49,10 +49,10 @@ export interface IChatMoveEligibility extends IChatMoveStructuralEligibility {
 	readonly converting: boolean;
 	/** It works in an additional worktree recorded for it that a chat staying in its session also uses ({@link AgentChatMoveRefusal.WorktreeFolder}). */
 	readonly worktreeFolder: boolean;
-	/** It or a descendant runs Agent Merge for a folder of its session ({@link AgentChatMoveRefusal.AgentMergeOwner}). */
-	readonly agentMergeOwner: boolean;
 	/** Its session's legacy chat catalog can't be converted for now: its conversion is parked ({@link AgentChatMoveRefusal.LegacyCatalog}). */
 	readonly legacyCatalog: boolean;
+	/** It has no turn yet, so nothing of it exists beyond its composer ({@link AgentChatMoveRefusal.NotStarted}). */
+	readonly notStarted: boolean;
 }
 
 /**
@@ -78,8 +78,8 @@ export function isChatMovable(eligibility: IChatMoveEligibility): boolean {
 		&& !eligibility.workspaceless
 		&& !eligibility.converting
 		&& !eligibility.worktreeFolder
-		&& !eligibility.agentMergeOwner
-		&& !eligibility.legacyCatalog;
+		&& !eligibility.legacyCatalog
+		&& !eligibility.notStarted;
 }
 
 /** Where a chat moves: another position in its own session, another existing session, or a new session. */
@@ -100,6 +100,7 @@ export const enum AgentChatMoveRefusal {
 	ConversionInProgress = 'conversionInProgress',
 	WorktreeFolder = 'worktreeFolder',
 	Workspaceless = 'workspaceless',
+	/** Only older hosts: a chat that runs Agent Merge now moves with it. */
 	AgentMergeOwner = 'agentMergeOwner',
 	DestinationSingleFolder = 'destinationSingleFolder',
 	LegacyCatalog = 'legacyCatalog',
@@ -107,8 +108,32 @@ export const enum AgentChatMoveRefusal {
 	Unsupported = 'unsupported',
 	/** A session moves under another session only while its default chat is its only chat (Block 4, VS Code-internal). */
 	NotSingleChat = 'notSingleChat',
-	/** A chat becomes its own session only once its first turn started, which is when every agent persists its conversation. */
+	/** A chat moves, or becomes its own session, only once its first turn started, which is when every agent persists its conversation. */
 	NotStarted = 'notStarted',
+	/**
+	 * The chat's session and the destination session are sponsored by different credential owners, or only one of them is.
+	 * Credentials never cross owners, so such sessions can't be combined. Client text: "This chat uses a different account's
+	 * credentials than the destination session."
+	 */
+	DifferentCredentialOwner = 'differentCredentialOwner',
+	/**
+	 * Chats with their own agents are on, but the chat's agent is unknown or disabled on the host, so it can't move to a
+	 * session of another agent or become a session of its own agent. Client text: enable the chat's agent. Distinct from
+	 * {@link DifferentProvider}, which means chats with their own agents are off.
+	 */
+	AgentUnavailable = 'agentUnavailable',
+	/**
+	 * Chats with their own agents are on, but the destination's agent can't host chats of other agents, or the chat's
+	 * agent can't join a session of another agent: one of them doesn't support multiple chats. Client text: pick a
+	 * session of an agent that supports chats of other agents.
+	 */
+	AgentWithoutChats = 'agentWithoutChats',
+	/**
+	 * The chat's agent couldn't describe its settings for the chat when it moved into a session of another agent or
+	 * into a new session of its own agent. Transient: client text asks to try again. Distinct from {@link Unsupported}
+	 * (no conversation of its own to take into a new session).
+	 */
+	AgentConfigUnavailable = 'agentConfigUnavailable',
 }
 
 /** A chat move the host refused before changing anything. */

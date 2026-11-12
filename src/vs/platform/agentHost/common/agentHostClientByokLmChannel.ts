@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Throttler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -15,6 +16,7 @@ import {
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmModelInfo,
+	IByokLmStreamDelta,
 } from './agentHostByokLm.js';
 
 /**
@@ -31,13 +33,15 @@ export const AGENT_HOST_CLIENT_BYOK_LM_CHANNEL = 'agentHostClientByokLm';
  * `UtilityProcessServer.getChannel`) into an {@link IByokLmBridgeConnection}
  * suitable for the node-side {@link IByokLmProxyService}. This is the node end
  * of the bridge: `chat()` ships the request to the renderer and resolves with
- * the buffered completion the renderer produced from the LM API, and
+ * the completion the renderer produced from the LM API, `onDidDelta` streams
+ * that completion incrementally while `chat()` is still pending, and
  * `onDidChangeModels` is the renderer's pushed model snapshot stream.
  */
 export function createAgentHostClientByokLmConnection(channel: IChannel): IByokLmBridgeConnection {
 	return {
 		chat: (request) => channel.call('chat', request) as Promise<IByokLmChatResult>,
 		onDidChangeModels: channel.listen<IByokLmModelInfo[]>('models'),
+		onDidDelta: channel.listen<IByokLmStreamDelta>('delta'),
 	};
 }
 
@@ -59,6 +63,9 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 		if (event === 'models') {
 			return this._modelsSnapshotEvent() as Event<T>;
 		}
+		if (event === 'delta') {
+			return this._handler.onDidDelta as Event<T>;
+		}
 		throw new Error(`No event '${event}' on AgentHostClientByokLmChannel`);
 	}
 
@@ -73,6 +80,8 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 	private _modelsSnapshotEvent(): Event<IByokLmModelInfo[]> {
 		const store = new DisposableStore();
 		const throttler = store.add(new Throttler());
+		/** The snapshot last sent, so a change that leaves the BYOK models as they were sends nothing. */
+		let published: IByokLmModelInfo[] | undefined;
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => {
 				if (this._handler.onDidChangeModels) {
@@ -89,7 +98,8 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 			throttler.queue(async () => {
 				try {
 					const models = await this._handler.listModels(CancellationToken.None);
-					if (!store.isDisposed) {
+					if (!store.isDisposed && !equals(models, published)) {
+						published = models;
 						emitter.fire(models);
 					}
 				} catch (err) {
@@ -116,7 +126,7 @@ export class AgentHostClientByokLmChannel implements IServerChannel {
 export class NullAgentHostClientByokLmChannel implements IServerChannel {
 
 	listen<T>(_ctx: unknown, event: string): Event<T> {
-		if (event === 'models') {
+		if (event === 'models' || event === 'delta') {
 			return Event.None;
 		}
 		throw new Error(`No event '${event}' on NullAgentHostClientByokLmChannel`);

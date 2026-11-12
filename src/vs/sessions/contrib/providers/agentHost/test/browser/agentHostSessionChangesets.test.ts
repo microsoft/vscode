@@ -34,23 +34,26 @@ import { buildChatUri, buildDefaultChatUri, createChatState, ChangesetStatus, Me
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsSessionsWindowContext } from '../../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../common/contextkeys.js';
-import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
-import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
-import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionHost, SessionHostKind } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { SessionInputPickerVisibility } from '../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
+import { ISessionsPartService } from '../../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
-import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
-import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
-import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
-import { changesetFileToChange } from '../../browser/agentHostDiffs.js';
+import { isSessionPullRequestOperation } from '../../../../../../workbench/contrib/sessions/common/pullRequestCreation.js';
+import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionChangesets.js';
+import { IAgentHostAdapterOptions } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
+import { changesetFileToChange } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostDiffs.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
 
 suite('AgentHostSessionChangesets', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1075,19 +1078,23 @@ suite('AgentHostSessionChangesets', () => {
 			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
+		let label: string | undefined;
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
+			label = changeset?.label;
 			enabled = changeset?.isEnabled.read(reader);
 			changeset?.changes.read(reader);
 		}));
 
 		assert.deepStrictEqual({
+			label,
 			enabled,
 			sessionSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Session),
 			chatSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Chat),
 			changesetSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Changeset),
 		}, {
+			label: 'Last Turn',
 			enabled: true,
 			sessionSubscriptions: [{
 				component: StateComponents.Session,
@@ -1316,6 +1323,69 @@ suite('AgentHostSessionChangesets', () => {
 				files: ['opaque-deleted-file-id'],
 				reviewed: true,
 			},
+		});
+	});
+
+	test('reports user invocations once any confirmation is accepted, before they run', async () => {
+		const toOperation = (id: string, confirmation?: string) => ({
+			id, label: id, confirmation, scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle,
+		});
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [],
+			operations: [toOperation('merge', 'Merge the changes?'), toOperation('sync'), toOperation('create-pr'), toOperation(PREPARE_PULL_REQUEST_OPERATION_ID)],
+		};
+		const invoked: string[] = [];
+		const subscription = createMutableSubscription(changesetState);
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+			}
+			override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+				invoked.push(params.operationId);
+				if (params.operationId === 'sync') {
+					throw new Error('Push rejected');
+				}
+				return params.operationId === PREPARE_PULL_REQUEST_OPERATION_ID
+					? createPullRequestDetailsResult({ title: 'Title', description: '', branchName: 'feature', baseBranchName: 'main', repository: 'microsoft/vscode', autoMergeAllowed: false, mergeMethods: [], agentMergeAvailable: false })
+					: {};
+			}
+		}();
+		const confirmations = [false, true];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: confirmations.shift() ?? false }) });
+		const reported: { operationId: string; metadata: Record<string, unknown> | undefined }[] = [];
+		const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+			icon: Codicon.copilot,
+			environment: 'local',
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
+			onDidInvokeChangesetOperation: (operationId, metadata) => reported.push({ operationId, metadata }),
+		}, constObservable(true), [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset:/session-1' }])[0];
+
+		await changeset.invokeOperation('merge');
+		await changeset.invokeOperation('merge');
+		await assert.rejects(() => changeset.invokeOperation('sync'), /Push rejected/);
+		const creation = changeset.operations.get().find(isSessionPullRequestOperation)?.pullRequestCreation;
+		assert.ok(creation);
+		await creation.prepare(CancellationToken.None);
+		const pullRequest = { title: 'Title', description: '', draft: true, agentMerge: false };
+		await creation.create(pullRequest);
+
+		assert.deepStrictEqual({ reported, invoked }, {
+			// The first merge was cancelled at its confirmation; preparing the
+			// Create PR form is not a user invocation.
+			reported: [
+				{ operationId: 'merge', metadata: undefined },
+				{ operationId: 'sync', metadata: undefined },
+				{ operationId: 'create-pr', metadata: createPullRequestOperationMeta(pullRequest) },
+			],
+			invoked: ['merge', 'sync', PREPARE_PULL_REQUEST_OPERATION_ID, 'create-pr'],
 		});
 	});
 
@@ -1667,7 +1737,7 @@ suite('AgentHostSessionChangesets', () => {
 				changesets: constObservable(changesets),
 				workspace,
 			});
-			const session = upcastPartial<IActiveSession>({
+			const session = upcastPartial<ITestSessionWithChat>({
 				sessionId: 'draft',
 				resource: sessionUri,
 				activeChat: constObservable(chat),
@@ -1675,9 +1745,11 @@ suite('AgentHostSessionChangesets', () => {
 				workspace,
 			});
 			const sessionsService = new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(session);
-				override readonly visibleSessions = constObservable([session]);
-				override readonly visibleSessionPanes = constObservable([session]);
+				readonly activeSession = constObservable(session);
+				readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([]);
+				readonly gridShown = constObservable([session]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
+				override readonly panes = testGridPanes(constObservable([session]));
 			}();
 			instantiationService.stub(ISessionsService, sessionsService);
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -1701,8 +1773,8 @@ suite('AgentHostSessionChangesets', () => {
 			const actionRunner = disposables.add(new ActionRunner());
 			const container = document.createElement('div');
 			const renderMenu = () => {
-				const action = menu.getActions({ arg: { session } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
-				const viewItem = new SessionSyncChangesActionViewItem(action, {}, new SessionContext(constObservable(session)), new class extends mock<ISessionsPartService>() { }());
+				const action = menu.getActions({ arg: { session, chat } }).flatMap(([, actions]) => actions).find(action => action.id === commandId)!;
+				const viewItem = new SessionSyncChangesActionViewItem(action, {}, upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane, session: constObservable(session), chat: session.activeChat }), new class extends mock<ISessionsPartService>() { }(), disposables.add(new SessionInputPickerVisibility()), new MockKeybindingService(), upcastPartial<IChatWidgetService>({}));
 				item.value = viewItem;
 				viewItem.actionRunner = actionRunner;
 				container.replaceChildren();

@@ -7,14 +7,11 @@ import type { CopilotClient } from '@github/copilot-sdk';
 import { disposableTimeout, raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../log/common/log.js';
 import { AgentPolicyError } from '../../common/agent.js';
-import type { ProgressParams } from '../../common/state/sessionActions.js';
 import { classifyCopilotClientOperationFailure } from './copilotFailureTelemetry.js';
 
 export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
@@ -24,19 +21,35 @@ const COPILOT_MANAGED_SETTINGS_TIMEOUT_MS = 30_000;
 type ManagedSettingsRpc = Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 type ManagedSettingsResult = Awaited<ReturnType<ManagedSettingsRpc['resolve']>>;
 
-interface IManagedSettingsQueryProgress {
-	readonly elapsed: StopWatch;
-	waiters: number;
-	progressToken?: string;
+/**
+ * Receives the localized activity to show while a caller is still waiting on a
+ * slow managed-settings query, and `undefined` once that caller stops waiting.
+ */
+export type CopilotManagedSettingsActivityReporter = (activity: string | undefined) => void;
+
+interface IManagedSettingsWaiter {
+	readonly report: CopilotManagedSettingsActivityReporter | undefined;
+	shown: boolean;
 }
 
-/** Shares only in-flight queries; freshness, composition and cache fallback remain runtime-owned. */
+interface IManagedSettingsQueryProgress {
+	readonly elapsed: StopWatch;
+	/** Whether the query has been pending long enough to tell its waiters. */
+	delayed: boolean;
+	readonly waiters: Set<IManagedSettingsWaiter>;
+}
+
+/**
+ * Shares only in-flight queries; freshness, composition and cache fallback remain runtime-owned.
+ *
+ * A slow query is reported only to the callers that supply an activity reporter,
+ * such as a turn that waits on it, so the wait is shown where that turn is shown
+ * rather than as a standalone notification for every concurrent query.
+ */
 export class CopilotManagedSettingsResolver extends Disposable {
 	private _pending = new WeakMap<ManagedSettingsRpc, Map<string, { promise: Promise<ManagedSettingsResult>; progress: IManagedSettingsQueryProgress }>>();
 	private readonly _activeProgress = new Set<IManagedSettingsQueryProgress>();
 	private readonly _generation = this._register(new MutableDisposable<CancellationTokenSource>());
-	private readonly _onDidReportProgress = this._register(new Emitter<Omit<ProgressParams, 'channel'>>());
-	readonly onDidReportProgress = this._onDidReportProgress.event;
 
 	constructor(private readonly _logService: ILogService) {
 		super();
@@ -49,7 +62,7 @@ export class CopilotManagedSettingsResolver extends Disposable {
 		this._pending = new WeakMap();
 	}
 
-	async resolve(rpc: ManagedSettingsRpc, token: string | undefined, workingDirectory?: string, cancellationToken = CancellationToken.None): Promise<ManagedSettingsResult> {
+	async resolve(rpc: ManagedSettingsRpc, token: string | undefined, workingDirectory?: string, cancellationToken = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter): Promise<ManagedSettingsResult> {
 		if (cancellationToken.isCancellationRequested || this._store.isDisposed) {
 			throw new CancellationError();
 		}
@@ -62,48 +75,50 @@ export class CopilotManagedSettingsResolver extends Disposable {
 		let pending = requests.get(key);
 		if (!pending) {
 			const generation = this._generation.value!.token;
-			const progress: IManagedSettingsQueryProgress = { elapsed: StopWatch.create(false), waiters: 0 };
+			const progress: IManagedSettingsQueryProgress = { elapsed: StopWatch.create(false), delayed: false, waiters: new Set() };
 			pending = {
 				promise: this._resolve(rpc, token, workingDirectory, generation, progress).finally(() => requests.delete(key)),
 				progress,
 			};
 			requests.set(key, pending);
 		}
-		pending.progress.waiters++;
-		if (pending.progress.elapsed.elapsed() >= COPILOT_MANAGED_SETTINGS_PROGRESS_DELAY_MS) {
-			this._showProgress(pending.progress);
+		const waiter: IManagedSettingsWaiter = { report: reportActivity, shown: false };
+		pending.progress.waiters.add(waiter);
+		if (pending.progress.delayed) {
+			this._showProgress(waiter);
 		}
 		try {
 			return await raceCancellationError(pending.promise, cancellationToken);
 		} finally {
-			if (--pending.progress.waiters === 0) {
-				this._hideProgress(pending.progress);
-			}
+			pending.progress.waiters.delete(waiter);
+			this._hideProgress(waiter);
 		}
 	}
 
-	private _showProgress(progress: IManagedSettingsQueryProgress): void {
-		if (progress.waiters === 0 || progress.progressToken) {
+	private _showProgress(waiter: IManagedSettingsWaiter): void {
+		if (!waiter.report || waiter.shown) {
 			return;
 		}
-		progress.progressToken = generateUuid();
-		this._logService.info('[Copilot] Waiting for runtime managed-settings resolution');
-		this._onDidReportProgress.fire({
-			progressToken: progress.progressToken, progress: 0,
-			message: localize('copilot.managedSettings.pending', "Loading your organization's managed settings"),
-		});
+		waiter.shown = true;
+		waiter.report(localize('copilot.managedSettings.pending', "Loading your organization's managed settings"));
 	}
 
-	private _hideProgress(progress: IManagedSettingsQueryProgress): void {
-		if (progress.progressToken) {
-			this._onDidReportProgress.fire({ progressToken: progress.progressToken, progress: 1, total: 1 });
-			progress.progressToken = undefined;
+	private _hideProgress(waiter: IManagedSettingsWaiter): void {
+		if (waiter.shown) {
+			waiter.shown = false;
+			waiter.report?.(undefined);
 		}
 	}
 
 	private async _resolve(rpc: ManagedSettingsRpc, token: string | undefined, workingDirectory: string | undefined, generation: CancellationToken, progress: IManagedSettingsQueryProgress): Promise<ManagedSettingsResult> {
 		this._activeProgress.add(progress);
-		const timer = disposableTimeout(() => this._showProgress(progress), COPILOT_MANAGED_SETTINGS_PROGRESS_DELAY_MS);
+		const timer = disposableTimeout(() => {
+			progress.delayed = true;
+			this._logService.info('[Copilot] Waiting for runtime managed-settings resolution');
+			for (const waiter of progress.waiters) {
+				this._showProgress(waiter);
+			}
+		}, COPILOT_MANAGED_SETTINGS_PROGRESS_DELAY_MS);
 		try {
 			return await resolveCopilotManagedSettings(rpc, token, COPILOT_MANAGED_SETTINGS_TIMEOUT_MS, workingDirectory, generation);
 		} catch (error) {
@@ -113,7 +128,10 @@ export class CopilotManagedSettingsResolver extends Disposable {
 			throw error;
 		} finally {
 			timer.dispose();
-			this._hideProgress(progress);
+			progress.delayed = false;
+			for (const waiter of progress.waiters) {
+				this._hideProgress(waiter);
+			}
 			this._activeProgress.delete(progress);
 			this._logService.debug(`[Copilot] Runtime managed-settings query settled after ${Math.round(progress.elapsed.elapsed())}ms`);
 		}
@@ -121,7 +139,9 @@ export class CopilotManagedSettingsResolver extends Disposable {
 
 	override dispose(): void {
 		for (const progress of this._activeProgress) {
-			this._hideProgress(progress);
+			for (const waiter of progress.waiters) {
+				this._hideProgress(waiter);
+			}
 		}
 		this._generation.value?.cancel();
 		super.dispose();

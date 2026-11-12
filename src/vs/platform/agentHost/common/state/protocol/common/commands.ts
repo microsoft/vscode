@@ -219,6 +219,40 @@ export interface ClientCapabilities {
 }
 
 /**
+ * Native filesystem path grammar used by a host environment.
+ *
+ * @category Commands
+ * @exhaustive
+ */
+export const enum PathStyle {
+	Posix = 'posix',
+	Windows = 'windows',
+}
+
+/**
+ * Describes the connection's default host-side execution environment.
+ *
+ * The descriptor applies to {@link InitializeResult.defaultDirectory},
+ * session working directories, and `file:` resources handled by the server
+ * through the `resource*` commands, unless more specific environment metadata
+ * is available. It does not apply to resources provided by the client.
+ *
+ * A host that exposes mixed environments MUST only populate fields that have a
+ * single connection-wide default.
+ *
+ * @category Commands
+ */
+export interface HostEnvironment {
+	/**
+	 * Authoritative native path grammar for resources in this environment.
+	 *
+	 * Clients parsing or formatting native paths MUST use this field instead of
+	 * inferring path semantics from their local environment.
+	 */
+	pathStyle?: PathStyle;
+}
+
+/**
  * Result of the `initialize` command.
  *
  * `protocolVersion` is the version the server has selected from the client's
@@ -259,6 +293,12 @@ export interface InitializeResult {
 	 * channel whose state has no fields ({@link EmptyState}).
 	 */
 	snapshots: Snapshot[];
+	/**
+	 * Default execution environment exposed by this host connection.
+	 *
+	 * Absence means no environment metadata is available.
+	 */
+	environment?: HostEnvironment;
 	/** Suggested default directory for remote filesystem browsing */
 	defaultDirectory?: URI;
 	/**
@@ -300,7 +340,23 @@ export interface InitializeResult {
 	 * @see {@link /specification/tcp-channel | TCP Channel}
 	 */
 	tcpConnections?: TcpConnectionsCapability;
+	/**
+	 * Present when chats in one session may be backed by different agents
+	 * (see {@link CreateChatParams.provider} and {@link ChatState.provider}).
+	 * Clients MUST NOT send `CreateChatParams.provider` without it.
+	 * @stability 1.0
+	 * @see {@link /specification/chat-channel#chat-providers | Chat Channel: Chat providers}
+	 */
+	multipleChatProviders?: MultipleChatProvidersCapability;
 }
+
+/**
+ * Presence capability for {@link InitializeResult.multipleChatProviders}.
+ *
+ * @category Commands
+ * @stability 1.0
+ */
+export interface MultipleChatProvidersCapability { }
 
 /**
  * Automation features supported by this host authority.
@@ -741,6 +797,24 @@ export const enum ContentEncoding {
  * use it to read host-side files. The receiver enforces access via the
  * same permission/`resourceRequest` flow regardless of which peer initiated.
  *
+ * A peer SHOULD serve reads of the URIs that it publishes as content, such as
+ * content references and canvas sources. This includes HTTP(S) URLs that the
+ * other peer might not be able to reach, such as a development server on the
+ * host's loopback interface.
+ *
+ * A sender MAY read part of a resource by including
+ * {@link ResourceReadParams.position | `position`} and/or
+ * {@link ResourceReadParams.length | `length`}.
+ *
+ * - A receiver that honors the range SHOULD return only the requested bytes
+ *   and MUST include {@link ResourceReadResult.size | `size`}, the total size
+ *   of the resource in bytes.
+ * - A receiver that does not honor the range ignores `position` and `length`
+ *   and returns the whole resource without `size`. A sender MUST treat a
+ *   result without `size` as the whole resource.
+ * - A ranged result MUST NOT split a UTF-8 sequence, if returned with `utf-8` encoding.
+ * - A `position` at or past the end of the resource returns empty `data`.
+ *
  * @category Commands
  * @method resourceRead
  * @direction Client ↔ Server
@@ -748,6 +822,7 @@ export const enum ContentEncoding {
  * @version 1
  * @throws `NotFound` (`-32008`) if the URI does not exist.
  * @throws `PermissionDenied` (`-32009`) if the client is not permitted to read the URI.
+ * @throws `InvalidParams` (`-32602`) if the `position` or `length` is negative or not an integer.
  * @example
  * ```jsonc
  * // Client → Server
@@ -760,14 +835,43 @@ export const enum ContentEncoding {
  *   "encoding": "base64",
  *   "contentType": "image/png"
  * }}
+ *
+ * // Client → Server: read the first 16 bytes
+ * { "jsonrpc": "2.0", "id": 11, "method": "resourceRead",
+ *   "params": { "uri": "file:///workspace/logo.png", "position": 0, "length": 16 } }
+ *
+ * // Server → Client: a receiver that honors the range includes `size`
+ * { "jsonrpc": "2.0", "id": 11, "result": {
+ *   "data": "iVBORw0KGgoAAAANSUhEUg==",
+ *   "encoding": "base64",
+ *   "contentType": "image/png",
+ *   "size": 52341
+ * }}
  * ```
  */
 export interface ResourceReadParams extends BaseParams {
 	channel: 'ahp-root://';
-	/** Content URI from a `ContentRef` */
+	/** Content URI to read, such as one from a `ContentRef` */
 	uri: string;
 	/** Preferred encoding for the returned data (default: server-chosen) */
 	encoding?: ContentEncoding;
+	/**
+	 * Byte offset to start reading at. Defaults to `0`. A receiver that does
+	 * not honor byte ranges ignores it and returns the whole resource.
+	 *
+	 * @integer
+	 * @minimum 0
+	 */
+	position?: number;
+	/**
+	 * Maximum number of bytes to return from {@link position}. Defaults to the
+	 * rest of the resource. A receiver that does not honor byte ranges ignores
+	 * it and returns the whole resource.
+	 *
+	 * @integer
+	 * @minimum 0
+	 */
+	length?: number;
 }
 
 /**
@@ -777,8 +881,7 @@ export interface ResourceReadParams extends BaseParams {
  * server cannot provide the requested encoding, it MUST fall back to either
  * `base64` or `utf-8`.
  *
- * The result contains the whole resource. Windowed delivery does not limit its
- * size, because it is a response and not part of a subscription.
+ * Unless {@link size} is present, the result contains the whole resource.
  */
 export interface ResourceReadResult {
 	/** Content encoded as a string */
@@ -787,6 +890,16 @@ export interface ResourceReadResult {
 	encoding: ContentEncoding;
 	/** Content type (e.g. `"image/png"`, `"text/plain"`) */
 	contentType?: string;
+	/**
+	 * Total size of the resource in bytes. Present if and only if the receiver
+	 * honored the byte range in {@link ResourceReadParams.position} and
+	 * {@link ResourceReadParams.length}; when absent, `data` is the whole
+	 * resource.
+	 *
+	 * @integer
+	 * @minimum 0
+	 */
+	size?: number;
 }
 
 // ─── resourceWrite ───────────────────────────────────────────────────────────
@@ -1253,6 +1366,41 @@ export interface ResourceMkdirResult {
 // ─── authenticate ────────────────────────────────────────────────────────────
 
 /**
+ * Identifies the consumer of an authentication token.
+ *
+ * @category Commands
+ * @nonexhaustive
+ */
+export const enum AuthenticateTargetKind {
+	McpServer = 'mcpServer',
+}
+
+/**
+ * An MCP server identified by host-published session and customization state.
+ *
+ * @category Commands
+ */
+export interface McpServerAuthenticateTarget {
+	kind: AuthenticateTargetKind.McpServer;
+	/** Session URI whose `SessionState.customizations` contains the MCP server. */
+	session: URI;
+	/**
+	 * The server's session-unique `McpServerCustomization.id`, echoed from the
+	 * customization carrying `McpServerAuthRequiredState` or from
+	 * `ToolCallAuthRequiredState.contributor.customizationId`.
+	 */
+	customizationId: string;
+}
+
+/**
+ * Consumer of an authentication token, discriminated by `kind`.
+ * Extensible to support additional consumers, such as host-owned authentication.
+ *
+ * @category Commands
+ */
+export type AuthenticateTarget = McpServerAuthenticateTarget;
+
+/**
  * Pushes a Bearer token for a protected resource. The `resource` field MUST
  * match a protected-resource identifier the client has discovered from the
  * server — whether declared statically in `AgentInfo.protectedResources`,
@@ -1324,6 +1472,32 @@ export interface AuthenticateParams extends BaseParams {
 	 * token.
 	 */
 	scopes?: string[];
+	/**
+	 * Optional consumer of the token. Clients SHOULD include this when answering
+	 * a specific MCP server's `McpServerAuthRequiredState` or
+	 * `ToolCallAuthRequiredState` challenge, and omit it for provider-level
+	 * resources (`AgentInfo.protectedResources` or `AuthRequired` -32007 data).
+	 *
+	 * When present, the host MUST apply the token only to that MCP server in
+	 * that session, never to sibling servers, other sessions, or agent-level
+	 * resources, even if they share the resource and scopes. `resource` MUST
+	 * still equal that server's advertised `McpAuthRequirement.resource.resource`.
+	 * The host MUST reject an unknown session or customization, or a
+	 * customization that is not an MCP server, with `InvalidParams` (-32602).
+	 *
+	 * Without a target, resource/scope matching is unchanged; the token may
+	 * satisfy every matching pending challenge. Older hosts ignore this field.
+	 */
+	target?: AuthenticateTarget;
+	/**
+	 * Optional identifier for the client's selected account, sent alongside the token.
+	 * Hosts can compare `accountId` values to detect when the underlying account has changed.
+	 * Hosts MUST treat `accountId` as an opaque string.
+	 * see {@link /specification/authentication#account-selection-hints | Account selection hints}.
+	 *
+	 * @minLength 1
+	 */
+	accountId?: string;
 }
 
 /**

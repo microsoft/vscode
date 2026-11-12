@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../base/common/buffer.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import { FileEditKind } from '../common/state/sessionState.js';
@@ -39,19 +40,26 @@ export function spanFileEditRevertSteps(steps: readonly IFileEditRevertStep[]): 
 }
 
 /**
- * Returns the steps of a file's edits that no discard row undid yet, given the
- * file's edit records and one step per record. A discard row undoes every
- * earlier record of its turn, so those records and the row are left out. The
- * row's snapshots span the whole turn rather than what the discard changed on
- * disk, which kept changes made between the turn's edits, so reverting them
- * again could overwrite or conflict with later changes to the file.
+ * Returns steps not undone by a full-turn discard, leaving partial Working Set discards and restored accepted changes revertible.
+ * A turn in `acceptedTurns` has earlier accepted records omitted, so its discard rows must also be reverted.
  */
-export function getUndiscardedFileEditRevertSteps(records: readonly IFileEditRecord[], steps: readonly IFileEditRevertStep[]): IFileEditRevertStep[] {
+export function getUndiscardedFileEditRevertSteps(records: readonly IFileEditRecord[], steps: readonly IFileEditRevertStep[], acceptedTurns?: ReadonlySet<string>): IFileEditRevertStep[] {
+	const turnStarts = new Map<string, Uint8Array | undefined>();
+	records.forEach((record, index) => {
+		if (!turnStarts.has(record.turnId)) {
+			turnStarts.set(record.turnId, steps[index].start);
+		}
+	});
 	const discardedTurns = new Set<string>();
 	const undiscarded: IFileEditRevertStep[] = [];
 	for (let index = records.length - 1; index >= 0; index--) {
 		const record = records[index];
-		if (record.toolCallId.startsWith(FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX)) {
+		const start = turnStarts.get(record.turnId);
+		const end = steps[index].end;
+		const restoresTurnStart = start === undefined
+			? end === undefined
+			: end !== undefined && VSBuffer.wrap(start).equals(VSBuffer.wrap(end));
+		if (record.toolCallId.startsWith(FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX) && !acceptedTurns?.has(record.turnId) && restoresTurnStart) {
 			discardedTurns.add(record.turnId);
 		} else if (!discardedTurns.has(record.turnId)) {
 			undiscarded.push(steps[index]);

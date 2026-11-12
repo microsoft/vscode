@@ -51,7 +51,6 @@ export interface IAgentHostStartupMetrics {
 	copilotRegistered?: boolean;
 	claudeRegistered?: boolean;
 	codexRegistered?: boolean;
-	migrateLegacyEnabled?: boolean;
 }
 
 export interface IAgentHostStartupTiming {
@@ -181,7 +180,6 @@ type StartupMarkClassification = {
 	copilotRegistered?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the Copilot provider is registered at this host milestone; not SDK, authentication, or connection readiness.' };
 	claudeRegistered?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the Claude provider is registered at this host milestone; not SDK, authentication, or connection readiness.' };
 	codexRegistered?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the Codex provider is registered at this host milestone; not SDK, authentication, or connection readiness.' };
-	migrateLegacyEnabled?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether legacy chat migration is enabled for this host lifetime.' };
 };
 
 interface IOperationState {

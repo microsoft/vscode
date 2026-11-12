@@ -115,7 +115,6 @@ class Editor extends Disposable {
 	readonly #taskProgressProvider: IframeEmbeddedEditorProvider;
 	isUpdatingFromExtension = false;
 	#isUpdatingComments = false;
-	#mermaidCounter = 0;
 	#codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] = [];
 	#nextCodeBlockEditorRuntimeId = 1;
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
@@ -181,6 +180,7 @@ class Editor extends Disposable {
 
 		this.model.sourceText.set(new StringValue(initialState.content), undefined);
 		this.model.readonlyMode.set(initialState.readonly, undefined);
+		this.model.renderWhitespace.set(initialState.renderWhitespace, undefined);
 
 		this._register(this.#connection.register(markdownEditorRenderer, {
 			readClipboardMedia: (request, _context, { signal }) => {
@@ -275,8 +275,9 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
-			configurationChanged: ({ highlightActiveBlock }) => {
+			configurationChanged: ({ highlightActiveBlock, renderWhitespace }) => {
 				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
+				this.model.renderWhitespace.set(renderWhitespace, undefined);
 			},
 			richLinkPresentations: ({ presentations }) => {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
@@ -417,30 +418,6 @@ class Editor extends Disposable {
 			onToggleCheckbox: (item, newChecked) => {
 				model.setTaskCheckboxChecked(item, newChecked);
 			},
-			renderCustomCodeBlock: (language, content) => {
-				if (language !== 'mermaid') {
-					return undefined;
-				}
-				const div = document.createElement('div');
-				div.className = 'md-mermaid';
-				div.textContent = content;
-				div.setAttribute('aria-busy', 'true');
-				const id = `mermaid-${this.#mermaidCounter++}`;
-				loadMermaid()
-					.then(mermaid => mermaid.render(id, content))
-					.then(({ svg }) => {
-						div.innerHTML = svg;
-						div.setAttribute('aria-busy', 'false');
-					})
-					.catch(error => {
-						div.textContent = content;
-						div.setAttribute('aria-busy', 'false');
-						this.#send('codeBlockEditorDiagnostic', this.#host.codeBlockEditorDiagnostic({
-							message: `Failed to render Mermaid diagram: ${error instanceof Error ? error.message : String(error)}`,
-						}));
-					});
-				return div;
-			},
 		}));
 		this.#view = view;
 		this.#rename = this._register(new RenameController(model, view, this.#host, () => this.#editEpoch));
@@ -482,7 +459,20 @@ class Editor extends Disposable {
 				window.removeEventListener('blur', postEditorFocus);
 			},
 		});
+		// When the webview gets focus, for example right after the editor opens, and nothing in it
+		// has focus yet, put the caret into the document so typing works right away.
+		const focusEditorOnWindowFocus = (): void => {
+			const active = document.activeElement;
+			if (!this.model.readonlyMode.get() && (!active || active === document.body || active === document.documentElement)) {
+				view.focus();
+			}
+		};
+		window.addEventListener('focus', focusEditorOnWindowFocus);
+		this._register({ dispose: () => window.removeEventListener('focus', focusEditorOnWindowFocus) });
 		host.appendChild(view.element);
+		if (document.hasFocus()) {
+			focusEditorOnWindowFocus();
+		}
 		postEditorFocus();
 
 		// Render comments as the VS Code V2 markdown cards. The card colours come
@@ -675,18 +665,6 @@ class Editor extends Disposable {
 	}
 }
 
-let mermaidPromise: Promise<(typeof import('mermaid'))['default']> | undefined;
-
-function loadMermaid(): Promise<(typeof import('mermaid'))['default']> {
-	if (!mermaidPromise) {
-		mermaidPromise = import('mermaid').then(module => {
-			module.default.initialize({ startOnLoad: false, theme: 'default' });
-			return module.default;
-		});
-	}
-	return mermaidPromise;
-}
-
 function readInitialState(): InitialState {
 	const element = document.getElementById('vscode-markdown-editor-initial-state');
 	if (!(element instanceof HTMLMetaElement)) {
@@ -713,6 +691,7 @@ function isInitialState(value: unknown): value is InitialState {
 		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
 		&& typeof candidate.highlightActiveBlock === 'boolean'
+		&& typeof candidate.renderWhitespace === 'boolean'
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
 }

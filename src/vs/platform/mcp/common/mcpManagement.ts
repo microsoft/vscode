@@ -9,8 +9,10 @@ import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IIterativePager } from '../../../base/common/paging.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IProductService } from '../../product/common/productService.js';
 import { IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IMcpServerIdentity } from './allowedMcpServers.js';
 import { IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
@@ -260,6 +262,8 @@ export type InstallOptions = {
 
 export type UninstallOptions = {
 	mcpResource?: URI;
+	/** Input definitions still referenced by other configuration scopes in the current workspace. */
+	preserveInputIds?: readonly string[];
 };
 
 export interface IInstallableMcpServer {
@@ -297,15 +301,19 @@ export interface IAllowedMcpServersService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeAllowedMcpServers: Event<void>;
-	/** Checks a server definition before resolution, deferring rules for variable-dependent URL/command fields. */
+	/** Whether enterprise policy supplies an allowlist (including an empty list) instead of legacy registry authorization. */
+	readonly hasManagedAllowlist: boolean;
+	/** Original allow/deny URL and command strings containing environment references, to be resolved into {@link IMcpServerIdentity.policyValues} by the executing host. */
+	getServerPolicyVariableValues(): readonly string[];
+	/** Checks gallery candidates or a server definition before resolution, rejecting invalid command/URL shapes and deferring variable-dependent rules. */
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 
 	/** Checks a definition identity before resolution; access and name restrictions are never deferred. */
 	isServerAllowedBeforeResolution(identity: IMcpServerIdentity): true | IMarkdownString;
 
 	/**
-	 * Checks access and allow/deny rules against a resolved runtime identity without deferring URL rules.
-	 * Runtime callers must use this after resolving a server definition.
+	 * Checks the resolved command or destination against access and allow/deny rules, substituting `identity.policyValues` into the policy matchers.
+	 * Call before execution and for every request destination; missing host expansions fail closed, while preliminary checks only defer the decision.
 	 */
 	isServerAllowed(identity: IMcpServerIdentity): true | IMarkdownString;
 }
@@ -317,6 +325,21 @@ export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
 export const mcpAppsEnabledConfig = 'chat.mcp.apps.enabled';
+
+export function normalizeMcpGalleryUrl(value: string | undefined): string | undefined {
+	const normalized = typeof value === 'string' ? value.replace(/\/+$/, '') : undefined;
+	return normalized || undefined;
+}
+
+export function getConfiguredCustomMcpGalleryUrl(configurationService: IConfigurationService, productService: IProductService): string | undefined {
+	const configuredUrl = normalizeMcpGalleryUrl(configurationService.getValue<string>(mcpGalleryServiceUrlConfig));
+	const productUrl = normalizeMcpGalleryUrl(productService.mcpGallery?.serviceUrl);
+	return configuredUrl && configuredUrl !== productUrl ? configuredUrl : undefined;
+}
+
+export function isProductMcpGalleryEnabled(configurationService: IConfigurationService, productService: IProductService): boolean {
+	return !productService.mcpGallery || configurationService.getValue<boolean>(mcpGalleryServiceEnablementConfig) !== false;
+}
 
 export interface IMcpGalleryConfig {
 	readonly serviceUrl?: string;

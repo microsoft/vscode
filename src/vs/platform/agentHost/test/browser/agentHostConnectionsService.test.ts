@@ -6,12 +6,13 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { OperatingSystem } from '../../../../base/common/platform.js';
+import { constObservable } from '../../../../base/common/observable.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILabelService, type ResourceLabelFormatter } from '../../../label/common/label.js';
 import { IPathService, type IResourcePathProvider } from '../../../path/common/pathService.js';
 import { AgentHostConnectionsService } from '../../browser/agentHostConnectionsService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../common/agentHostConnectionsService.js';
@@ -20,18 +21,17 @@ import { ChangesetKind } from '../../common/changesetUri.js';
 import type { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
+import { PathStyle } from '../../common/state/protocol/common/commands.js';
 
 /** A connection stand-in identified by a `marker` so equality checks read clearly. */
-function fakeConnection(marker: string, operatingSystem = 'linux'): IAgentConnection {
+function fakeConnection(marker: string, pathStyle?: PathStyle): IAgentConnection {
 	return {
 		marker,
-		getNetworkDiagnosticsInfo: async () => ({
-			version: '1.0.0',
-			os: operatingSystem,
-			arch: 'x64',
-			proxySettings: {},
-			proxyEnv: {},
-			endpoints: [],
+		initializeResult: constObservable({
+			protocolVersion: '1.0.0',
+			serverSeq: 0,
+			snapshots: [],
+			...(pathStyle === undefined ? {} : { environment: { pathStyle } }),
 		}),
 	} as unknown as IAgentConnection;
 }
@@ -42,12 +42,12 @@ suite('AgentHostConnectionsService', () => {
 	function createService(
 		remoteConnections: readonly IRemoteAgentHostConnectionInfo[],
 		remoteByAddress: Map<string, IAgentConnection>,
-		options?: { ambientResourceAuthority?: string; ambientOperatingSystem?: string },
-	): { service: AgentHostConnectionsService; ambient: IAgentConnection; pathProvider: IResourcePathProvider; fireRemoteChange: () => void } {
+		options?: { ambientResourceAuthority?: string; ambientPathStyle?: PathStyle },
+	): { service: AgentHostConnectionsService; ambient: IAgentConnection; pathProvider: IResourcePathProvider; registeredFormatters: ResourceLabelFormatter[]; fireRemoteChange: () => void } {
 		const onRemoteChange = store.add(new Emitter<void>());
 
 		const agentHostService = {
-			...fakeConnection('ambient', options?.ambientOperatingSystem),
+			...fakeConnection('ambient', options?.ambientPathStyle),
 			onAgentHostStart: Event.None,
 			onAgentHostExit: Event.None,
 			resourceUris: options?.ambientResourceAuthority
@@ -77,8 +77,17 @@ suite('AgentHostConnectionsService', () => {
 				return Disposable.None;
 			},
 		});
-		const service = store.add(new AgentHostConnectionsService(agentHostService, remoteAgentHostService, pathService, new NullLogService()));
-		return { service, ambient: agentHostService as unknown as IAgentConnection, pathProvider, fireRemoteChange: () => onRemoteChange.fire() };
+		const registeredFormatters: ResourceLabelFormatter[] = [];
+		const labelService = upcastPartial<ILabelService>({
+			registerFormatter: formatter => {
+				if (hasKey(formatter, { scheme: true })) {
+					registeredFormatters.push(formatter);
+				}
+				return Disposable.None;
+			},
+		});
+		const service = store.add(new AgentHostConnectionsService(agentHostService, remoteAgentHostService, pathService, labelService));
+		return { service, ambient: agentHostService as unknown as IAgentConnection, pathProvider, registeredFormatters, fireRemoteChange: () => onRemoteChange.fire() };
 	}
 
 	// Mirror agentHostAuthority for the simple alphanumeric/host cases used here.
@@ -86,8 +95,8 @@ suite('AgentHostConnectionsService', () => {
 		return /^[a-zA-Z0-9]+$/.test(address) ? address : address.replaceAll(':', '__');
 	}
 
-	function info(address: string, name: string, operatingSystem?: OperatingSystem): IRemoteAgentHostConnectionInfo {
-		return { address, name, clientId: `id-${address}`, status: { kind: 'connected' }, operatingSystem };
+	function info(address: string, name: string, pathStyle?: PathStyle): IRemoteAgentHostConnectionInfo {
+		return { address, name, clientId: `id-${address}`, status: { kind: 'connected' }, pathStyle };
 	}
 
 	test('enumerates [ambient, ...remotes] and resolves by authority/address', () => {
@@ -126,32 +135,53 @@ suite('AgentHostConnectionsService', () => {
 	});
 
 	test('provides path semantics for mixed remote authorities and the ambient resource authority', async () => {
-		const windows = fakeConnection('windows', 'win32');
-		const linux = fakeConnection('linux', 'linux');
+		const windows = fakeConnection('windows', PathStyle.Posix);
+		const linux = fakeConnection('linux', PathStyle.Posix);
+		const absent = fakeConnection('absent');
 		const { service, ambient, pathProvider } = createService([
-			info('windows', 'Windows', OperatingSystem.Windows),
-			info('linux', 'Linux', OperatingSystem.Linux),
+			info('windows', 'Windows', PathStyle.Windows),
+			info('linux', 'Linux', PathStyle.Posix),
+			info('absent', 'Absent'),
 		], new Map([
 			['windows', windows],
 			['linux', linux],
+			['absent', absent],
 		]), {
 			ambientResourceAuthority: 'ambient-remote',
-			ambientOperatingSystem: 'darwin',
+			ambientPathStyle: PathStyle.Posix,
 		});
 
 		assert.deepStrictEqual({
-			windows: await pathProvider.getOperatingSystem(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'windows', path: '/' })),
-			linux: await pathProvider.getOperatingSystem(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'linux', path: '/' })),
-			ambient: await pathProvider.getOperatingSystem(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'ambient-remote', path: '/' })),
-			unknown: await pathProvider.getOperatingSystem(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'unknown', path: '/' })),
+			windows: (await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'windows', path: '/' })))?.sep,
+			linux: (await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'linux', path: '/' })))?.sep,
+			ambient: (await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'ambient-remote', path: '/' })))?.sep,
+			absent: await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'absent', path: '/' })),
+			unknown: await pathProvider.getPath(URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'unknown', path: '/' })),
 			ambientAlias: service.getConnectionByAuthority('ambient-remote'),
 		}, {
-			windows: OperatingSystem.Windows,
-			linux: OperatingSystem.Linux,
-			ambient: OperatingSystem.Macintosh,
+			windows: '\\',
+			linux: '/',
+			ambient: '/',
+			absent: undefined,
 			unknown: undefined,
 			ambientAlias: ambient,
 		});
+	});
+
+	test('registers the ambient label formatter from negotiated path style', () => {
+		const { registeredFormatters } = createService([], new Map(), { ambientPathStyle: PathStyle.Windows });
+
+		assert.deepStrictEqual(registeredFormatters.map(formatter => ({
+			authority: formatter.authority,
+			formatting: formatter.formatting,
+		})), [{
+			authority: AMBIENT_AGENT_HOST_AUTHORITY,
+			formatting: {
+				label: '${path}',
+				separator: '\\',
+				normalizeDriveLetter: true,
+			},
+		}]);
 	});
 
 	test('peer chat selections resolve to the parent session without a fragment', () => {
@@ -188,6 +218,21 @@ suite('AgentHostConnectionsService', () => {
 			service.getSessionResource(URI.parse('codex:/external'))?.toString(),
 			service.getSessionResource(URI.parse('codex:/external'), 'remote')?.toString(),
 		], ['agent-host-codex:/external', 'remote-remote-codex:/external']);
+	});
+
+	test('resolves a catalog alias to an exact execution and releases only the alias', () => {
+		const { service } = createService([], new Map());
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const canonical = service.registerSessionResource(backend, 'remote', 'copilot');
+		const resource = URI.parse('cloud-sandbox-task:/task');
+		const registration = store.add(service.registerSessionResourceAlias(resource, backend, 'remote', 'copilot'));
+		const resolved = service.resolveSessionResourceIdentity(resource.with({ fragment: 'peer' }));
+		registration.dispose();
+		assert.deepStrictEqual({
+			resolved: [resolved?.connectionAuthority, resolved?.backendSession.toString()],
+			after: service.resolveSessionResourceIdentity(resource),
+			canonical: service.findSessionResource(backend, 'remote')?.toString(),
+		}, { resolved: ['remote', backend.toString()], after: undefined, canonical: canonical.toString() });
 	});
 
 	test('resolves mixed legacy and standard identities by provider on the owning connection', () => {
@@ -274,14 +319,26 @@ suite('AgentHostConnectionsService', () => {
 				const backend = URI.parse('codex:/external');
 				const resource = service.getSessionResource(backend, authority)!;
 				const selectedPeer = resource.with({ fragment: 'peer-chat' });
+				const selectedSubagent = resource.with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild', fragment: 'child' });
 				const resolved = service.resolveSessionResource(selectedPeer);
+				const resolvedSubagent = service.resolveSessionResource(selectedSubagent);
+				const advertisedStandard = URI.parse('ahp-session:/standard-parent');
+				const advertisedResource = service.registerSessionResource(advertisedStandard, authority, aliased ? 'copilot' : 'codex');
+				const advertisedSubagent = advertisedResource.with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild', fragment: 'child' });
+				const resolvedAdvertisedSubagent = service.resolveSessionResourceIdentity(advertisedSubagent);
 				assert.deepStrictEqual({
 					resource: resource.toString(),
 					backend: resolved?.backendSession.toString(),
+					subagentBackend: resolvedSubagent?.backendSession.toString(),
+					advertisedSubagentBackend: resolvedAdvertisedSubagent?.backendSession.toString(),
+					advertisedSubagentIsAdvertised: resolvedAdvertisedSubagent?.backendSessionIsAdvertised,
 					connection: resolved?.connection,
 				}, {
 					resource: `${authority === AMBIENT_AGENT_HOST_AUTHORITY ? 'agent-host-' : 'remote-myhost-'}${aliased ? 'copilot' : 'codex'}:/external`,
 					backend: backend.toString(),
+					subagentBackend: backend.toString(),
+					advertisedSubagentBackend: advertisedStandard.toString(),
+					advertisedSubagentIsAdvertised: true,
 					connection: authority === AMBIENT_AGENT_HOST_AUTHORITY ? ambient : connection,
 				});
 				byAddress.clear();

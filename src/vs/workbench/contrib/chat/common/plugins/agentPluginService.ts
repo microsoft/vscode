@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { type INamedPluginResource, type IMcpServerDefinition, type IParsedHookCommand, type PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { ContributionEnablementState, IEnablementModel } from '../enablement.js';
+import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
 import { IAutomationBlueprint } from '../automations/automationBlueprint.js';
 import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
+import { localize } from '../../../../../nls.js';
 
 export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPluginService');
 
@@ -48,6 +50,21 @@ export type CopilotCliPluginInstallSource =
 	| { readonly kind: 'url'; readonly url: string; readonly ref?: string; readonly sha?: string; readonly path?: string }
 	| { readonly kind: 'local'; readonly path: string };
 
+/** Computes the runtime's canonical identity for a direct installation. */
+export async function getCopilotCliPluginSourceId(source: CopilotCliPluginInstallSource): Promise<string> {
+	const descriptor = source.kind === 'local'
+		? { source: source.kind, path: source.path }
+		: {
+			source: source.kind,
+			...(source.kind === 'github' ? { repo: source.repository } : { url: source.url }),
+			ref: source.ref ?? '',
+			...(source.sha === undefined ? {} : { sha: source.sha }),
+			path: source.path ?? '',
+		};
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(descriptor)));
+	return encodeHex(VSBuffer.wrap(new Uint8Array(digest)));
+}
+
 export interface ICopilotCliPluginInstallation {
 	readonly name: string;
 	readonly marketplace: string;
@@ -69,6 +86,8 @@ export interface IAgentPlugin {
 	readonly policyBlocked?: IObservable<boolean>;
 	/** Removes this plugin from its discovery source (config or installed storage). */
 	remove?(): Promise<boolean>;
+	/** Persists global enablement through the runtime that owns this installation. */
+	setEnabled?(enabled: boolean): Promise<void>;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
@@ -86,6 +105,48 @@ export interface IAgentPluginService {
 	readonly _serviceBrand: undefined;
 	readonly plugins: IObservable<readonly IAgentPlugin[]>;
 	readonly enablementModel: IEnablementModel;
+}
+
+/** Routes runtime-owned installations to their owner; other plugins retain workbench-scoped decisions. */
+export async function setAgentPluginEnablement(plugin: IAgentPlugin, model: IEnablementModel, state: ContributionEnablementState): Promise<void> {
+	if (plugin.policyEnablement?.get() !== undefined || plugin.policyBlocked?.get()) {
+		throw new Error(localize('pluginEnablementManaged', "Plugin '{0}' is managed by your organization.", plugin.label));
+	}
+	if (plugin.copilotCliInstallation) {
+		if (!plugin.setEnabled || (state !== ContributionEnablementState.EnabledProfile && state !== ContributionEnablementState.DisabledProfile)) {
+			throw new Error(localize('pluginRuntimeScopeRequired', "Change repository enablement for plugin '{0}' from its chat customizations.", plugin.label));
+		}
+		await plugin.setEnabled(isContributionEnabled(state));
+		return;
+	}
+	const key = plugin.uri.toString();
+	const rejected = () => new Error(localize('pluginEnablementRejected', "Plugin '{0}' enablement was rejected by the local enablement model.", plugin.label));
+	if (model.canSetEnabled?.(key, state) === false) {
+		throw rejected();
+	}
+	if (plugin.setEnabled && (state === ContributionEnablementState.EnabledProfile || state === ContributionEnablementState.DisabledProfile)) {
+		const previousEnabled = model.readProfileEnabled(key);
+		const enabled = isContributionEnabled(state);
+		await plugin.setEnabled(enabled);
+		try {
+			if (model.canSetEnabled?.(key, state) === false) {
+				throw rejected();
+			}
+			model.setEnabled(key, state);
+			if (model.readProfileEnabled(key) !== enabled || isContributionEnabled(model.readEnabled(key)) !== enabled) {
+				throw rejected();
+			}
+		} catch (error) {
+			try {
+				await plugin.setEnabled(previousEnabled);
+			} catch (rollbackError) {
+				throw new AggregateError([error, rollbackError], localize('pluginEnablementRollbackFailed', "Plugin '{0}' enablement was rejected and its runtime state could not be restored.", plugin.label));
+			}
+			throw error;
+		}
+		return;
+	}
+	model.setEnabled(key, state);
 }
 
 export interface IAgentPluginDiscovery extends IDisposable {

@@ -454,7 +454,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _fireTaskEvent(event: ITaskEvent) {
-		if (event.kind !== TaskEventKind.Changed && event.kind !== TaskEventKind.ProblemMatcherEnded && event.kind !== TaskEventKind.ProblemMatcherStarted) {
+		if (event.kind !== TaskEventKind.Changed && event.kind !== TaskEventKind.ProblemMatcherEnded && event.kind !== TaskEventKind.ProblemMatcherStarted
+			&& event.kind !== TaskEventKind.CustomExecutionAccepted && event.kind !== TaskEventKind.CustomExecutionFinished) {
 			const activeTask = this._activeTasks[event.__task.getMapKey()];
 			if (activeTask) {
 				activeTask.state = event.kind;
@@ -525,6 +526,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._showTaskLoadErrors(task);
 
 		const mapKey = task.getMapKey();
+		const customExecution = (ContributedTask.is(task) || CustomTask.is(task)) && task.command?.runtime === RuntimeType.CustomExecution;
 
 		// It's important that we add this task's entry to _activeTasks before
 		// any of the code in the then runs (see #180541 and #180578). Wrapping
@@ -603,12 +605,18 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (this._activeTasks[mapKey] === activeTask) {
 				delete this._activeTasks[mapKey];
 			}
+			if (customExecution) {
+				this._fireTaskEvent(TaskEvent.general(TaskEventKind.CustomExecutionFinished, task));
+			}
 		});
 		const lastInstance = this._getInstances(task).pop();
 		const count = lastInstance?.count ?? { count: 0 };
 		count.count++;
 		const activeTask: IActiveTerminalData = { task, promise, count };
 		this._activeTasks[mapKey] = activeTask;
+		if (customExecution) {
+			this._fireTaskEvent(TaskEvent.general(TaskEventKind.CustomExecutionAccepted, task));
+		}
 		return promise;
 	}
 
@@ -686,6 +694,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
 		const command = await this._configurationResolverService.resolveAsync(workspaceFolder, CommandString.value(task.command.name!));
 		cwd = cwd ? await this._configurationResolverService.resolveAsync(workspaceFolder, cwd) : undefined;
+		// If the command still contains a `${...}` placeholder, it is a variable
+		// (for example `${command:...}` or `${input:...}`) that this resolver
+		// cannot expand on its own. Returning it as-is lets the variable be
+		// substituted later by the task system instead of producing a malformed
+		// path like `<cwd>\${command:python.interpreterPath}` (microsoft/vscode#160891).
+		if (/\$\{.+?\}/.test(command)) {
+			return command;
+		}
 		const delimiter = (await this._pathService.path).delimiter;
 		const paths = envPath ? await Promise.all(envPath.split(delimiter).map(p => this._configurationResolverService.resolveAsync(workspaceFolder, p))) : undefined;
 		const foundExecutable = await systemInfo?.findExecutable(command, cwd, paths);
@@ -1868,12 +1884,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				} else {
 					matcher = ProblemMatcherRegistry.get(value);
 				}
+				if (!matcher) {
+					this._appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored', value));
+					continue;
+				}
 			} else {
 				matcher = value;
-			}
-			if (!matcher) {
-				this._appendOutput(nls.localize('unknownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
-				continue;
 			}
 			const taskSystemInfo: ITaskSystemInfo | undefined = resolver.taskSystemInfo;
 			const hasFilePrefix = matcher.filePrefix !== undefined;

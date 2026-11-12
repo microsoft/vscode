@@ -20,6 +20,15 @@ const copilotApprovalValues = new Set(['manual', 'assisted', 'allow-all']);
 const vscodeIsolationValues = new Set(['folder', 'worktree']);
 const copilotIsolationValues = new Set(['workspace', 'worktree']);
 
+/** Copilot creation-time integration options are not user-facing chat controls. */
+export function isHiddenSessionConfigProperty(key: string): boolean {
+	return key === 'remoteSession'
+		|| key === 'enableManagedSettings'
+		|| key === 'enableSessionStore'
+		|| key === 'imageGeneration'
+		|| key === 'allowTranscriptRecovery';
+}
+
 function getEnumProperty(schema: SessionConfigSchema | undefined, key: string, values: ReadonlySet<string>, required: string): ISessionConfigProperty | undefined {
 	const property = schema?.properties[key];
 	return property?.type === 'string' && !property.enumDynamic && Array.isArray(property.enum) && property.enum.includes(required)
@@ -100,6 +109,15 @@ export function getAvailableSessionApprovalValues(property: ISessionConfigProper
 		? offered.filter(value => available.includes(value)) : offered;
 }
 
+/**
+ * Supported approval values that the host's read-only availability report withholds. Unlike values absent from
+ * the schema, they are supported but not currently allowed; the report does not say why.
+ */
+export function getWithheldSessionApprovalValues(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): readonly string[] {
+	const available = getAvailableSessionApprovalValues(property, schema, values);
+	return (property.schema.enum ?? []).filter((value): value is string => isString(value) && readSessionApprovalLevel(property, value) !== undefined && !available.includes(value));
+}
+
 export function getEffectiveSessionApprovalValue(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): unknown {
 	return schema.properties.effectiveApprovalMode?.type === 'string' && schema.properties.effectiveApprovalMode.readOnly === true && isString(values.effectiveApprovalMode)
 		? values.effectiveApprovalMode : values[property.key] ?? property.schema.default;
@@ -161,10 +179,119 @@ export function filterChatConfigValues(schema: SessionConfigSchema | undefined, 
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) => value !== undefined && isChatConfigProperty(schema, key)));
 }
 
-/** A chat's effective config: the session's config with the chat's own values applied over it (see {@link applyChatConfigLayers}). */
-export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
-	const own = filterChatConfigValues(session.schema, chat?.values);
-	return Object.keys(own).length === 0 ? session : { schema: session.schema, values: applyChatConfigLayers(session.values, [own]) };
+/**
+ * The defaults of a chat's own schema with `values` applied over them: the
+ * effective config of a chat whose agent differs from its session's. An omitted
+ * value falls back to its schema default.
+ */
+export function withChatSchemaDefaults(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
+	const result: Record<string, unknown> = {};
+	for (const [key, property] of Object.entries(schema.properties)) {
+		if (property.default !== undefined) {
+			result[key] = property.default;
+		}
+	}
+	for (const [key, value] of Object.entries(values ?? {})) {
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
+/**
+ * The chat-applicable part of an agent's config, for a chat whose agent
+ * differs from its session's: the properties a chat may set, seeded with the
+ * agent's defaults (`values`) and then with `existing` values the schema accepts.
+ */
+export function toOwnChatConfig(agentConfig: SessionConfigState, existing?: Readonly<Record<string, unknown>>): SessionConfigState {
+	const properties = Object.fromEntries(Object.entries(agentConfig.schema.properties).filter(([, property]) => property.chatMutable === true));
+	const schema: SessionConfigSchema = { ...agentConfig.schema, properties };
+	const candidates = { ...agentConfig.values, ...existing };
+	const values: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(candidates)) {
+		if (value !== undefined && Object.hasOwn(properties, key) && !getSessionConfigWriteError(agentConfig.schema, candidates, key, value, () => true)) {
+			values[key] = value;
+		}
+	}
+	return { schema, values };
+}
+
+/**
+ * The values of `values` a chat may keep under `schema`: properties the schema marks `chatMutable`, not host-reported
+ * (`readOnly`), with a value the schema offers. Used when a moved chat's config schema changes with its agent.
+ */
+export function getValidChatConfigValues(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+	const valid: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(values)) {
+		const property = schema.properties[key];
+		if (value !== undefined && property?.chatMutable === true && property.readOnly !== true && !getSessionConfigWriteError(schema, values, key, value, () => true)) {
+			valid[key] = value;
+		}
+	}
+	return valid;
+}
+
+/**
+ * The config schema of a chat: its own (`ChatConfigState.schema`, set for a
+ * chat whose agent differs from its session's), else its session's.
+ */
+export function getChatConfigSchema(session: SessionConfigState | undefined, chat: ChatConfigState | undefined): SessionConfigSchema | undefined {
+	return chat?.schema ?? session?.schema;
+}
+
+/**
+ * The values a chat is created with, or that an older build's overlay of a
+ * chat's own values completes to: the `chatMutable` properties of the session's
+ * effective `values`, with `overlay` (the chat's own values) applied over them.
+ * Properties that are not `chatMutable` stay session-wide, and `readOnly` ones
+ * are host-reported, so neither is copied from the session.
+ */
+export function getCompleteChatConfigValues(session: SessionConfigState, overlay?: Readonly<Record<string, unknown>>): Record<string, unknown> {
+	const inherited = Object.entries(filterChatConfigValues(session.schema, session.values)).filter(([key]) => session.schema.properties[key]?.readOnly !== true);
+	return { ...Object.fromEntries(inherited), ...filterChatConfigValues(session.schema, overlay) };
+}
+
+/**
+ * A chat's effective config. A chat with its own `schema` (its agent differs
+ * from its session's) is that schema with its values over the schema's defaults.
+ * A chat without config is the session's.
+ *
+ * Otherwise it depends on `completeValues`, whether the host publishes a chat's
+ * complete values (only while chats may use their own agents, the
+ * `multipleChatProviders.enabled` root config):
+ * - `false` (default; older hosts, and hosts with the setting off): the chat's
+ *   values are an overlay on its session's: the session's config with the
+ *   chat's own values applied over it (see {@link applyChatConfigLayers}), so a
+ *   property the chat didn't set follows its session.
+ * - `true`: the chat's values are its complete config, which the session's
+ *   config never changes: its `chatMutable` properties come from its values,
+ *   falling back to the schema's `default`, and the other, session-wide
+ *   properties from the session.
+ */
+export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined, completeValues = false): SessionConfigState {
+	if (chat?.schema) {
+		return { schema: chat.schema, values: withChatSchemaDefaults(chat.schema, chat.values) };
+	}
+	if (!chat) {
+		return session;
+	}
+	if (!completeValues) {
+		const own = filterChatConfigValues(session.schema, chat.values);
+		return Object.keys(own).length === 0 ? session : { schema: session.schema, values: applyChatConfigLayers(session.values, [own]) };
+	}
+	const values: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(session.values)) {
+		if (!isChatConfigProperty(session.schema, key)) {
+			values[key] = value;
+		}
+	}
+	for (const [key, property] of Object.entries(session.schema.properties)) {
+		if (property.chatMutable === true && property.default !== undefined) {
+			values[key] = property.default;
+		}
+	}
+	return { schema: session.schema, values: { ...values, ...filterChatConfigValues(session.schema, chat.values) } };
 }
 
 const APPROVAL_KEYS: readonly string[] = [SessionConfigKey.AutoApprove, 'approvalMode'];
@@ -217,10 +344,14 @@ export function getChatConfigWriteTarget(chats: readonly Pick<ChatSummary, 'reso
 	return getChatConfigChain(chats, chat).at(-1)!;
 }
 
-/** The own config values of a chat chain (innermost first) as one chat's (see {@link applyChatConfigLayers}). */
+/**
+ * The config of a chat chain (innermost first) as one chat's (see {@link applyChatConfigLayers}), keeping the
+ * innermost own `schema`: a subagent has no config of its own and uses the chat that spawned it.
+ */
 export function mergeChatConfigChain(configs: readonly (ChatConfigState | undefined)[]): ChatConfigState | undefined {
 	const present = configs.filter((config): config is ChatConfigState => config !== undefined);
-	return present.length === 0 ? undefined : { values: applyChatConfigLayers({}, present.map(config => config.values)) };
+	const schema = present.find(config => config.schema !== undefined)?.schema;
+	return present.length === 0 ? undefined : { ...(schema ? { schema } : {}), values: applyChatConfigLayers({}, present.map(config => config.values)) };
 }
 
 /** Splits a config patch into the values a chat sets for itself and the values set on the session. */

@@ -14,6 +14,8 @@ export interface IAgentModelAutoTier {
 	readonly label: string;
 	readonly enabled: boolean;
 	readonly message?: string;
+	/** Runtime-owned managed Fusion tier (`standard`, `high`, `max`) this tier executes, if any. */
+	readonly fusionTier?: string;
 }
 
 /** Includes unavailable tiers, which the `tier` schema `enum` leaves out. */
@@ -25,7 +27,7 @@ export function withAgentModelAutoTiersMeta(meta: Record<string, unknown> | unde
 	return {
 		...meta,
 		[VSCODE_AUTO_TIERS_META_KEY]: {
-			tiers: autoTiers.tiers.map(tier => ({ id: tier.id, label: tier.label, enabled: tier.enabled, ...(tier.message ? { message: tier.message } : {}) })),
+			tiers: autoTiers.tiers.map(tier => ({ id: tier.id, label: tier.label, enabled: tier.enabled, ...(tier.message ? { message: tier.message } : {}), ...(tier.fusionTier ? { fusionTier: tier.fusionTier } : {}) })),
 		},
 	};
 }
@@ -41,11 +43,11 @@ export function readAgentModelAutoTiersMeta(model: IAgentModelInfo | SessionMode
 		if (!isObject(tier)) {
 			return undefined;
 		}
-		const { id, label, enabled, message } = tier as { id?: unknown; label?: unknown; enabled?: unknown; message?: unknown };
+		const { id, label, enabled, message, fusionTier } = tier as { id?: unknown; label?: unknown; enabled?: unknown; message?: unknown; fusionTier?: unknown };
 		if (typeof id !== 'string' || !id || typeof label !== 'string' || typeof enabled !== 'boolean' || (message !== undefined && typeof message !== 'string')) {
 			return undefined;
 		}
-		result.push({ id, label, enabled, ...(message ? { message } : {}) });
+		result.push({ id, label, enabled, ...(message ? { message } : {}), ...(typeof fusionTier === 'string' && fusionTier ? { fusionTier } : {}) });
 	}
 	return { tiers: result };
 }
@@ -66,7 +68,7 @@ export interface IAgentModelAutoTierPromotion {
 }
 
 /**
- * The SDK's `AutoTierBillingPromo` (github/copilot-agent-runtime#27103). The runtime has already
+ * The SDK's `AutoTierBillingPromo`, which this layer cannot import. The runtime has already
  * applied `/meta` `service_messages`: unknown kinds and targets and ended promotions are gone,
  * and each tier carries at most one promotion, possibly one that has not started.
  */

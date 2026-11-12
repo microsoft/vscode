@@ -17,7 +17,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { readFolderGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
-import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
+import { AgentHostCreatePullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { PullRequestSummary } from '../../github/common/core/pullRequests.js';
 import { PullRequestMergeMethod } from '../../github/common/githubPullRequestService.js';
@@ -29,10 +29,10 @@ import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailable
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
 import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
+import { readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createPullRequestDetailsResult, readPullRequestConversationMeta, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../common/meta/agentPullRequestOperationMeta.js';
-import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
+import { getAgentMergeConfiguration, isAgentMergeEnabled } from './agentMergeConfiguration.js';
 import { isSessionChatInFolder, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
@@ -92,13 +92,13 @@ export interface PullRequestCreatedEvent {
  */
 export class AgentHostPullRequestOperationHandler implements IChangesetOperationHandler {
 
-	public static readonly OPERATION_CREATE_PR = 'create-pr';
-	public static readonly OPERATION_CREATE_DRAFT_PR = 'create-draft-pr';
-	public static readonly OPERATION_CREATE_PR_AUTO_MERGE = 'create-pr-auto-merge';
-	public static readonly OPERATION_CREATE_PR_AUTO_SQUASH = 'create-pr-auto-squash';
-	public static readonly OPERATION_CREATE_PR_AUTO_REBASE = 'create-pr-auto-rebase';
-	public static readonly OPERATION_CREATE_PR_AGENT_MERGE = 'create-pr-agent-merge';
-	public static readonly OPERATION_CREATE_DRAFT_PR_AGENT_MERGE = 'create-draft-pr-agent-merge';
+	public static readonly OPERATION_CREATE_PR = AgentHostCreatePullRequestOperationId.Create;
+	public static readonly OPERATION_CREATE_DRAFT_PR = AgentHostCreatePullRequestOperationId.CreateDraft;
+	public static readonly OPERATION_CREATE_PR_AUTO_MERGE = AgentHostCreatePullRequestOperationId.CreateAutoMerge;
+	public static readonly OPERATION_CREATE_PR_AUTO_SQUASH = AgentHostCreatePullRequestOperationId.CreateAutoSquash;
+	public static readonly OPERATION_CREATE_PR_AUTO_REBASE = AgentHostCreatePullRequestOperationId.CreateAutoRebase;
+	public static readonly OPERATION_CREATE_PR_AGENT_MERGE = AgentHostCreatePullRequestOperationId.CreateAgentMerge;
+	public static readonly OPERATION_CREATE_DRAFT_PR_AGENT_MERGE = AgentHostCreatePullRequestOperationId.CreateDraftAgentMerge;
 
 	constructor(
 		private readonly _draft: boolean,
@@ -214,7 +214,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	}
 
 	private async _getRepositoryMergeSettings(client: IGitHubAccountClient, owner: string, repo: string, signal: AbortSignal): Promise<RepositoryMergeSettings> {
-		const repository = await client.repositories.get({ owner, name: repo }, signal, { caller: 'agentHost.pullRequest' });
+		const repository = await client.repositories.get({ owner, repo }, signal, { caller: 'agentHost.pullRequest' });
 		if (repository.allow_auto_merge === undefined
 			|| repository.allow_merge_commit === undefined
 			|| repository.allow_squash_merge === undefined
@@ -432,9 +432,8 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		}
 		this._throwIfCancelled(token);
 
-		const repository = { owner: gitHubState.owner, name: gitHubState.repo };
 		const head = `${headOwner}:${headBranch}`;
-		const existing = await findPullRequestByHeadBranch(client.pullRequests, repository, head, signal, { caller: 'agentHost.pullRequest' });
+		const existing = await findPullRequestByHeadBranch(client.pullRequests, gitHubState, head, signal, { caller: 'agentHost.pullRequest' });
 		if (existing) {
 			this._throwIfCancelled(token);
 			return await this._finalize(existing, true, sessionUri, ownerUri, conversationChat, gitHubState.owner, gitHubState.repo, branchName, client, signal, token, options, source);
@@ -457,7 +456,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		this._logService.info(`[AgentHostPullRequestOperationHandler] Creating ${options.draft ? 'draft ' : ''}PR ${gitHubState.owner}/${gitHubState.repo} ${createHead} -> ${baseBranchName}`);
 		let created: PullRequestSummary;
 		try {
-			created = await client.pullRequests.create(repository, {
+			created = await client.pullRequests.create(gitHubState, {
 				title,
 				body,
 				head: createHead,
@@ -471,7 +470,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			}
 			let foundAfterFailure: PullRequestSummary | undefined;
 			try {
-				foundAfterFailure = await findPullRequestByHeadBranch(client.pullRequests, repository, head, signal, { caller: 'agentHost.pullRequest', priority: 'mutationReconciliation' });
+				foundAfterFailure = await findPullRequestByHeadBranch(client.pullRequests, gitHubState, head, signal, { caller: 'agentHost.pullRequest', priority: 'mutationReconciliation' });
 			} catch {
 				this._throwIfCancelled(token);
 				throw err;
@@ -499,7 +498,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	}
 
 	private _isAgentMergeEnabled(): boolean {
-		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true;
+		return isAgentMergeEnabled(this._configurationService);
 	}
 
 	private _validateAgentMergeAvailable(options: PullRequestCreationConfiguration): void {

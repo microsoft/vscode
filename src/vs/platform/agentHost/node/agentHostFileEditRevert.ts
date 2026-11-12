@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import type { IArcTextReplacement } from '../../../base/common/editArcTracker.js';
 import { URI } from '../../../base/common/uri.js';
-import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
+import { FileOperationResult, FileSystemProviderCapabilities, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 
 /**
@@ -34,8 +34,6 @@ export const enum FileEditRevertConflictReason {
 	Overlap = 'overlap',
 	/** The file changed on disk while the revert was being computed. */
 	ChangedDuringRevert = 'changedDuringRevert',
-	/** Reverting would delete a file, which cannot be conditional on its content. */
-	ConditionalDeleteUnavailable = 'conditionalDeleteUnavailable',
 }
 
 /** Thrown when a revert leaves the file untouched because of a conflict. */
@@ -53,7 +51,7 @@ interface IFileSnapshot {
 /**
  * A revert computed by {@link AgentHostFileEditRevert.prepare}. Nothing is
  * written until {@link apply}, so callers can first make sure the revert can
- * be recorded: a recreated file can't be deleted again safely.
+ * be recorded.
  */
 export interface IFileEditRevert {
 	readonly outcome: FileEditRevertOutcome;
@@ -67,8 +65,8 @@ export interface IFileEditRevert {
 	 * Puts back the content the file had before {@link apply}, unless something
 	 * changed the file since. Does nothing unless {@link apply} may have changed
 	 * the file, including when it failed after writing. Returns false when the
-	 * file couldn't be put back. A file that {@link apply} recreated can't be
-	 * deleted again.
+	 * file couldn't be put back. A file that {@link apply} recreated is deleted
+	 * again, and one it deleted is recreated.
 	 */
 	undo(): Promise<boolean>;
 }
@@ -93,6 +91,10 @@ const UNMATCHED_ETAG = 'agent-host-file-edit-revert';
  * restored byte for byte to the oldest step's start content. Otherwise each
  * step is undone with a line-based three-way merge, and the file is left
  * untouched on any overlap.
+ *
+ * When the oldest step created the file, reverting deletes it along with any
+ * change made to it since, like undoing a file that a chat editing session
+ * created. The file goes to the trash where its file system supports that.
  */
 export class AgentHostFileEditRevert {
 
@@ -116,13 +118,10 @@ export class AgentHostFileEditRevert {
 		if (matchesRecorded(current.bytes, oldestStart)) {
 			return ALREADY_REVERTED;
 		}
-		const target = areStepsContiguous(steps) && matchesRecorded(current.bytes, steps[steps.length - 1].end)
+		const target = oldestStart === undefined || (areStepsContiguous(steps) && matchesRecorded(current.bytes, steps[steps.length - 1].end))
 			? oldestStart
 			: await this._mergeRevert(current.bytes, steps, token);
 		throwIfCancelled(token);
-		if (target === undefined) {
-			throw new FileEditRevertConflictError(FileEditRevertConflictReason.ConditionalDeleteUnavailable);
-		}
 
 		let mayHaveChanged = false;
 		return {
@@ -130,7 +129,7 @@ export class AgentHostFileEditRevert {
 			apply: async () => {
 				mayHaveChanged = true;
 				try {
-					await this._replace(resource, current.bytes, target);
+					mayHaveChanged = await this._replace(resource, current.bytes, target);
 				} catch (error) {
 					// Conflicts are detected before anything is written.
 					if (error instanceof FileEditRevertConflictError) {
@@ -207,22 +206,21 @@ export class AgentHostFileEditRevert {
 
 	/**
 	 * Replaces the file's content, `undefined` meaning no file, provided it
-	 * still has `expected`. Does nothing when it already has `target`, such as
-	 * after a write that failed once the content was written. Otherwise throws
-	 * a conflict and leaves it untouched.
+	 * still has `expected`, returning whether it changed the file.
+	 * Throws a conflict on unexpected content and leaves it untouched.
 	 */
-	private async _replace(resource: URI, expected: Uint8Array | undefined, target: Uint8Array | undefined): Promise<void> {
+	private async _replace(resource: URI, expected: Uint8Array | undefined, target: Uint8Array | undefined): Promise<boolean> {
 		// Re-read just before writing so a change made while the merge was
 		// computed is reported instead of overwritten.
 		const latest = await this._read(resource);
 		if (bytesEqual(latest.bytes, target)) {
-			return;
+			return false;
 		}
 		if (!bytesEqual(latest.bytes, expected)) {
 			throw new FileEditRevertConflictError(FileEditRevertConflictReason.ChangedDuringRevert);
 		}
 		if (target === undefined) {
-			throw new FileEditRevertConflictError(FileEditRevertConflictReason.ConditionalDeleteUnavailable);
+			return this._delete(resource);
 		}
 
 		try {
@@ -231,11 +229,30 @@ export class AgentHostFileEditRevert {
 			} else {
 				await this._fileService.writeFile(resource, VSBuffer.wrap(target), { mtime: latest.mtime, etag: UNMATCHED_ETAG });
 			}
+			return true;
 		} catch (error) {
 			if (toFileOperationResult(error) === FileOperationResult.FILE_MODIFIED_SINCE) {
 				throw new FileEditRevertConflictError(FileEditRevertConflictReason.ChangedDuringRevert);
 			}
 			throw error;
+		}
+	}
+
+	/**
+	 * Deletes the file, which can't be conditional on its content: a change
+	 * made right after {@link _replace} checked it is deleted too, so the file
+	 * goes to the trash where its file system supports that.
+	 */
+	private async _delete(resource: URI): Promise<boolean> {
+		try {
+			await this._fileService.del(resource, { useTrash: this._fileService.hasCapability(resource, FileSystemProviderCapabilities.Trash) });
+			return true;
+		} catch (error) {
+			// It was deleted in the meantime.
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error;
+			}
+			return false;
 		}
 	}
 }

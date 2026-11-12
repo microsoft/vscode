@@ -7,16 +7,20 @@ import assert from 'assert';
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Action, ActionRunner, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../../base/common/platform.js';
-import { IContextMenuItem } from '../../../../../base/parts/contextmenu/common/contextmenu.js';
+import { IContextMenuItem, IPopupOptions } from '../../../../../base/parts/contextmenu/common/contextmenu.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { NativeContextMenuService } from '../../electron-browser/contextmenuService.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('Native ContextMenuService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,6 +31,7 @@ suite('Native ContextMenuService', () => {
 	let focusMode: FocusMode | undefined;
 	let menu: IContextMenuItem[];
 	let closeMenu: (() => void) | undefined;
+	let popupOptions: IPopupOptions | undefined;
 
 	setup(() => {
 		ModifierKeyEmitter.getInstance().resetKeyStatus();
@@ -36,6 +41,7 @@ suite('Native ContextMenuService', () => {
 		focusMode = undefined;
 		menu = [];
 		closeMenu = undefined;
+		popupOptions = undefined;
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IHostService, {
 			focus: async (targetWindow, options) => {
@@ -45,13 +51,74 @@ suite('Native ContextMenuService', () => {
 				await focus.p;
 			},
 		});
-		service = store.add(instantiationService.createInstance(NativeContextMenuService, (items, _options, onHide) => {
+		service = store.add(instantiationService.createInstance(NativeContextMenuService, (items, options, onHide) => {
 			menu = items;
+			popupOptions = options;
 			closeMenu = onHide;
 		}));
 	});
 
 	teardown(() => ModifierKeyEmitter.getInstance().resetKeyStatus());
+
+	for (const [selection, expected] of [
+		[undefined, undefined],
+		[false, undefined],
+		[true, 0],
+		[0, 0],
+		[2, 2],
+		[-1, undefined],
+		[NaN, undefined],
+		[Infinity, undefined],
+		[-Infinity, undefined],
+		[0.5, undefined],
+		[3, undefined],
+	] as const) {
+		test(`normalizes native menu selection ${selection} to ${expected}`, () => {
+			const actions = [store.add(new Action('first', 'First')), new Separator(), store.add(new Action('second', 'Second'))];
+			service.showContextMenu({
+				getAnchor: () => mainWindow.document.body,
+				getActions: () => actions,
+				autoSelectItem: selection,
+			});
+
+			assert.strictEqual(popupOptions?.positioningItem, expected);
+		});
+	}
+
+	test('shows group titles as disabled items at the start of each group', () => {
+		const action = (id: string, title: string, groupTitle?: string) => new MenuItemAction({ id, title }, undefined, { groupTitle }, undefined, undefined, new MockContextKeyService(), NullCommandService);
+		const actions = [
+			// The first group's title, from its first action
+			action('open', 'Open', 'Recent'),
+			new Separator(),
+			action('browse', 'Browse', 'Discover More'),
+			// A separator with a label
+			new Separator('Help'),
+			action('about', 'About'),
+		];
+		service.showContextMenu({
+			getAnchor: () => mainWindow.document.body,
+			getActions: () => actions,
+			autoSelectItem: 2,
+		});
+
+		assert.deepStrictEqual({
+			menu: menu.map(item => ({ type: item.type, label: item.label, enabled: item.enabled })),
+			positioningItem: popupOptions?.positioningItem,
+		}, {
+			menu: [
+				{ type: undefined, label: 'Recent', enabled: false },
+				{ type: undefined, label: 'Open', enabled: true },
+				{ type: 'separator', label: undefined, enabled: undefined },
+				{ type: undefined, label: 'Discover More', enabled: false },
+				{ type: undefined, label: 'Browse', enabled: true },
+				{ type: 'separator', label: undefined, enabled: undefined },
+				{ type: undefined, label: 'Help', enabled: false },
+				{ type: undefined, label: 'About', enabled: true },
+			],
+			positioningItem: 4,
+		});
+	});
 
 	for (const mouseAnchor of [false, true]) {
 		for (const mode of ['action', 'submenu', 'action runner'] as const) {
@@ -59,6 +126,7 @@ suite('Native ContextMenuService', () => {
 				const frame = mainWindow.document.createElement('iframe');
 				mainWindow.document.body.appendChild(frame);
 				store.add(toDisposable(() => frame.remove()));
+				store.add(registerTestIframe(frame));
 				const targetWindow = frame.contentWindow!;
 				const didRun = new DeferredPromise<void>();
 				const action = store.add(new Action('test', 'Test', undefined, true, async () => {

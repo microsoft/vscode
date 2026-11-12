@@ -22,12 +22,13 @@ import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAu
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { getAutomationCronValidationError } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISession } from '../../../services/sessions/common/session.js';
-import { IProviderSessionType, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { logAutomationConfigureOutcome } from './automationTelemetry.js';
 
 export const ListAutomationsToolId = 'vscode_listAutomations';
@@ -37,7 +38,7 @@ export const DeleteAutomationToolId = 'vscode_deleteAutomation';
 
 const automationToolWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext);
 const deleteAutomationConfirmationId = 'delete';
-const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
+const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly', 'cron'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
 const MAX_SESSION_TEMPLATE_CONFIG_DEPTH = 32;
@@ -50,6 +51,7 @@ interface IAutomationToolOutput {
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;
+	readonly cloudTrigger?: IAutomationDescriptor['cloudTrigger'];
 	readonly target:
 	| {
 		readonly kind: 'workspace';
@@ -364,7 +366,7 @@ export class DeleteAutomationTool implements IToolImpl {
 			icon: Codicon.trash,
 			displayName: localize('automation.tool.delete.displayName', "Delete Automation"),
 			userDescription: localize('automation.tool.delete.userDescription', "Delete a scheduled agent automation"),
-			modelDescription: 'Delete an automation by stable ID. Call listAutomations first to obtain the current ID. The current approval policy may approve the action automatically; otherwise the user is shown a Delete/Cancel confirmation.',
+			modelDescription: 'Delete an automation by stable ID and request deletion of its run history. Associated sessions, including follow-up conversations, may also be permanently deleted. Call listAutomations first to obtain the current ID and capabilities. The current approval policy may approve the action automatically; otherwise the user is shown a Delete/Cancel confirmation.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -394,7 +396,7 @@ export class DeleteAutomationTool implements IToolImpl {
 				title: localize('automation.tool.delete.confirmationTitle', "Delete Automation?"),
 				message: new MarkdownString(localize(
 					'automation.tool.delete.confirmationMessage',
-					"Delete **{0}** (`{1}`)? Its saved configuration and run history will be permanently removed. Runs already in flight will continue.",
+					"Delete **{0}** (`{1}`)? This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone. Runs already in flight will continue.",
 					automation.name,
 					automation.id,
 				)),
@@ -429,7 +431,8 @@ export class DeleteAutomationTool implements IToolImpl {
 		}
 
 		try {
-			await this.automationService.deleteAutomation(automation.id, this.createMutationGuard(token));
+			await this.automationService.deleteAutomation(automation.id, this.createMutationGuard(token),
+				this.automationService.supportsDeleteHistoryChoice?.(automation.id) === true ? { deleteHistory: true } : undefined);
 		} catch (error) {
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return error.result;
@@ -488,7 +491,7 @@ Omit "automationId" to create an automation; "name", "prompt", and "schedule.int
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
-Cloud automations are user-owned and require a private or internal GitHub.com repository with default isolation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. "manual" removes the schedule. Creation defaults to enabled: scheduled work runs without VS Code and may consume credits. Set "enabled": false to save without scheduling.
+Cloud automations are user-owned and require a private or internal GitHub.com repository with default isolation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. Cron schedules are Agent Host only. "manual" removes the schedule. Creation defaults to enabled: scheduled work runs without VS Code and may consume credits. Set "enabled": false to save without scheduling.
 
 For cloud, use "sessionTemplate.modelId" and "sessionTemplate.config" with "tools" IDs from the ready provider catalog and optional "reasoningEffort". Preserve saved tool IDs outside that catalog on unrelated updates. Cloud template reset (null), custom agents, modelConfiguration, local mode/approval settings, and MCP management are not supported.
 
@@ -520,7 +523,15 @@ The change uses the current tool-approval policy. When approval is required, the
 							interval: {
 								type: 'string',
 								enum: [...automationIntervals],
-								description: 'manual, hourly, daily, weekdays, or weekly. Weekdays runs Monday-Friday at the same local time on an Agent Host; it is not supported by Cloud.',
+								description: 'manual, hourly, daily, weekdays, weekly, or cron. Weekdays runs Monday-Friday at the same local time on an Agent Host; it is not supported by Cloud. Cron is also Agent Host only.',
+							},
+							cronExpression: {
+								type: 'string',
+								description: 'Required for cron: five fields (minute, hour, day of month, month, day of week). Supports *, lists, ascending ranges, and positive steps on * or ranges only (for example */5 or 20-59/15); steps from a single starting value are not supported. JAN-DEC and SUN-SAT names are accepted. Weekdays use 0-7; both 0 and 7 mean Sunday. The month limits both day alternatives; restricted day-of-month and weekday fields are combined with OR.',
+							},
+							cronTimeZone: {
+								type: 'string',
+								description: 'IANA time zone for cron. Defaults to the local time zone when creating; preserved when updating.',
 							},
 							scheduleHour: {
 								type: 'integer',
@@ -674,7 +685,7 @@ The change uses the current tool-approval policy. When approval is required, the
 					expectedAutomationId: proposal.existing.id,
 					expectedEditableState: serializeAutomationEditableState(proposal.existing),
 				}
-				: undefined,
+				: { kind: 'input', rawInput: context.parameters, editable: false },
 		};
 	}
 
@@ -849,8 +860,17 @@ The change uses the current tool-approval policy. When approval is required, the
 		}
 
 		const schedule = parseSchedule(input, existing?.schedule, !existing);
+		if (schedule && existing?.cloudTrigger && existing.schedule.interval === 'custom') {
+			throw new AutomationToolInputError('Edit event triggers in the automation dialog or on GitHub. Omit schedule when editing other fields.');
+		}
 		const currentTarget = this.getCurrentSessionTarget(sessionResource);
-		const target = parseTarget(input, existing, currentTarget);
+		let target = parseTarget(input, existing, currentTarget);
+		if (schedule?.interval === 'cron' && target?.kind === 'workspace' && target.providerId === undefined) {
+			target = this.resolveAvailableTarget(target, existing);
+		}
+		if (schedule?.interval === 'cron' && this.automationService.getProviderConfiguration?.(target?.providerId ?? existing?.target.providerId)?.timeZone === 'UTC') {
+			throw new AutomationToolInputError('Cron schedules are not supported by Cloud automations.');
+		}
 		const modelId = readOptionalNullableNonEmptyString(input, 'modelId');
 		const mode = readOptionalNullableNonEmptyString(input, 'mode');
 		const permissionLevel = readOptionalNullableEnum(input, 'permissionLevel', chatPermissionLevels);
@@ -975,7 +995,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		return undefined;
 	}
 
-	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone'], '"schedule"');
+	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone', 'cronExpression', 'cronTimeZone'], '"schedule"');
 	const interval = readOptionalEnum(value, 'interval', automationIntervals) ?? existing?.interval;
 	if (!interval) {
 		throw new AutomationToolInputError('"schedule.interval" is required when creating an automation.');
@@ -983,6 +1003,18 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 	const scheduleHour = readOptionalInteger(value, 'scheduleHour', 0, 23) ?? existing?.scheduleHour ?? 9;
 	const scheduleMinute = readOptionalInteger(value, 'scheduleMinute', 0, 59) ?? existing?.scheduleMinute ?? 0;
 	const scheduleDay = readOptionalInteger(value, 'scheduleDay', 0, 6) ?? existing?.scheduleDay ?? 1;
+	if (interval === 'cron') {
+		const cronExpression = readOptionalRequiredText(value, 'cronExpression') ?? existing?.cronExpression;
+		const cronTimeZone = readOptionalNonEmptyString(value, 'cronTimeZone') ?? existing?.cronTimeZone;
+		if (!cronExpression?.trim()) {
+			throw new AutomationToolInputError('"schedule.cronExpression" is required for cron schedules.');
+		}
+		const error = getAutomationCronValidationError(cronExpression, cronTimeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
+		if (error) {
+			throw new AutomationToolInputError(error);
+		}
+		return { interval, scheduleHour, scheduleMinute, scheduleDay, cronExpression, ...(cronTimeZone !== undefined ? { cronTimeZone } : {}) };
+	}
 
 	const timeZone = readOptionalEnum(value, 'timeZone', ['UTC'] as const) ?? existing?.timeZone;
 	if (interval === 'weekdays' && timeZone !== undefined) {
@@ -1169,6 +1201,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		name: automation.name,
 		prompt: automation.prompt,
 		schedule: automation.schedule,
+		...(automation.cloudTrigger ? { cloudTrigger: automation.cloudTrigger } : {}),
 		target,
 		...(automation.sessionTemplate
 			? { sessionTemplate: automation.sessionTemplate }

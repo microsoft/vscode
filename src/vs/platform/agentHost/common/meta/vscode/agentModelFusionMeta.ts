@@ -9,17 +9,29 @@ import type { IAgentModelInfo } from '../../agent.js';
 
 const VSCODE_FUSION_META_KEY = 'vscode.chat.fusion';
 
-/** How the host presents its Auto model as Fusion. */
-export interface IAgentModelFusionMeta {
-	readonly balanceUsesHydraFusion: boolean;
+/**
+ * Marks the host's Auto model as presented as Copilot Fusion. `inlineChatTier` is the tier the host runs
+ * Fusion at for editor and terminal inline chat, whatever effort level is selected, when it pins one.
+ */
+export function withAgentModelFusionMeta(meta: Record<string, unknown> | undefined, inlineChatTier?: string): Record<string, unknown> {
+	// An object, with the retired `balanceUsesHydraFusion` field, for clients that still read it.
+	return { ...meta, [VSCODE_FUSION_META_KEY]: { balanceUsesHydraFusion: false, ...(inlineChatTier !== undefined ? { inlineChatTier } : {}) } };
 }
 
-export function withAgentModelFusionMeta(meta: Record<string, unknown> | undefined, fusion: IAgentModelFusionMeta): Record<string, unknown> {
-	return { ...meta, [VSCODE_FUSION_META_KEY]: { balanceUsesHydraFusion: fusion.balanceUsesHydraFusion } };
+/** Whether the host presents its Auto model as Copilot Fusion. */
+export function isAgentModelFusion(model: IAgentModelInfo | SessionModelInfo): boolean {
+	return isObject(model._meta?.[VSCODE_FUSION_META_KEY]);
 }
 
-export function readAgentModelFusionMeta(model: IAgentModelInfo | SessionModelInfo): IAgentModelFusionMeta | undefined {
-	const value = model._meta?.[VSCODE_FUSION_META_KEY];
-	const balanceUsesHydraFusion = isObject(value) ? (value as { balanceUsesHydraFusion?: unknown }).balanceUsesHydraFusion : undefined;
-	return typeof balanceUsesHydraFusion === 'boolean' ? { balanceUsesHydraFusion } : undefined;
+/**
+ * The tier the host runs Copilot Fusion at for editor and terminal inline chat, whatever effort level is
+ * selected, or `undefined` when the host pins none there, as older and other hosts do not.
+ */
+export function readAgentModelFusionInlineChatTier(model: IAgentModelInfo | SessionModelInfo): string | undefined {
+	const fusion = model._meta?.[VSCODE_FUSION_META_KEY];
+	if (!isObject(fusion)) {
+		return undefined;
+	}
+	const { inlineChatTier }: { inlineChatTier?: unknown } = fusion;
+	return typeof inlineChatTier === 'string' ? inlineChatTier : undefined;
 }
