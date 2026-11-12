@@ -659,7 +659,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._sessionResource = undefined;
 			return undefined;
 		}
-		
+
 		void this._commentsArbitrationService.resolve(model.uri);
 		if (!this._commentsArbitrationService.usesNativeComments(model.uri)) {
 			this._hasAgentFeedbackSessionContext.set(false);
