@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
-import { createStringDataTransferItem, VSDataTransfer } from '../../../../../../../../base/common/dataTransfer.js';
+import { createStringDataTransferItem, IDataTransferFile, VSDataTransfer } from '../../../../../../../../base/common/dataTransfer.js';
 import { Mimes } from '../../../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../../../base/common/network.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
@@ -42,17 +42,19 @@ suite('Chat Paste Providers', () => {
 	});
 
 	test('names pasted images after their file and keeps the names unique', () => {
-		const file = URI.file('/screenshots/diagram.png');
+		// Mirrors toVSDataTransfer, which parses the native path of a pasted file into the uri
+		const fromDisk: IDataTransferFile = { id: '1', name: 'diagram #1.png', uri: URI.parse('C:\\Screenshots\\diagram #1.png'), data: async () => new Uint8Array() };
+		const rawBitmap: IDataTransferFile = { id: '2', name: 'image.png', uri: undefined, data: async () => new Uint8Array() };
 		assert.deepStrictEqual({
-			fromFile: getPastedImageName(file, []),
-			fromFileTaken: getPastedImageName(file, ['diagram.png', 'diagram 2.png']),
-			withoutFile: getPastedImageName(undefined, []),
-			withoutFileTaken: getPastedImageName(undefined, ['Pasted Image']),
+			fromFile: getPastedImageName(fromDisk, []),
+			fromFileTaken: getPastedImageName(fromDisk, ['diagram #1.png', 'diagram #1 2.png']),
+			rawBitmap: getPastedImageName(rawBitmap, []),
+			rawBitmapTaken: getPastedImageName(rawBitmap, ['Pasted Image']),
 		}, {
-			fromFile: 'diagram.png',
-			fromFileTaken: 'diagram 3.png',
-			withoutFile: 'Pasted Image',
-			withoutFileTaken: 'Pasted Image 2',
+			fromFile: 'diagram #1.png',
+			fromFileTaken: 'diagram #1 3.png',
+			rawBitmap: 'Pasted Image',
+			rawBitmapTaken: 'Pasted Image 2',
 		});
 	});
 
