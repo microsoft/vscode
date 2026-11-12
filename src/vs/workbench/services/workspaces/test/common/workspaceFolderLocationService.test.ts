@@ -43,7 +43,7 @@ suite('WorkspaceFolderLocationService', () => {
 	}
 
 	const folder = (uri: URI) => new WorkspaceFolder({ uri, name: '', index: 0 });
-	const atAlternate = () => new Workspace('id', [folder(a)], false, null, () => false, undefined, { id: 'id', uri: primary });
+	const atAlternate = () => new Workspace('id', [folder(a)], false, null, () => false, undefined, primary);
 
 	test('getLocations merges providers, dedupes and reports failures', async () => {
 		const reported: string[] = [];
@@ -96,9 +96,9 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual(
 			{
 				alternate: check(atAlternate()),
-				atIdentity: check(new Workspace('id', [folder(primary)], false, null, () => false, undefined, { id: 'id', uri: primary })),
+				atIdentity: check(new Workspace('id', [folder(primary)], false, null, () => false, undefined, primary)),
 				withoutIdentity: check(new Workspace('id', [folder(a)], false, null, () => false)),
-				multiRootSingleFolder: check(new Workspace('id', [folder(a)], false, URI.file('/ws.code-workspace'), () => false, undefined, { id: 'id', configPath: URI.file('/ws.code-workspace') }))
+				multiRootSingleFolder: check(new Workspace('id', [folder(a)], false, URI.file('/ws.code-workspace'), () => false))
 			},
 			{ alternate: true, atIdentity: false, withoutIdentity: false, multiRootSingleFolder: false });
 	});

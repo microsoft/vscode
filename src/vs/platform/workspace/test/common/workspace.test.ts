@@ -47,56 +47,62 @@ suite('Workspace', () => {
 		assert.strictEqual(actual, expected);
 	});
 
-	test('single folder identifier uses the primary location', () => {
-		const alternate = new Workspace('id', [new WorkspaceFolder({ uri: test1FolderUri, name: '', index: 0 })], false, null, () => !isLinux, undefined, { id: 'id', uri: mainFolderUri });
+	test('single folder workspace uri is the primary location', () => {
+		const alternate = new Workspace('id', [new WorkspaceFolder({ uri: test1FolderUri, name: '', index: 0 })], false, null, () => !isLinux, undefined, mainFolderUri);
 		const primary = new Workspace('id', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 })], false, null, () => !isLinux);
 		const updated = new Workspace('id', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 })], false, null, () => !isLinux);
 		updated.update(alternate);
 
 		assert.deepStrictEqual(
-			{ alternate: toWorkspaceIdentifier(alternate), primary: toWorkspaceIdentifier(primary), updated: updated.identity, json: JSON.stringify(alternate.toJSON()).includes('identity') },
-			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, updated: { id: 'id', uri: mainFolderUri }, json: true });
+			{ alternate: toWorkspaceIdentifier(alternate), primary: toWorkspaceIdentifier(primary), updated: updated.uri, json: alternate.toJSON().uri },
+			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, updated: mainFolderUri, json: mainFolderUri });
 	});
 
-	test('identity is derived per state when not passed', () => {
+	test('uri is derived per state when not passed', () => {
 		const folder = (uri: URI) => [new WorkspaceFolder({ uri, name: '', index: 0 })];
+		const workspaces = {
+			single: new Workspace('id', folder(mainFolderUri), false, null, () => !isLinux),
+			multiRoot: new Workspace('id', [...folder(test1FolderUri), ...folder(test2FolderUri)], false, workspaceConfigUri, () => !isLinux),
+			multiRootSingleFolder: new Workspace('id', folder(test1FolderUri), false, workspaceConfigUri, () => !isLinux),
+			empty: new Workspace('id', [], false, null, () => !isLinux)
+		};
 
 		assert.deepStrictEqual(
 			{
-				single: new Workspace('id', folder(mainFolderUri), false, null, () => !isLinux).identity,
-				multiRoot: new Workspace('id', [...folder(test1FolderUri), ...folder(test2FolderUri)], false, workspaceConfigUri, () => !isLinux).identity,
-				multiRootSingleFolder: new Workspace('id', folder(test1FolderUri), false, workspaceConfigUri, () => !isLinux).identity,
-				empty: new Workspace('id', [], false, null, () => !isLinux).identity
+				single: { uri: workspaces.single.uri, identifier: toWorkspaceIdentifier(workspaces.single) },
+				multiRoot: { uri: workspaces.multiRoot.uri, identifier: toWorkspaceIdentifier(workspaces.multiRoot) },
+				multiRootSingleFolder: { uri: workspaces.multiRootSingleFolder.uri, identifier: toWorkspaceIdentifier(workspaces.multiRootSingleFolder) },
+				empty: { uri: workspaces.empty.uri, identifier: toWorkspaceIdentifier(workspaces.empty) }
 			},
 			{
-				single: { id: 'id', uri: mainFolderUri },
-				multiRoot: { id: 'id', configPath: workspaceConfigUri },
-				multiRootSingleFolder: { id: 'id', configPath: workspaceConfigUri },
-				empty: { id: 'id' }
+				single: { uri: mainFolderUri, identifier: { id: 'id', uri: mainFolderUri } },
+				multiRoot: { uri: workspaceConfigUri, identifier: { id: 'id', configPath: workspaceConfigUri } },
+				multiRootSingleFolder: { uri: workspaceConfigUri, identifier: { id: 'id', configPath: workspaceConfigUri } },
+				empty: { uri: undefined, identifier: { id: 'id' } }
 			});
 	});
 
-	test('update() keeps the identity across alternate locations and follows state changes', () => {
+	test('update() keeps the uri across alternate locations and follows state changes', () => {
 		const folder = (uri: URI) => [new WorkspaceFolder({ uri, name: '', index: 0 })];
-		const workspace = new Workspace('id', folder(mainFolderUri), false, null, () => !isLinux, undefined, { id: 'id', uri: mainFolderUri });
-		const initial = workspace.identity;
+		const workspace = new Workspace('id', folder(mainFolderUri), false, null, () => !isLinux, undefined, mainFolderUri);
+		const initial = workspace.uri;
 
-		workspace.update(new Workspace('id', folder(test1FolderUri), false, null, () => !isLinux, undefined, workspace.identity));
-		workspace.update(new Workspace('id', folder(test2FolderUri), false, null, () => !isLinux, undefined, workspace.identity));
-		const afterSwitches = { identity: workspace.identity, folder: workspace.folders[0].uri.toString(), identifier: toWorkspaceIdentifier(workspace) };
+		workspace.update(new Workspace('id', folder(test1FolderUri), false, null, () => !isLinux, undefined, workspace.uri));
+		workspace.update(new Workspace('id', folder(test2FolderUri), false, null, () => !isLinux, undefined, workspace.uri));
+		const afterSwitches = { uri: workspace.uri, folder: workspace.folders[0].uri.toString(), identifier: toWorkspaceIdentifier(workspace) };
 
-		workspace.update(new Workspace('id', [...folder(test1FolderUri), ...folder(test2FolderUri)], false, workspaceConfigUri, () => !isLinux, undefined, { id: 'id', configPath: workspaceConfigUri }));
-		const multiRoot = { identity: workspace.identity, identifier: toWorkspaceIdentifier(workspace) };
+		workspace.update(new Workspace('id', [...folder(test1FolderUri), ...folder(test2FolderUri)], false, workspaceConfigUri, () => !isLinux));
+		const multiRoot = { uri: workspace.uri, identifier: toWorkspaceIdentifier(workspace) };
 
 		workspace.update(new Workspace('id', [], false, null, () => !isLinux));
 
 		assert.deepStrictEqual(
-			{ initial, afterSwitches, multiRoot, empty: workspace.identity },
+			{ initial, afterSwitches, multiRoot, empty: workspace.uri },
 			{
-				initial: { id: 'id', uri: mainFolderUri },
-				afterSwitches: { identity: { id: 'id', uri: mainFolderUri }, folder: test2FolderUri.toString(), identifier: { id: 'id', uri: mainFolderUri } },
-				multiRoot: { identity: { id: 'id', configPath: workspaceConfigUri }, identifier: { id: 'id', configPath: workspaceConfigUri } },
-				empty: { id: 'id' }
+				initial: mainFolderUri,
+				afterSwitches: { uri: mainFolderUri, folder: test2FolderUri.toString(), identifier: { id: 'id', uri: mainFolderUri } },
+				multiRoot: { uri: workspaceConfigUri, identifier: { id: 'id', configPath: workspaceConfigUri } },
+				empty: undefined
 			});
 	});
 

@@ -31,7 +31,7 @@ import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_
 
 function identityFake(getWorkspace: () => Workspace) {
 	return {
-		isAtAlternateLocation: () => { const workspace = getWorkspace(); return (workspace.identity as { uri: URI }).uri.toString() !== workspace.folders[0].uri.toString(); },
+		isAtAlternateLocation: () => { const workspace = getWorkspace(); return workspace.uri!.toString() !== workspace.folders[0].uri.toString(); },
 	};
 }
 
@@ -56,7 +56,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		ds.add({ dispose: () => statusbarContainer.remove() });
 
 		let currentLocation: IResolvedFolderLocation | undefined;
-		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
+		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 
 		const contribution = ds.add(new FolderLocationStatusBarContribution(
 			{ ...identityFake(() => workspace), getLocation: () => identityFake(() => workspace).isAtAlternateLocation() ? currentLocation : undefined, onDidChangeLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
@@ -83,12 +83,12 @@ suite('FolderLocationStatusBarContribution', () => {
 			isVisible: () => visible,
 			switchTo() {
 				currentLocation = location;
-				workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
+				workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 				onDidChangeCurrentLocation.fire();
 			},
 			returnToPrimary() {
 				currentLocation = undefined;
-				workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
+				workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 				onDidChangeCurrentLocation.fire();
 			}
 		};
@@ -247,7 +247,7 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	test('return command switches back to the primary location', async () => {
 		const calls: [URI, string | undefined][] = [];
-		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
+		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 		const accessor = {
 			get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace } : id === IWorkspaceEditingService ? { setFolderLocation: async (l: URI, o?: { reason?: string }) => { calls.push([l, o?.reason]); } } : id === IWorkspaceFolderLocationService ? identityFake(() => workspace) : id === IUriIdentityService ? { extUri } : undefined
 		} as unknown as ServicesAccessor;
@@ -265,7 +265,7 @@ suite('FolderLocationStatusBarContribution', () => {
 			let activeItem: IQuickPickItem | undefined;
 			let shownAtAccept: string[] = [];
 			let firstShown: { items: readonly { label: string }[]; busy: boolean } | undefined;
-			let workspace = new Workspace('id', [new WorkspaceFolder({ uri: atPrimary ? primary : alternate, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
+			let workspace = new Workspace('id', [new WorkspaceFolder({ uri: atPrimary ? primary : alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
 					: id === IWorkspaceFolderLocationService ? { ...identityFake(() => workspace), getLocation: () => atPrimary ? undefined : { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, getLocations: async () => { await lookup; return [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }]; } }
@@ -284,7 +284,7 @@ suite('FolderLocationStatusBarContribution', () => {
 												await new Promise(r => setTimeout(r, 0));
 												shownAtAccept = pick.items.map(item => item.label); shown = pick.items; activeItem = pick.activeItems[0];
 												const index = choose(pick.items);
-												if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primaryChangedTo ?? primary }); }
+												if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, name: 'project', index: 0 })], false, null, () => false, undefined, primaryChangedTo ?? primary); }
 												if (index === undefined) { hide.fire(); } else { pick.selectedItems = [pick.items[index]]; accept.fire(); }
 											};
 											void settle();
@@ -350,7 +350,7 @@ suite('FolderLocationStatusBarContribution', () => {
 				type Entry = { id: string; label: string; description?: string; checked: boolean };
 				type ListItem = { item: Entry; labelIcon: { id: string }; group: { icon: { id: string } } };
 				const calls: string[] = [];
-				const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
+				const workspace = new Workspace('id', [new WorkspaceFolder({ uri: alternate, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 				let shownAnchor: unknown;
 				let shownOptions: unknown;
 				let shownItems: ListItem[] = [];

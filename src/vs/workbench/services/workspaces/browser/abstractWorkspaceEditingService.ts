@@ -8,7 +8,7 @@ import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/wor
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
+import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from '../../configuration/common/jsonEditing.js';
 import { IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, IEnterWorkspaceResult, IStoredWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkspaceService } from '../../configuration/browser/configurationService.js';
@@ -146,8 +146,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 				throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 			}
 			const workspace = this.contextService.getWorkspace();
-			const identifier = toWorkspaceIdentifier(workspace);
-			return isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : workspace.folders[0].uri;
+			return workspace.uri ?? workspace.folders[0].uri;
 		};
 		const identity = getIdentity();
 		const validatePrimary = () => {

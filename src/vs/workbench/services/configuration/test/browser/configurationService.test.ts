@@ -1217,17 +1217,17 @@ suite('WorkspaceContextService - Folder', () => {
 
 	test('workspace is complete', () => testObject.getCompleteWorkspace());
 
-	test('identity is the opened folder and survives a switch to an alternate location', async () => {
+	test('uri is the opened folder and survives a switch to an alternate location', async () => {
 		const initial = testObject.getWorkspace();
-		const opened = { identity: initial.identity, uri: initial.folders[0].uri.toString() };
+		const opened = { uri: initial.uri, folder: initial.folders[0].uri.toString() };
 
 		const alternate = joinPath(ROOT, 'Alternate');
 		await testObject.setFolderLocation(alternate);
 		const restored = testObject.getWorkspace();
 
 		assert.deepStrictEqual(
-			{ opened, restored: { identity: restored.identity, uri: restored.folders[0].uri.toString(), isCurrent: testObject.isCurrentWorkspace(folder) } },
-			{ opened: { identity: { id: initial.id, uri: folder }, uri: folder.toString() }, restored: { identity: { id: initial.id, uri: folder }, uri: alternate.toString(), isCurrent: true } });
+			{ opened, restored: { uri: restored.uri, folder: restored.folders[0].uri.toString(), isCurrent: testObject.isCurrentWorkspace(folder) } },
+			{ opened: { uri: folder, folder: folder.toString() }, restored: { uri: folder, folder: alternate.toString(), isCurrent: true } });
 	});
 
 	test('setFolderLocation() switches the folder and keeps the identity', async () => {
@@ -1240,8 +1240,8 @@ suite('WorkspaceContextService - Folder', () => {
 
 		const actual = testObject.getWorkspace();
 		assert.deepStrictEqual(
-			{ id: actual.id, uri: actual.folders[0].uri.toString(), identity: actual.identity, name: actual.folders[0].name, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
-			{ id: workspaceId, uri: alternate.toString(), identity: { id: workspaceId, uri: folder }, name: folderName, events: 1, isCurrent: true });
+			{ id: actual.id, folder: actual.folders[0].uri.toString(), uri: actual.uri, name: actual.folders[0].name, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
+			{ id: workspaceId, folder: alternate.toString(), uri: folder, name: folderName, events: 1, isCurrent: true });
 
 		const second = joinPath(ROOT, 'Alternate2');
 		await testObject.setFolderLocation(second);
@@ -1249,8 +1249,8 @@ suite('WorkspaceContextService - Folder', () => {
 
 		const restored = testObject.getWorkspace();
 		assert.deepStrictEqual(
-			{ uri: restored.folders[0].uri.toString(), identity: restored.identity, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
-			{ uri: folder.toString(), identity: { id: workspaceId, uri: folder }, events: 3, isCurrent: true });
+			{ folder: restored.folders[0].uri.toString(), uri: restored.uri, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
+			{ folder: folder.toString(), uri: folder, events: 3, isCurrent: true });
 	});
 });
 

@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceContextService, IWorkspaceFolder, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
@@ -53,9 +53,8 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	isAtAlternateLocation(folder: IWorkspaceFolder): boolean {
 		const workspace = this.contextService.getWorkspace();
-		const identifier = toWorkspaceIdentifier(workspace);
 		const extUri = this.uriIdentityService.extUri;
-		return isSingleFolderWorkspaceIdentifier(identifier) && workspace.folders.length === 1 && extUri.isEqual(workspace.folders[0].uri, folder.uri) && !extUri.isEqual(folder.uri, identifier.uri);
+		return !workspace.configuration && !!workspace.uri && workspace.folders.length === 1 && extUri.isEqual(workspace.folders[0].uri, folder.uri) && !extUri.isEqual(folder.uri, workspace.uri);
 	}
 
 	setLocation(folder: IWorkspaceFolder, location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {
@@ -72,9 +71,9 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	 */
 	private getFolderLocationLabel(uri: URI): string | undefined {
 		const workspace = this.contextService.getWorkspace();
-		const identifier = toWorkspaceIdentifier(workspace);
+		const primary = workspace.configuration ? undefined : workspace.uri;
 		const extUri = this.uriIdentityService.extUri;
-		const folder = workspace.folders.find(folder => extUri.isEqual(folder.uri, uri) || (isSingleFolderWorkspaceIdentifier(identifier) && extUri.isEqual(identifier.uri, uri)));
+		const folder = workspace.folders.find(folder => extUri.isEqual(folder.uri, uri) || (primary && extUri.isEqual(primary, uri)));
 		const location = folder && this.getLocation(folder);
 		if (!location) {
 			return undefined;

@@ -36,7 +36,7 @@ suite('Folder Location in Window Title and Command Center', () => {
 	}
 
 	function createWindowTitle(windowTitleFormat: string, atAlternate = true) {
-		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: atAlternate ? alternate : primary, index: 0, name: 'repo' })], false, null, () => false, undefined, { id: 'id', uri: primary });
+		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: atAlternate ? alternate : primary, index: 0, name: 'repo' })], false, null, () => false, undefined, primary);
 		const onDidChangeLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
 		const locationService = new class extends mock<IWorkspaceFolderLocationService>() {
 			current: IResolvedFolderLocation | undefined = undefined;

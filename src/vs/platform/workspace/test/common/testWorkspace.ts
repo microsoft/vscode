@@ -5,7 +5,7 @@
 
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
-import { deriveWorkspaceIdentifier, IWorkspace, toWorkspaceFolder, Workspace as BaseWorkspace, WorkspaceFolder } from '../../common/workspace.js';
+import { IWorkspace, toWorkspaceFolder, Workspace as BaseWorkspace, WorkspaceFolder } from '../../common/workspace.js';
 
 export class Workspace extends BaseWorkspace {
 	constructor(
@@ -26,8 +26,8 @@ export function testWorkspace(...resource: URI[]): Workspace {
 }
 
 /**
- * Creates an `IWorkspace` fake whose identity is derived from its folders and configuration.
+ * Creates an `IWorkspace` fake whose uri is derived from its configuration and folders.
  */
-export function testIWorkspace(workspace: Omit<IWorkspace, 'identity'>): IWorkspace {
-	return { ...workspace, identity: deriveWorkspaceIdentifier(workspace) };
+export function testIWorkspace(workspace: Omit<IWorkspace, 'uri'> & { uri?: URI }): IWorkspace {
+	return { uri: workspace.configuration ?? (workspace.folders.length === 1 ? workspace.folders[0].uri : undefined), ...workspace };
 }
