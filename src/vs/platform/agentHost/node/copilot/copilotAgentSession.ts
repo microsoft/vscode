@@ -7808,8 +7808,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		try {
-			const accountSession = this._wrapper.usesMicrosoftAuthentication ? this._wrapper.session : undefined;
-			const policy = await resolveCopilotSessionManagedSettings(this._launchPlan, this._lifetimeCts.token, undefined, accountSession);
+			const policy = await resolveCopilotSessionManagedSettings(this._launchPlan, this._lifetimeCts.token);
 			if (this._store.isDisposed) {
 				return;
 			}

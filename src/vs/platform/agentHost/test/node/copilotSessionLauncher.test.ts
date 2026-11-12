@@ -464,7 +464,7 @@ suite('CopilotSessionLauncher Microsoft account readiness', () => {
 				kind: 'ready', entraAccountId: 'identity',
 				choice: { service: 'm365', selectionId: 'selected', host: 'https://m365.example', accountName: 'account', resource: 'https://m365.example' },
 			};
-			const policy = (await createUnmanagedCopilotSettings().resolve({})).resolved;
+			const policy = await createUnmanagedCopilotSettings().resolve({});
 			const session = upcastPartial<CopilotSession>({
 				sessionId: 'account-chat', on: () => () => { },
 				disconnect: async () => { calls.push('disconnect'); },
@@ -472,14 +472,24 @@ suite('CopilotSessionLauncher Microsoft account readiness', () => {
 					agent: upcastPartial<CopilotSession['rpc']['agent']>({ list: async () => { calls.push('agents'); return { agents: [] }; } }),
 					options: { update: async () => ({ success: true }) },
 					managedSettings: upcastPartial<CopilotSession['rpc']['managedSettings']>({
-						get: async () => { calls.push('policy'); if (failPolicy) { throw new Error('Policy unavailable'); } return policy; },
+						get: async () => { assert.fail('Conversation policy must use the runtime-wide resolver'); },
 					}),
 				}),
 			});
 			const client = returningSession(session, config => { calls.push('configure'); storage.push(config?.enableSessionStore); });
 			client.createSession = async () => { assert.fail('Must configure the authenticated session'); };
 			client.deleteSession = async () => { calls.push('delete'); };
-			client.rpc.managedSettings.resolve = async () => { assert.fail('Must not use global authentication'); };
+			client.rpc.managedSettings.resolve = async request => {
+				calls.push('policy');
+				assert.deepStrictEqual(request, {
+					clientName: 'vscode-agent-host',
+					...(workspace.kind !== 'virtual' ? { workingDirectory: workingDirectory.fsPath } : {}),
+				});
+				if (failPolicy) {
+					throw new Error('Policy unavailable');
+				}
+				return policy;
+			};
 			const accounts = upcastPartial<ICopilotAccountService>({
 				state: upcastPartial<ICopilotAccountService['state']>({ get: () => context }),
 				requireReady: () => context,
@@ -520,12 +530,8 @@ suite('CopilotSessionLauncher Microsoft account readiness', () => {
 			};
 			const calls: string[] = [];
 			const failure = Object.assign(new Error('Session not found'), { code: -32603 });
-			const policy = (await createUnmanagedCopilotSettings().resolve({})).resolved;
 			const session = upcastPartial<CopilotSession>({
 				sessionId: 'saved-chat', disconnect: async () => { calls.push('disconnect'); },
-				rpc: upcastPartial<CopilotSession['rpc']>({
-					managedSettings: upcastPartial<CopilotSession['rpc']['managedSettings']>({ get: async () => policy }),
-				}),
 			});
 			const accounts = upcastPartial<ICopilotAccountService>({
 				state: upcastPartial<ICopilotAccountService['state']>({ get: () => context }),
@@ -537,6 +543,9 @@ suite('CopilotSessionLauncher Microsoft account readiness', () => {
 				},
 			});
 			const client = new class extends mock<CopilotClient>() {
+				override get rpc() {
+					return upcastPartial<CopilotClient['rpc']>({ managedSettings: createUnmanagedCopilotSettings() });
+				}
 				override async createSession(): Promise<CopilotSession> { throw new Error('Resume must not replace history'); }
 				override async resumeSession(): Promise<CopilotSession> { calls.push('configure'); throw failure; }
 				override async deleteSession() { assert.fail('Resume must not delete history'); }

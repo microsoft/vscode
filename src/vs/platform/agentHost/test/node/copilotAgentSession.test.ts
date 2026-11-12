@@ -3871,7 +3871,7 @@ suite('CopilotAgentSession', () => {
 
 	for (const enabled of [false, true]) {
 		for (const service of ['github', 'ghe', 'microsoft'] as const) {
-			test(`refreshes ${service} policy from its actual launch authentication with Microsoft availability ${enabled}`, async () => {
+			test(`refreshes ${service} policy through the runtime-wide resolver with Microsoft availability ${enabled}`, async () => {
 				const managedSettings = createUnmanagedCopilotSettings();
 				const baseline = await managedSettings.resolve({});
 				const calls: object[] = [];
@@ -3879,10 +3879,10 @@ suite('CopilotAgentSession', () => {
 				const { session, mockSession, onDidReportModelConfiguration, modelConfigurationReported } = await createAgentSession(disposables, {
 					rootValues: { [CopilotCliConfigKey.M365Enabled]: enabled },
 					usesMicrosoftAuthentication: service === 'microsoft',
-					managedSettings, githubToken: `${service}-token`, workingDirectory: URI.file('/workspace'),
+					managedSettings, githubToken: service === 'microsoft' ? undefined : `${service}-token`, workingDirectory: URI.file('/workspace'),
 					trackModelConfigurationUpdates: true,
 					configureMockSession: mock => {
-						mock.rpc.managedSettings.get = async () => { calls.push({ session: true }); return baseline.resolved; };
+						mock.rpc.managedSettings.get = async () => { assert.fail('Policy refresh must use the runtime-wide resolver'); };
 					},
 				});
 				await modelConfigurationReported;
@@ -3890,9 +3890,9 @@ suite('CopilotAgentSession', () => {
 				const reported = Event.toPromise(onDidReportModelConfiguration);
 				session.refreshModelConfiguration();
 				await reported;
-				assert.deepStrictEqual(calls, Array.from({ length: 2 }, () => service === 'microsoft' ? { session: true } : {
-					clientName: 'vscode-agent-host', gitHubToken: `${service}-token`, workingDirectory: URI.file('/workspace').fsPath,
-				}));
+				assert.deepStrictEqual(calls, Array.from({ length: 2 }, () => ({
+					clientName: 'vscode-agent-host', ...(service !== 'microsoft' ? { gitHubToken: `${service}-token` } : {}), workingDirectory: URI.file('/workspace').fsPath,
+				})));
 			});
 		}
 	}

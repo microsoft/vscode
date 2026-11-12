@@ -569,10 +569,10 @@ export function getCopilotWorkingDirectoryTrust(plan: Pick<CopilotSessionLaunchP
 	return trusted ? 'session' : undefined;
 }
 
-export function resolveCopilotSessionManagedSettings(plan: CopilotSessionLaunchPlan, token = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter, session = plan.accountSession) {
-	const rpc = session?.rpc.managedSettings ?? plan.client.rpc.managedSettings;
-	const authentication = session ? undefined : plan.githubCredentials.token;
-	const workingDirectory = session || plan.workspace?.kind === 'virtual' ? undefined : plan.workingDirectory?.fsPath;
+export function resolveCopilotSessionManagedSettings(plan: CopilotSessionLaunchPlan, token = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter) {
+	const rpc = plan.client.rpc.managedSettings;
+	const authentication = plan.githubCredentials.token;
+	const workingDirectory = plan.workspace?.kind === 'virtual' ? undefined : plan.workingDirectory?.fsPath;
 	return plan.managedSettingsResolver
 		? plan.managedSettingsResolver.resolve(rpc, authentication, workingDirectory, token, reportActivity)
 		: resolveCopilotManagedSettings(rpc, authentication, 30_000, workingDirectory, token);
