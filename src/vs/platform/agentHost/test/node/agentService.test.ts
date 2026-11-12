@@ -24523,6 +24523,29 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('authenticate', () => {
 
+		test('waits for provider completion after canonical acceptance and isolates completion failure', async () => {
+			const provider: IAgent = copilotAgent;
+			const started = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			let visible: string | undefined;
+			provider.completeAuthentication = async params => {
+				visible = getAuthenticationService(service).getAuthToken({ resource: params.resource });
+				started.complete();
+				await finish.p;
+				throw new Error('setup failed');
+			};
+			registerTestAgentProvider(service, provider);
+			const completing = service.authenticate({ resource: 'https://api.github.com', token: 'token' });
+			await started.p;
+			finish.complete();
+			const failed = await completing;
+			const other = disposables.add(new MockAgent('claude'));
+			other.getProtectedResources = () => [{ resource: 'https://api.github.com' }];
+			registerTestAgentProvider(service, other);
+			const accepted = await service.authenticate({ resource: 'https://api.github.com', token: 'next-token' });
+			assert.deepStrictEqual({ failed, accepted, visible }, { failed: { authenticated: false }, accepted: { authenticated: true }, visible: 'next-token' });
+		});
+
 		test('validates MCP authentication targets against top-level and child customizations', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ legacyChatUris: false, provider: 'copilot' });

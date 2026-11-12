@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -468,23 +469,38 @@ suite('Sessions - Session management actions', () => {
 		});
 	});
 
-	test('plays the confetti signal after keyboard archive when animation is enabled', async () => {
+	test('plays the confetti signal optimistically when keyboard archive is requested', async () => {
 		const enabled = createActionHarness([createTestSession('Enabled').session], undefined);
 		const disabled = createActionHarness([createTestSession('Disabled').session], undefined, undefined, undefined, false, { confettiEnabled: false });
 		const reducedMotion = createActionHarness([createTestSession('Reduced motion').session], undefined, undefined, undefined, false, { reducedMotion: true });
+		const failed = createActionHarness([createTestSession('Failed').session], undefined);
+		const completion = new DeferredPromise<void>();
+		enabled.managementService.archiveSession = async () => completion.p;
+		failed.managementService.archiveSession = async () => { throw new Error('Archive failed'); };
 
-		await enabled.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		const archive = enabled.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		const enabledBeforeCompletion = [...enabled.playedSignals];
+		await completion.complete();
+		await archive;
 		await disabled.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
 		await reducedMotion.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		await assert.rejects(
+			() => failed.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor)),
+			/Archive failed/,
+		);
 
 		assert.deepStrictEqual({
+			enabledBeforeCompletion,
 			enabled: enabled.playedSignals,
 			disabled: disabled.playedSignals,
 			reducedMotion: reducedMotion.playedSignals,
+			failed: failed.playedSignals,
 		}, {
+			enabledBeforeCompletion: [AccessibilitySignal.confetti],
 			enabled: [AccessibilitySignal.confetti],
 			disabled: [],
 			reducedMotion: [],
+			failed: [AccessibilitySignal.confetti],
 		});
 	});
 

@@ -26,6 +26,7 @@ import { IWebWorkerService } from '../../../../../platform/webWorker/browser/web
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { hookUpResourceContextMenu } from '../../browser/attachments/chatAttachmentWidgets.js';
 import { createChatImageCopyActions } from '../../browser/chatImageActions.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('Chat image copy actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -130,6 +131,7 @@ suite('Chat image copy actions', () => {
 		const iframe = $<HTMLIFrameElement>('iframe');
 		store.add(toDisposable(() => iframe.remove()));
 		mainWindow.document.body.appendChild(iframe);
+		store.add(registerTestIframe(iframe));
 		iframe.contentDocument!.body.appendChild(image);
 		await image.decode();
 		const copyAction = actions(image)()[0];

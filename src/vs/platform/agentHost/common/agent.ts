@@ -14,6 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { AgentMessageProvenance } from './agentMessageProvenance.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
@@ -28,6 +29,7 @@ import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type Ch
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
 import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
+import type { IModelRouterSituation } from './modelRouterSituation.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -352,7 +354,16 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 
 export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
 export type AgentExtensionSource = 'user' | 'project' | 'plugin';
-export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
+/**
+ * `dormant` is enabled and settled like `running`: the runtime advertises the
+ * extension's declared tools and canvases and starts the extension on first use.
+ */
+export type AgentExtensionStatus = 'running' | 'dormant' | 'disabled' | 'failed' | 'starting' | 'unknown';
+
+/** Whether an extension is enabled and settled, so its advertised tools and canvases are authoritative even before it starts. */
+export function isAgentExtensionEnabledAndSettled(status: AgentExtensionStatus): boolean {
+	return status === 'running' || status === 'dormant';
+}
 
 /** One executable extension discovered from the provider's persisted or session-effective inventory. */
 export interface IAgentExtensionInfo {
@@ -360,7 +371,7 @@ export interface IAgentExtensionInfo {
 	readonly name: string;
 	readonly resource?: URI;
 	readonly source: AgentExtensionSource;
-	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `failed`, or `starting`. */
+	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `dormant`, `failed`, or `starting`. */
 	readonly status: AgentExtensionStatus;
 	readonly pluginName?: string;
 }
@@ -1024,6 +1035,11 @@ export interface IAgentChatContext {
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
+	/**
+	 * Who authored the message of the current send, resolved by the host and supplied only for that send.
+	 * Providers pass it to their runtime instead of presenting every message as the user's.
+	 */
+	readonly messageProvenance?: AgentMessageProvenance;
 	/**
 	 * The VS Code chat surface the owning session was created for, from its surface
 	 * metadata. Supplied at each operation, so a runtime that replaces the chat's
@@ -1976,6 +1992,8 @@ export interface IAgentTurnModelRequest {
 	readonly previousTurns: readonly Turn[];
 	/** The turn's custom agent, whose own model can take the place of a router's pick. */
 	readonly agent?: AgentSelection;
+	/** Facts about the turn besides its message, such as what is attached. Never content. */
+	readonly situation?: IModelRouterSituation;
 }
 
 export interface IAgentTurnModelResolution {
@@ -2155,8 +2173,9 @@ export interface IAgent {
 	 * Hands off one independent submission without replacing the legacy slot; false defers until ready.
 	 * A promise that resolves false hands the message back unsent, for example because the turn it was
 	 * meant to steer ended first. The host then keeps it pending and runs it as the next turn.
+	 * `provenance` is who authored the message, as the host resolved it.
 	 */
-	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean>;
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender, provenance?: AgentMessageProvenance): boolean | void | Promise<boolean>;
 
 	/**
 	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
@@ -2359,6 +2378,14 @@ export interface IAgent {
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
+
+	/**
+	 * Completes provider setup after an accepted credential is available in the canonical store.
+	 *
+	 * TODO@TylerLeonhardt: Combine this with {@link IAgent.authenticate} and {@link IAgent.handleAuthenticationToken}
+	 * into a single hook that runs once the credential is stored.
+	 */
+	completeAuthentication?(params: AuthenticateParams): Promise<void>;
 
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;

@@ -31,7 +31,7 @@ import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsS
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition } from '../common/chatWindowLayout.js';
-import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
+import { ChatWindowChatArrangements, ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState } from '../common/chatWindowState.js';
 import { CHAT_PART_OPTIONS, IChatWindow, IChatWindowChat, IChatWindowChatPart, IChatWindowContent, IChatWindowEditors, IChatWindowNewChatOptions, IChatWindowOpenOptions, IChatWindowProvider, IChatWindowService } from './chatWindow.js';
 import { bindWindowLayoutContext, bindWindowTerminalsContext } from './chatWindowContextKeys.js';
 import { captureChatPart, deserializeChatWindowEditors, getRestoredChatGroup, reopenChatWindow, serializeChatWindowEditorsBesideChat } from './chatWindowEditors.js';
@@ -407,7 +407,11 @@ export class ChatWindow extends Disposable implements IChatWindow {
 
 		const isChatIn = (groups: readonly IEditorGroup[]) => groups.some(group => this.chatInputs.some(input => group.contains(input)));
 		this._register(trackMainPartEditors(mainPart, {
-			onDidOpenEditor: () => this._showMainPart(),
+			onDidOpenEditor: editor => {
+				if (!editor || editor !== this._restoringEditor) {
+					this._showMainPart();
+				}
+			},
 			// Only the chat part can show the chat: with the chat moved to another part, the window keeps its layout
 			onDidCloseLastEditor: () => {
 				if (isChatIn(this.chatPart.groups)) {
@@ -571,13 +575,26 @@ export class ChatWindow extends Disposable implements IChatWindow {
 		this._returnChat();
 		this._host.resetLayout();
 		this.state.reset();
-		showChatInsteadOfEmptyMainPart(this.mainPart, this, true);
+		showChatInsteadOfEmptyMainPart(this.mainPart, this);
 	}
 
 	showEditor(): void {
 		this._returnChat();
 		this._showMainPart();
 	}
+
+	async restoreMainPartEditor(editor: EditorInput, open: () => Promise<unknown>): Promise<void> {
+		let opening: Promise<unknown>;
+		this._restoringEditor = editor;
+		try {
+			opening = open();
+		} finally {
+			this._restoringEditor = undefined;
+		}
+		await opening;
+	}
+
+	private _restoringEditor: EditorInput | undefined;
 
 	/** Shows the main part beside the chat, as the window shows it once an editor opens in it. */
 	private _showMainPart(): void {
@@ -788,6 +805,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	private readonly _openByChat = new SequencerByKey<string>();
 	private readonly _chatLayouts: ChatWindowChatLayouts;
 	private readonly _chatSizes: ChatWindowChatSizes;
+	private readonly _chatArrangements: ChatWindowChatArrangements;
 	/** The grid of each open window, which arranges its parts. */
 	private readonly _grids = new Map<IChatWindow, ChatWindowGrid>();
 
@@ -805,6 +823,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		this.hasProvider = this._provider.map(provider => !!provider);
 		this._chatLayouts = new ChatWindowChatLayouts(_storageService);
 		this._chatSizes = new ChatWindowChatSizes(_storageService);
+		this._chatArrangements = new ChatWindowChatArrangements(_storageService);
 		this._register(this._instantiationService.createInstance(ChatWindowsRestoration, {
 			provider: this._provider,
 			windows: this._windows,
@@ -883,6 +902,8 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			}
 			if (added !== target) {
 				moveBack();
+			} else if (options?.editors?.editors?.length) {
+				await this._openEditors(options.editors, target.mainPart, target);
 			}
 			return added;
 		}
@@ -1120,6 +1141,7 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			resetLayout: () => {
 				this._chatLayouts.delete(chatWindow.anchor.chat.get());
 				this._chatSizes.delete(chatWindow.anchor.chat.get());
+				this._chatArrangements.delete(chatWindow.anchor.chat.get());
 				gridRef.get()?.reset();
 			},
 			windowGroups: {
@@ -1183,14 +1205,26 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 			terminals: chatWindow.terminalsPart,
 			chatInputOnly: derived(reader => state.layoutMode.read(reader) === ChatWindowLayoutMode.Stacked && state.inputOnly.read(reader)),
 			setTerminalPosition: position => state.setTerminalPosition(position),
+			splitLayout: state.splitLayout,
+			arrangement: this._chatArrangements.get(chat),
 		}, state.layoutMode, look.gap, this._chatSizes.get(chat), state.terminalPosition, partFactory));
 		gridRef.set(grid, undefined);
 		// As the window goes away, after its chat part and main part closed and before the part that holds its terminals does
 		disposables.add(chatWindow.onWillClose(() => grid.willClose()));
 		this._grids.set(chatWindow, grid);
 		disposables.add(toDisposable(() => this._grids.delete(chatWindow)));
-		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement.
-		const saveSizes = () => this._chatSizes.set(chatWindow.anchor.chat.get(), grid.exportSizes());
+		// What the window shows is what it shows again for its chat: the sizes of its parts per arrangement, and how the user
+		// arranged them.
+		const saveSizes = () => {
+			const chat = chatWindow.anchor.chat.get();
+			this._chatSizes.set(chat, grid.exportSizes());
+			const arrangement = grid.exportArrangement();
+			if (arrangement) {
+				this._chatArrangements.set(chat, arrangement);
+			} else {
+				this._chatArrangements.delete(chat);
+			}
+		};
 		disposables.add(this._storageService.onWillSaveState(saveSizes));
 		disposables.add(auxiliaryWindow.onBeforeUnload(saveSizes));
 		if (look.paintChatBackground) {
@@ -1235,9 +1269,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		if (anchor) {
 			chatWindow.anchor = anchor;
 		}
-		await this._openEditors(options?.editors, mainPart);
-		await this._openCreatedParts(options?.createdParts, mainPart, grid);
-		showChatInsteadOfEmptyMainPart(mainPart, chatWindow, !rememberedLayout);
+		await this._openEditors(options?.editors, mainPart, chatWindow);
+		await this._openCreatedParts(options?.createdParts, mainPart, grid, chatWindow);
+		showChatInsteadOfEmptyMainPart(mainPart, chatWindow);
 		if (options?.showTerminals) {
 			chatWindow.getOrCreateTerminalsPart();
 		}
@@ -1265,9 +1299,9 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 	 * part at the edge of the window, where such parts go as the window's parts are arranged. Where the window creates no
 	 * parts, its editors stay in its main part.
 	 */
-	private async _openCreatedParts(createdParts: readonly IChatWindowEditors[] | undefined, mainPart: IContentPart, grid: ChatWindowGrid): Promise<void> {
+	private async _openCreatedParts(createdParts: readonly IChatWindowEditors[] | undefined, mainPart: IContentPart, grid: ChatWindowGrid, chatWindow: ChatWindow): Promise<void> {
 		for (const created of createdParts ?? []) {
-			await this._openEditors(created, mainPart);
+			await this._openEditors(created, mainPart, chatWindow);
 			const group = mainPart.activeGroup;
 			const editors = (created.editors ?? []).filter(editor => group.contains(editor)).map(editor => ({ editor, groupId: group.id }));
 			if (editors.length) {
@@ -1276,10 +1310,17 @@ export class ChatWindowService extends Disposable implements IChatWindowService 
 		}
 	}
 
-	private async _openEditors(editors: IChatWindowEditors | undefined, part: IContentPart): Promise<void> {
+	private async _openEditors(editors: IChatWindowEditors | undefined, part: IContentPart, chatWindow: ChatWindow): Promise<void> {
 		const inputs = editors?.editors ?? [];
 		const active = editors?.activeEditor ?? inputs.at(-1);
-		await part.activeGroup.openEditors(inputs.map(editor => ({ editor, options: { pinned: true, preserveFocus: true, inactive: editor !== active } })));
+		const group = part.activeGroup;
+		for (const editor of inputs) {
+			await chatWindow.restoreMainPartEditor(editor, () => group.openEditor(editor, { pinned: true, preserveFocus: true, inactive: editor !== active, index: group.count }));
+		}
+		const shown = active && group.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.matches(active));
+		if (shown && group.activeEditor !== shown) {
+			await chatWindow.restoreMainPartEditor(shown, () => group.openEditor(shown, { pinned: true, preserveFocus: true }));
+		}
 	}
 
 	private _findGroup(editor: EditorInput): IEditorGroup | undefined {

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
@@ -296,6 +297,27 @@ suite('ChatViewPane session transitions', () => {
 			});
 		}));
 	}
+});
+
+suite('ChatViewPane persisted session restore', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createPane(error: Error): { acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<{ modelRef?: IChatModelReference }> } {
+		return Object.assign(Object.create(ChatViewPane.prototype), {
+			viewState: { sessionResource: URI.parse('agent-host-copilotcli:/missing') },
+			logService: new NullLogService(),
+			chatService: { acquireOrLoadSession: async () => { throw error; } },
+		});
+	}
+
+	test('starts a new session when the persisted session fails to load', async () => {
+		const restored = await createPane(new Error('Session identity was not advertised by its agent host')).acquireTransferredOrPersistedSession(CancellationToken.None, 'test');
+		assert.strictEqual(restored.modelRef, undefined);
+	});
+
+	test('still propagates cancellation', async () => {
+		await assert.rejects(createPane(new CancellationError()).acquireTransferredOrPersistedSession(CancellationToken.None, 'test'), CancellationError);
+	});
 });
 
 suite('ChatViewPane managed permission rules', () => {

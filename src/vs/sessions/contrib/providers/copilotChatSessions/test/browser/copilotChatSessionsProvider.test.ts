@@ -2070,9 +2070,10 @@ suite('CopilotChatSessionsProvider', () => {
 		disposables.add(autorun(reader => observed.push(session.isExternal?.read(reader))));
 		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata }));
 
-		assert.deepStrictEqual({ observed, harness: session.harness, environment: session.environment, application: session.application.get() }, {
+		assert.deepStrictEqual({ observed, harness: session.harness, harnessLabel: provider.getHarnessPresentation(session.harness)?.label, environment: session.environment, application: session.application.get() }, {
 			observed: [true, false],
 			harness: 'copilot',
+			harnessLabel: 'Copilot',
 			environment: 'cloud',
 			application: { id: 'github/autopilot', label: 'Copilot App' },
 		});

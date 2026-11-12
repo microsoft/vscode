@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 import * as ts from 'typescript';
 
 /**
  * Prefer dot notation for identifier properties, including TypeScript private members.
  * Allow bracket notation for environment-variable names accessed directly through process.env.
  */
-export default new class NoBracketNotationForIdentifiers implements eslint.Rule.RuleModule {
+export default new class NoBracketNotationForIdentifiers implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'problem',
 		docs: {
 			description: 'Disallow bracket notation for identifier properties except on process.env'
@@ -26,7 +24,7 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 		fixable: 'code'
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
 		/**
 		 * Check if a string is a valid JavaScript identifier
@@ -41,7 +39,7 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 
 		return {
 			MemberExpression(node: ESTree.MemberExpression) {
-				const memberExpr = node as TSESTree.MemberExpression;
+				const memberExpr = node;
 
 				// Only check computed member expressions (bracket notation)
 				if (!memberExpr.computed) {
@@ -54,7 +52,7 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 				}
 
 				// Preserve escaped property names instead of replacing their authored representation.
-				if (memberExpr.property.raw.includes('\\')) {
+				if (memberExpr.property.raw!.includes('\\')) {
 					return;
 				}
 
@@ -76,7 +74,7 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 							property: propertyName
 						},
 						fix(fixer) {
-							const property = memberExpr.property as unknown as eslint.Rule.Node;
+							const property = memberExpr.property;
 							const leftBracket = context.sourceCode.getTokenBefore(property);
 							const rightBracket = context.sourceCode.getTokenAfter(property);
 							if (leftBracket?.value !== '[' || rightBracket?.value !== ']') {
@@ -94,7 +92,7 @@ export default new class NoBracketNotationForIdentifiers implements eslint.Rule.
 								`${memberExpr.optional ? '' : '.'}${propertyName}`
 							);
 							if (memberExpr.object.type === 'Literal' && typeof memberExpr.object.value === 'number') {
-								const object = memberExpr.object as unknown as eslint.Rule.Node;
+								const object = memberExpr.object;
 								return [
 									fixer.insertTextBefore(object, '('),
 									fixer.insertTextAfter(object, ')'),

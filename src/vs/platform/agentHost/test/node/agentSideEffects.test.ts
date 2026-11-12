@@ -30,6 +30,7 @@ import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
+import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { IAgentHostChatRowStore, IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -40,7 +41,7 @@ import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, type CustomizationEnablement, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type ProgressParams, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type McpServerCustomization, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, withSessionGitState, type MessageAttachment, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type McpServerCustomization, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -1748,9 +1749,11 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual({
 				hostInstructions: !URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined,
 				originalMessageText: !URI.isUri(sendContext) ? sendContext?.originalMessageText : undefined,
+				messageProvenance: !URI.isUri(sendContext) ? sendContext?.messageProvenance : undefined,
 			}, {
 				hostInstructions: undefined,
 				originalMessageText: 'hello world',
+				messageProvenance: { kind: 'user' },
 			});
 		});
 
@@ -1770,7 +1773,29 @@ suite('AgentSideEffects', () => {
 			await waitForSendMessageCalls(1);
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
-			assert.strictEqual(!URI.isUri(sendContext) && sendContext?.agentMergeTurn, true);
+			assert.deepStrictEqual(!URI.isUri(sendContext) && { agentMergeTurn: sendContext?.agentMergeTurn, messageProvenance: sendContext?.messageProvenance }, {
+				agentMergeTurn: true,
+				messageProvenance: { kind: 'automation', id: 'vscode.agentMerge' },
+			});
+		});
+
+		test('tells the provider which agent authored a delegated message', async () => {
+			setupSession();
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-delegated',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'review the change',
+					origin: { kind: MessageKind.Agent },
+					_meta: toAgentMessageDelegationMeta({ sourceSession: 'copilot:/coordinator', sourceChat: 'copilot:/coordinator/chat', sourceTurnId: 'turn-1' }),
+				},
+			});
+
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.deepStrictEqual(!URI.isUri(sendContext) && sendContext?.messageProvenance, { kind: 'agent', id: 'copilot:/coordinator/chat' });
 		});
 
 		test('stamps the exhaustive host chat context on the send boundary', async () => {
@@ -3952,12 +3977,12 @@ suite('AgentSideEffects', () => {
 		}
 
 		suite('model routers', () => {
-			function startRoutedTurn(): void {
+			function startRoutedTurn(attachments?: MessageAttachment[]): void {
 				const action: ChatAction = {
 					type: ActionType.ChatTurnStarted,
 					turnId: 'turn-1',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' } },
+					message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'model-router:daily' }, ...(attachments ? { attachments } : {}) },
 				};
 				// As on the server: the client's action reaches state before its side effects run.
 				stateManager.dispatchServerAction(defaultChatUri, action);
@@ -3974,6 +3999,33 @@ suite('AgentSideEffects', () => {
 				});
 				return requests;
 			}
+
+			test('tells the agent what is attached, the mode and where the work happens, and none of the content', async () => {
+				setupSession(URI.file('/work/shop-checkout').toString(), withSessionGitState(undefined, { uncommittedChanges: 12 }));
+				stateManager.setSessionConfig(sessionUri.toString(), {
+					schema: { type: 'object', properties: { mode: { type: 'string', title: 'Agent Mode', enum: ['interactive', 'plan', 'autopilot'], default: 'interactive', sessionMutable: true } } },
+					values: { mode: 'plan' },
+				});
+				const situations: IAgentTurnModelRequest['situation'][] = [];
+				routeWith(async request => {
+					situations.push(request.situation);
+					return { selection: undefined, notices: [] };
+				});
+				disposables.add(sideEffects.registerProgressListener(agent));
+
+				startRoutedTurn([
+					{ type: MessageAttachmentKind.Resource, uri: URI.file('/work/shop-checkout/src/cart.js').toString(), label: 'cart.js', displayKind: 'document' },
+					{ type: MessageAttachmentKind.EmbeddedResource, label: 'failure.png', data: 'c2VjcmV0', contentType: 'image/png' },
+				]);
+				await new Promise(r => setTimeout(r, 10));
+
+				assert.deepStrictEqual(situations, [{
+					workspace: 'shop-checkout',
+					uncommittedFiles: 12,
+					attachments: [{ kind: 'document', count: 1 }, { kind: 'image', count: 1 }],
+					mode: 'plan',
+				}]);
+			});
 
 			test('uses the model the agent resolves, and keeps the choice on every usage report', async () => {
 				setupSession();

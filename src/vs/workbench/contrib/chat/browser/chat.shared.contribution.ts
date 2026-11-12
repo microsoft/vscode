@@ -145,8 +145,9 @@ import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
 import { CONFIGURE_DICTATION_INSTRUCTIONS_ACTION_ID, registerConfigureSpeechInstructionsActions } from './actions/configureVoiceInstructionsAction.js';
 import './agentSessions/agentSessions.contribution.js';
-// Registers what chat resources contribute at startup, such as their settings.
+// Registers the chat resources setting, and the contribution point before extensions are read.
 import './chatResources/chatResources.js';
+import './chatResources/chatResourceContributions.js';
 import { AgentHostChatDebugContribution } from './chatDebug/agentHostChatDebugProvider.js';
 import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
 import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
@@ -1408,7 +1409,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions."),
+			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions. These tools are also disabled when your organization disables MCP."),
 			default: true,
 			policy: {
 				name: 'ChatAgentExtensionTools',
@@ -1417,7 +1418,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.extensionToolsEnabled',
-						value: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions.")
+						value: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions. These tools are also disabled when your organization disables MCP.")
 					}
 				},
 			}
@@ -1958,6 +1959,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
 			default: true,
+		},
+		[ChatConfiguration.HtmlPreviewEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.htmlPreview.enabled.description', "Render explicit html-preview code blocks as inline HTML previews in the Agents window. When disabled, these blocks are shown as source code."),
+			default: false,
 		},
 		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
 			type: 'boolean',

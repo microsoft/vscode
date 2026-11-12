@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
-import { createStringDataTransferItem, VSDataTransfer } from '../../../../../../../../base/common/dataTransfer.js';
+import { createStringDataTransferItem, IDataTransferFile, VSDataTransfer } from '../../../../../../../../base/common/dataTransfer.js';
 import { Mimes } from '../../../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../../../base/common/network.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
@@ -20,7 +20,7 @@ import { IConfigurationService } from '../../../../../../../../platform/configur
 import { ILogService } from '../../../../../../../../platform/log/common/log.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../browser/chat.js';
 import { IChatSessionsService } from '../../../../../common/chatSessionsService.js';
-import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
+import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, getPastedImageName, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { isSupportedChatFileScheme } from '../../../../../common/constants.js';
 import { ChatResponseResource } from '../../../../../common/model/chatModel.js';
@@ -39,6 +39,23 @@ suite('Chat Paste Providers', () => {
 		assert.strictEqual(
 			instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, ChatResponseResource.scheme)),
 			false);
+	});
+
+	test('names pasted images after their file and keeps the names unique', () => {
+		// Mirrors toVSDataTransfer, which parses the native path of a pasted file into the uri
+		const fromDisk: IDataTransferFile = { id: '1', name: 'diagram #1.png', uri: URI.parse('C:\\Screenshots\\diagram #1.png'), data: async () => new Uint8Array() };
+		const rawBitmap: IDataTransferFile = { id: '2', name: 'image.png', uri: undefined, data: async () => new Uint8Array() };
+		assert.deepStrictEqual({
+			fromFile: getPastedImageName(fromDisk, []),
+			fromFileTaken: getPastedImageName(fromDisk, ['diagram #1.png', 'diagram #1 2.png']),
+			rawBitmap: getPastedImageName(rawBitmap, []),
+			rawBitmapTaken: getPastedImageName(rawBitmap, ['Pasted Image']),
+		}, {
+			fromFile: 'diagram #1.png',
+			fromFileTaken: 'diagram #1 3.png',
+			rawBitmap: 'Pasted Image',
+			rawBitmapTaken: 'Pasted Image 2',
+		});
 	});
 
 	test('creates sequential artifacts only for long pasted text', () => {

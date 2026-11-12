@@ -92,7 +92,7 @@ function measureTable(table: ITableScrollable): ITableMeasurement {
  */
 export function wrapTablesWithScrollable(domNode: HTMLElement, layoutParticipants: Lazy<Set<() => void>>): DisposableStore {
 	const store = new DisposableStore();
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	for (const table of domNode.querySelectorAll('table')) {
 		if (!dom.isHTMLElement(table)) {
 			continue;

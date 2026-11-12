@@ -1098,7 +1098,6 @@ export class AICustomizationListWidget extends Disposable {
 				},
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
-				expandOnlyOnTwistieClick: entry => entry.type !== 'skill-bundle',
 			}
 		));
 

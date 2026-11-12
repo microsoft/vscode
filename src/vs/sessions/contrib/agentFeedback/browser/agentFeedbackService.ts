@@ -747,16 +747,20 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			}
 			const agentHost = this.isAgentHostSession(sessionResource);
 			const feedbackIds = agentHost ? options.feedbackIds : undefined;
-			const acceptedItems = this.getFeedback(sessionResource).filter(item =>
-				item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.includes(item.id)));
-			if (!acceptedItems.length) {
+			const selectedItems = this.getFeedback(sessionResource).filter(item =>
+				(item.state === AgentFeedbackState.Accepted && (!feedbackIds || feedbackIds.includes(item.id)))
+				|| (item.state === AgentFeedbackState.Created && options.feedbackIds?.includes(item.id)));
+			if (!selectedItems.length) {
 				throw new Error(localize('agentFeedback.commentsUnavailable', "The selected comments are no longer available."));
 			}
 			const annotationsResource = agentHost ? this._getAnnotationsBackend().getAnnotationsChannelResource(sessionResource) : undefined;
 			await this._sessionsManagementService.sendRequestInBackground(session, chat, {
 				query: options.query ?? '/act-on-feedback',
-				attachedContext: [createAgentFeedbackVariableEntry(sessionResource, acceptedItems, annotationsResource)],
+				attachedContext: [createAgentFeedbackVariableEntry(sessionResource, selectedItems, annotationsResource)],
 			});
+			for (const item of selectedItems) {
+				this.acceptFeedback(sessionResource, item.id);
+			}
 			this.markFeedbackSubmitted(sessionResource, feedbackIds);
 			options.onRequestAccepted?.();
 			return true;

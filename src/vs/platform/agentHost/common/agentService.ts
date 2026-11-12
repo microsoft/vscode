@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { AgentChatMoveDestination } from './agentHostChatMove.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import type { CancellationToken } from '../../../base/common/cancellation.js';
@@ -63,7 +64,7 @@ export type {
 } from './agent.js';
 export {
 	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
-	GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn, resolveAgentChatContext,
+	GITHUB_REPO_PROTECTED_RESOURCE, isAgentExtensionEnabledAndSettled, protectedResourcesRequireGitHubCopilotSignIn, resolveAgentChatContext,
 	resolveAgentChatOrigin, resolveSubagentChatParent, resolveAgentHostCustomizations, subagentChatTitle,
 	SubagentChatSignal,
 } from './agent.js';
@@ -89,8 +90,9 @@ export const enum AgentHostIpcChannels {
 	RemoteProxy = 'agentHostProxy',
 }
 
-/** VS Code IPC-only launch options, never forwarded over the Agent Host Protocol. */
+/** VS Code IPC-only connection options, never forwarded over the Agent Host Protocol. */
 export interface IAgentHostIpcConnectionOptions {
+	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
 	readonly env?: Readonly<Record<string, string | null>>;
 	/** Kept separate so the server can apply resolver precedence using its own environment casing. */
 	readonly debugEnv?: Readonly<Record<string, string | null>>;
