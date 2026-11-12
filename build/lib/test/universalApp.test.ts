@@ -25,13 +25,14 @@ async function createArchive(root: string, arch: string, files: Record<string, s
 }
 
 suite('universal app ASAR merge', () => {
-	test('preserves hidden SDK plugin manifests for both architectures', async t => {
+	test('preserves hidden SDK plugin metadata for both architectures', async t => {
 		const root = await mkdtemp(path.join(os.tmpdir(), 'vscode-universal-test-'));
 		t.after(() => rm(root, { recursive: true, force: true }));
 
 		const filesForArch = (arch: string) => ({
 			[`@github/copilot-sdk-darwin-${arch}/plugins/browser-use/.mcp.json`]: `{"arch":"${arch}"}`,
 			[`@github/copilot-sdk-darwin-${arch}/plugins/browser-use/.plugin/plugin.json`]: `{"name":"browser-use-${arch}"}`,
+			[`@github/copilot-sdk-darwin-${arch}/plugins/browser-use/.release-target`]: `darwin-${arch}`,
 			[`@github/copilot-sdk-darwin-${arch}/copilot-sdk/index.js`]: `export const arch = '${arch}';`,
 		});
 		const x64Files = filesForArch('x64');

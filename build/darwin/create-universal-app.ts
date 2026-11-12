@@ -17,7 +17,7 @@ const nodeModulesBases = [
 
 /**
  * ASAR-internal paths allowed to exist in only one architecture's archive.
- * The merger's globs do not match dotfiles implicitly, so SDK plugin manifests
+ * The merger's globs do not match dotfiles implicitly, so SDK plugin metadata
  * and their hidden directory need explicit patterns.
  */
 export const singleArchFiles = `{${[
@@ -25,8 +25,7 @@ export const singleArchFiles = `{${[
 	'**/@github/copilot-darwin-*/**',
 	'**/@github/copilot-sdk-darwin-*',
 	'**/@github/copilot-sdk-darwin-*/**',
-	'**/@github/copilot-sdk-darwin-*/plugins/*/.mcp.json',
-	'**/@github/copilot-sdk-darwin-*/plugins/*/.plugin',
+	'**/@github/copilot-sdk-darwin-*/plugins/*/.*',
 	'**/@github/copilot-sdk-darwin-*/plugins/*/.plugin/**',
 	'**/@github/copilot/prebuilds/darwin-*',
 	'**/@github/copilot/prebuilds/darwin-*/**',
