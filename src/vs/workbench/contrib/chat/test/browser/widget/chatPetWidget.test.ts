@@ -2456,20 +2456,20 @@ suite('ChatPetWidget', () => {
 			const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
 			for (const [index, pet] of pets.entries()) {
 				pet.classList.remove('arriving');
-				pet.style.left = `${[20, 90, 100, 220][index]}px`;
+				pet.style.left = `${[20, 80, 90, 220][index]}px`;
 				pet.style.top = `${index === 1 ? -48 : -24}px`;
 			}
 			firstParent.style.width = '120px';
 			layout();
 			layout();
 			layout();
-			assert.deepStrictEqual(pets.map(pet => pet.style.left), ['20px', '90px', '100px', '220px']);
+			assert.deepStrictEqual(pets.map(pet => pet.style.left), ['20px', '80px', '90px', '220px']);
 			await waitForPetAnimation(() => pets[2].querySelector('img')?.getAttribute('src')?.includes('buddy-respawn-') === true
 				&& pets[3].querySelector('img')?.getAttribute('src')?.includes('buddy-respawn-') === true);
 			assert.deepStrictEqual({
 				stays: [pets[0].style.left, pets[0].style.top],
 				upper: [pets[1].style.left, pets[1].style.top],
-			}, { stays: ['20px', '-24px'], upper: ['90px', '-24px'] });
+			}, { stays: ['20px', '-24px'], upper: ['80px', '-24px'] });
 			await waitForPetAnimation(() => pets.every(pet => !pet.classList.contains('arriving') && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-') === true));
 			const input = firstParent.getBoundingClientRect();
 			const rects = pets.map(pet => pet.getBoundingClientRect());
@@ -2478,6 +2478,43 @@ suite('ChatPetWidget', () => {
 				rect.right <= other.left + 0.1 || other.right <= rect.left + 0.1 || rect.bottom <= other.top + 0.1 || other.bottom <= rect.top + 0.1)));
 		});
 	}
+
+	test('mini pets start falling near the edge while resizing continues', () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		const { widget, firstHost, firstParent, overlay, layout } = createHostTransitionHarness(true);
+		const tool = new ChatToolInvocation(undefined, { id: 'edge', displayName: 'Edge', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'edge', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
+		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
+		pet.style.left = '98px';
+		pet.style.top = '-24px';
+		firstParent.style.width = '120px';
+		layout();
+		clock.tick(8);
+		layout();
+		assert.ok(pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-'));
+		clock.tick(8);
+		assert.ok(pet.querySelector('img')?.getAttribute('src')?.includes('buddy-respawn-'));
+	});
+
+	test('mini pets spawn inside the visible window when their platform extends beyond it', () => {
+		const { widget, firstHost, root, firstParent, button, overlay } = createHostTransitionHarness(true);
+		root.style.width = `${mainWindow.innerWidth + 240}px`;
+		firstParent.style.left = `${mainWindow.innerWidth - 80}px`;
+		firstParent.style.width = '240px';
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tools: ChatToolInvocation[] = [];
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+		button.style.left = '0px';
+		sinon.stub(Math, 'random').returns(0.99);
+		const tool = new ChatToolInvocation(undefined, { id: 'edge', displayName: 'Edge', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'edge', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		tools.push(tool);
+		changed.fire({ reason: 'other' });
+		const rect = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!.getBoundingClientRect();
+		assert.ok(rect.right <= mainWindow.innerWidth - 12 + 0.1);
+	});
 
 	for (const petLeft of [0, 192]) {
 		for (const staggered of [false, true]) {
