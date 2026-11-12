@@ -52,6 +52,7 @@ import { resolveIssueReporterTarget } from '../../common/issueReporterTarget.js'
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 interface INativeResourceAccess {
 	status: number;
@@ -939,6 +940,7 @@ suite('Issue reporter media import lifecycle', () => {
 		const frame = document.createElement('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		frame.contentDocument!.body.appendChild(first.container);
 		const moved = { text: first.editor.value, selection: [first.editor.selectionStart, first.editor.selectionEnd], document: first.editor.ownerDocument === frame.contentDocument };
 		first.pane.dispose();

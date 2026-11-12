@@ -934,12 +934,44 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('reports the initiating relay close before reconnecting and does not report disposal', async () => {
+			const { client, sockets } = createRelayClient();
+			await client.connect();
+			const observations: object[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'transport.closed') {
+					observations.push({ reason: event.closeReason, state: client.connectionState });
+				}
+			}));
+			disposables.add(client.onDidChangeConnectionState(state => observations.push({ state })));
+			const recovered = Event.toPromise(client.onDidReconnect);
+			sockets[0].receive({
+				type: 'message', from: 'group', group: `${prefix}.to-client`, dataType: 'json',
+				data: { kind: 'closed', generation: 7 },
+			});
+			sockets[0].onclose?.({ code: 1006, reason: 'private remote text' });
+			await recovered;
+			client.dispose();
+			assert.deepStrictEqual(observations, [
+				{ reason: 'hostLaneClosed', state: AgentHostClientState.Connected },
+				{ state: AgentHostClientState.Reconnecting },
+				{ state: AgentHostClientState.Connected },
+				{ state: AgentHostClientState.Closed },
+			]);
+		});
+
 		test('fails the client connection before AHP initialization when capability publication is rejected', async () => {
 			const { client, sockets } = createRelayClient(true);
+			const reasons: IConnectionDiagnosticEvent['closeReason'][] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'transport.connect' && event.outcome === 'failed') {
+					reasons.push(event.closeReason);
+				}
+			}));
 			await assert.rejects(client.connect(), /WPS publish failed/);
-			assert.deepStrictEqual(sockets[0].sent.filter(frame => frame.type === 'sendToGroup').map(frame => frame.data), [
-				{ kind: 'capabilities', accepts: ['batch'] },
-			]);
+			assert.deepStrictEqual({
+				reasons, frames: sockets[0].sent.filter(frame => frame.type === 'sendToGroup').map(frame => frame.data),
+			}, { reasons: ['publishRejected'], frames: [{ kind: 'capabilities', accepts: ['batch'] }] });
 		});
 	});
 
@@ -4392,6 +4424,11 @@ suite('AgentHostProtocolClient', () => {
 					source: 'user',
 					status: 'running',
 				}, {
+					id: 'user:lazy',
+					name: 'Lazy',
+					source: 'user',
+					status: 'dormant',
+				}, {
 					id: 'session:preview',
 					name: 'Session Preview',
 					source: 'session',
@@ -4440,6 +4477,14 @@ suite('AgentHostProtocolClient', () => {
 				resourcePath: undefined,
 				source: 'user',
 				status: 'running',
+				pluginName: undefined,
+			}, {
+				id: 'user:lazy',
+				name: 'Lazy',
+				resourceScheme: undefined,
+				resourcePath: undefined,
+				source: 'user',
+				status: 'dormant',
 				pluginName: undefined,
 			}, {
 				id: 'plugin:dashboard',
@@ -6036,6 +6081,12 @@ suite('AgentHostProtocolClient', () => {
 		 */
 		async function connectWithHostGateTurningOn(clientSetting: boolean) {
 			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			const reasons: IConnectionDiagnosticEvent['closeReason'][] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'transport.closed') {
+					reasons.push(event.closeReason);
+				}
+			}));
 			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, clientSetting);
 			const connecting = client.connect();
 			transports[0].connectDeferred.complete();
@@ -6051,11 +6102,11 @@ suite('AgentHostProtocolClient', () => {
 				},
 			});
 			await flushMicrotasks();
-			return { client, transports };
+			return { client, transports, reasons };
 		}
 
 		test('re-initializes once when the host enables chats with their own agents after the handshake', async () => {
-			const { client, transports } = await connectWithHostGateTurningOn(true);
+			const { client, transports, reasons } = await connectWithHostGateTurningOn(true);
 			const replacement = await waitForTransport(transports, 1);
 			replacement.connectDeferred.complete();
 			const initialize = await waitForRequest(replacement, 'initialize');
@@ -6076,7 +6127,8 @@ suite('AgentHostProtocolClient', () => {
 				transports: transports.length,
 				replacementMethods: replacement.sentMessages.filter((message): message is JsonRpcRequest => 'id' in message && 'method' in message).map(message => message.method).filter(method => method === 'initialize' || method === 'reconnect'),
 				capability: client.initializeResult.get()?.multipleChatProviders,
-			}, { transports: 2, replacementMethods: ['initialize'], capability: {} });
+				reasons,
+			}, { transports: 2, replacementMethods: ['initialize'], capability: {}, reasons: ['protocolReinitialize'] });
 		});
 
 		test('a subscribe in flight when the host enables chats with their own agents succeeds after the re-initialize', async () => {
@@ -7550,6 +7602,12 @@ suite('AgentHostProtocolClient', () => {
 					}
 				}, undefined, { onDidSuspend: suspend.event, onDidResume: resume.event });
 				await completeHandshake(transports[0], client.connect());
+				const reasons: IConnectionDiagnosticEvent['closeReason'][] = [];
+				disposables.add(client.onDidConnectionDiagnostic(event => {
+					if (event.phase === 'transport.closed') {
+						reasons.push(event.closeReason);
+					}
+				}));
 				if (suspendBeforeDrop) {
 					suspend.fire();
 				}
@@ -7567,9 +7625,10 @@ suite('AgentHostProtocolClient', () => {
 				const reconnect = findRequest(replacement, 'reconnect')!;
 				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
 				await flushMicrotasks();
-				assert.deepStrictEqual({ whileAsleep, preparations, state: client.connectionState }, {
+				assert.deepStrictEqual({ whileAsleep, preparations, state: client.connectionState, reasons }, {
 					whileAsleep: { preparations: 0, transports: 1, state: AgentHostClientState.Reconnecting },
 					preparations: 2, state: AgentHostClientState.Connected,
+					reasons: [suspendBeforeDrop ? 'osSuspend' : 'unknown'],
 				});
 				client.dispose();
 			});
@@ -10840,6 +10899,12 @@ suite('AgentHostProtocolClient', () => {
 				// Inject a no-load estimator: the shared LoadEstimator singleton
 				// installs a 1s interval that never drains under fake timers.
 				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				const reasons: IConnectionDiagnosticEvent['closeReason'][] = [];
+				disposables.add(client.onDidConnectionDiagnostic(event => {
+					if (event.phase === 'transport.closed') {
+						reasons.push(event.closeReason);
+					}
+				}));
 				const connectPromise = client.connect();
 				await completeHandshake(transports[0], connectPromise);
 
@@ -10856,6 +10921,7 @@ suite('AgentHostProtocolClient', () => {
 				const err = await pending;
 				assert.ok(err instanceof ProtocolError);
 				assert.match((err as ProtocolError).message, /Connection appears dead/);
+				assert.deepStrictEqual(reasons, ['watchdog']);
 			});
 		});
 

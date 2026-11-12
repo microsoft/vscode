@@ -65,7 +65,7 @@
 	--modern-ui-connected-pane-frame-radius: var(--modern-ui-window-corner-radius);
 }
 
-.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part > :is(.title.has-composite-bar, .header) {
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part > :is(.title:first-child, .header) {
 	border-top-left-radius: inherit;
 	border-top-right-radius: inherit;
 }

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { screen, WebContentsView, webContents } from 'electron';
+import { nativeImage, screen, WebContentsView, webContents } from 'electron';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
 import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
@@ -896,7 +897,7 @@ export class BrowserView extends Disposable {
 		if (options?.awaitNextPaint) {
 			await this._waitForNextPaint();
 		}
-		const image = await (async () => {
+		const pageImage = await (async () => {
 			const maxAttempts = 5;
 			let lastError: Error | undefined;
 			for (let i = 0; i < maxAttempts; i++) {
@@ -919,6 +920,8 @@ export class BrowserView extends Disposable {
 			}
 			throw new Error(`Failed to capture screenshot after ${maxAttempts} attempts`, { cause: lastError });
 		})();
+		// A docked DevTools panel is a separate web contents, so add it to a capture of the whole view, for placeholders only.
+		const image = options?.includeDevTools && !options.screenRect ? await this._withDevTools(pageImage) : pageImage;
 		const buffer = format === 'png' ? image.toPNG() : image.toJPEG(quality);
 		const screenshot = VSBuffer.wrap(buffer);
 		// Only update _lastScreenshot if capturing the full view
@@ -926,6 +929,42 @@ export class BrowserView extends Disposable {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;
+	}
+
+	/**
+	 * Composes the page screenshot with the DevTools panel when it is open and docked inside this
+	 * view. Undocked DevTools live in their own window, so the page screenshot is returned as is.
+	 */
+	private async _withDevTools(pageImage: Electron.NativeImage): Promise<Electron.NativeImage> {
+		const webContents = this._view.webContents;
+		const devTools = webContents.devToolsWebContents;
+		if (!devTools || devTools.isDestroyed() || !webContents.isDevToolsOpened()) {
+			return pageImage;
+		}
+		try {
+			// The frontend marks its dock side on <body>; it has none while undocked.
+			const dockSide = await devTools.executeJavaScript(
+				`['left', 'right', 'bottom'].find(side => document.body.classList.contains(side)) ?? 'undocked'`
+			) as BrowserViewDevToolsDockSide | 'undocked';
+			if (dockSide === 'undocked') {
+				return pageImage;
+			}
+			const devToolsImage = await devTools.capturePage(undefined, { stayHidden: true });
+			if (devToolsImage.isEmpty()) {
+				return pageImage;
+			}
+			const pageSize = pageImage.getSize();
+			const devToolsSize = devToolsImage.getSize();
+			const composed = composeDevToolsScreenshot(
+				{ data: pageImage.toBitmap(), ...pageSize },
+				{ data: devToolsImage.toBitmap(), ...devToolsSize },
+				dockSide
+			);
+			return nativeImage.createFromBitmap(Buffer.from(composed.data.buffer, composed.data.byteOffset, composed.data.byteLength), { width: composed.width, height: composed.height });
+		} catch (error) {
+			this.logService.warn('Failed to capture DevTools for browser view screenshot', error);
+			return pageImage;
+		}
 	}
 
 	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.

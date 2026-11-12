@@ -59,7 +59,7 @@ function convertNode(node: Node): string {
 		case 'h6': return `\n###### ${convertChildren(el).trim()}\n`;
 
 		case 'pre': {
-			// eslint-disable-next-line no-restricted-syntax -- querying a detached DOMParser document, not the live DOM
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- querying a detached DOMParser document, not the live DOM
 			const codeEl = el.querySelector('code');
 			const text = (codeEl ?? el).textContent ?? '';
 			return `\n\`\`\`\n${text.replace(/^\n+|\n+$/g, '')}\n\`\`\`\n`;
