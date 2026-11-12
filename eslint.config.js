@@ -1525,6 +1525,7 @@ export default [
 						'@vscode/spdlog',
 						'@vscode/windows-process-tree',
 						'assert',
+						'async_hooks',
 						'child_process',
 						'console',
 						'cookie',
