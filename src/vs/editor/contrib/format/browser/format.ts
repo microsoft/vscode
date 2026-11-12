@@ -19,9 +19,10 @@ import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { ScrollType } from '../../../common/editorCommon.js';
 import { ITextModel } from '../../../common/model.js';
-import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from '../../../common/languages.js';
+import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit, ProviderId } from '../../../common/languages.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../common/services/resolverService.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 import { FormattingEdit } from './formattingEdit.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
@@ -259,9 +260,11 @@ export async function formatDocumentRangesWithProvider(
 		return false;
 	}
 
+	const reason = EditSources.unknown({ name: 'formatEditsCommand', providerId: ProviderId.fromExtensionId(provider.extensionId?.value) });
+
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, allEdits, true);
+		FormattingEdit.execute(editorOrModel, allEdits, true, reason);
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
@@ -281,7 +284,7 @@ export async function formatDocumentRangesWithProvider(
 				}
 			}
 			return null;
-		});
+		}, undefined, reason);
 	}
 	accessibilitySignalService.playSignal(AccessibilitySignal.format, { userGesture });
 	return true;
@@ -350,9 +353,11 @@ export async function formatDocumentWithProvider(
 		return false;
 	}
 
+	const reason = EditSources.unknown({ name: 'formatEditsCommand', providerId: ProviderId.fromExtensionId(provider.extensionId?.value) });
+
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
-		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
+		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent, reason);
 
 		if (mode !== FormattingMode.Silent) {
 			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
@@ -375,7 +380,7 @@ export async function formatDocumentWithProvider(
 				}
 			}
 			return null;
-		});
+		}, undefined, reason);
 	}
 	accessibilitySignalService.playSignal(AccessibilitySignal.format, { userGesture });
 	return true;
