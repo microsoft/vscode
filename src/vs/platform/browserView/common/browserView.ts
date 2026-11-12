@@ -9,6 +9,7 @@ import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../agentHost/common/agentHostUri.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
@@ -349,15 +350,26 @@ export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
 }
 
 /**
- * Maps a `vscode-remote:` URL of the remote a session is bound to onto the `file:` URL that
- * sessions on that network serve from the remote's file system. Other URLs are returned as is.
+ * Maps a `vscode-remote:` or `vscode-agent-host:` URL of the remote a session is bound to onto the
+ * `file:` URL that sessions on that network serve from the remote's file system.
+ * Other URLs are returned as is.
  */
 export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url: string): string {
 	const uri = URI.parse(url);
-	if (!network || uri.scheme !== Schemas.vscodeRemote || uri.authority.toLowerCase() !== network.authority.toLowerCase()) {
+	if (!network || (uri.scheme !== Schemas.vscodeRemote && uri.scheme !== AGENT_HOST_SCHEME) || uri.authority.toLowerCase() !== network.authority.toLowerCase()) {
 		return url;
 	}
-	return URI.from({ scheme: Schemas.file, path: uri.path, query: uri.query, fragment: uri.fragment }).toString(true);
+	const original = uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(uri) : uri;
+	if (original.scheme !== Schemas.file && original.scheme !== Schemas.vscodeRemote) {
+		return url;
+	}
+	return URI.from({ scheme: Schemas.file, path: original.path, query: original.query, fragment: uri.fragment }).toString(true);
+}
+
+/** The URL a file resource opens at: an agent host file's own path, which its session's network serves as `file:`. */
+export function getBrowserFileResourceUrl(resource: URI): string {
+	const original = resource.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(resource) : resource;
+	return (original.scheme === Schemas.file ? original.with({ authority: '' }) : resource).toString();
 }
 
 export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {

@@ -17,6 +17,8 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Schemas } from '../../../../base/common/network.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
+import { getBrowserFileResourceUrl } from '../../../../platform/browserView/common/browserView.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -103,7 +105,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			}
 		);
 
-		for (const [scheme, extension] of [Schemas.file, Schemas.vscodeRemote].flatMap(scheme => ['html', 'htm', 'mhtml', 'mht'].map(extension => [scheme, extension] as const))) {
+		for (const [scheme, extension] of [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME].flatMap(scheme => ['html', 'htm', 'mhtml', 'mht'].map(extension => [scheme, extension] as const))) {
 			editorResolverService.registerEditor(
 				`${scheme}:/**/*.${extension}`,
 				{
@@ -124,7 +126,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 							id: generateUuid(),
 							associatedResource: resource,
 							...viewState,
-							url: viewState.url ?? resource.toString()
+							url: viewState.url ?? getBrowserFileResourceUrl(resource)
 						});
 						void browserInput.resolve();
 

@@ -27,22 +27,28 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserEditor, BrowserEditorContribution } from '../browserEditor.js';
 
 const BrowserAutoReloadOnFileChangeSettingId = 'workbench.browser.autoReloadOnFileChange';
 
-function getFileUri(url: string, network: IBrowserViewNetwork | undefined): URI | undefined {
+function getFileUri(url: string): URI | undefined {
 	if (!url) {
 		return undefined;
 	}
 
 	const uri = URI.parse(url);
-	if (uri.scheme !== Schemas.file) {
-		return undefined;
+	return uri.scheme === Schemas.file ? uri.with({ query: null, fragment: null }) : undefined;
+}
+
+/** Sessions on a remote network serve `file:` URLs from the remote's file system, which the window reads by remote or agent host URI. */
+function toWatchUri(fileUri: URI, network: IBrowserViewNetwork | undefined, fileService: IFileService): URI {
+	if (!network) {
+		return fileUri;
 	}
-	// Sessions on a remote network serve `file:` URLs from the remote's file system.
-	const fileUri = network ? uri.with({ scheme: Schemas.vscodeRemote, authority: network.authority }) : uri;
-	return fileUri.with({ query: null, fragment: null });
+	const remoteUri = fileUri.with({ scheme: Schemas.vscodeRemote, authority: network.authority });
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- an Agent Host filesystem URI read by this window, not a connection resource
+	return fileService.hasProvider(remoteUri) ? remoteUri : toAgentHostUri(fileUri, network.authority);
 }
 
 interface IBrowserAutoReloadStateChangeEvent {
@@ -113,10 +119,11 @@ export class BrowserAutoReloadWatcher extends Disposable {
 			return;
 		}
 
-		const uri = getFileUri(model.url, model.network);
-		if (!uri) {
+		const fileUri = getFileUri(model.url);
+		if (!fileUri) {
 			return;
 		}
+		const uri = toWatchUri(fileUri, model.network, this._fileService);
 
 		const store = new DisposableStore();
 		const scheduler = store.add(new RunOnceScheduler(() => {
@@ -253,7 +260,7 @@ class BrowserEditorAutoReloadContribution extends BrowserEditorContribution {
 	}
 
 	get isFile(): boolean {
-		return !!this._model && !!getFileUri(this._model.url, this._model.network);
+		return !!this._model && !!getFileUri(this._model.url);
 	}
 
 	override getActionViewItem(action: IAction, options: IActionViewItemOptions, instantiationService: IInstantiationService): IActionViewItem | undefined {

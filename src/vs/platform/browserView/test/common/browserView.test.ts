@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toAgentHostUri } from '../../../agentHost/common/agentHostUri.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { BrowserViewPresentation, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
@@ -20,11 +21,15 @@ suite('BrowserView', () => {
 			noNetwork: remoteUrlToFileUrl(undefined, url),
 			otherNetwork: remoteUrlToFileUrl({ authority: 'wsl+Ubuntu' }, url),
 			web: remoteUrlToFileUrl(network, 'https://example.com/a'),
+			agentHost: remoteUrlToFileUrl({ authority: 'Host-A' }, toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString()),
+			otherAgentHost: remoteUrlToFileUrl({ authority: 'host-b' }, toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString()),
 		}, {
 			sameRemote: 'file:///a/index.html?x=1#top',
 			noNetwork: url,
 			otherNetwork: url,
 			web: 'https://example.com/a',
+			agentHost: 'file:///a/index.html',
+			otherAgentHost: toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString(),
 		});
 	});
 

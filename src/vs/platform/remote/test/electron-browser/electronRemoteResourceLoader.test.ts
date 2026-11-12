@@ -91,6 +91,24 @@ suite('ElectronRemoteResourceLoader', () => {
 		});
 	});
 
+	test('reads agent host files through the agent host file system', async () => {
+		const { channel, reads } = createLoader();
+		const response = await request(channel, URI.from({
+			scheme: Schemas.vscodeManagedRemoteResource,
+			authority: 'window:7',
+			path: '/a/index.html',
+			query: new URLSearchParams({ authority: 'host-a', scheme: AGENT_HOST_SCHEME }).toString(),
+		}));
+
+		assert.deepStrictEqual({
+			status: response.statusCode,
+			reads: reads.map(resource => resource.toString()),
+		}, {
+			status: 200,
+			reads: [toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString()],
+		});
+	});
+
 	test('ignores downstream scheme substitution', async () => {
 		const { loader, channel, reads } = createLoader();
 		const managedResource = loader.getResourceUriProvider()(URI.from({

@@ -22,7 +22,8 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, getBrowserFileResourceUrl } from '../../../../../platform/browserView/common/browserView.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
@@ -351,7 +352,7 @@ class OpenIntegratedBrowserAction extends Action2 {
 class OpenFileInIntegratedBrowserAction extends Action2 {
 	constructor() {
 		const IS_SUPPORTED_LOCAL_BROWSER_FILE = ContextKeyExpr.and(
-			ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote)),
+			ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote), ResourceContextKey.Scheme.isEqualTo(AGENT_HOST_SCHEME)),
 			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.(?:html?|mht(?:ml)?)$/i),
 		);
 		super({
@@ -390,7 +391,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
-		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file, Schemas.vscodeRemote], supportSideBySide: SideBySideEditor.PRIMARY });
+		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME], supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!fileUri) {
 			return;
 		}
@@ -398,7 +399,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, await browserViewService.getPreferredGroup());
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: getBrowserFileResourceUrl(fileUri) } } }, await browserViewService.getPreferredGroup());
 	}
 }
 

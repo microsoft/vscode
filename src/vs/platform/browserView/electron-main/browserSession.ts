@@ -41,6 +41,16 @@ import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSetting
  * constructor is not meant to be called directly; use the factories so
  * the internal registry stays consistent.
  */
+/** What a window contributes to the `file:` requests of sessions on a remote network. */
+export interface IRemoteFileTrust {
+	readonly roots: ReadonlySet<string>;
+	readonly trustAll: boolean;
+	/** The window whose file service reads the remote's files. */
+	readonly windowId: number;
+	/** The scheme `windowId` reads them with: `vscode-remote` or `vscode-agent-host`. */
+	readonly scheme: string;
+}
+
 export class BrowserSession {
 
 	// #region Static registry
@@ -260,7 +270,7 @@ export class BrowserSession {
 
 	private static readonly _trustedFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
 	private static _trustAllFiles = false;
-	private static _trustedRemoteFileRoots = new Map<string, { readonly roots: TernarySearchTree<string, true>; readonly trustAll: boolean }>();
+	private static _trustedRemoteFileRoots = new Map<string, { readonly roots: TernarySearchTree<string, true>; readonly trustAll: boolean; readonly windowId: number; readonly scheme: string }>();
 
 	/**
 	 * Set trusted file roots for all browser sessions.
@@ -279,7 +289,7 @@ export class BrowserSession {
 	 * Set the trusted paths on the file system of each remote, keyed by remote authority.
 	 * Used for the `file:` requests of sessions bound to that remote's network.
 	 */
-	static setTrustedRemoteFileRoots(remotes: ReadonlyMap<string, { readonly roots: readonly string[]; readonly trustAll: boolean }>): void {
+	static setTrustedRemoteFileRoots(remotes: ReadonlyMap<string, IRemoteFileTrust>): void {
 		BrowserSession._trustedRemoteFileRoots = new Map();
 		for (const [authority, remote] of remotes) {
 			const roots = TernarySearchTree.forPaths<true>();
@@ -288,7 +298,7 @@ export class BrowserSession {
 					roots.set(posix.normalize(root), true);
 				}
 			}
-			BrowserSession._trustedRemoteFileRoots.set(authority.toLowerCase(), { roots, trustAll: remote.trustAll });
+			BrowserSession._trustedRemoteFileRoots.set(authority.toLowerCase(), { roots, trustAll: remote.trustAll, windowId: remote.windowId, scheme: remote.scheme });
 		}
 	}
 
@@ -457,7 +467,7 @@ export class BrowserSession {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 
-		const window = this.windowsMainService.getWindows().find(candidate => candidate.remoteAuthority?.toLowerCase() === authority.toLowerCase());
+		const window = this.windowsMainService.getWindowById(trusted.windowId);
 		if (!window) {
 			return new Response(localize('browserSession.remoteUnavailable', 'The remote connection is not available.'), { status: 503 });
 		}
@@ -466,7 +476,7 @@ export class BrowserSession {
 			path,
 			scheme: Schemas.vscodeManagedRemoteResource,
 			authority: `window:${window.id}`,
-			query: new URLSearchParams({ authority, scheme: Schemas.vscodeRemote }).toString(),
+			query: new URLSearchParams({ authority, scheme: trusted.scheme }).toString(),
 			fragment: ''
 		}));
 	}

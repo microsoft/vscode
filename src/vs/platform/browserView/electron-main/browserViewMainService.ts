@@ -26,6 +26,7 @@ import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
 import { BrowserViewInspectElementId } from './browserViewInspector.js';
 import { equals } from '../../../base/common/objects.js';
 import { Schemas } from '../../../base/common/network.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../agentHost/common/agentHostUri.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
@@ -408,12 +409,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	private _recomputeTrustedFileRoots(): void {
 		const roots = new Set<string>();
 		let trustAllFiles = false;
-		const remotes = new Map<string, { roots: Set<string>; trustAll: boolean }>();
+		const remotes = new Map<string, { roots: Set<string>; trustAll: boolean; windowId: number; scheme: string }>();
 		for (const [windowId, configuration] of this._windowConfigurations) {
 			// A window connected to a remote contributes remote roots and trust-all to that remote only.
-			const authority = this.windowsMainService.getWindowById(windowId)?.remoteAuthority;
-			const remoteKey = authority?.toLowerCase();
-			const remote = remoteKey ? getOrSet(remotes, remoteKey, { roots: new Set<string>(), trustAll: false }) : undefined;
+			const remoteAuthority = this.windowsMainService.getWindowById(windowId)?.remoteAuthority;
+			const remoteKey = remoteAuthority?.toLowerCase();
+			const remote = remoteKey ? getOrSet(remotes, remoteKey, { roots: new Set<string>(), trustAll: false, windowId, scheme: Schemas.vscodeRemote }) : undefined;
 			if (remote) {
 				remote.trustAll ||= configuration.trustAllFiles;
 			} else {
@@ -425,6 +426,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 					roots.add(root.fsPath);
 				} else if (remote && root.scheme === Schemas.vscodeRemote && root.authority.toLowerCase() === remoteKey) {
 					remote.roots.add(root.path);
+				} else if (root.scheme === AGENT_HOST_SCHEME) {
+					// An agent host's files are read through the window that contributed them.
+					const original = fromAgentHostUri(root);
+					if (original.scheme === Schemas.file) {
+						getOrSet(remotes, root.authority.toLowerCase(), { roots: new Set<string>(), trustAll: false, windowId, scheme: AGENT_HOST_SCHEME }).roots.add(original.path);
+					}
 				}
 			}
 		}
