@@ -18,6 +18,7 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { AnchorPosition } from '../../../../base/common/layout.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -335,7 +336,9 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 							return entry.checked ? localize('folderLocationCurrentItemAria', "{0}, Current", text) : text;
 						},
 						getWidgetAriaLabel: () => localize('folderLocationPickerAria', "Folder Location")
-					}
+					},
+					// The status bar sits at the bottom, so size the list for the space above it. The label keeps its width, the description gives way
+					{ preferredAnchorPosition: AnchorPosition.ABOVE, inlineDescription: true }
 				);
 				const focusId = uriIdentityService.extUri.getComparisonKey((currentSeed ?? primaryEntry).uri);
 				actionWidgetService.focusItemById(focusId);

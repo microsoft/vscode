@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
@@ -342,6 +343,7 @@ suite('FolderLocationStatusBarContribution', () => {
 				type ListItem = { item: Entry; labelIcon: { id: string }; group: { icon: { id: string } } };
 				const calls: (string | undefined)[] = [];
 				let shownAnchor: unknown;
+				let shownOptions: unknown;
 				let shownItems: ListItem[] = [];
 				let initiallyFocused: string | undefined;
 				let aria: ((item: ListItem) => string) | undefined;
@@ -349,8 +351,8 @@ suite('FolderLocationStatusBarContribution', () => {
 				let release!: () => void;
 				const lookup = new Promise<void>(resolve => release = resolve);
 				const widget = {
-					show: (_user: string, _preview: boolean, items: ListItem[], shownDelegate: typeof delegate, anchorElement: unknown, _container: unknown, _actions: unknown, accessibility: { getAriaLabel(item: ListItem): string }) => {
-						shownAnchor = anchorElement; shownItems = items; delegate = shownDelegate; aria = accessibility.getAriaLabel;
+					show: (_user: string, _preview: boolean, items: ListItem[], shownDelegate: typeof delegate, anchorElement: unknown, _container: unknown, _actions: unknown, accessibility: { getAriaLabel(item: ListItem): string }, options: unknown) => {
+						shownOptions = options; shownAnchor = anchorElement; shownItems = items; delegate = shownDelegate; aria = accessibility.getAriaLabel;
 						initiallyFocused = items.find(item => item.item.checked)?.item.id;
 						// like the real widget, selecting an item is followed by a hide that reports it synchronously
 						queueMicrotask(() => delegate.onSelect(items.find(item => item.item.id === initiallyFocused)!.item));
@@ -370,12 +372,14 @@ suite('FolderLocationStatusBarContribution', () => {
 				release();
 				assert.deepStrictEqual({
 					anchored: shownAnchor === anchor,
+					options: shownOptions,
 					items: shownItems.map(item => ({ id: item.item.id, aria: aria!(item), icon: item.labelIcon.id, check: item.group.icon.id })),
 					initiallyFocused,
 					calls,
 					focusReturnedToLabel: mainWindow.document.activeElement === label
 				}, {
 					anchored: true,
+					options: { preferredAnchorPosition: AnchorPosition.ABOVE, inlineDescription: true },
 					items: [
 						{ id: extUri.getComparisonKey(primary), aria: 'project, Primary Location', icon: 'folder', check: 'blank' },
 						{ id: extUri.getComparisonKey(alternate), aria: 'Alternate, feature/x, Current', icon: 'worktree', check: 'check' }
