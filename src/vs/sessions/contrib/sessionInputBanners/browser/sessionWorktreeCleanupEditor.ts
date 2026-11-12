@@ -524,6 +524,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 				dom.hide(this.measurementProgress);
 			}
 			if (this.summaryMessage) {
+				this.summary?.classList.remove('hidden');
 				this.summaryMessage.textContent = localize('sessionWorktreeCleanup.loading', "Measuring worktree storage...");
 			}
 		}

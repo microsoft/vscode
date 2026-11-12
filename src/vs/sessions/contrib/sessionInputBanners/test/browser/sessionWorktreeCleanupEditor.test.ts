@@ -2603,6 +2603,39 @@ suite('SessionWorktreeCleanupEditor', () => {
 		});
 	});
 
+	test('shows loading and failure feedback when clearing an empty inactivity filter', async () => {
+		const finished = new DeferredPromise<readonly ISessionWorktree[]>();
+		const worktree = createWorktree('recent', '/repos/app');
+		let reloading = false;
+		const { editor, container, errors } = createEditor({
+			getWorktrees: async age => age === 90 ? [] : reloading ? finished.p : [worktree],
+		});
+		await editor.setInput(disposables.add(new SessionWorktreeCleanupEditorInput()), undefined, {}, CancellationToken.None);
+		await timeout(0);
+		chooseOption(container, 'age', '90');
+		await timeout(0);
+		const summary = container.querySelector<HTMLElement>('.session-worktree-cleanup-summary')!;
+		const emptySummaryHidden = summary.classList.contains('hidden');
+
+		reloading = true;
+		chooseOption(container, 'age', '0');
+		const loading = { hidden: summary.classList.contains('hidden'), message: summary.textContent };
+		await finished.error(new Error('Inventory unavailable'));
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			emptySummaryHidden,
+			loading,
+			failure: { hidden: summary.classList.contains('hidden'), message: summary.textContent },
+			errors,
+		}, {
+			emptySummaryHidden: true,
+			loading: { hidden: false, message: 'Measuring worktree storage...' },
+			failure: { hidden: false, message: 'Worktree storage could not be measured.' },
+			errors: ['Inventory unavailable'],
+		});
+	});
+
 	test('allows manually selecting active sessions and sessions waiting for input', async () => {
 		const { container, cleaned } = await openEditor([
 			createWorktree('active', '/repos/app', 'active'),
