@@ -9,7 +9,8 @@ import { getErrorMessage, isCancellationError } from '../../../../base/common/er
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { isEqual, joinPath } from '../../../../base/common/resources.js';
+import { FileAccess } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,7 +36,6 @@ import { ISendRequestOptions, ISessionsManagementService } from '../../../../wor
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession, isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 import { URI } from '../../../../base/common/uri.js';
-import { BUILTIN_SKILLS_URI } from '../../chat/browser/promptsService.js';
 import { canSelectAutomationWorkspace } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
@@ -230,7 +230,8 @@ export class AutomationComposer extends Disposable {
 		this.message.hidden = true;
 		const telemetry = new AutomationDialogTelemetry(this.telemetryService, 'create');
 		try {
-			const skillUri = joinPath(BUILTIN_SKILLS_URI, 'automate', 'SKILL.md');
+			// Resolved on send, not on import, so environments without module URIs, such as component fixtures, can load the view.
+			const skillUri = FileAccess.asFileUri('vs/sessions/skills/automate/SKILL.md');
 			const skills = await this.promptsService.findAgentSkills(this.token);
 			const skill = skills && (await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, this.token)).find(skill =>
 				skill.name === 'automate' && skill.storage === PromptsStorage.builtIn && isEqual(skill.uri, skillUri));

@@ -58,6 +58,8 @@ suite('Copilot chat composer picker registration', () => {
 			`${Menus.NewSessionChatInputToolbar.id}/sessions.newChatComposer.sending`,
 			`${Menus.NewSessionChatInputToolbar.id}/${COMPOSER_SESSION_CONTROLS_ACTION_ID}`,
 			`${Menus.NewSessionChatInputToolbar.id}/sessions.modelPicker`,
+			`${Menus.AutomationsDialogInputToolbar.id}/sessions.newChatComposer.initializing`,
+			`${Menus.AutomationsDialogInputToolbar.id}/sessions.newChatComposer.sending`,
 			`${Menus.AutomationsDialogInputToolbar.id}/sessions.modelPicker`,
 			`${Menus.NewSessionControl.id}/sessions.sandbox.modePicker`,
 			`${Menus.NewSessionControl.id}/sessions.sandbox.approvalPicker`,
