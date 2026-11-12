@@ -24,27 +24,36 @@ export interface IEditorWindowShownChat {
 export class EditorWindowMainSessionHost extends SessionHost {
 
 	private readonly _shown: ISettableObservable<IObservable<IEditorWindowShownChat | undefined> | undefined>;
+	private readonly _draft: ISettableObservable<IObservable<ISession | undefined> | undefined>;
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
 		const source = observableValue<IObservable<IEditorWindowShownChat | undefined> | undefined>('editorWindowShownChat', undefined);
+		const draftSource = observableValue<IObservable<ISession | undefined> | undefined>('editorWindowDraft', undefined);
 		const shown = derived(reader => source.read(reader)?.read(reader));
 		super({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
-			session: derived(reader => shown.read(reader)?.session),
+			// The session of the chat it shows, else the draft of the new-session composer it shows
+			session: derived(reader => shown.read(reader)?.session ?? draftSource.read(reader)?.read(reader)),
 			chat: derived(reader => shown.read(reader)?.chat),
 			contextKeyService,
 			windowId: constObservable(mainWindow.vscodeWindowId),
 		});
 		this._shown = source;
+		this._draft = draftSource;
 	}
 
-	/** Shows the chat `shown` names, until the returned disposable is disposed. */
-	bindShownChat(shown: IObservable<IEditorWindowShownChat | undefined>): IDisposable {
+	/**
+	 * Shows the chat `shown` names, and while it names none, the session `draft` names, such as the draft of a new-session
+	 * composer, until the returned disposable is disposed.
+	 */
+	bindShownChat(shown: IObservable<IEditorWindowShownChat | undefined>, draft?: IObservable<ISession | undefined>): IDisposable {
 		this._shown.set(shown, undefined);
+		this._draft.set(draft, undefined);
 		return toDisposable(() => {
 			if (this._shown.get() === shown) {
 				this._shown.set(undefined, undefined);
+				this._draft.set(undefined, undefined);
 			}
 		});
 	}
