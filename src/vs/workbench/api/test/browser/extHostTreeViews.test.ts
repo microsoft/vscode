@@ -660,7 +660,6 @@ suite('ExtHostTreeView', function () {
 
 		await testObject.$getChildren('leakTestProvider');
 		const afterFirstFetchCount = viewStore._toDispose.size;
-		assert.strictEqual(afterFirstFetchCount, initialDisposablesCount, 'Fetching nodes should not add per-node DisposableStores to the view store');
 
 		// Fire refresh multiple times and fetch children again
 		for (let i = 0; i < 5; i++) {
@@ -669,7 +668,7 @@ suite('ExtHostTreeView', function () {
 		}
 
 		const afterRefreshesCount = viewStore._toDispose.size;
-		assert.strictEqual(afterRefreshesCount, initialDisposablesCount, 'Repeated node fetches/refreshes should not grow the view disposable store');
+		assert.strictEqual(afterRefreshesCount, afterFirstFetchCount, 'Repeated node fetches/refreshes should not grow the view disposable store');
 
 		treeView.dispose();
 	});

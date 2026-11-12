@@ -945,33 +945,38 @@ class ExtHostTreeView<T> extends Disposable {
 	private _createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
 		this._validateTreeItem(extensionTreeItem);
 		const disposableStore = new DisposableStore();
-		const handle = this._createHandle(element, extensionTreeItem, parent);
-		const icon = this._getLightIconPath(extensionTreeItem);
-		const item: ITreeItem = {
-			handle,
-			parentHandle: parent ? parent.item.handle : undefined,
-			label: toTreeItemLabel(extensionTreeItem.label, this._extension),
-			description: extensionTreeItem.description,
-			resourceUri: extensionTreeItem.resourceUri,
-			tooltip: this._getTooltip(extensionTreeItem.tooltip),
-			command: this._getCommand(disposableStore, extensionTreeItem.command),
-			contextValue: extensionTreeItem.contextValue,
-			icon,
-			iconDark: this._getDarkIconPath(extensionTreeItem) || icon,
-			themeIcon: this._getThemeIcon(extensionTreeItem),
-			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? extHostTypes.TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
-			accessibilityInformation: extensionTreeItem.accessibilityInformation,
-			checkbox: this._getCheckbox(extensionTreeItem),
-		};
+		try {
+			const handle = this._createHandle(element, extensionTreeItem, parent);
+			const icon = this._getLightIconPath(extensionTreeItem);
+			const item: ITreeItem = {
+				handle,
+				parentHandle: parent ? parent.item.handle : undefined,
+				label: toTreeItemLabel(extensionTreeItem.label, this._extension),
+				description: extensionTreeItem.description,
+				resourceUri: extensionTreeItem.resourceUri,
+				tooltip: this._getTooltip(extensionTreeItem.tooltip),
+				command: this._getCommand(disposableStore, extensionTreeItem.command),
+				contextValue: extensionTreeItem.contextValue,
+				icon,
+				iconDark: this._getDarkIconPath(extensionTreeItem) || icon,
+				themeIcon: this._getThemeIcon(extensionTreeItem),
+				collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? extHostTypes.TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
+				accessibilityInformation: extensionTreeItem.accessibilityInformation,
+				checkbox: this._getCheckbox(extensionTreeItem),
+			};
 
-		return {
-			item,
-			extensionItem: extensionTreeItem,
-			parent,
-			children: undefined,
-			disposableStore,
-			dispose(): void { disposableStore.dispose(); }
-		};
+			return {
+				item,
+				extensionItem: extensionTreeItem,
+				parent,
+				children: undefined,
+				disposableStore,
+				dispose(): void { disposableStore.dispose(); }
+			};
+		} catch (err) {
+			disposableStore.dispose();
+			throw err;
+		}
 	}
 
 	private _getThemeIcon(extensionTreeItem: vscode.TreeItem): extHostTypes.ThemeIcon | undefined {
