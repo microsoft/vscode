@@ -364,7 +364,8 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
 		return url;
 	}
 	// Encode the path so literal percent sequences in file names survive, but keep the query and fragment as is.
-	const path = URI.from({ scheme: Schemas.file, path: original.path }).toString();
+	// The colon of a Windows drive letter must stay literal to be recognized when resolving relative URLs.
+	const path = URI.from({ scheme: Schemas.file, path: original.path }).toString().replace(/^file:\/\/\/(?<drive>[a-zA-Z])%3A(?=\/|$)/i, 'file:///$<drive>:');
 	const suffix = URI.from({ scheme: Schemas.file, path: '/', query: original.query, fragment: uri.fragment }).toString(true).slice('file:///'.length);
 	return path + suffix;
 }

@@ -55,16 +55,23 @@ export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrus
 			if (root.scheme === Schemas.file) {
 				localRoots.add(root.fsPath);
 			} else if (remote && root.scheme === Schemas.vscodeRemote && root.authority.toLowerCase() === remoteKey) {
-				remote.roots.add(root.path);
+				addRemoteRoot(remote.roots, root.path);
 			} else if (root.scheme === AGENT_HOST_SCHEME) {
 				const original = fromAgentHostUri(root);
 				if (original.scheme === Schemas.file) {
-					getOrSet(remotes, root.authority.toLowerCase(), { roots: new Set<string>(), trustAll: false, windowId, scheme: AGENT_HOST_SCHEME }).roots.add(original.path);
+					addRemoteRoot(getOrSet(remotes, root.authority.toLowerCase(), { roots: new Set<string>(), trustAll: false, windowId, scheme: AGENT_HOST_SCHEME }).roots, original.path);
 				}
 			}
 		}
 	}
 	return { local: { roots: localRoots, trustAll: localTrustAll }, remotes };
+}
+
+/** Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories. */
+function addRemoteRoot(roots: Set<string>, path: string): void {
+	if (!path.includes('\\')) {
+		roots.add(path);
+	}
 }
 
 /**

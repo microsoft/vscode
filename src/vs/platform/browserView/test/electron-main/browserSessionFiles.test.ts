@@ -36,6 +36,11 @@ suite('computeFileTrust', () => {
 		});
 	});
 
+	test('ignores remote roots containing backslashes', () => {
+		const { remotes } = computeFileTrust([window(1, 'Test+A', false, [URI.from({ scheme: Schemas.vscodeRemote, authority: 'test+a', path: '/ok' }), URI.from({ scheme: Schemas.vscodeRemote, authority: 'test+a', path: '/foo\\bar' })])]);
+		assert.deepStrictEqual([...remotes.get('test+a')!.roots], ['/ok']);
+	});
+
 	test('does not let a remote window\'s trust-all reach local files', () => {
 		assert.deepStrictEqual(snapshot([
 			window(1, 'test+a', true, []),
