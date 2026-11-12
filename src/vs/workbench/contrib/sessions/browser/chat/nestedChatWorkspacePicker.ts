@@ -226,10 +226,16 @@ export class NestedChatWorkspaceControls extends Disposable {
 		return support && folder ? toNestedChatWorkspace(support, folder, this._worktree.get(), this._folderInfo.get(), this._branch.get()) : undefined;
 	}
 
-	/** {@link getWorkspace} once pending checks of the session folder and refreshed capabilities are done. */
+	/** {@link getWorkspace} once the latest checks of the session folder and refreshed capabilities are done. */
 	async resolveWorkspace(): Promise<INestedChatWorkspace | undefined> {
-		await Promise.all([this._folderCheck, this._refreshResolution]);
-		return this.getWorkspace();
+		while (true) {
+			const folderCheck = this._folderCheck;
+			const refreshResolution = this._refreshResolution;
+			await Promise.all([folderCheck, refreshResolution]);
+			if (folderCheck === this._folderCheck && refreshResolution === this._refreshResolution) {
+				return this.getWorkspace();
+			}
+		}
 	}
 
 	/** Back to the session's default, e.g. after the chat was sent. */

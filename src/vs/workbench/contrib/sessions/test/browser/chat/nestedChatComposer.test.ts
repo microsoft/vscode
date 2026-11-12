@@ -490,36 +490,69 @@ suite('Sessions - New Nested Session composer', () => {
 		assert.strictEqual(await h.controls.resolveWorkspace(), undefined);
 	});
 
-	test('refresh does not send stale worktree capabilities when the new agent removes them or resolution fails', async () => {
+	test('a send waits for a superseding refresh before using its capabilities or handling its failure', async () => {
 		const previousHandler = errorHandler.getUnexpectedErrorHandler();
 		const errors: Error[] = [];
 		setUnexpectedErrorHandler(error => errors.push(error));
-		const results: { workspace: INestedChatWorkspace | undefined; worktreeOffered: boolean }[] = [];
+		const results: { sentBeforeLatest: boolean; workspace: INestedChatWorkspace | undefined; worktreeOffered: boolean }[] = [];
 		const failure = new Error('Folder resolution failed');
 		try {
 			for (const fails of [false, true]) {
+				const superseded = new DeferredPromise<INestedChatFolderInfo>();
 				const refreshed = new DeferredPromise<INestedChatFolderInfo>();
 				let resolveFolder = async () => git;
 				const h = createControls(constObservable(support(repo)), git, { resolveFolder: () => resolveFolder() });
 				await h.controls.resolveWorkspace();
 				await h.pickIsolation('New Worktree');
+				resolveFolder = () => superseded.p;
+				h.controls.refresh();
+				let sentSettled = false;
+				const sent = h.controls.resolveWorkspace().then(workspace => {
+					sentSettled = true;
+					return workspace;
+				});
 				resolveFolder = () => refreshed.p;
 				h.controls.refresh();
-				const sent = h.controls.resolveWorkspace();
+				await superseded.complete(git);
+				await new Promise(resolve => setTimeout(resolve, 0));
+				const sentBeforeLatest = sentSettled;
 				if (fails) {
 					await refreshed.error(failure);
 				} else {
 					await refreshed.complete({ supportsWorktree: false, defaultBranch: undefined });
 				}
-				results.push({ workspace: await sent, worktreeOffered: h.state().worktreeOffered });
+				results.push({ sentBeforeLatest, workspace: await sent, worktreeOffered: h.state().worktreeOffered });
 			}
 		} finally {
 			setUnexpectedErrorHandler(previousHandler);
 		}
 		assert.deepStrictEqual({ results, errors }, {
-			results: [{ workspace: undefined, worktreeOffered: false }, { workspace: undefined, worktreeOffered: false }],
+			results: [{ sentBeforeLatest: false, workspace: undefined, worktreeOffered: false }, { sentBeforeLatest: false, workspace: undefined, worktreeOffered: false }],
 			errors: [failure],
 		});
+	});
+
+	test('a send waits for the latest folder existence check after a refresh is superseded', async () => {
+		const superseded = new DeferredPromise<boolean>();
+		const refreshed = new DeferredPromise<boolean>();
+		let folderExists = async () => true;
+		const h = createControls(constObservable(support(repo)), git, { folderExists: () => folderExists() });
+		await h.controls.resolveWorkspace();
+		await h.pickIsolation('New Worktree');
+		folderExists = () => superseded.p;
+		h.controls.refresh();
+		let sentSettled = false;
+		const sent = h.controls.resolveWorkspace().then(workspace => {
+			sentSettled = true;
+			return workspace;
+		});
+		folderExists = () => refreshed.p;
+		h.controls.refresh();
+		await superseded.complete(true);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const sentBeforeLatest = sentSettled;
+		await refreshed.complete(false);
+		assert.deepStrictEqual({ sentBeforeLatest, workspace: await sent }, { sentBeforeLatest: false, workspace: { kind: 'scratch' } });
 	});
 
 	/** The input's shared harness picker, rendering its slot like the real one. */
