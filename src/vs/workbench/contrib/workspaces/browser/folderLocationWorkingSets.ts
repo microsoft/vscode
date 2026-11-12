@@ -57,7 +57,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		this.workingSets = this.load();
 		this.currentKey = this.getCurrentKey();
 
-		this._register(this.folderLocationService.onDidChangeCurrentLocation(() => this.onDidChangeLocation()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.onDidChangeLocation()));
 	}
 
 	private getCurrentKey(): string | undefined {

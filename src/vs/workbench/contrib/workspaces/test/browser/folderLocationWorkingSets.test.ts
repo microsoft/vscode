@@ -47,7 +47,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		} as unknown as IEditorGroupsService;
 
 		const contribution = ds.add(new FolderLocationWorkingSetsContribution(
-			{ onDidChangeCurrentLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
+			{ onDidChangeLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false) } as unknown as IWorkspaceContextService,
 			editorGroupsService,
 			{ getValue: () => enabled } as unknown as IConfigurationService,
