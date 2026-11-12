@@ -9,7 +9,16 @@ import { Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../agentHost/common/agentHostUri.js';
 import { IBrowserViewWindowConfiguration } from '../common/browserView.js';
-import { IRemoteFileTrust } from './browserSession.js';
+
+/** What a window contributes to the `file:` requests of sessions on a remote network. */
+export interface IRemoteFileTrust<TRoots = ReadonlySet<string>> {
+	readonly roots: TRoots;
+	readonly trustAll: boolean;
+	/** The window whose file service reads the remote's files. */
+	readonly windowId: number;
+	/** The scheme `windowId` reads them with: `vscode-remote` or `vscode-agent-host`. */
+	readonly scheme: string;
+}
 
 /** The trust a window contributes, and the remote it is connected to, if any. */
 export interface IWindowFileTrust extends Pick<IBrowserViewWindowConfiguration, 'trustAllFiles' | 'trustedFileRoots'> {

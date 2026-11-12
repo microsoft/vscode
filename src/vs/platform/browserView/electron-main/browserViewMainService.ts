@@ -15,7 +15,7 @@ import { BrowserView } from './browserView.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
-import { computeFileTrust } from './browserFileTrust.js';
+import { computeFileTrust } from './browserSessionFiles.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IPermissionCategoryState } from '../common/browserPermissions.js';

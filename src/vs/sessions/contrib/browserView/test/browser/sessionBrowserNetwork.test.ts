@@ -169,12 +169,12 @@ suite('SessionBrowserNetworkContribution', () => {
 		const onDidChangeSessions = store.add(new Emitter<void>());
 		let sessions = [first, local, untrusted];
 		const trustedPaths = new Set(['/first', '/second']);
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IWorkspaceTrustManagementService, upcastPartial<IWorkspaceTrustManagementService>({
+		const onDidChangeTrustedFolders = store.add(new Emitter<void>());
+		const trust = upcastPartial<IWorkspaceTrustManagementService>({
 			onDidChangeTrust: Event.None,
-			onDidChangeTrustedFolders: Event.None,
+			onDidChangeTrustedFolders: onDidChangeTrustedFolders.event,
 			getUriTrustInfo: async uri => ({ uri, trusted: trustedPaths.has(fromAgentHostUri(uri).path) }),
-		}));
+		});
 
 		const resolver = createResolver({
 			sessionsManagement: { getSessions: () => sessions, onDidChangeSessions: onDidChangeSessions.event as never },
@@ -182,7 +182,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			connections: {
 				resolveSessionResourceIdentity: resource => ({ connectionAuthority: resource.path === '/local' ? AMBIENT_AGENT_HOST_AUTHORITY : 'ssh-host', backendSession: resource }),
 			},
-			trust: instantiationService.get(IWorkspaceTrustManagementService),
+			trust,
 		});
 		let changes = 0;
 		store.add(resolver.onDidChangeTrustedFileRoots!(() => changes++));
@@ -198,11 +198,15 @@ suite('SessionBrowserNetworkContribution', () => {
 		const afterFocusMoved = { roots: await roots(), changes };
 		sessions = [first, second, local, untrusted];
 		onDidChangeSessions.fire();
+		const afterSessionAdded = { roots: await roots(), changes };
+		trustedPaths.add('/untrusted');
+		onDidChangeTrustedFolders.fire();
 
-		assert.deepStrictEqual({ focusedFirst, afterFocusMoved, afterSessionAdded: { roots: await roots(), changes } }, {
+		assert.deepStrictEqual({ focusedFirst, afterFocusMoved, afterSessionAdded, afterTrustChanged: { roots: await roots(), changes } }, {
 			focusedFirst: ['/first'],
 			afterFocusMoved: { roots: ['/first'], changes: 1 },
 			afterSessionAdded: { roots: ['/first', '/second'], changes: 2 },
+			afterTrustChanged: { roots: ['/first', '/second', '/untrusted'], changes: 3 },
 		});
 	});
 

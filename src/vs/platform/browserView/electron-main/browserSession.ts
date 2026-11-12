@@ -19,21 +19,12 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
+import type { IRemoteFileTrust } from './browserSessionFiles.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
-
-/** What a window contributes to the `file:` requests of sessions on a remote network. */
-export interface IRemoteFileTrust<TRoots = ReadonlySet<string>> {
-	readonly roots: TRoots;
-	readonly trustAll: boolean;
-	/** The window whose file service reads the remote's files. */
-	readonly windowId: number;
-	/** The scheme `windowId` reads them with: `vscode-remote` or `vscode-agent-host`. */
-	readonly scheme: string;
-}
 
 /**
  * Holds an Electron session along with its storage scope and unique browser

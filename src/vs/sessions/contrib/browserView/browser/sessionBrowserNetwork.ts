@@ -65,9 +65,12 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 	/** Browser tabs opened from the new-session composer. */
 	private readonly _composerTabs = this._register(new DisposableMap<BrowserEditorInput, IComposerTab>());
+	/** The folders of the sessions on remote agent hosts that are trusted, for {@link IBrowserViewNetworkResolver.getTrustedFileRoots}. */
 	private _trustedFileRoots: URI[] = [];
+	/** Identifies {@link _trustedFileRoots}, so changes are only reported when the set changes. */
 	private _trustedFileRootsKey = '[]';
-	private readonly _trustedFileRootsUpdates: Sequencer;
+	/** Recomputes of the trusted roots run one at a time, so the latest one wins. */
+	private readonly _trustedFileRootsUpdates = new Sequencer();
 	/** Moves of composer tabs run one at a time, so each sees the tabs earlier moves created. */
 	private readonly _composerTabMoves = new Sequencer();
 
@@ -96,7 +99,6 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		this._register(runOnChange(statuses, () => onDidChangeNetworkStatus.fire()));
 
 		const onDidChangeTrustedFileRoots = this._register(new Emitter<void>());
-		this._trustedFileRootsUpdates = new Sequencer();
 		const updateTrustedFileRoots = () => void this._trustedFileRootsUpdates.queue(async () => {
 			const roots = await this._computeTrustedFileRoots();
 			const key = JSON.stringify(roots.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort());

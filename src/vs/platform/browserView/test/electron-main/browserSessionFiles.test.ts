@@ -8,7 +8,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../agentHost/common/agentHostUri.js';
-import { computeFileTrust, IWindowFileTrust } from '../../electron-main/browserFileTrust.js';
+import { computeFileTrust, IWindowFileTrust } from '../../electron-main/browserSessionFiles.js';
 
 suite('computeFileTrust', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
