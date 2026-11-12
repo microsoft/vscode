@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, getWindow, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ButtonBar, IButton } from '../../../../base/browser/ui/button/button.js';
 import { IMessage, InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -173,16 +173,47 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 			}
 		}));
 
+		let isPointerDown = false;
+		const resetPointerDown = () => {
+			isPointerDown = false;
+		};
+
+		this._register(addDisposableListener(this.table.getHTMLElement(), EventType.POINTER_DOWN, () => {
+			isPointerDown = true;
+			queueMicrotask(resetPointerDown);
+		}, true));
+		this._register(addDisposableListener(this.table.getHTMLElement(), EventType.MOUSE_DOWN, () => {
+			isPointerDown = true;
+			queueMicrotask(resetPointerDown);
+		}, true));
+
+		this._register(addDisposableListener(this.table.getHTMLElement(), EventType.POINTER_DOWN, resetPointerDown, false));
+		this._register(addDisposableListener(this.table.getHTMLElement(), EventType.MOUSE_DOWN, resetPointerDown, false));
+
+		const tableWindow = getWindow(this.table.getHTMLElement());
+		this._register(addDisposableListener(tableWindow, EventType.POINTER_UP, resetPointerDown, true));
+		this._register(addDisposableListener(tableWindow, EventType.MOUSE_UP, resetPointerDown, true));
+
 		this._register(this.table.onDidChangeFocus(e => {
-			if (e.indexes.length > 0) {
+			if (e.indexes.length > 0 && isAncestorOfActiveElement(this.table.getHTMLElement())) {
 				this.revealInScrollableElement(e.indexes[0]);
 			}
 		}));
 
 		this._register(this.table.onDidFocus(() => {
+			if (isPointerDown) {
+				return;
+			}
 			const focus = this.table.getFocus();
 			if (focus.length > 0) {
 				this.revealInScrollableElement(focus[0]);
+			}
+		}));
+
+		this._register(this.table.onPointer(e => {
+			resetPointerDown();
+			if (typeof e.index === 'number') {
+				this.revealInScrollableElement(e.index);
 			}
 		}));
 
