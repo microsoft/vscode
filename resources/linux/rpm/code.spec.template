@@ -72,7 +72,7 @@ vscode_copilot_link install "%{name}" || :
 update-desktop-database &> /dev/null || :
 
 # Update mimetype database to pickup workspace mimetype
-update-mime-database %{_datadir}/mime &> /dev/null || :
+update-mime-database -n %{_datadir}/mime &> /dev/null || :
 
 %postun
 @@COPILOT_LINK_HELPER@@
@@ -85,7 +85,7 @@ fi
 update-desktop-database &> /dev/null || :
 
 # Update mimetype database for removed workspace mimetype
-update-mime-database %{_datadir}/mime &> /dev/null || :
+update-mime-database -n %{_datadir}/mime &> /dev/null || :
 
 %files
 %defattr(-,root,root)
