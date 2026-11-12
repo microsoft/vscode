@@ -51,6 +51,12 @@ interface ILocationEntry {
 	readonly icon: ThemeIcon;
 }
 
+/** The action widget item data: the widget focuses by `id` and starts on the `checked` item. */
+interface IActionWidgetLocation extends ILocationEntry {
+	readonly id: string;
+	readonly checked: boolean;
+}
+
 interface ILocationQuickPickItem extends IQuickPickItem {
 	readonly uri: URI;
 }
@@ -287,26 +293,32 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		let picked: ILocationEntry | undefined;
 		if (anchor) {
 			const actionWidgetService = accessor.get(IActionWidgetService);
-			const toActionItems = (entries: readonly ILocationEntry[]): IActionListItem<ILocationEntry>[] => entries.map(entry => ({
-				kind: ActionListItemKind.Action,
-				item: entry,
-				label: entry.label,
-				description: entry.description,
-				labelIcon: entry.icon,
-				group: { title: '', icon: isCurrentUri(entry.uri) ? Codicon.check : Codicon.blank }
-			}));
+			const toActionItems = (entries: readonly ILocationEntry[]): IActionListItem<IActionWidgetLocation>[] => entries.map(entry => {
+				const checked = isCurrentUri(entry.uri);
+				return {
+					kind: ActionListItemKind.Action,
+					item: { ...entry, id: uriIdentityService.extUri.getComparisonKey(entry.uri), checked },
+					label: entry.label,
+					description: entry.description,
+					labelIcon: entry.icon,
+					group: { title: '', icon: checked ? Codicon.check : Codicon.blank }
+				};
+			});
 			picked = await new Promise<ILocationEntry | undefined>(resolve => {
-				actionWidgetService.show<ILocationEntry>(
+				actionWidgetService.show<IActionWidgetLocation>(
 					'folderLocationPicker',
 					false,
 					toActionItems(seedEntries),
 					{
 						onSelect: entry => {
-							actionWidgetService.hide();
+							// Resolve first: hiding runs onHide synchronously, which would report a cancellation
 							resolve(entry);
+							actionWidgetService.hide();
 						},
 						onHide: () => {
-							anchor.focus();
+							// The status bar item wrapper is not focusable, its label is
+							const label = Array.from(anchor.children).find(child => child.classList.contains('statusbar-item-label')) as HTMLElement | undefined;
+							(label ?? anchor).focus();
 							resolve(undefined);
 						}
 					},
@@ -316,14 +328,18 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 					{
 						getAriaLabel: listItem => {
 							const entry = listItem.item;
-							return entry ? (entry.description ? localize('folderLocationItemAria', "{0}, {1}", entry.label, entry.description) : entry.label) : '';
+							if (!entry) {
+								return '';
+							}
+							const text = entry.description ? localize('folderLocationItemAria', "{0}, {1}", entry.label, entry.description) : entry.label;
+							return entry.checked ? localize('folderLocationCurrentItemAria', "{0}, Current", text) : text;
 						},
 						getWidgetAriaLabel: () => localize('folderLocationPickerAria', "Folder Location")
 					}
 				);
-				const focusId = (currentSeed ?? primaryEntry).uri.toString();
+				const focusId = uriIdentityService.extUri.getComparisonKey((currentSeed ?? primaryEntry).uri);
 				actionWidgetService.focusItemById(focusId);
-				loadLocations(entries => actionWidgetService.updateItems(toActionItems(entries), focusId), () => { });
+				loadLocations(entries => actionWidgetService.updateItems(toActionItems(entries)), () => { });
 			}).finally(() => {
 				cts.cancel();
 				store.dispose();
