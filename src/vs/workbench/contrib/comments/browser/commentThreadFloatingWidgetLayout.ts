@@ -376,8 +376,9 @@ export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacement
 	// The widget is out of order with a widget above or below it when it's on the side of it that its code isn't on.
 	const codeTop = code?.top ?? 0;
 	const isOutOfOrder = (top: number, obstacle: IFloatingWidgetObstacle) => areOutOfOrder({ top, left, width, height, codeTop }, obstacle);
-	// Widgets that are out of order with the preferred position anyway, such as ones that were moved there, don't
-	// keep the widget from the others.
+	// Widgets that are out of order with the preferred position anyway don't keep the widget from the others. Those are
+	// ones that the user moved there, and ones for code that starts earlier but goes on long enough for them to be
+	// centered below this one, which would otherwise push this one far from its code.
 	const unmovedTop = clamp(preferredTop, 0, maxTop);
 	const orderedObstacles = request.obstacles.filter(obstacle => !isOutOfOrder(unmovedTop, obstacle));
 	// When no position is free, the widget stays as close to the preferred position as it can.

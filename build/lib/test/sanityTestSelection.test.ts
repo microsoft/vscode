@@ -18,7 +18,7 @@ interface SanityJob {
 }
 
 interface ConditionalStage {
-	[condition: string]: { jobs: Record<string, SanityJob[]>[] }[];
+	[condition: string]: { stage: string; jobs: Record<string, SanityJob[]>[] }[] | string;
 }
 
 suite('Product sanity test selection', () => {
@@ -26,9 +26,9 @@ suite('Product sanity test selection', () => {
 		const pipeline = load(readFileSync(path.resolve(import.meta.dirname, '../../azure-pipelines/product-build.yml'), 'utf8')) as {
 			extends: { parameters: { stages: ConditionalStage[] } };
 		};
-		const sanityCondition = '${{ if and(eq(variables[\'VSCODE_PUBLISH\'], \'true\'), eq(variables[\'VSCODE_STEP_ON_IT\'], false)) }}';
 		const nativeLinux = pipeline.extends.parameters.stages
-			.flatMap(stage => stage[sanityCondition] ?? [])
+			.flatMap(entry => Object.values(entry).flatMap(value => Array.isArray(value) ? value : []))
+			.filter(stage => stage.stage === 'SanityTests')
 			.flatMap(stage => stage.jobs)
 			.flatMap(jobs => jobs['${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}'] ?? [])
 			.find(job => job.parameters.name === 'ubuntu_native_x64');

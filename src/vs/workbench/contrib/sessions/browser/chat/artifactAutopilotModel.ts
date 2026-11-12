@@ -43,13 +43,13 @@ export class ArtifactAutopilotModel extends Disposable {
 					id: contribution.integrationId,
 					title: groups.length > 1 ? localize('artifactAutopilot.providerTitle', "{0} Autopilot", contribution.label) : localize('artifactAutopilot.title', "Autopilot"),
 					expanded: state.expandedAutopilot.has(contribution.integrationId),
-					checked: enabled > 0 && enabled === eligible.length,
+					checked: enabled > 0,
 					disabled: this.pendingGroups.has(contribution.integrationId) || !eligible.length,
 					summary: unavailable ? localize('artifactAutopilot.unavailable', "{0} on, {1} unavailable", enabled, unavailable)
 						: localize('artifactAutopilot.enabled', "{0} of {1} on", enabled, eligible.length),
 					toggleLabel: groups.length > 1 ? localize('artifactAutopilot.providerRules', "All Available Autopilot Rules: {0}", contribution.label)
 						: localize('artifactAutopilot.allRules', "All Available Autopilot Rules"),
-					description: localize('artifactAutopilot.masterHelp', "Enable all available rules for this provider using the policies shown in their dropdowns, or turn off all enabled rules. Unavailable rules are not enabled."),
+					description: localize('artifactAutopilot.masterHelp', "On while any rule is on. Turn on to enable all available rules for this provider using the policies shown in their dropdowns, or turn off to disable all enabled rules. Unavailable rules are not enabled."),
 					rules: options.map(option => this.rule(contribution, option, snapshot)),
 					setExpanded: expanded => {
 						if (expanded) {

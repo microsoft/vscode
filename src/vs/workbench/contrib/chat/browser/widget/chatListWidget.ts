@@ -428,6 +428,12 @@ export class ChatListWidget extends Disposable {
 	private _effectivePaddingBottom: number;
 	private _scrollHeightReservation: { response: IChatResponseViewModel; height: number } | undefined;
 	private readonly _pendingScrollHeightRelease = this._register(new MutableDisposable<IDisposable>());
+	/**
+	 * Positions the scroll-down button once before the next paint. While a response streams, the
+	 * button can be shown and hidden many times per frame as the content grows past the bottom and
+	 * is revealed again, and each positioning reads layout.
+	 */
+	private readonly _scrollDownButtonPositionScheduler: dom.AnimationFrameScheduler;
 
 	//#endregion
 
@@ -533,6 +539,7 @@ export class ChatListWidget extends Disposable {
 		this._effectivePaddingBottom = this._paddingBottom;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
+		this._scrollDownButtonPositionScheduler = this._register(new dom.AnimationFrameScheduler(this._container, () => this.updateScrollDownButtonPosition()));
 
 		// Toggle link-style for inline reference widgets based on configuration (single listener for all widgets)
 		const updateInlineReferencesStyle = () => {
@@ -770,7 +777,7 @@ export class ChatListWidget extends Disposable {
 
 		// Handle scroll events (fire public event and manage scroll-down button)
 		this._register(this._tree.onDidScroll((e) => {
-			this._renderer.updateStickyProgress();
+			this._renderer.scheduleStickyProgressUpdate();
 			this._onDidScroll.fire(e);
 			this.updateScrollDownButtonVisibility();
 		}));
@@ -817,6 +824,7 @@ export class ChatListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests)
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
+				|| e.affectsConfiguration(ChatConfiguration.HtmlPreviewEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.ProgressBorder)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)) {
@@ -861,7 +869,7 @@ export class ChatListWidget extends Disposable {
 		// Cloning a range never yields the anchors around it, so ask the selection what it
 		// touches: otherwise a selection inside a link looks clean while the browser still
 		// copies the enclosing anchor.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const touched = Array.from(this._container.querySelectorAll('a, img'))
 			.filter(element => selection.containsNode(element, true));
 		if (!touched.length) {
@@ -908,7 +916,7 @@ export class ChatListWidget extends Disposable {
 		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
 		// Scrolling cannot move the progress row; layout and its resize observer reposition a shown button.
 		if (showButton !== wasShown) {
-			this.updateScrollDownButtonPosition();
+			this._scrollDownButtonPositionScheduler.schedule();
 		}
 	}
 
@@ -922,6 +930,7 @@ export class ChatListWidget extends Disposable {
 	 * input even while no progress is shown.
 	 */
 	private updateScrollDownButtonPosition(): void {
+		this._scrollDownButtonPositionScheduler.cancel();
 		const button = this._scrollDownButton.element;
 		const progress = this._workingProgressContainer;
 		let bottom = '';

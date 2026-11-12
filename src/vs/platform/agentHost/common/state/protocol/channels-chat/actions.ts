@@ -44,8 +44,6 @@ interface ToolCallActionBase {
 /**
  * A new message has been sent to the agent, and a new turn starts.
  *
- * A client is only allowed to send {@link MessageKind.User} messages.
- *
  * @category Chat Actions
  * @version 1
  * @clientDispatchable
@@ -763,8 +761,6 @@ export interface ChatTurnsLoadedAction {
  *
  * If the chat is idle when a queued message is set, the server SHOULD
  * immediately consume it and start a new turn.
- *
- * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Chat Actions
  * @version 1

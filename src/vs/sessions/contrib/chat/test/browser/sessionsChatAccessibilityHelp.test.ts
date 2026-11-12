@@ -45,6 +45,10 @@ import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettin
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../../workbench/contrib/webview/browser/webview.js';
+import { WebviewFindAccessibilityHelp } from '../../../../../workbench/contrib/webview/browser/webviewFindAccessibilityHelp.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ITestSessionWithChat, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,10 +68,29 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			instantiationService.stub(ISessionsHostLayoutService, {});
-			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-				.includes('With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata.');
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return {
+				actions: content.includes('With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata.'),
+				retry: content.includes('If sending fails, an error notification appears and the action remains available to retry.'),
+			};
 		});
-		assert.deepStrictEqual(results, [false, true, false]);
+		assert.deepStrictEqual(results, [{ actions: false, retry: false }, { actions: true, retry: true }, { actions: false, retry: false }]);
+	});
+
+	test('defers to webview Find help while the Find input is focused', () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const context = store.add(new ContextKeyService(configuration));
+		IsSessionsWindowContext.bindTo(context).set(true);
+		const findFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(context);
+		const implementations = [new SessionsChatAccessibilityHelp(), new WebviewFindAccessibilityHelp()];
+		assert.deepStrictEqual([false, true].map(focused => {
+			findFocused.set(focused);
+			return implementations
+				.filter(implementation => context.contextMatchesRules(implementation.when))
+				.sort((a, b) => b.priority - a.priority)
+				.map(implementation => implementation.name);
+		}), [['sessionsChat'], ['webview-find']]);
 	});
 
 	test('documents comment card previews, secondary actions and review states', () => {
@@ -92,10 +115,15 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { preview: true, keyboard: true, scrolling: true, secondaryActions: true, states: true });
 	});
 
-	for (const { aiDisabled, hidden } of [{ aiDisabled: false, hidden: false }, { aiDisabled: true, hidden: false }, { aiDisabled: false, hidden: true }]) {
-		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden})`, () => {
+	for (const { aiDisabled, hidden, htmlEnabled } of [
+		{ aiDisabled: false, hidden: false, htmlEnabled: true },
+		{ aiDisabled: true, hidden: false, htmlEnabled: true },
+		{ aiDisabled: false, hidden: true, htmlEnabled: true },
+		{ aiDisabled: false, hidden: false, htmlEnabled: false },
+	]) {
+		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden}, HTML: ${htmlEnabled})`, () => {
 			const instantiation = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled });
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled, [ChatConfiguration.HtmlPreviewEnabled]: htmlEnabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiation.stub(IConfigurationService, configuration);
 			stubContextKeyService(instantiation, configuration);
@@ -106,13 +134,30 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			instantiation.stub(ISessionsHostLayoutService, {});
 			const help = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			const visible = !aiDisabled && !hidden;
+			const rendersHtml = visible && htmlEnabled;
 			assert.deepStrictEqual({
 				modes: help.includes('View Mode to select Compact, Verbose, or Conversation'),
 				checked: help.includes('The active mode is checked'),
 				setting: help.includes('Selecting a mode updates chat.persistentProgressVerbosity'),
 				thinking: help.includes('only when a live section finishes with its header in view'),
 				noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
-			}, { modes: !aiDisabled && !hidden, checked: !aiDisabled && !hidden, setting: !aiDisabled && !hidden, thinking: !aiDisabled && !hidden, noBackfill: !aiDisabled && !hidden });
+				htmlPreview: help.includes('html-preview code fence'),
+				htmlSourceToggle: help.includes('Use Tab to focus the HTML preview and press Shift+F10'),
+				htmlAccessibleSource: help.includes('original source is also available in the chat Accessible View'),
+				htmlExport: help.includes('Save HTML asks where to save a sanitized, self-contained HTML file'),
+				htmlExpansion: help.includes('Open Preview opens a larger editor'),
+				htmlScrolling: help.includes('Inline previews grow to fit their content and scroll with the chat transcript.'),
+				htmlFindSource: help.includes('Find in Chat searches the original HTML and shows source'),
+				htmlSetting: help.includes(ChatConfiguration.HtmlPreviewEnabled),
+				htmlDisabled: help.includes('Inline HTML previews are disabled'),
+				htmlSkillAdvertised: help.includes('built-in /html-preview skill'),
+			}, {
+				modes: visible, checked: visible, setting: visible, thinking: visible, noBackfill: visible,
+				htmlPreview: visible, htmlSourceToggle: rendersHtml, htmlAccessibleSource: rendersHtml, htmlExport: rendersHtml,
+				htmlExpansion: rendersHtml, htmlScrolling: rendersHtml, htmlFindSource: rendersHtml, htmlSetting: visible, htmlDisabled: visible && !htmlEnabled,
+				htmlSkillAdvertised: rendersHtml,
+			});
 		});
 	}
 
@@ -952,7 +997,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			listedInKindPills: content?.includes('Other integrated artifacts and references are listed in the Artifacts, References, Pull Requests or Issues pill'),
 			listedRowDetails: content?.includes('where Enter or Space opens the artifact\'s details and the row\'s Open action opens the resource'),
-			mainDetails: content?.includes('Enter or Space on a main pill opens an input-width details panel'),
+			mainOpens: content?.includes('Enter or Space on a main pill opens its resource'),
+			mainDetails: content?.includes('or a Details section when it has none, open an input-width details panel'),
 			runOnce: content?.includes('Actions below the lists run once'),
 			standingPermission: content?.includes('standing permission'),
 			turningOff: content?.includes('does not cancel work already started'),
@@ -961,7 +1007,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			switchKeyboard: content?.includes('Space to change a switch'),
 			listKeyboard: content?.includes('arrow keys navigate list rows'),
 			oldActionsSegment: content?.includes('Actions button'),
-		}, { listedInKindPills: true, listedRowDetails: true, mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
+		}, { listedInKindPills: true, listedRowDetails: true, mainOpens: true, mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
 	});
 
 	test('describes grouped artifact pills, their list navigation, and pinning', () => {
@@ -982,10 +1028,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			grouped: content?.includes('they appear as one pill named by the integration'),
 			rows: content?.includes('Up and Down Arrow, Home and End move between artifacts'),
 			controls: content?.includes('Left and Right Arrow move between an artifact\'s controls'),
-			details: content?.includes('opens the artifact\'s details'),
+			opens: content?.includes('Enter or Space on the label opens the artifact\'s resource'),
+			details: content?.includes('offers a Details section that opens its details'),
 			pin: content?.includes('Pin moves the artifact into a pill of its own'),
 			escape: content?.includes('Escape closes the list and returns focus to the pill'),
-		}, { grouped: true, rows: true, controls: true, details: true, pin: true, escape: true });
+		}, { grouped: true, rows: true, controls: true, opens: true, details: true, pin: true, escape: true });
 	});
 
 	test('omits response-selection help when the widget is unsupported', () => {

@@ -14,11 +14,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationItemsModel } from '../../../chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { IAgentHostToolSetEnablementService } from '../../../chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IAICustomizationWorkspaceService } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../chat/common/customizationHarnessService.js';
 import { ILanguageModelToolsService, IToolSet } from '../../../chat/common/tools/languageModelToolsService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../browser/agentsWindowExtensionSuggestions.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
 
 suite('AI customization shortcuts header', () => {
@@ -51,7 +51,7 @@ suite('AI customization shortcuts header', () => {
 			availableHarnesses: constObservable([descriptor]),
 			getActiveDescriptor: () => descriptor,
 		});
-		instantiationService.stub(IAgentsWindowExtensionSuggestionsService, { showBadge: constObservable(false) });
+		instantiationService.stub(IAICustomizationWorkspaceService, { managementSections: [] });
 		disposables.add(instantiationService.createInstance(AICustomizationShortcutsWidget, container, undefined));
 
 		const renderedHeader = container.querySelector<HTMLElement>('.ai-customization-header');

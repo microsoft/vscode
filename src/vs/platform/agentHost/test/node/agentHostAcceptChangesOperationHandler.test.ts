@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -22,7 +23,7 @@ import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHos
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { getWorkingSetFileEditRecords, isFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { computeWorkingSetDiffs } from '../../node/sessionDiffAggregator.js';
+import { computeWorkingSetDiffs, computeWorkingSetFiles } from '../../node/sessionDiffAggregator.js';
 import { computeWorkingSetFileContents } from '../../node/workingSetFileContents.js';
 import { createNoopChangesetService, TestDiffComputeService } from '../common/sessionTestHelpers.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -169,6 +170,42 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			afterDeletion: [],
 			afterNewEdit: [FILE.toString()],
 			accepted: [chat, chat],
+		});
+	});
+
+	test('accepts every working set file with its nonce when edits spell a file\'s path differently', async () => {
+		const { db, tracked, invoke, workingSet, rows } = setup(disposables);
+		const alias = URI.file('/repo/SRC/file.ts');
+		await storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Create, undefined, 'v1');
+		await storeEdit(db, 't1', 'tc2', alias, FileEditKind.Edit, 'v1', 'v2');
+		const files = await computeWorkingSetFiles(tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new TestDiffComputeService(), tracked.folderScope);
+
+		const errors: ({ code: number; message: string } | undefined)[] = [];
+		for (const file of files) {
+			errors.push(await toError(invoke(URI.parse(file.diff.after!.uri), undefined, undefined, file.nonce)));
+		}
+
+		// Linux tells paths apart by their case, so there these edits are of two files.
+		assert.deepStrictEqual({ nonces: files.map(file => file.nonce).sort(), errors, workingSet: await workingSet(), rows: await rows() }, isLinux ? {
+			nonces: ['tc1', 'tc2'], errors: [undefined, undefined], workingSet: [], rows: ['tc1', 'tc2', 'accept:t1:edit', 'accept:t1:edit'],
+		} : {
+			nonces: ['tc2'], errors: [undefined], workingSet: [], rows: ['tc1', 'tc2', 'accept:t1:edit'],
+		});
+	});
+
+	test('accepts a file whose edits spell its path with and without `.` segments, with the nonce of its one working set file', async () => {
+		const { db, tracked, invoke, workingSet, rows } = setup(disposables);
+		await storeEdit(db, 't1', 'tc1', URI.file('/repo/./src/file.ts'), FileEditKind.Create, undefined, 'v1');
+		await storeEdit(db, 't1', 'tc2', FILE, FileEditKind.Edit, 'v1', 'v2');
+		const shown = (await computeWorkingSetFiles(tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new TestDiffComputeService(), tracked.folderScope))
+			.map(file => ({ uri: file.diff.after?.uri, nonce: file.nonce }));
+
+		await invoke(FILE, undefined, undefined, shown[0].nonce);
+
+		assert.deepStrictEqual({ shown, workingSet: await workingSet(), rows: await rows() }, {
+			shown: [{ uri: FILE.toString(), nonce: 'tc2' }],
+			workingSet: [],
+			rows: ['tc1', 'tc2', 'accept:t1:edit'],
 		});
 	});
 

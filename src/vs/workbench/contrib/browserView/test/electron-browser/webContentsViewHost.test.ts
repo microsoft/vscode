@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -15,11 +17,20 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IBrowserViewCaptureScreenshotOptions } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
 import { WebContentsViewHost } from '../../electron-browser/webContentsViewHost.js';
 
 suite('WebContentsViewHost', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createHost(configurationService: IConfigurationService = new TestConfigurationService()): WebContentsViewHost {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IKeybindingService, new MockKeybindingService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		return store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
+	}
 
 	test('hides the page a frame after its container, unless the container itself is hidden', async () => {
 		const calls: boolean[] = [];
@@ -42,11 +53,7 @@ suite('WebContentsViewHost', () => {
 			// The host keeps the last screenshot as its placeholder; a pending capture keeps this test free of timers.
 			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
 		});
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IKeybindingService, new MockKeybindingService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		const host = store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
+		const host = createHost();
 
 		host.setModel(model);
 		host.setVisible(true);
@@ -84,11 +91,7 @@ suite('WebContentsViewHost', () => {
 			},
 			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
 		});
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IKeybindingService, new MockKeybindingService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		const host = store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
+		const host = createHost();
 
 		host.setModel(model);
 		host.setVisible(true);
@@ -120,11 +123,7 @@ suite('WebContentsViewHost', () => {
 			captureScreenshot: () => new Promise<VSBuffer>(() => { }),
 		});
 		const configurationService = new TestConfigurationService({ workbench: { browser: { dimOnOverlay: false } } });
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IKeybindingService, new MockKeybindingService());
-		instantiationService.stub(IConfigurationService, configurationService);
-		const host = store.add(instantiationService.createInstance(WebContentsViewHost, mainWindow, () => { }));
+		const host = createHost(configurationService);
 
 		const place = (className: string) => {
 			const element = mainWindow.document.createElement('div');
@@ -157,5 +156,84 @@ suite('WebContentsViewHost', () => {
 		const notification = host.pauseElement.classList.contains('visible') && host.pauseElement.classList.contains('show-message');
 
 		assert.deepStrictEqual({ disabled, enabled, cleared, notification }, { disabled: false, enabled: true, cleared: false, notification: true });
+	});
+
+	for (const [overlayClasses, paused] of [
+		[['screenshot-tool-overlay'], false],
+		[['monaco-dialog-modal-block'], true],
+		[['screenshot-annotation-editor'], true],
+		// Other overlays still pause the page while the screenshot tool's overlay covers it too.
+		[['screenshot-tool-overlay', 'notification-toast-container'], true],
+	] as const) {
+		test(`hides the page under ${overlayClasses.join(' and ')} ${paused ? 'and shows' : 'without showing'} that it is paused`, async () => {
+			const calls: boolean[] = [];
+			let visible = false;
+			const model = upcastPartial<IBrowserViewModel>({
+				url: 'https://example.test',
+				error: undefined,
+				screenshot: undefined,
+				focused: false,
+				get visible() { return visible; },
+				onDidChangeVisibility: Event.None,
+				onDidKeyCommand: Event.None,
+				onDidNavigate: Event.None,
+				onDidChangeLoadingState: Event.None,
+				onWillDispose: Event.None,
+				setVisible: async (value: boolean) => {
+					calls.push(value);
+					visible = value;
+				},
+				captureScreenshot: () => new Promise<VSBuffer>(() => { }),
+			});
+			const host = createHost();
+			const container = $('div');
+			container.style.cssText = 'position: fixed; left: 0; top: 0; width: 100px; height: 100px;';
+			// Each overlay is on top at the center of where it covers the page, which is where overlays are hit-tested.
+			const overlays = overlayClasses.map((overlayClass, index) => {
+				const overlay = $(`div.${overlayClass}`);
+				overlay.style.cssText = index === 0
+					? 'position: fixed; inset: 0; z-index: 10000;'
+					: 'position: fixed; left: 60px; top: 60px; width: 40px; height: 40px; z-index: 10001;';
+				return overlay;
+			});
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => { container.remove(); overlays.forEach(overlay => overlay.remove()); }));
+			host.onContainerCreated(container);
+			host.setModel(model);
+			host.setVisible(true);
+
+			mainWindow.document.body.append(...overlays);
+			for (let frame = 0; frame < 2; frame++) {
+				await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
+			}
+
+			assert.deepStrictEqual({ calls, paused: host.pauseElement.classList.contains('visible') }, { calls: [true, false], paused });
+		});
+	}
+
+	test('requests DevTools in the placeholder screenshot', () => {
+		const requests: (IBrowserViewCaptureScreenshotOptions | undefined)[] = [];
+		const model = upcastPartial<IBrowserViewModel>({
+			url: 'https://example.test',
+			error: undefined,
+			screenshot: undefined,
+			focused: false,
+			visible: true,
+			onDidChangeVisibility: Event.None,
+			onDidKeyCommand: Event.None,
+			onDidNavigate: Event.None,
+			onDidChangeLoadingState: Event.None,
+			onWillDispose: Event.None,
+			setVisible: async () => { },
+			captureScreenshot: (options?: IBrowserViewCaptureScreenshotOptions) => {
+				requests.push(options);
+				return new Promise<VSBuffer>(() => { });
+			},
+		});
+		const host = createHost();
+
+		host.setModel(model);
+
+		assert.deepStrictEqual({ captured: requests.length > 0, allIncludeDevTools: requests.every(options => options?.includeDevTools) }, { captured: true, allIncludeDevTools: true });
 	});
 });

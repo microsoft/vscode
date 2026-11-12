@@ -1,0 +1,8 @@
+steps:
+  # The last step of a failed Windows job, so that it sees failures in any earlier step, and runs before the 1ES
+  # template stops Network Isolation. See ../network-diagnostics.md.
+  - pwsh: node build/azure-pipelines/common/runWithTimeout.ts 45 -- powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File build/azure-pipelines/win32/collect-network-diagnostics.ps1 -OutputDirectory "$(Build.SourcesDirectory)\.build\logs\network"
+    displayName: Collect Windows network failure diagnostics
+    condition: failed()
+    continueOnError: true
+    timeoutInMinutes: 2

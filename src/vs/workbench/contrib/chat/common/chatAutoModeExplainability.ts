@@ -25,8 +25,11 @@ export function autoModeRoutingTitle(part: IChatAutoModeResolutionPart): string 
 		if (!part.resolved) {
 			return localize('modelRouter.routing', "{0} picking a model", part.router);
 		}
-		const title = part.playbook
-			? modelRouterPlaybookTitle(part.router, part.playbook, part.resolved.name, part)
+		// A chat saved while named routes were written as playbooks stored the name as `playbook`.
+		const legacyName = (part as { readonly playbook?: unknown }).playbook;
+		const routeName = part.routeName ?? (typeof legacyName === 'string' ? legacyName : undefined);
+		const title = routeName
+			? modelRouterNamedRouteTitle(part.router, routeName, part.resolved.name, part)
 			: part.switchedFrom
 				? localize('modelRouter.switched', "{0} switched from {1} to {2}", part.router, part.switchedFrom, part.resolved.name)
 				: part.kept
@@ -49,18 +52,21 @@ export function autoModeRoutingTitle(part: IChatAutoModeResolutionPart): string 
 		: localize('autoMode.routedTo', "Auto routed task to {0}", part.resolved.name));
 }
 
-/** The routing line for a router written as playbooks: it names the playbook as well as the model it runs on. */
-function modelRouterPlaybookTitle(router: string, playbook: string, model: string, part: Pick<IChatAutoModeResolutionPart, 'switchedFrom' | 'kept' | 'defaulted'>): string {
-	// A chat that moves to the router gets one routing line, so it has to name the playbook too.
+/** The routing line for a route that has a name: it names the route as well as the model it runs on. */
+function modelRouterNamedRouteTitle(router: string, route: string, model: string, part: Pick<IChatAutoModeResolutionPart, 'switchedFrom' | 'kept' | 'defaulted'>): string {
+	// A chat that moves to the router gets one routing line, so it has to name the route too.
 	if (part.switchedFrom) {
-		return localize('modelRouter.playbookSwitched', "{0} switched from {1} to its {2} playbook on {3}", router, part.switchedFrom, playbook, model);
+		// Two named routes can run on the same model.
+		return part.switchedFrom === model
+			? localize('modelRouter.namedRouteMoved', "{0} moved to its {1} route on {2}", router, route, model)
+			: localize('modelRouter.namedRouteSwitched', "{0} switched from {1} to its {2} route on {3}", router, part.switchedFrom, route, model);
 	}
 	if (part.kept) {
-		return localize('modelRouter.playbookKept', "{0} stayed on its {1} playbook on {2}", router, playbook, model);
+		return localize('modelRouter.namedRouteKept', "{0} stayed on its {1} route on {2}", router, route, model);
 	}
 	return part.defaulted
-		? localize('modelRouter.playbookDefaulted', "{0} used its {1} playbook on {2}, its fallback", router, playbook, model)
-		: localize('modelRouter.playbookRouted', "{0} picked its {1} playbook on {2}", router, playbook, model);
+		? localize('modelRouter.namedRouteDefaulted', "{0} used its first route, {1}, on {2}", router, route, model)
+		: localize('modelRouter.namedRouteRouted', "{0} picked its {1} route on {2}", router, route, model);
 }
 
 /** Why a host-side router made its pick, for the routing line's hover. Auto explains itself in its title. */

@@ -408,13 +408,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			// A widget that the user moved or resized goes where the user put it. The others are placed among the
 			// other widgets, in the order of their code.
 			const layout = this._layout ?? this._host.getLayout(this);
-			if (layout?.isChosenByUser) {
-				this._layout = layout;
-				this._applySize();
-				this._render();
-			} else {
-				this._placeAmongOtherWidgets();
-			}
+			this._placeAmongOtherWidgets(layout?.isChosenByUser ? layout : undefined);
 		}
 		this._updateEmptyRangeHighlight();
 
@@ -564,29 +558,38 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * Places the widget around the other widgets, and places the widgets for later code that it's in the way of again,
-	 * so that the widgets stay in the order of their code. Widgets that the user moved or resized stay where they are.
-	 * Widgets that aren't in the way stay where they are as well, so placing a widget only moves the ones that it must.
+	 * Places the widget around the other widgets, or where the user put it, and places the automatically placed widgets
+	 * that it's in the way of again, so that the widgets stay in the order of their code. Those are the ones for later
+	 * code, and, for a widget that the user moved or resized, also the ones for earlier code, which may have been placed
+	 * where it is while it was hidden. Widgets that the user moved or resized stay where they are. Widgets that aren't in
+	 * the way stay where they are as well, so placing a widget only moves the ones that it must.
+	 * @param layoutChosenByUser Where the user put the widget, when the user moved or resized it.
 	 */
-	private _placeAmongOtherWidgets(): void {
+	private _placeAmongOtherWidgets(layoutChosenByUser?: ICommentThreadFloatingWidgetLayout): void {
 		const otherWidgets = this._host.getOtherWidgets(this);
-		this._placeAutomatically(otherWidgets);
+		if (layoutChosenByUser) {
+			this._layout = layoutChosenByUser;
+			this._applySize();
+			this._render();
+		} else {
+			this._placeAutomatically(otherWidgets);
+		}
 		const placed = this.getDocumentRect();
 		if (!placed) {
 			return;
 		}
-		const laterWidgets: { widget: ReviewFloatingWidget; rect: IFloatingWidgetObstacle }[] = [];
+		const widgetsToMove: { widget: ReviewFloatingWidget; rect: IFloatingWidgetObstacle }[] = [];
 		for (const widget of otherWidgets) {
 			const rect = widget.getDocumentRect();
-			if (rect && !widget._layout?.isChosenByUser && rect.codeTop > placed.codeTop) {
-				laterWidgets.push({ widget, rect });
+			if (rect && !widget._layout?.isChosenByUser && (layoutChosenByUser || rect.codeTop > placed.codeTop)) {
+				widgetsToMove.push({ widget, rect });
 			}
 		}
-		laterWidgets.sort((a, b) => a.rect.codeTop - b.rect.codeTop);
+		widgetsToMove.sort((a, b) => a.rect.codeTop - b.rect.codeTop);
 		// Each widget that is placed again can be in the way of the widgets for code after its own.
 		const movedRects = [placed];
 		const allWidgets = [this, ...otherWidgets];
-		for (const { widget, rect } of laterWidgets) {
+		for (const { widget, rect } of widgetsToMove) {
 			if (movedRects.some(movedRect => isInTheWayOf(rect, movedRect))) {
 				widget._placeAutomatically(allWidgets.filter(other => other !== widget));
 				const movedRect = widget.getDocumentRect();

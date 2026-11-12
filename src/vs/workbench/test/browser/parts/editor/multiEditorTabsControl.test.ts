@@ -20,6 +20,8 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../plat
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -4780,6 +4782,41 @@ suite('MultiEditorTabsControl', () => {
 		await entry?.run(shownMenu?.getActionsContext?.());
 
 		assert.deepStrictEqual(ran, [[{ groupId: groupView.id }]]);
+	});
+
+	test('logs the journey through the Add Tab menu: opened, then picked or dismissed', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(): Promise<R> { return undefined as R; }
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.addTab.journey') });
+
+		const open = () => container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+		open();
+		const [entry] = shownMenu!.getActions();
+		// Like the context menu: running an entry first hides the menu
+		const onWillRun = shownMenu!.actionRunner!.onWillRun(() => shownMenu!.onHide?.(false));
+		await shownMenu!.actionRunner!.run(entry, shownMenu!.getActionsContext?.());
+		onWillRun.dispose();
+		open();
+		shownMenu!.onHide?.(true);
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events.filter(e => e.eventName === 'editorAddTabMenu').map(e => e.data), [
+			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
+			{ kind: 'picked', menuId: 'test.addTab.journey', entry: 'test.connectedTabs.newEditor' },
+			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
+			{ kind: 'dismissed', menuId: 'test.addTab.journey', entry: undefined },
+		]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

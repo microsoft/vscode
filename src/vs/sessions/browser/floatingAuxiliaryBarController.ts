@@ -66,6 +66,7 @@ class FloatingDetailsToggleViewItem extends ActionViewItem {
 export interface IFloatingAuxiliaryBarHost {
 	getTitle(): string;
 	getIcon(): ThemeIcon | undefined;
+	isChangesViewActive(): boolean;
 	readonly onDidChangeTitle: Event<void>;
 	getWidth(): number;
 	setWidth(width: number): void;
@@ -627,6 +628,7 @@ export class FloatingAuxiliaryBarController extends Disposable {
 
 	private updateTitle(): void {
 		const title = this.host.getTitle();
+		this.resizable.domNode.classList.toggle('changes-view-active', this.host.isChangesViewActive());
 		this.titleIcon.className = `floating-details-icon ${ThemeIcon.asClassName(this.host.getIcon() ?? detailsIcon)}`;
 		this.titleText.textContent = title;
 		this.toggleViewItem.setIcon(this.state === 'pinned' ? pinnedIcon : keepExpandedIcon);

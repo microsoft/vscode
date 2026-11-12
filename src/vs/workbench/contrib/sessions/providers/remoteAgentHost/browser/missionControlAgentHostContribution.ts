@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { cloudSandboxAddress, cloudSandboxEnvironmentId } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { IMissionControlEnvironmentService, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IMissionControlEnvironmentService, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -49,6 +49,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		@IMissionControlSharingService sharingService: IMissionControlSharingService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
+		@IRemoteGitHubEnvironmentSharingService private readonly _remoteSharing: IRemoteGitHubEnvironmentSharingService,
 	) {
 		super(remoteAgentHostService, configurationService, instantiationService, sessionsProvidersService, notificationService);
 		const updateProjects = () => sharingService.setProjectFolders(recentWorkspacesService
@@ -70,6 +71,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			this._inventory.hosts.read(reader);
 			this._inventory.discoveredOnlineHostIds.read(reader);
 			this._inventory.ownEnvironmentId.read(reader);
+			this._remoteSharing.environmentIds.read(reader);
 			this._reconcile();
 			this._requestAutoConnections();
 		}));
@@ -120,9 +122,10 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}
 		const ownEnvironmentId = this._inventory.ownEnvironmentId.get();
 		const discoveredOnlineHostIds = this._inventory.discoveredOnlineHostIds.get();
+		const sharedRemoteEnvironmentIds = this._remoteSharing.environmentIds.get();
 		for (const host of this._inventory.hosts.get()) {
 			const provider = this._providerInstances.get(cloudSandboxAddress(host.id));
-			if (host.id === ownEnvironmentId || host.status !== 'online' || !discoveredOnlineHostIds.has(host.id) || !provider
+			if (host.id === ownEnvironmentId || sharedRemoteEnvironmentIds.has(host.id) || host.status !== 'online' || !discoveredOnlineHostIds.has(host.id) || !provider
 				|| !this.isWebPlatform && !this._storageService.getBoolean(this._previouslyConnectedKey(host.id, account), StorageScope.PROFILE, false)
 				|| this._storageService.getBoolean(this._autoConnectSuppressionKey(host.id, account), StorageScope.PROFILE, false)
 				|| !RemoteAgentHostConnectionStatus.isDisconnected(provider.connectionStatus.get())) {
@@ -261,8 +264,9 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			},
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
 			readOnlyWhenDisconnected: true,
-			// This computer's own registration runs sessions directly as This Computer.
+			// This computer's own registration runs sessions directly as This Computer, and remotes shared from here are listed by their direct connections.
 			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) !== id
+				&& !this._remoteSharing.environmentIds.read(reader).has(id)
 				&& this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
 			localRegistration: derived(this, reader => this._inventory.ownEnvironmentId.read(reader) === id ? 'githubEnvironment' : undefined),
 			pickerVisibilityKey: getRemoteAgentHostPickerKey(cloudSandboxAddress(id), account),
