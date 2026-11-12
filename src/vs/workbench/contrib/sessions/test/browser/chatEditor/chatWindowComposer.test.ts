@@ -448,6 +448,28 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a composer that aims at the folder its host aimed it at follows its host to another folder, such as where the window\'s folder moved; not once the user picked another folder, nor from a folder it does not aim at', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService } = createServices(store);
+		const composers = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const composer = store.add(composers.create(URI.parse('vscode-agents-composer:/retarget'), { target: { folderUri: URI.file('/repo'), providerId: 'provider' } }, async () => { }));
+		const retargets: string[] = [];
+		store.add(composer.onDidRetarget(target => retargets.push(`${target.folderUri?.path} ${target.providerId}`)));
+		const aimsAt = () => composer.requestedTarget.get()?.folderUri?.path;
+
+		const moved = { done: composer.retargetFolder(URI.file('/repo.worktrees/a'), URI.file('/repo')), aimsAt: aimsAt() };
+		const fromElsewhere = { done: composer.retargetFolder(URI.file('/repo.worktrees/b'), URI.file('/repo')), aimsAt: aimsAt() };
+		composer.setRequestedTarget({ folderUri: URI.file('/repo.worktrees/c') }, 'user');
+		const userPicked = { done: composer.retargetFolder(URI.file('/repo')), aimsAt: aimsAt() };
+
+		assert.deepStrictEqual({ moved, fromElsewhere, userPicked, retargets }, {
+			moved: { done: true, aimsAt: '/repo.worktrees/a' },
+			fromElsewhere: { done: false, aimsAt: '/repo.worktrees/a' },
+			userPicked: { done: false, aimsAt: '/repo.worktrees/c' },
+			retargets: ['/repo.worktrees/a provider'],
+		});
+	});
+
 	test('the composers of chat windows are stored as the state is saved, not as their input changes, with what they aim for, their group, their input and a send that did not end; they restore as a composer with that input or with what the send sent, or as the session a send started; a discarded composer and a malformed entry are not stored', async () => {
 		const store = disposables.add(new DisposableStore());
 		const started = createSession('started', { folder: '/repo', status: constObservable(SessionStatus.Completed) });

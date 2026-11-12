@@ -8919,6 +8919,24 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
+	test('the window\'s folder at one of its worktrees shows as that worktree, by its icon and branch, also on the trigger; its primary location as a folder', () => {
+		const { picker } = createPicker(['/local/vscode.worktrees/a', '/local/vscode'], undefined, {
+			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode.worktrees/a' ? { uri: folderUri, label: 'a', description: 'feature-a', icon: Codicon.gitBranchCheckout } : undefined,
+		});
+		picker.setSelectedWorkspace(URI.file('/local/vscode.worktrees/a'), { fireEvent: false });
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{ label: 'Workspace', ariaLabel: 'Choose a workspace', icon: Codicon.project, reflectsWorkspace: true, attachesContext: false }]);
+		const trigger = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger [role="button"]')!;
+
+		assert.deepStrictEqual({
+			items: picker.getItems().map(item => `${item.label} ${item.group?.icon?.id}${item.description ? ` (${item.description})` : ''}${item.item?.checked ? ' *' : ''}`),
+			trigger: { label: trigger.getAttribute('aria-label'), worktreeIcon: !!trigger.querySelector(`.${ThemeIcon.asClassNameArray(Codicon.gitBranchCheckout).join('.')}`) },
+		}, {
+			items: ['a git-branch-checkout (feature-a) *', 'local/vscode folder'],
+			trigger: { label: 'Workspace: a', worktreeIcon: true },
+		});
+	});
+
 	test('a selected folder that leaves the window gives way to the window\'s first folder', () => {
 		const { picker, allowedFolders } = createPicker(['/local/a', '/local/b']);
 		const selections: string[] = [];

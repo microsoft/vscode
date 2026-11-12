@@ -188,7 +188,7 @@ suite('AgentsViewFolderLocation', () => {
 	}
 
 	test('a linked checkout shows with the git worktree icon, as the composer\'s folder picker shows a worktree', async () => {
-		const provider = new AgentsViewFolderLocationProvider(fileService);
+		const provider = new AgentsViewFolderLocationProvider(fileService, new NullLogService());
 
 		const location = await provider.resolveLocation(URI.file('/work/vscode'), URI.file('/work/vscode.worktrees/feature'), CancellationToken.None);
 
@@ -196,24 +196,31 @@ suite('AgentsViewFolderLocation', () => {
 	});
 
 	test('a linked checkout is described by its branch, the short commit of a detached HEAD, or nothing without HEAD', async () => {
-		const provider = new AgentsViewFolderLocationProvider(fileService);
+		const provider = new AgentsViewFolderLocationProvider(fileService, new NullLogService());
 		const describe = async (name: string) => (await provider.resolveLocation(URI.file('/work/vscode'), URI.file(`/work/vscode.worktrees/${name}`), CancellationToken.None))?.description;
 
 		assert.deepStrictEqual({ branch: await describe('feature'), detached: await describe('detached'), withoutHead: await describe('headless') }, { branch: 'agents/feature', detached: '0123456', withoutHead: undefined });
 	});
 
-	test('the locations of a folder are its linked checkouts, read with the primary\'s real path once, and none once cancelled', async () => {
+	test('the locations of a folder are its linked checkouts, read with the primary\'s real path once, also past one that fails to read, and none once cancelled', async () => {
 		const realpaths: string[] = [];
 		const listing = upcastPartial<IFileService>({
 			...fileService,
 			resolve: async (resource: URI) => upcastPartial<IFileStatWithMetadata>({
 				children: resource.path === '/work/vscode/.git/worktrees'
-					? ['feature', 'detached', 'headless'].map(name => upcastPartial<IFileStatWithMetadata>({ resource: URI.file(`/work/vscode/.git/worktrees/${name}`), isDirectory: true }))
+					? ['feature', 'broken', 'detached', 'headless'].map(name => upcastPartial<IFileStatWithMetadata>({ resource: URI.file(`/work/vscode/.git/worktrees/${name}`), isDirectory: true }))
 					: [],
 			}),
 			realpath: async (resource: URI) => { realpaths.push(resource.path); return resource; },
+			// A worktree that fails to read, as one whose folder another process removes
+			readFile: async (resource: URI) => {
+				if (resource.path === '/work/vscode/.git/worktrees/broken/gitdir') {
+					throw new Error('EIO');
+				}
+				return fileService.readFile(resource);
+			},
 		});
-		const provider = new AgentsViewFolderLocationProvider(listing);
+		const provider = new AgentsViewFolderLocationProvider(listing, new NullLogService());
 		const locations = (await provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None)).map(location => location.label);
 		const primaryRealpaths = realpaths.filter(path => path === '/work/vscode').length;
 		const cancellation = new CancellationTokenSource();
@@ -225,7 +232,7 @@ suite('AgentsViewFolderLocation', () => {
 	});
 
 	test('the alternate locations of a folder are its linked checkouts, which git links both ways', async () => {
-		const provider = new AgentsViewFolderLocationProvider(fileService);
+		const provider = new AgentsViewFolderLocationProvider(fileService, new NullLogService());
 		const resolve = async (path: string) => (await provider.resolveLocation(URI.file('/work/vscode'), URI.file(path), CancellationToken.None))?.label ?? 'none';
 
 		assert.deepStrictEqual({
