@@ -485,7 +485,7 @@ suite('Event', function () {
 		}
 	});
 
-	test('Emitter generates stable names for unnamed leak warnings', () => {
+	test('Emitter lazily generates stable names for unnamed leak warnings', () => {
 		const consoleWarn = stub(console, 'warn');
 		const errors: Error[] = [];
 		const listeners = ds.add(new DisposableStore());
@@ -493,6 +493,7 @@ suite('Event', function () {
 		try {
 			const first = ds.add(new Emitter<void>({ onListenerError: error => errors.push(error) }));
 			const second = ds.add(new Emitter<void>({ onListenerError: error => errors.push(error) }));
+			assert.deepStrictEqual([Reflect.get(first, '_leakWarningName'), Reflect.get(second, '_leakWarningName')], [undefined, undefined]);
 			restoreThreshold.dispose();
 			restoreThreshold = undefined;
 
