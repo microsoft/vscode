@@ -337,7 +337,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	async clearGlobalStorage(): Promise<void> {
 		const browserSession = BrowserSession.getOrCreateGlobal(this.instantiationService);
 		browserSession.connectStorage(this.applicationStorageMainService);
-		browserSession.addHostWindow(host.windowId);
 		await browserSession.clearData();
 	}
 
@@ -436,6 +435,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				throw new Error(`No proxy is available for browser network '${browserSession.network.authority}'`);
 			}
 			browserSession.remote.acquire(id, proxyInfo);
+			browserSession.addHostView(id, host.windowId);
 		}
 
 		const view = this.instantiationService.createInstance(
@@ -467,6 +467,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 		Event.once(view.onDidClose)(() => {
 			browserSession.remote.release(id);
+			browserSession.removeHostView(id);
 			this.browserViews.deleteAndDispose(id);
 		});
 

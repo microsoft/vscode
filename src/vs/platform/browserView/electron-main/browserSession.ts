@@ -447,14 +447,19 @@ export class BrowserSession {
 		});
 	}
 
-	private readonly _hostWindowIds = new Set<number>();
+	/** The window of each live view on this session's network, keyed by view id. */
+	private readonly _hostViews = new Map<string, number>();
 
 	/**
-	 * Record a window that hosts a view of this session. Remote `file:` requests are read through such a window,
+	 * Record the window of a live view. Remote `file:` requests are read through such a window,
 	 * which is connected to the session's remote because it resolved the session's network.
 	 */
-	addHostWindow(windowId: number): void {
-		this._hostWindowIds.add(windowId);
+	addHostView(viewId: string, windowId: number): void {
+		this._hostViews.set(viewId, windowId);
+	}
+
+	removeHostView(viewId: string): void {
+		this._hostViews.delete(viewId);
 	}
 
 	/**
@@ -469,7 +474,7 @@ export class BrowserSession {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 
-		const window = [...this._hostWindowIds].map(id => this.windowsMainService.getWindowById(id)).find(isDefined);
+		const window = [...this._hostViews.values()].map(id => this.windowsMainService.getWindowById(id)).find(isDefined);
 		if (!window) {
 			return new Response(localize('browserSession.remoteUnavailable', 'The remote connection is not available.'), { status: 503 });
 		}
