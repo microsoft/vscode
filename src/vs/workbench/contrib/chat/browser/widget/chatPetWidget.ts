@@ -3243,7 +3243,7 @@ export class ChatPetWidget extends Disposable {
 		const platform = getChatPetFallTarget(input.left + input.width / 2, movement.top - 1, 0, 0, this._getPlatforms(), input.top).platform;
 		const { left, right } = this._getSubagentHorizontalBounds(overlay, input, movement, platform);
 		const bottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
-		const height = Math.min(CHAT_PET_SUBAGENT_MAX_HEIGHT, bottom - (movement.top - overlay.top));
+		const height = bottom - (movement.top - overlay.top);
 		const width = right - left;
 		if (width < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE || height < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE) {
 			return;
@@ -3280,12 +3280,11 @@ export class ChatPetWidget extends Disposable {
 		// The input's top edge is the floor; the movement bounds also include the input itself.
 		const maximumBottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
 		const width = maximumRight - minimumLeft;
-		const height = Math.min(CHAT_PET_SUBAGENT_MAX_HEIGHT, maximumBottom - minimumTop);
+		const height = maximumBottom - minimumTop;
 		if (width < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE || height < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE) {
 			return;
 		}
 		const pets = activePets.map(pet => ({
-			element: pet.element,
 			left: Number.parseFloat(pet.element.style.left),
 			top: Number.parseFloat(pet.element.style.top),
 			size: CHAT_PET_DISPLAY_SIZE * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale')),
@@ -3297,7 +3296,6 @@ export class ChatPetWidget extends Disposable {
 			if (!this._subagentResizeScheduler.isScheduled()) {
 				this._subagentResizeScheduler.schedule();
 			}
-			return;
 		}
 	}
 
@@ -3335,9 +3333,9 @@ export class ChatPetWidget extends Disposable {
 	private _setScale(scale: number): void {
 		this._stopJumpGame('restore');
 		this._scale = scale;
+		const miniScale = scale * 0.5;
 		for (const pet of this._subagentPets.values()) {
 			const previousScale = Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale'));
-			const miniScale = scale * 0.5;
 			pet.element.style.top = `${Number.parseFloat(pet.element.style.top) + CHAT_PET_DISPLAY_SIZE * (previousScale - miniScale)}px`;
 			pet.element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
 		}
