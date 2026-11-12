@@ -130,6 +130,9 @@ suite('Dev Container samples', () => {
 					stdout = args[1] === 'ls' ? (existing ? volumeName : '')
 						: args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath })
 							: volumeName;
+				} else if (args[0] === 'ps') {
+					calls.push('ps');
+					stdout = existing ? 'exited\n' : '';
 				} else {
 					const clone = args.includes('/bin/sh');
 					calls.push(clone ? 'clone' : 'read config');
@@ -186,8 +189,8 @@ suite('Dev Container samples', () => {
 			config: JSON.parse(await readFile(join(sampleDirectory, 'devcontainer.json'), 'utf8')),
 		}, {
 			calls: [`resolve microsoft/${folder}@HEAD`, `read microsoft/${folder}@${commit}/.devcontainer/devcontainer.json`,
-				'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
-				'volume ls', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks'],
+				'volume ls', 'volume create', 'volume inspect', 'ps', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
+				'volume ls', 'volume inspect', 'ps', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks'],
 			leases: { acquired: 1, released: 1 },
 			cloneUsesLowercaseUrl: [true, true],
 			cloneUsesPinnedCommit: [true, true],
@@ -351,6 +354,44 @@ suite('Dev Container samples', () => {
 			});
 		});
 	}
+
+	test('keeps existing sample user state folders when the container was already running', async () => {
+		const config = { image: 'sample-image' };
+		const run = async (ps: CommandResult) => {
+			const calls: string[] = [];
+			await prepareDevContainerSample(sample, cacheDirectory, {
+				onContainerStarted: () => { },
+				readSource: async () => ({ commitSha: commit, content: JSON.stringify(config) }),
+				docker: async args => {
+					if (args[0] === 'ps') {
+						calls.push(`ps ${args.filter(arg => arg.startsWith('label=')).length} labels`);
+						return ps;
+					}
+					return {
+						stdout: args[0] === 'volume'
+							? args[1] === 'ls' ? getDevContainerSampleVolumeName(sample, []) : JSON.stringify({ 'vsch.local.repository': repositoryPath })
+							: args.includes('cat') ? JSON.stringify(config) : '',
+						stderr: '', code: 0,
+					};
+				},
+				devcontainer: async args => {
+					calls.push(args[0]);
+					return sampleUpResult;
+				},
+				linkUserState: async (_containerId, _remoteUser, _selectorArgs, _configuration, keepExistingFolders) => {
+					calls.push(`link keep: ${keepExistingFolders}`);
+				},
+			});
+			return calls;
+		};
+		const calls = (keep: boolean) => ['ps 4 labels', 'up', `link keep: ${keep}`, 'run-user-commands'];
+		assert.deepStrictEqual({
+			new: await run({ stdout: '', stderr: '', code: 0 }),
+			exited: await run({ stdout: 'exited\n', stderr: '', code: 0 }),
+			running: await run({ stdout: 'exited\nrunning\n', stderr: '', code: 0 }),
+			failed: await run({ stdout: '', stderr: 'permission denied', code: 1 }),
+		}, { new: calls(false), exited: calls(false), running: calls(true), failed: calls(true) });
+	});
 
 	test('links sample user state with the checkout\'s remoteEnv HOME when the cached configuration has another', async () => {
 		const cached = { image: 'sample-image', remoteEnv: { HOME: '/cached/home' } };

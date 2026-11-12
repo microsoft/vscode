@@ -56,7 +56,7 @@ import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevC
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, isDevContainerRunning, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -350,14 +350,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					workspaceSelector = ['--workspace-folder', config.workspaceFolder, ...sandbox.args];
 					sandboxEnvironment = sandbox.environment;
 				}
-				const userStateMountArgs = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, config.workspaceFolder, tokenSource.token) : [];
+				const userStateMount = config.persistUserState ? await this._getUserStateMountArgs(config.connectionId, configuration, config.workspaceFolder, tokenSource.token) : { args: [], keepExistingFolders: true };
 				const selectorArgs = typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector;
 				const up = await this._runDevContainerStage(
 					config.connectionId,
 					'up',
 					!!config.persistUserState,
 					// Lifecycle commands run after linking user state, so their changes to it persist.
-					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMountArgs, ...config.persistUserState ? ['--skip-post-create'] : []],
+					['up', ...DEV_CONTAINER_LOG_ARGS, ...selectorArgs, ...cacheMountArgs, ...userStateMount.args, ...config.persistUserState ? ['--skip-post-create'] : []],
 					tokenSource.token,
 					sandboxEnvironment,
 					parseDevContainerUpResult,
@@ -368,7 +368,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				upResult = up.parsed;
 				registerContainer(upResult.containerId);
 				// Containers created with the setting on keep their volume, so they are linked even if it is off now.
-				const homeFolder = await this._linkUserState(config.connectionId, upResult.containerId, upResult.remoteUser, !!config.persistUserState, tokenSource.token, {
+				const homeFolder = await this._linkUserState(config.connectionId, upResult.containerId, upResult.remoteUser, !!config.persistUserState, userStateMount.keepExistingFolders, tokenSource.token, {
 					selectorArgs,
 					environment: sandboxEnvironment,
 					remoteEnvSetsHome: async () => {
@@ -528,9 +528,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const { stdout, stderr, code } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
 				return { stdout, stderr, code };
 			},
-			linkUserState: async (containerId, remoteUser, selectorArgs, configuration) => {
+			linkUserState: async (containerId, remoteUser, selectorArgs, configuration, keepExistingFolders) => {
 				errorValues = {
-					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, token, {
+					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, keepExistingFolders, token, {
 						selectorArgs,
 						environment: undefined,
 						remoteEnvSetsHome: async () => devContainerRemoteEnvSetsHome([configuration]) || this._containerMetadataSetsHome(containerId, token),
@@ -594,9 +594,14 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return [];
 	}
 
-	private async _getUserStateMountArgs(connectionId: string, configuration: Promise<string>, workspaceFolder: string, token: CancellationToken): Promise<readonly string[]> {
+	/**
+	 * Mount arguments for a new container's user state volume. Existing folders in the home folders are kept when linking
+	 * unless the container is new or was stopped, so no process may be using them.
+	 */
+	private async _getUserStateMountArgs(connectionId: string, configuration: Promise<string>, workspaceFolder: string, token: CancellationToken): Promise<{ readonly args: readonly string[]; readonly keepExistingFolders: boolean }> {
 		let reason = 'config';
 		let target: string | undefined;
+		let keepExistingFolders = true;
 		try {
 			const output = await configuration;
 			const { content, error } = devContainerStateConfigurationValidator.validate(JSON.parse(output));
@@ -610,19 +615,21 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			target = getDevContainerStateTargetKind(mountTarget);
 			// Only new containers get the mount; adding it to an existing Compose container could recreate it.
 			reason = 'listContainers';
-			const existing = await this._runDocker(['ps', '-a', '-q', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
+			const existing = await this._runDocker(['ps', '-a', '--format', '{{.State}}', ...idLabels.flatMap(label => ['--filter', `label=${label}`])], token);
 			if (existing.code !== 0) {
 				throw new Error(`Cannot list Docker containers (exit ${existing.code}): ${existing.stderr}`);
 			}
-			if (existing.stdout.trim()) {
+			const states = existing.stdout.split(/\r?\n/).filter(state => state.trim());
+			keepExistingFolders = states.some(isDevContainerRunning);
+			if (states.length) {
 				this._logService.info(`${LOG_PREFIX} Keeping existing container mounts; only new containers keep user state on a volume`);
 				this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'existingContainer', target });
-				return [];
+				return { args: [], keepExistingFolders };
 			}
 			reason = 'volume';
 			await this._ensureUserStateVolume(idLabels, token);
 			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'added', target });
-			return ['--mount', getDevContainerStateMount(idLabels, mountTarget)];
+			return { args: ['--mount', getDevContainerStateMount(idLabels, mountTarget)], keepExistingFolders };
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw error;
@@ -630,7 +637,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			this._logService.warn(`${LOG_PREFIX} Cannot add user state volume mount`, error);
 			this._reportOutput(connectionId, `Cannot add user state volume mount: ${getErrorMessage(error)}\n`);
 			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'failed', reason, target, errorMessage: sanitizeDevContainerStateErrorMessage([getErrorMessage(error)]) });
-			return [];
+			return { args: [], keepExistingFolders };
 		}
 	}
 
@@ -658,9 +665,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	/**
 	 * Links user state folders to the container's user state volume, if it has one. `enabled` is whether the setting is on.
+	 * `keepExistingFolders` is whether the container was running before `up`, so its processes may be using the folders.
 	 * Returns the container user's home folder if it was read.
 	 */
-	private async _linkUserState(connectionId: string, containerId: string, remoteUser: string | undefined, enabled: boolean, token: CancellationToken, userQuery: IDevContainerUserQuery): Promise<string | undefined> {
+	private async _linkUserState(connectionId: string, containerId: string, remoteUser: string | undefined, enabled: boolean, keepExistingFolders: boolean, token: CancellationToken, userQuery: IDevContainerUserQuery): Promise<string | undefined> {
 		let reason = 'inspect';
 		let target: string | undefined;
 		let exitCode: number | undefined;
@@ -707,6 +715,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				uid,
 				gid,
 				serverDataFolderName: this._productService.serverDataFolderName ?? '.vscode-server-oss',
+				keepExistingFolders,
 			});
 			reason = 'script';
 			const linked = await this._runLocalCommand('docker', ['exec', '--user', 'root', containerId, '/bin/sh', '-c', command], environment, token);

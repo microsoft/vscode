@@ -77,6 +77,19 @@ suite('DevContainerState', () => {
 		]);
 	});
 
+	test('rejects the fallback target when a configured mount uses it too', () => {
+		const cases: Parameters<typeof getDevContainerStateMountTarget>[] = [
+			[{ mounts: ['source=data,target=/workspaces,type=volume', { source: 'other', target: '/.vscode-volume/', type: 'volume' }] }],
+			[{ runArgs: ['-v', 'data:/workspaces', '--mount=type=volume,source=other,target=/.vscode-volume'] }],
+			[{ workspaceMount: 'source=/src,target=/.vscode-volume,type=bind' }],
+			[{ dockerComposeFile: 'compose.yml' }, ['type=volume,source=other,target=//.vscode-volume']],
+		];
+		for (const args of cases) {
+			assert.throws(() => getDevContainerStateMountTarget(...args), /Both \/workspaces and \/\.vscode-volume may already be mounted/, JSON.stringify(args));
+		}
+		assert.strictEqual(getDevContainerStateMountTarget({ mounts: ['source=other,target=/.vscode-volume,type=volume'] }), devContainerStateWorkspacesTarget);
+	});
+
 	test('names state volumes after the folder and labels them with the prefixed id labels', () => {
 		const projectLabels = ['devcontainer.config_file=/home/user/project/.devcontainer/devcontainer.json', 'devcontainer.local_folder=/home/user/project'];
 		const names = [
@@ -157,8 +170,10 @@ suite('DevContainerState', () => {
 	});
 
 	(isWindows ? test.skip : test)('builds a valid shell script', () => {
-		const result = spawnSync('/bin/sh', ['-n', '-c', buildLinkDevContainerStateCommand({ ...linkOptions, homeFolder: '/home/o\'brien' })], { encoding: 'utf8' });
-		assert.deepStrictEqual({ status: result.status, stderr: result.stderr }, { status: 0, stderr: '' });
+		for (const keepExistingFolders of [false, true]) {
+			const result = spawnSync('/bin/sh', ['-n', '-c', buildLinkDevContainerStateCommand({ ...linkOptions, homeFolder: '/home/o\'brien', keepExistingFolders })], { encoding: 'utf8' });
+			assert.deepStrictEqual({ status: result.status, stderr: result.stderr }, { status: 0, stderr: '' });
+		}
 	});
 
 	test('parses link progress for telemetry', () => {
@@ -172,6 +187,7 @@ suite('DevContainerState', () => {
 			'vscode-state:skip:symlink',
 			'vscode-state:skip:mounted',
 			'vscode-state:skip:mounted',
+			'vscode-state:skip:running',
 			'vscode-state:skip:/home/node',
 			'vscode-state:step:/home/node',
 			'unrelated output',
@@ -181,7 +197,7 @@ suite('DevContainerState', () => {
 			parseLinkDevContainerStateOutput('vscode-state:step:volume\nvscode-state:step:home\nvscode-state:noHome\n'),
 			parseLinkDevContainerStateOutput(''),
 		], [
-			{ step: 'folders', homeFound: true, restoredFolders: 1, movedFolders: 2, createdFolders: 1, existingFolders: 1, skippedFolders: 4, skipReasons: 'mounted,symlink,unknown' },
+			{ step: 'folders', homeFound: true, restoredFolders: 1, movedFolders: 2, createdFolders: 1, existingFolders: 1, skippedFolders: 5, skipReasons: 'mounted,running,symlink,unknown' },
 			{ step: 'home', homeFound: false, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
 			{ step: undefined, homeFound: true, restoredFolders: 0, movedFolders: 0, createdFolders: 0, existingFolders: 0, skippedFolders: 0, skipReasons: '' },
 		]);

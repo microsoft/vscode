@@ -121,7 +121,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		{ Type: 'volume', Source: '/volumes/vscode', Destination: '/vscode', Name: 'vscode' },
 	];
 	containerMountsError: Error | undefined;
-	existingContainerIds: readonly string[] = [];
+	/** States of existing containers, see `docker ps --format {{.State}}`. */
+	existingContainerStates: readonly string[] = [];
 	/** Docker volumes and their labels. */
 	readonly volumes = new Map<string, Record<string, string>>();
 	volumeCreateExitCode = 0;
@@ -201,7 +202,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.resolve({ stdout: `${this.containerSessionIds.join('\n')}\n`, stderr: '', code: 0 });
 		}
 		if (args[0] === 'ps') {
-			return Promise.resolve({ stdout: this.existingContainerIds.map(id => `${id}\n`).join(''), stderr: '', code: 0 });
+			return Promise.resolve({ stdout: this.existingContainerStates.map(state => `${state}\n`).join(''), stderr: '', code: 0 });
 		}
 		if (args[0] === 'volume' && args[1] === 'ls') {
 			return Promise.resolve({ stdout: [...this.volumes.keys()].map(name => `${name}\n`).join(''), stderr: '', code: 0 });
@@ -1189,7 +1190,7 @@ suite('Dev Container Agent Host Main Service', () => {
 	test('does not add the user state mount to an existing container', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
-		service.existingContainerIds = ['container-id'];
+		service.existingContainerStates = ['exited'];
 		const reports: IDevContainerAgentHostUserStateReport[] = [];
 		store.add(service.onDidReportUserState(report => reports.push(report)));
 		await service.connect({ connectionId: 'existing', workspaceFolder: '/workspace', name: 'Project', persistUserState: true });
@@ -1198,6 +1199,26 @@ suite('Dev Container Agent Host Main Service', () => {
 			volumeCreated: service.dockerCommands.some(args => args[0] === 'volume' && args[1] === 'create'),
 			reports: reports.map(({ stage, outcome }) => `${stage}:${outcome}`),
 		}, { upArgs: ['--skip-post-create'], volumeCreated: false, reports: ['mount:existingContainer', 'up:succeeded', 'link:noMount', 'userCommands:succeeded'] });
+	});
+
+	test('keeps existing user state folders when the container was already running', async () => {
+		const run = async (states: readonly string[], persistUserState = true) => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
+			service.existingContainerStates = states;
+			service.containerMounts = [...service.containerMounts, { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` }];
+			service.linkStateResult = { stdout: 'vscode-state:step:folders\n', code: 0 };
+			await service.connect({ connectionId: 'running', workspaceFolder: '/workspace', name: 'Project', persistUserState });
+			const link = service.localCommands.find(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
+			return /^keep_existing=(.*)$/m.exec(link?.args.at(-1) ?? '')?.[1];
+		};
+		assert.deepStrictEqual({
+			new: await run([]),
+			exited: await run(['exited', 'created']),
+			running: await run(['exited', 'running']),
+			paused: await run(['Paused']),
+			settingOff: await run(['exited'], false),
+		}, { new: '', exited: '', running: '1', paused: '1', settingOff: '1' });
 	});
 
 	test('reuses its state volume and rejects a volume of another dev container with the same name', async () => {
@@ -1235,6 +1256,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		const configuration = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
 		const stateMount = { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` };
 		const scenarios: { name: string; setup: (service: TestDevContainerAgentHostMainService) => void }[] = [
+			{ name: 'config', setup: service => service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' }, mounts: ['source=data,target=/workspaces,type=volume', 'source=other,target=/.vscode-volume,type=volume'] }, mergedConfiguration: { mounts: [] } }) },
 			{ name: 'volume', setup: service => service.volumeCreateExitCode = 1 },
 			{ name: 'upRun', setup: service => service.failDevContainerUp = true },
 			{ name: 'upExitCode', setup: service => service.upExitCode = 1 },
@@ -1263,6 +1285,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		const up = { stage: 'up', outcome: 'succeeded' } as const;
 		const succeeded = { stage: 'userCommands', outcome: 'succeeded' } as const;
 		assert.deepStrictEqual(results, {
+			config: { connected: true, reports: [{ stage: 'mount', outcome: 'failed', reason: 'config', target: undefined, errorMessage: 'Both /workspaces and /.vscode-volume may already be mounted' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
 			volume: { connected: true, reports: [{ stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces', errorMessage: 'Cannot create Docker volume vscode-state-<name> (exit 1): volume create failed' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
 			upRun: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'run', errorMessage: 'devcontainer up failed' }] },
 			upExitCode: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'An error occurred setting up the container.\nCommand failed: docker run <args>\nError response from daemon: invalid mount config.' }] },

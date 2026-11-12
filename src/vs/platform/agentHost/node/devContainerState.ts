@@ -32,7 +32,7 @@ const serverStateFolders = ['data/User/globalStorage', 'data/User/workspaceStora
 const homeStateFolders = ['.copilot'];
 const linkProgressPrefix = 'vscode-state:';
 const linkSteps = ['volume', 'stateFolder', 'statePath', 'stateLink', 'home', 'mountinfo', 'folders'];
-const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home'];
+const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home', 'running'];
 
 /** Computes the Dev Containers CLI's `${devcontainerId}` for the container's id labels. */
 export function getDevContainerId(idLabels: readonly string[]): string {
@@ -98,6 +98,11 @@ export function findDevContainerStateMount<T extends { readonly Type: string; re
 		&& [devContainerStateWorkspacesTarget, devContainerStateFallbackTarget].includes(normalizeMountTarget(mount.Destination)));
 }
 
+/** Whether a container's processes may be using its folders, from its Docker or Podman state, e.g., `{{.State}}` in `ps`. */
+export function isDevContainerRunning(state: string): boolean {
+	return ['running', 'paused', 'restarting'].includes(state.trim().toLowerCase());
+}
+
 export interface IDevContainerStateMountConfiguration {
 	readonly dockerComposeFile?: unknown;
 	readonly workspaceMount?: unknown;
@@ -105,16 +110,26 @@ export interface IDevContainerStateMountConfiguration {
 	readonly runArgs?: unknown;
 }
 
-/** Uses /workspaces unless Compose or a configured mount could conflict with a volume there. */
+/**
+ * Uses /workspaces unless Compose or a configured mount could conflict with a volume there. Throws if a configured mount
+ * also uses the fallback target.
+ */
 export function getDevContainerStateMountTarget(configuration: IDevContainerStateMountConfiguration, additionalMounts: readonly unknown[] = []): string {
-	// Unresolved variables could resolve to /workspaces. Checks all paths in a value, e.g., a mount's source and target in runArgs.
-	const mayUseWorkspaces = (value: unknown) => typeof value === 'string' && (value.includes('${') || value.split(/[=:,\s]/).some(part => part.startsWith('/') && normalizeMountTarget(part) === devContainerStateWorkspacesTarget));
-	const mounts = [...Array.isArray(configuration.mounts) ? configuration.mounts : [], ...additionalMounts];
+	// Checks all paths in a value, e.g., a mount's source and target in runArgs.
+	const usesPath = (value: unknown, path: string) => typeof value === 'string' && value.split(/[=:,\s]/).some(part => part.startsWith('/') && normalizeMountTarget(part) === path);
+	// Unresolved variables could resolve to /workspaces.
+	const mayUseWorkspaces = (value: unknown) => typeof value === 'string' && (value.includes('${') || usesPath(value, devContainerStateWorkspacesTarget));
+	const mountTargets = [...Array.isArray(configuration.mounts) ? configuration.mounts : [], ...additionalMounts]
+		.map(mount => typeof mount === 'string' ? getMountTarget(mount) ?? mount : typeof mount === 'object' && mount !== null ? (mount as { readonly target?: unknown }).target : mount);
+	const runArgs: readonly unknown[] = Array.isArray(configuration.runArgs) ? configuration.runArgs : [];
 	const workspaceMountTarget = typeof configuration.workspaceMount === 'string' ? getMountTarget(configuration.workspaceMount) : undefined;
 	if (configuration.dockerComposeFile !== undefined
 		|| (configuration.workspaceMount !== undefined && (!workspaceMountTarget || !normalizeMountTarget(workspaceMountTarget).startsWith(`${devContainerStateWorkspacesTarget}/`) || workspaceMountTarget.includes('${')))
-		|| (Array.isArray(configuration.runArgs) && configuration.runArgs.some(mayUseWorkspaces))
-		|| mounts.some(mount => mayUseWorkspaces(typeof mount === 'string' ? getMountTarget(mount) ?? mount : typeof mount === 'object' && mount !== null ? (mount as { readonly target?: unknown }).target : mount))) {
+		|| runArgs.some(mayUseWorkspaces)
+		|| mountTargets.some(mayUseWorkspaces)) {
+		if ([workspaceMountTarget, ...runArgs, ...mountTargets].some(value => usesPath(value, devContainerStateFallbackTarget))) {
+			throw new Error(`Both ${devContainerStateWorkspacesTarget} and ${devContainerStateFallbackTarget} may already be mounted`);
+		}
 		return devContainerStateFallbackTarget;
 	}
 	return devContainerStateWorkspacesTarget;
@@ -151,11 +166,17 @@ export interface IDevContainerStateLinkOptions {
 	readonly uid: string;
 	readonly gid: string;
 	readonly serverDataFolderName: string;
+	/**
+	 * Keeps folders that exist in the home folders instead of moving them to the volume or replacing them with its state,
+	 * because the container was already running and its processes may be using them.
+	 */
+	readonly keepExistingFolders?: boolean;
 }
 
 /**
  * Links user state folders in the home folders to the state volume. Runs as root before the server or any
  * lifecycle command starts. Folders with a mount at, above or inside them are already persisted otherwise.
+ * When the container was already running, e.g., after an earlier link failed, see `keepExistingFolders`.
  */
 export function buildLinkDevContainerStateCommand(options: IDevContainerStateLinkOptions): string {
 	const { uid, gid, serverDataFolderName } = options;
@@ -187,6 +208,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		`user_home=${shellQuote(userHomeFolder)}`,
 		`owner=${shellQuote(`${uid}:${gid}`)}`,
 		`state_owner=${shellQuote(`0:${gid}`)}`,
+		`keep_existing=${options.keepExistingFolders ? '1' : ''}`,
 		`state="$volume/"${shellQuote(stateFolderName)}`,
 		`link_path=${shellQuote(devContainerStatePath)}`,
 		// Progress on stdout for telemetry, see `parseLinkDevContainerStateOutput`; messages go to stderr.
@@ -263,6 +285,8 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'    skip file "it is not a folder"; return 0',
 		'  fi',
 		'  if is_other "$dst"; then skip state "$state/$rel is not a folder"; return 0; fi',
+		// Moving or replacing a folder that is in use would lose the changes made to it meanwhile.
+		'  if [ -n "$keep_existing" ] && [ ! -L "$src" ] && [ -d "$src" ]; then skip running "it exists and the container was already running"; return 0; fi',
 		'  for parent in "$@"; do',
 		'    if [ ! -d "$home_prefix/$parent" ]; then',
 		'      mkdir "$home_prefix/$parent" || test -d "$home_prefix/$parent"',
