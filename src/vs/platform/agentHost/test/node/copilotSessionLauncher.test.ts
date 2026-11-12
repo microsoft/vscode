@@ -529,13 +529,20 @@ suite('CopilotSessionLauncher Microsoft account', () => {
 		assert.deepStrictEqual(f.calls, ['policy', 'create', 'authenticate', 'agents', 'disconnect']);
 	});
 
-	test('resume does not create, sign in or delete history after a history error', async () => {
-		const f = setup();
-		const failure = Object.assign(new Error('Session not found'), { code: -32603 });
-		f.client.resumeSession = async () => { f.calls.push('resume'); throw failure; };
-		await assert.rejects(f.launcher.launch(f.plan('resume'), testRuntime), failure);
-		assert.deepStrictEqual(f.calls, ['policy', 'resume']);
-	});
+	for (const emptyHistory of [true, false]) {
+		test(`a resume that fails ${emptyHistory ? 'for lack of history creates and signs in a replacement session' : 'for another reason neither creates nor signs in a session'}`, async () => {
+			const f = setup();
+			const failure = Object.assign(new Error(emptyHistory ? 'Session not found' : 'network fetch failed'), { code: -32603 });
+			f.client.resumeSession = async () => { f.calls.push('resume'); throw failure; };
+			const launching = f.launcher.launch(f.plan('resume'), testRuntime);
+			if (emptyHistory) {
+				store.add(await launching);
+			} else {
+				await assert.rejects(launching, failure);
+			}
+			assert.deepStrictEqual(f.calls, emptyHistory ? ['policy', 'resume', 'create', 'authenticate', 'agents'] : ['policy', 'resume']);
+		});
+	}
 });
 
 suite('CopilotSessionLauncher sandbox policy', () => {

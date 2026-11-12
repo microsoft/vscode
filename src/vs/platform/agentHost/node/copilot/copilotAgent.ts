@@ -1625,7 +1625,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					copilotClient,
 					sessionId,
 					this._copilotHomeService.home.fsPath,
-					this._getGitHubSessionCredentials(),
+					this._getSessionCredentials().githubCredentials,
 					this._getGitHubHostUri(),
 				);
 				const telemetryEnabledAtStart = isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
@@ -1923,10 +1923,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _getGitHubHostUri(): string {
 		return this._gitHubEndpointService.getEnterpriseUri() ?? 'https://github.com';
-	}
-
-	private _getGitHubSessionCredentials(chat?: URI): CopilotGitHubSessionCredentials {
-		return this._getSessionCredentials(chat).githubCredentials;
 	}
 
 	/** The credentials a session launched for a chat signs in with: the Microsoft account when one is selected and the chat has no scoped GitHub credential. */
@@ -10471,7 +10467,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _applyModelSelection(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, model: ModelSelection, token: CancellationToken): Promise<void> {
-		const policy = await this._managedSettingsResolver.resolve((await this._ensureClientForChat(context.chat)).rpc.managedSettings, this._getGitHubSessionCredentials(context.chat).token, entry.workingDirectory?.scheme === Schemas.file ? entry.workingDirectory.fsPath : undefined, token);
+		const policy = await this._managedSettingsResolver.resolve((await this._ensureClientForChat(context.chat)).rpc.managedSettings, this._getSessionCredentials(context.chat).githubCredentials.token, entry.workingDirectory?.scheme === Schemas.file ? entry.workingDirectory.fsPath : undefined, token);
 		const credentials = context.credentials ?? this._credentialSources.get(context.chatKey);
 		const catalog = this._getScopedModelCatalog(credentials);
 		const longContextWindow = this._longContextWindowFor(model.id, credentials ? catalog?.models ?? [] : undefined);
