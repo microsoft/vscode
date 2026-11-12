@@ -73,7 +73,8 @@ suite('Microsoft Copilot resource setup UI', () => {
 			signIn: undefined as Promise<void> | undefined, publication: undefined as Promise<void> | undefined,
 			activation: undefined as Promise<void> | undefined, retry: false,
 			discovery: undefined as DeferredPromise<void> | undefined,
-			challenge: undefined as ProtectedResourceMetadata | undefined,
+			challenge: undefined as ProtectedResourceMetadata | undefined, challengeBeforePublication: false,
+			refused: undefined as ProtectedResourceMetadata | undefined,
 			consentError: undefined as Error | undefined, finishDiscoveryOnCredential: false, progress: false,
 			cancelProgress: undefined as (() => void) | undefined,
 			picks: [] as (readonly IQuickPickItem[])[],
@@ -89,6 +90,8 @@ suite('Microsoft Copilot resource setup UI', () => {
 		const activationStarted = new DeferredPromise<void>();
 		const retryShown = new DeferredPromise<void>();
 		const challengeAnswered = new DeferredPromise<void>();
+		const consentFailed = new DeferredPromise<void>();
+		const isRefused = (scopes: readonly string[]) => !!state.refused?.scopes_supported?.every(scope => scopes.includes(scope));
 		const host = upcastPartial<IAgentHostService>({
 			connectionAvailable: available, rootState: subscription, onAgentHostExit: exited.event, onDidNotification: notifications.event,
 			startAgentHost() { },
@@ -104,8 +107,14 @@ suite('Microsoft Copilot resource setup UI', () => {
 				if (request.resource === discovery.resource) {
 					const pending = state.discovery;
 					if (state.challenge) {
+						const challenge: INotification = { type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: state.challenge, reason: AuthRequiredReason.Required };
+						if (state.challengeBeforePublication) {
+							notifications.fire(challenge);
+						}
 						publish([discovery, state.challenge]);
-						notifications.fire({ type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: state.challenge, reason: AuthRequiredReason.Required });
+						if (!state.challengeBeforePublication) {
+							notifications.fire(challenge);
+						}
 					}
 					void discoveryDelivered.complete();
 					await pending?.p;
@@ -180,17 +189,18 @@ suite('Microsoft Copilot resource setup UI', () => {
 				assert.deepStrictEqual([options?.clientId, options?.authorizationServer?.toString(), options?.account?.id], [copilotEntraClientId, discovery.authorization_servers![0], account.id]);
 				assert.ok(Array.isArray(scopes));
 				const granted = state.sessions.some(session => scopes.every(scope => session.scopes.includes(scope)));
-				return state.silentCredential && Array.isArray(scopes) && (!state.needsServiceConsent || scopes.includes('User.Read') || granted) ? [credential(scopes)] : [];
+				return state.silentCredential && !isRefused(scopes) && (!state.needsServiceConsent || scopes.includes('User.Read') || granted) ? [credential(scopes)] : [];
 			},
 			createSession: async (_provider, scopes, options) => {
 				calls.push('signIn');
 				assert.deepStrictEqual([options?.clientId, options?.authorizationServer?.toString()], [copilotEntraClientId, discovery.authorization_servers![0]]);
 				void signInStarted.complete();
 				await state.signIn;
-				if (state.consentError) {
+				assert.ok(Array.isArray(scopes));
+				if (state.consentError && (!state.refused || isRefused(scopes))) {
+					void consentFailed.complete();
 					throw state.consentError;
 				}
-				assert.ok(Array.isArray(scopes));
 				const session = credential(scopes);
 				state.sessions = [session];
 				return session;
@@ -201,52 +211,87 @@ suite('Microsoft Copilot resource setup UI', () => {
 		const runner = instantiation.createInstance(ChatSetup, context, new Lazy(() => controller));
 		const run = (cancellationToken?: CancellationTokenSource['token']) => runner.run({ setupStrategy: ChatSetupStrategy.SetupWithMicrosoftProvider, disableChatViewReveal: true, cancellationToken });
 		return {
-			host, publish, available, state, calls, deliveries, context, configuration, controller, requests, instantiation, run, account, credential, signInStarted, discoveryDelivered, activationStarted, notifications, retryShown, challengeAnswered,
+			host, publish, available, state, calls, deliveries, context, configuration, controller, requests, instantiation, run, account, credential, signInStarted, discoveryDelivered, activationStarted, notifications, retryShown, challengeAnswered, consentFailed,
 			disconnect: () => { available.set(false, undefined); exited.fire(0); }
 		};
 	}
 
-	test('answers nested consent while discovery is still pending', async () => {
-		const f = fixture();
-		const discovery = new DeferredPromise<void>();
-		f.state.discovery = discovery;
-		f.state.sessions = [f.credential(['User.Read'])];
-		f.state.offered = [services[0]];
-		f.state.challenge = services[0];
-		f.state.needsServiceConsent = true;
-		f.state.finishDiscoveryOnCredential = true;
-		const cancellation = store.add(new CancellationTokenSource());
-		const pending = f.run(cancellation.token);
-		try {
-			const result = await raceTimeout(pending, 500);
-			assert.deepStrictEqual({ success: result?.success, answered: f.challengeAnswered.isResolved, calls: f.calls, resources: f.deliveries.map(request => request.resource), scopes: f.state.sessions.map(session => session.scopes) }, {
-				success: true, answered: true, calls: ['signIn', 'install'], resources: [copilotEntraDiscoveryResource, services[0].resource, services[0].resource], scopes: [services[0].scopes_supported],
-			});
-		} finally {
-			cancellation.cancel();
-			await discovery.complete();
-			await pending;
-		}
-	});
+	for (const beforePublication of [false, true]) {
+		test(`answers nested consent while discovery is still pending${beforePublication ? ' when the challenge precedes its resource' : ''}`, async () => {
+			const f = fixture();
+			const discovery = new DeferredPromise<void>();
+			f.state.discovery = discovery;
+			f.state.sessions = [f.credential(['User.Read'])];
+			f.state.offered = [services[0]];
+			f.state.challenge = services[0];
+			f.state.challengeBeforePublication = beforePublication;
+			f.state.needsServiceConsent = true;
+			f.state.finishDiscoveryOnCredential = true;
+			const cancellation = store.add(new CancellationTokenSource());
+			const pending = f.run(cancellation.token);
+			try {
+				const result = await raceTimeout(pending, 500);
+				assert.deepStrictEqual({ success: result?.success, answered: f.challengeAnswered.isResolved, calls: f.calls, resources: f.deliveries.map(request => request.resource), scopes: f.state.sessions.map(session => session.scopes) }, {
+					success: true, answered: true, calls: ['signIn', 'install'], resources: [copilotEntraDiscoveryResource, services[0].resource, services[0].resource], scopes: [services[0].scopes_supported],
+				});
+			} finally {
+				cancellation.cancel();
+				await discovery.complete();
+				await pending;
+			}
+		});
+	}
 
-	test('declined nested consent shows failure immediately and Cancel retains sign-in', async () => {
+	for (const [kind, consentError] of [['refused', new Error('access_denied')], ['declined', new CancellationError()]] as const) {
+		test(`a ${kind} permission for one service does not fail setup when the host offers another`, async () => {
+			const f = fixture();
+			const pendingDiscovery = new DeferredPromise<void>();
+			f.state.discovery = pendingDiscovery;
+			f.state.sessions = [f.credential(['User.Read'])];
+			f.state.offered = [services[1]];
+			f.state.challenge = services[0];
+			f.state.refused = services[0];
+			f.state.consentError = consentError;
+			const cancellation = store.add(new CancellationTokenSource());
+			const pending = f.run(cancellation.token);
+			try {
+				await raceTimeout(f.consentFailed.p, 500);
+				f.notifications.fire({ type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: services[0], reason: AuthRequiredReason.Required });
+				const beforeHostResult = { returned: await raceTimeout(pending, 50) !== undefined, failureShown: f.retryShown.isSettled };
+				await pendingDiscovery.complete();
+				const result = await raceTimeout(pending, 500);
+				assert.deepStrictEqual({ beforeHostResult, success: result?.success, calls: f.calls, delivered: f.deliveries.map(request => request.resource) }, {
+					beforeHostResult: { returned: false, failureShown: false }, success: true, calls: ['signIn', 'install'], delivered: [discovery.resource, services[1].resource],
+				});
+			} finally {
+				cancellation.cancel();
+				await pendingDiscovery.complete();
+				await pending;
+			}
+		});
+	}
+
+	test('a declined permission leaves the outcome to the host, and Cancel after its failure retains sign-in', async () => {
 		const f = fixture();
 		const pendingDiscovery = new DeferredPromise<void>();
 		f.state.discovery = pendingDiscovery;
 		f.state.sessions = [f.credential(['User.Read'])];
 		f.state.challenge = services[0];
-		f.state.needsServiceConsent = true;
+		f.state.refused = services[0];
 		f.state.consentError = new CancellationError();
 		const cancellation = store.add(new CancellationTokenSource());
 		const pending = f.run(cancellation.token);
 		try {
+			await raceTimeout(f.consentFailed.p, 500);
+			const failureShownBeforeHostResult = await raceTimeout(pending, 50) !== undefined || f.retryShown.isSettled;
+			await pendingDiscovery.error(new Error('No usable service'));
 			const result = await raceTimeout(pending, 500);
 			assert.deepStrictEqual({
-				success: result?.success, handled: result?.errorAlreadyHandled, pending: !pendingDiscovery.isSettled,
+				failureShownBeforeHostResult, success: result?.success, handled: result?.errorAlreadyHandled,
 				calls: f.calls, revoked: f.deliveries.filter(request => !request.token).map(request => request.resource),
 				signedIn: f.state.sessions.length,
 			}, {
-				success: false, handled: true, pending: true, calls: ['signIn', 'retry'],
+				failureShownBeforeHostResult: false, success: false, handled: true, calls: ['signIn', 'retry'],
 				revoked: [discovery.resource], signedIn: 1,
 			});
 		} finally {
@@ -289,7 +334,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 	});
 
 	for (const cancelRetry of [false, true]) {
-		test(`Retry after declined consent stays in progress behind the old request${cancelRetry ? ' and can be cancelled' : ''}`, async () => {
+		test(`Retry after an early failure stays in progress behind the old request${cancelRetry ? ' and can be cancelled' : ''}`, async () => {
 			const f = fixture();
 			const oldDiscovery = new DeferredPromise<void>();
 			const newDiscovery = new DeferredPromise<void>();
@@ -312,13 +357,13 @@ suite('Microsoft Copilot resource setup UI', () => {
 			f.state.offered = [services[0]];
 			f.state.challenge = services[0];
 			f.state.needsServiceConsent = true;
-			f.state.consentError = new CancellationError();
 			f.state.retry = true;
 			const cancellation = store.add(new CancellationTokenSource());
 			const pending = f.run(cancellation.token);
 			try {
+				await raceTimeout(f.challengeAnswered.p, 500);
+				f.notifications.fire({ type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: services[0], reason: AuthRequiredReason.Required });
 				await raceTimeout(f.retryShown.p, 500);
-				f.state.consentError = undefined;
 				f.state.discovery = newDiscovery;
 				f.state.finishDiscoveryOnCredential = true;
 				await raceTimeout(queued.p, 500);
@@ -354,12 +399,12 @@ suite('Microsoft Copilot resource setup UI', () => {
 			f.state.sessions = [f.credential(['User.Read'])];
 			f.state.challenge = services[0];
 			f.state.needsServiceConsent = true;
-			f.state.consentError = new CancellationError();
 			const cancellation = store.add(new CancellationTokenSource());
 			const pending = f.run(cancellation.token);
 			try {
+				await raceTimeout(f.challengeAnswered.p, 500);
+				f.notifications.fire({ type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: services[0], reason: AuthRequiredReason.Required });
 				const failed = await raceTimeout(pending, 500);
-				f.state.consentError = undefined;
 				f.state.discovery = undefined;
 				f.state.challenge = undefined;
 				f.state.offered = [services[1]];

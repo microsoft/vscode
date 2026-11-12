@@ -284,52 +284,48 @@ export class ChatSetupController extends Disposable {
 			const failed = new DeferredPromise<never>();
 			const prompts = new Sequencer();
 			const credentials = new Map<string, { resource: ProtectedResourceMetadata; credential: DeferredPromise<AuthenticationSession> }>();
-			const fail = (error: unknown) => {
-				if (!cancellation.token.isCancellationRequested) {
-					void failed.error(isCancellationError(error)
-						? new Error(localize('copilotConsentCancelled', "Microsoft consent was cancelled. Copilot setup is incomplete."), { cause: error })
-						: error);
-				}
-			};
 			const identityCredential = new DeferredPromise<AuthenticationSession>();
 			await identityCredential.complete(identity);
 			credentials.set(discovery.resource, { resource: discovery, credential: identityCredential });
+			const answerChallenge = async (resource: ProtectedResourceMetadata, reason: AuthRequiredReason | undefined, credential: DeferredPromise<AuthenticationSession>) => {
+				try {
+					// The host announces a challenge before it advertises the challenged resource.
+					await waitForState(root,
+						state => !!state && !(state instanceof Error) && state.agents.some(candidate => candidate.provider === agent.provider && candidate.protectedResources?.some(advertised => equals(advertised, resource))),
+						state => state instanceof Error ? state : undefined, cancellation.token);
+					await prompts.queue(async () => {
+						this.requireMicrosoftResource(resource, currentResources(), cancellation.token);
+						const session = await this.getMicrosoftCredential(resource, identity.account, cancellation.token, reason === AuthRequiredReason.Expired);
+						await credential.complete(session);
+						await this.authenticateMicrosoftResource(resource, session, currentResources(), cancellation.token);
+					});
+				} catch (error) {
+					// One service's permission can be unavailable while the host still offers another, so its result decides.
+					if (!cancellation.token.isCancellationRequested) {
+						this.logService.info(`[chat setup] Microsoft authentication for ${resource.resource} was not completed: ${toErrorMessage(error)}`);
+					}
+					await credential.error(error);
+				}
+			};
 			store.add(this.agentHostService.onDidNotification(notification => {
 				if (notification.type !== NotificationType.AuthRequired || notification.channel !== ROOT_STATE_URI || cancellation.token.isCancellationRequested || failed.isSettled) {
 					return;
 				}
-				try {
-					const resource = currentResources().find(resource => equals(resource, notification.resource));
-					if (!resource || resource.resource !== discovery.resource && !targets.has(resource.resource)) {
-						return;
-					}
-					const previous = credentials.get(resource.resource);
-					if (previous) {
-						if (previous.credential.isSettled) {
-							fail(new Error(localize('copilotRepeatedChallenge', "The agent host requested Microsoft authentication again after it was already answered. Try setup again.")));
-						}
-						return;
-					}
-					const credential = new DeferredPromise<AuthenticationSession>();
-					credentials.set(resource.resource, { resource, credential });
-					void credential.p.catch(fail);
-					void prompts.queue(async () => {
-						try {
-							this.requireMicrosoftResource(resource, currentResources(), cancellation.token);
-							const session = await this.getMicrosoftCredential(resource, identity.account, cancellation.token, notification.reason === AuthRequiredReason.Expired);
-							await credential.complete(session);
-							await this.authenticateMicrosoftResource(resource, session, currentResources(), cancellation.token);
-						} catch (error) {
-							if (!credential.isSettled) {
-								await credential.error(error);
-							} else {
-								fail(error);
-							}
-						}
-					});
-				} catch (error) {
-					fail(error);
+				const resource = notification.resource;
+				if (resource.resource !== discovery.resource && !targets.has(resource.resource)) {
+					return;
 				}
+				const previous = credentials.get(resource.resource);
+				if (previous) {
+					if (previous.credential.isResolved) {
+						void failed.error(new Error(localize('copilotRepeatedChallenge', "The agent host requested Microsoft authentication again after it was already answered. Try setup again.")));
+					}
+					return;
+				}
+				const credential = new DeferredPromise<AuthenticationSession>();
+				credential.p.catch(() => { });
+				credentials.set(resource.resource, { resource, credential });
+				void answerChallenge(resource, notification.reason, credential);
 			}));
 			const setup = (async () => {
 				this.requireMicrosoftResource(discovery, currentResources(), cancellation.token);
