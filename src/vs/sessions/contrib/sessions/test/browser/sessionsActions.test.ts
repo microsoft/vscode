@@ -1747,6 +1747,49 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
+	// `beside` stands for a chat of another group of the pane: it is listed last, so closing the shown chat falls back to it.
+	for (const scenario of [
+		{ name: 'selects the kept chat before it closes the chat the pane shows, so the pane does not fall back to a chat of another group', shown: 'closing', expected: { shown: 'kept', operations: ['open:kept', 'close:closing'] } },
+		{ name: 'keeps the main chat selected', shown: 'main', expected: { shown: 'main', operations: ['close:closing'] } },
+		{ name: 'keeps the chat of the tab selected', shown: 'kept', expected: { shown: 'kept', operations: ['close:closing'] } },
+		{ name: 'keeps a chat of another group selected', shown: 'beside', expected: { shown: 'beside', operations: ['close:closing'] } },
+	] as const) {
+		test(`Close Others ${scenario.name}`, async () => {
+			const { session: model } = createTestSession('close-others-selection');
+			const mainChat: IChat = { ...model.mainChat.get(), resource: URI.parse('test-chat://main'), interactivity: constObservable(ChatInteractivity.Full), status: constObservable(SessionStatus.Completed) };
+			const createChat = (name: string): IChat => ({ ...mainChat, resource: URI.parse(`test-chat://${name}`), title: constObservable(name) });
+			const chats = { main: mainChat, kept: createChat('kept'), closing: createChat('closing'), beside: createChat('beside') };
+			const session: ISession = { ...model, mainChat: constObservable(mainChat), chats: constObservable(Object.values(chats)) };
+			const grid = disposables.add(new VisibleSessions(candidate => candidate.mainChat.get(), () => [], () => [], () => { }, upcastPartial<IUriIdentityService>({ extUri })));
+			grid.restoreGrid([{ session, sticky: false }], 0);
+			grid.setActiveChat(session, chats[scenario.shown]);
+			const pane = grid.slotPanes.get()[0];
+			const host = upcastPartial<ISessionHost>({ id: 'pane:close-others', kind: SessionHostKind.Pane, session: constObservable(session), chat: pane.chat, commandContext: { sessionHostId: 'pane:close-others' } });
+			const operations: string[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHost: id => id === host.id ? host : undefined }));
+			// As the sessions service does, the grid keeps the selection the chat it opens makes and falls back when it closes the shown one.
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override async openChat(target: ISession, chatResource: URI): Promise<void> {
+					operations.push(`open:${chatResource.authority}`);
+					const chat = target.chats.get().find(candidate => isEqual(candidate.resource, chatResource))!;
+					grid.openChat(target, chat);
+					grid.setActiveChat(target, chat);
+				}
+				override async closeChat(target: ISession, chat: IChat): Promise<void> {
+					operations.push(`close:${chat.resource.authority}`);
+					grid.closeChat(target, chat);
+				}
+			});
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+			instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(CLOSE_OTHER_CHATS_COMMAND_ID)!.handler(accessor, session, chats.kept, host.commandContext, [chats.main, chats.kept, chats.closing]));
+
+			assert.deepStrictEqual({ shown: pane.chat.get()?.resource.authority, operations }, scenario.expected);
+		});
+	}
+
 	for (const scenario of [
 		{ name: 'succeeds', deleteResult: true, expectedOperations: ['delete', 'closeGroup'] },
 		{ name: 'is a no-op', deleteResult: false, expectedOperations: ['delete'] },

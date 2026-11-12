@@ -24,8 +24,8 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { CLOSE_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { CLOSE_CHAT_COMMAND_ID, CLOSE_OTHER_CHATS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ColorScheme } from '../../../platform/theme/common/theme.js';
@@ -60,7 +60,9 @@ import { ISessionsManagementService } from '../../../workbench/contrib/sessions/
 import { ITestSessionWithChat, LegacyFakePaneState, testPaneContentOf } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../browser/media/workbench.css';
-import { ISessionHost, SessionHostKind } from '../../../workbench/services/sessions/browser/sessionHost.js';
+// eslint-disable-next-line local/code-import-patterns -- Registers the Close Others command the test runs against the real chat groups.
+import '../../contrib/sessions/browser/sessionsActions.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from './sessionsHostLayoutTestUtils.js';
 import { ISessionPaneContent } from '../../../workbench/services/sessions/common/sessionPane.js';
 
@@ -2344,6 +2346,31 @@ suite('Sessions - ChatGroupsView', () => {
 			}, {
 				sessionActiveChat: main.resource.toString(),
 				groupActiveChat: main.resource.toString(),
+			});
+		});
+
+		test(`Close Others keeps the chat of the tab selected instead of restoring the owning chat of the closed active ${originKind}`, async () => {
+			const { instantiationService, sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const child = createChat('child', SessionStatus.Completed, main.resource, originKind);
+			const kept = createChat('kept');
+			const session = new TestActiveSession([main, child, kept]);
+			view.setSession(paneContent(view, session), options);
+			await sessionsService.openChat(session, child.resource);
+			const host = instantiationService.get(ISessionHost);
+			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHost: id => id === host.id ? host : undefined }));
+
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(CLOSE_OTHER_CHATS_COMMAND_ID)!.handler(accessor, session, kept, host.commandContext, [main, child, kept]));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closedChats: sessionsService.closedChats,
+				sessionActiveChat: session.activeChat.get().resource.toString(),
+				groupActiveChat: view['_activeGroup']?.activeResourceId.get(),
+			}, {
+				closedChats: [child.resource.toString()],
+				sessionActiveChat: kept.resource.toString(),
+				groupActiveChat: kept.resource.toString(),
 			});
 		});
 	}

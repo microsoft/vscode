@@ -1242,9 +1242,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
  * Closed Chat or Session: that would reopen only the last chat of the batch.
  * An untitled draft has nothing to reopen, so it is deleted.
  */
-async function closeChatsTogether(accessor: ServicesAccessor, session: ISession, chats: readonly IChat[]): Promise<void> {
-	const sessionsService = accessor.get(ISessionsService);
-	const sessionsManagementService = accessor.get(ISessionsManagementService);
+async function closeChatsTogether(sessionsService: ISessionsService, sessionsManagementService: ISessionsManagementService, session: ISession, chats: readonly IChat[]): Promise<void> {
 	for (const chat of chats) {
 		if (chat.status.get() === SessionStatus.Untitled) {
 			await sessionsManagementService.deleteChat(session, chat.resource, { skipConfirmation: true });
@@ -1284,6 +1282,8 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
 		const target = resolveGridCommandPane(accessor);
 		if (!target) {
@@ -1292,13 +1292,16 @@ registerAction2(class CloseAllChatsAction extends Action2 {
 		const { pane, session } = target;
 
 		const mainResource = session.mainChat.get().resource;
-		await closeChatsTogether(accessor, session, pane.tabs.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource)));
+		await closeChatsTogether(sessionsService, sessionsManagementService, session, pane.tabs.openChats.get().filter(chat => !extUri.isEqual(chat.resource, mainResource)));
 	}
 });
 
 // Close Others acts on the tabs of the strip it is run from, as it does in an
 // editor group, and keeps the chat of the tab and the main chat, which a tab
-// cannot close.
+// cannot close. When the chat its host shows is one it closes, it selects the
+// kept chat first: closing would otherwise fall back to the parent of a side
+// chat or to a chat of another group. Any other selection stays, including an
+// active main chat.
 registerAction2(class CloseOtherChatsAction extends Action2 {
 	constructor() {
 		super({
@@ -1311,13 +1314,22 @@ registerAction2(class CloseOtherChatsAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, session?: ISession, keptChat?: IChat, _hostContext?: unknown, stripChats?: readonly IChat[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, session?: ISession, keptChat?: IChat, hostContext?: unknown, stripChats?: readonly IChat[]): Promise<void> {
 		if (!session || !keptChat || !stripChats) {
 			return;
 		}
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const extUri = accessor.get(IUriIdentityService).extUri;
 		const mainResource = session.mainChat.get().resource;
-		await closeChatsTogether(accessor, session, stripChats.filter(chat => !extUri.isEqual(chat.resource, keptChat.resource) && !extUri.isEqual(chat.resource, mainResource)));
+		const chats = stripChats.filter(chat => !extUri.isEqual(chat.resource, keptChat.resource) && !extUri.isEqual(chat.resource, mainResource));
+		const host = resolveCommandOriginHost(accessor, [session, keptChat, hostContext]);
+		const shownChat = host?.chat.get();
+		if (host && shownChat && chats.some(chat => extUri.isEqual(chat.resource, shownChat.resource))) {
+			// Awaited because closing a chat cancels a selection still in flight.
+			await sessionsService.openChat(session, keptChat.resource, { from: host });
+		}
+		await closeChatsTogether(sessionsService, sessionsManagementService, session, chats);
 	}
 });
 
