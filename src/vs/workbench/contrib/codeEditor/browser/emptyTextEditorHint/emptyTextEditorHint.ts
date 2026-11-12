@@ -32,8 +32,9 @@ import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IInlineChatSessionService } from '../../../inlineChat/browser/inlineChatSessionService.js';
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { EmptyTextEditorHintContributionId, IEmptyTextEditorHintContribution } from './emptyTextEditorHintTypes.js';
-import { EmptyEditorHintActionsVisible, EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting } from './emptyEditorHintActions.js';
+import { EmptyEditorHintActionsVisible, EmptyEditorHintActionsWidget, emptyEditorHintActionsSetting, IEmptyEditorHintActionsSize } from './emptyEditorHintActions.js';
 import { EmptyEditorHintAction, logEmptyEditorHintEvent } from './emptyTextEditorHintTelemetry.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -49,8 +50,11 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 
 	private textHintContentWidget: EmptyTextEditorHintContentWidget | EmptyEditorHintActionsWidget | undefined;
 
-	/** The id of the text model for which the user closed the hint in this editor. Untitled URIs are reused, model ids are not. */
-	private closedForModelId: string | undefined;
+	/** The text models for which the user closed the hint. Untitled URIs are reused, models are not; held weakly so disposed models are dropped. */
+	private readonly closedForModels = new WeakSet<ITextModel>();
+
+	/** Set while the editor is too small for the list of actions, so that the classic hint is shown until it grows. */
+	private actionsRequiredSize: IEmptyEditorHintActionsSize | undefined;
 
 	constructor(
 		protected readonly editor: ICodeEditor,
@@ -66,6 +70,11 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 		this._register(this.editor.onDidChangeModelContent(() => this.update()));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.update()));
 		this._register(this.editor.onDidChangeModelDecorations(() => this.update()));
+		this._register(this.editor.onDidLayoutChange(() => {
+			if (this.actionsRequiredSize) {
+				this.update();
+			}
+		}));
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.readOnly)) {
 				this.update();
@@ -106,7 +115,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 			return false;
 		}
 
-		if (this.closedForModelId === model.id) {
+		if (this.closedForModels.has(model)) {
 			return false;
 		}
 
@@ -135,7 +144,19 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 	private shouldRenderActions(): boolean {
 		return this.editor.getModel()?.uri.scheme === Schemas.untitled
 			&& !this.editor.getOption(EditorOption.inDiffEditor)
-			&& this.configurationService.getValue<boolean>(emptyEditorHintActionsSetting) === true;
+			&& this.configurationService.getValue<boolean>(emptyEditorHintActionsSetting) === true
+			&& this.actionsFit();
+	}
+
+	/**
+	 * Whether the editor is large enough for the list of actions, after it did not fit before.
+	 */
+	private actionsFit(): boolean {
+		if (!this.actionsRequiredSize) {
+			return true;
+		}
+		const layoutInfo = this.editor.getLayoutInfo();
+		return layoutInfo.width - layoutInfo.verticalScrollbarWidth >= this.actionsRequiredSize.width && layoutInfo.height >= this.actionsRequiredSize.height;
 	}
 
 	protected update(): void {
@@ -145,19 +166,39 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEmpt
 			this.disposeHint();
 		}
 		if (shouldRenderHint && !this.textHintContentWidget) {
-			this.textHintContentWidget = shouldRenderActions
-				? this.instantiationService.createInstance(EmptyEditorHintActionsWidget, this.editor, {
-					close: () => {
-						this.closedForModelId = this.editor.getModel()?.id;
-						this.disposeHint();
-					},
-					dontShowAgain: () => {
-						this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
-						this.disposeHint();
-					},
-				})
-				: this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor);
+			const actionsWidget = shouldRenderActions ? this.createActionsWidget() : undefined;
+			this.textHintContentWidget = actionsWidget ?? this.instantiationService.createInstance(EmptyTextEditorHintContentWidget, this.editor);
 		}
+	}
+
+	/**
+	 * Creates the list of actions, or returns `undefined` if it does not fit into the editor.
+	 */
+	private createActionsWidget(): EmptyEditorHintActionsWidget | undefined {
+		const widget: EmptyEditorHintActionsWidget = this.instantiationService.createInstance(EmptyEditorHintActionsWidget, this.editor, {
+			close: () => {
+				const model = this.editor.getModel();
+				if (model) {
+					this.closedForModels.add(model);
+				}
+				this.disposeHint();
+			},
+			dontShowAgain: () => {
+				this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
+				this.disposeHint();
+			},
+			doesNotFit: () => {
+				this.actionsRequiredSize = widget.requiredSize;
+				this.update();
+			},
+		});
+		if (!widget.fits) {
+			this.actionsRequiredSize = widget.requiredSize;
+			widget.dispose();
+			return undefined;
+		}
+		this.actionsRequiredSize = undefined;
+		return widget;
 	}
 
 	disposeHint(): void {

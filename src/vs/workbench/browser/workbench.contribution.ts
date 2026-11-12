@@ -174,6 +174,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': false,
 				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
 				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintActions", "Controls whether the empty editor hint of new untitled files shows a list of actions instead of a single line. Only applies when `#workbench.editor.empty.hint#` is `text`.")
 			},
 			'workbench.editor.languageDetection': {

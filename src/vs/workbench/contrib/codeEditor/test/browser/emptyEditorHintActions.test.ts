@@ -19,6 +19,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorResolverService, RegisteredEditorInfo } from '../../../../services/editor/common/editorResolverService.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IVisibleEditorPane } from '../../../../common/editor.js';
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -58,9 +62,27 @@ suite('EmptyEditorHintActionsWidget', () => {
 
 		const model = store.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'untitled', path: 'Untitled-1' })));
 		const editor = store.add(createTestCodeEditor(model));
+
+		// This editor is selected in its group together with another tab: the reopen commands must only act on this editor
+		const thisInput = upcastPartial<EditorInput>({});
+		const otherInput = upcastPartial<EditorInput>({});
+		let selectedEditors = [thisInput, otherInput];
+		const group = upcastPartial<IEditorGroup>({
+			id: 1,
+			get selectedEditors() { return selectedEditors; },
+			isSelected: input => selectedEditors.includes(input),
+			setSelection: async (active, inactive) => { selectedEditors = [active, ...inactive]; },
+			getIndexOfEditor: input => input === thisInput ? 0 : 1,
+		});
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			visibleEditorPanes: [upcastPartial<IVisibleEditorPane>({ input: thisInput, group, getControl: () => editor })],
+			activeEditor: undefined,
+		}));
+
 		const widget = store.add(instantiationService.createInstance(EmptyEditorHintActionsWidget, editor, {
 			close: () => callbacks.push('close'),
 			dontShowAgain: () => callbacks.push('dontShowAgain'),
+			doesNotFit: () => callbacks.push('doesNotFit'),
 		}));
 
 		const domNode = widget.getDomNode();
@@ -76,11 +98,12 @@ suite('EmptyEditorHintActionsWidget', () => {
 		domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 		await timeout(0);
 
-		assert.deepStrictEqual({ rowLabels, hasDropdown: !!domNode.querySelector('.empty-editor-hint-actions-dropdown'), visibleBeforeClose, commands, callbacks, events }, {
+		assert.deepStrictEqual({ rowLabels, hasDropdown: !!domNode.querySelector('.empty-editor-hint-actions-dropdown'), visibleBeforeClose, commands, selectedEditors: selectedEditors.map(input => input === thisInput ? 'this' : 'other'), callbacks, events }, {
 			rowLabels: ['New Chat Editor', 'Select a Language', '---', 'Open in Hex Editor'],
 			hasDropdown: true,
 			visibleBeforeClose: true,
-			commands: [['reopenActiveEditorWith', 'hexEditor.hexedit']],
+			commands: [['reopenActiveEditorWith', 'hexEditor.hexedit', { groupId: 1, editorIndex: 0 }]],
+			selectedEditors: ['this'],
 			callbacks: ['close'],
 			events: [
 				{ eventName: 'emptyEditorHint', data: { kind: 'shown', action: undefined, variant: 'actions', scheme: 'untitled', untitledDocumentId: 'doc-1' } },

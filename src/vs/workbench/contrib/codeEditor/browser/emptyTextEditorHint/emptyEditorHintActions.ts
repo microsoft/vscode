@@ -33,7 +33,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 import { WatermarkActionViewItem } from '../../../../browser/parts/editor/editorGroupWatermark.js';
 import { ChangeLanguageAction } from '../../../../browser/parts/editor/editorStatus.js';
-import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, IEditorCommandsContext } from '../../../../common/editor.js';
 import { IEditorResolverService, RegisteredEditorInfo } from '../../../../services/editor/common/editorResolverService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IUntitledDocumentTelemetryService } from '../../../../services/untitled/common/untitledDocumentTelemetry.js';
@@ -72,6 +72,14 @@ export interface IEmptyEditorHintActionsWidgetOptions {
 	readonly close: () => void;
 	/** Hides the hint everywhere (sets `workbench.editor.empty.hint` to `hidden`). */
 	readonly dontShowAgain: () => void;
+	/** The list no longer fits into the editor (after a resize or when its rows changed), see `requiredSize`. */
+	readonly doesNotFit: () => void;
+}
+
+/** The size of the editor's content area (without the vertical scrollbar), in pixels. */
+export interface IEmptyEditorHintActionsSize {
+	readonly width: number;
+	readonly height: number;
 }
 
 /**
@@ -87,6 +95,14 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 	private readonly _rows = append(this._domNode, $('.empty-editor-hint-actions-rows'));
 	private readonly _rowsDisposables = this._register(new DisposableStore());
 	private _ariaLabel = '';
+	private _top = 0;
+	private _requiredSize: IEmptyEditorHintActionsSize | undefined;
+
+	private static readonly _preferredWidth = 336;
+	/** Narrower than this, the classic hint is shown instead. */
+	private static readonly _minWidth = 220;
+	/** The space kept free on each side of the list. */
+	private static readonly _margin = 8;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -123,7 +139,10 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 			// The editors that can open the file depend on its language
 			this._editor.onDidChangeModelLanguage,
 			Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(chatEnabledKeys)),
-		)(() => this._renderRows()));
+		)(() => {
+			this._renderRows();
+			this._layoutAndNotifyFit();
+		}));
 
 		this._register(addDisposableListener(this._domNode, EventType.KEY_DOWN, e => {
 			if (new StandardKeyboardEvent(e).equals(KeyCode.Escape)) {
@@ -140,9 +159,19 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 			}
 		}));
 
-		this._register(this._editor.onDidLayoutChange(() => this._editor.layoutOverlayWidget(this)));
+		this._register(this._editor.onDidLayoutChange(() => this._layoutAndNotifyFit()));
 		this._editor.addOverlayWidget(this);
-		this._logEvent('shown');
+		this.layout();
+		if (this.fits) {
+			this._logEvent('shown');
+		}
+	}
+
+	private _layoutAndNotifyFit(): void {
+		this.layout();
+		if (!this.fits) {
+			this._options.doesNotFit();
+		}
 	}
 
 	override dispose(): void {
@@ -169,12 +198,43 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 
 	getPosition(): IOverlayWidgetPosition | null {
 		const layoutInfo = this._editor.getLayoutInfo();
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		// Keep line 1 (where the cursor blinks) visible above the hint
-		const top = Math.max(Math.round(layoutInfo.height / 4), 3 * lineHeight);
 		// `left` is the center: the widget centers itself with a CSS transform
 		const left = Math.round((layoutInfo.width - layoutInfo.verticalScrollbarWidth) / 2);
-		return { preference: { top, left } };
+		return { preference: { top: this._top, left } };
+	}
+
+	/**
+	 * Whether the list of actions fits into the editor at its current size. If not, `requiredSize` tells
+	 * how large the editor has to be, so that the classic hint can be shown until it is.
+	 */
+	get fits(): boolean {
+		return this._requiredSize === undefined;
+	}
+
+	get requiredSize(): IEmptyEditorHintActionsSize | undefined {
+		return this._requiredSize;
+	}
+
+	/**
+	 * Fits the list into the editor: it shrinks to the available width and moves up from the top quarter
+	 * when the editor is short, but always keeps line 1 (where the cursor blinks) visible above it.
+	 */
+	layout(): void {
+		const layoutInfo = this._editor.getLayoutInfo();
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const availableWidth = layoutInfo.width - layoutInfo.verticalScrollbarWidth - 2 * EmptyEditorHintActionsWidget._margin;
+		this._domNode.style.width = `${Math.max(EmptyEditorHintActionsWidget._minWidth, Math.min(EmptyEditorHintActionsWidget._preferredWidth, availableWidth))}px`;
+
+		const contentHeight = this._domNode.offsetHeight;
+		const minTop = 3 * lineHeight;
+		this._top = Math.max(minTop, Math.min(Math.round(layoutInfo.height / 4), layoutInfo.height - contentHeight));
+		const fits = layoutInfo.height === 0 || contentHeight === 0 // not laid out yet
+			|| (availableWidth >= EmptyEditorHintActionsWidget._minWidth && this._top + contentHeight <= layoutInfo.height);
+		this._requiredSize = fits ? undefined : {
+			width: EmptyEditorHintActionsWidget._minWidth + 2 * EmptyEditorHintActionsWidget._margin,
+			height: minTop + contentHeight,
+		};
+		this._editor.layoutOverlayWidget(this);
 	}
 
 	/**
@@ -241,19 +301,39 @@ export class EmptyEditorHintActionsWidget extends Disposable implements IOverlay
 	 * Shows the Reopen Editor With picker, which lists all editors for an untitled file.
 	 */
 	private _showEditorPicker(): Promise<void> {
-		return this._reopenAndRemember(() => this._commandService.executeCommand(reopenWithEditorCommandId));
+		return this._reopenAndRemember(context => this._commandService.executeCommand(reopenWithEditorCommandId, context));
 	}
 
 	private _reopenWith(editorId: string): Promise<void> {
-		return this._reopenAndRemember(() => this._commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editorId));
+		return this._reopenAndRemember(context => this._commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editorId, context));
+	}
+
+	/**
+	 * The command context of only this editor. The reopen commands act on all tabs that are selected together
+	 * with this editor, so the tab selection is narrowed to this editor first.
+	 */
+	private async _getSingleEditorContext(): Promise<IEditorCommandsContext | undefined> {
+		const pane = this._editorService.visibleEditorPanes.find(pane => pane.getControl() === this._editor);
+		const input = pane?.input;
+		if (!pane || !input) {
+			return undefined;
+		}
+		if (pane.group.isSelected(input) && pane.group.selectedEditors.length > 1) {
+			await pane.group.setSelection(input, []);
+		}
+		return { groupId: pane.group.id, editorIndex: pane.group.getIndexOfEditor(input) };
 	}
 
 	/**
 	 * Reopens this file in another editor and remembers that editor, so the hint offers it first next time.
 	 */
-	private async _reopenAndRemember(reopen: () => Promise<unknown>): Promise<void> {
+	private async _reopenAndRemember(reopen: (context: IEditorCommandsContext) => Promise<unknown>): Promise<void> {
 		const resource = this._editor.getModel()?.uri;
-		await reopen();
+		const context = await this._getSingleEditorContext();
+		if (!context) {
+			return;
+		}
+		await reopen(context);
 		const activeEditor = this._editorService.activeEditor;
 		if (activeEditor?.editorId && activeEditor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id && isEqual(activeEditor.resource, resource)) {
 			this._storageService.store(lastUntitledEditorStorageKey, activeEditor.editorId, StorageScope.PROFILE, StorageTarget.USER);

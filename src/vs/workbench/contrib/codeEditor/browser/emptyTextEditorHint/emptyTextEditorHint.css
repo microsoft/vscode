@@ -19,7 +19,7 @@
 
 .monaco-editor .overlayWidgets .empty-editor-hint-actions {
 	box-sizing: border-box;
-	width: 336px;
+	/* The width is set in `layout()`, to fit narrow editors */
 	/* `left` is the center of the editor */
 	transform: translateX(-50%);
 	padding: var(--vscode-spacing-size80);
