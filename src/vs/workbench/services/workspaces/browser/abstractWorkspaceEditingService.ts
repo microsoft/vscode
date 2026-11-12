@@ -132,8 +132,9 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	private folderLocationRequest = 0;
 
 	async setFolderLocation(location: URI, options?: { readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void> {
-		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
-			throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
+		const currentFolder = this.contextService.getWorkspace().folders[0];
+		if (!currentFolder || !this.workspaceFolderLocationService.canSetLocation(currentFolder)) {
+			throw new Error(localize('folderLocationLocalSingleFolderOnly', "Folder locations are only supported in local single-folder workspaces."));
 		}
 
 		if (options?.folder && !this.uriIdentityService.extUri.isEqual(options.folder, this.contextService.getWorkspace().folders[0].uri)) {
