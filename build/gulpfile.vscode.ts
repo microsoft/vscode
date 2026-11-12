@@ -35,6 +35,7 @@ import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import { spawnTsgo } from './lib/tsgo.ts';
+import { gigabytes } from './lib/memory.ts';
 import { runEsbuildTranspile, runEsbuildBundle, getBootstrapEntryPointsForTarget } from './lib/esbuild.ts';
 import { generateNodeCompileCache, shouldGenerateNodeCompileCache } from './lib/nodeCompileCache.ts';
 
@@ -65,13 +66,15 @@ const stripSourceMapsInPackagingTasks = isCI;
 const coreCIOutBuildTask = task.series(
 	checkApiProposalNamesTask,
 	copyCodiconsTask,
-	compileNonNativeExtensionsBuildTask,
-	compileExtensionMediaBuildTask,
-	writeISODate('out-build'),
-	// Type-check with tsgo (no emit)
-	task.define('tsgo-typecheck', () => spawnTsgo(path.join(root, 'src', 'tsconfig.json'), { taskName: 'tsgo-typecheck', noEmit: true })),
-	// Transpile individual files to out-build first (for unit tests)
-	task.define('esbuild-out-build', () => runEsbuildTranspile('out-build', false)),
+	// The type check, the extensions and the transpile don't depend on each other. Their memory budgets are their
+	// measured peaks, with some room on top.
+	task.parallelWithinMemory(
+		// Type-check with tsgo (no emit)
+		{ memory: gigabytes(6), task: task.define('tsgo-typecheck', () => spawnTsgo(path.join(root, 'src', 'tsconfig.json'), { taskName: 'tsgo-typecheck', noEmit: true })) },
+		{ memory: gigabytes(2.5), task: task.series(compileNonNativeExtensionsBuildTask, compileExtensionMediaBuildTask) },
+		// Transpile individual files to out-build first (for unit tests)
+		{ memory: gigabytes(1), task: task.series(writeISODate('out-build'), task.define('esbuild-out-build', () => runEsbuildTranspile('out-build', false))) },
+	),
 );
 
 // Pull request CI does not use the minified bundles, so it stops after transpiling to out-build.

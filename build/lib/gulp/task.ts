@@ -7,6 +7,7 @@ import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 // eslint-disable-next-line local/code-no-direct-gulp-import
 import g from 'gulp';
+import { runWithinMemory } from '../memory.ts';
 
 export type Task = PromiseTask | StreamTask | CallbackTask;
 
@@ -64,6 +65,18 @@ export function parallel(...tasks: Task[]): PromiseTask {
 		await Promise.all(tasks.map(t => _execute(t)));
 	};
 	result._tasks = tasks;
+	return result;
+}
+
+/**
+ * Like {@link parallel}, but runs only as many tasks at a time as the available memory affords, given the most memory,
+ * in bytes, that each task uses. Tasks start in order, so put the longest first.
+ */
+export function parallelWithinMemory(...tasks: readonly { readonly memory: number; readonly task: Task }[]): PromiseTask {
+	const result = async () => {
+		await runWithinMemory('parallel', tasks.map(({ memory, task }) => ({ memory, run: () => _execute(task) })));
+	};
+	result._tasks = tasks.map(({ task }) => task);
 	return result;
 }
 
