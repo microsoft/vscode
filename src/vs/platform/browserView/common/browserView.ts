@@ -173,25 +173,21 @@ export interface IBrowserViewWindowConfiguration {
 	readonly networkProxies?: { readonly [authority: string]: ITunnelProxyInfo };
 	/**
 	 * The window's contribution to the `file://` allowlist used by integrated
-	 * browser sessions. Main unions every window's contribution into a
-	 * process-wide allowlist; entries are dropped when the window is destroyed.
-	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its
-	 * workspace folder paths.
+	 * browser sessions, as URIs of any scheme. Main unions every window's
+	 * contribution; `file:` roots apply to local sessions, and `vscode-remote:`
+	 * roots of the window's own authority to sessions bound to that remote.
+	 * Entries are dropped when the window is destroyed. Usually
+	 * `getTrustedUris()` plus, when the workspace itself is trusted, its
+	 * workspace folders.
 	 */
-	readonly trustedFileRoots: readonly string[];
-	/**
-	 * Trusted paths on the remote file system of a window connected to a remote,
-	 * checked against the `file:` requests of sessions bound to that remote's network.
-	 * Usually the trusted remote URIs plus, when the workspace itself is trusted, its remote folders.
-	 */
-	readonly trustedRemoteFileRoots?: readonly string[];
+	readonly trustedFileRoots: readonly UriComponents[];
 	/**
 	 * Whether Workspace Trust is disabled entirely
 	 * (`security.workspace.trust.enabled: false`) for this window. When
 	 * `true`, every `file://` request is allowed regardless of
-	 * {@link trustedFileRoots} (or {@link trustedRemoteFileRoots} for a window
-	 * connected to a remote) since there is no meaningful notion of an
-	 * untrusted folder to enforce.
+	 * {@link trustedFileRoots}, since there is no meaningful notion of an
+	 * untrusted folder to enforce. In a window connected to a remote this
+	 * applies to that remote only, never to local files.
 	 */
 	readonly trustAllFiles: boolean;
 }

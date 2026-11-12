@@ -36,7 +36,7 @@ import { findGroup, handOffFromSelfTitledEditor } from '../../../services/editor
 import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getCopilotRootPaths } from '../../../../platform/environment/common/copilotHome.js';
@@ -935,7 +935,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 			networkProxies: this._getNetworkProxies(),
 			trustedFileRoots: this._getTrustedFileRoots(),
-			trustedRemoteFileRoots: this._getTrustedRemoteFileRoots(),
 			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
 	}
@@ -981,44 +980,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		};
 	}
 
-	/** Trusted paths on the file system of the window's remote, which its sessions serve `file:` requests from. */
-	private _getTrustedRemoteFileRoots(): string[] {
-		const authority = this.environmentService.remoteAuthority;
-		if (!authority) {
-			return [];
-		}
-		const isRemoteUri = (uri: URI) => uri.scheme === Schemas.vscodeRemote && uri.authority === authority;
-		const roots = new Set<string>();
-		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
-			for (const folder of this.workspaceContextService.getWorkspace().folders) {
-				if (isRemoteUri(folder.uri)) {
-					roots.add(folder.uri.path);
-				}
-			}
-		}
-		for (const uri of this.workspaceTrustManagementService.getTrustedUris()) {
-			if (isRemoteUri(uri)) {
-				roots.add(uri.path);
-			}
-		}
-		return [...roots];
-	}
-
-	private _getTrustedFileRoots(): string[] {
+	/** Main decides which roots apply to which sessions based on their scheme. */
+	private _getTrustedFileRoots(): UriComponents[] {
 		// Trust Copilot roots so agents can create HTML files and open them in the browser.
-		const roots = new Set(getCopilotRootPaths(this.environmentService.userHome.fsPath, this.copilotHomeService.home.fsPath));
+		const roots = getCopilotRootPaths(this.environmentService.userHome.fsPath, this.copilotHomeService.home.fsPath).map(path => URI.file(path));
 		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
 			for (const folder of this.workspaceContextService.getWorkspace().folders) {
-				if (folder.uri.scheme === Schemas.file) {
-					roots.add(folder.uri.fsPath);
-				}
+				roots.push(folder.uri);
 			}
 		}
-		for (const uri of this.workspaceTrustManagementService.getTrustedUris()) {
-			if (uri.scheme === Schemas.file) {
-				roots.add(uri.fsPath);
-			}
-		}
-		return [...roots];
+		roots.push(...this.workspaceTrustManagementService.getTrustedUris());
+		return roots;
 	}
 }

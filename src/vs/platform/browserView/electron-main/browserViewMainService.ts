@@ -25,6 +25,7 @@ import { INativeHostMainService } from '../../native/electron-main/nativeHostMai
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
 import { BrowserViewInspectElementId } from './browserViewInspector.js';
 import { equals } from '../../../base/common/objects.js';
+import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
@@ -409,21 +410,23 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		let trustAllFiles = false;
 		const remotes = new Map<string, { roots: Set<string>; trustAll: boolean }>();
 		for (const [windowId, configuration] of this._windowConfigurations) {
-			for (const root of configuration.trustedFileRoots) {
-				roots.add(root);
-			}
-
-			// A window connected to a remote contributes to that remote only; its trust settings never open up local files.
+			// A window connected to a remote contributes remote roots and trust-all to that remote only.
 			const authority = this.windowsMainService.getWindowById(windowId)?.remoteAuthority;
-			if (!authority) {
+			const remoteKey = authority?.toLowerCase();
+			const remote = remoteKey ? getOrSet(remotes, remoteKey, { roots: new Set<string>(), trustAll: false }) : undefined;
+			if (remote) {
+				remote.trustAll ||= configuration.trustAllFiles;
+			} else {
 				trustAllFiles ||= configuration.trustAllFiles;
-				continue;
 			}
-			const remote = getOrSet(remotes, authority.toLowerCase(), { roots: new Set<string>(), trustAll: false });
-			for (const root of configuration.trustedRemoteFileRoots ?? []) {
-				remote.roots.add(root);
+			for (const components of configuration.trustedFileRoots) {
+				const root = URI.revive(components);
+				if (root.scheme === Schemas.file) {
+					roots.add(root.fsPath);
+				} else if (remote && root.scheme === Schemas.vscodeRemote && root.authority.toLowerCase() === remoteKey) {
+					remote.roots.add(root.path);
+				}
 			}
-			remote.trustAll ||= configuration.trustAllFiles;
 		}
 		BrowserSession.setTrustedFileRoots([...roots], trustAllFiles);
 		BrowserSession.setTrustedRemoteFileRoots(remotes);

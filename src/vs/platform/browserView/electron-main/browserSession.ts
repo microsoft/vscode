@@ -450,17 +450,20 @@ export class BrowserSession {
 	 * through the file service of a window connected to that remote.
 	 */
 	private async handleRemoteFileRequest(authority: string, uri: URI): Promise<GlobalResponse> {
+		// Check and serve the same normalized path so `..` segments cannot escape the trusted roots.
+		const path = posix.normalize(uri.path);
 		const trusted = BrowserSession._trustedRemoteFileRoots.get(authority.toLowerCase());
-		if (!trusted || (!trusted.trustAll && !trusted.roots.findSubstr(posix.normalize(uri.path)))) {
+		if (!trusted || (!trusted.trustAll && !trusted.roots.findSubstr(path))) {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 
-		const window = this.windowsMainService.getWindows().find(candidate => candidate.remoteAuthority === authority);
+		const window = this.windowsMainService.getWindows().find(candidate => candidate.remoteAuthority?.toLowerCase() === authority.toLowerCase());
 		if (!window) {
 			return new Response(localize('browserSession.remoteUnavailable', 'The remote connection is not available.'), { status: 503 });
 		}
 
 		return this.protocolMainService.requestManagedRemoteResource(uri.with({
+			path,
 			scheme: Schemas.vscodeManagedRemoteResource,
 			authority: `window:${window.id}`,
 			query: new URLSearchParams({ authority, scheme: Schemas.vscodeRemote }).toString(),
