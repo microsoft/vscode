@@ -985,6 +985,8 @@ export class WorkspacePicker extends Disposable {
 			{
 				getAriaLabel: getWorkspacePickerItemAriaLabel,
 				getWidgetAriaLabel: () => localize('workspacePicker.ariaLabel', "Workspace Picker"),
+				// Restricted to its folders, it marks its selected choice ({@link _withSelectionMarks})
+				isChecked: item => this._getAllowedFolders() && item.kind === ActionListItemKind.Action ? !!item.item?.checked : undefined,
 			},
 			this._buildListOptions(items, undefined),
 			this._triggerOptions.get(triggerElement)?.contextViewLayer,
@@ -1815,7 +1817,7 @@ export class WorkspacePicker extends Disposable {
 	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const allowedFolders = this._getAllowedFolders();
 		if (allowedFolders) {
-			return this._withNewWorktreeItem(this._withNoWorkspaceItem(this._buildAllowedFolderItems(allowedFolders)));
+			return this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(this._buildAllowedFolderItems(allowedFolders))));
 		}
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 		const environment = this._getEnvironment();
@@ -2263,6 +2265,18 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 		return this._withNewWorktreeItem(this._withNoWorkspaceItem(items));
+	}
+
+	/**
+	 * Marks the selected choice with a check in front of each choice's own icon, as a picker of a few choices does, such as
+	 * one restricted to a window's folders.
+	 */
+	private _withSelectionMarks(items: IActionListItem<IWorkspacePickerItem>[]): IActionListItem<IWorkspacePickerItem>[] {
+		return items.map(item => item.kind === ActionListItemKind.Action ? {
+			...item,
+			group: { ...item.group, title: item.group?.title ?? '', icon: item.item?.checked ? Codicon.check : Codicon.blank },
+			labelIcon: item.group?.icon,
+		} : item);
 	}
 
 	/** Puts New Worktree after `items`, when the composer offers it for the selected folder. */
