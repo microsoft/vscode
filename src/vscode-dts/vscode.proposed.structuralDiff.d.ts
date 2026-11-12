@@ -24,7 +24,7 @@ declare module 'vscode' {
 	 *   range `new Range(0, 8, 0, 8)`, the position between `b` and `)`. The modified
 	 *   range is `new Range(0, 8, 0, 11)`, which covers `, c`.
 	 */
-	export interface StructuralDiffTextChange {
+	export interface DiffTextChange {
 		/**
 		 * The changed range in the original document. Empty for an insertion, where it
 		 * is the position at which the text is inserted.
@@ -54,7 +54,7 @@ declare module 'vscode' {
 		 * than computing another textual diff. Changes can be smaller than a line.
 		 * Array indices identify changes within this request.
 		 */
-		readonly changes: readonly StructuralDiffTextChange[];
+		readonly changes: readonly DiffTextChange[];
 	}
 
 	/**
