@@ -80,7 +80,6 @@ export enum ChatConfiguration {
 	EnableMath = 'chat.math.enabled',
 	HtmlPreviewEnabled = 'chat.htmlPreview.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
-	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',
 	TerminalToolsInThinking = 'chat.agent.thinking.terminalTools',
 	TerminalAgentHostEnabled = 'chat.terminal.agentHost.enabled',
@@ -383,12 +382,6 @@ export enum ChatProgressVerbosity {
 	Verbose = 'verbose',
 	Compact = 'compact',
 	Conversation = 'conversation',
-}
-
-export enum CollapsedToolsDisplayMode {
-	Off = 'off',
-	WithThinking = 'withThinking',
-	Always = 'always',
 }
 
 export enum ChatNotificationMode {

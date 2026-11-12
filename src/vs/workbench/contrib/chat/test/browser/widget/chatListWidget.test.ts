@@ -59,7 +59,7 @@ import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity } from '../../../common/constants.js';
 import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -2782,7 +2782,8 @@ suite('ChatListWidget', () => {
 	// viewport. The summary must stay put and the content must grow downwards instead.
 	test('expanding a collapsible at the bottom of the transcript keeps its header anchored', async () => {
 		const { disposables, model, container, widget } = createWidget({}, configurationService => {
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Verbose);
 		});
 
 		// Enough completed turns for the transcript to overflow the viewport, each with enough
@@ -3838,7 +3839,6 @@ suite('ChatListWidget', () => {
 			const context = createWidget({ paddingBottom }, configurationService => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, ChatProgressVerbosity.Compact);
-				configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.CollapsedPreview);
 				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
 				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
 				configurationService.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, stickyScroll);

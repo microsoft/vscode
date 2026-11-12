@@ -27,7 +27,7 @@ import { ChatListItemRenderer } from '../../../../contrib/chat/browser/widget/ch
 import { ChatEditorOptions } from '../../../../contrib/chat/browser/widget/chatOptions.js';
 import { ChatSystemNotificationContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { IChatSubagentToolInvocationData } from '../../../../contrib/chat/common/chatService/chatService.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../contrib/chat/common/constants.js';
 import { ChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isResponseVM } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -41,7 +41,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 
 type FusionFixtureState = 'fusion-routing' | 'fusion-single' | 'fusion-cascade' | 'fusion-critique' | 'fusion-failed' | 'fusion-cancelled' | 'fusion-permission';
 
-async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | 'nested' | 'nested-unavailable' | FusionFixtureState, readOnly = false, thinkingStyle = ThinkingDisplayMode.FixedScrolling): Promise<void> {
+async function renderSubagent(context: ComponentFixtureContext, state: 'pending' | 'initializing' | 'running' | 'thinking' | 'parent-complete' | 'inline' | 'inline-expanded' | 'nested' | 'nested-unavailable' | FusionFixtureState, readOnly = false): Promise<void> {
 	const { container, disposableStore } = context;
 	const width = 620;
 	const instantiationService = createEditorServices(disposableStore, {
@@ -84,10 +84,6 @@ async function renderSubagent(context: ComponentFixtureContext, state: 'pending'
 		editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 20, wordWrap: 'off' },
 	});
 	configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
-	configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', state === 'thinking' ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off);
-	if (state === 'thinking') {
-		configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
-	}
 	configurationService.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, false);
 	const action = instantiationService.createInstance(
 		MenuItemAction,
@@ -355,5 +351,4 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	CompletionNotices: defineComponentFixture({ labels: { kind: 'screenshot' }, render: renderCompletionNotices }),
 	ThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking') }),
 	ReadOnlyThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking', true) }),
-	CollapsedThinkingAcrossCompletion: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => renderSubagent(context, 'thinking', false, ThinkingDisplayMode.Collapsed) }),
 });

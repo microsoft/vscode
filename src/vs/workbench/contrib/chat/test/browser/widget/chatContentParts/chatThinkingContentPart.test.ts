@@ -35,7 +35,7 @@ import { IChatThinkingTitleRequest } from '../../../../common/chatThinkingTitleS
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { ChatConfiguration, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../../common/constants.js';
+import { ChatConfiguration, ChatProgressVerbosity } from '../../../../common/constants.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -82,6 +82,11 @@ suite('ChatThinkingContentPart', () => {
 		};
 	}
 
+	/** Read-only chats preview thinking while it streams and collapse it afterwards, instead of using the fixed scrolling panel. */
+	function createReadOnlyRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
+		return { ...createMockRenderContext(isComplete), readOnly: true };
+	}
+
 	function createThinkingPart(value?: string, id?: string): IChatThinkingPart {
 		return {
 			kind: 'thinking',
@@ -103,6 +108,13 @@ suite('ChatThinkingContentPart', () => {
 			markdownRenderer,
 			isComplete
 		));
+	}
+
+	/** A live read-only preview that was collapsed, so its header follows the current activity and its items stay lazy. */
+	function createCollapsedPreviewPart(content: IChatThinkingPart, markdownRenderer: IMarkdownRenderer = mockMarkdownRenderer): ChatThinkingContentPart {
+		const part = createThinkingContentPart(content, createReadOnlyRenderContext(), markdownRenderer, false);
+		part.collapseContent();
+		return part;
 	}
 
 	function createDiffData(added: number, removed: number, resourceName = 'file.ts', version = '1'): IChatContentPartDiffData {
@@ -684,35 +696,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 	});
 
-	suite('ThinkingDisplayMode.Collapsed', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
-		test('should start collapsed', () => {
-			const content = createThinkingPart('**Analyzing code**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add(toDisposable(() => part.domNode.remove()));
-
-			const animationContainer = part.domNode.querySelector('.chat-collapsible-content-animation');
-			const animationContent = part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation-inner');
-			assert.deepStrictEqual({
-				collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
-				hasAnimationContainer: !!animationContainer,
-				animationEnabled: part.domNode.classList.contains('chat-collapsible-content-animated'),
-				contentIsInert: animationContent?.inert,
-			}, {
-				collapsed: true,
-				hasAnimationContainer: true,
-				animationEnabled: true,
-				contentIsInert: true,
-			});
-		});
-
+	suite('Expand and collapse', () => {
 		test('logs telemetry when the user toggles the header', () => {
 			const telemetryService = new TestTelemetryService();
 			instantiationService.stub(ITelemetryService, telemetryService);
@@ -727,8 +711,8 @@ suite('ChatThinkingContentPart', () => {
 			button.click();
 
 			assert.deepStrictEqual(telemetryService.events, [
-				{ name: 'chat.collapsibleToggle', data: { kind: 'thinking', previousExpanded: false, thinkingStyle: ThinkingDisplayMode.Collapsed, inThinking: false } },
-				{ name: 'chat.collapsibleToggle', data: { kind: 'thinking', previousExpanded: true, thinkingStyle: ThinkingDisplayMode.Collapsed, inThinking: false } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'thinking', previousExpanded: false, inThinking: false } },
+				{ name: 'chat.collapsibleToggle', data: { kind: 'thinking', previousExpanded: true, inThinking: false } },
 			]);
 		});
 
@@ -761,37 +745,22 @@ suite('ChatThinkingContentPart', () => {
 				'Title should contain extracted text');
 		});
 
-		test('lazy rendering - should not render content until expanded', () => {
-			const content = createThinkingPart('**Initial thinking content**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add(toDisposable(() => part.domNode.remove()));
-
-			// In collapsed mode, content wrapper should not be initialized
-			const contentList = part.domNode.querySelector('.chat-used-context-list');
-			assert.strictEqual(contentList, null, 'Content should not be rendered when collapsed');
-		});
-
 		test('lazy rendering - should render content when expanded', () => {
 			const content = createThinkingPart('**Thinking content to render**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createThinkingContentPart(content, createMockRenderContext(true), mockMarkdownRenderer, true);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			// Click the button to expand
 			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
 			assert.ok(button, 'Should have expand button');
+			const renderedBeforeExpanding = !!part.domNode.querySelector('.chat-used-context-list');
 			button.click();
 
-			// Now content should be rendered
-			const contentList = part.domNode.querySelector('.chat-used-context-list');
-			assert.ok(contentList, 'Content should be rendered after expanding');
+			assert.deepStrictEqual({
+				renderedBeforeExpanding,
+				renderedAfterExpanding: !!part.domNode.querySelector('.chat-used-context-list'),
+			}, { renderedBeforeExpanding: false, renderedAfterExpanding: true });
 		});
 
 		test('user toggle event bubbles before expansion changes', () => {
@@ -829,62 +798,24 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('Read-only chats', () => {
-		for (const configuredMode of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.CollapsedPreview, ThinkingDisplayMode.FixedScrolling]) {
-			test(`uses collapsed preview instead of ${configuredMode} without changing the setting`, () => {
-				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, configuredMode);
-				const states = [false, true].map(isComplete => {
-					const part = createThinkingContentPart(createThinkingPart('**Reviewing changes**\nChecking the implementation'), { ...createMockRenderContext(isComplete), readOnly: true }, mockMarkdownRenderer, isComplete);
-					return {
-						collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
-						fixedScrolling: part.domNode.classList.contains('chat-thinking-fixed-mode'),
-					};
-				});
-
-				assert.deepStrictEqual({
-					states,
-					configuredMode: mockConfigurationService.getValue(ChatConfiguration.ThinkingStyle),
-				}, {
-					states: [
-						{ collapsed: false, fixedScrolling: false },
-						{ collapsed: true, fixedScrolling: false },
-					],
-					configuredMode,
-				});
+		test('previews thinking while it streams and collapses it when finished', () => {
+			const states = [false, true].map(isComplete => {
+				const part = createThinkingContentPart(createThinkingPart('**Reviewing changes**\nChecking the implementation'), createReadOnlyRenderContext(isComplete), mockMarkdownRenderer, isComplete);
+				mainWindow.document.body.appendChild(part.domNode);
+				disposables.add(toDisposable(() => part.domNode.remove()));
+				return {
+					collapsed: part.domNode.classList.contains('chat-used-context-collapsed'),
+					fixedScrolling: part.domNode.classList.contains('chat-thinking-fixed-mode'),
+					hasAnimationContainer: !!part.domNode.querySelector('.chat-collapsible-content-animation'),
+					animationEnabled: part.domNode.classList.contains('chat-collapsible-content-animated'),
+					contentIsInert: part.domNode.querySelector<HTMLElement>('.chat-collapsible-content-animation-inner')?.inert,
+				};
 			});
-		}
-	});
 
-	suite('ThinkingDisplayMode.CollapsedPreview', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.CollapsedPreview);
-		});
-
-		test('should start expanded when streaming (not complete)', () => {
-			const content = createThinkingPart('**Analyzing**\nSome detailed reasoning about the code structure');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add(toDisposable(() => part.domNode.remove()));
-
-			// In CollapsedPreview mode, should be expanded while streaming
-			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), false,
-				'Should be expanded during streaming in CollapsedPreview mode');
-		});
-
-		test('should be collapsed when complete', () => {
-			const content = createThinkingPart('**Completed task**');
-			const context = createMockRenderContext(true); // isComplete = true
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
-
-			mainWindow.document.body.appendChild(part.domNode);
-			disposables.add(toDisposable(() => part.domNode.remove()));
-
-			// When complete, should be collapsed
-			assert.strictEqual(part.domNode.classList.contains('chat-used-context-collapsed'), true,
-				'Should be collapsed when complete');
+			assert.deepStrictEqual(states, [
+				{ collapsed: false, fixedScrolling: false, hasAnimationContainer: true, animationEnabled: true, contentIsInert: false },
+				{ collapsed: true, fixedScrolling: false, hasAnimationContainer: true, animationEnabled: true, contentIsInert: true },
+			]);
 		});
 
 		test('should be collapsed when streamingCompleted is true even if element.isComplete is false (look-ahead completion)', () => {
@@ -892,7 +823,7 @@ suite('ChatThinkingContentPart', () => {
 			// based on look-ahead (subsequent non-pinnable parts exist), but the
 			// overall response is still in progress
 			const content = createThinkingPart('**Finished analyzing**');
-			const context = createMockRenderContext(false); // element.isComplete = false
+			const context = createReadOnlyRenderContext(false); // element.isComplete = false
 
 			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
@@ -908,7 +839,7 @@ suite('ChatThinkingContentPart', () => {
 		test('should use lazy rendering when streamingCompleted is true even if element.isComplete is false', () => {
 			// Verify lazy rendering is triggered when streamingCompleted=true and element.isComplete=false
 			const content = createThinkingPart('**Looking ahead completed**');
-			const context = createMockRenderContext(false); // element.isComplete = false
+			const context = createReadOnlyRenderContext(false); // element.isComplete = false
 
 			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
 
@@ -921,11 +852,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 	});
 
-	suite('ThinkingDisplayMode.FixedScrolling', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.FixedScrolling);
-		});
-
+	suite('Fixed scrolling panel', () => {
 		test('should have fixed mode class', () => {
 			const content = createThinkingPart('**Scrolling content**');
 			const context = createMockRenderContext(false);
@@ -1157,10 +1084,6 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('Thinking content updates', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		test('updateThinking should update content', () => {
 			const content = createThinkingPart('**Initial**');
 			const context = createMockRenderContext(false);
@@ -1233,8 +1156,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('should restore the descriptive title after expand and collapse', () => {
 			const content = createThinkingPart('**Read chatListRenderer.ts, lines 2230 to 2270**\nInspect grouping logic');
-			const context = createMockRenderContext(false);
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -1250,10 +1172,6 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('Reasoning summary rows', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		function expandedSummaryRows(value: string): HTMLElement[] {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
@@ -1484,7 +1402,7 @@ suite('ChatThinkingContentPart', () => {
 				render: (markdown, options, target) => renderMarkdown(markdown, options, target),
 			};
 			const content = createThinkingPart('**Analyzing the request**');
-			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
+			const part = createCollapsedPreviewPart(content, markdownRenderer);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -1525,7 +1443,7 @@ suite('ChatThinkingContentPart', () => {
 			};
 			// The first block is a single-header block (renders as one block, drops nothing).
 			const content = createThinkingPart('**Reading the file**', 'block-0');
-			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
+			const part = createCollapsedPreviewPart(content, markdownRenderer);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -1543,7 +1461,7 @@ suite('ChatThinkingContentPart', () => {
 			};
 			// Two multi-header summary blocks grouped, collapsed through completion.
 			const content = createThinkingPart('**Analyzing the request**\n\n**Reviewing constraints**', 'block-0');
-			const part = createThinkingContentPart(content, createMockRenderContext(false), markdownRenderer, false);
+			const part = createCollapsedPreviewPart(content, markdownRenderer);
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
@@ -2456,10 +2374,6 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('Thinking group identity', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		for (const layout of ['legacy', 'persistent', 'conversation']) {
 			test(`a single extracted header is the completed title without generation (${layout})`, () => {
 				let registrations = 0;
@@ -2579,7 +2493,7 @@ suite('ChatThinkingContentPart', () => {
 			});
 		}
 
-		test('reuses generated headers in every thinking and progress style without model requests', async () => {
+		test('reuses generated headers in every progress layout without model requests', async () => {
 			let modelSelections = 0;
 			mockLanguageModelsService.selectLanguageModels = async () => {
 				modelSelections++;
@@ -2588,40 +2502,38 @@ suite('ChatThinkingContentPart', () => {
 			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
 			const titles: (string | null | undefined)[] = [];
 			let durationRows = 0;
-			for (const thinkingStyle of Object.values(ThinkingDisplayMode)) {
-				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
-				for (const progress of ['legacy', 'persistent', 'conversation']) {
-					const context = {
-						...createMockRenderContext(true),
-						suppressProgressShimmer: progress !== 'legacy',
-						isConversation: progress === 'conversation',
+			for (const layout of ['legacy', 'readOnly', 'persistent', 'conversation']) {
+				const context = {
+					...createMockRenderContext(true),
+					readOnly: layout === 'readOnly',
+					suppressProgressShimmer: layout === 'persistent' || layout === 'conversation',
+					isConversation: layout === 'conversation',
+				};
+				for (const split of [false, true]) {
+					const values = ['**Reviewing code**\n\nDetails.', '**Planning tests**\n\nMore details.'];
+					const source: IChatThinkingPart = {
+						...createThinkingPart(),
+						value: split ? values : values.join('\n\n'),
+						reasoningTimingSource: 'provider',
+						reasoningDurationMs: 1200,
+						generatedTitle: 'Previously generated summary',
 					};
-					for (const split of [false, true]) {
-						const values = ['**Reviewing code**\n\nDetails.', '**Planning tests**\n\nMore details.'];
-						const source: IChatThinkingPart = {
-							...createThinkingPart(),
-							value: split ? values : values.join('\n\n'),
-							reasoningTimingSource: 'provider',
-							reasoningDurationMs: 1200,
-							generatedTitle: 'Previously generated summary',
-						};
-						const content = split ? { ...source, value: values[0] } : source;
-						const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
-						if (split) {
-							part.setThinkingPartSource(content, source);
-							part.setupThinkingContainer({ ...source, value: values[1] }, source);
-						}
-						part.finalizeTitleIfDefault();
-						part.expandContent();
-						durationRows += part.domNode.querySelectorAll('.chat-thinking-run-duration').length;
-						part.collapseContent();
-						titles.push(part.domNode.querySelector('.monaco-button')?.textContent);
+					const content = split ? { ...source, value: values[0] } : source;
+					const part = createThinkingContentPart(content, context, mockMarkdownRenderer, true);
+					if (split) {
+						part.setThinkingPartSource(content, source);
+						part.setupThinkingContainer({ ...source, value: values[1] }, source);
 					}
+					part.finalizeTitleIfDefault();
+					part.expandContent();
+					durationRows += part.domNode.querySelectorAll('.chat-thinking-run-duration').length;
+					part.collapseContent();
+					titles.push(part.domNode.querySelector('.monaco-button')?.textContent);
 				}
 			}
 			await timeout(0);
 			assert.deepStrictEqual({ titles, durationRows, modelSelections }, {
-				titles: Array.from({ length: Object.values(ThinkingDisplayMode).length * 3 * 2 }, () => 'Previously generated summary - 2s'),
+				titles: Array.from({ length: 4 * 2 }, () => 'Previously generated summary - 2s'),
 				durationRows: 0,
 				modelSelections: 0,
 			});
@@ -2694,22 +2606,6 @@ suite('ChatThinkingContentPart', () => {
 			assert.deepStrictEqual(actual, cases.map(({ name, title, labels }) => ({ name, title, ariaLabel: title, labels })));
 		});
 
-		test('distinguishes reasoning from grouped tool content', () => {
-			const part = createThinkingContentPart(createThinkingPart('**Reviewed the implementation**'), createMockRenderContext(false), mockMarkdownRenderer, false);
-
-			assert.deepStrictEqual({
-				hasReasoning: part.hasReasoningContent(),
-				hasGroupedItems: part.hasGroupedItems(),
-			}, {
-				hasReasoning: true,
-				hasGroupedItems: false,
-			});
-
-			part.appendItem(() => ({ domNode: $('div.test-tool-item') }), 'test-tool');
-
-			assert.strictEqual(part.hasGroupedItems(), true);
-		});
-
 		test('shows recorded reasoning duration in finalized headers and accessible labels', () => {
 			const content = createThinkingPart('Reviewed the implementation');
 			content.reasoningDurationMs = 1200;
@@ -2759,10 +2655,6 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('Tool invocation appending', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		test('does not render intermediate titles or materialize tools in a completed collapsed group', () => {
 			const render = sinon.spy(mockMarkdownRenderer, 'render');
 			const part = createThinkingContentPart(createThinkingPart(), createMockRenderContext(false), mockMarkdownRenderer, true);
@@ -2787,9 +2679,13 @@ suite('ChatThinkingContentPart', () => {
 
 		for (const expanded of [false, true]) {
 			test(`transfers retained tool ownership between rebuilt groups (expanded=${expanded})`, () => {
-				const createGroup = () => disposables.add(instantiationService.createInstance(
-					ChatThinkingContentPart, createThinkingPart('**Working**'), createMockRenderContext(), mockMarkdownRenderer, false,
-				));
+				const createGroup = () => {
+					const group = disposables.add(instantiationService.createInstance(
+						ChatThinkingContentPart, createThinkingPart('**Working**'), createReadOnlyRenderContext(), mockMarkdownRenderer, false,
+					));
+					group.collapseContent();
+					return group;
+				};
 				const first = createGroup();
 				const second = createGroup();
 				const tool = new ChatToolInvocation(
@@ -2835,9 +2731,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('appendItem should use lazy rendering when collapsed', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2888,9 +2782,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('lazy items should materialize when first expanded', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2917,9 +2809,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('removeLazyItem should remove pending lazy items', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -2944,9 +2834,7 @@ suite('ChatThinkingContentPart', () => {
 			// when expanded. This catches the bug where markdown items render before
 			// tool items because markdown isn't lazy.
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3020,9 +2908,7 @@ suite('ChatThinkingContentPart', () => {
 			// Expected behavior: tool1, thinking2, tool2 in DOM order
 			// Bug behavior: thinking2 renders before tool1 because its not lazy
 			const initialContent = createThinkingPart('**Initial thinking**', 'thinking-1');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(initialContent, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(initialContent);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3111,9 +2997,7 @@ suite('ChatThinkingContentPart', () => {
 			//
 			// Result: DOM order is [markdown, tool1, tool2] instead of [tool1, markdown, tool2]
 			const initialContent = createThinkingPart('', 'thinking-1');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(initialContent, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(initialContent);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3192,9 +3076,7 @@ suite('ChatThinkingContentPart', () => {
 			//
 			// Result: Duplicate thinking containers, one with correct content, one with stale
 			const initialContent = createThinkingPart('', 'thinking-1');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(initialContent, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(initialContent);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3244,9 +3126,7 @@ suite('ChatThinkingContentPart', () => {
 			// Edge case: setupThinkingContainer is called but no subsequent updateThinking arrives
 			// In this case, the lazy item's content should be used when materializing
 			const initialContent = createThinkingPart('', 'thinking-1');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(initialContent, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(initialContent);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3276,10 +3156,6 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('State management', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		test('markAsInactive should update isActive state', () => {
 			const content = createThinkingPart('**Active thinking**');
 			const context = createMockRenderContext(false);
@@ -3314,10 +3190,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('collapseContent should collapse the part', () => {
 			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
-			const context = createMockRenderContext(false);
-
-			// Use CollapsedPreview to start expanded
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.CollapsedPreview);
+			const context = createReadOnlyRenderContext(false);
 
 			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
 
@@ -3335,9 +3208,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('finalizeTitleIfDefault should update button icon to check', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3456,10 +3327,6 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('hasSameContent', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		test('should return true for tool invocations', () => {
 			const content = createThinkingPart('**Working**', 'id-1');
 			const context = createMockRenderContext(false);
@@ -3553,10 +3420,6 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('DOM structure', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		test('should have proper aria-expanded attribute', () => {
 			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);
@@ -3666,9 +3529,8 @@ suite('ChatThinkingContentPart', () => {
 		}
 
 		test('reuses identical tool titles without reparsing markdown and restores detail after expansion', () => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 			const renderer = sinon.spy(mockMarkdownRenderer, 'render');
-			const part = createThinkingContentPart(createThinkingPart(''), createMockRenderContext(), mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(createThinkingPart(''));
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			const append = (index: number) => {
@@ -3703,9 +3565,8 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('invalidates reused titles when markdown rendering metadata or mutable input changes', () => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
 			const renderer = sinon.spy(mockMarkdownRenderer, 'render');
-			const part = createThinkingContentPart(createThinkingPart(''), createMockRenderContext(), mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(createThinkingPart(''));
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 			const title = new MarkdownString('Reading **file**');
@@ -3789,9 +3650,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('finalizeTitleIfDefault should promote a lazy single tool without its thinking icon', () => {
 			const content = createThinkingPart('');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3927,9 +3786,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('should show "Editing files" for streaming edit tools instead of generic display name', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3953,9 +3810,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('should show original message for non-edit streaming tools', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -3978,9 +3833,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('should show original message for non-streaming edit tools', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -4006,7 +3859,7 @@ suite('ChatThinkingContentPart', () => {
 			const markdownRenderer: IMarkdownRenderer = {
 				render: (markdown, options) => renderMarkdown(markdown, options),
 			};
-			const part = createThinkingContentPart(createThinkingPart('**Working**'), createMockRenderContext(false), markdownRenderer, false);
+			const part = createCollapsedPreviewPart(createThinkingPart('**Working**'), markdownRenderer);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -4045,9 +3898,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('should keep original message for create_file tool even when streaming', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -4070,9 +3921,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('should show external resources for serialized image tools when initially collapsed and hide them when expanded', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -4103,8 +3952,7 @@ suite('ChatThinkingContentPart', () => {
 
 		test('should not show external resources for terminal tools that render their own image pills', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
-			const part = createThinkingContentPart(content, context, mockMarkdownRenderer, false);
+			const part = createCollapsedPreviewPart(content);
 
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
@@ -4132,10 +3980,6 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('Diff aggregation in thinking header', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		test('should show diff stats in finalized title when onDidChangeDiff fires', () => {
 			const content = createThinkingPart('**Editing files**');
 			const context = createMockRenderContext(true);
@@ -4397,13 +4241,9 @@ suite('ChatThinkingContentPart', () => {
 	});
 
 	suite('eagerDisposable lifecycle', () => {
-		setup(() => {
-			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
-		});
-
 		test('eagerDisposable is disposed when thinking part is disposed even if factory was never called', () => {
 			const content = createThinkingPart('**Working**');
-			const context = createMockRenderContext(false);
+			const context = createReadOnlyRenderContext();
 
 			const part = instantiationService.createInstance(
 				ChatThinkingContentPart,
@@ -4412,15 +4252,17 @@ suite('ChatThinkingContentPart', () => {
 				mockMarkdownRenderer,
 				false
 			);
+			part.collapseContent();
 
 			mainWindow.document.body.appendChild(part.domNode);
 
 			let disposed = false;
+			let factoryCalled = false;
 			const eagerDisposable = toDisposable(() => { disposed = true; });
-			const factory = () => ({
-				domNode: $('div.test-item'),
-				disposable: eagerDisposable,
-			});
+			const factory = () => {
+				factoryCalled = true;
+				return { domNode: $('div.test-item'), disposable: eagerDisposable };
+			};
 
 			// Append while collapsed — factory is NOT called
 			part.appendItem(factory, 'test-tool', undefined, undefined, undefined, eagerDisposable);
@@ -4431,12 +4273,12 @@ suite('ChatThinkingContentPart', () => {
 			part.domNode.remove();
 			part.dispose();
 
-			assert.strictEqual(disposed, true, 'eagerDisposable should be disposed with the thinking part');
+			assert.deepStrictEqual({ disposed, factoryCalled }, { disposed: true, factoryCalled: false });
 		});
 
 		test('eagerDisposable is disposed when thinking part is disposed after factory was called', () => {
 			const content = createThinkingPart('**Working**\nSome detailed analysis');
-			const context = createMockRenderContext(false);
+			const context = createReadOnlyRenderContext();
 
 			const part = instantiationService.createInstance(
 				ChatThinkingContentPart,
@@ -4445,6 +4287,7 @@ suite('ChatThinkingContentPart', () => {
 				mockMarkdownRenderer,
 				false
 			);
+			part.collapseContent();
 
 			mainWindow.document.body.appendChild(part.domNode);
 

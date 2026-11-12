@@ -57,13 +57,14 @@ import { formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 const SESSIONS_IS_PHONE_LAYOUT_KEY = 'sessionsIsPhoneLayout';
 
 /**
- * Read-only chats and phone layouts use collapsed preview regardless of the configured thinking style.
+ * The thinking presentation without persistent progress, which is when it is off and always in inline chat: read-only chats
+ * and phone layouts preview while streaming and collapse when finished, other chats use the fixed-height streaming panel.
  */
-export function getEffectiveThinkingDisplayMode(configurationService: IConfigurationService, contextKeyService: IContextKeyService, readOnly = false): ThinkingDisplayMode {
+export function getEffectiveThinkingDisplayMode(contextKeyService: IContextKeyService, readOnly = false): ThinkingDisplayMode {
 	if (readOnly || contextKeyService.getContextKeyValue<boolean>(SESSIONS_IS_PHONE_LAYOUT_KEY) === true) {
 		return ThinkingDisplayMode.CollapsedPreview;
 	}
-	return configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
+	return ThinkingDisplayMode.FixedScrolling;
 }
 
 function extractTextFromPart(content: IChatThinkingPart): string {
@@ -499,7 +500,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private readonly diffButtonStore = this._register(new DisposableStore());
 	private diffButton: ChatEditStatsButton | undefined;
 	private containsReasoning: boolean;
-	private containsGroupedItems: boolean = false;
 
 	get aggregatedDiff(): IEditSessionDiffStats { return this._diffData.get(); }
 
@@ -578,7 +578,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.allThinkingParts.push(content);
 		const configuredMode = this.isConversation
 			? ThinkingDisplayMode.Collapsed
-			: context.suppressProgressShimmer ? ThinkingDisplayMode.CollapsedPreview : getEffectiveThinkingDisplayMode(this.configurationService, contextKeyService, context.readOnly);
+			: context.suppressProgressShimmer ? ThinkingDisplayMode.CollapsedPreview : getEffectiveThinkingDisplayMode(contextKeyService, context.readOnly);
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
 
 		this.currentTitle = initialTitle;
@@ -1459,20 +1459,12 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 	}
 
-	public hasReasoningContent(): boolean {
-		return this.containsReasoning;
-	}
-
 	public hasReasoningTiming(): boolean {
 		return this.allThinkingParts.some(part => part.reasoningStartedAt !== undefined || part.reasoningDurationMs !== undefined);
 	}
 
 	public hasActiveReasoningTiming(): boolean {
 		return this.content.reasoningStartedAt !== undefined && this.content.reasoningDurationMs === undefined;
-	}
-
-	public hasGroupedItems(): boolean {
-		return this.containsGroupedItems;
 	}
 
 	private recordReasoningContent(content: string): void {
@@ -2291,7 +2283,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		eagerDisposable?: IDisposable,
 	): void {
 		this.processPendingRemovals();
-		this.containsGroupedItems = true;
 
 		this.trackToolMetadata(toolInvocationId, toolInvocationOrMarkdown);
 		this.updateWorkingSpinnerVisibility();

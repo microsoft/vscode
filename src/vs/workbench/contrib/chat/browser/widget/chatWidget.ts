@@ -84,7 +84,7 @@ import { recoverAttachmentMentions } from '../../common/attachments/chatInlineAt
 import { ChatRequestVariableSet, ChatSessionReferenceVariableId, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, getAgentHostSessionResource, IResolvedNewChatSessionType, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, getAgentHostSessionResource, IResolvedNewChatSessionType, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../../common/constants.js';
 import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -276,20 +276,6 @@ type ChatPromptRunClassification = {
 	extensionId?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Identifier of the extension that contributed the prompt, when applicable.' };
 	promptName?: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Name of the core or extension-contributed prompt.' };
 	promptNameHash?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed name of local or user prompt for privacy.' };
-};
-
-type ChatThinkingStyleUsageEvent = {
-	thinkingStyle: ThinkingDisplayMode;
-	location: ChatAgentLocation;
-	requestKind: 'submit' | 'rerun';
-};
-
-type ChatThinkingStyleUsageClassification = {
-	owner: 'justschen';
-	comment: 'Event fired when a chat request uses the configured thinking style rendering mode.';
-	thinkingStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured rendering mode for thinking content.' };
-	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location where the request was made.' };
-	requestKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the request was a new submit or a rerun.' };
 };
 
 const supportsAllAttachments: Required<Omit<IChatAgentAttachmentCapabilities, 'terminalCommandPrefix'>> = {
@@ -3762,29 +3748,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			...this.getSelectedModelRequestOptions(),
 			modeInfo: this.input.currentModeInfo,
 		};
-		const result = await this.chatService.resendRequest(lastRequest, options);
-		this.logThinkingStyleUsage('rerun');
-		return result;
-	}
-
-	private getConfiguredThinkingStyle(): ThinkingDisplayMode {
-		const thinkingStyle = this.configurationService.getValue<ThinkingDisplayMode>(ChatConfiguration.ThinkingStyle);
-		switch (thinkingStyle) {
-			case ThinkingDisplayMode.Collapsed:
-			case ThinkingDisplayMode.CollapsedPreview:
-			case ThinkingDisplayMode.FixedScrolling:
-				return thinkingStyle;
-			default:
-				return ThinkingDisplayMode.FixedScrolling;
-		}
-	}
-
-	private logThinkingStyleUsage(requestKind: ChatThinkingStyleUsageEvent['requestKind']): void {
-		this.telemetryService.publicLog2<ChatThinkingStyleUsageEvent, ChatThinkingStyleUsageClassification>('chat.thinkingStyleUsage', {
-			thinkingStyle: this.getConfiguredThinkingStyle(),
-			location: this.location,
-			requestKind,
-		});
+		await this.chatService.resendRequest(lastRequest, options);
 	}
 
 	private _cancelGoalSummary(): void {
@@ -4208,8 +4172,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			return;
 		}
-
-		this.logThinkingStyleUsage('submit');
 
 		// visibility sync before firing events to hide the welcome view
 		this.updateChatViewVisibility();
