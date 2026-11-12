@@ -13,7 +13,7 @@ import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } 
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicReadOptions, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileSystemProviderError, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileWriteOptions, IStat, IWatchOptions } from './files.js';
+import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileAtomicReadOptions, IFileChange, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, IFileSystemProviderError, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileWriteOptions, IStat, IWatchOptions, IFileSystemProviderWithFileAtomicRenameCapability, IFileRealpathOptions } from './files.js';
 import { reviveFileChanges } from './watcher.js';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
@@ -29,6 +29,7 @@ export class DiskFileSystemProviderClient extends Disposable implements
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithFileAtomicRenameCapability,
 	IFileSystemProviderWithFileCloneCapability {
 
 	constructor(
@@ -56,6 +57,7 @@ export class DiskFileSystemProviderClient extends Disposable implements
 				FileSystemProviderCapabilities.FileAtomicRead |
 				FileSystemProviderCapabilities.FileAtomicWrite |
 				FileSystemProviderCapabilities.FileAtomicDelete |
+				FileSystemProviderCapabilities.FileAtomicRename |
 				FileSystemProviderCapabilities.FileAppend |
 				FileSystemProviderCapabilities.FileClone |
 				FileSystemProviderCapabilities.FileRealpath;
@@ -80,8 +82,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		return this.channel.call('stat', [resource]);
 	}
 
-	realpath(resource: URI): Promise<string> {
-		return this.channel.call('realpath', [resource]);
+	realpath(resource: URI, options?: IFileRealpathOptions): Promise<string> {
+		return this.channel.call('realpath', [resource, options]);
 	}
 
 	readdir(resource: URI): Promise<[string, FileType][]> {
@@ -199,6 +201,10 @@ export class DiskFileSystemProviderClient extends Disposable implements
 
 	rename(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this.channel.call('rename', [resource, target, opts]);
+	}
+
+	renameFileAtomic(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {
+		return this.channel.call('renameFileAtomic', [resource, target, opts]);
 	}
 
 	copy(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {

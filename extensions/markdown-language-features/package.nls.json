@@ -6,6 +6,7 @@
 	"configuration.preview": "Preview",
 	"configuration.editor": "Language Features",
 	"configuration.markdown.editor.highlightActiveBlock": "Controls whether the active block in the rich Markdown editor is highlighted. Does not affect source markers or editing behavior.",
+	"configuration.markdown.editor.renderWhitespace": "Controls whether the rich Markdown editor shows space and tab indicators where Markdown syntax is revealed.",
 	"configuration.markdown.experimental.richLinks.enabled": "Controls whether supported links in the Markdown editor are rendered as rich links with live metadata. Enabling this may make authenticated requests to services such as GitHub.",
 	"configuration.markdown.editor.quickSuggestions": "Controls whether typing automatically requests suggestions in the rich Markdown editor. Also requires `#editor.quickSuggestions#` to be enabled for Markdown. Does not affect manually invoking Trigger Suggest or suggestions in the Markdown code editor.",
 	"configuration.validation": "Validation",
@@ -428,6 +429,83 @@
 	},
 	"markdown.editor.insertParagraph.title": {
 		"message": "Insert Paragraph Without Continuing Markup",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.insertTable.title": {
+		"message": "Insert Table",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.insertRowAbove.title": {
+		"message": "Table: Insert Row Above",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.insertRowBelow.title": {
+		"message": "Table: Insert Row Below",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.deleteRow.title": {
+		"message": "Table: Delete Row",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.insertColumnLeft.title": {
+		"message": "Table: Insert Column Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.insertColumnRight.title": {
+		"message": "Table: Insert Column Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.deleteColumn.title": {
+		"message": "Table: Delete Column",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.alignColumnLeft.title": {
+		"message": "Table: Align Column Left",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.alignColumnCenter.title": {
+		"message": "Table: Align Column Center",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.alignColumnRight.title": {
+		"message": "Table: Align Column Right",
+		"comment": [
+			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
+		],
+		"$generated": true
+	},
+	"markdown.editor.table.alignColumnNone.title": {
+		"message": "Table: Remove Column Alignment",
 		"comment": [
 			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
 		],

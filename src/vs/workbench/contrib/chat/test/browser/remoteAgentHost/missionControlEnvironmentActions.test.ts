@@ -77,7 +77,7 @@ function environment(id: string, name = `Host ${id}`): IMissionControlHost {
 suite('Mission Control environment picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function fixture(cached: readonly IMissionControlHost[] = [], enabled = true) {
+	function fixture(cached: readonly IMissionControlHost[] = [], enabled = true, ownEnvironmentId?: string) {
 		const quickPick = store.add(new TestEnvironmentQuickPick());
 		const instantiation = store.add(new TestInstantiationService());
 		const inventory = new DeferredPromise<readonly IMissionControlHost[]>();
@@ -87,6 +87,7 @@ suite('Mission Control environment picker', () => {
 		const service = new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly enabled = enabled;
 			override readonly hosts = hosts;
+			override readonly ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', ownEnvironmentId);
 			override get accountKey() { return accountKey; }
 			override async initialize() { }
 			override async refresh(token: CancellationToken) {
@@ -208,7 +209,7 @@ suite('Mission Control environment picker', () => {
 
 	test('does not expose discovery when AI features are disabled', async () => {
 		const { calls, quickPick, run } = fixture([], false);
-		await assert.rejects(async () => run(), /require remote agent hosts and AI features to be enabled/);
+		await assert.rejects(async () => run(), /require GitHub Environments, remote agent hosts, and AI features to be enabled/);
 		assert.deepStrictEqual({ requests: calls.tokens.length, shown: quickPick.shown.isSettled }, { requests: 0, shown: false });
 	});
 

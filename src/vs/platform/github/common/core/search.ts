@@ -19,9 +19,15 @@ export interface SearchPage<T> {
 }
 
 /** Repository metadata returned with a search match. */
-export interface RepositorySearchItem extends RepositoryIdentity {
+export interface RepositorySearchItem extends Omit<RepositoryIdentity, 'owner'> {
+	/** Repository owner, or null when unavailable. */
+	readonly owner: Account | null;
 	/** Default branch name. */
 	readonly default_branch: string;
+	/** HTTPS clone URL. */
+	readonly clone_url: string;
+	/** SSH clone URL. */
+	readonly ssh_url: string;
 	/** Primary language, or null. */
 	readonly language: string | null;
 	/** Star count. */

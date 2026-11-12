@@ -78,29 +78,26 @@ export interface ICategorizedCustomizationMigrationCandidate {
 export function createCustomizationMigrationAgentPrompt(
 	harness: { readonly id: string; readonly label: string },
 	migrationFlowId: string,
-	recoveryBundleFolder: URI,
 	customizations: readonly ICategorizedCustomizationMigrationCandidate[],
 	targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
 ): string {
 	const customizationLocations = customizations.map(({ category, customization }) => {
 		if (isMcpServerCustomizationMigrationCandidate(customization)) {
-			return `- ${category}: MCP server "${customization.name}" (${customization.storage}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
+			return `- ${category}: MCP server "${customization.name}" (${getAgentMigrationScope(customization.storage)}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
 		}
 		if (isPluginMarketplaceCustomizationMigrationCandidate(customization)) {
-			return `- ${category}: Plugin marketplace "${customization.name}" (${customization.storage}): ${customization.source} -> ~/.copilot/settings.json`;
+			return `- ${category}: Plugin marketplace "${customization.name}" (${getAgentMigrationScope(customization.storage)}): ${customization.source} -> ~/.copilot/settings.json`;
 		}
-		return `- ${category}: ${customization.type} (${customization.storage}): ${customization.uri.toString(true)}`;
+		return `- ${category}: ${customization.type} (${getAgentMigrationScope(customization.storage)}): ${customization.uri.toString(true)}`;
 	});
 	const targetLocations = [...targetFoldersByType]
-		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${folder.source}, ${folder.label}): ${folder.uri.toString(true)}`));
+		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${getAgentMigrationScope(folder.source)}, ${folder.label}): ${folder.uri.toString(true)}`));
 
 	return [
 		'/migrate-customizations',
 		'',
 		`Selected harness: ${harness.label} (${harness.id})`,
 		`Migration telemetry flow: ${migrationFlowId}`,
-		`Recovery bundle folder: ${recoveryBundleFolder.toString(true)}`,
-		`Recovery bundle filesystem path: ${recoveryBundleFolder.fsPath}`,
 		'',
 		'Customizations that need migration:',
 		...customizationLocations,
@@ -108,6 +105,10 @@ export function createCustomizationMigrationAgentPrompt(
 		'Valid target folders reported by the selected harness:',
 		...(targetLocations.length ? targetLocations : ['- None reported for these customization types.']),
 	].join('\n');
+}
+
+function getAgentMigrationScope(source: string): string {
+	return source === PromptsStorage.local ? 'workspace' : source;
 }
 
 /**

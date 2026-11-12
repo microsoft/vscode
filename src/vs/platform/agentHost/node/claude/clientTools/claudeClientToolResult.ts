@@ -35,6 +35,10 @@ const CLAUDE_CLIENT_RESOURCE_SCHEME = 'claude-client';
 export function convertToolCallResult(result: ToolCallResult, toolUseId: string): CallToolResult {
 	const blocks = result.content ?? [];
 	const content = blocks.map((block, index) => convertBlock(block, toolUseId, index));
+	if (content.length === 0 && result.error?.message) {
+		// Without content the SDK reports a generic "Unknown error"; surface the real message.
+		content.push({ type: 'text', text: result.error.message });
+	}
 	const out: CallToolResult = { content };
 	if (result.structuredContent !== undefined) {
 		out.structuredContent = result.structuredContent;

@@ -21,11 +21,13 @@ import packageJson from '../../package.json' with { type: 'json' };
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb, devTunnelsWebOutDir } from './devTunnelsWeb.ts';
+import { agentHostCryptoOutDir, bundleAgentHostCrypto } from './agentHostCrypto.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
 import { getBundleOptions } from './bundle.ts';
 import { compileStandaloneFiles } from './standalone.ts';
+import { copyMobileLibraries, mobileDirectory, mobileEntryPoint, mobilePlugin, mobileQuality, packageMobileExtensions, prepareMobile, writeMobileManifest } from './mobile.ts';
 
 const globAsync = promisify(glob);
 
@@ -90,6 +92,7 @@ const workerEntryPoints = [
 	'vs/workbench/services/languageDetection/browser/languageDetectionWebWorkerMain',
 	'vs/workbench/services/search/worker/localFileSearchMain',
 	'vs/workbench/contrib/output/common/outputLinkComputerMain',
+	'vs/workbench/contrib/mediaPreview/browser/imageEncoderWorkerMain',
 	'vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.workerMain',
 ];
 
@@ -169,6 +172,12 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
+		case 'mobile':
+			return [
+				...workerEntryPoints,
+				mobileEntryPoint,
+				...keyboardMapEntryPoints,
+			];
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -197,6 +206,8 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 				'vs/workbench/workbench.web.main.internal',
 				'vs/sessions/sessions.web.main.internal',
 			]);
+		case 'mobile':
+			return new Set([mobileEntryPoint]);
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -217,11 +228,14 @@ async function cleanDir(dir: string): Promise<void> {
  * Scan for built-in extensions in the given directory.
  * Returns an array of extension entries for the builtinExtensionsScannerService.
  */
-function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExtension> {
+function scanBuiltinExtensions(extensionsRoot: string, required = false): Array<IScannedBuiltinExtension> {
 	const scannedExtensions: Array<IScannedBuiltinExtension> = [];
 	const extensionsPath = path.join(REPO_ROOT, extensionsRoot);
 
 	if (!fs.existsSync(extensionsPath)) {
+		if (required) {
+			throw new Error(`Missing local extension sources: ${extensionsPath}`);
+		}
 		return scannedExtensions;
 	}
 
@@ -249,6 +263,9 @@ function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExt
 				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
 			});
 		} catch (e) {
+			if (required) {
+				throw new Error(`Unable to scan local extension ${extensionFolder}`, { cause: e });
+			}
 			// Skip invalid extensions
 		}
 	}
@@ -267,6 +284,10 @@ function readISODate(outDir: string): string {
 	}
 }
 
+// Workspace members inside src (such as src/vs/sessions/test/e2e) install their
+// own node_modules there; those dependencies are not part of the compiled output.
+const SRC_NODE_MODULES = '**/node_modules/**';
+
 /**
  * Copy ALL non-TypeScript files from src/ to the output directory.
  * This matches the old gulp build behavior where `gulp.src('src/**')` streams
@@ -280,6 +301,7 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 	const ignorePatterns = [
 		// Exclude .ts files but keep .d.ts files (they're needed at runtime for type references)
 		'**/*.ts',
+		SRC_NODE_MODULES,
 	];
 	if (excludeTests) {
 		ignorePatterns.push('**/test/**');
@@ -294,7 +316,7 @@ async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise
 	// Re-include .d.ts files that were excluded by the *.ts ignore
 	const dtsFiles = await globAsync('**/*.d.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
-		ignore: excludeTests ? ['**/test/**'] : [],
+		ignore: excludeTests ? [SRC_NODE_MODULES, '**/test/**'] : [SRC_NODE_MODULES],
 	});
 
 	const allFiles = [...new Set([...files, ...dtsFiles])];
@@ -396,11 +418,10 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 				// Inject built-in extensions list
 				if (contents.includes('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/')) {
 					if (builtinExtensionsReplacement === undefined) {
-						if (target === 'web' || target === 'server-web') {
-							// Web target uses .build/web/extensions (from compileWebExtensionsBuildTask)
-							// while server-web uses .build/extensions.
-							const extensionsRoot = target === 'web' ? '.build/web/extensions' : '.build/extensions';
-							const builtinExtensions = JSON.stringify(scanBuiltinExtensions(extensionsRoot));
+						if (target === 'web' || target === 'server-web' || target === 'mobile') {
+							const extensionsRoot = target === 'mobile' ? `${mobileDirectory}/extensions`
+								: target === 'server-web' ? '.build/extensions' : '.build/web/extensions';
+							const builtinExtensions = JSON.stringify(scanBuiltinExtensions(extensionsRoot, target === 'mobile'));
 							// Remove the outer brackets since the placeholder is inside an array literal
 							builtinExtensionsReplacement = builtinExtensions.substring(1, builtinExtensions.length - 1);
 						} else {
@@ -429,7 +450,7 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 
 async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 	// Find all .ts files
-	const ignorePatterns = ['**/*.d.ts'];
+	const ignorePatterns = ['**/*.d.ts', SRC_NODE_MODULES];
 	if (excludeTests) {
 		ignorePatterns.push('**/test/**');
 	}
@@ -453,6 +474,24 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 // ============================================================================
 
 async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
+	if (target !== 'mobile') {
+		return bundleToOutput(outDir, doMinify, doNls, doManglePrivates, target, sourceMapBaseUrl);
+	}
+	if (!doMinify || !doNls || sourceMapBaseUrl) {
+		throw new Error('Mobile requires minification and isolated NLS, with local source maps. Use pnpm run bundle-mobile.');
+	}
+	const release = await prepareMobile(REPO_ROOT, outDir);
+	try {
+		mobileQuality(quality, process.env['VSCODE_QUALITY']);
+		await packageMobileExtensions(REPO_ROOT);
+		await bundleToOutput(outDir, doMinify, doNls, doManglePrivates, target);
+	} finally {
+		await release();
+	}
+}
+
+async function bundleToOutput(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
+	const mobile = target === 'mobile';
 	await cleanDir(outDir);
 
 	// Write build date file (used by packaging to embed in product.json).
@@ -488,12 +527,15 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	const contentMapperPlugin = fileContentMapperPlugin(outDir, target);
 
 	// Bundle each entry point directly from TypeScript source
-	await Promise.all(allEntryPoints.map(async (entryPoint) => {
+	const bundleEntryPoint = async (entryPoint: string) => {
 		const entryPath = path.join(REPO_ROOT, SRC_DIR, `${entryPoint}.ts`);
 		const outPath = path.join(REPO_ROOT, outDir, `${entryPoint}.js`);
 
 		// Use CSS external plugin for entry points that don't need bundled CSS
 		const plugins: esbuild.Plugin[] = bundleCssEntryPoints.has(entryPoint) ? [] : [cssExternalPlugin()];
+		if (mobile) {
+			plugins.push(mobilePlugin(REPO_ROOT));
+		}
 		// Add content mapper plugin to inject product config and builtin extensions
 		plugins.push(contentMapperPlugin);
 		if (doNls) {
@@ -509,6 +551,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 
 		const buildOptions: esbuild.BuildOptions = {
 			...getBundleOptions(doMinify, 'neutral'),
+			...(mobile ? { absWorkingDir: REPO_ROOT, metafile: true } : {}),
 			entryPoints: needsCssBundling
 				? [{ in: entryPath, out: entryPoint }]
 				: [entryPath],
@@ -528,7 +571,14 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const result = await esbuild.build(buildOptions);
 
 		buildResults.push({ outPath, result });
-	}));
+	};
+	if (mobile) {
+		for (const entryPoint of allEntryPoints) {
+			await bundleEntryPoint(entryPoint);
+		}
+	} else {
+		await Promise.all(allEntryPoints.map(bundleEntryPoint));
+	}
 
 	// Bundle bootstrap files (with minimist inlined) directly from TypeScript source
 	for (const entry of bootstrapEntryPoints) {
@@ -563,7 +613,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const nlsResult = await finalizeNLS(
 			nlsCollector,
 			path.join(REPO_ROOT, outDir),
-			[path.join(REPO_ROOT, 'out-build')]
+			mobile ? undefined : [path.join(REPO_ROOT, 'out-build')]
 		);
 		indexMap = nlsResult.indexMap;
 	}
@@ -694,7 +744,15 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
-	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
+	if (target !== 'server') {
+		await bundleAgentHostCrypto({
+			minify: doMinify,
+			outDir: path.join(outDir, agentHostCryptoOutDir),
+			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${agentHostCryptoOutDir}` : undefined,
+		});
+	}
+
+	if (allEntryPoints.includes(sessionsWebEntryPoint) || mobile) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
 			outDir: path.join(outDir, devTunnelsWebOutDir),
@@ -704,6 +762,15 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 
 	// Finish emitted assets and copied resources before packaging computes integrity data.
 	await optimizeSvgFiles(outDirPath, doMinify);
+
+	if (mobile) {
+		await copyMobileLibraries(REPO_ROOT);
+		const inputs = new Set(buildResults.flatMap(({ result }) => Object.keys(result.metafile?.inputs ?? {})));
+		if (!commit) {
+			throw new Error('Mobile requires a Git revision to identify the build.');
+		}
+		await writeMobileManifest(REPO_ROOT, { commit, version, date: buildDate, quality: mobileQuality(quality, process.env['VSCODE_QUALITY']) }, inputs);
+	}
 
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);
 }
@@ -726,6 +793,7 @@ async function watch(): Promise<void> {
 	try {
 		await transpile(outDir, false);
 		await copyAllNonTsFiles(outDir, false);
+		await bundleAgentHostCrypto({ outDir: path.join(outDir, agentHostCryptoOutDir) });
 		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
 	} catch (err) {
 		console.error('[watch] Initial build failed:', err);
@@ -823,6 +891,7 @@ Commands:
 	build-fast         Incrementally build changed development outputs
 	transpile          Transpile TypeScript to JavaScript (single-file, fast)
 	bundle             Bundle entry points into optimized bundles
+	bundle-mobile      Build the isolated, minified mobile package in out-mobile/
 
 Options for 'build-fast':
 	--force            Ignore incremental state and rebuild selected lanes
@@ -862,6 +931,12 @@ async function main(): Promise<void> {
 
 	try {
 		switch (command) {
+			case 'bundle-mobile':
+				if (process.argv.length > 3) {
+					throw new Error('bundle-mobile uses fixed build settings and output; command-line options are not supported.');
+				}
+				await bundle(`${mobileDirectory}/out`, true, true, true, 'mobile');
+				break;
 			case 'build-fast':
 				await runBuildFast(REPO_ROOT, options.force, options.clientOnly);
 				break;
@@ -881,6 +956,7 @@ async function main(): Promise<void> {
 					const t1 = Date.now();
 					await transpile(outDir, options.excludeTests);
 					await copyAllNonTsFiles(outDir, options.excludeTests);
+					await bundleAgentHostCrypto({ outDir: path.join(outDir, agentHostCryptoOutDir) });
 					console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 				}
 				break;

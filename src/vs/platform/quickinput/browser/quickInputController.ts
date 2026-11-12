@@ -12,7 +12,7 @@ import { ProgressBar } from '../../../base/browser/ui/progressbar/progressbar.js
 import { disposableTimeout, Sequencer } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { isModifierKey } from '../../../base/common/keyCodes.js';
@@ -45,6 +45,8 @@ const $ = dom.$;
 
 const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
 const QUICK_INPUT_MOTION_CLOSING_CLASS = 'quick-input-widget-closing';
+const QUICK_INPUT_MOTION_SETTLED_CLASS = 'quick-input-widget-motion-settled';
+const QUICK_INPUT_MOTION_OPEN_ANIMATION = 'quick-input-widget-open';
 const QUICK_INPUT_OVERLAY_CLASS = 'quick-input-widget-overlay';
 const QUICK_INPUT_CLOSE_ANIMATION_DURATION = 150;
 const QUICK_INPUT_MOTION_ANCESTOR_CLASSES = ['modern-ui', 'monaco-enable-motion'];
@@ -98,6 +100,7 @@ export class QuickInputController extends Disposable {
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
+	private readonly anchorResizeObserver = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
 	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
@@ -124,6 +127,13 @@ export class QuickInputController extends Disposable {
 		this._container = options.container;
 		this.styles = options.styles;
 		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window: mainWindow, disposables: this._store }));
+		// It is created as it is first used: windows registered before then, such as an auxiliary window opened earlier, need
+		// their modifier keys tracked too, else accepting there never sees them (Alt+Enter to the side accepts as Enter).
+		for (const { window, disposables } of dom.getWindows()) {
+			if (window !== mainWindow) {
+				this.registerKeyModsListeners(window, disposables);
+			}
+		}
 		this._register(dom.onWillUnregisterWindow(window => {
 			if (this.ui && dom.getWindow(this.ui.container) === window) {
 				// The window this quick input is contained in is about to
@@ -164,8 +174,14 @@ export class QuickInputController extends Disposable {
 		}
 
 		const container = dom.append(this._container, $('.quick-input-widget.show-file-icons'));
+		this._register(toDisposable(() => container.remove()));
 		container.tabIndex = -1;
 		container.style.display = 'none';
+		this._register(dom.addDisposableListener(container, 'animationend', (e: AnimationEvent) => {
+			if (e.target === container && e.animationName === QUICK_INPUT_MOTION_OPEN_ANIMATION) {
+				this.settleOpenAnimation(container);
+			}
+		}));
 
 		const styleSheet = domStylesheetsJs.createStyleSheet(container);
 
@@ -175,7 +191,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		leftActionBar.getElement().classList.add('quick-input-left-action-bar');
 
@@ -185,7 +202,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		rightActionBar.getElement().classList.add('quick-input-right-action-bar');
 
@@ -223,7 +241,8 @@ export class QuickInputController extends Disposable {
 			hoverDelegate: this.options.hoverDelegate,
 			actionViewItemProvider: createToggleActionViewItemProvider(this.styles.toggle),
 			icon: true,
-			label: false
+			label: false,
+			renderDropdownAsPopover: true
 		}));
 		inlineActionBar.getElement().classList.add('quick-input-inline-action-bar');
 
@@ -254,6 +273,9 @@ export class QuickInputController extends Disposable {
 		// List
 		const listId = this.idPrefix + 'list';
 		const list = this._register(this.instantiationService.createInstance(QuickInputList, container, this.options.hoverDelegate, this.options.linkOpenerDelegate, listId, this.styles));
+		// The item hover is positioned relative to the viewport, which requires that the
+		// widget is not a containing block for it when it is measured
+		this._register(list.onWillShowItemHover(() => this.settleOpenAnimation(container)));
 		inputBox.setAttribute('aria-controls', listId);
 		this._register(list.onDidChangeFocus(() => {
 			if (inputBox.hasFocus()) {
@@ -724,6 +746,11 @@ export class QuickInputController extends Disposable {
 			controller.anchorPosition = anchorScope.anchorPosition;
 		}
 		const ui = this.getUI(true);
+		// Only a hidden widget plays the entrance animation when shown, a visible widget whose
+		// controller is replaced stays settled so the animation does not replay
+		if (ui.container.style.display === 'none') {
+			ui.container.classList.remove(QUICK_INPUT_MOTION_SETTLED_CLASS);
+		}
 		const oldController = this.controller;
 		this.controller = controller;
 		oldController?.didHide();
@@ -777,6 +804,7 @@ export class QuickInputController extends Disposable {
 		ui.container.classList.toggle(QUICK_INPUT_OVERLAY_CLASS, controller.anchorPosition === 'overlay');
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.observeAnchorResize(controller.anchor);
 		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
 		if (controller.anchor) {
@@ -790,6 +818,21 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
+	}
+
+	/** Keeps an element-anchored input aligned when the anchor is resized after the input is shown. */
+	private observeAnchorResize(anchor: IQuickInput['anchor']): void {
+		this.anchorResizeObserver.clear();
+		if (!dom.isHTMLElement(anchor)) {
+			return;
+		}
+		const store = new DisposableStore();
+		const observer = store.add(new dom.DisposableResizeObserver('QuickInputController.anchor', () => {
+			this.overlayLayoutCorrection = undefined;
+			this.updateLayout();
+		}, dom.getWindow(anchor)));
+		store.add(observer.observe(anchor));
+		this.anchorResizeObserver.value = store;
 	}
 
 	isVisible(): boolean {
@@ -852,9 +895,12 @@ export class QuickInputController extends Disposable {
 			return;
 		}
 		controller.willHide(reason);
+		this.anchorResizeObserver.clear();
 
 		const container = this.ui?.container;
-		const focusChanged = container && !dom.isAncestorOfActiveElement(container);
+		// The active element of the container's own root: not the deep active element,
+		// because focus inside a menu hosted in the container is in a nested shadow root
+		const focusChanged = container && !dom.isAncestor((dom.getShadowRoot(container) ?? container.ownerDocument).activeElement, container);
 		this.controller = null;
 		this.onHideEmitter.fire();
 		if (container) {
@@ -904,6 +950,14 @@ export class QuickInputController extends Disposable {
 			container.classList.remove(QUICK_INPUT_MOTION_CLOSING_CLASS);
 			container.style.display = 'none';
 		}
+	}
+
+	/**
+	 * Ends the entrance animation of the widget early (or marks it as ended), so that the widget
+	 * no longer establishes a containing block for fixed-position descendants such as item hovers.
+	 */
+	private settleOpenAnimation(container: HTMLElement): void {
+		container.classList.add(QUICK_INPUT_MOTION_SETTLED_CLASS);
 	}
 
 	override dispose(): void {

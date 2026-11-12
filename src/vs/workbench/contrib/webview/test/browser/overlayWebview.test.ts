@@ -4,26 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getWindow } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow } from '../../../../../base/browser/dom.js';
+import { cloneGlobalStylesheets, createStyleSheet } from '../../../../../base/browser/domStylesheets.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { OverlayWebview } from '../../browser/overlayWebview.js';
 import { IWebviewService } from '../../browser/webview.js';
+import { Event, Emitter } from '../../../../../base/common/event.js';
+import { ISizeService } from '../../../../../platform/theme/common/sizeService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import '../../../../browser/media/style.css';
 import '../../../../browser/media/floatingPanels.css';
+import '../../../../contrib/modernUI/browser/media/editorBorder.css';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('OverlayWebview', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createOverlay(root: HTMLElement): OverlayWebview {
+	function createOverlay(root: HTMLElement, onDidChangeSizes = Event.None): OverlayWebview {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchLayoutService, { getContainer: () => root });
 		instantiationService.stub(IWebviewService, {});
 		instantiationService.stub(IContextKeyService, {});
+		instantiationService.stub(ISizeService, { onDidChangeSizes });
+		instantiationService.stub(IThemeService, { onDidColorThemeChange: Event.None });
 		return store.add(instantiationService.createInstance(OverlayWebview, {
 			title: undefined,
 			options: {},
@@ -116,7 +124,7 @@ suite('OverlayWebview', () => {
 		root.className = 'monaco-workbench modern-ui floating-panels mac macos-tahoe nostatusbar';
 		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-strokeThickness: 1px; --window-zoom-factor: 1;';
 		const part = root.appendChild(document.createElement('div'));
-		part.className = 'part floating-editor-outer-left floating-editor-outer-right floating-editor-outer-top floating-editor-outer-bottom';
+		part.className = 'part editor floating-editor-outer-left floating-editor-outer-right floating-editor-outer-top floating-editor-outer-bottom';
 		part.style.cssText = 'position: relative; width: 400px; height: 400px; border: 1px solid transparent; box-sizing: border-box;';
 		const anchors = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'].map((name, index) => {
 			const anchor = part.appendChild(document.createElement('div'));
@@ -142,18 +150,72 @@ suite('OverlayWebview', () => {
 
 		assert.deepStrictEqual({ defaultZoom, zoomedOut, movedEdges: getOuterEdges(overlay.container) }, {
 			defaultZoom: {
-				topLeft: ['8px', '8px'],
-				topRight: ['8px', '8px'],
-				bottomLeft: ['11px', '8px'],
-				bottomRight: ['8px', '11px'],
+				topLeft: ['0px', '0px'],
+				topRight: ['0px', '0px'],
+				bottomLeft: ['11px', '0px'],
+				bottomRight: ['0px', '11px'],
 			},
 			zoomedOut: {
-				topLeft: ['8px', '8px'],
-				topRight: ['8px', '8px'],
-				bottomLeft: ['27px', '8px'],
-				bottomRight: ['8px', '27px'],
+				topLeft: ['0px', '0px'],
+				topRight: ['0px', '0px'],
+				bottomLeft: ['27px', '0px'],
+				bottomRight: ['0px', '27px'],
 			},
 			movedEdges: { left: false, right: true, top: false, bottom: true },
 		});
+	});
+
+	test('webview content follows exposed component corners rather than rounding title and split seams', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench agent-sessions-workbench';
+		const part = root.appendChild(document.createElement('div'));
+		part.className = 'part editor';
+		part.style.cssText = 'position: relative; width: 400px; height: 400px; border: 1px solid transparent; border-radius: 6px 0 0 6px; box-sizing: border-box;';
+		const anchor = part.appendChild(document.createElement('div'));
+		anchor.style.cssText = 'position: absolute; top: 30px; bottom: 0; left: 0; right: 0;';
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const changes = store.add(new Emitter<void>());
+		const overlay = createOverlay(root, changes.event);
+		overlay.setAnchorElement(anchor);
+		const initial = getWindow(root).getComputedStyle(overlay.container).borderRadius;
+		part.style.borderRadius = '3px';
+		changes.fire();
+		const updated = getWindow(root).getComputedStyle(overlay.container).borderRadius;
+		anchor.style.right = '50%';
+		overlay.setAnchorElement(anchor);
+		const split = getWindow(root).getComputedStyle(overlay.container).borderRadius;
+		assert.deepStrictEqual({ initial, updated, split }, {
+			initial: '0px 0px 0px 5px',
+			updated: '0px 0px 2px 2px',
+			split: '0px 0px 0px 2px',
+		});
+	});
+
+	test('auxiliary webview clipping refreshes after cloned theme styles propagate', async () => {
+		const sheet = createStyleSheet(undefined, undefined, store.add(new DisposableStore()));
+		sheet.textContent = '.aux-overlay-test .part { border-radius: 8px; }';
+		const frame = append(document.body, $<HTMLIFrameElement>('iframe'));
+		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
+		const target = frame.contentWindow!;
+		store.add(cloneGlobalStylesheets(target));
+		const root = $('.monaco-workbench.agent-sessions-workbench.aux-overlay-test');
+		target.document.body.appendChild(root);
+		const part = append(root, $('.part.editor'));
+		part.style.cssText = 'position: relative; width: 200px; height: 200px; border: 1px solid transparent;';
+		const anchor = append(part, $('div'));
+		anchor.style.cssText = 'position: absolute; inset: 0;';
+		const changes = store.add(new Emitter<void>());
+		const overlay = createOverlay(root, changes.event);
+		overlay.setAnchorElement(anchor);
+		const radii = [overlay.container.style.borderRadius];
+		for (const radius of [0, 3]) {
+			sheet.textContent = `.aux-overlay-test .part { border-radius: ${radius}px; }`;
+			changes.fire();
+			await new Promise<void>(resolve => target.requestAnimationFrame(() => resolve()));
+			radii.push(overlay.container.style.borderRadius);
+		}
+		assert.deepStrictEqual(radii, ['7px', '0px', '2px']);
 	});
 });

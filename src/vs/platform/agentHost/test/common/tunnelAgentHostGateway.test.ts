@@ -94,24 +94,24 @@ suite('tunnelAgentHost - gateway wire protocol', () => {
 				ok: true,
 				selected: { serverType: 'editor', instanceId: 'editor-1', role: 'primary', lifecycle: 'external' },
 			});
+		});
 
-			suite('isTunnelHosted', () => {
-				test('matches the stable ID when tunnels share a display name and falls back to the name when it is unavailable', () => {
-					const tunnel = {
-						tunnelId: 'other-id',
-						clusterId: 'cluster',
-						name: 'shared-name',
-						tags: [],
-						protocolVersion: 6,
-						hostConnectionCount: 1,
-					};
+		suite('isTunnelHosted', () => {
+			test('matches the stable ID when tunnels share a display name and falls back to the name when it is unavailable', () => {
+				const tunnel = {
+					tunnelId: 'other-id',
+					clusterId: 'cluster',
+					name: 'shared-name',
+					tags: [],
+					protocolVersion: 6,
+					hostConnectionCount: 1,
+				};
 
-					assert.deepStrictEqual([
-						isTunnelHosted({ tunnelName: 'shared-name', tunnelId: 'hosted-id' }, tunnel),
-						isTunnelHosted({ tunnelName: 'shared-name', tunnelId: 'other-id' }, tunnel),
-						isTunnelHosted({ tunnelName: 'shared-name' }, tunnel),
-					], [false, true, true]);
-				});
+				assert.deepStrictEqual([
+					isTunnelHosted({ tunnelName: 'shared-name', tunnelId: 'hosted-id' }, tunnel),
+					isTunnelHosted({ tunnelName: 'shared-name', tunnelId: 'other-id' }, tunnel),
+					isTunnelHosted({ tunnelName: 'shared-name' }, tunnel),
+				], [false, true, true]);
 			});
 		});
 

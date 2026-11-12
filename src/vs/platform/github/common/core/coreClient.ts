@@ -9,6 +9,7 @@ import { collectPages, nextPagePath, PaginatedApiRequest } from '../client/pagin
 import { parseGraphQLResponse, throwGraphQLErrors } from '../client/graphql.js';
 import { ApiRequest, ApiRequestOptions, IApiRequestProvider, PaginationOptions } from '../client/request.js';
 import { parse } from '../client/schema.js';
+import { GitHubRequestDomain } from '../types.js';
 import { Account, Actor, ChangedFile, Connection, CursorOptions, Label, Milestone, NodeIdentity, Reaction, RepositoryIdentity, Team } from './core.js';
 
 /** Executes GitHub REST and GraphQL operations and returns their parsed results. */
@@ -42,8 +43,9 @@ export class CoreClient {
 		return response.data;
 	}
 
-	async graphql<T>(query: string, variables: object, signal: AbortSignal, parser: parse.Parser<T>, options?: ApiRequestOptions): Promise<T> {
+	async graphql<T>(domain: GitHubRequestDomain, query: string, variables: object, signal: AbortSignal, parser: parse.Parser<T>, options?: ApiRequestOptions): Promise<T> {
 		const { data: { errors, data }, status } = await this._graphqlProvider.request({
+			domain,
 			method: 'POST',
 			path: '/',
 			body: { query, variables },
@@ -58,13 +60,14 @@ export class CoreClient {
 		return parser(data);
 	}
 
-	graphqlPages<T, TVariables extends CursorOptions>(query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T>>, options?: ApiRequestOptions & PaginationOptions): Promise<Connection<T>>;
-	graphqlPages<T, TVariables extends CursorOptions>(query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T> | null>, options?: ApiRequestOptions & PaginationOptions): Promise<Connection<T> | null>;
-	async graphqlPages<T, TVariables extends CursorOptions>(query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T> | null>, options: ApiRequestOptions & PaginationOptions = {}): Promise<Connection<T> | null> {
+	graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T>>, options?: ApiRequestOptions & PaginationOptions): Promise<Connection<T>>;
+	graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T> | null>, options?: ApiRequestOptions & PaginationOptions): Promise<Connection<T> | null>;
+	async graphqlPages<T, TVariables extends CursorOptions>(domain: GitHubRequestDomain, query: string, variables: TVariables, signal: AbortSignal, parser: parse.Parser<Connection<T> | null>, options: ApiRequestOptions & PaginationOptions = {}): Promise<Connection<T> | null> {
 		const { maxPages, pageLimitBehavior, ...requestOptions } = options;
 		if (maxPages === undefined) {
 			signal.throwIfAborted();
 			const page = await this.graphql(
+				domain,
 				query,
 				variables,
 				signal,
@@ -77,6 +80,7 @@ export class CoreClient {
 		return collectPages(
 			variables.after,
 			after => this.graphql(
+				domain,
 				query,
 				after === variables.after ? variables : { ...variables, after },
 				signal,

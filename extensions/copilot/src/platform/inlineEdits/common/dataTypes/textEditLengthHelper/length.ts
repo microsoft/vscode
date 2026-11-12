@@ -9,15 +9,6 @@ import { Range } from '../../../../../util/vs/editor/common/core/range';
 import { TextLength } from '../../../../../util/vs/editor/common/core/text/textLength';
 
 /**
- * The end must be greater than or equal to the start.
-*/
-export function lengthDiff(startLineCount: number, startColumnCount: number, endLineCount: number, endColumnCount: number): Length {
-	return (startLineCount !== endLineCount)
-		? toLength(endLineCount - startLineCount, endColumnCount)
-		: toLength(0, endColumnCount - startColumnCount);
-}
-
-/**
  * Represents a non-negative length in terms of line and column count.
  * Does not allocate.
 */
@@ -55,18 +46,6 @@ export function lengthToObj(length: Length): TextLength {
 	const columnCount = l - lineCount * factor;
 	return new TextLength(lineCount, columnCount);
 }
-
-export function lengthGetLineCount(length: Length): number {
-	return Math.floor(length as any as number / factor);
-}
-
-/**
- * Returns the amount of columns of the given length, assuming that it does not span any line.
-*/
-export function lengthGetColumnCountIfZeroLineCount(length: Length): number {
-	return length as any as number;
-}
-
 
 // [10 lines, 5 cols] + [ 0 lines, 3 cols] = [10 lines, 8 cols]
 // [10 lines, 5 cols] + [20 lines, 3 cols] = [30 lines, 3 cols]
@@ -125,13 +104,6 @@ export function lengthGreaterThanEqual(length1: Length, length2: Length): boolea
 	return (length1 as any as number) >= (length2 as any as number);
 }
 
-export function lengthToPosition(length: Length): Position {
-	const l = length as any as number;
-	const lineCount = Math.floor(l / factor);
-	const colCount = l - lineCount * factor;
-	return new Position(lineCount + 1, colCount + 1);
-}
-
 export function positionToLength(position: Position): Length {
 	return toLength(position.lineNumber - 1, position.column - 1);
 }
@@ -148,37 +120,7 @@ export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	return new Range(lineCount + 1, colCount + 1, lineCount2 + 1, colCount2 + 1);
 }
 
-export function lengthOfRange(range: Range): TextLength {
-	if (range.startLineNumber === range.endLineNumber) {
-		return new TextLength(0, range.endColumn - range.startColumn);
-	} else {
-		return new TextLength(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
-	}
-}
-
-export function lengthCompare(length1: Length, length2: Length): number {
-	const l1 = length1 as any as number;
-	const l2 = length2 as any as number;
-	return l1 - l2;
-}
-
 export function lengthOfString(str: string): Length {
 	const lines = splitLines(str);
 	return toLength(lines.length - 1, lines[lines.length - 1].length);
-}
-
-export function lengthOfStringObj(str: string): TextLength {
-	const lines = splitLines(str);
-	return new TextLength(lines.length - 1, lines[lines.length - 1].length);
-}
-
-/**
- * Computes a numeric hash of the given length.
-*/
-export function lengthHash(length: Length): number {
-	return length as any;
-}
-
-export function lengthMax(length1: Length, length2: Length): Length {
-	return length1 > length2 ? length1 : length2;
 }

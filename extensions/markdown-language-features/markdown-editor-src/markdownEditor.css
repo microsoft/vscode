@@ -15,6 +15,20 @@ body {
 	overflow: hidden;
 }
 
+/*
+ * Embedded editor frames get the theme's color scheme (see codeBlockEditorTheme.ts). The editor must use the same
+ * one: browsers paint an opaque backdrop behind a frame whose color scheme differs from its embedding element's.
+ */
+body[data-vscode-theme-kind="vscode-dark"],
+body[data-vscode-theme-kind="vscode-high-contrast"] {
+	color-scheme: dark;
+}
+
+body[data-vscode-theme-kind="vscode-light"],
+body[data-vscode-theme-kind="vscode-high-contrast-light"] {
+	color-scheme: light;
+}
+
 #editor {
 	height: 100%;
 	width: 100%;

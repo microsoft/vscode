@@ -28,5 +28,5 @@ export interface RepositoryRef {
 	/** The repository owner's login, compared case-insensitively. */
 	readonly owner: string;
 	/** The repository name, compared case-insensitively. */
-	readonly name: string;
+	readonly repo: string;
 }

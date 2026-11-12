@@ -13,7 +13,6 @@ import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import type { AutoModeRoutingTier } from '../../common/autoModeTiers.js';
 import { toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
@@ -53,7 +52,7 @@ export interface IEditSurvivalReporterLaunchParams {
 	 * defensively, but always expected to be set
 	 */
 	readonly modelId?: string;
-	readonly autoTier?: AutoModeRoutingTier;
+	readonly autoTier?: string;
 	/** The HydraFusion model (`hydrafusion` or `hydrafusion-max`) that routed the edit, when known. */
 	readonly fusionModel?: string;
 	/**
@@ -116,7 +115,7 @@ interface IEditSurvivalTelemetryEvent extends IAgentHostEventTelemetry {
 type IEditSurvivalTelemetryClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
-	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The committed Copilot Auto tier (efficiency, balance, intelligence or fast) when the edit was produced under Auto. Omitted when unknown or not Auto.' };
+	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The committed Copilot Auto tier (efficiency, balance, intelligence, fast, or a tier the Copilot service advertises, such as hydrafusion) when the edit was produced under Auto. Omitted when unknown or not Auto.' };
 	fusionModel?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The HydraFusion model (hydrafusion or hydrafusion-max) that routed the edit, as attributed by the runtime. Omitted when the edit was not produced by HydraFusion.' };
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the edit tool that produced the edit, e.g. "Edit", "apply_patch". Empty if unknown.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };

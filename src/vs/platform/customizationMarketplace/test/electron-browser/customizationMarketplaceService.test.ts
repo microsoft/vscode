@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
-import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
-import { IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManifest.js';
+import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
+import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../common/customizationMarketplaceSources.js';
 import { NativeCustomizationMarketplaceService } from '../../electron-browser/customizationMarketplaceService.js';
@@ -23,6 +24,7 @@ suite('NativeCustomizationMarketplaceService', () => {
 		const configuration = new TestConfigurationService({
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+			[mcpGalleryServiceEnablementConfig]: true,
 			[mcpGalleryServiceUrlConfig]: 'https://registry.test',
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -31,6 +33,8 @@ suite('NativeCustomizationMarketplaceService', () => {
 		services.stub(IConfigurationService, configuration);
 		services.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
 		services.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+			override readonly mcpGalleryManifestStatus = McpGalleryManifestStatus.Available;
+			override readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 			override async getMcpGalleryManifest() { return { url: 'https://registry.test', version: 'v0.1', resources: [] }; }
 			override async getDefaultMcpGalleryManifest() { return { url: 'https://api.mcp.github.com', version: 'v0.1', resources: [] }; }
 		}());
@@ -91,6 +95,8 @@ suite('NativeCustomizationMarketplaceService', () => {
 			override async queryPage(): Promise<never> { throw new Error('MCP registry unavailable'); }
 		}());
 		services.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+			override readonly mcpGalleryManifestStatus = McpGalleryManifestStatus.Available;
+			override readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 			override async getMcpGalleryManifest() { return { url: 'https://registry.test', version: 'v0.1', resources: [] }; }
 			override async getDefaultMcpGalleryManifest() { return null; }
 		}());
@@ -111,6 +117,49 @@ suite('NativeCustomizationMarketplaceService', () => {
 				nextCursor: undefined,
 				sourceErrors: [{ sourceId: 'mcpGallery', message: 'MCP registry unavailable' }],
 			},
+		});
+	});
+
+	test('advertises the MCP Gallery source only while it is available and enabled', async () => {
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[mcpGalleryServiceEnablementConfig]: true,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const services = store.add(new TestInstantiationService());
+		services.stub(IConfigurationService, configuration);
+		services.stub(IProductService, { mcpGallery: { serviceUrl: 'https://api.mcp.github.com' } } as IProductService);
+		let status = McpGalleryManifestStatus.Unavailable;
+		const statusChanges = store.add(new Emitter<McpGalleryManifestStatus>());
+		services.stub(IMcpGalleryManifestService, new class extends mock<IMcpGalleryManifestService>() {
+			override get mcpGalleryManifestStatus() { return status; }
+			override readonly onDidChangeMcpGalleryManifestStatus = statusChanges.event;
+			override async getMcpGalleryManifest() { return null; }
+		}());
+		const service = services.createInstance(NativeCustomizationMarketplaceService);
+		const sourceChanges: string[][] = [];
+		store.add(service.onDidChangeSources(() => sourceChanges.push(service.sources.map(source => source.id))));
+		status = McpGalleryManifestStatus.Available;
+		statusChanges.fire(status);
+		await configuration.setUserConfiguration(mcpGalleryServiceEnablementConfig, false);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === mcpGalleryServiceEnablementConfig; }
+		}());
+		await configuration.setUserConfiguration(mcpGalleryServiceUrlConfig, 'https://registry.test');
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === mcpGalleryServiceUrlConfig; }
+		}());
+		status = McpGalleryManifestStatus.Unavailable;
+		statusChanges.fire(status);
+
+		assert.deepStrictEqual({
+			sources: service.sources.map(source => source.id),
+			allSources: service.allSources.map(source => source.id),
+			sourceChanges,
+		}, {
+			sources: [],
+			allSources: ['mcpGallery'],
+			sourceChanges: [['mcpGallery'], [], ['mcpGallery'], []],
 		});
 	});
 });

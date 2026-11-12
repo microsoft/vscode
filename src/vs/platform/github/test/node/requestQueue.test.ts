@@ -7,12 +7,11 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { RequestError, RequestContext } from '../../common/types.js';
-import { RequestQueue } from '../../common/requestQueue.js';
+import { RequestQueue, RequestQueueOptions } from '../../common/requestQueue.js';
 import { FakeScheduler } from './fakeScheduler.js';
 
 function context(overrides: Partial<RequestContext> = {}): RequestContext {
 	return {
-		kind: 'rest',
 		account: { host: 'github.example.test', accountId: '1' },
 		caller: 'first',
 		resource: 'core',
@@ -26,9 +25,77 @@ function context(overrides: Partial<RequestContext> = {}): RequestContext {
 suite('RequestQueue', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	const concurrencyCases: {
+		name: string;
+		limit: number;
+		options?: Partial<RequestQueueOptions>;
+		request: (index: number) => RequestContext;
+	}[] = [
+			{
+				name: 'global',
+				limit: 12,
+				request: index => context({ account: { host: `host-${index}.example.test`, accountId: '1' }, caller: `caller-${index}` }),
+			},
+			{
+				name: 'case-insensitive host',
+				limit: 12,
+				options: { maximumConcurrency: 16 },
+				request: index => context({ account: { host: index % 2 ? 'GITHUB.EXAMPLE.TEST' : 'github.example.test', accountId: String(index) }, caller: `caller-${index}` }),
+			},
+			{
+				name: 'account across callers',
+				limit: 10,
+				request: index => context({ account: { host: index % 2 ? 'GITHUB.EXAMPLE.TEST' : 'github.example.test', accountId: '1' }, caller: `caller-${index}` }),
+			},
+			{
+				name: 'anonymous account across callers',
+				limit: 10,
+				request: index => context({ account: { kind: 'anonymous', host: 'github.example.test', origin: 'https://github.example.test' }, caller: `caller-${index}` }),
+			},
+			{
+				name: 'bootstrap and authenticated account',
+				limit: 10,
+				request: index => context({
+					account: index % 2
+						? { kind: 'bootstrap', host: 'github.example.test', origin: 'https://github.example.test', accountId: '1' }
+						: { host: 'github.example.test', accountId: '1' },
+					caller: `caller-${index}`,
+				}),
+			},
+			{
+				name: 'caller across accounts and hosts',
+				limit: 8,
+				request: index => context({ account: { host: `host-${index}.example.test`, accountId: String(index) } }),
+			},
+		];
+
+	for (const { name, limit, options, request } of concurrencyCases) {
+		test(`reaches and enforces the default ${name} concurrency limit`, async () => {
+			const scheduler = store.add(new FakeScheduler());
+			const queue = store.add(new RequestQueue(scheduler, undefined, options));
+			const release = new DeferredPromise<void>();
+			let active = 0;
+			let maximumActive = 0;
+			let completed = 0;
+			const requests = Array.from({ length: limit + 3 }, (_, index) => queue.enqueue(request(index), async () => {
+				maximumActive = Math.max(maximumActive, ++active);
+				await release.p;
+				active--;
+				completed++;
+			}));
+			await Promise.resolve();
+			const beforeRelease = active;
+			await release.complete();
+			await Promise.all(requests);
+			assert.deepStrictEqual({ beforeRelease, maximumActive, completed, timers: scheduler.pendingCount }, {
+				beforeRelease: limit, maximumActive: limit, completed: limit + 3, timers: 0,
+			});
+		});
+	}
+
 	test('prioritizes interactive work and fairly serves callers at the same priority', async () => {
 		const scheduler = store.add(new FakeScheduler());
-		const queue = store.add(new RequestQueue(scheduler));
+		const queue = store.add(new RequestQueue(scheduler, undefined, { maximumAccountConcurrency: 1 }));
 		const release = new DeferredPromise<void>();
 		const order: string[] = [];
 		const first = queue.enqueue(context(), async () => {
@@ -135,6 +202,27 @@ suite('RequestQueue', () => {
 		});
 	});
 
+	test('honors a lower account concurrency limit without blocking other accounts', async () => {
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler, undefined, { maximumAccountConcurrency: 2 }));
+		const release = new DeferredPromise<void>();
+		const started: number[] = [];
+		const requests = Array.from({ length: 4 }, (_, index) => queue.enqueue(context({
+			account: { host: 'github.example.test', accountId: index === 3 ? '2' : '1' },
+			caller: `caller-${index}`,
+		}), async () => {
+			started.push(index);
+			await release.p;
+		}));
+		await Promise.resolve();
+		const beforeRelease = [...started];
+		await release.complete();
+		await Promise.all(requests);
+		assert.deepStrictEqual({ beforeRelease, completed: started.length, timers: scheduler.pendingCount }, {
+			beforeRelease: [0, 1, 3], completed: 4, timers: 0,
+		});
+	});
+
 	test('enforces global and case-insensitive host concurrency limits', async () => {
 		const scheduler = store.add(new FakeScheduler());
 		const queue = store.add(new RequestQueue(scheduler, undefined, {
@@ -177,7 +265,7 @@ suite('RequestQueue', () => {
 
 	test('expires queued requests without running them', async () => {
 		const scheduler = store.add(new FakeScheduler());
-		const queue = store.add(new RequestQueue(scheduler));
+		const queue = store.add(new RequestQueue(scheduler, undefined, { maximumAccountConcurrency: 1 }));
 		const release = new DeferredPromise<void>();
 		const active = queue.enqueue(context(), () => release.p);
 		let dispatched = false;
@@ -192,7 +280,7 @@ suite('RequestQueue', () => {
 
 	test('rejects expired queued work after a wall-clock jump without waiting for timers', async () => {
 		const scheduler = store.add(new FakeScheduler());
-		const queue = store.add(new RequestQueue(scheduler));
+		const queue = store.add(new RequestQueue(scheduler, undefined, { maximumAccountConcurrency: 1 }));
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		const active = queue.enqueue(context(), async () => {
@@ -320,7 +408,7 @@ suite('RequestQueue', () => {
 
 	test('cancels parked work and disposes active and pending work', async () => {
 		const scheduler = store.add(new FakeScheduler());
-		const queue = store.add(new RequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0));
+		const queue = store.add(new RequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0, { maximumAccountConcurrency: 1 }));
 		const controller = new AbortController();
 		let parkedRan = false;
 		const parked = queue.enqueue(context({ resource: 'search', signal: controller.signal }), async () => { parkedRan = true; });

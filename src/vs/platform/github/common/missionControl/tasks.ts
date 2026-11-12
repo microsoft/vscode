@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
+import { ApiPaginationOptions, ApiRequestOptions, ApiResponse } from '../client/request.js';
 import { JsonObject, JsonValue, PageOptions, RepositoryRef } from '../client/types.js';
 import type { EnvironmentKind, PaginatedResponse, User } from './missionControl.js';
+
+/** Maximum task IDs accepted by one batch request. */
+export const MAX_TASK_BATCH_SIZE = 50;
 
 /** The current task state, derived from its most recent session. */
 export type TaskState = 'queued' | 'in_progress' | 'completed' | 'failed' | 'idle' | 'waiting_for_user' | 'timed_out' | 'cancelled';
@@ -13,13 +16,27 @@ export type TaskState = 'queued' | 'in_progress' | 'completed' | 'failed' | 'idl
 /** The current state of a session. */
 export type SessionState = TaskState;
 
+/** Receive-only feed credentials. The URL must not be persisted or logged. */
+export interface SessionFeedConnection {
+	readonly url: string;
+	readonly subprotocol: 'json.webpubsub.azure.v1';
+	readonly group: string;
+	readonly expires_at: string;
+	readonly reconnect_after: string;
+	/** Milliseconds remaining at response generation; omitted by older servers. */
+	readonly expires_in?: number;
+	/** Milliseconds until renewal at response generation; independent of the client clock. */
+	readonly reconnect_in?: number;
+	readonly frame_schema_version: 1;
+}
+
 /** The visibility of a task to its collaborators, repository readers, and listings. */
 export type TaskSharingStatus = 'unshared' | 'shared' | 'unlisted';
 
 /** Compute associated with a task. */
 export interface TaskCompute {
-	/** The compute provider. */
-	readonly provider?: 'codespaces' | 'sandboxes';
+	/** The compute provider; an empty value can be returned while provisioning. */
+	readonly provider?: 'codespaces' | 'sandboxes' | '';
 	/** The identifier of the compute resource. */
 	readonly resource_id?: string;
 	/** The user or organization login against which compute is provisioned. */
@@ -28,6 +45,8 @@ export interface TaskCompute {
 
 /** Compute selection supplied when creating a task. */
 export interface TaskComputeRequest extends TaskCompute {
+	/** The compute provider requested for a new task. */
+	readonly provider?: 'codespaces' | 'sandboxes';
 	/** The sandbox owner, required for organization-owned app-principal sandbox tasks. */
 	readonly user_id?: number;
 }
@@ -130,6 +149,13 @@ export interface ExperimentAssignmentResponse {
 	readonly assignment_context: string;
 }
 
+/** An authenticated application that created or participated in a task or session. */
+export interface TaskClient {
+	readonly integration_id: string;
+	readonly slug: string;
+	readonly creator: boolean;
+}
+
 /** Task metadata returned by listings and task lifecycle operations. */
 export interface Task {
 	/** The unique task identifier. */
@@ -144,6 +170,8 @@ export interface Task {
 	readonly creator?: User;
 	/** The type of the task creator. */
 	readonly creator_type?: 'user' | 'organization';
+	/** Creating and participating applications, independent of agent integrations. */
+	readonly clients?: readonly TaskClient[];
 	/** Collaborating users, represented by user references or numeric IDs. */
 	readonly user_collaborators?: readonly (User | number)[];
 	/** Agent integrations that have worked on the task. */
@@ -187,9 +215,13 @@ export interface Task {
 	/** The deadline after which the session becomes stale without a heartbeat. */
 	readonly stale_at?: string;
 	/** The compute environment associated with the task. */
-	readonly compute?: TaskCompute;
+	readonly compute?: TaskCompute | null;
 	/** The visibility of the task to readers and collection listings. */
 	readonly sharing_status?: TaskSharingStatus;
+	/** Whether the task is an unclaimed reservation, hidden from discovery. */
+	readonly reserved?: boolean;
+	/** The RFC 3339 expiry of an unclaimed reservation. */
+	readonly reservation_expires_at?: string;
 	/** The Azure DevOps repository against which the task is running. */
 	readonly azure_devops_repository_context?: AzureDevOpsRepositoryContext;
 }
@@ -216,6 +248,8 @@ export interface Session {
 	readonly id: string;
 	/** The session name. */
 	readonly name?: string;
+	/** Creating and participating applications; creator attribution can differ from the task's. */
+	readonly clients?: readonly TaskClient[];
 	/** The user who created the session. */
 	readonly user?: User;
 	/** The account that owns the repository. */
@@ -292,6 +326,8 @@ export interface Session {
 export interface GetTaskResponse extends Task {
 	/** The sessions associated with the task. */
 	readonly sessions?: readonly Session[];
+	/** Creation-only acknowledgement that an existing reservation was claimed rather than a new task created. */
+	readonly claimed?: boolean;
 }
 
 /** A selected Copilot Space to load as instructions during sandbox provisioning. */
@@ -350,6 +386,10 @@ export interface CreateTaskRequest {
 	readonly space?: TaskSpace;
 	/** The task visibility at creation, defaulting to unshared. */
 	readonly sharing_status?: TaskSharingStatus;
+	/** Reserve a hidden sandbox task without starting a turn. Requires an empty prompt. */
+	readonly reserve?: boolean;
+	/** Existing reservation to renew when reserve is true, or claim when submitting a prompt. */
+	readonly reserved_task_id?: string;
 }
 
 /** Properties to update on a task; at least one field must be supplied. */
@@ -402,8 +442,20 @@ interface TaskListQuery extends PageOptions {
 /** Query parameters and request options for task collections. */
 export type TaskListOptions = ApiPaginationOptions<TaskListQuery>;
 
+type TaskListPagination =
+	| {
+		/** Page number; cannot be combined with cursor. */
+		readonly page?: number;
+		readonly cursor?: never;
+	}
+	| {
+		readonly page?: never;
+		/** Opaque continuation advertised by the service; cannot be combined with page. */
+		readonly cursor: string;
+	};
+
 /** Additional query filters for the authenticated user's task list. */
-export type ListTasksOptions = ApiPaginationOptions<TaskListQuery & {
+export type ListTasksOptions = ApiPaginationOptions<Omit<TaskListQuery, 'page'> & TaskListPagination & {
 	/** Include tasks updated at or after this ISO 8601 timestamp. */
 	readonly since?: string;
 	/** Filter by artifact type. */
@@ -546,6 +598,9 @@ export interface TaskAHPEventsResponse {
 
 /** Operations for creating and managing tasks, sending input, and reading task history. */
 export interface ITasksClient {
+	/** Negotiate a receive-only task feed through the approved GitHub gateway. */
+	connectFeed(signal: AbortSignal, options?: ApiRequestOptions): Promise<SessionFeedConnection>;
+
 
 	/** GET /agents/tasks: list one page of the authenticated user's tasks. */
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>>;
@@ -553,8 +608,11 @@ export interface ITasksClient {
 	/** GET /agents/tasks/{task_id}: read task details and associated sessions. */
 	get(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
 
-	/** POST /agents/tasks: create a task and optionally bind or provision its environment. */
-	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
+	/** GET /agents/tasks/batch: read up to 50 task summaries. Missing or undiscoverable tasks are omitted. */
+	getBatch(taskIds: readonly string[], signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly Task[]>;
+
+	/** POST /agents/tasks: create or reserve a task (201), or claim a reservation (200), retaining response metadata. */
+	create(request: CreateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<ApiResponse<GetTaskResponse>>;
 
 	/** PATCH /agents/tasks/{task_id}: update the task name or sharing status without waking compute. */
 	update(taskId: string, request: UpdateTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<GetTaskResponse>;
@@ -562,11 +620,8 @@ export interface ITasksClient {
 	/** DELETE /agents/tasks/{task_id}: mark a task for deletion; only its creator may delete it. */
 	delete(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;
 
-	/** POST /agents/tasks/{task_id}/archive: archive a task without waking compute. */
-	archive(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task>;
-
-	/** POST /agents/tasks/{task_id}/unarchive: restore an archived task without waking compute. */
-	unarchive(taskId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task>;
+	/** POST /agents/tasks/{task_id}/archive or /unarchive: set the task's archived state without waking compute. */
+	setArchived(taskId: string, archived: boolean, signal: AbortSignal, options?: ApiRequestOptions): Promise<Task>;
 
 	/** POST /agents/tasks/{task_id}/steer: submit input or a control command, acknowledged with HTTP 202. */
 	steer(taskId: string, request: SteerTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<void>;

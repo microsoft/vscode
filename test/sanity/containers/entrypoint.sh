@@ -22,21 +22,12 @@ echo "Running sanity tests"
 for arg in "$@"; do
 	if [ "$arg" = "--setuid-sandbox" ]; then
 		# Only the dedicated setuid pass needs a non-root runner and privileged package installation.
-		if ! command -v sudo > /dev/null 2>&1; then
-			if command -v apt-get > /dev/null 2>&1; then
-				apt-get update
-				apt-get install -y sudo
-			elif command -v dnf > /dev/null 2>&1; then
-				dnf install -y sudo
-			elif command -v yum > /dev/null 2>&1; then
-				yum install -y sudo
-			elif command -v zypper > /dev/null 2>&1; then
-				zypper --non-interactive install sudo
-			else
-				echo "Error: no supported package manager to install sudo for setuid sandbox tests" >&2
+		for command in sudo useradd runuser; do
+			if ! command -v "$command" > /dev/null 2>&1; then
+				echo "Error: $command is required for setuid sandbox tests; rebuild the sanity test image with its prerequisites" >&2
 				exit 1
 			fi
-		fi
+		done
 		useradd --create-home sanity
 		printf 'sanity ALL=(root) NOPASSWD: /usr/bin/dpkg, /usr/bin/rpm\n' > /etc/sudoers.d/sanity
 		chmod 440 /etc/sudoers.d/sanity

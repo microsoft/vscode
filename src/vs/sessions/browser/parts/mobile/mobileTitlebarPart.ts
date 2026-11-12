@@ -21,16 +21,18 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
+import { IsNewChatSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../menus.js';
+import { AgentsWindowMenus } from '../../agentsWindowMenus.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from './contributions/mobileChangesView.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 
 /**
  * Mobile titlebar — prepended above the workbench grid on phone viewports
@@ -45,9 +47,9 @@ import { URI } from '../../../../base/common/uri.js';
  * (home/empty) screen is visible:
  *
  *  - **Welcome hidden** → shows the active session title (live, from
- *    {@link ISessionsService.activeSession}).
+ *    the session the main window's host shows).
  *  - **Welcome visible** → shows whatever is contributed to the
- *    {@link Menus.MobileTitleBarCenter} menu. On web, the host filter
+ *    {@link AgentsWindowMenus.MobileTitleBarCenter} menu. On web, the host filter
  *    contribution appends its host dropdown + connection button there.
  *
  * The switch is driven entirely by the menu: when the toolbar has no
@@ -102,11 +104,14 @@ export class MobileTitlebarPart extends Disposable {
 	// latest set without re-deriving it on each tap.
 	private latestChanges: readonly ISessionFileChange[] = [];
 
+	/** The host of the window, the main window: phones have one. */
+	protected readonly mainWindowHost: ISessionHost;
+
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ISessionHostService sessionHostService: ISessionHostService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
@@ -114,8 +119,10 @@ export class MobileTitlebarPart extends Disposable {
 		@IChatDashboardService private readonly chatDashboardService: IChatDashboardService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
+		this.mainWindowHost = getMainWindowHost(sessionHostService);
 
 		this.element = document.createElement('div');
 		this.element.className = 'mobile-top-bar';
@@ -207,16 +214,13 @@ export class MobileTitlebarPart extends Disposable {
 		}));
 		this.refreshAccount();
 
-		// Keep the title in sync with the active session
-		this._register(autorun(reader => {
-			const session = this.sessionsService.activeSession.read(reader);
-			const title = session?.title.read(reader);
-			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
-		}));
+		this.registerTitleListener();
 
 		// Keep the changes pill in sync with the active chat's changes.
 		// Hidden when there are no changes (counts are zero and list is empty).
 		const isNewChatRef = { value: !!IsNewChatSessionContext.getValue(contextKeyService) };
+		let changesTooltip = '';
+		this._register(hoverService.setupDelayedHover(changesPill, () => ({ content: changesTooltip, style: HoverStyle.Pointer })));
 		const renderChangesPill = () => {
 			const changes = this.latestChanges;
 			let added = 0;
@@ -233,26 +237,26 @@ export class MobileTitlebarPart extends Disposable {
 				if (added > 0 || removed > 0) {
 					changesAddedEl.textContent = `+${added}`;
 					changesRemovedEl.textContent = `-${removed}`;
-					changesPill.title = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
+					changesTooltip = localize('mobileTopBar.changesTooltip', "{0} files changed (+{1} -{2})", changes.length, added, removed);
 				} else {
 					changesAddedEl.textContent = changes.length === 1
 						? localize('mobileTopBar.singleFileChanged', "1 file")
 						: localize('mobileTopBar.filesChangedCount', "{0} files", changes.length);
 					changesRemovedEl.textContent = '';
-					changesPill.title = changes.length === 1
+					changesTooltip = changes.length === 1
 						? localize('mobileTopBar.singleFileChangedTooltip', "1 file changed")
 						: localize('mobileTopBar.filesChangedTooltip', "{0} files changed", changes.length);
 				}
+				changesPill.setAttribute('aria-description', changesTooltip);
 			}
 		};
 		this._register(autorun(reader => {
-			const session = this.sessionsService.activeSession.read(reader);
-			this.latestChanges = session?.activeChat.read(reader).changes.read(reader) ?? [];
+			this.latestChanges = this.mainWindowHost.chat.read(reader)?.changes.read(reader) ?? [];
 			renderChangesPill();
 		}));
 
 		// Mount the center toolbar (host filter widget on web welcome, etc.)
-		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.actionsContainer, Menus.MobileTitleBarCenter, {
+		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.actionsContainer, AgentsWindowMenus.MobileTitleBarCenter, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'mobileTitlebar.center',
 			toolbarOptions: { primaryGroup: () => true },
@@ -305,6 +309,14 @@ export class MobileTitlebarPart extends Disposable {
 	 */
 	setTitle(title: string): void {
 		this.sessionTitleElement.textContent = title;
+	}
+
+	protected registerTitleListener(): void {
+		this._register(autorun(reader => {
+			const session = this.mainWindowHost.session.read(reader);
+			const title = session?.title.read(reader);
+			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
+		}));
 	}
 
 	// --- Changes Pill --- //
@@ -363,9 +375,6 @@ export class MobileTitlebarPart extends Disposable {
 			entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-			// The conditional-auth opt-in is desktop-only (the native agent host it
-			// lets in does not run on mobile/web).
-			allowSignedOutWhenUsable: false,
 		});
 
 		// Avatar
@@ -454,7 +463,6 @@ export class MobileTitlebarPart extends Disposable {
 			entitlement: this.chatEntitlementService.entitlement,
 			sentiment: this.chatEntitlementService.sentiment,
 			quotas: this.chatEntitlementService.quotas,
-			allowSignedOutWhenUsable: false,
 		}));
 		if (badgeKey) {
 			this.dismissedBadgeKey = badgeKey;
@@ -472,19 +480,7 @@ export class MobileTitlebarPart extends Disposable {
 
 		const closeSheet = () => this.accountPanelDisposable.clear();
 
-		// Full-screen sheet inside the workbench container
-		const workbenchContainer = this.element.parentElement!;
-		const sheet = append(workbenchContainer, $('div.mobile-account-sheet'));
-		panelStore.add(toDisposable(() => sheet.remove()));
-
-		// Header: title + close button
-		const header = append(sheet, $('div.mobile-account-sheet-header'));
-		const headerTitle = append(header, $('h2.mobile-account-sheet-title'));
-		headerTitle.textContent = localize('mobileAccount.title', "Account");
-		const closeButton = append(header, $('button.mobile-account-sheet-close', { type: 'button' })) as HTMLButtonElement;
-		closeButton.setAttribute('aria-label', localize('mobileAccount.close', "Close"));
-		append(closeButton, $('span')).classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
-		panelStore.add(addDisposableListener(closeButton, EventType.CLICK, closeSheet));
+		const { sheet, registerAction } = this.createAccountSheet(panelStore, closeSheet);
 
 		// Scrollable content
 		const content = append(sheet, $('div.mobile-account-sheet-content'));
@@ -541,6 +537,7 @@ export class MobileTitlebarPart extends Disposable {
 			}
 			const row = append(actionsSection, $('button.mobile-account-sheet-action', { type: 'button' })) as HTMLButtonElement;
 			row.disabled = !action.enabled;
+			registerAction?.(row);
 			row.setAttribute('aria-label', action.tooltip || action.label);
 			const icon = this.getActionIcon(action);
 			if (icon) {
@@ -556,8 +553,26 @@ export class MobileTitlebarPart extends Disposable {
 		}
 	}
 
+	protected createAccountSheet(panelStore: DisposableStore, closeSheet: () => void): { sheet: HTMLElement; closeButton: HTMLButtonElement; registerAction?: (button: HTMLButtonElement) => void } {
+		// Full-screen sheet inside the workbench container
+		const workbenchContainer = this.element.parentElement!;
+		const sheet = append(workbenchContainer, $('div.mobile-account-sheet'));
+		panelStore.add(toDisposable(() => sheet.remove()));
+
+		// Header: title + close button
+		const header = append(sheet, $('div.mobile-account-sheet-header'));
+		const headerTitle = append(header, $('h2.mobile-account-sheet-title'));
+		headerTitle.textContent = localize('mobileAccount.title', "Account");
+		const closeButton = append(header, $('button.mobile-account-sheet-close', { type: 'button' })) as HTMLButtonElement;
+		closeButton.setAttribute('aria-label', localize('mobileAccount.close', "Close"));
+		append(closeButton, $('span')).classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
+		panelStore.add(addDisposableListener(closeButton, EventType.CLICK, closeSheet));
+
+		return { sheet, closeButton };
+	}
+
 	private getSheetActions(): IAction[] {
-		const menu = this.menuService.createMenu(Menus.AccountMenu, this.contextKeyService);
+		const menu = this.menuService.createMenu(AgentsWindowMenus.AccountMenu, this.contextKeyService);
 		const rawActions: IAction[] = [];
 		fillInActionBarActions(menu.getActions(), rawActions);
 		menu.dispose();

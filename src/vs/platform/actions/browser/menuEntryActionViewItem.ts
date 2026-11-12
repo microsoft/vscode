@@ -169,6 +169,8 @@ export interface IMenuEntryActionViewItemOptions {
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly keybindingNotRenderedWithLabel?: boolean;
 	readonly onClickAnimation?: ClickAnimation;
+	/** Checks whether the completed action changed state, for example after a confirmation dialog. */
+	readonly shouldTriggerClickAnimation?: (context: unknown) => boolean;
 	readonly onDidTriggerClickAnimation?: () => void;
 }
 
@@ -200,6 +202,10 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		return this._wantsAltCommand && this._menuItemAction.alt || this._menuItemAction;
 	}
 
+	protected get onClickAnimation(): ClickAnimation | undefined {
+		return this._options?.onClickAnimation;
+	}
+
 	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
@@ -212,12 +218,13 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 			}
 		});
 		try {
-			const animationTarget = this._options?.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
-			await this.actionRunner.run(commandAction, this._context);
-			if (!actionError && this._options?.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced()) {
+			const animationTarget = this.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
+			const context = this._context;
+			await this.actionRunner.run(commandAction, context);
+			if (!actionError && this.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced() && (this._options?.shouldTriggerClickAnimation?.(context) ?? true)) {
 				const icon = this._menuItemAction.item.icon;
-				triggerClickAnimation(animationTarget, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
-				this._options.onDidTriggerClickAnimation?.();
+				triggerClickAnimation(animationTarget, this.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+				this._options?.onDidTriggerClickAnimation?.();
 			}
 		} catch (err) {
 			this._notificationService.error(err);
@@ -495,7 +502,9 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 					this.update(action);
 				}
 			})
-			: this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+			// Update before the action is awaited: long-running actions can change context and
+			// make toolbars dispose this item before `onDidRun` fires, losing the selection.
+			: this._dropdown.actionRunner.onWillRun((e: IRunEvent) => {
 				if (e.action instanceof MenuItemAction) {
 					this.update(e.action);
 				}

@@ -9,12 +9,14 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
-import { showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
-import { MobileHostFilterActionViewItem } from '../../browser/mobileHostFilterActionViewItem.js';
+import { IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { showConnectionDiagnosticsSheet } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsReport.js';
+import { MobileHostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
+import { MobileHostDrawerHeaderViewItem } from '../../browser/mobileHostDrawerHeaderViewItem.js';
 
 const snapshotContent: Omit<IConnectionDiagnosticsSnapshot, 'text'> = {
 	capturedAt: '2026-09-14T19:00:00.000Z',
@@ -190,12 +192,11 @@ async function renderReport(context: ComponentFixtureContext, width: number, exp
 		const layout = JSON.stringify([content.clientHeight, content.scrollHeight, content.scrollTop, scrollable.clientHeight]);
 		const unchanged = layout === previousLayout;
 		previousLayout = layout;
-		const scrollbarWillHide = !scrollable.matches(':hover') && scrollable.querySelector('.scrollbar.visible');
-		return unchanged && !scrollbarWillHide;
-	}, 'Connection diagnostics fixture did not settle its layout and scrollbar');
+		return unchanged;
+	}, 'Connection diagnostics fixture did not settle its layout');
 }
 
-function renderEmptyPicker(context: ComponentFixtureContext): void {
+function renderEmptyPicker(context: ComponentFixtureContext, experimentalMobile = false): void {
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench');
 	container.style.width = '390px';
@@ -226,12 +227,21 @@ function renderEmptyPicker(context: ComponentFixtureContext): void {
 					return undefined as T;
 				}
 			}());
+			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+				override readonly mainContainer = container;
+				override readonly activeContainer = container;
+				override readonly onDidLayoutContainer = Event.None;
+				override getContainer() { return container; }
+			}());
 		},
 	});
-	const trigger = dom.append(container, dom.$('div'));
-	const widget = disposableStore.add(instantiationService.createInstance(MobileHostFilterActionViewItem, disposableStore.add(new Action('hosts', 'Hosts'))));
+	const trigger = dom.append(container, dom.$(experimentalMobile ? 'div.mobile-sessions-drawer-header' : 'div'));
+	const action = disposableStore.add(new Action('hosts', 'Hosts'));
+	const widget = disposableStore.add(experimentalMobile
+		? instantiationService.createInstance(MobileHostDrawerHeaderViewItem, action)
+		: instantiationService.createInstance(MobileHostFilterActionViewItem, action));
 	widget.render(trigger);
-	trigger.querySelector<HTMLElement>('.agent-host-filter-dropdown')!.click();
+	trigger.querySelector<HTMLElement>(experimentalMobile ? '.host-drawer-header-row' : '.agent-host-filter-dropdown')!.click();
 }
 
 function defineReportFixture(width: number, expandClient = false): ReturnType<typeof defineComponentFixture> {
@@ -249,4 +259,5 @@ export default defineThemedFixtureGroup({ path: 'sessions/connectionDiagnostics/
 	ClientExpanded: defineReportFixture(390, true),
 	NarrowClientExpanded: defineReportFixture(320, true),
 	EmptyHostPicker: defineComponentFixture({ render: renderEmptyPicker }),
+	ExperimentalMobileEmptyHostPicker: defineComponentFixture({ render: context => renderEmptyPicker(context, true) }),
 });

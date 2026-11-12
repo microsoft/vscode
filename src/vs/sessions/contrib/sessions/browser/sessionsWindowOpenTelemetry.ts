@@ -10,7 +10,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { EditorChatUsage } from '../../../../workbench/contrib/chat/common/editorChatUsage.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceArgumentKind } from '../../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceArgumentKind, WorkspaceArgumentRemoteKind } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
 
 export const FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS = 3 * 60 * 1000;
 
@@ -23,6 +23,7 @@ export interface ISessionsWindowOpenViewState {
 
 export interface ISessionsWindowOpenContext {
 	readonly workspaceArgumentKind: WorkspaceArgumentKind;
+	readonly workspaceArgumentRemoteKind?: WorkspaceArgumentRemoteKind;
 	readonly hasSessionArgument: boolean;
 	readonly workspaceArgumentIsDefault?: boolean;
 }
@@ -77,6 +78,7 @@ type FirstTimeWindowOpenEvent = {
 	workspacePreselected: boolean | undefined;
 	workspacePreselectionSource: string | undefined;
 	workspaceArgumentKind: WorkspaceArgumentKind;
+	workspaceArgumentRemoteKind: WorkspaceArgumentRemoteKind;
 	hasSessionArgument: boolean;
 	workspaceArgumentIsDefault: boolean;
 	initialViewKind: ISessionsWindowOpenViewState['viewKind'];
@@ -110,6 +112,7 @@ type FirstTimeWindowOpenClassification = {
 	workspacePreselected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the initial new-session view had a workspace selected. Undefined when a created session was visible.' };
 	workspacePreselectionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the initial new-session workspace was selected: checked workspace, recent workspace, existing sessions, provided workspace, user selection, none, or unknown. Undefined when a created session was visible.' };
 	workspaceArgumentKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of workspace argument received by the initial window open: none, local, devContainer, remote, or other. Contains no URI or authority.' };
+	workspaceArgumentRemoteKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Kind of VS Code remote hosting the initial workspace argument: none, ssh, wsl, tunnel, codespaces, attachedContainer, or other. For Dev Containers, the host of the source folder. Contains no authority.' };
 	hasSessionArgument: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the initial window open requested an existing session, which takes precedence over a workspace argument.' };
 	workspaceArgumentIsDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the initial workspace argument was inferred from the invoking editor and must not replace an existing session or user choice.' };
 	initialViewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the initial snapshot saw a new-session composer, a created session, or no composer.' };
@@ -233,6 +236,7 @@ export class SessionsWindowOpenTelemetry extends Disposable {
 			workspacePreselected: initialState.workspacePreselected,
 			workspacePreselectionSource: initialState.workspacePreselectionSource,
 			workspaceArgumentKind: this._context.workspaceArgumentKind,
+			workspaceArgumentRemoteKind: this._context.workspaceArgumentRemoteKind ?? 'none',
 			hasSessionArgument: this._context.hasSessionArgument,
 			workspaceArgumentIsDefault: this._context.workspaceArgumentIsDefault ?? false,
 			initialViewKind: initialState.viewKind,

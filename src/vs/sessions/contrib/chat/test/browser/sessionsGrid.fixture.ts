@@ -11,26 +11,28 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/tabs.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../browser/parts/agentsPartCard.js';
-import { AbstractChatView, ChatViewKind } from '../../../../browser/parts/chatView.js';
-import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/gridGap.js';
-import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
-import { IChatViewFactory } from '../../../../services/chatView/browser/chatViewFactory.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
-import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
-import { SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { AbstractChatView, ChatViewKind } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
+import { GRID_GAP_SASH_CLASS } from '../../../../../workbench/browser/parts/partGrid/partGridGap.js';
+import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
+import { createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { createSessionsWorkbenchFixture } from './sessionsWorkbenchFixtureUtils.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/media/editorPart.css';
-import '../../browser/media/chatView.css';
+import '../../../../../workbench/contrib/sessions/browser/chat/media/chatView.css';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class FixtureChatView extends AbstractChatView {
 	private chat: IChat | undefined;
@@ -208,10 +210,40 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	const [left, top, bottom] = sessions;
 	const multipleChatsSession = options.multipleChats ? sessions[multipleChatsIndex] : undefined;
 	const sessionsService = new class extends mock<ISessionsService>() {
-		override readonly activeSession = observableValue<IActiveSession | undefined>(this, left);
-		override readonly visibleSessions = observableValue<readonly IActiveSession[]>(this, sessions);
-		override setActive(session: IActiveSession | undefined): void {
+		readonly activeSession = observableValue<ITestSessionWithChat | undefined>(this, left);
+		readonly gridShown = observableValue<readonly ITestSessionWithChat[]>(this, sessions);
+		override readonly slotPanes = testGridPanes(this.gridShown);
+		/** Makes the pane of `session` the active one, as focusing it does. */
+		activate(session: ITestSessionWithChat | undefined): void {
 			this.activeSession.set(session, undefined);
+		}
+		// The pane commands, such as Maximize, activate the pane they act on first.
+		override activatePane(pane: ISessionGridPane | undefined): void {
+			const session = pane?.session.get();
+			this.activate(sessions.find(candidate => candidate.sessionId === session?.sessionId));
+		}
+		// Close closes the pane of the group it closes last.
+		override closePane(pane: ISessionGridPane): void {
+			const session = pane.session.get();
+			this.closeSession(this.gridShown.get().find(candidate => candidate.sessionId === session?.sessionId));
+		}
+		// Its panes are the grid's slots, whose ids are their sessions' ids: none is detached. A pane's host stands for the pane
+		// whose session it shows.
+		override getPaneOfHost(host: ISessionHost): ISessionGridPane | undefined {
+			const session = host.session.get();
+			return session && this.gridShown.get().some(candidate => candidate === session) ? upcastPartial<ISessionGridPane>({
+				id: session.sessionId,
+				kind: SessionGridPaneKind.Slot,
+				session: constObservable(session),
+				chat: constObservable(host.chat.get()),
+			}) : undefined;
+		}
+		override isActivePane(host: ISessionHost): boolean {
+			const session = host.session.get();
+			return !!session && this.activeSession.get() === session;
+		}
+		override isDetachedPane(): boolean {
+			return false;
 		}
 		override toggleSessionStickiness(session: ISession): void {
 			const target = sessions.find(candidate => candidate.sessionId === session.sessionId);
@@ -219,9 +251,9 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			target.sticky.set(!target.sticky.get(), undefined);
 		}
 		override closeSession(session: ISession | undefined): void {
-			const remaining = this.visibleSessions.get().filter(candidate => candidate !== session);
+			const remaining = this.gridShown.get().filter(candidate => candidate !== session);
 			transaction(tx => {
-				this.visibleSessions.set(remaining, tx);
+				this.gridShown.set(remaining, tx);
 				if (this.activeSession.get() === session) {
 					this.activeSession.set(remaining[0], tx);
 				}
@@ -237,7 +269,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	const sidePaneShowTabs = options.sidePaneShowTabs ?? 'multiple';
 	const sidePane = options.sidePanel ? createSidePaneFixture(context, sidePaneShowTabs) : undefined;
 	const bottomPanel = options.bottomPanel ? createBottomPanelFixture() : undefined;
-	const { part, grid, layout, instantiationService } = createSessionsWorkbenchFixture(context, 1440, 900, sessionsService, {
+	const { part, content, grid, layout, instantiationService } = createSessionsWorkbenchFixture(context, 1440, 900, sessionsService, {
 		sidePane: sidePane?.view,
 		sidePaneWidth: SIDE_PANE_WIDTH,
 		bottomPanel: bottomPanel?.view,
@@ -270,8 +302,8 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			...(bottom ? [{ id: bottom.sessionId, placement: { reference: top.sessionId, direction: Direction.Down } }] : []),
 		];
 	context.disposableStore.add(autorun(reader => {
-		const visible = sessionsService.visibleSessions.read(reader);
-		part.updateVisibleSessions(visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
+		const visible = sessionsService.gridShown.read(reader);
+		renderTestPanes(content, visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
 	}));
 	layout();
 	const sidePaneDivider = sidePane
@@ -287,24 +319,24 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		: undefined;
 	if (bottom) {
 		const sideBySideChats = options.multipleChats === 'sideBySide' || options.multipleChats === 'mixedRelated';
-		part.resizeSession(left.sessionId, sideBySideChats ? Direction.Right : Direction.Left, sideBySideChats ? 180 : 120);
-		part.resizeSession(top.sessionId, options.multipleChats === 'bottomRight' ? Direction.Up : Direction.Down, 40);
+		content.resizeSession(left.sessionId, sideBySideChats ? Direction.Right : Direction.Left, sideBySideChats ? 180 : 120);
+		content.resizeSession(top.sessionId, options.multipleChats === 'bottomRight' ? Direction.Up : Direction.Down, 40);
 	}
 	if (options.multipleChats === 'sideBySide') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
-		part.getSessionView(multipleChatsSession.sessionId)!.splitChatToSide(multipleChatsSession.chats.get()[1].resource);
+		content.getSessionView(multipleChatsSession.sessionId)!.splitChatToSide(multipleChatsSession.chats.get()[1].resource);
 		await Promise.resolve();
 	} else if (options.multipleChats === 'stackedLeft') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
-		part.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
+		content.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
 		await Promise.resolve();
 	} else if (options.multipleChats === 'bottomRight') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
-		part.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
+		content.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
 		await Promise.resolve();
 	} else if (options.multipleChats === 'mixedRelated') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
-		const sessionView = part.getSessionView(multipleChatsSession.sessionId)!;
+		const sessionView = content.getSessionView(multipleChatsSession.sessionId)!;
 		sessionView.splitActiveChat('right');
 		await Promise.resolve();
 		await sessionsService.openChat(multipleChatsSession, multipleChatsSession.chats.get()[2].resource);
@@ -369,12 +401,12 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			);
 		}
 	}
-	context.disposableStore.add(part.onDidFocusSession(id => sessionsService.setActive(sessions.find(session => session.sessionId === id))));
+	context.disposableStore.add(content.onDidFocusPane(id => sessionsService.activate(sessions.find(session => session.sessionId === id))));
 	if (options.maximized) {
-		part.toggleMaximizeSession(left.sessionId);
+		content.toggleMaximizePane(content.getSessionView(left.sessionId)!.pane.get()!);
 	}
 	const sizes = sessions.map(session => {
-		const element = part.getSessionView(session.sessionId)!.element;
+		const element = content.getSessionView(session.sessionId)!.element;
 		return { width: element.offsetWidth, height: element.offsetHeight };
 	});
 	const expectedChatGroupCount = options.multipleChats ? options.multipleChats === 'mixedRelated' ? 3 : 2 : 0;
@@ -447,7 +479,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	if (options.multipleChats) {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
 		const splitSession = multipleChatsSession;
-		const sessionView = part.getSessionView(splitSession.sessionId)!.element;
+		const sessionView = content.getSessionView(splitSession.sessionId)!.element;
 		const chatGroups = sessionView.querySelector<HTMLElement>('.chat-groups-view');
 		const groups = [...sessionView.querySelectorAll<HTMLElement>('.chat-group-view')];
 		const surfaces = [...sessionView.querySelectorAll<HTMLElement>('.chat-group-view-surface')];
@@ -501,7 +533,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	}
 	if (sidePane) {
 		assert(sidePaneDivider !== undefined, 'Expected a Sessions/side-pane divider');
-		const bounds = sessions.map(session => part.getSessionView(session.sessionId)!.element.getBoundingClientRect());
+		const bounds = sessions.map(session => content.getSessionView(session.sessionId)!.element.getBoundingClientRect());
 		const left = bounds.reduce((candidate, current) => current.left < candidate.left ? current : candidate);
 		const right = bounds.reduce((candidate, current) => current.left > candidate.left ? current : candidate);
 		const internalGap = right.left - left.right;
@@ -515,7 +547,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		assert(Math.abs(dividerCenter - sideGapCenter) < 0.01 && grip.content === '""', 'Expected the side-pane gripper to be centered in the visible gap');
 	}
 	if (bottomPanel) {
-		const bounds = sessions.map(session => part.getSessionView(session.sessionId)!.element.getBoundingClientRect());
+		const bounds = sessions.map(session => content.getSessionView(session.sessionId)!.element.getBoundingClientRect());
 		const sessionBottom = Math.max(...bounds.map(bound => bound.bottom));
 		const panelBounds = bottomPanel.frame.getBoundingClientRect();
 		const panelGap = panelBounds.top - sessionBottom;
@@ -611,7 +643,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	}),
 	MultipleChats: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input below one shared session header.'],
+		expectedVisualDescriptions: ['The Agents workbench shows two standalone session panels and a wide split-chat area, with sidebars and panels hidden and no enclosing group frame. Grid layout and Regression tests each own a complete rounded frame, separated by the same floating-panel gap and centered three-dot gripper used between sessions. Each chat has its own tab strip, conversation, and input, without a separate shared header above the tabs. The child in its own split pane shows its title followed by a dot and muted parent description.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide' }),
 	}),
 	MacWindowCorners: defineComponentFixture({
@@ -625,6 +657,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The wide left area contains a parent chat and related child chat as two independently rounded and fully bordered panels. The related child chat tab places its close action near the trailing edge with a compact inset, and its active shoulder connects to its own framed body. The same floating-panel gap used between unrelated sessions separates the chats, with a centered three-dot gripper and no enclosing parent-session frame.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true }),
+	}),
+	RelatedChatTabHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The child chat tab row has no drag-handle icon on hover. Because the child occupies a separate split pane, its tab shows the child title followed by a dot and muted parent description. There is no parent label on the right of the row or extra header above the chat tabs.'],
+		render: async context => {
+			await renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true });
+			const rows = context.container.querySelectorAll<HTMLElement>('.session-chat-tabs-bar .chat-composite-bar-tabs-row');
+			assert(rows.length >= 2, 'Expected parent and child chat tab rows');
+			rows[1].classList.add('hovered');
+		},
 	}),
 	RelatedChatsRtl: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

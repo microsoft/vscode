@@ -11,7 +11,7 @@ import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inpu
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, ISettableObservable } from '../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -20,8 +20,9 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE, renderChatPetAchievementPreview } from './chatPetAchievementPreview.js';
 import { ChatPetAchievementIds } from './chatPetAchievements.js';
+import { ChatPetAppearanceSelection, getChatPetAppearanceSelection, getChatPetAppearanceSelectionPressedState, getChatPetTargetColor, renderChatPetAppearanceTargetPicker } from './chatPetAppearanceTarget.js';
 import { ChatPetColor, chatPetColorPresets, getChatPetBodyColor, isDefaultChatPetColor, parseChatPetColor } from './chatPetColors.js';
-import { IChatPetService } from './chatPetService.js';
+import { ChatPetAppearanceTarget, getChatPetAppearanceTargetWindows, IChatPetService } from './chatPetService.js';
 
 export class ChatPetColorsWidget extends Disposable {
 
@@ -36,12 +37,17 @@ export class ChatPetColorsWidget extends Disposable {
 	private readonly customPreview: HTMLCanvasElement;
 	private readonly previewDisposable = this._register(new MutableDisposable<IDisposable>());
 	private customizationUnlocked = false;
-	private selectedColor: ChatPetColor | undefined;
+	/** Whether the user edited the custom color since it last showed the target's color. */
+	private draftEdited = false;
+	private target: ChatPetAppearanceTarget | undefined;
+	private targetColor: ChatPetColor | undefined;
+	private draftColor: ChatPetColor | undefined;
 	private previewColor: ChatPetColor | undefined;
 
 	constructor(
 		parent: HTMLElement,
 		onDidRequestClose: () => void,
+		private readonly appearanceTarget: ISettableObservable<ChatPetAppearanceTarget>,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
@@ -67,6 +73,7 @@ export class ChatPetColorsWidget extends Disposable {
 		const inner = DOM.append(this.content, DOM.$('.chat-pet-achievements-inner'));
 		DOM.append(inner, DOM.$('h1')).textContent = localize('chatPet.colors.title', "Color");
 		DOM.append(inner, DOM.$('p.chat-pet-achievements-intro')).textContent = localize('chatPet.colors.intro', "A little more you. Pick a classic look or give Blobby a color of its own.");
+		this._register(renderChatPetAppearanceTargetPicker(inner, appearanceTarget, onDidRequestClose));
 		const list = DOM.append(inner, DOM.$('ul.chat-pet-colors-list', {
 			'aria-label': localize('chatPet.colors.presets', "Blobby color presets"),
 		}));
@@ -124,7 +131,12 @@ export class ChatPetColorsWidget extends Disposable {
 		this.hexInput.inputElement.setAttribute('aria-describedby', this.validationMessage.id);
 
 		this._register(DOM.addDisposableListener(this.colorInput, DOM.EventType.INPUT, () => {
+			this.draftEdited = true;
 			this.hexInput.value = this.colorInput.value;
+		}));
+		// Unlike onDidChange, the input event only reports edits from the user.
+		this._register(DOM.addDisposableListener(this.hexInput.inputElement, DOM.EventType.INPUT, () => {
+			this.draftEdited = true;
 		}));
 		this._register(this.hexInput.onDidChange(() => this.updateDraft()));
 		this._register(this.applyButton.onDidClick(() => this.applyCustomColor()));
@@ -137,38 +149,47 @@ export class ChatPetColorsWidget extends Disposable {
 		this._register(autorun(reader => {
 			const wasUnlocked = this.customizationUnlocked;
 			this.customizationUnlocked = chatPetService.unlockedAchievements.read(reader).includes(ChatPetAchievementIds.Blobby);
-			const selectedColor = chatPetService.color.read(reader);
+			const target = this.appearanceTarget.read(reader);
+			const windowColors = { editor: chatPetService.getWindowColor('editor').read(reader), agents: chatPetService.getWindowColor('agents').read(reader) };
+			const targetColor = getChatPetTargetColor(chatPetService, target).read(reader);
 			for (const [color, card] of this.cards) {
 				const enabled = isDefaultChatPetColor(color) || this.customizationUnlocked;
-				const selected = color === selectedColor;
+				const selection = getChatPetAppearanceSelection(target, windowKind => windowColors[windowKind], color);
 				card.button.enabled = enabled;
-				card.button.element.classList.toggle('selected', selected);
-				card.button.element.setAttribute('aria-pressed', String(selected));
-				card.state.textContent = selected
-					? localize('chatPet.colors.selected', "Selected")
-					: enabled ? '\u00a0' : localize('chatPet.colors.locked', "Locked");
-				card.button.setAriaLabel(selected
-					? localize('chatPet.colors.selectedLabel', "{0}, selected", card.label)
-					: enabled ? card.label : localize('chatPet.colors.lockedLabel', "{0}, locked. Discover Blobby's True Name to unlock.", card.label));
+				card.button.element.classList.toggle('selected', selection !== undefined);
+				card.button.element.setAttribute('aria-pressed', getChatPetAppearanceSelectionPressedState(selection));
+				card.state.textContent = getColorCardState(selection) ?? (enabled ? '\u00a0' : localize('chatPet.colors.locked', "Locked"));
+				card.button.setAriaLabel(getColorCardAriaLabel(card.label, selection, enabled));
 			}
 			unlockHint.hidden = this.customizationUnlocked;
 			this.colorInput.disabled = !this.customizationUnlocked;
 			this.hexInput.setEnabled(this.customizationUnlocked);
-			if (this.selectedColor !== selectedColor || wasUnlocked !== this.customizationUnlocked) {
-				this.selectedColor = selectedColor;
-				this.hexInput.value = getChatPetBodyColor(selectedColor);
+			// Changing only the target keeps an edited draft, so it can be applied to other windows.
+			const keepDraft = this.draftEdited && target !== this.target;
+			if (wasUnlocked !== this.customizationUnlocked || (targetColor !== this.targetColor && !keepDraft)) {
+				this.resetDraft(targetColor);
 			}
+			this.target = target;
+			this.targetColor = targetColor;
 			this.updateDraft();
 		}));
+	}
+
+	private resetDraft(color: ChatPetColor): void {
+		this.hexInput.value = getChatPetBodyColor(color);
+		this.draftEdited = false;
 	}
 
 	private updateDraft(): void {
 		const color = parseChatPetColor(this.hexInput.value);
 		const validColor = color && !isDefaultChatPetColor(color) ? color : undefined;
-		const selectedColor = this.chatPetService.color.get();
-		const draftColor = validColor === getChatPetBodyColor(selectedColor) ? selectedColor : validColor;
+		const target = this.appearanceTarget.get();
+		const targetColor = getChatPetTargetColor(this.chatPetService, target).get();
+		const draftColor = validColor === getChatPetBodyColor(targetColor) ? targetColor : validColor;
+		this.draftColor = draftColor;
 		this.validationMessage.textContent = validColor ? '' : localize('chatPet.color.invalid', "Enter a hex color such as #ff8800 or #f80.");
-		this.applyButton.enabled = this.customizationUnlocked && draftColor !== undefined && draftColor !== selectedColor;
+		this.applyButton.enabled = this.customizationUnlocked && draftColor !== undefined
+			&& getChatPetAppearanceTargetWindows(target).some(windowKind => this.chatPetService.getWindowColor(windowKind).get() !== draftColor);
 		if (validColor) {
 			this.colorInput.value = validColor;
 		}
@@ -181,18 +202,18 @@ export class ChatPetColorsWidget extends Disposable {
 
 	private applyCustomColor(): void {
 		this.updateDraft();
-		const color = parseChatPetColor(this.hexInput.value);
-		if (!color || isDefaultChatPetColor(color)) {
+		if (!this.draftColor) {
 			this.hexInput.focus();
 			return;
 		}
 		if (this.applyButton.enabled) {
-			this.selectColor(color);
+			this.selectColor(this.draftColor);
 		}
 	}
 
 	private selectColor(color: ChatPetColor): void {
-		this.chatPetService.setColor(color);
+		this.chatPetService.setColor(color, this.appearanceTarget.get());
+		this.resetDraft(color);
 		if (!isDefaultChatPetColor(color)) {
 			this.chatPetService.markAchievementSeen(ChatPetAchievementIds.Blobby);
 		}
@@ -207,6 +228,33 @@ export class ChatPetColorsWidget extends Disposable {
 	}
 
 	focus(): void {
-		(this.cards.get(this.chatPetService.color.get())?.button ?? this.cards.get('stable')?.button)?.focus();
+		const targetColor = getChatPetTargetColor(this.chatPetService, this.appearanceTarget.get()).get();
+		(this.cards.get(targetColor)?.button ?? this.cards.get('stable')?.button)?.focus();
+	}
+}
+
+function getColorCardState(selection: ChatPetAppearanceSelection): string | undefined {
+	switch (selection) {
+		case 'all':
+			return localize('chatPet.colors.selected', "Selected");
+		case 'editor':
+			return localize('chatPet.colors.selectedInEditor', "Editor Window");
+		case 'agents':
+			return localize('chatPet.colors.selectedInAgents', "Agents Window");
+		default:
+			return undefined;
+	}
+}
+
+function getColorCardAriaLabel(label: string, selection: ChatPetAppearanceSelection, enabled: boolean): string {
+	switch (selection) {
+		case 'all':
+			return localize('chatPet.colors.selectedLabel', "{0}, selected", label);
+		case 'editor':
+			return localize('chatPet.colors.selectedInEditorLabel', "{0}, selected in editor windows", label);
+		case 'agents':
+			return localize('chatPet.colors.selectedInAgentsLabel', "{0}, selected in the Agents window", label);
+		default:
+			return enabled ? label : localize('chatPet.colors.lockedLabel', "{0}, locked. Discover Blobby's True Name to unlock.", label);
 	}
 }

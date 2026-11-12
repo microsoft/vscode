@@ -82,12 +82,12 @@ export interface WorkflowJob {
 	readonly html_url: string | null;
 	/** Associated check-run API URL. */
 	readonly check_run_url: string;
-	/** Start timestamp. */
-	readonly started_at: string;
+	/** Start timestamp, or null before the job starts. */
+	readonly started_at: string | null;
 	/** Completion timestamp, or null. */
 	readonly completed_at: string | null;
-	/** Runner-selection labels. */
-	readonly labels: readonly string[];
+	/** Runner-selection labels, when associated workflow-job metadata is available. */
+	readonly labels?: readonly string[];
 	/** Steps, when included in the response. */
 	readonly steps?: readonly {
 		/** Step display name. */
@@ -95,7 +95,7 @@ export interface WorkflowJob {
 		/** One-based step number. */
 		readonly number: number;
 		/** Step lifecycle phase. */
-		readonly status: 'queued' | 'in_progress' | 'completed';
+		readonly status: CheckStatus;
 		/** Step conclusion, or null. */
 		readonly conclusion: string | null;
 		/** Start timestamp, omitted or null until available. */

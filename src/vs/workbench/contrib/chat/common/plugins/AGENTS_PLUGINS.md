@@ -187,13 +187,13 @@ Unpinned marketplace repositories use `<cacheRoot>/<host>/<path>`. Ref-specific 
 The managed customization controls are complementary:
 
 - `strictKnownMarketplaces` restricts which marketplace sources may provide plugins.
-- `strictPluginOnlyCustomization` blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers. Eligible plugin contributions remain available.
+- `strictPluginOnlyCustomization` blocks standalone user and workspace skills, agents, hooks, instructions, and MCP servers, plus executable Copilot extensions from user, workspace/project, and session directories. Eligible plugin contributions remain available.
 - `allowManagedMcpServersOnly` makes the managed MCP allowlist authoritative; lower-layer allow entries cannot broaden it and deny entries remain restrictive.
 - `allowManagedHooksOnly` permits plugin hooks only when managed `enabledPlugins` force-enables the plugin. User/workspace hooks and hooks from otherwise user-enabled plugins do not load.
 
 `strictPluginOnlyCustomization` does not replace strict marketplace enforcement. Hardened deployments apply both controls when plugin source and standalone customization provenance must both be constrained.
 
-In Copilot Agent Host sessions, the runtime reads `strictPluginOnlyCustomization` from Copilot managed settings, including its array form, and applies it to the customizations it discovers. The user and workspace skills and agents that VS Code forwards (for example, from configured skill locations), and every MCP server it forwards (for example, from VS Code's `mcp.json` or an extension), are bundled separately from other synced content. The host passes them through the SDK's `skillDirectories`, `customAgents`, and session `mcpServers` instead of `pluginDirectories`, so the runtime treats them as standalone customizations rather than plugin content. Extension and built-in skills and agents stay in the synced plugin, matching the workbench lockdown, which blocks only standalone prompt files.
+In Copilot Agent Host sessions, the runtime reads `strictPluginOnlyCustomization` from Copilot managed settings, including its array form, and applies it to the customizations it discovers. The user and workspace skills and agents that VS Code forwards (for example, from configured skill locations), and every MCP server it forwards (for example, from VS Code's `mcp.json` or an extension), are bundled separately from other synced content. The host passes them through the SDK's `skillDirectories`, `customAgents`, and session `mcpServers` instead of `pluginDirectories`, so the runtime treats them as standalone customizations rather than plugin content. Extension and built-in skills and agents stay in the synced plugin, matching the workbench lockdown, which blocks only standalone prompt files. Executable Copilot extensions remain runtime-owned: the runtime filters standalone roots, verifies eligible plugin provenance, and enforces current policy before invoking VS Code's launch resolver.
 
 ### Storage (ApplicationScope, MachineTarget)
 | Key | Description |
@@ -205,9 +205,12 @@ In Copilot Agent Host sessions, the runtime reads `strictPluginOnlyCustomization
 | `chat.plugins.lastUpdateCheck.v1` | Timestamp of last periodic update check |
 
 ### Enablement Storage
+Stored in `StorageScope.APPLICATION`, so every window and profile (including the Agents Window's `agents` profile) shares the same switches. Values from non-default profiles are merged in once, "off wins" (`customizationEnablementStorage.ts`).
+
 | Key | Description |
 |-----|-------------|
 | `agentPlugins.enablement` | Per-plugin enable/disable state (shared `EnablementModel`) |
+| `agentPlugins.enablementIdentities` | Aliases from relocated install URIs to the URI their enablement is stored under |
 
 ## Reactivity Model
 
@@ -236,5 +239,7 @@ The entire system is built on `IObservable`:
 - **Lazy instantiation** — the service is registered as `InstantiationType.Delayed` and only created on first injection.
 
 Synthetic `.plugin/plugin.json` plus `.mcp.json` bundles created by customization synchronization remain legacy Open Plugin packages. Root Agent Plugin recognition is also used for direct standalone installs, but `MarketplaceType.OpenPlugin` and the existing marketplace protocol remain unchanged because Agent Plugins v1 defines no marketplace format.
+
+The synced bundle can also contain client-authored instruction rules without source files. Remote Copilot sessions receive an always-applied image rule through this path: use an absolute Markdown image path, and call `view` once only if no tool has already returned the image. The client resolves matching paths from raster image bytes in that chat's tool results, including restored history, without requiring the original sandbox file. Path inference accepts common path arguments and avoids ambiguous multi-image or multi-path results; stable host-provided resource identities remain the long-term solution.
 
 Provider adapters do not delegate strict packages to legacy SDK plugin discovery. Copilot explicitly receives skills and MCP, Codex explicitly receives skills and MCP, and Claude explicitly receives remote MCP. Remote MCP transport selection remains the responsibility of each provider's existing auto-detection. The Claude SDK currently has no external skill-directory API or per-server stdio working-directory option, so strict Claude skills and stdio MCP are skipped rather than reinterpreted.

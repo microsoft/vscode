@@ -290,7 +290,7 @@ suite('ChatInputModelSelectionController', () => {
 		const intents = new Map<string | undefined, IIntendedModelSelection | undefined>();
 		const state: IRuntimeState = { models: [restored, hydraFusion, fusion], sessionType: 'agent-host-copilotcli', isEmpty: false, intents };
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
-		// The picker shows HydraFusion as Fusion at Balance whenever both are on offer.
+		// The picker shows HydraFusion as Fusion at High whenever both are on offer.
 		const present = () => {
 			if (controller.currentModel.get()?.identifier === hydraFusion.identifier && state.models.includes(fusion)) {
 				controller.applyEquivalentSelection(fusion);
@@ -1576,6 +1576,32 @@ suite('ChatInputModelSelectionController', () => {
 			awaitingAfterResolve: false,
 			applied: [desired.identifier],
 			restored: [{ modelId: desired.identifier, configuration: { effort: 'high' } }],
+		});
+	});
+
+	test('restoring chat-local configuration stays nonpersistent even when the model publishes later', () => {
+		const sessionType = 'agent-host-test';
+		const desired = targetedModel('test/desired', sessionType);
+		const restored: object[] = [];
+		const beforePublication: number[] = [];
+		for (const late of [false, true]) {
+			const modelChanges = disposables.add(new Emitter<string>());
+			const state: IRuntimeState = { models: late ? [] : [desired], sessionType };
+			const controller = disposables.add(new ChatInputModelSelectionController({
+				...createRuntime(state, modelChanges, []),
+				restoreModelConfiguration: (modelId, configuration, persist) => restored.push({ modelId, configuration, persist }),
+			}));
+			controller.syncFromConversationState(desired, { effort: late ? 'high' : 'low' }, sessionType, 'chat:one', false, ModelSelectionReason.SessionRestore, true);
+			beforePublication.push(restored.length);
+			state.models = [desired];
+			modelChanges.fire('test');
+		}
+		assert.deepStrictEqual({ beforePublication, restored }, {
+			beforePublication: [1, 1],
+			restored: [
+				{ modelId: desired.identifier, configuration: { effort: 'low' }, persist: false },
+				{ modelId: desired.identifier, configuration: { effort: 'high' }, persist: false },
+			],
 		});
 	});
 

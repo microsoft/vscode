@@ -181,21 +181,38 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return;
 		}
 
-		const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
-		const result = await this.doEnterWorkspace(workspaceUri);
-		if (result) {
+		try {
+			const oldWorkspace = toWorkspaceIdentifier(this.contextService.getWorkspace());
+			const enterWorkspace = async () => {
+				const result = await this.doEnterWorkspace(workspaceUri);
+				if (result) {
 
-			// Migrate storage to new workspace
-			await this.storageService.switch(result.workspace, true /* preserve data */);
+					// Migrate storage to new workspace
+					await this.storageService.switch(result.workspace, true /* preserve data */);
 
-			// Reinitialize backup service
-			if (this.workingCopyBackupService instanceof WorkingCopyBackupService) {
-				const newBackupWorkspaceHome = result.backupPath ? URI.file(result.backupPath).with({ scheme: this.environmentService.userRoamingDataHome.scheme }) : undefined;
-				this.workingCopyBackupService.reinitialize(newBackupWorkspaceHome);
+					// Reinitialize backup service
+					if (this.workingCopyBackupService instanceof WorkingCopyBackupService) {
+						const newBackupWorkspaceHome = result.backupPath ? URI.file(result.backupPath).with({ scheme: this.environmentService.userRoamingDataHome.scheme }) : undefined;
+						this.workingCopyBackupService.reinitialize(newBackupWorkspaceHome);
+					}
+				}
+
+				return result;
+			};
+			const result = this.workingCopyBackupService instanceof WorkingCopyBackupService
+				? await this.workingCopyBackupService.withBackupPathTransition(enterWorkspace)
+				: await enterWorkspace();
+			if (result) {
+				// Fire event to allow participants to join
+				await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
 			}
-
-			// Fire event to allow participants to join
-			await this.fireDidEnterWorkspace(oldWorkspace, result.workspace);
+		} catch (error) {
+			try {
+				await this.extensionService.startExtensionHosts();
+			} catch (restartError) {
+				this.logService.error(restartError);
+			}
+			throw error;
 		}
 
 		// TODO@aeschli: workaround until restarting works

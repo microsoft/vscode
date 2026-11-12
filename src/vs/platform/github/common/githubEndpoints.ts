@@ -20,6 +20,9 @@ export interface IGitHubEndpoints {
 	readonly enterpriseHost: string | undefined;
 }
 
+/** The github.com REST API base, without a trailing slash. */
+export const GITHUB_DOT_COM_API_BASE_URI = 'https://api.github.com';
+
 /**
  * The github.com Copilot API host, distinct from `api.github.com`.
  * Enterprise overrides come from the Copilot token's `endpoints.api`, not the enterprise URI.
@@ -28,9 +31,9 @@ export const GITHUB_DOT_COM_COPILOT_API_BASE_URI = 'https://api.githubcopilot.co
 
 /** Canonical github.com endpoints, used when no enterprise URI is configured. */
 const GITHUB_DOT_COM_ENDPOINTS: IGitHubEndpoints = {
-	apiBaseUri: 'https://api.github.com',
+	apiBaseUri: GITHUB_DOT_COM_API_BASE_URI,
 	rawBaseUri: 'https://raw.githubusercontent.com',
-	graphQlUri: 'https://api.github.com/graphql',
+	graphQlUri: `${GITHUB_DOT_COM_API_BASE_URI}/graphql`,
 	oauthServer: 'https://github.com/login/oauth',
 	enterpriseHost: undefined,
 };
@@ -125,7 +128,7 @@ export function resolveRawContentUrl(rawBaseUri: string, path: string): { url: U
 		throw new GitHubRequestError('Invalid GitHub raw content path encoding', 'validation');
 	}
 	if (segments.length < 4 || path.includes('?')
-		|| !/^[a-f0-9]{40}$/.test(segments[2])
+		|| !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/.test(segments[2])
 		|| decoded.some(segment => !segment || segment === '.' || segment === '..' || /[\\/\r\n\0]/.test(segment))) {
 		throw new GitHubRequestError('Expected a GitHub file path pinned to a repository commit', 'validation');
 	}

@@ -7,6 +7,8 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { parse, SchemaError } from '../client/schema.js';
 import { GitHubGraphQLError, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError, GitHubResponseMetadata } from '../githubTypes.js';
 import { ApiRequestError, MutationUncertainError, parseApiError } from '../missionControl/missionControlClient.js';
+import { parseCreatedTaskId, parseMissionControlErrorCode } from '../missionControl/missionControlError.js';
+import { parseGitHubRequestId } from '../client/headers.js';
 import { RequestErrorKind } from '../types.js';
 import { ApiResponseMessage, GitHubErrorResponse, parseBodyText, SerializedGitHubError, SerializedMissionControlError, SerializedRequestError } from './ipc.js';
 
@@ -34,6 +36,7 @@ const parseError = {
 			serverDate: parse.optional(parse.string),
 			requestId: parse.optional(parse.string),
 			retryAfterSeconds: parse.optional(parse.nonNegativeNumber),
+			ssoAuthorizationUrl: parse.optional(parse.string),
 		})),
 	}),
 	timeout: parse.object({ type: parse.exact('timeout'), requestDispatched: parse.boolean }),
@@ -41,8 +44,10 @@ const parseError = {
 	cancelled: parse.object({ type: parse.exact('cancelled') }),
 	missionControl: parse.object({
 		type: parse.exact('missionControl'), statusCode: parse.range(100, 599), kind: parseErrorKind,
-		response: parse.optional(parseApiError), requestId: parse.optional(parse.string),
+		response: parse.optional(parseApiError), requestId: value => parseGitHubRequestId(typeof value === 'string' ? value : undefined),
+		code: value => parseMissionControlErrorCode(value), limitedResource: value => parseMissionControlErrorCode(value),
 		retryAfterSeconds: parse.optional(parse.nonNegativeNumber), outcome: parse.optional(parse.exact('indeterminate')),
+		createdTaskId: value => parseCreatedTaskId({ id: value }),
 	}),
 	mutationUncertain: parse.object({ type: parse.exact('mutationUncertain'), kind: parseErrorKind, statusCode: parse.optional(parse.range(100, 599)) }),
 };
@@ -52,6 +57,7 @@ const parseResponseType = parse.object({ type: parse.oneOf('success', 'error') }
 const parseSuccess = parse.object({
 	type: parse.exact('success'), status: parse.range(100, 599),
 	metadata: parse.optional(parse.object({
+		requestId: value => parseGitHubRequestId(typeof value === 'string' ? value : undefined),
 		nextPath: parse.optional(parse.nullable(parse.string)),
 		nextLink: parse.optional(parse.string), serverDate: parse.optional(parse.string), retryAfterSeconds: parse.optional(parse.nonNegativeNumber),
 	})),
@@ -85,7 +91,8 @@ export function parseClientResponse<T>(value: unknown, parser: parse.Parser<T>):
 export function deserializeGitHubError(error: SerializedGitHubError | SerializedMissionControlError, bodyText: string | undefined): GitHubRequestError | CancellationError {
 	switch (error.type) {
 		case 'missionControl':
-			return new ApiRequestError(error.statusCode, error.kind, error.response, error.requestId, error.retryAfterSeconds, error.outcome);
+			return new ApiRequestError(error.statusCode, error.kind, error.response, error.requestId, error.retryAfterSeconds, error.outcome,
+				{ code: error.code, limitedResource: error.limitedResource, requestId: error.requestId }, error.createdTaskId);
 		case 'mutationUncertain':
 			return new MutationUncertainError(error.kind, error.statusCode);
 		case 'cancelled':
@@ -106,6 +113,8 @@ export function serializeGitHubError(error: unknown): GitHubErrorResponse {
 			type: 'error', error: {
 				type: 'missionControl', statusCode: error.statusCode, kind: error.kind, response: error.response,
 				requestId: error.requestId, retryAfterSeconds: error.retryAfterSeconds, outcome: error.outcome,
+				code: error.code, limitedResource: error.limitedResource,
+				createdTaskId: error.createdTaskId,
 			}
 		}, undefined];
 	}

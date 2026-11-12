@@ -70,6 +70,7 @@ suite('Agent Host timing OTel', () => {
 			Object.assign(process.env, env);
 			return disposables.add(new AgentHostOTelService({ fetchFn }, new NullLogService(), new class extends mock<INativeEnvironmentService>() {
 				override readonly userDataPath = directory;
+				override readonly userHome = URI.file(directory);
 			}));
 		} finally {
 			for (const [key, value] of saved) {

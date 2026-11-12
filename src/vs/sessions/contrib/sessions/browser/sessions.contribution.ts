@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IViewDescriptor, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement, ViewContainer, IViewContainersRegistry, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -15,18 +16,28 @@ import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
 import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
-import { SessionsView, SessionsViewId } from './views/sessionsView.js';
+import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
-import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { getEnabledViewContainerContextKey } from '../../../../workbench/common/contextkeys.js';
+import { ChatViewContainerId, ChatViewOpenKeybindings } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
+import { SessionsListToolsContribution } from './sessionsListTools.js';
 import './sessionDetailsAction.js';
 import './updateSessionFoldersAction.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING } from '../../../common/sessionConfig.js';
+import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
+import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
+import { ISessionAttentionService } from '../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
+import { SessionAttentionService } from '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
+import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+
+registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -43,11 +54,21 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 	openCommandActionDescriptor: {
 		id: SessionsContainerId,
 		mnemonicTitle: localize({ key: 'miSessions', comment: ['&& denotes a mnemonic'] }, "&&Sessions"),
-		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyX },
 		order: 0
 	},
 	windowEnablement: WindowEnablement.Sessions
 }, ViewContainerLocation.Sidebar, { isDefault: true });
+
+// Like View: Toggle Chat in editor windows, including the keybindings the user gives it. Registered here rather than with the
+// open command, whose keybindings are WorkbenchContrib, so that it outranks Open Chat, which the Agents window also registers.
+const sessionsContainerKeybindingWhen = ContextKeyExpr.has(getEnabledViewContainerContextKey(SessionsContainerId));
+KeybindingsRegistry.registerKeybindingRule({
+	...ChatViewOpenKeybindings,
+	id: SessionsContainerId,
+	weight: KeybindingWeight.SessionsContrib,
+	when: sessionsContainerKeybindingWhen,
+});
+KeybindingsRegistry.registerKeybindingAlias({ command: SessionsContainerId, source: ChatViewContainerId, when: sessionsContainerKeybindingWhen });
 
 const sessionsViewPaneDescriptor: IViewDescriptor = {
 	id: SessionsViewId,
@@ -66,6 +87,14 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 export const sessionsConfiguration = {
 	id: 'sessions',
 	properties: {
+		[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: localize('sessions.list.inlineActions', "Show Fix Checks, Address Comments, or their combined action below eligible sessions and chats in the Sessions list. Actions run in the background. This does not enable Agent Merge or change action permissions."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
+		},
 		[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental'],
@@ -83,6 +112,19 @@ export const sessionsConfiguration = {
 			default: false,
 			experiment: { mode: 'auto' }
 		},
+		[SESSIONS_LIST_INBOX_ENABLED_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: localize('sessions.list.inboxEnabled', "Uses Inbox Mode as the default Sessions list grouping when no grouping has been chosen. Inbox Mode is always available in the Grouping menu. Explicit grouping choices are preserved."),
+			default: false,
+		},
+		[SESSIONS_LIST_AGENT_TOOLS_SETTING]: {
+			type: 'boolean',
+			tags: ['preview'],
+			description: localize('sessions.list.agentTools.enabled', "Controls whether agents can read and organize the Sessions list: create, nest, and reorder custom groups, move, pin, and archive sessions, and change the list's grouping, sorting, and filters. This only applies to the Sessions list of the Agents window."),
+			default: true,
+			experiment: { mode: 'auto' }
+		},
 		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: {
 			type: 'string',
 			tags: ['experimental'],
@@ -96,15 +138,15 @@ export const sessionsConfiguration = {
 				localize('sessions.list.externalApplicationBadge.title', "Show the creating application next to the session title."),
 				localize('sessions.list.externalApplicationBadge.details', "Show the creating application first in the session details."),
 			],
-			description: localize('sessions.list.externalApplicationBadge', "Controls where external sessions created in another application show the creating application."),
-			default: ExternalSessionApplicationBadgeMode.Off,
+			description: localize('sessions.list.externalApplicationBadge', "Controls where sessions created in an application other than VS Code show the creating application."),
+			default: ExternalSessionApplicationBadgeMode.Title,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental', 'advanced'],
-			description: localize('sessions.list.externalApplicationBadge.showFrom', "Controls whether external session application badges include the word 'From'."),
-			default: true,
+			description: localize('sessions.list.externalApplicationBadgeShowFrom', "Controls whether session application badges include the word 'From'."),
+			default: false,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
@@ -125,8 +167,28 @@ export const sessionsConfiguration = {
 			type: 'boolean',
 			tags: ['experimental', 'advanced'],
 			description: localize('sessions.list.showArchivedByDefault', "Controls whether the Done or Archived section is shown by default in the sessions list. This default is ignored after the corresponding filter is changed."),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: {
+			type: 'string',
+			tags: ['experimental', 'advanced'],
+			enum: [AutomationSessionsListMode.Always, AutomationSessionsListMode.AfterReply, AutomationSessionsListMode.Never],
+			enumDescriptions: [
+				localize('sessions.list.showAutomationSessions.always', "Show every automation session in the sessions list."),
+				localize('sessions.list.showAutomationSessions.afterReply', "Show an automation session in the sessions list once you send a message in it."),
+				localize('sessions.list.showAutomationSessions.never', "Show automation sessions only in Automations."),
+			],
+			description: localize('sessions.list.showAutomationSessions', "Controls when automation sessions automatically also appear in the sessions list. They always remain in Automations. Use Show in Sessions List or Hide from Sessions List in a session's context menu to override this for that session."),
+			default: AutomationSessionsListMode.AfterReply,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental', 'advanced'],
+			description: localize('sessions.list.indentItems', "Controls whether sessions and other rows in the sessions list are indented below their section header to show the list's hierarchy."),
+			default: false,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_CHAT_TABS_SETTING]: {
@@ -177,7 +239,12 @@ registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBar
 registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessionActionViewItemContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionListActionsExperimentContribution.ID, SessionListActionsExperimentContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsMouseNavigationContribution.ID, SessionsMouseNavigationContribution, WorkbenchPhase.BlockRestore);
+// Before the sessions view restores the list from the migrated state.
+registerWorkbenchContribution2(SessionsListStateMigrationContribution.ID, SessionsListStateMigrationContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionsUnattendedRestartParticipant.ID, SessionsUnattendedRestartParticipant, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemetryContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsAccountTelemetryContribution.ID, SessionsAccountTelemetryContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsWindowNotifier.ID, SessionsWindowNotifier, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AutomationSessionsListingContribution.ID, AutomationSessionsListingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionConversationActionsContribution.ID, SessionConversationActionsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionsListToolsContribution.ID, SessionsListToolsContribution, WorkbenchPhase.Eventually);

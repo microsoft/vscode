@@ -6,7 +6,7 @@
 import type { SessionEvent } from '@github/copilot-sdk';
 import { ResponsePartKind, type ResponsePart } from '../../common/state/sessionState.js';
 import { CopilotFusionProgress, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
-import { getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
+import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 
 /** Owns replayed Fusion workflows across root turn boundaries, including routing before a user message. */
 export class FusionReplayState {
@@ -15,6 +15,7 @@ export class FusionReplayState {
 	private readonly _rejectedEventKeys = new Set<string>();
 	private readonly _updates: ICopilotFusionProgressUpdate[] = [];
 	private readonly _requestIdsBySdkTurnId = new Map<string, string | undefined>();
+	private readonly _ancestryRequestIds = new Map<string, string>();
 	private readonly _seenRequestIds = new Set<string>();
 	private readonly _cancelledRequestIds = new Set<string>();
 	private _requestId: string | undefined;
@@ -26,14 +27,29 @@ export class FusionReplayState {
 	/** Index durable request correlations before applying routing that precedes its user message. */
 	constructor(events: readonly SessionEvent[] = []) {
 		const requestIdsByInteractionId = new Map<string, string>();
+		const fusionRequests = new CopilotFusionRequestCorrelation();
+		const seenFusions = new Set<string>();
 		for (const event of events) {
 			if (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event)) {
+				const precedingResolution = fusionRequests.getPrecedingResolution(event);
+				if (precedingResolution) {
+					const key = `fusion:${precedingResolution.fusionId}`;
+					if (!this._ancestryRequestIds.has(key)) {
+						this._ancestryRequestIds.set(key, event.id);
+					}
+				}
 				if (event.data.interactionId) {
 					requestIdsByInteractionId.set(event.data.interactionId, event.id);
 				}
 				if (event.data.turnId) {
 					this._recordSdkTurn(event.data.turnId, event.id);
 				}
+			}
+			if (event.type === 'session.fusion_resolved' && !event.agentId) {
+				fusionRequests.observe(event, seenFusions.has(event.data.fusionId));
+				seenFusions.add(event.data.fusionId);
+			} else {
+				fusionRequests.observe(event);
 			}
 		}
 		let requestId: string | undefined;
@@ -77,7 +93,11 @@ export class FusionReplayState {
 			return;
 		}
 		const sdkTurnId = getFusionEventSdkTurnId(event);
-		const owner = sdkTurnId ? this._requestIdsBySdkTurnId.get(sdkTurnId) : undefined;
+		let owner = sdkTurnId ? this._requestIdsBySdkTurnId.get(sdkTurnId) : undefined;
+		// Ancestry recovers early routing, but cannot take a workflow from an active or established request.
+		if (sdkTurnId && !this._requestIdsBySdkTurnId.has(sdkTurnId) && eventTurn === undefined && !context.requestActive) {
+			owner = this._ancestryRequestIds.get(key);
+		}
 		if (owner !== undefined) {
 			// Reject a cancelled/earlier owner or ownership conflicting with the pending request.
 			if (this._cancelledRequestIds.has(owner) || (this._seenRequestIds.has(owner) && owner !== this._requestId)

@@ -14,8 +14,8 @@ import { IChatRequestDisablement } from '../../common/model/chatModel.js';
 /** Prefilled editing state for rendering real edit pills in tests and fixtures. */
 export class MockChatEditingSession extends mock<IChatEditingSession>() {
 	override readonly onDidDispose = Event.None;
-	override readonly isGlobalEditingSession = false;
-	override readonly supportsKeepUndo = false;
+	override readonly isGlobalEditingSession = constObservable(false);
+	override readonly supportsKeepUndo = constObservable(false);
 	override readonly state = constObservable(ChatEditingSessionState.Idle);
 	override readonly requestDisablement = constObservable<IChatRequestDisablement[]>([]);
 	override readonly entries;

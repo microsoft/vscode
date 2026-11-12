@@ -26,7 +26,7 @@ import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIc
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { createCommandUri, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeUntrustedMarkdown, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -152,6 +152,12 @@ export class InstallCountWidget extends ExtensionWidget {
 
 	private readonly disposables = this._register(new DisposableStore());
 
+	/**
+	 * Whether the small widget also shows the install count of installed extensions. The Extensions view only shows it for
+	 * extensions that aren't installed.
+	 */
+	showsInstalledExtensions = false;
+
 	constructor(
 		readonly container: HTMLElement,
 		private small: boolean,
@@ -175,7 +181,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
+		if (this.small && !this.showsInstalledExtensions && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 
@@ -225,6 +231,12 @@ export class RatingsWidget extends ExtensionWidget {
 	private containerHover: IManagedHover | undefined;
 	private readonly disposables = this._register(new DisposableStore());
 
+	/**
+	 * Whether the small widget also shows the rating of installed extensions. The Extensions view only shows it for
+	 * extensions that aren't installed.
+	 */
+	showsInstalledExtensions = false;
+
 	constructor(
 		readonly container: HTMLElement,
 		private small: boolean,
@@ -254,7 +266,7 @@ export class RatingsWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
+		if (this.small && !this.showsInstalledExtensions && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 
@@ -780,6 +792,10 @@ export class ExtensionRuntimeStatusWidget extends ExtensionWidget {
 
 }
 
+function toHoverText(text: string): string {
+	return escapeUntrustedMarkdown(text).replace(/ /g, '&nbsp;');
+}
+
 export type ExtensionHoverOptions = {
 	position: () => HoverPosition;
 	readonly target: HTMLElement;
@@ -852,7 +868,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**`).appendText(this.extension.displayName).appendMarkdown(`**`);
+		markdown.appendMarkdown(`**`).appendMarkdown(toHoverText(this.extension.displayName)).appendMarkdown(`**`);
 		if (semver.valid(this.extension.version)) {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}${(this.extension.isPreReleaseVersion ? ' (pre-release)' : '')}_**&nbsp;</span>`);
 		}
@@ -903,7 +919,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 
 		if (this.extension.description) {
-			markdown.appendText(this.extension.description);
+			markdown.appendMarkdown(toHoverText(this.extension.description));
 			markdown.appendText(`\n`);
 		}
 
@@ -916,7 +932,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 		if (this.extension.outdated) {
 			markdown.appendMarkdown(localize('updateRequired', "Latest version:"));
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.latestVersion}_**&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${escapeUntrustedMarkdown(this.extension.latestVersion)}_**&nbsp;</span>`);
 			markdown.appendText(`\n`);
 		}
 

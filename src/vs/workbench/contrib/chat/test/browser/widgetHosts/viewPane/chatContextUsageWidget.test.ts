@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -151,10 +152,7 @@ suite('ChatContextUsageWidget', () => {
 	}
 
 	function createWidget(instantiationService: IInstantiationService = {} as IInstantiationService, languageModelsService: ILanguageModelsService = createLanguageModelsService()): ChatContextUsageWidget {
-		const hoverService = {
-			setupDelayedHover: () => Disposable.None,
-			showInstantHover: () => { },
-		} as unknown as IHoverService;
+		const hoverService = { ...NullHoverService };
 		return store.add(new ChatContextUsageWidget(
 			hoverService,
 			instantiationService,
@@ -191,50 +189,40 @@ suite('ChatContextUsageWidget', () => {
 		return { kind: 'usage', promptTokens: 50_000, completionTokens: 4_000, actualModelId };
 	}
 
-	test('shows late aggregate billing before response usage exists and replaces only the context presentation later', () => {
-		const { widget, getData } = createWidgetWithData();
+	test('unchanged usage does not mutate the DOM on streamed response updates', () => {
+		const widget = createWidget();
 		const changed = store.add(new Emitter<void>());
-		const responseData: { usage: IChatUsage | undefined } = { usage: undefined };
-		let cost = 0.6;
-		const session = {
-			get sessionCost() { return cost; },
-			sessionCostStatus: 'complete',
-		} as IChatRequestModel['session'];
-		const response = { get usage() { return responseData.usage; }, onDidChange: changed.event, session } as unknown as IChatResponseModel;
-		const request = { modelId: CONCRETE_MODEL, session, response } as unknown as IChatRequestModel;
-		widget.update(request);
-		assert.strictEqual(widget.showDetails(), true);
-		assert.deepStrictEqual({
-			cost: getData()?.sessionCost, status: getData()?.sessionCostStatus, hasContext: getData()?.hasContextUsage,
-			label: widget.domNode.getAttribute('aria-label'),
-		}, { cost: 0.6, status: 'complete', hasContext: false, label: 'Session Info' });
+		widget.update(createRequest(CONCRETE_MODEL, usage(), changed.event));
+		const observer = new mainWindow.MutationObserver(() => { });
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(widget.domNode, { attributes: true, childList: true, characterData: true, subtree: true });
 
-		cost = 0.85;
-		widget.updateSessionCost(cost, 'complete');
-		responseData.usage = usage();
-		changed.fire();
+		for (let i = 0; i < 40; i++) {
+			changed.fire();
+		}
+		const unchangedMutations = observer.takeRecords().length;
+		widget.update(createRequest(CONCRETE_MODEL, { kind: 'usage', promptTokens: 80_000, completionTokens: 10_000 }));
+
 		assert.deepStrictEqual({
-			cost: getData()?.sessionCost, status: getData()?.sessionCostStatus, usedTokens: getData()?.usedTokens,
-			hasContext: getData()?.hasContextUsage,
-		}, { cost: 0.85, status: 'complete', usedTokens: 54_000, hasContext: undefined });
+			unchangedMutations,
+			label: widget.domNode.querySelector('.percentage-label')?.textContent,
+			ariaLabel: widget.domNode.getAttribute('aria-label'),
+			warning: widget.domNode.classList.contains('warning'),
+			visible: widget.isVisible.get(),
+		}, {
+			unchangedMutations: 0,
+			label: '83%',
+			ariaLabel: 'Context window usage: 83%',
+			warning: true,
+			visible: true,
+		});
 	});
 
-	test('aggregate-only billing never leaks into a peer chat with no usage', () => {
-		const { widget, getData } = createWidgetWithData();
+	test('stays hidden when the session has a cost but no context usage', () => {
+		const { widget } = createWidgetWithData();
 		widget.update(createRequest(CONCRETE_MODEL, undefined, Event.None, () => 0.6));
-		widget.showDetails();
-		widget.update(createRequest(CONCRETE_MODEL, undefined));
-		assert.deepStrictEqual({ visible: widget.isVisible.get(), data: getData() }, { visible: false, data: undefined });
-	});
-
-	test('unknown zero billing stays hidden while explicit complete zero remains available', () => {
-		const { widget, getData } = createWidgetWithData();
-		widget.update(undefined);
-		widget.updateSessionCost(0);
-		assert.strictEqual(widget.isVisible.get(), false);
-		widget.updateSessionCost(0, 'complete');
-		assert.strictEqual(widget.showDetails(), true);
-		assert.deepStrictEqual({ cost: getData()?.sessionCost, status: getData()?.sessionCostStatus }, { cost: 0, status: 'complete' });
+		widget.updateSessionCost(0.6);
+		assert.deepStrictEqual({ visible: widget.isVisible.get(), detailsShown: widget.showDetails() }, { visible: false, detailsShown: false });
 	});
 
 	test('uses reported Copilot context usage instead of cumulative turn consumption', () => {
@@ -304,7 +292,6 @@ suite('ChatContextUsageWidget', () => {
 				outputBufferPercentage: 10,
 				promptTokenDetails: undefined,
 				sessionCost: 0,
-				sessionCostStatus: undefined,
 			},
 			label: '90%',
 			ariaLabel: 'Context window usage: 90%',

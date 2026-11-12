@@ -28,8 +28,6 @@ updates:
     ignore:
       - dependency-name: "@azure/identity"
         update-types: ["version-update:semver-major", "version-update:semver-minor"] # Keep @azure/identity because upgrading breaks automation
-      - dependency-name: "@stylistic/eslint-plugin"
-        update-types: ["version-update:semver-major"] # Keep @stylistic/eslint-plugin 3 because 4 requires eslint 9 (@jrieken)
       - dependency-name: "@hediet/node-reload"
         update-types: ["version-update:semver-major", "version-update:semver-minor"] # @hediet/node-reload 0.8 for source compatibility (@hediet)
       - dependency-name: "@types/eslint"

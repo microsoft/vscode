@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { execFile } from 'child_process';
+import { promises as fsp } from 'fs';
 import { createRequire } from 'module';
 import * as net from 'net';
 import * as os from 'os';
+import { promisify } from 'util';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { getErrorCode, isCancellationError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -19,6 +24,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
+import { parseSSHGOutput } from '../../common/sshConfigParsing.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
 
 const dataFolderName = '.vscode-insiders';
@@ -197,6 +203,7 @@ class MockSSHClient {
 
 class KeyboardInteractiveMockSSHClient {
 	ended = false;
+	connectError: Error | undefined;
 	finishResponses: readonly string[] | undefined;
 	connectConfig: ConnectConfig | undefined;
 	readonly authMethods: string[] = [];
@@ -219,6 +226,10 @@ class KeyboardInteractiveMockSSHClient {
 
 	connect(config: ConnectConfig): void {
 		this.connectConfig = config;
+		if (this.connectError) {
+			this.fireError(this.connectError);
+			return;
+		}
 		const authHandler = config.authHandler as ((methodsLeft: AuthenticationType[] | null, partialSuccess: boolean, callback: (next: AnyAuthMethod | false) => void) => void) | undefined;
 		const authenticate = (method: AnyAuthMethod | false) => {
 			if (method) {
@@ -266,6 +277,13 @@ function makeConfig(overrides?: Partial<ISSHAgentHostConfig>): ISSHAgentHostConf
 class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainService {
 
 	readonly mockClients: MockSSHClient[] = [];
+	readonly sshConnectConfigs: Array<{ config: ISSHAgentHostConfig; resolvedConfig: ISSHResolvedConfig | undefined }> = [];
+	resolveConfigCalls = 0;
+	resolveConfigGate: Promise<ISSHResolvedConfig> | undefined;
+	resolvedConfig: ISSHResolvedConfig = {
+		hostname: '10.0.0.1', port: 22, user: 'testuser', identityFile: [], identityAgent: undefined,
+		forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined,
+	};
 
 	/**
 	 * Responses that `_connectSSH`'s MockSSHClient hands out for its exec
@@ -314,8 +332,11 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	private readonly _relayResults: Array<{ send: (data: string) => void; close: () => void }> = [];
 
 	protected override async _connectSSH(
-		_config: ISSHAgentHostConfig,
+		config: ISSHAgentHostConfig,
+		_connectionKey?: string,
+		resolvedConfig?: ISSHResolvedConfig,
 	) {
+		this.sshConnectConfigs.push({ config, resolvedConfig });
 		const client = new MockSSHClient(this.execResponses);
 		this.mockClients.push(client);
 		return client as never;
@@ -370,17 +391,8 @@ class TestableSSHRemoteAgentHostMainService extends SSHRemoteAgentHostMainServic
 	}
 
 	override async resolveSSHConfig(_host: string): ReturnType<SSHRemoteAgentHostMainService['resolveSSHConfig']> {
-		return {
-			hostname: '10.0.0.1',
-			port: 22,
-			user: 'testuser',
-			identityFile: [],
-			identityAgent: undefined,
-			forwardAgent: false,
-			userKnownHostsFiles: [],
-			globalKnownHostsFiles: [],
-			strictHostKeyChecking: undefined,
-		};
+		this.resolveConfigCalls++;
+		return this.resolveConfigGate ?? this.resolvedConfig;
 	}
 
 	/**
@@ -496,7 +508,7 @@ class KeyboardInteractiveConnectTestService extends SSHRemoteAgentHostMainServic
 
 suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: TestableSSHRemoteAgentHostMainService;
 
 	setup(() => {
@@ -514,9 +526,50 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		disposables.add(service);
 	});
 
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	for (const { name, error, expectedMessage } of [
+		{
+			name: 'dual-stack connection refused',
+			error: Object.assign(new AggregateError([
+				Object.assign(new Error('connect ECONNREFUSED ::1:43192'), { code: 'ECONNREFUSED' }),
+				Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:43192'), { code: 'ECONNREFUSED' }),
+			], ''), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'connect ECONNREFUSED ::1:43192\nconnect ECONNREFUSED 127.0.0.1:43192',
+		},
+		{
+			name: 'aggregate with only an error code',
+			error: Object.assign(new AggregateError([], ''), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'ECONNREFUSED',
+		},
+		{
+			name: 'aggregate with an existing message',
+			error: Object.assign(new AggregateError([new Error('nested detail')], 'Connection refused by proxy'), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'Connection refused by proxy',
+		},
+		{
+			name: 'single-address connection refused',
+			error: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:43192'), { code: 'ECONNREFUSED' }),
+			expectedMessage: 'connect ECONNREFUSED 127.0.0.1:43192',
+		},
+	]) {
+		test(`preserves SSH ${name} details across IPC for the connection error hover`, async () => {
+			const logService = new RecordingLogService();
+			const connecting = disposables.add(new KeyboardInteractiveConnectTestService(
+				logService, { quality, dataFolderName } as IProductService, NullTelemetryService));
+			connecting.client.connectError = error;
+			await assert.rejects(connecting.connectSSHForTest(makeConfig()), actual => {
+				assert.strictEqual(actual, error);
+				const restored = transformErrorFromSerialization(transformErrorForSerialization(error));
+				assert.deepStrictEqual({
+					message: toErrorMessage(restored), code: getErrorCode(restored), name: restored.name,
+					log: logService.errors,
+				}, {
+					message: expectedMessage, code: 'ECONNREFUSED', name: error.name,
+					log: [`[SSHRemoteAgentHost] SSH connection error: ${expectedMessage}`],
+				});
+				return true;
+			});
+		});
+	}
 
 	// --- Duplicate connect / reconnect on an already-connected host ---
 
@@ -567,6 +620,52 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 			{ first: first.connectionId, second: second.connectionId, relayCalls: service.relayCalled },
 			{ first: first.connectionId, second: first.connectionId, relayCalls: 2 },
 		);
+	});
+
+	test('coalesces configured connection attempts before resolving SSH configuration', async () => {
+		const resolution = new DeferredPromise<ISSHResolvedConfig>();
+		service.resolveConfigGate = resolution.p;
+		const first = service.reconnect('myalias', 'test-agent', '/agent');
+		const second = service.reconnect('myalias', 'test-agent', '/agent');
+		await resolution.complete(service.resolvedConfig);
+		const results = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			resolutions: service.resolveConfigCalls,
+			sessions: service.mockClients.length,
+			relays: new Set(results.map(result => result.connectionId)).size,
+			snapshots: service.sshConnectConfigs.map(config => config.resolvedConfig),
+		}, {
+			resolutions: 1,
+			sessions: 1,
+			relays: 2,
+			snapshots: [service.resolvedConfig],
+		});
+	});
+
+	test('a new configured connection resolves fresh settings after the previous session ends', async () => {
+		const first = await service.reconnect('myalias', 'test-agent', '/agent');
+		await service.releaseRelay(first.connectionId);
+		service.resolvedConfig = {
+			...service.resolvedConfig, hostname: 'new-target', user: 'new-user', port: 2222,
+			identityFile: ['/keys/new'], identityAgent: '/agent/new', forwardAgent: true,
+		};
+		await service.reconnect('myalias', 'test-agent', '/agent', true);
+
+		const { config, resolvedConfig } = service.sshConnectConfigs[1];
+		assert.deepStrictEqual({
+			resolutions: service.resolveConfigCalls,
+			host: config.host,
+			username: config.username,
+			port: config.port,
+			key: config.privateKeyPath,
+			agent: config.identityAgent,
+			forwarding: config.agentForward,
+			sameSnapshot: resolvedConfig === service.resolvedConfig,
+		}, {
+			resolutions: 2, host: 'new-target', username: 'new-user', port: 2222,
+			key: '/keys/new', agent: '/agent/new', forwarding: true, sameSnapshot: true,
+		});
 	});
 
 	test('reconnect suppresses synchronous close from old relay during replacement', async () => {
@@ -645,6 +744,33 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(service.startCalled, 0);
 		assert.deepStrictEqual(events, []); // no picker for the single-standalone case
 	});
+
+	for (const { name, config } of [
+		{ name: 'user-initiated connect', config: { userInitiated: true } },
+		{ name: 'silent reconnect', config: { userInitiated: false } },
+		{ name: 'stored dedicated preference', config: { preferredAgentLocation: 'dedicated' as const } },
+	]) {
+		test(`${name} does not reuse a different-quality standalone`, async () => {
+			const incompatible = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'stable-host', quality: 'stable' });
+			const spawned = makeEndpoint({ type: 'standalone', pid: 200, instanceId: 'insider-host', quality });
+			const requests: ISSHEndpointSelectionRequest[] = [];
+			service.execResponses = [
+				...discoveryResponses([incompatible]),
+				{ stdout: '', code: 0 },
+				{ stdout: agentEndpointsStdout([incompatible, spawned]), code: 0 },
+			];
+			disposables.add(service.onDidRequestEndpointSelection(request => requests.push(request)));
+
+			const result = await service.connect(makeConfig(config));
+
+			assert.deepStrictEqual({
+				instanceId: result.instanceId,
+				lifecycle: result.lifecycle,
+				spawns: service.mockClients[0].execCalls.some(command => command.includes('--new-instance')),
+				requests,
+			}, { instanceId: 'insider-host', lifecycle: 'managed', spawns: true, requests: [] });
+		});
+	}
 
 	test('prompts among multiple standalones (no editors) and honors the chosen candidate', async () => {
 		const s1 = makeEndpoint({ type: 'standalone', pid: 100, instanceId: 'inst-a' });
@@ -741,7 +867,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	// open the endpoint-selection picker, and must never silently attach to
 	// an `editor`-owned endpoint even if that is the only live endpoint.
 	// Regardless of how many editors/standalones are live, it deterministically
-	// reuses a live standalone (lowest `instanceId` first) when one exists,
+	// reuses a live standalone (newest-published first) when one exists,
 	// or spawns a new dedicated one (with `--new-instance`) otherwise.
 
 	test('silent reconnect (userInitiated: false) with only an editor entry never prompts and spawns a new dedicated standalone rather than reusing the editor', async () => {
@@ -781,7 +907,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 		assert.strictEqual(service.startCalled, 0);
 	});
 
-	test('silent reconnect (userInitiated: false) with multiple live standalones and an editor reuses the lowest instanceId deterministically without a picker', async () => {
+	test('silent reconnect (userInitiated: false) with multiple live standalones and an editor reuses the first standalone in newest-first registry order without a picker', async () => {
 		// Mixes an editor entry in on purpose: even with editors live, the
 		// silent path must still skip the picker and prefer a standalone.
 		const editor = makeEndpoint({ type: 'editor', pid: 300, instanceId: 'editor-1', endpoint: { type: 'socket', path: '/tmp/agent.sock' } });
@@ -796,7 +922,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		assert.deepStrictEqual(events, [], 'silent reconnect must never fire an endpoint-selection request, even with multiple candidates');
 		assert.strictEqual(result.serverType, 'standalone');
-		assert.strictEqual(result.instanceId, 'inst-a', 'must deterministically pick the lowest instanceId');
+		assert.strictEqual(result.instanceId, 'inst-b', 'must pick the first standalone in registry order');
 		assert.strictEqual(result.lifecycle, 'external');
 		assert.strictEqual(service.startCalled, 0);
 	});
@@ -861,7 +987,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 	// it directly, without ever emitting an endpoint-selection request —
 	// for both user-initiated and silent/background connects.
 
-	test('stored "editor" preference selects the deterministic live editor without a request, even for a silent reconnect', async () => {
+	test('stored "editor" preference selects the first live editor in registry order without a request, even for a silent reconnect', async () => {
 		const editorA = makeEndpoint({ type: 'editor', pid: 100, instanceId: 'editor-b', endpoint: { type: 'socket', path: '/tmp/a.sock' } });
 		const editorB = makeEndpoint({ type: 'editor', pid: 200, instanceId: 'editor-a', endpoint: { type: 'socket', path: '/tmp/b.sock' } });
 		const standalone = makeEndpoint({ type: 'standalone', pid: 300, instanceId: 'inst-c' });
@@ -874,7 +1000,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		assert.deepStrictEqual(events, [], 'a stored preference must never fire an endpoint-selection request');
 		assert.strictEqual(result.serverType, 'editor');
-		assert.strictEqual(result.instanceId, 'editor-a', 'must deterministically pick the lowest instanceId editor');
+		assert.strictEqual(result.instanceId, 'editor-b', 'must pick the first editor in registry order');
 		assert.strictEqual(result.lifecycle, 'external');
 	});
 
@@ -890,7 +1016,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		assert.deepStrictEqual(events, [], 'unavailable-editor fallback must never fire an endpoint-selection request');
 		assert.strictEqual(result.serverType, 'standalone');
-		assert.strictEqual(result.instanceId, 'inst-a', 'must deterministically pick the lowest instanceId standalone');
+		assert.strictEqual(result.instanceId, 'inst-b', 'must pick the first standalone in registry order');
 		assert.strictEqual(result.lifecycle, 'external');
 	});
 
@@ -964,7 +1090,7 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 
 		assert.deepStrictEqual(events, []);
 		assert.strictEqual(result.serverType, 'editor');
-		assert.strictEqual(result.instanceId, 'editor-a');
+		assert.strictEqual(result.instanceId, 'editor-b');
 	});
 
 	// --- Failure/race handling (requirement 7) ---
@@ -1794,21 +1920,82 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 	}
 }
 
+suite('SSHRemoteAgentHostMainService - SSH config Includes', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let directory: string;
+	let service: SSHRemoteAgentHostMainService;
+	let logService: RecordingLogService;
+
+	setup(async () => {
+		directory = await fsp.mkdtemp(join(os.tmpdir(), 'vscode-ssh-includes-'));
+		logService = new RecordingLogService();
+		service = disposables.add(new SSHRemoteAgentHostMainService(
+			logService,
+			{ _serviceBrand: undefined, quality, dataFolderName } as IProductService,
+			NullTelemetryService,
+		));
+	});
+
+	teardown(async () => {
+		await fsp.rm(directory, { recursive: true, force: true });
+	});
+
+	test('discovers the same hosts through quoted and unquoted Include paths', async () => {
+		const file = join(directory, 'ssh_config');
+		await fsp.writeFile(file, 'Host pj-jump pj-target\n');
+		const values = ['ssh_config', '"ssh_config"', JSON.stringify(file)];
+		const hosts: string[][] = [];
+		for (const value of values) {
+			hosts.push(await service['_parseSSHConfigHosts'](`Include ${value}`, directory));
+		}
+		assert.deepStrictEqual(hosts, values.map(() => ['pj-jump', 'pj-target']));
+	});
+
+	test('follows multiple quoted paths, nested Includes and globs without following comments', async () => {
+		const includeDirectory = join(directory, 'included files');
+		const globDirectory = join(directory, 'more configs');
+		await fsp.mkdir(includeDirectory);
+		await fsp.mkdir(globDirectory);
+		const jumpFile = join(includeDirectory, 'jump config');
+		const ignoredFile = join(directory, 'ignored');
+		await fsp.writeFile(jumpFile, 'Host pj-jump\nInclude "nested # config"\n');
+		await fsp.writeFile(join(includeDirectory, 'nested # config'), `Host pj-target\nInclude ${JSON.stringify(jumpFile)}\n`);
+		await fsp.writeFile(join(globDirectory, 'other.conf'), 'Host pj-other\n');
+		await fsp.writeFile(ignoredFile, 'Host must-not-appear\n');
+
+		assert.deepStrictEqual(await service['_parseSSHConfigHosts'](
+			`Include "included files/jump config" ${JSON.stringify(join(globDirectory, '*.conf'))}\t# ${JSON.stringify(ignoredFile)}`,
+			directory,
+		), ['pj-jump', 'pj-target', 'pj-other']);
+	});
+
+	test('warns about malformed Includes and continues discovering other hosts', async () => {
+		const file = join(directory, 'ssh_config');
+		await fsp.writeFile(file, 'Host included\n');
+		const hosts = await service['_parseSSHConfigHosts']([
+			'Host direct',
+			'Include "unterminated',
+			`Include "" ${JSON.stringify(file)}`,
+			`Include ${JSON.stringify(file)}`,
+		].join('\n'), directory);
+
+		assert.deepStrictEqual({ hosts, warnings: logService.warnings.length }, {
+			hosts: ['direct', 'included'],
+			warnings: 2,
+		});
+	});
+});
+
 suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class ResolveConfigTestService extends SSHRemoteAgentHostMainService {
 		readonly resolvedHosts: string[] = [];
 		failNext = false;
-
-		setReuseWindow(ms: number): void {
-			this.resolvedConfigReuseMs = ms;
-		}
+		hostname = 'original-target';
+		nextResolution: Promise<ISSHResolvedConfig> | undefined;
 
 		protected override async _doResolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
 			this.resolvedHosts.push(host);
@@ -1816,7 +2003,7 @@ suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 				this.failNext = false;
 				throw new Error(`ssh -G failed for ${host}`);
 			}
-			return { hostname: host, user: 'testuser', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
+			return this.nextResolution ?? { hostname: this.hostname, user: 'testuser', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
 		}
 	}
 
@@ -1828,39 +2015,88 @@ suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 		));
 	}
 
-	test('reuses a resolved configuration per host, but never a failed or expired one', async () => {
-		const reusing = createService();
-		const first = await reusing.resolveSSHConfig('myhost');
-		const second = await reusing.resolveSSHConfig('myhost');
-		await reusing.resolveSSHConfig('otherhost');
-		reusing.failNext = true;
-		await assert.rejects(reusing.resolveSSHConfig('failing'), /ssh -G failed for failing/);
-		await reusing.resolveSSHConfig('failing');
-
-		const expiring = createService();
-		expiring.setReuseWindow(0);
-		await expiring.resolveSSHConfig('myhost');
-		await expiring.resolveSSHConfig('myhost');
+	test('independent queries observe edited settings immediately, including after a failure', async () => {
+		const service = createService();
+		const first = await service.resolveSSHConfig('myhost');
+		service.hostname = 'edited-target';
+		const second = await service.resolveSSHConfig('myhost');
+		service.failNext = true;
+		await assert.rejects(service.resolveSSHConfig('myhost'), /ssh -G failed for myhost/);
+		const recovered = await service.resolveSSHConfig('myhost');
 
 		assert.deepStrictEqual({
-			reusedResult: first === second,
-			reusedHosts: reusing.resolvedHosts,
-			expiredHosts: expiring.resolvedHosts,
+			hostnames: [first.hostname, second.hostname, recovered.hostname],
+			resolvedHosts: service.resolvedHosts,
 		}, {
-			reusedResult: true,
-			reusedHosts: ['myhost', 'otherhost', 'failing', 'failing'],
-			expiredHosts: ['myhost', 'myhost'],
+			hostnames: ['original-target', 'edited-target', 'edited-target'],
+			resolvedHosts: ['myhost', 'myhost', 'myhost', 'myhost'],
 		});
+	});
+
+	for (const failOlder of [false, true]) {
+		test(`an older in-flight resolution cannot affect later queries when it ${failOlder ? 'fails' : 'succeeds'}`, async () => {
+			const service = createService();
+			const original = await service.resolveSSHConfig('myhost');
+			const older = new DeferredPromise<ISSHResolvedConfig>();
+			service.nextResolution = older.p;
+			const first = service.resolveSSHConfig('myhost');
+			const firstSettled = failOlder ? assert.rejects(first, /old resolution failed/) : first;
+			service.nextResolution = undefined;
+			service.hostname = 'edited-target';
+			const second = await service.resolveSSHConfig('myhost');
+			if (failOlder) {
+				await older.error(new Error('old resolution failed'));
+			} else {
+				await older.complete(original);
+			}
+			await firstSettled;
+			const third = await service.resolveSSHConfig('myhost');
+
+			assert.deepStrictEqual({
+				hostnames: [second.hostname, third.hostname],
+				resolutions: service.resolvedHosts.length,
+			}, { hostnames: ['edited-target', 'edited-target'], resolutions: 4 });
+		});
+	}
+
+	test('observes an included config edit without modifying the root config', async function () {
+		const directory = await fsp.mkdtemp(join(os.tmpdir(), 'vscode-ssh-freshness-'));
+		const configPath = join(directory, 'config');
+		const includedPath = join(directory, 'included');
+		class IncludedConfigTestService extends SSHRemoteAgentHostMainService {
+			protected override async _doResolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
+				const { stdout } = await promisify(execFile)('ssh', ['-G', '-F', configPath, '--', host], { timeout: 5000 });
+				return parseSSHGOutput(stdout);
+			}
+		}
+		const service = disposables.add(new IncludedConfigTestService(new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+		try {
+			await fsp.writeFile(configPath, `Include "${includedPath.replace(/\\/g, '/')}"\n`);
+			await fsp.writeFile(includedPath, 'Host myhost\n HostName original-target\n User original-user\n');
+			let first: ISSHResolvedConfig;
+			try {
+				first = await service.resolveSSHConfig('myhost');
+			} catch (error) {
+				if (getErrorCode(error) === 'ENOENT') {
+					this.skip();
+				}
+				throw error;
+			}
+			await fsp.writeFile(includedPath, 'Host myhost\n HostName edited-target\n User edited-user\n');
+			const second = await service.resolveSSHConfig('myhost');
+			assert.deepStrictEqual(
+				[first, second].map(config => ({ hostname: config.hostname, user: config.user })),
+				[{ hostname: 'original-target', user: 'original-user' }, { hostname: 'edited-target', user: 'edited-user' }],
+			);
+		} finally {
+			await fsp.rm(directory, { recursive: true, force: true });
+		}
 	});
 });
 
 suite('SSHRemoteAgentHostMainService - WebSocket relay', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Runs the real relay over a loopback TCP socket standing in for the forwarded SSH channel. */
 	class RelayTestService extends SSHRemoteAgentHostMainService {
@@ -1934,7 +2170,7 @@ suite('SSHRemoteAgentHostMainService - WebSocket relay', () => {
 
 suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: AuthAttemptsTestService;
 
 	setup(() => {
@@ -1951,10 +2187,6 @@ suite('SSHRemoteAgentHostMainService - _buildAuthAttempts', () => {
 		);
 		disposables.add(service);
 	});
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const RSA = Buffer.from('rsa-key-bytes');
 	const ED = Buffer.from('ed25519-key-bytes');

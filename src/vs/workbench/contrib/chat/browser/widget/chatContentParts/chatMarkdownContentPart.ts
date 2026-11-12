@@ -20,7 +20,8 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
@@ -32,13 +33,16 @@ import { localize } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AGENT_HOST_SCHEME } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
+import { IOpenEditorOptions, registerOpenEditorListeners } from '../../../../../../platform/editor/browser/editor.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
@@ -48,15 +52,19 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../../common/chatSessionsService.js';
+import { getChatMarkdownImageFile, getChatMarkdownImageId } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { hookUpResourceContextMenu } from '../../attachments/chatAttachmentWidgets.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
+import { IChatImageCarouselService } from '../../chatImageCarouselService.js';
+import { createChatImageCopyActions } from '../../chatImageActions.js';
 import { IChatOutputRendererService, type RenderedOutputPart } from '../../chatOutputItemRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
 import { IMarkdownDiffBlockData, MarkdownDiffBlockPart, parseUnifiedDiff } from './chatDiffBlockPart.js';
 import { ChatEditingActionContext } from '../../chatEditing/chatEditingActions.js';
-import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
+import { ChatInlineAttachmentRenderer, ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import './media/chatCodeBlockPill.css';
 import { IDisposableReference } from './chatCollections.js';
@@ -64,6 +72,7 @@ import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartDiffData, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatEditPillElement, isResourceContentEmpty } from './chatEditPillElement.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
+import { ChatHtmlPreviewPart, isHtmlPreviewCodeBlock } from './chatHtmlPreviewPart.js';
 import { ChatProgressSubPart } from './chatProgressContentPart.js';
 import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
 import { IChatOutputPartStateCache, IOutputPartState } from './chatOutputPartStateCache.js';
@@ -73,6 +82,7 @@ const $ = dom.$;
 
 export interface IChatMarkdownContentPartOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
+	readonly renderHtmlPreviews?: boolean;
 	readonly allowInlineDiffs?: boolean;
 	readonly horizontalPadding?: number;
 	readonly accessibilityOptions?: {
@@ -82,6 +92,13 @@ export interface IChatMarkdownContentPartOptions {
 		 * */
 		statusMessage?: string;
 	};
+	/**
+	 * Creates the resize observer that re-measures math and table scrollbars when the part resizes.
+	 * Defaults to the window's `ResizeObserver`; tests pass a fake to trigger resizes.
+	 */
+	readonly resizeObserverCtor?: typeof ResizeObserver;
+	/** Renders the attachments of a request that are shown as pills inline with its text. */
+	readonly renderInlineAttachment?: ChatInlineAttachmentRenderer;
 }
 
 interface IMarkdownPartCodeBlockInfo extends IChatCodeBlockInfo {
@@ -115,7 +132,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private readonly _onDidChangeCodeblocks = this._register(new Emitter<void>());
 	readonly onDidChangeCodeblocks: Event<void> = this._onDidChangeCodeblocks.event;
 
-	private readonly allRefs: IDisposableReference<CodeBlockPart | ChatOutputCodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
+	private readonly allRefs: IDisposableReference<CodeBlockPart | ChatOutputCodeBlockPart | ChatHtmlPreviewPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
 
 	private readonly _codeblocks: IMarkdownPartCodeBlockInfo[] = [];
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -139,11 +156,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		currentWidthDelegate: () => number,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 		@IChatOutputRendererService private readonly chatOutputRendererService: IChatOutputRendererService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatImageCarouselService private readonly chatImageCarouselService: IChatImageCarouselService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 
@@ -206,11 +225,16 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			const previousRenderStore = renderStore.clearAndLeak();
 			const reusableOutputCodeBlockRefs = new Map<string, IDisposableReference<ChatOutputCodeBlockPart>>();
+			const reusableHtmlPreviewRefs = new Map<string, IDisposableReference<ChatHtmlPreviewPart>>();
 			for (const ref of this.allRefs) {
 				if (ref.object instanceof ChatOutputCodeBlockPart) {
 					const outputRef = ref as IDisposableReference<ChatOutputCodeBlockPart>;
 					previousRenderStore?.deleteAndLeak(outputRef);
 					reusableOutputCodeBlockRefs.set(outputRef.object.reuseKey, outputRef);
+				} else if (ref.object instanceof ChatHtmlPreviewPart) {
+					const previewRef = ref as IDisposableReference<ChatHtmlPreviewPart>;
+					previousRenderStore?.deleteAndLeak(previewRef);
+					reusableHtmlPreviewRefs.set(previewRef.object.reuseKey, previewRef);
 				}
 			}
 			previousRenderStore?.dispose();
@@ -224,7 +248,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			globalCodeBlockIndexStart = codeBlockStartIndex;
 
 			// TODO: Move katex support into chatMarkdownRenderer
-			const markedExtensions = enableMath
+			// Math needs broader class and style rules than other Markdown. Only allow them when all HTML
+			// comes from the renderer: not for Markdown with raw HTML, nor trusted Markdown with raw spans.
+			const content = this.markdown.content;
+			const renderMath = enableMath && !content.supportHtml && !(content.isTrusted && /<span/i.test(content.value));
+			const markedExtensions = renderMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
 					throwOnError: false
 				})])
@@ -238,20 +266,25 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			};
 
 			const configuredUriTransformer = markdownRenderOptions?.transformUri;
+			const fileImages = new ResourceSet();
+			const resolveUri = (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, href, kind);
 			const transformUri = isResponseVM(element)
-				? (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, configuredUriTransformer?.(href, kind) ?? href, kind)
+				? (href: string, kind: 'link' | 'image') => {
+					const mapped = resolveUri(configuredUriTransformer?.(href, kind) ?? href, kind);
+					const file = kind === 'image' ? getChatMarkdownImageFile(this.markdown.content, mapped, target => resolveUri(target, kind)) : undefined;
+					if (file) {
+						fileImages.add(file);
+					}
+					return mapped;
+				}
 				: configuredUriTransformer;
 			const result = store.add(renderer.render(this.markdown.content, {
-				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
-					allowedTags: allowedChatMarkdownHtmlTags,
-					allowedAttributes: allowedMarkdownHtmlAttributes,
-				}),
 				fillInIncompleteTokens,
 				codeBlockRendererSync: (languageId, text, raw) => {
 					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
 					const hasChatOutputRenderer = !!languageId
 						&& this.chatOutputRendererService.hasCodeBlockRenderer(languageId);
-					if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n')))
+					if ((!text || (isResponseVM(element) && text.startsWith('<vscode_codeblock_uri') && !text.includes('\n')))
 						&& !isCodeBlockComplete
 						&& !hasChatOutputRenderer) {
 						const hideEmptyCodeblock = $('div');
@@ -297,11 +330,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 					let codemapperUri: URI | undefined;
 					let isEdit: boolean | undefined;
-					const codeblockUri = extractCodeblockUrisFromText(codeBlockText);
+					const inlineCodeblockUri = isResponseVM(element) && !this.markdown.codeblockUri ? extractCodeblockUrisFromText(codeBlockText) : undefined;
+					const codeblockUri = isResponseVM(element) ? this.markdown.codeblockUri ?? inlineCodeblockUri : undefined;
 					if (codeblockUri) {
 						codemapperUri = codeblockUri.uri;
 						isEdit = codeblockUri.isEdit;
-						codeBlockText = codeblockUri.textWithoutResult;
+						codeBlockText = inlineCodeblockUri?.textWithoutResult ?? codeBlockText;
 					}
 
 					const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
@@ -322,6 +356,31 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					};
 
 					if (element.isCompleteAddedRequest || !codemapperUri || !isEdit) {
+						if (this.rendererOptions.renderHtmlPreviews && isResponseVM(element) && !hideToolbar
+							&& !codemapperUri && isHtmlPreviewCodeBlock(languageId, raw)) {
+							const reuseKey = CodeBlockPart.poolKey(element.id, globalIndex);
+							let ref = reusableHtmlPreviewRefs.get(reuseKey);
+							if (ref?.object.hasSameContent(codeBlockText)) {
+								reusableHtmlPreviewRefs.delete(reuseKey);
+							} else {
+								const preview = this.instantiationService.createInstance(ChatHtmlPreviewPart, codeBlockInfo, context, this.editorPool, () => this._onDidChangeHeight.fire());
+								ref = { object: preview, isStale: () => false, dispose: () => preview.dispose() };
+							}
+							this.allRefs.push(ref);
+							store.add(ref);
+							const preview = ref.object;
+							this._codeblocks.push({
+								...baseCodeBlockInfo,
+								codemapperUri: undefined,
+								isStreamingEdit: false,
+								get uri() { return preview.uri; },
+								get isFocused() { return preview.isFocused; },
+								focus() { preview.focus(); },
+								reveal() { return preview.reveal(); },
+							});
+							return preview.element;
+						}
+
 						if (hasChatOutputRenderer) {
 							const ref = this.renderChatOutputCodeBlock(languageId, codeBlockText, globalIndex, context, isCodeBlockComplete, reusableOutputCodeBlockRefs);
 							this._codeblocks.push({
@@ -372,8 +431,20 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					return ref.object.element;
 				},
 				markedOptions: markedOpts,
-				markedExtensions,
 				...markdownRenderOptions,
+				markedExtensions: [...markedExtensions, ...(markdownRenderOptions?.markedExtensions ?? [])],
+				sanitizerConfig: {
+					...(renderMath
+						? MarkedKatexSupport.getSanitizerOptions({ allowedTags: allowedChatMarkdownHtmlTags, allowedAttributes: allowedMarkdownHtmlAttributes })
+						: { allowedTags: { override: allowedChatMarkdownHtmlTags } }),
+					...markdownRenderOptions?.sanitizerConfig,
+					allowedMediaSchemes: { augment: [AGENT_HOST_SCHEME] },
+					remoteImageIsAllowed: uri => fileImages.has(uri),
+				},
+				asyncRenderCallback: () => {
+					markdownRenderOptions?.asyncRenderCallback?.();
+					this._onDidChangeHeight.fire();
+				},
 				transformUri,
 			}, this.domNode));
 
@@ -398,16 +469,17 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}));
 			}
 
-			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
+			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element, this.rendererOptions.renderInlineAttachment));
+			store.add(this.hookUpImages(result.element, fileImages, element.sessionResource, element.id));
 
 			const layoutParticipants = new Lazy(() => {
-				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));
+				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout()), undefined, { resizeObserverCtor: this.rendererOptions.resizeObserverCtor }));
 				store.add(observer.observe(this.domNode));
 				return this.mathLayoutParticipants;
 			});
 
 			// Make katex blocks horizontally scrollable
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
 				if (!dom.isHTMLElement(katexBlock)) {
 					continue;
@@ -426,6 +498,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 			store.add(wrapTablesWithScrollable(this.domNode, layoutParticipants));
 			dispose(reusableOutputCodeBlockRefs.values());
+			dispose(reusableHtmlPreviewRefs.values());
 			this._onDidChangeCodeblocks.fire();
 		};
 
@@ -456,6 +529,44 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		dispose(this.allRefs);
 		this.allRefs.length = 0;
+	}
+
+	/**
+	 * Adds image copy menus and makes file images open, drag, and offer actions like file links.
+	 */
+	private hookUpImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
+		const store = new DisposableStore();
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
+		for (const image of element.querySelectorAll('img')) {
+			const source = image.dataset.src;
+			const resource = source ? URI.parse(source) : undefined;
+			const fileResource = resource && fileImages.has(resource) ? resource : undefined;
+			image.tabIndex = 0;
+			if (!image.alt) {
+				image.setAttribute('aria-label', localize('chat.markdownImage.label', "Image"));
+			}
+			store.add(this.instantiationService.invokeFunction(accessor => hookUpResourceContextMenu(accessor, image, fileResource, MenuId.ChatImageContext, createChatImageCopyActions(accessor, image, fileResource))));
+			if (!resource || !fileImages.has(resource) || image.closest('a')) {
+				continue;
+			}
+
+			image.style.cursor = 'pointer';
+			image.setAttribute('role', 'button');
+			image.setAttribute('aria-label', localize('chat.markdownImage.open', "Open image {0}", image.alt || basename(resource)));
+			store.add(registerOpenEditorListeners(image, async options => {
+				if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+					await this.chatImageCarouselService.openCarouselAtResource(resource, undefined, { sessionResource, imageId: getChatMarkdownImageId(responseId, resource) });
+				} else {
+					await this.openerService.open(resource, { fromUserGesture: true, editorOptions: options.editorOptions, openToSide: options.openToSide });
+				}
+			}));
+			store.add(dom.addDisposableListener(image, dom.EventType.DRAG_START, e => {
+				// The browser's image data names a transport URL that drop targets cannot resolve
+				e.dataTransfer?.clearData();
+				this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, [resource], e));
+			}));
+		}
+		return store;
 	}
 
 	private renderCodeBlockPill(sessionResource: URI, requestId: string, inUndoStop: string | undefined, codemapperUri: URI): IDisposableReference<CollapsedCodeBlock> {
@@ -550,7 +661,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		if (other.kind !== 'markdownContent') {
+		if (other.kind !== 'markdownContent' || other.codeblockUri !== this.markdown.codeblockUri) {
 			return false;
 		}
 
@@ -573,12 +684,12 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	/** Attempts an append-only update, preserving rendered code blocks even when streaming animations are disabled. */
 	tryIncrementalUpdate(newMarkdown: IChatMarkdownContent): boolean {
-		if (!equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
+		if (newMarkdown.codeblockUri !== this.markdown.codeblockUri || !equalsInlineReferences(newMarkdown.inlineReferences, this.markdown.inlineReferences)) {
 			return false;
 		}
 
 		if (!this._incrementalMorpher) {
-			if (this.allRefs.some(ref => ref.object instanceof ChatOutputCodeBlockPart)
+			if (this.allRefs.some(ref => ref.object instanceof ChatOutputCodeBlockPart || ref.object instanceof ChatHtmlPreviewPart)
 				&& newMarkdown.content.value.startsWith(this.markdown.content.value)) {
 				const previousMarkdown = this.markdown;
 				this.markdown = newMarkdown;
@@ -617,7 +728,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		this.allRefs.forEach((ref, index) => {
 			if (ref.object instanceof CodeBlockPart) {
 				ref.object.layout(width);
-			} else if (ref.object instanceof ChatOutputCodeBlockPart) {
+			} else if (ref.object instanceof ChatOutputCodeBlockPart || ref.object instanceof ChatHtmlPreviewPart) {
 				ref.object.layout(width);
 			} else if (ref.object instanceof MarkdownDiffBlockPart) {
 				ref.object.layout(width);
@@ -634,7 +745,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	onDidRemount(): void {
 		for (const ref of this.allRefs) {
-			if (ref.object instanceof CodeBlockPart || ref.object instanceof ChatOutputCodeBlockPart) {
+			if (ref.object instanceof CodeBlockPart || ref.object instanceof ChatOutputCodeBlockPart || ref.object instanceof ChatHtmlPreviewPart) {
 				ref.object.onDidRemount();
 			}
 		}
@@ -956,7 +1067,7 @@ export class CollapsedCodeBlock extends ChatEditPillElement {
 		const isStreaming = derived(r => {
 			const entry = editSession.readEntry(uri, r);
 			const currentlyModified = entry?.isCurrentlyBeingModifiedBy.read(r);
-			return !!currentlyModified && currentlyModified.responseModel.requestId === this.requestId && currentlyModified.undoStopId === this.inUndoStop;
+			return !!currentlyModified && currentlyModified.responseModel?.requestId === this.requestId && currentlyModified.undoStopId === this.inUndoStop;
 		});
 
 		// Set the icon/classes while edits are streaming
