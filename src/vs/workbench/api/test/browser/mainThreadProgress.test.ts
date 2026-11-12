@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IProgress, IProgressOptions, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IProgress, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { MainThreadProgress } from '../../browser/mainThreadProgress.js';
 import { ExtHostProgressShape, IProgressOptionsDto, IProgressStepDto } from '../../common/extHost.protocol.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
@@ -61,6 +61,34 @@ suite('MainThreadProgress', () => {
 			{ origin: 'core', notificationId: 'authentication.signIn', extensionId: 'none' },
 			{ origin: 'extension', notificationId: 'extension.progress', extensionId: 'unknown' }
 		]);
+	});
+
+	test('does not run Manage Extension of an earlier progress notification after the command is unregistered', async () => {
+		const executed: unknown[][] = [];
+		const command = CommandsRegistry.registerCommand('_extensions.manage', () => { });
+		let options: IProgressOptions | undefined;
+		const mainThread = store.add(new MainThreadProgress(
+			SingleProxyRPCProtocol(new class extends mock<ExtHostProgressShape>() { }),
+			new class extends mock<IProgressService>() {
+				override withProgress<R>(value: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
+					options = value;
+					return task({ report: () => { } });
+				}
+			},
+			new class extends mock<ICommandService>() {
+				override async executeCommand<R>(...args: unknown[]): Promise<R | undefined> {
+					executed.push(args);
+					return undefined;
+				}
+			},
+		));
+		await mainThread.$startProgress(1, { location: ProgressLocation.Notification }, 'publisher.extension');
+		mainThread.$progressEnd(1);
+		const manage = (options as IProgressNotificationOptions).secondaryActions![0];
+		await manage.run();
+		command.dispose();
+		await manage.run();
+		assert.deepStrictEqual(executed, [['_extensions.manage', 'publisher.extension']]);
 	});
 
 	test('requires the notification telemetry proposal before forwarding a progress ID', async () => {

@@ -88,7 +88,11 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 					id: options.source.identifier.value,
 					label: nls.localize('manageExtension', "Manage Extension"),
 					run: () => {
-						return this._commandService.executeCommand('_extensions.manage', options.source!.identifier.value);
+						// A notification keeps its actions after the command is unregistered
+						if (CommandsRegistry.getCommand('_extensions.manage')) {
+							return this._commandService.executeCommand('_extensions.manage', options.source!.identifier.value);
+						}
+						return undefined;
 					}
 				}), NotificationActionTelemetryId.ManageExtension));
 			}

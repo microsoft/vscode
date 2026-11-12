@@ -180,6 +180,29 @@ suite('ExtHostMessageService', function () {
 			assert.deepStrictEqual(secondary, []);
 		});
 
+		test('does not run Manage Extension of an earlier notification after the command is unregistered', async () => {
+			const executed: unknown[][] = [];
+			const commandService: ICommandService = { ...emptyCommandService, executeCommand: async (...args: unknown[]) => { executed.push(args); } };
+			const command = CommandsRegistry.registerCommand('_extensions.manage', () => { });
+			const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
+			store.add(toDisposable(() => {
+				for (const item of [...notifications.model.notifications]) {
+					item.close();
+				}
+			}));
+			const service = store.add(new MainThreadMessageService(null!, notifications, commandService, new TestDialogService(), new TestExtensionService()));
+			const promise = service.$showMessage(Severity.Error, 'message', {
+				source: { identifier: new ExtensionIdentifier('publisher.extension'), label: 'Extension' }
+			}, []);
+			const item = notifications.model.notifications[0];
+			await item.actions!.secondary![0].run();
+			command.dispose();
+			await item.actions!.secondary![0].run();
+			item.close();
+			await promise;
+			assert.deepStrictEqual(executed, [['_extensions.manage', 'publisher.extension']]);
+		});
+
 		for (const identifier of ['Publisher.Extension', undefined, '/private/extension']) {
 			test(`attributes extension messages and button positions without inferring semantics (${identifier ?? 'missing'})`, async () => {
 				const telemetry = new TestNotificationTelemetryService();

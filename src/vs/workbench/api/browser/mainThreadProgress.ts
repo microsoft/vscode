@@ -54,7 +54,8 @@ export class MainThreadProgress implements MainThreadProgressShape {
 				secondaryActions: CommandsRegistry.getCommand('_extensions.manage') ? [withNotificationActionTelemetry(toAction({
 					id: extensionId,
 					label: localize('manageExtension', "Manage Extension"),
-					run: () => this._commandService.executeCommand('_extensions.manage', extensionId)
+					// A notification keeps its actions after the command is unregistered
+					run: () => CommandsRegistry.getCommand('_extensions.manage') ? this._commandService.executeCommand('_extensions.manage', extensionId) : undefined
 				}), NotificationActionTelemetryId.ManageExtension)] : undefined
 			};
 
