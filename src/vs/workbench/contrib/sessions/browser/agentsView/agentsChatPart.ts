@@ -33,6 +33,7 @@ import { IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { getChatWindowMainPartOptions } from '../../../chatWindow/browser/chatWindow.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { enforceChatPartOptions } from '../../../chatWindow/browser/chatWindowService.js';
 import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayout.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -591,8 +592,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		if (background) {
 			this._partStore.add(background);
 		}
-		const showTabs = observableConfigValue<string | undefined>('workbench.editor.showTabs', undefined, this._configurationService);
-		this._partStore.add(enforceChatPartOptions(part, derived(reader => getChatWindowMainPartOptions(showTabs.read(reader)))));
+		// Its tabs show its chats as the Agents window shows the chats of a session: each in a tab, or the active one
+		const chatTabsMode = observableConfigValue(SESSIONS_CHAT_TABS_SETTING, SESSIONS_CHAT_TABS_DEFAULT, this._configurationService);
+		this._partStore.add(enforceChatPartOptions(part, derived(reader => ({
+			...getChatWindowMainPartOptions(undefined),
+			showTabs: chatTabsMode.read(reader) === SessionsChatTabsMode.Multiple ? 'multiple' : 'single',
+		}))));
 		// The part goes with the window; its chats are not dirty, so nothing moves back to the editor area
 		this._partStore.add(toDisposable(() => part.forceClose()));
 		// After the part, whose context is scoped in it
