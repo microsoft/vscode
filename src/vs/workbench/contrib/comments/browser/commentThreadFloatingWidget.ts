@@ -34,6 +34,7 @@ import { ICommentService } from './commentService.js';
 import { CommentedCodeGeometry, CommentThreadConnector } from './commentThreadConnector.js';
 import { commentThreadHasDraft, CommentWidgetFocus, confirmCommentThreadCollapse, createCommentThreadGlyph, getCommentThreadWidgetStateColor, ICommentThreadEditorWidget, updateCommentThreadTemplateRange } from './commentThreadEditorWidget.js';
 import { computeFloatingWidgetPlacement, EDGE_MARGIN, FloatingWidgetSizeModel, getCenteredTop, getDefaultFloatingWidgetWidth, getPlacementBesideLines, getRevealScrollTop, getWidthBesideCode, IBesideLinesPlacement, ICommentThreadFloatingWidgetLayout, IFloatingWidgetContentHeights, IFloatingWidgetContentWidths, IFloatingWidgetObstacle, IFloatingWidgetPlacement, IFloatingWidgetPlacementRequest, IRect, ISize, ISizeRange, isInTheWayOf, MIN_HEIGHT, MIN_WIDTH } from './commentThreadFloatingWidgetLayout.js';
+import { FloatingWidgetRoom } from './commentThreadFloatingWidgetRoom.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
 
 const closeIcon = registerIcon('review-comment-close', Codicon.close, nls.localize('closeIcon', "Icon to close a floating review comment."));
@@ -55,6 +56,11 @@ export interface ICommentThreadFloatingWidgetHost {
 	addWidget(widget: ReviewFloatingWidget): IDisposable;
 	/** The other floating widgets of the editor. */
 	getOtherWidgets(widget: ReviewFloatingWidget): readonly ReviewFloatingWidget[];
+	/**
+	 * The room that an editor that grows with its content makes for its floating widgets, or `undefined` for an
+	 * editor whose height limits the widgets.
+	 */
+	getRoom(): FloatingWidgetRoom | undefined;
 }
 
 interface IResizeSession {
@@ -127,6 +133,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	/** The connector ends on the widget's rounded top left corner, which this is the radius of. */
 	private _cornerRadius = 0;
 	private _resizeSession: IResizeSession | undefined;
+	/** The bottom of the widget, in document coordinates, that the editor last made room for. */
+	private _bottomWithRoom: number | undefined;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
@@ -482,6 +490,10 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		this._resizeSession = undefined;
 		this.editor.removeOverlayWidget(this._boxOverlay);
 		this._connector.detach();
+		if (this._bottomWithRoom !== undefined) {
+			this._bottomWithRoom = undefined;
+			this._host.getRoom()?.update();
+		}
 	}
 
 	private _makeVisible(commentUniqueId?: number, focus: CommentWidgetFocus = CommentWidgetFocus.None): void {
@@ -710,7 +722,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		const growthChanged = this._sizeModel.updateGrowth(heights);
 		const height = this._setHeight(this._sizeModel.getHeight(heights, layout.height), heights);
 		if (growthChanged) {
-			this._sizeModel.updateUpwardShift(layout.offsetTop, this._codeGeometry.getVerticalBounds(), height, this.editor.getScrollTop(), this.editor.getLayoutInfo().height);
+			this._sizeModel.updateUpwardShift(layout.offsetTop, this._codeGeometry.getVerticalBounds(), height, this.editor.getScrollTop(), this._getViewportHeight());
 		}
 	}
 
@@ -762,7 +774,15 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 	private _measureEditorSize(): ISize {
 		const bounds = this._getHorizontalBounds();
-		return { width: Math.max(0, bounds.right - bounds.left), height: this.editor.getLayoutInfo().height };
+		return { width: Math.max(0, bounds.right - bounds.left), height: this._getViewportHeight() };
+	}
+
+	/**
+	 * The height of the area that the widget is shown in: the editor, or the area that an editor that grows with its
+	 * content is shown in.
+	 */
+	private _getViewportHeight(): number {
+		return this._host.getRoom()?.getViewportHeight() ?? this.editor.getLayoutInfo().height;
 	}
 
 	/**
@@ -783,10 +803,11 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * The height of the area that the editor can scroll through. Overlay widgets don't make it larger.
+	 * The height of the area that the widget can be in. Overlay widgets don't make the area that the editor can scroll
+	 * through larger, but an editor that grows with its content makes room for them below its content.
 	 */
 	private _getScrollableHeight(): number {
-		return Math.max(this.editor.getScrollHeight(), this.editor.getLayoutInfo().height);
+		return this._host.getRoom()?.getScrollableHeight() ?? Math.max(this.editor.getScrollHeight(), this.editor.getLayoutInfo().height);
 	}
 
 	private _render(): void {
@@ -797,7 +818,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		const bounds = this._getHorizontalBounds();
 		const { width, height } = this._resizable.size;
 		const left = clamp(this._layout.left, bounds.left, Math.max(bounds.left, bounds.right - width));
-		const top = this._getDocumentTop(this._layout, height) - this.editor.getScrollTop();
+		const documentTop = this._getDocumentTop(this._layout, height);
+		const top = documentTop - this.editor.getScrollTop();
 		// Measure the code before moving the widget: measuring code that is newly in view makes the editor render.
 		const codeLines = this._codeGeometry.getLineRects();
 		this._renderedLeft = left;
@@ -806,6 +828,12 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		// Anchor the connector on the widget's rounded top left corner, where the corner's curve is halfway around.
 		const cornerInset = this._cornerRadius * (1 - Math.SQRT1_2);
 		this._connector.render(codeLines, { x: left + cornerInset, y: top + cornerInset }, bounds);
+		// Scrolling doesn't move the widget within the document, so the editor only makes room again when it moved.
+		const room = this._host.getRoom();
+		if (room && documentTop + height !== this._bottomWithRoom) {
+			this._bottomWithRoom = documentTop + height;
+			room.update();
+		}
 	}
 
 	private _scheduleRender(): void {
