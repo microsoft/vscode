@@ -33,6 +33,7 @@ While VS Code is running (even unfocused), pressing that combination runs the co
 - **Desktop only.** The flag is inert on web/server (there is no `globalShortcut` there, and the
   contribution is `electron-browser`).
 - **Always on.** There is no setting to enable/disable it and no first-run dialog.
+- **Features can offer a one-click opt-in.** The Agents Window's Open Agents Window tip and the first-use dialog of chat's Attach Screenshot of App Window write a user keybinding with `"systemWide": true` through `IKeybindingEditingService`, after checking `selectSystemWideKeybindings` for conflicts. They never register OS shortcuts themselves.
 
 The `systemWide` boolean is declared in the `keybindings.json` JSON schema in
 `src/vs/workbench/services/keybinding/browser/keybindingService.ts`.

@@ -27,7 +27,8 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { excludeOwnWindowSources } from '../common/appWindows.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -913,6 +914,39 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		// Electron has no screen-permission request API; enumerate screens in the application process to request access.
 		await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
 		return systemPreferences.getMediaAccessStatus('screen') === 'granted';
+	}
+
+	async getAppWindows(windowId: number | undefined, options?: { readonly interactive?: boolean }): Promise<INativeAppWindows> {
+		const interactive = !!options?.interactive;
+		// Chromium only lets the user pick a window in the system's picker in Wayland sessions, even under XWayland.
+		if (isLinux && process.env['XDG_SESSION_TYPE'] === 'wayland' && !interactive) {
+			return { kind: 'systemPicker' };
+		}
+		// Listing the windows asks for the permission the first time.
+		if (isMacintosh && systemPreferences.getMediaAccessStatus('screen') !== 'granted' && !interactive) {
+			return { kind: 'permissionRequired' };
+		}
+
+		let sources: Electron.DesktopCapturerSource[];
+		try {
+			// Thumbnails would capture every window, so none are made.
+			sources = await desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: true });
+		} catch (error) {
+			if (isMacintosh && systemPreferences.getMediaAccessStatus('screen') !== 'granted') {
+				return { kind: 'permissionRequired' };
+			}
+			throw error;
+		}
+
+		const ownSourceIds = BrowserWindow.getAllWindows().filter(window => !window.isDestroyed()).map(window => window.getMediaSourceId());
+		return {
+			kind: 'windows',
+			windows: excludeOwnWindowSources(sources, ownSourceIds).map(source => ({
+				sourceId: source.id,
+				title: source.name,
+				iconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32, height: 32, quality: 'best' }).toDataURL() : undefined,
+			})),
+		};
 	}
 
 	async isAdmin(): Promise<boolean> {

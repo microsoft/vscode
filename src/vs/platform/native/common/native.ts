@@ -210,6 +210,38 @@ export const enum FocusMode {
 	Force,
 }
 
+/**
+ * A window of another application, which VS Code can capture.
+ */
+export interface INativeAppWindow {
+
+	/**
+	 * The id of the window as a desktop media source, which `getUserMedia` captures with the `desktop` media source.
+	 */
+	readonly sourceId: string;
+
+	/**
+	 * The title of the window, which can be empty.
+	 */
+	readonly title: string;
+
+	/**
+	 * The icon of the window's application as a PNG `data:` URL, where the platform provides it.
+	 */
+	readonly iconDataUrl?: string;
+}
+
+/**
+ * The windows of other applications, see {@link ICommonNativeHostService.getAppWindows}.
+ */
+export type INativeAppWindows =
+	/** The windows, front to back. */
+	| { readonly kind: 'windows'; readonly windows: readonly INativeAppWindow[] }
+	/** macOS only lists the windows of other applications with the Screen Recording permission, which is missing. */
+	| { readonly kind: 'permissionRequired' }
+	/** Only the system can list the windows, in a picker that it shows when the user asks to capture a window. */
+	| { readonly kind: 'systemPicker' };
+
 export interface INativeSystemWideKeybinding {
 
 	/**
@@ -401,6 +433,17 @@ export interface ICommonNativeHostService {
 
 	/** Requests screen-capture permission without starting a recording. */
 	requestScreenCaptureAccess(): Promise<boolean>;
+
+	/**
+	 * Lists the windows of other applications, front to back, so that the first one is the window that the user is
+	 * looking at, or the one that they left for VS Code. The windows of VS Code are never listed.
+	 *
+	 * Without `interactive`, this never shows system UI: it reports `permissionRequired` instead of asking for the Screen
+	 * Recording permission on macOS, and `systemPicker` instead of showing the window picker of Wayland sessions. Only set
+	 * `interactive` when the user asked to capture a window: then macOS asks for the permission the first time, and
+	 * Wayland sessions list the one window that the user picks, or none when the user cancels.
+	 */
+	getAppWindows(options?: { readonly interactive?: boolean }): Promise<INativeAppWindows>;
 
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
