@@ -98,7 +98,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				tags: ['experimental', 'onExp'],
 				'markdownDescription': localize('newTabButton', "Controls whether the editor tab bar shows a button to open a new tab, such as a new untitled file or a chat."),
-				'default': false
+				'default': false,
+				experiment: { mode: 'auto' }
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
