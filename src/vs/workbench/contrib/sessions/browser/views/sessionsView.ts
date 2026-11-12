@@ -497,6 +497,7 @@ export class SessionsView extends ViewPane {
 
 		// When the session the main window shows changes, reveal it in the sessions list: chat windows, which are other
 		// windows, do not select theirs.
+		this._register(this.sessionDraftsService.onDidOpenDraft(id => sessionsControl.revealPendingSession(id)));
 		this._register(autorun(reader => {
 			const activeSession = this._mainWindowHost.session.read(reader);
 			if (activeSession) {

@@ -948,14 +948,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { session: 'scheduled' } },
 	}, {
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The scheduled clock and the row action icons share the same size, vertical center, and spacing.'],
+		expectedVisualDescriptions: ['The passive scheduled clock is hidden while the row actions are shown.'],
 	}),
 	SessionsList_ScheduledHoverActionsCompact: defineSessionsListFixture({
 		sessions: [{ id: 'scheduled', title: 'Clarify request', workspace: 'vscode', hasScheduledMessages: true }],
 		view: { width: 260, compact: true },
 		interaction: { hovered: { session: 'scheduled' } },
 	}, {
-		expectedVisualDescriptions: ['The narrow compact row keeps the scheduled clock aligned and evenly spaced with its actions without clipping them.'],
+		expectedVisualDescriptions: ['The narrow compact row hides its passive scheduled clock and shows its actions without clipping them.'],
 	}),
 	SessionsList_HoveredChat: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_SESSION],

@@ -4577,6 +4577,7 @@ export interface ISessionsList {
 	readonly onDidChangeFindOpenState: Event<boolean>;
 	refresh(): void;
 	reveal(sessionResource: URI): boolean;
+	revealPendingSession(id: string): boolean;
 	/**
 	 * Returns the sessions currently visible in the list, in display order.
 	 * Sessions hidden by section capping ("show more") are excluded.
@@ -7021,6 +7022,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		return false;
+	}
+
+	/** Reveals and selects a pending row without moving DOM focus away from its composer. */
+	revealPendingSession(id: string): boolean {
+		const item = this.findTreeElement((element): element is IPendingSessionItem => isPendingSessionItem(element) && element.id === id);
+		if (!item) {
+			return false;
+		}
+		const tree = this.getTree(item);
+		for (let parent = tree.getParentElement(item); parent; parent = tree.getParentElement(parent)) {
+			tree.expand(parent);
+		}
+		this.revealActiveItem(item);
+		tree.setFocus([item]);
+		tree.setSelection([item]);
+		return true;
 	}
 
 	/** Reveals a session and keeps its archive action visible until the caller releases it. */

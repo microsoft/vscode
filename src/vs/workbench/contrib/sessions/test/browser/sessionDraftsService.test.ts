@@ -96,6 +96,8 @@ suite('Saved session draft lifecycle', () => {
 
 	test('navigation creates an info notification whose link restores the saved draft', async () => {
 		const { service, infoNotifications } = create();
+		const openedDrafts: string[] = [];
+		disposables.add(service.onDidOpenDraft(id => openedDrafts.push(id)));
 		const composer = service.createComposer();
 		const registration = disposables.add(service.registerComposer(composer, async () => { }, () => { }));
 		composer.updateInput({ inputText: 'Keep this draft', attachments: [] });
@@ -117,9 +119,11 @@ suite('Saved session draft lifecycle', () => {
 		assert.deepStrictEqual({
 			count: infoNotifications.length, message: message.toString(), label: link.label,
 			scheme: uri.scheme, restored: next.input, id: next.id,
+			openedDrafts,
 		}, {
 			count: 1, message: 'Created draft. Open Draft', label: 'Open Draft',
 			scheme: 'command', restored: saved.input, id: saved.id,
+			openedDrafts: [saved.id],
 		});
 		await service.sections.get()[0].items.find(item => item.id === saved.id)!.actions.find(action => action.id === 'sessions.drafts.delete')!.run();
 		await assert.rejects(async () => instantiation.invokeFunction(command.handler, ...args), /no longer available/);

@@ -291,6 +291,24 @@ suite('Sessions - pending list items', () => {
 		assert.deepStrictEqual({ matching, unmatched }, { matching: { titles: ['Fix layout'], headers: ['Drafts'] }, unmatched: 0 });
 	});
 
+	test('revealing a draft expands its section and selects it without taking composer focus', () => {
+		const harness = createListHarness(disposables, []);
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: [item('draft')] }]),
+			onSessionOpen: () => { },
+		}));
+		list.layout(800, 400);
+		const input = append(list.element.parentElement!, $('input'));
+		input.focus();
+		const revealed = list.revealPendingSession('draft');
+		const row = list.getItemRow({ pendingSession: 'draft' });
+		assert.deepStrictEqual({
+			revealed, selected: row?.getAttribute('aria-selected'),
+			focused: row?.classList.contains('focused'), inputFocused: mainWindow.document.activeElement === input,
+		}, { revealed: true, selected: 'true', focused: true, inputFocused: true });
+	});
+
 	test('scheduled filtering and indicators update without duplicating conversations or affecting the disabled feature', () => {
 		const scheduled = createTestSession('scheduled').session;
 		const normal = createTestSession('normal').session;
@@ -307,6 +325,9 @@ suite('Sessions - pending list items', () => {
 		const row = list.getItemRow({ session: scheduled.resource })!;
 		const indicator = row.querySelector<HTMLElement>('.session-scheduled-indicator')!;
 		const before = { indicator: mainWindow.getComputedStyle(indicator).display, aria: row.getAttribute('aria-label')?.includes('has scheduled messages') };
+		row.classList.add('hovered');
+		const hovered = mainWindow.getComputedStyle(indicator).display;
+		row.classList.remove('hovered');
 		list.filters.setScheduledOnly(true);
 		const filtered = list.getVisibleSessions().map(session => session.sessionId);
 		const draftHidden = !list.getItemRow({ pendingSession: 'draft' });
@@ -316,11 +337,11 @@ suite('Sessions - pending list items', () => {
 		schedulingEnabled.set(false, undefined);
 		list.update();
 		assert.deepStrictEqual({
-			before, filtered, draftHidden, afterDispatch,
+			before, hovered, filtered, draftHidden, afterDispatch,
 			disabled: list.getVisibleSessions().map(session => session.sessionId).sort(),
 			indicatorHidden: mainWindow.getComputedStyle(list.getItemRow({ session: scheduled.resource })!.querySelector('.session-scheduled-indicator')!).display,
 		}, {
-			before: { indicator: 'flex', aria: true }, filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
+			before: { indicator: 'flex', aria: true }, hovered: 'none', filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
 			disabled: ['normal', 'scheduled'], indicatorHidden: 'none',
 		});
 	});

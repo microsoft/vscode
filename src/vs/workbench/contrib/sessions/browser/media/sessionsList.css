@@ -380,7 +380,8 @@
 			display: block;
 		}
 
-		.session-external-application-badge-title {
+		.session-external-application-badge-title,
+		.session-scheduled-indicator.visible {
 			display: none;
 		}
 

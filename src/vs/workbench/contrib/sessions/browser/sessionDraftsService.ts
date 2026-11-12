@@ -7,6 +7,7 @@ import { toAction } from '../../../../base/common/actions.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
@@ -43,6 +44,7 @@ export interface ISessionDraftsService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
 	readonly sections: IObservable<readonly IPendingSessionSection[]>;
+	readonly onDidOpenDraft: Event<string>;
 	createComposer(): SessionDraftComposer;
 	registerComposer(composer: SessionDraftComposer, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>, clear: () => void): IDisposable;
 	stowAndClear(composer?: SessionDraftComposer): ISavedSessionDraft | undefined;
@@ -116,6 +118,8 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	declare readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
 	readonly sections: IObservable<readonly IPendingSessionSection[]>;
+	private readonly _onDidOpenDraft = this._register(new Emitter<string>());
+	readonly onDidOpenDraft = this._onDidOpenDraft.event;
 	private readonly model: SavedSessionDrafts;
 	private current: { composer: SessionDraftComposer; restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>; clear: () => void } | undefined;
 	private readonly sends = new Map<ISendRequestOptions, { draft: ISavedSessionDraft; sessionId: string }>();
@@ -399,6 +403,8 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		this.updateNavigation(current.composer);
 		if (removeFromDrafts) {
 			this.model.remove(draft.id, draft.revision);
+		} else {
+			this._onDidOpenDraft.fire(draft.id);
 		}
 		return true;
 	}
