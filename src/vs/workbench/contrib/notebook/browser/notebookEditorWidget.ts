@@ -1704,6 +1704,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			() => this.logService.debug('NotebookEditorWidget', 'warmup - timeout, attaching view model before markdown cells are warmed up')
 		);
 
+		// the editor might have been closed or switched to another notebook while the warmup
+		// was still running, attaching the stale view model to the list would be wrong
+		if (this._isDisposed || this.viewModel !== viewModel) {
+			return;
+		}
+
 		// todo@rebornix @mjbvz, is this too complicated?
 
 		/* now the webview is ready, and requests to render markdown are fast enough
@@ -1725,12 +1731,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._onDidAttachViewModel.fire();
 	}
 
-	private async _warmupViewportMarkdownCells(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
+	/**
+	 * Resolves the webview for the markdown warmup. Returns `undefined` if the editor was
+	 * closed or detached while the webview was loading.
+	 */
+	private async _resolveWebviewForWarmup(perf?: NotebookPerfMarks): Promise<BackLayerWebView<ICommonCellInfo> | undefined> {
 		await this._resolveWebview();
 		perf?.mark('webviewCommLoaded');
 
 		this.logService.debug('NotebookEditorWidget', 'warmup - webview resolved');
 
+		return this._webview ?? undefined;
+	}
+
+	private async _warmupViewportMarkdownCells(viewModel: NotebookViewModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
 		if (viewState && viewState.cellTotalHeights) {
 			const totalHeightCache = viewState.cellTotalHeights;
 			const scrollTop = viewState.scrollPosition?.top ?? 0;
@@ -1764,7 +1778,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			await this._webview!.initializeMarkup(requests.map(([model, offset]) => this.createMarkupCellInitialization(model, offset)));
+			const webview = await this._resolveWebviewForWarmup(perf);
+			if (!webview) {
+				return;
+			}
+
+			await webview.initializeMarkup(requests.map(([model, offset]) => this.createMarkupCellInitialization(model, offset)));
 		} else {
 			const initRequests = viewModel.viewCells
 				.filter(cell => cell.cellKind === CellKind.Markup)
@@ -1776,7 +1795,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			await this._webview!.initializeMarkup(initRequests);
+			const webview = await this._resolveWebviewForWarmup(perf);
+			if (!webview) {
+				return;
+			}
+
+			await webview.initializeMarkup(initRequests);
 
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset
@@ -1795,7 +1819,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 			}
 
-			this._webview?.updateScrollTops([], offsetUpdateRequests);
+			webview.updateScrollTops([], offsetUpdateRequests);
 		}
 	}
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -110,14 +111,22 @@ suite('NotebookEditorWidget markdown renderer warmup', () => {
 		}), {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }));
 	}
 
-	function injectMockWebview(widget: NotebookEditorWidget, initializeMarkupBehavior: (cells: readonly IMarkupCellInitialization[]) => Promise<void> = () => Promise.resolve()): { element: HTMLElement; initializeMarkupCalls: IMarkupCellInitialization[][] } {
+	function injectMockWebview(widget: NotebookEditorWidget, initializeMarkupBehavior: (cells: readonly IMarkupCellInitialization[]) => Promise<void> = () => Promise.resolve()): {
+		webview: BackLayerWebView<ICommonCellInfo>;
+		element: HTMLElement;
+		initializeMarkupCalls: IMarkupCellInitialization[][];
+		updateScrollTopsCalls: { id: string; top: number }[][];
+	} {
 		const initializeMarkupCalls: IMarkupCellInitialization[][] = [];
+		const updateScrollTopsCalls: { id: string; top: number }[][] = [];
 		const element = document.createElement('div');
 		const webview = {
 			element,
 			isResolved: () => true,
 			dispose: () => { },
-			updateScrollTops: () => { },
+			updateScrollTops: (_outputs: unknown[], markupRequests: { id: string; top: number }[]) => {
+				updateScrollTopsCalls.push(markupRequests);
+			},
 			initializeMarkup: (cells: readonly IMarkupCellInitialization[]) => {
 				initializeMarkupCalls.push([...cells]);
 				return initializeMarkupBehavior(cells);
@@ -131,7 +140,7 @@ suite('NotebookEditorWidget markdown renderer warmup', () => {
 		fields._webview = webview;
 		fields._webviewResolvePromise = Promise.resolve(webview);
 
-		return { element, initializeMarkupCalls };
+		return { webview, element, initializeMarkupCalls, updateScrollTopsCalls };
 	}
 
 	function attachModel(widget: NotebookEditorWidget, textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined): Promise<void> {
@@ -211,6 +220,54 @@ suite('NotebookEditorWidget markdown renderer warmup', () => {
 		await attached;
 		assert.strictEqual(webviewMock.initializeMarkupCalls.length, 1, 'the warmup request was sent to the webview');
 		assert.strictEqual(webviewMock.element.style.visibility, 'visible');
+	});
+
+	test('completes the warmup in the background when the webview resolves after the timeout', async () => {
+		const instantiationService = createInstantiationService();
+		const widget = createWidget(instantiationService);
+		const webviewMock = injectMockWebview(widget);
+		const textModel = createNotebookTextModel(instantiationService, [
+			['# markdown', 'markdown', CellKind.Markup],
+			['print(1)', 'python', CellKind.Code],
+		]);
+
+		// the webview does not resolve before the timeout fires
+		const webviewResolution = new DeferredPromise<BackLayerWebView<ICommonCellInfo>>();
+		const fields = widget as unknown as { _webviewResolvePromise: Promise<BackLayerWebView<ICommonCellInfo>> | undefined };
+		fields._webviewResolvePromise = webviewResolution.p;
+
+		const attached = waitForAttach(widget, 10000);
+		await attachModel(widget, textModel, undefined);
+		await attached;
+		assert.strictEqual(webviewMock.initializeMarkupCalls.length, 0, 'the warmup request is only sent once the webview resolved');
+
+		webviewResolution.complete(webviewMock.webview);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(webviewMock.initializeMarkupCalls.length, 1, 'the warmup completes in the background once the webview resolved');
+		assert.strictEqual(webviewMock.updateScrollTopsCalls.length, 1, 'the markdown cells are positioned once the warmup completed');
+	});
+
+	test('positions the markdown cells when the warmup acknowledgement arrives after the timeout', async () => {
+		const instantiationService = createInstantiationService();
+		const widget = createWidget(instantiationService);
+		const warmupAck = new DeferredPromise<void>();
+		const webviewMock = injectMockWebview(widget, () => warmupAck.p);
+		const textModel = createNotebookTextModel(instantiationService, [
+			['# markdown', 'markdown', CellKind.Markup],
+			['print(1)', 'python', CellKind.Code],
+		]);
+
+		const attached = waitForAttach(widget, 10000);
+		await attachModel(widget, textModel, undefined);
+		await attached;
+		assert.strictEqual(webviewMock.initializeMarkupCalls.length, 1, 'the warmup request was sent to the webview');
+		assert.strictEqual(webviewMock.updateScrollTopsCalls.length, 0, 'the offset update waits for the warmup acknowledgement');
+
+		warmupAck.complete();
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(webviewMock.updateScrollTopsCalls.length, 1, 'the warmup completes in the background once the acknowledgement arrived');
 	});
 
 	test('does not attach the view model when the webview fails to resolve', async () => {
