@@ -27,6 +27,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
+import { marked } from '../../../../../base/common/marked/marked.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -310,9 +311,12 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 		}
 		gapStartIndex--;
 	}
-	return toolCount === 1 && content[gapStartIndex - 1]?.kind === 'markdownContent'
-		? getMarkdownRunStartIndex(content, gapStartIndex - 1)
-		: index;
+	if (toolCount !== 1) {
+		return index;
+	}
+	const answerStartIndex = getMarkdownRunStartIndex(content, gapStartIndex);
+	// Edit code blocks render as pills among the tool calls, so on their own they are work rather than an answer.
+	return content.slice(answerStartIndex, gapStartIndex).some(part => !isEditOnlyMarkdown(part)) ? answerStartIndex : index;
 }
 
 function getMarkdownRunStartIndex(content: ReadonlyArray<IChatRendererContent>, index: number): number {
@@ -320,6 +324,18 @@ function getMarkdownRunStartIndex(content: ReadonlyArray<IChatRendererContent>, 
 		index--;
 	}
 	return index;
+}
+
+/** Whether the Markdown holds edit code blocks and no other content. */
+function isEditOnlyMarkdown(part: IChatRendererContent): boolean {
+	if (part.kind !== 'markdownContent') {
+		return false;
+	}
+	if (part.codeblockUri?.isEdit) {
+		return true;
+	}
+	return hasEditCodeblockUriTag(part.content.value)
+		&& marked.lexer(part.content.value).every(token => token.type === 'space' || (token.type === 'code' && hasEditCodeblockUriTag(token.text)));
 }
 
 function isKeptVisiblePart(part: IChatContentPart | undefined): boolean {

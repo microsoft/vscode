@@ -233,6 +233,28 @@ suite('ChatListRenderer', () => {
 				});
 			}
 
+			test('completed response folding does not keep an edit code block as the answer', async () => {
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Verify the edit' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'verify', undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				const editBlock = '```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/progress.ts</vscode_codeblock_uri>\nexport const enabled = true;\n```';
+				const edit = { kind: 'markdownContent', content: new MarkdownString(`${editBlock}\n\n`) } as const;
+				const standaloneEdit = { kind: 'markdownContent', content: new MarkdownString('```\n\n```'), codeblockUri: { kind: 'codeblockUri', uri: URI.file('/workspace/progress.ts'), isEdit: true, isStandalone: true } } as const;
+				const editWithAnswer = { kind: 'markdownContent', content: new MarkdownString(`${editBlock}\n\nDetailed response`) } as const;
+				const thinking = { kind: 'thinking', value: 'Reasoning' } as const;
+				const summary = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+				const cases: IChatRendererContent[][] = [
+					[tool, edit, thinking, tool, summary],
+					[tool, edit, tool, summary],
+					[tool, standaloneEdit, tool, summary],
+					[tool, editWithAnswer, thinking, tool, summary],
+				];
+				assert.deepStrictEqual(cases.map(content => getFinalResponseStartIndex(content, true)), [4, 3, 3, 1]);
+			});
+
 			test('preserves the single-tool answer boundary when session outcomes move', async () => {
 				const outcome = new ChatToolInvocation(
 					{ invocationMessage: 'Created session', toolSpecificData: { kind: 'sessionCreated', openLink: 'agent-host-session://local/created', label: 'Created session' } },
