@@ -227,9 +227,12 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 						const pullRequestUrls = new Set<string>();
 						for (const input of inputs) {
 							const result = collection.addOrPromoteArtifact(input, generateUuid, { chat: context.chatUri, ...(context.turnId ? { turnId: context.turnId } : {}) });
+							const previous = collection.artifacts.find(candidate => candidate.id === result.artifact.id);
 							const status = result.added
 								? `Added ${entryNoun(result.artifact.isArtifact)}`
-								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';
+								: previous && !previous.isArtifact && result.artifact.isArtifact ? 'Promoted artifact'
+									: previous && previous.mode !== result.artifact.mode ? `Updated how the chat shows the ${entryNoun(result.artifact.isArtifact)}`
+										: 'Already recorded';
 							messages.push(`${status}: ${result.artifact.id}`);
 							if (input.isArtifact && result.artifact.type === SessionArtifactType.PullRequest && result.artifact.isGitHub && result.artifact.link) {
 								pullRequestUrls.add(result.artifact.link);

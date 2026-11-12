@@ -462,15 +462,16 @@ suite('Artifact Server Tools', () => {
 		const disabledInvalid = artifacts().map(artifact => artifact.label);
 		chatResources = true;
 		const enabledProperties = advertisedProperties();
-		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
+		const updated = await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
 
-		assert.deepStrictEqual({ disabledProperties: disabled.properties, disabledDefinitions: disabled.definitions, disabledMode, disabledInvalid, enabledProperties, enabledMode: artifacts()[0].mode }, {
+		assert.deepStrictEqual({ disabledProperties: disabled.properties, disabledDefinitions: disabled.definitions, disabledMode, disabledInvalid, enabledProperties, enabledMode: artifacts()[0].mode, updated }, {
 			disabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash'],
 			disabledDefinitions: artifactServerToolDefinitions,
 			disabledMode: undefined,
 			disabledInvalid: ['Docs', 'Other'],
 			enabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash', 'mode'],
 			enabledMode: 'aboveInput',
+			updated: `Updated how the chat shows the reference: ${artifacts()[0].id}`,
 		});
 	});
 
