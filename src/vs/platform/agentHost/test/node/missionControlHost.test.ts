@@ -51,6 +51,8 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { MissionControlSessionPublisher } from '../../node/missionControl/missionControlSessionPublisher.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { captureCredentialSource } from '../../common/agentHostCredentials.js';
+import { AgentHostCompletions, CompletionTriggerCharacter, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
+import { CompletionItemKind } from '../../common/state/protocol/commands.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -136,6 +138,8 @@ suite('Mission Control host integration', () => {
 			override dispose(): void { }
 		}());
 		instantiation.stub(ILogService, new NullLogService());
+		const completions = store.add(instantiation.createInstance(AgentHostCompletions));
+		instantiation.stub(IAgentHostCompletions, completions);
 		const credentialValidations: string[] = [];
 		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService(), async (_url, init) => {
 			credentialValidations.push(new Headers(init?.headers).get('Authorization') ?? '');
@@ -161,7 +165,7 @@ suite('Mission Control host integration', () => {
 				return toDisposable(() => handler.dispose());
 			},
 		}));
-		return { host, counts, events, rootValues, rootConfigChanged, authentication, credentialValidations };
+		return { host, counts, events, rootValues, rootConfigChanged, authentication, credentialValidations, completions };
 	}
 
 	suite('bounded publish telemetry', () => {
@@ -643,14 +647,19 @@ suite('Mission Control host integration', () => {
 		});
 	}
 
-	test('enables host extension methods without forwarding the host diagnostic log stream', () => {
+	test('advertises registered completions, terminal commands and host extensions without forwarding the host diagnostic log stream', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const creations = sinon.spy(instantiation, 'createInstance');
 		store.add(toDisposable(() => creations.restore()));
 		instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() {
 			override dispose(): void { }
 		}());
-		createHost(instantiation);
+		const { completions } = createHost(instantiation);
+		store.add(completions.registerProvider({
+			kinds: new Set([CompletionItemKind.UserMessage]),
+			triggerCharacters: [CompletionTriggerCharacter.Slash, CompletionTriggerCharacter.File],
+			async provideCompletionItems() { return []; },
+		}));
 		const environmentCreation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment);
 		assert.ok(environmentCreation);
 		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
@@ -664,13 +673,15 @@ suite('Mission Control host integration', () => {
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
+			completionTriggerCharacters: config.completionTriggerCharacters,
+			terminalCommandPrefix: config.terminalCommandPrefix,
 			ahpLogDirectory: config.ahpLogDirectory?.toString(),
 			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
 			sessionList: config.sessionListAdapter === toMissionControlSessionList,
 			externalVisible: config.sessionSummaryFilter?.({ ...summary, _meta: withSessionExternal(undefined, true) }),
 			adoptedVisible: config.sessionSummaryFilter?.({ ...summary, _meta: withSessionExternal(undefined, false) }),
 			internalVisible: config.sessionSummaryFilter?.(summary),
-		}, { hostManagement: true, diagnosticLogs: undefined, modelProviders: ['copilotcli'], ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true, externalVisible: false, adoptedVisible: true, internalVisible: true });
+		}, { hostManagement: true, diagnosticLogs: undefined, modelProviders: ['copilotcli'], completionTriggerCharacters: ['/', '@'], terminalCommandPrefix: '!', ahpLogDirectory: 'file:///mission-control-test-logs/ahp', sessionConfig: true, sessionList: true, externalVisible: false, adoptedVisible: true, internalVisible: true });
 	});
 
 	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {

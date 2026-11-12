@@ -9,7 +9,7 @@ import { basename } from '../../../../base/common/path.js';
 import { basename as resourceBasename } from '../../../../base/common/resources.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { restoreRecordedResponseParts, type IRecordedResponseParts } from './copilotReasoningTiming.js';
+import { hasSavedMessageText, restoreRecordedResponseParts, type IRecordedResponseParts } from './copilotReasoningTiming.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -988,9 +988,7 @@ export async function mapSessionEvents(
 				builder.responseParts.push(...original);
 				const recorded = recordedResponses?.get(e.id);
 				if (recorded) {
-					const matches = recorded.filter(part => part.kind === ResponsePartKind.Reasoning).map(part => part.content).join('') === (reasoningText ?? '')
-						&& recorded.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content).join('') === content;
-					if (matches && original.length) {
+					if (hasSavedMessageText(recorded, reasoningText, content) && original.length) {
 						builder.recordedResponses.push({ responseId: e.id, original, recorded });
 					} else {
 						options?.logService?.warn(`[Copilot] Recorded response parts no longer match assistant message ${e.id}`);

@@ -133,6 +133,8 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 	clearAutoConnectSuppression(id: string): void { this._suppressed.delete(id); }
 	async getAuthProvider(_options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> { return undefined; }
 
+	getSelectedServerType(_address: string): undefined { return undefined; }
+
 	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
 		this.connectCalls.push({ tunnel, authProvider, options });
 	}

@@ -569,6 +569,83 @@
         "category": "Markdown Editor",
         "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
         "$generated": true
+      },
+      {
+        "command": "markdown.editor.insertTable",
+        "title": "%markdown.editor.insertTable.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.insertRowAbove",
+        "title": "%markdown.editor.table.insertRowAbove.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.insertRowBelow",
+        "title": "%markdown.editor.table.insertRowBelow.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.deleteRow",
+        "title": "%markdown.editor.table.deleteRow.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.insertColumnLeft",
+        "title": "%markdown.editor.table.insertColumnLeft.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.insertColumnRight",
+        "title": "%markdown.editor.table.insertColumnRight.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.deleteColumn",
+        "title": "%markdown.editor.table.deleteColumn.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.alignColumnLeft",
+        "title": "%markdown.editor.table.alignColumnLeft.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.alignColumnCenter",
+        "title": "%markdown.editor.table.alignColumnCenter.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.alignColumnRight",
+        "title": "%markdown.editor.table.alignColumnRight.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
+      },
+      {
+        "command": "markdown.editor.table.alignColumnNone",
+        "title": "%markdown.editor.table.alignColumnNone.title%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'",
+        "$generated": true
       }
     ],
     "menus": {
@@ -967,6 +1044,61 @@
         },
         {
           "command": "markdown.editor.insertParagraph",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.insertTable",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.insertRowAbove",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.insertRowBelow",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.deleteRow",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.insertColumnLeft",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.insertColumnRight",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.deleteColumn",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.alignColumnLeft",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.alignColumnCenter",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.alignColumnRight",
+          "when": "false",
+          "$generated": true
+        },
+        {
+          "command": "markdown.editor.table.alignColumnNone",
           "when": "false",
           "$generated": true
         }
@@ -2004,7 +2136,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-153",
+    "@vscode/markdown-editor": "0.0.2-179",
     "@vscode/observables": "^0.1.1-0",
     "@vscode/web-editors": "^0.0.2-41",
     "dompurify": "^3.4.10",

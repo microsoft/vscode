@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ChatWindowLayoutMode, ChatWindowTerminalPosition } from '../../common/chatWindowLayout.js';
-import { ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState, IRememberedChatLayout } from '../../common/chatWindowState.js';
+import { ChatWindowChatArrangements, ChatWindowChatLayouts, ChatWindowChatSizes, ChatWindowDefaults, ChatWindowState, IChatWindowArrangement, IRememberedChatLayout } from '../../common/chatWindowState.js';
 
 suite('ChatWindowState', () => {
 
@@ -129,5 +129,38 @@ suite('ChatWindowState', () => {
 		const sizes = new ChatWindowChatSizes(storage);
 
 		assert.deepStrictEqual({ sizes: sizes.get(chat), oldKeyRemoved: storage.get(oldKey, StorageScope.WORKSPACE) === undefined }, { sizes: undefined, oldKeyRemoved: true });
+	});
+
+	test('remembers how the user arranged the parts of a chat\'s window apart from its sizes, and ignores an arrangement it cannot read, such as of another version, without throwing', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const arrangements = new ChatWindowChatArrangements(storage);
+		const sizes = new ChatWindowChatSizes(storage);
+		const leaf = (id: string, size: number) => ({ type: 'leaf' as const, data: { id }, size });
+		const arrangement: IChatWindowArrangement = { version: 1, splitLayout: ChatWindowLayoutMode.SideBySide, orientation: 0, width: 1000, height: 800, root: { type: 'branch', size: 1000, data: [leaf('titleRow', 30), { type: 'branch', size: 770, data: [leaf('main', 400), leaf('chat', 566), leaf('strip', 34)] }] } };
+		sizes.set(chat, { stacked: { chat: { width: 10, height: 20 } } });
+		arrangements.set(chat, arrangement);
+		const stored = { arrangement: arrangements.get(chat), sizes: sizes.get(chat) };
+		const read = (value: string) => {
+			storage.store(ChatWindowChatArrangements.STORAGE_KEY, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			return arrangements.get(chat);
+		};
+
+		assert.deepStrictEqual({
+			stored,
+			corrupt: read('{['),
+			otherVersion: read(JSON.stringify([[chat.toString(), { ...arrangement, version: 2 }]])),
+			leafWithoutId: read(JSON.stringify([[chat.toString(), { ...arrangement, root: { type: 'branch', size: 1000, data: [{ type: 'leaf', data: {}, size: 30 }] } }]])),
+			emptyBranch: read(JSON.stringify([[chat.toString(), { ...arrangement, root: { type: 'branch', size: 1000, data: [] } }]])),
+			unknownSplitLayout: read(JSON.stringify([[chat.toString(), { ...arrangement, splitLayout: ChatWindowLayoutMode.ChatOnly }]])),
+			infiniteWidth: read(JSON.stringify([[chat.toString(), arrangement]]).replace('"width":1000', '"width":1e309')),
+		}, {
+			stored: { arrangement, sizes: { stacked: { chat: { width: 10, height: 20 } } } },
+			corrupt: undefined,
+			otherVersion: undefined,
+			leafWithoutId: undefined,
+			emptyBranch: undefined,
+			unknownSplitLayout: undefined,
+			infiniteWidth: undefined,
+		});
 	});
 });

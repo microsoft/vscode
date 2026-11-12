@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
-import * as visitorKeys from 'eslint-visitor-keys';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
 const MESSAGE_ID = 'noLocalizedModelDescription';
-type NodeWithChildren = TSESTree.Node & {
-	[key: string]: TSESTree.Node | TSESTree.Node[] | null | undefined;
+type NodeWithChildren = ESTree.Node & {
+	[key: string]: ESTree.Node | ESTree.Node[] | null | undefined;
 };
-type PropertyKeyNode = TSESTree.Property['key'] | TSESTree.MemberExpression['property'];
-type AssignmentTarget = TSESTree.AssignmentExpression['left'];
+type PropertyKeyNode = ESTree.PropertyKey | ESTree.MemberExpression['property'];
+type AssignmentTarget = ESTree.AssignmentExpression['left'];
+type VisitorKeys = Context['sourceCode']['visitorKeys'];
 
-export default new class NoLocalizedModelDescriptionRule implements eslint.Rule.RuleModule {
-	meta: eslint.Rule.RuleMetaData = {
+export default new class NoLocalizedModelDescriptionRule implements CreateRule {
+	meta: RuleMeta = {
 		messages: {
 			[MESSAGE_ID]: 'modelDescription values describe behavior to the language model and must not use localized strings.'
 		},
@@ -24,23 +22,21 @@ export default new class NoLocalizedModelDescriptionRule implements eslint.Rule.
 		schema: false
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const reportIfLocalized = (expression: TSESTree.Expression | null | undefined) => {
-			if (expression && containsLocalizedCall(expression)) {
+	create(context: Context): Visitor {
+		const reportIfLocalized = (expression: ESTree.Expression | null | undefined) => {
+			if (expression && containsLocalizedCall(expression, context.sourceCode.visitorKeys)) {
 				context.report({ node: expression, messageId: MESSAGE_ID });
 			}
 		};
 
 		return {
-			Property: (node: ESTree.Property) => {
-				const propertyNode = node as TSESTree.Property;
+			Property: propertyNode => {
 				if (!isModelDescriptionKey(propertyNode.key, propertyNode.computed)) {
 					return;
 				}
-				reportIfLocalized(propertyNode.value as TSESTree.Expression);
+				reportIfLocalized(propertyNode.value as ESTree.Expression);
 			},
-			AssignmentExpression: (node: ESTree.AssignmentExpression) => {
-				const assignment = node as TSESTree.AssignmentExpression;
+			AssignmentExpression: assignment => {
 				if (!isModelDescriptionAssignmentTarget(assignment.left)) {
 					return;
 				}
@@ -60,17 +56,17 @@ function isModelDescriptionKey(key: PropertyKeyNode, computed: boolean | undefin
 	return false;
 }
 
-function isModelDescriptionAssignmentTarget(target: AssignmentTarget): target is TSESTree.MemberExpression {
+function isModelDescriptionAssignmentTarget(target: AssignmentTarget): target is ESTree.MemberExpression {
 	if (target.type === 'MemberExpression') {
 		return isModelDescriptionKey(target.property, target.computed);
 	}
 	return false;
 }
 
-function containsLocalizedCall(expression: TSESTree.Expression): boolean {
+function containsLocalizedCall(expression: ESTree.Expression, visitorKeys: VisitorKeys): boolean {
 	let found = false;
 
-	const visit = (node: TSESTree.Node) => {
+	const visit = (node: ESTree.Node) => {
 		if (found) {
 			return;
 		}
@@ -80,7 +76,7 @@ function containsLocalizedCall(expression: TSESTree.Expression): boolean {
 			return;
 		}
 
-		for (const key of visitorKeys.KEYS[node.type] ?? []) {
+		for (const key of getEcmaScriptKeys(visitorKeys, node.type)) {
 			const value = (node as NodeWithChildren)[key];
 			if (Array.isArray(value)) {
 				for (const child of value) {
@@ -101,7 +97,24 @@ function containsLocalizedCall(expression: TSESTree.Expression): boolean {
 	return found;
 }
 
-function isLocalizeCall(node: TSESTree.Node): boolean {
+/**
+ * This rule used to traverse with the keys of `eslint-visitor-keys`, which has no keys for TypeScript-only nodes and
+ * properties. Skip those to traverse the same children, and so report the same problems.
+ */
+const typeScriptOnlyKeys = new Set(['decorators', 'typeAnnotation', 'typeParameters', 'returnType', 'typeArguments', 'superTypeArguments', 'implements']);
+const typesUnknownToESLint = new Set(['AccessorProperty', 'Decorator', 'ParenthesizedExpression', 'V8IntrinsicExpression']);
+const ecmaScriptKeysCache = new Map<string, readonly string[]>();
+
+function getEcmaScriptKeys(visitorKeys: VisitorKeys, type: string): readonly string[] {
+	let keys = ecmaScriptKeysCache.get(type);
+	if (!keys) {
+		keys = type.startsWith('TS') || typesUnknownToESLint.has(type) ? [] : (visitorKeys[type] ?? []).filter(key => !typeScriptOnlyKeys.has(key));
+		ecmaScriptKeysCache.set(type, keys);
+	}
+	return keys;
+}
+
+function isLocalizeCall(node: ESTree.Node): boolean {
 	if (node.type === 'CallExpression') {
 		return isLocalizeCallee(node.callee);
 	}
@@ -112,7 +125,7 @@ function isLocalizeCall(node: TSESTree.Node): boolean {
 }
 
 
-function isLocalizeCallee(callee: TSESTree.CallExpression['callee']): boolean {
+function isLocalizeCallee(callee: ESTree.CallExpression['callee']): boolean {
 	if (callee.type === 'Identifier') {
 		return callee.name === 'localize';
 	}

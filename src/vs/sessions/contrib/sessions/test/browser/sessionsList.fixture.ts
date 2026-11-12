@@ -14,7 +14,7 @@ import { getTestSessionResource } from '../../../../../workbench/contrib/session
 import { createSessionArchiveTour } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
-import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 
 //#region Data
@@ -721,6 +721,26 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The pointer is over the Release work group header. It shows its hover background, a chevron in place of the group icon, and New Session and Archive All actions on the right.'],
 	}),
+	SessionsList_Groups_CustomColors: defineSessionsListFixture({
+		sessions: GROUP_SESSIONS,
+		groups: [{ ...RELEASE_GROUP, color: 'charts.blue' }, TRIAGE_GROUP],
+		view: { height: 440 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Release work uses its assigned blue color for both its icon and its readable group name. The uncustomized Triage and workspace headers and session names retain their normal colors. High-contrast themes retain their normal label colors.'],
+	}),
+	SessionsList_Groups_CustomColorsCompact: defineSessionsListFixture({
+		sessions: GROUP_SESSIONS,
+		groups: [{ ...RELEASE_GROUP, color: 'charts.blue' }, { ...TRIAGE_GROUP, color: 'charts.orange' }],
+		view: { compact: true, height: 300 },
+		interaction: { hovered: { group: 'release' }, focused: { group: 'triage' } },
+	}, {
+		deferPaint: true,
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['In compact mode the hovered Release work name retains a readable blue color even when its icon yields to the chevron. The keyboard-focused Triage name uses the normal focus foreground rather than its assigned orange, and uncustomized workspace and session names remain unchanged. High-contrast themes retain their normal label colors.'],
+	}),
 	SessionsList_Groups_FocusedHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS,
 		groups: [RELEASE_GROUP],
@@ -1008,7 +1028,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { compact: true, width: 380 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['A compact vscode workspace section shows three sessions. The first session expands with a truncated input-needed callout but no button. The second expands with a terminal-command approval callout and an Allow button. The completed third session remains a single compact title row.'],
+		additionalThemes: ['light2026', 'quietLight', 'solarizedLight', 'darkModern', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A compact vscode workspace section shows three sessions. The first session expands with a truncated input-needed callout but no button. The second expands with a terminal-command approval callout and an Allow button. The completed third session remains a single compact title row. In high contrast themes, needs-input rows have a separate straight yellow left-edge marker, inset from the rounded corners, instead of a tinted background.'],
 	}),
 	SessionsList_CompactSessionRename: defineSessionsListFixture({
 		sessions: COMPACT_RENAME_SESSIONS,
@@ -1051,7 +1072,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { compact: true, width: 340, height: 300 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['A compact session and two of its three nested chats each show their own terminal approval and Allow button. Task B has no approval and remains a single compact row; the expanded approval rows do not overlap adjacent children.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A compact session and two of its three nested chats each show their own terminal approval and Allow button. Task B has no approval and remains a single compact row; the expanded approval rows do not overlap adjacent children. In high contrast themes, only the needs-input rows have a separate straight yellow left-edge marker, inset from the rounded corners, without a tinted background.'],
 	}),
 
 	//#endregion
@@ -1339,7 +1361,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CustomizationsExtensionSuggestionsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'suggestions', title: 'Review the generated diagrams', workspace: 'vscode', minutesAgo: 5 }],
-		header: { navigationShortcuts: true, customizationsCount: 8, customizationExtensionSuggestionsAvailable: true },
+		header: { navigationShortcuts: true, customizationsCount: 8, customizationsBadge: 'Some installed extensions can be enabled in the Agents window.' },
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot, not a warning dot, beside its label.'],
