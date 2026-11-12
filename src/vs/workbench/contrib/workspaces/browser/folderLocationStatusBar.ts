@@ -20,6 +20,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { AnchorPosition } from '../../../../base/common/layout.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -81,6 +82,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	constructor(
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ILabelService private readonly labelService: ILabelService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -90,7 +92,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 
 		this.registerIntroduction();
 
-		this._register(this.folderLocationService.onDidChangeCurrentLocation(() => this.update()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.update()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
 		this.update();
 	}
@@ -123,9 +125,9 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	}
 
 	private createIntroductionStep(): ISpotlightStep {
-		const location = this.folderLocationService.currentLocation;
 		const primaryName = this.primaryName ?? '';
-		const locationText = location ? this.folderLocationService.getLocationText(location) : '';
+		const folder = this.contextService.getWorkspace().folders[0];
+		const locationText = (folder && this.labelService.getFolderLocationLabel(folder.uri)) ?? '';
 		return {
 			id: 'folderLocation',
 			targetId: FOLDER_LOCATION_INTRODUCTION_TARGET_ID,
@@ -144,10 +146,12 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 	}
 
 	private update(): void {
-		const location = this.folderLocationService.currentLocation;
-		const identifier = toWorkspaceIdentifier(this.contextService.getWorkspace());
+		const workspace = this.contextService.getWorkspace();
+		const folder = workspace.folders[0];
+		const location = folder ? this.folderLocationService.getLocation(folder) : undefined;
+		const identifier = toWorkspaceIdentifier(workspace);
 		const identity = isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : undefined;
-		if (!location || !identity || !this.folderLocationService.isAtAlternateLocation()) {
+		if (!folder || !location || !identity) {
 			this.entry.clear();
 			this.introductionReady.set(false, undefined);
 			this.introductionObservation.clear();
@@ -160,8 +164,8 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
 			text: `$(${location.icon?.id ?? Codicon.gitBranchCheckout.id}) ${location.label}`,
-			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", this.folderLocationService.getLocationText(location)),
-			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", this.folderLocationService.getLocationText(location), primaryName),
+			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", this.labelService.getFolderLocationLabel(folder.uri)),
+			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", this.labelService.getFolderLocationLabel(folder.uri), primaryName),
 			command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: localize('folderLocation', "Folder Location"), arguments: [FOLDER_LOCATION_STATUS_ENTRY_ID] },
 			kind: 'prominent' as const
 		};
@@ -232,9 +236,10 @@ registerAction2(class ReturnToPrimaryFolderLocationAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const identifier = toWorkspaceIdentifier(accessor.get(IWorkspaceContextService).getWorkspace());
+		const workspace = accessor.get(IWorkspaceContextService).getWorkspace();
+		const identifier = toWorkspaceIdentifier(workspace);
 		const identity = isSingleFolderWorkspaceIdentifier(identifier) ? identifier.uri : undefined;
-		if (identity && accessor.get(IWorkspaceFolderLocationService).isAtAlternateLocation()) {
+		if (identity && workspace.folders[0] && accessor.get(IWorkspaceFolderLocationService).isAtAlternateLocation(workspace.folders[0])) {
 			await accessor.get(IWorkspaceEditingService).setFolderLocation(identity, { reason: 'user' });
 		}
 	}
@@ -269,10 +274,10 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const anchor = anchorElementId ? mainWindow.document.getElementById(anchorElementId) : null;
 
 		const isCurrentUri = (uri: URI) => uriIdentityService.extUri.isEqual(uri, folder.uri);
-		const currentLocation = folderLocationService.currentLocation;
+		const currentLocation = folderLocationService.getLocation(folder);
 		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), description: localize('primaryLocation', "Primary Location"), icon: Codicon.folder };
 		// Seed the current location so that accepting before the lookup resolves keeps it
-		const currentSeed: ILocationEntry | undefined = folderLocationService.isAtAlternateLocation() && currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.gitBranchCheckout } : undefined;
+		const currentSeed: ILocationEntry | undefined = currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.gitBranchCheckout } : undefined;
 		const seedEntries = currentSeed ? [primaryEntry, currentSeed] : [primaryEntry];
 		const toEntries = (locations: readonly IFolderLocation[]) => [primaryEntry, ...locations.map((location): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.gitBranchCheckout }))];
 

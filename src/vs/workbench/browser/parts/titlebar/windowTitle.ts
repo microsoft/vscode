@@ -73,13 +73,14 @@ export class WindowTitle extends Disposable {
 
 	/** The label of the alternate folder location, or an empty string while the folder is at its primary location. */
 	get folderLocation(): string {
-		const location = this.folderLocationInfo;
-		return location ? this.folderLocationService.getLocationText(location) : '';
+		const folder = this.contextService.getWorkspace().folders[0];
+		return (folder && this.labelService.getFolderLocationLabel(folder.uri)) ?? '';
 	}
 
 	/** The alternate folder location the folder is at, or `undefined` while it is at its primary location. */
 	get folderLocationInfo() {
-		return this.folderLocationService.isAtAlternateLocation() ? this.folderLocationService.currentLocation : undefined;
+		const folder = this.contextService.getWorkspace().folders[0];
+		return folder ? this.folderLocationService.getLocation(folder) : undefined;
 	}
 	get fileName() {
 		const activeEditor = this.editorService.activeEditor;
@@ -156,7 +157,7 @@ export class WindowTitle extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.titleUpdater.schedule()));
-		this._register(this.folderLocationService.onDidChangeCurrentLocation(() => this.titleUpdater.schedule()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));

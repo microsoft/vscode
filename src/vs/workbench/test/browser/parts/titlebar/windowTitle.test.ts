@@ -12,7 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
@@ -32,12 +32,11 @@ suite('Folder Location in Window Title and Command Center', () => {
 
 	function createWindowTitle(windowTitleFormat: string, atAlternate = true) {
 		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: atAlternate ? alternate : primary, index: 0, name: 'repo' })], false, null, () => false, undefined, { id: 'id', uri: primary });
-		const onDidChangeCurrentLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
+		const onDidChangeLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
 		const locationService = new class extends mock<IWorkspaceFolderLocationService>() {
-			override currentLocation: IResolvedFolderLocation | undefined = undefined;
-			override readonly onDidChangeCurrentLocation = onDidChangeCurrentLocation.event;
-			override isAtAlternateLocation() { return atAlternate; }
-			override getLocationText(location: IFolderLocation) { return location.label; }
+			current: IResolvedFolderLocation | undefined = undefined;
+			override readonly onDidChangeLocation = onDidChangeLocation.event;
+			override getLocation() { return atAlternate ? this.current : undefined; }
 		}();
 
 		const configurationService = new TestConfigurationService({ window: { title: windowTitleFormat, titleSeparator: ' - ' } });
@@ -48,7 +47,7 @@ suite('Folder Location in Window Title and Command Center', () => {
 		instantiationService.stub(IViewsService, new TestViewsService());
 
 		const title = disposables.add(instantiationService.createInstance(WindowTitle, mainWindow));
-		return { title, locationService, onDidChangeCurrentLocation };
+		return { title, locationService, onDidChangeLocation, workspace };
 	}
 
 	async function changes(title: WindowTitle, action: () => void): Promise<number> {
@@ -61,27 +60,27 @@ suite('Folder Location in Window Title and Command Center', () => {
 	}
 
 	test('window title fires a change on a location change even if a custom title format leaves the title text unchanged', async () => {
-		const { title, locationService, onDidChangeCurrentLocation } = createWindowTitle('${rootName}');
+		const { title, locationService, onDidChangeLocation, workspace } = createWindowTitle('${rootName}');
 
-		locationService.currentLocation = createLocation('feature-branch');
-		const count = await changes(title, () => onDidChangeCurrentLocation.fire({ reason: 'programmatic' }));
+		locationService.current = createLocation('feature-branch');
+		const count = await changes(title, () => onDidChangeLocation.fire({ folder: workspace.folders[0], reason: 'programmatic' }));
 
 		assert.deepStrictEqual({ count, info: title.folderLocationInfo?.description }, { count: 1, info: 'feature-branch' });
 	});
 
 	test('window title does not fire again when the location is unchanged', async () => {
-		const { title, locationService, onDidChangeCurrentLocation } = createWindowTitle('${rootName}');
+		const { title, locationService, onDidChangeLocation, workspace } = createWindowTitle('${rootName}');
 
-		locationService.currentLocation = createLocation('feature-branch');
-		await changes(title, () => onDidChangeCurrentLocation.fire({ reason: 'programmatic' }));
-		const count = await changes(title, () => onDidChangeCurrentLocation.fire({ reason: 'programmatic' }));
+		locationService.current = createLocation('feature-branch');
+		await changes(title, () => onDidChangeLocation.fire({ folder: workspace.folders[0], reason: 'programmatic' }));
+		const count = await changes(title, () => onDidChangeLocation.fire({ folder: workspace.folders[0], reason: 'programmatic' }));
 
 		assert.strictEqual(count, 0);
 	});
 
 	test('command center label is the folder name at an alternate location regardless of title format and tabs', () => {
 		const { title, locationService } = createWindowTitle('constant');
-		locationService.currentLocation = createLocation('feature-branch');
+		locationService.current = createLocation('feature-branch');
 
 		assert.deepStrictEqual(
 			[title.getCommandCenterLabel({ showFileName: false }), title.getCommandCenterLabel({ showFileName: true })],

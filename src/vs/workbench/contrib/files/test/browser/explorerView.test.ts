@@ -17,7 +17,8 @@ import { provideDecorations } from '../../browser/views/explorerDecorationsProvi
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { joinPath } from '../../../../../base/common/resources.js';
@@ -60,9 +61,9 @@ suite('Files - ExplorerView', () => {
 		let switched = true;
 		const renderer = ds.add(new FilesRenderer(
 			dom.$('div'), undefined!, undefined!, () => { },
-			undefined!, configService, undefined!, undefined!,
-			{ getWorkspace: () => ({ folders: [{ uri: alternate }], identity: switched ? primary : alternate }) } as unknown as IWorkspaceContextService,
-			{ isAtAlternateLocation: () => switched, getLocationText: (location: IFolderLocation) => location.description ? `${location.label} · ${location.description}` : location.label, get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
+			undefined!, configService, undefined!,
+			{ getFolderLocationLabel: (folder: URI) => switched && folder.toString() === alternate.toString() ? 'Alternate · feature/x' : undefined } as unknown as ILabelService,
+			{ getWorkspace: () => ({ folders: [{ uri: alternate }] }) } as unknown as IWorkspaceContextService,
 			undefined!));
 		const root = new ExplorerItem(alternate, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
 		const child = new ExplorerItem(URI.file('/work/project-alt/a'), fileService, configService, NullFilesConfigurationService, root, false, false, false, false, 'a', 0, false);
@@ -71,7 +72,7 @@ suite('Files - ExplorerView', () => {
 		switched = false;
 		assert.deepStrictEqual(
 			[switchedLabels, renderer.getAriaLabel(root)],
-			[['project (Alternate · feature/x)', 'a', 'project (Alternate · feature/x)'], 'project']);
+			[['project (Alternate · feature/x)', 'a', 'project'], 'project']);
 	});
 
 	test('getContext', async function () {
@@ -136,7 +137,7 @@ suite('Files - ExplorerView', () => {
 				getEditable: () => undefined,
 			});
 			instantiationService.stub(IClipboardService, new TestClipboardService());
-			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeCurrentLocation = Event.None; });
+			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeLocation = Event.None; });
 			instantiationService.stub(IContextMenuService, {
 				showContextMenu: delegate => {
 					assert.ok(hasKey(delegate, { menuActionOptions: true }));

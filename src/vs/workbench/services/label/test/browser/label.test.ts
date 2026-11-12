@@ -909,3 +909,69 @@ suite('workspace at FSP root', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
+
+suite('workspace label decorator', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const folder = URI.file('/work/repo');
+	const alternate = URI.file('/work/repo-alt');
+	let labelService: LabelService;
+
+	setup(() => {
+		labelService = disposables.add(new LabelService(
+			TestEnvironmentService,
+			new TestContextService(),
+			new TestPathService(),
+			new TestRemoteAgentService(),
+			disposables.add(new TestStorageService()),
+			disposables.add(new TestLifecycleService()),
+			uriIdentityService
+		));
+	});
+
+	function register(locations: Map<string, string>, onDidChange: Emitter<URI>) {
+		disposables.add(labelService.registerWorkspaceLabelDecorator({
+			onDidChange: onDidChange.event,
+			getFolderLocationLabel: uri => locations.get(uri.toString())
+		}));
+	}
+
+	test('labels are unchanged without a decorator or when the folder is at its own location, and decorated on opt in', () => {
+		const locations = new Map<string, string>();
+		const onDidChange = disposables.add(new Emitter<URI>());
+		const plain = labelService.getWorkspaceLabel(folder);
+		register(locations, onDidChange);
+		const atOwnLocation = [labelService.getWorkspaceLabel(folder), labelService.getWorkspaceLabel(folder, { withLocation: true })];
+
+		locations.set(alternate.toString(), 'wt · feature');
+
+		assert.deepStrictEqual(
+			{
+				plain,
+				atOwnLocation,
+				optedOut: labelService.getWorkspaceLabel(alternate),
+				optedIn: labelService.getWorkspaceLabel(alternate, { withLocation: true }),
+				identifier: labelService.getWorkspaceLabel({ id: 'id', uri: alternate }, { withLocation: true }),
+				location: labelService.getFolderLocationLabel(alternate)
+			},
+			{
+				plain: 'repo',
+				atOwnLocation: ['repo', 'repo'],
+				optedOut: 'repo-alt',
+				optedIn: 'repo-alt (wt · feature)',
+				identifier: 'repo-alt (wt · feature)',
+				location: 'wt · feature'
+			});
+	});
+
+	test('a decorator change fires the formatters change event', () => {
+		const onDidChange = disposables.add(new Emitter<URI>());
+		register(new Map(), onDidChange);
+		const schemes: string[] = [];
+		disposables.add(labelService.onDidChangeFormatters(e => schemes.push(e.scheme)));
+
+		onDidChange.fire(alternate);
+
+		assert.deepStrictEqual(schemes, ['file']);
+	});
+});

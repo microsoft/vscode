@@ -17,7 +17,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quic
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IFolderLocation, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { resolveOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload } from '../../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -25,13 +25,13 @@ import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardin
 import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IStatusbarEntry, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FolderLocationStatusBarContribution, RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID, SWITCH_FOLDER_LOCATION_COMMAND_ID } from '../../browser/folderLocationStatusBar.js';
 
 function identityFake(getWorkspace: () => Workspace) {
 	return {
 		isAtAlternateLocation: () => { const workspace = getWorkspace(); return (workspace.identity as { uri: URI }).uri.toString() !== workspace.folders[0].uri.toString(); },
-		getLocationText: (location: Pick<IFolderLocation, 'label' | 'description'>) => location.description ? `${location.label} · ${location.description}` : location.label,
 	};
 }
 
@@ -59,8 +59,9 @@ suite('FolderLocationStatusBarContribution', () => {
 		let workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
 
 		const contribution = ds.add(new FolderLocationStatusBarContribution(
-			{ ...identityFake(() => workspace), get currentLocation() { return currentLocation; }, onDidChangeCurrentLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
+			{ ...identityFake(() => workspace), getLocation: () => identityFake(() => workspace).isAtAlternateLocation() ? currentLocation : undefined, onDidChangeLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
 			{ getWorkspace: () => workspace, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
+			{ getFolderLocationLabel: () => currentLocation ? `${currentLocation.label} · ${currentLocation.description}` : undefined } as unknown as ILabelService,
 			{
 				onDidChangeEntryVisibility: onDidChangeEntryVisibility.event,
 				addEntry(entry: IStatusbarEntry, _id: string, alignment: unknown, priority: unknown) {

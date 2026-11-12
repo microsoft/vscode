@@ -5,13 +5,14 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFolder, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
@@ -28,32 +29,57 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
 	readonly onDidChangeProviders = this._onDidChangeProviders.event;
 
-	private _currentLocation: IResolvedFolderLocation | undefined;
-	get currentLocation(): IResolvedFolderLocation | undefined { return this._currentLocation; }
+	private readonly locations = new ResourceMap<IResolvedFolderLocation>();
 
-	private readonly _onDidChangeCurrentLocation = this._register(new Emitter<IFolderLocationChangeEvent>());
-	readonly onDidChangeCurrentLocation = this._onDidChangeCurrentLocation.event;
+	private readonly _onDidChangeLocation = this._register(new Emitter<IFolderLocationChangeEvent>());
+	readonly onDidChangeLocation = this._onDidChangeLocation.event;
 
 	constructor(
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ILabelService labelService: ILabelService
 	) {
 		super();
+
+		this._register(labelService.registerWorkspaceLabelDecorator({
+			onDidChange: Event.map(this.onDidChangeLocation, e => e.folder.uri),
+			getFolderLocationLabel: folder => this.getFolderLocationLabel(folder)
+		}));
 	}
 
-	getLocationText(location: Pick<IFolderLocation, 'label' | 'description'>): string {
-		return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
+	getLocation(folder: IWorkspaceFolder): IResolvedFolderLocation | undefined {
+		return this.isAtAlternateLocation(folder) ? this.locations.get(folder.uri) : undefined;
 	}
 
-	isAtAlternateLocation(): boolean {
+	isAtAlternateLocation(folder: IWorkspaceFolder): boolean {
 		const workspace = this.contextService.getWorkspace();
 		const identifier = toWorkspaceIdentifier(workspace);
-		return isSingleFolderWorkspaceIdentifier(identifier) && workspace.folders.length === 1 && !this.uriIdentityService.extUri.isEqual(workspace.folders[0].uri, identifier.uri);
+		const extUri = this.uriIdentityService.extUri;
+		return isSingleFolderWorkspaceIdentifier(identifier) && workspace.folders.length === 1 && extUri.isEqual(workspace.folders[0].uri, folder.uri) && !extUri.isEqual(folder.uri, identifier.uri);
 	}
 
-	setCurrentLocation(location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {
-		this._currentLocation = location;
-		this._onDidChangeCurrentLocation.fire({ reason });
+	setLocation(folder: IWorkspaceFolder, location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {
+		this.locations.clear(); // only single-folder workspaces are supported
+		if (location) {
+			this.locations.set(folder.uri, location);
+		}
+		this._onDidChangeLocation.fire({ folder, reason });
+	}
+
+	/**
+	 * The label of the location of the folder with the given `uri`, which is either its current
+	 * location or, as the label of the workspace is derived from it, the identity of its workspace.
+	 */
+	private getFolderLocationLabel(uri: URI): string | undefined {
+		const workspace = this.contextService.getWorkspace();
+		const identifier = toWorkspaceIdentifier(workspace);
+		const extUri = this.uriIdentityService.extUri;
+		const folder = workspace.folders.find(folder => extUri.isEqual(folder.uri, uri) || (isSingleFolderWorkspaceIdentifier(identifier) && extUri.isEqual(identifier.uri, uri)));
+		const location = folder && this.getLocation(folder);
+		if (!location) {
+			return undefined;
+		}
+		return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
 	}
 
 	registerProvider(provider: IWorkspaceFolderLocationProvider, options?: { readonly builtIn?: boolean }): IDisposable {

@@ -11,7 +11,6 @@ import { IProgressService, ProgressLocation, } from '../../../../../platform/pro
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -840,7 +839,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
@@ -1122,8 +1120,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	private getRootLabel(stat: ExplorerItem): string {
-		const location = this.folderLocationService.currentLocation;
-		return stat.isRoot && this.folderLocationService.isAtAlternateLocation() && location ? localize('explorerRootAtLocation', "{0} ({1})", stat.name, this.folderLocationService.getLocationText(location)) : stat.name;
+		const location = stat.isRoot ? this.labelService.getFolderLocationLabel(stat.resource) : undefined;
+		return location ? localize('explorerRootAtLocation', "{0} ({1})", stat.name, location) : stat.name;
 	}
 
 	getAriaLevel(element: ExplorerItem): number {

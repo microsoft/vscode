@@ -275,12 +275,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	get name(): string {
-		const workspace = this.contextService.getWorkspace();
-		const label = this.labelService.getWorkspaceLabel(workspace);
-		// In a single-folder workspace the root is this header, so it carries the location
-		const location = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.folderLocationService.currentLocation : undefined;
-		const atAlternateLocation = this.folderLocationService.isAtAlternateLocation();
-		return atAlternateLocation && location ? nls.localize('explorerRootAtLocation', "{0} ({1})", label, this.folderLocationService.getLocationText(location)) : label;
+		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace(), { withLocation: true });
 	}
 
 	override get title(): string {
@@ -342,7 +337,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkspaceTitleCase()));
 		this._register(this.labelService.onDidChangeFormatters(setHeader));
-		this._register(this.folderLocationService.onDidChangeCurrentLocation(setHeader));
 		setHeader();
 	}
 
@@ -587,7 +581,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
-		this._register(this.folderLocationService.onDidChangeCurrentLocation(() => this.tree.rerender()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.tree.rerender()));
 
 		// Bind configuration
 		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
