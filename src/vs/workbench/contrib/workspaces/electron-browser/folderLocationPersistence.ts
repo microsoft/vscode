@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkspaceFolderLocationService, IResolvedFolderLocation } from '../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWindowFolderLocation } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -84,7 +84,8 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		}
 
 		const workspace = this.contextService.getWorkspace();
-		const primary = workspace.identity ?? workspace.folders[0].uri;
+		const identity = toWorkspaceIdentifier(workspace);
+		const primary = isSingleFolderWorkspaceIdentifier(identity) ? identity.uri : workspace.folders[0].uri;
 
 		// The location is applied at startup without validation, so a missing one is detected here
 		const exists = await this.isDirectory(location);
