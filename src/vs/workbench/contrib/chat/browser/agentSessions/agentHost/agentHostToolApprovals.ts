@@ -8,14 +8,24 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { mcpServerRule, mcpToolRule } from '../../../../../../platform/agentHost/common/permissionRules.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { isAgentHostSessionResource, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
 import { ILanguageModelToolsConfirmationService, IToolPreApprovalStore } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { TerminalToolId } from '../../../common/tools/terminalToolIds.js';
+import { MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID } from '../../actions/chatActions.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 
 const LIST_TOOLS_TIMEOUT_MS = 5000;
+
+CommandsRegistry.registerCommand(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID, (accessor: ServicesAccessor, sessionResource: URI) => manageAgentHostToolApprovals(
+	sessionResource,
+	accessor.get(IAgentHostCustomizationService),
+	accessor.get(ILanguageModelToolsConfirmationService),
+	accessor.get(ILanguageModelToolsService),
+));
 
 /** Opens host-wide tool approvals for an agent-host session, returning false when its root config is unavailable. */
 export function manageAgentHostToolApprovals(

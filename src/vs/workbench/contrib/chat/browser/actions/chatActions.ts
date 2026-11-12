@@ -24,7 +24,7 @@ import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, ICommandPaletteOptions, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -74,10 +74,11 @@ import { isAgentHostSessionResource, localChatSessionType } from '../../common/c
 import { getDocumentationUrl, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
-import { manageAgentHostToolApprovals } from '../agentSessions/agentHost/agentHostToolApprovals.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
+
+/** Opens host-wide tool approvals for an agent host session; resolves false when the host is unavailable. */
+export const MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID = '_chat.agentHost.manageToolApprovals';
 
 const COPILOT_CLI_AGENT_HOST_PROVIDER_ID = 'copilotcli';
 
@@ -1958,9 +1959,11 @@ registerAction2(class EditToolApproval extends Action2 {
 	async run(accessor: ServicesAccessor, scope?: 'workspace' | 'profile' | 'session'): Promise<void> {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
+		const commandService = accessor.get(ICommandService);
 		if (scope === undefined) {
 			const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
-			if (sessionResource && isAgentHostSessionResource(sessionResource) && manageAgentHostToolApprovals(sessionResource, accessor.get(IAgentHostCustomizationService), confirmationService, toolsService)) {
+			if (sessionResource && isAgentHostSessionResource(sessionResource) && CommandsRegistry.getCommand(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID)
+				&& await commandService.executeCommand<boolean>(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID, sessionResource)) {
 				return;
 			}
 		}
