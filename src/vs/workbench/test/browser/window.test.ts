@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { setZoomFactor, setZoomLevel } from '../../../base/browser/browser.js';
-import { enableFallbackActiveWindow, getActiveDocument, IRegisteredCodeWindow, registerWindow, trackAttributes } from '../../../base/browser/dom.js';
+import { enableFallbackActiveWindow, getActiveDocument, IRegisteredCodeWindow, registerExternalFocusChecker, registerWindow, trackAttributes } from '../../../base/browser/dom.js';
 import { IPixelRatioMonitor } from '../../../base/browser/pixelRatio.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
@@ -302,5 +302,38 @@ suite('Window', () => {
 		const whenEnabled = getActiveDocument() === otherWindow.document;
 
 		assert.deepStrictEqual({ whenDisabled, whenEnabled }, { whenDisabled: false, whenEnabled: true });
+	});
+
+	test('focus in a window while an external component has focus makes it the fallback active window', () => {
+		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
+		store.add(toDisposable(() => iframe.remove()));
+		const otherWindow = iframe.contentWindow!;
+		ensureCodeWindow(otherWindow, 6263);
+		store.add(registerWindow(otherWindow));
+
+		const mainHasFocus = mainWindow.document.hasFocus;
+		mainWindow.document.hasFocus = () => false;
+		otherWindow.document.hasFocus = () => false;
+		store.add(toDisposable(() => mainWindow.document.hasFocus = mainHasFocus));
+
+		class FocusTestWindow extends BaseWindow {
+			constructor(window: CodeWindow) {
+				super(window, undefined, new TestHostService(), TestEnvironmentService, new TestContextMenuService(), new TestLayoutService());
+			}
+			protected override enableMultiWindowAwareTimeout(): void { }
+		}
+		store.add(new FocusTestWindow(otherWindow));
+		store.add(enableFallbackActiveWindow());
+
+		const externalFocus = registerExternalFocusChecker(() => ({ hasFocus: true, window: mainWindow }));
+		const element = otherWindow.document.body.appendChild(otherWindow.document.createElement('div'));
+		element.tabIndex = 0;
+		element.focus();
+		const withExternalFocus = getActiveDocument() === mainWindow.document;
+
+		externalFocus.dispose();
+		const afterExternalFocus = getActiveDocument() === otherWindow.document;
+
+		assert.deepStrictEqual({ withExternalFocus, afterExternalFocus }, { withExternalFocus: true, afterExternalFocus: true });
 	});
 });

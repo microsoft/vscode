@@ -97,6 +97,10 @@ export abstract class BaseWindow extends Disposable {
 
 	private onElementFocus(targetWindow: CodeWindow): void {
 
+		// Remember the window as the active one for when no window has focus,
+		// such as with windows that are never shown (no-op unless enabled)
+		setFallbackActiveWindow(targetWindow.vscodeWindowId);
+
 		// Check if focus should transfer: the application currently has focus somewhere, but not in the target window.
 		if (!targetWindow.document.hasFocus() && hasAppFocus()) {
 
@@ -122,11 +126,6 @@ export abstract class BaseWindow extends Disposable {
 			) {
 				this.hostService.focus(targetWindow);
 			}
-		} else if (!hasAppFocus()) {
-
-			// Without focus in any window, such as with windows that are never
-			// shown, remember the window as the active one (no-op unless enabled)
-			setFallbackActiveWindow(targetWindow.vscodeWindowId);
 		}
 	}
 
