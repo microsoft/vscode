@@ -1164,6 +1164,48 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	test('launches an agent migration via workbench.action.sessions.newChat in the Agents Window', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		editor.workspaceService.isSessionsWindow = true;
+		const fileService = createInMemoryFileService(store, Schemas.inMemory);
+		editor.fileService = fileService;
+		const workspaceStorageHome = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' });
+		editor.environmentService = { workspaceStorageHome };
+		const existingPromptUri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/test.prompt.md' });
+		await fileService.createFile(existingPromptUri, VSBuffer.fromString('---\ndescription: test\n---\nhello'));
+		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.PromptFiles, [
+			{ uri: existingPromptUri, storage: PromptsStorage.local, type: PromptsType.prompt },
+		]);
+		editor.harnessService.getActiveDescriptor = () => ({
+			id: 'agent-host-copilotcli',
+			label: 'Copilot',
+			icon: Codicon.copilot,
+			itemProvider: {
+				onDidChange: Event.None,
+				provideChatSessionCustomizations: async () => [],
+				provideSourceFolders: async () => [],
+			},
+		});
+		const calls: { commandId: string; options: unknown }[] = [];
+		const sessionResource = URI.parse('agent-host-copilotcli:/new-session');
+		editor.closeCustomizationEditor = async () => true;
+		editor.customizationMigrationTelemetryService.prepareAgentMigrationResult = () => ({ dispose: () => { } });
+		editor.commandService = {
+			executeCommand: async (commandId, options) => {
+				calls.push({ commandId, options });
+				return sessionResource;
+			},
+		};
+
+		await editor.startCustomizationMigrationWithAgent();
+
+		assert.strictEqual(calls.length, 1);
+		assert.strictEqual(calls[0].commandId, 'workbench.action.sessions.newChat');
+		assert.deepStrictEqual((calls[0].options as { sessionToolIds?: readonly string[]; agentHostProvider?: string })?.sessionToolIds, [CustomizationMigrationResultToolId]);
+		assert.strictEqual((calls[0].options as { sessionToolIds?: readonly string[]; agentHostProvider?: string })?.agentHostProvider, 'copilotcli');
+	});
+
 	test('does not launch an agent migration when backup preparation fails', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);

@@ -40,6 +40,8 @@ export interface INewSessionInAgentsWindowOptions {
 	noWorkspace?: boolean;
 	/** Local Agent Host provider to use for a workspace-less session instead of inheriting the active target. */
 	agentHostProvider?: string;
+	/** Optional tool identifiers to register on the created session before sending its initial prompt. */
+	sessionToolIds?: readonly string[];
 }
 
 export const enum ChatSessionsExtensions {
