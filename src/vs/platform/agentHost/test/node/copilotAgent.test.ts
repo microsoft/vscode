@@ -4207,8 +4207,12 @@ suite('CopilotAgent', () => {
 			const workspace = URI.file('/workspace');
 			const plugin = URI.file('/sdk-installed/native');
 			const source = URI.joinPath(plugin, '.mcp.json');
+			// Let the in-memory provider report these writes before the plugin watcher exists, or its publish can show the
+			// server as a plugin child before the runtime-first update below.
+			const written = Event.toPromise(fileService.onDidFilesChange);
 			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
 			await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+			await written;
 			const client = new TestCopilotClient([]);
 			let discovered = false;
 			let hostDecision: boolean | undefined;
