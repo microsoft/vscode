@@ -9,12 +9,17 @@ parameters:
     type: string
   - name: VSCODE_TEST_IDS
     type: object
+  # Whether this run's Linux x64 compile job publishes the compilation_linux_x64 artifact.
+  - name: VSCODE_LINUX_X64_COMPILATION_ARTIFACT
+    type: boolean
+    default: false
 
 # Each product test job tests the builds of the compilation artifact published
 # by the compile job (see product-build-win32.yml, which must set
-# VSCODE_RUN_TESTS) with the selected test IDs. Retrying a test job skips the
-# test tasks that already passed in an earlier attempt (see
-# ../common/test-checkpoints.md).
+# VSCODE_RUN_TESTS) with the selected test IDs. Failed unit, Agent Host E2E and
+# node.js integration tests are rerun, as in the pull request workflows.
+# Retrying a test job skips the test tasks that already passed in an earlier
+# attempt (see ../common/test-checkpoints.md).
 jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}_Test_${{ parameters.VSCODE_JOB_NAME }}
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}
@@ -65,3 +70,5 @@ jobs:
         parameters:
           VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+          VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT }}
+          VSCODE_RERUN_FAILED_TESTS: true

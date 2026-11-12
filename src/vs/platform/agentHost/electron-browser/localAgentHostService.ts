@@ -36,8 +36,10 @@ import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '..
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
+import { reviveConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
+import type { AgentProvider, AgentSandboxCertificateOperation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationPreparation } from '../common/agent.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -58,7 +60,6 @@ import {
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationApplyResult,
 	IAgentCustomizationInstallationRequest,
-	IAgentCustomizationInstallationReview,
 	IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult,
 	type IAgentExtensionInventory,
@@ -85,6 +86,7 @@ import {
 	IMcpNotification,
 	readAgentHostOTelPolicySettings,
 	type IAgentHostDebugLogsChunk,
+	type IAgentImportSessionOptions,
 } from '../common/agentService.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
@@ -92,6 +94,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/stat
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
 import { NonReconnectableTransportError } from '../common/state/sessionTransport.js';
+import type { IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
@@ -99,6 +102,20 @@ import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomat
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 
 const LOG_PREFIX = '[AgentHost:renderer]';
+
+/**
+ * Until a slowly starting host registers its protocol channel, each attempt fails after the
+ * host's one-second unknown-channel timeout. Retrying a local utility process is cheap, so retry
+ * every second rather than backing off to 30 seconds, which would leave the window disconnected
+ * long after the host is ready. A failed attempt takes about two seconds, so 75 attempts keep
+ * roughly the default policy's two-and-a-half-minute budget before reporting a failed start.
+ */
+const LOCAL_RECONNECT_POLICY: IRemoteAgentHostReconnectPolicy = {
+	autoRestore: true,
+	initialDelayMs: 1000,
+	maxDelayMs: 1000,
+	maxAttempts: 75,
+};
 
 function notifyOnFatalAgentHostStartError(notificationService: INotificationService): void {
 	notificationService.error(localize(
@@ -276,7 +293,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				AgentHostProtocolClient,
 				LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
 				() => this._createTransport(),
-				{ clientId: this.clientId, clientInfo: this._clientInfo },
+				{ clientId: this.clientId, clientInfo: this._clientInfo, reconnectPolicy: LOCAL_RECONNECT_POLICY },
 			));
 			this._register(this._protocolClient.registerMcpAuthenticationHandler(async request => this._mcpAuthenticationHandler?.(request) ?? false));
 			this._onDidAction.input = this._protocolClient.onDidAction;
@@ -529,6 +546,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly sandboxCertificateInstallationSupported = constObservable(true);
 	readonly sandboxCertificateRotationSupported = constObservable(true);
 	readonly sandboxCertificateRemovalSupported = constObservable(true);
+	readonly sandboxCertificateRefreshSupported = constObservable(true);
+
+	manageHostSandboxCertificate(provider: AgentProvider, operation: AgentSandboxCertificateOperation): Promise<void> {
+		return this._getManagementService().manageHostSandboxCertificate(provider, operation);
+	}
 
 	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
 		return this._getManagementService().installSandboxCertificate(chat, scopeId);
@@ -542,8 +564,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
 	}
 
-	importSession(session: URI): Promise<void> {
-		return this._requireClient().importSession(session);
+	refreshSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().refreshSandboxCertificate(chat, scopeId);
+	}
+
+	importSession(session: URI, options?: IAgentImportSessionOptions): Promise<URI | void> {
+		return this._requireClient().importSession(session, options);
 	}
 
 	dispatchBackgroundChatAction(chat: string, action: ArtifactChatAction): Promise<void> {
@@ -598,8 +624,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listPluginInstallations(provider, session, chat);
 	}
 
-	setPluginEnabled(provider: string, plugin: string, enabled: boolean): Promise<void> {
-		return this._getManagementService().setPluginEnabled(provider, plugin, enabled);
+	setPluginEnabled(provider: string, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+		return this._getManagementService().setPluginEnabled(provider, plugin, enabled, scope, session, chat);
 	}
 
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
@@ -658,12 +684,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listCustomizationInstallations(provider, session);
 	}
 
-	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationPreparation> {
 		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
 	}
 
-	applyCustomizationInstallation(provider: string, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
-		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
+	applyCustomizationInstallation(provider: string, request: IAgentCustomizationInstallationApplyRequest): Promise<IAgentCustomizationInstallationApplyResult | undefined> {
+		return this._getManagementService().applyCustomizationInstallation(provider, request);
 	}
 
 	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -692,6 +718,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult> {
 		return this._requireClient().runAutomation(params);
+	}
+
+	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[], requestId?: string): Promise<readonly string[]> {
+		return this._requireClient().deleteAutomation(resource, deleteHistory, legacySessions, requestId);
+	}
+
+	acknowledgeAutomationDeletion(requestId: string): Promise<void> {
+		return this._requireClient().acknowledgeAutomationDeletion(requestId);
 	}
 
 	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> {
@@ -765,12 +799,24 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().resourceResolve(params);
 	}
 
-	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
-		return this._requireClient().measureWorktreeDiskUsage(root, token);
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined> {
+		return this._requireClient().measureWorktreeDiskUsage(root, token, session);
 	}
 
-	sessionWorktreeCleanup(session: URI, retry: boolean) {
-		return this._requireClient().sessionWorktreeCleanup(session, retry);
+	prepareSessionWorktreeCleanup(session: URI): Promise<void> {
+		return this._requireClient().prepareSessionWorktreeCleanup(session);
+	}
+
+	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
+		return this._requireClient().sessionWorktreeCleanup(session, retry, force);
+	}
+
+	listManagedWorktrees(repositories: readonly URI[]) {
+		return this._requireClient().listManagedWorktrees(repositories);
+	}
+
+	cleanupManagedWorktree(repository: URI, worktree: URI, branch: string, force?: boolean) {
+		return this._requireClient().cleanupManagedWorktree(repository, worktree, branch, force);
 	}
 
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
@@ -832,8 +878,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		);
 	}
 
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		return this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		const result = await this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+		if (result) {
+			throw reviveConnectionDiagnosticError(result.error);
+		}
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {

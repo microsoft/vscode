@@ -138,6 +138,9 @@ const _allApiProposals = {
 	contribChatEditorInlineGutterMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribChatEditorInlineGutterMenu.d.ts',
 	},
+	contribChatResources: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribChatResources.d.ts',
+	},
 	contribCommentEditorActionsMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribCommentEditorActionsMenu.d.ts',
 	},
@@ -303,9 +306,6 @@ const _allApiProposals = {
 	fsChunks: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.fsChunks.d.ts',
 	},
-	github: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.github.d.ts',
-	},
 	inlineCompletionsAdditions: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.inlineCompletionsAdditions.d.ts',
 	},
@@ -398,6 +398,9 @@ const _allApiProposals = {
 	},
 	notebookVariableProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookVariableProvider.d.ts',
+	},
+	notificationTelemetry: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notificationTelemetry.d.ts',
 	},
 	portsAttributes: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.portsAttributes.d.ts',
@@ -521,9 +524,6 @@ const _allApiProposals = {
 	},
 	textSearchProvider2: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.textSearchProvider2.d.ts',
-	},
-	timeline: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.timeline.d.ts',
 	},
 	tokenInformation: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.tokenInformation.d.ts',

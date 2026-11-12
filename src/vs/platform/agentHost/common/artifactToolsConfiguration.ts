@@ -6,6 +6,7 @@
 import * as nls from '../../../nls.js';
 import { ArtifactIntegrationsSettingId } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../configuration/common/configurationRegistry.js';
+import product from '../../product/common/product.js';
 import { AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostGitHubArtifactIgnoredChecksConfigKey } from './agentHostSchema.js';
 import { ArtifactToolsSettingId } from './agentService.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from './githubPullRequestArtifact.js';
@@ -14,7 +15,7 @@ export const artifactToolsConfigurationProperties = {
 	[ArtifactIntegrationsSettingId]: {
 		type: 'boolean',
 		markdownDescription: nls.localize('chat.artifactIntegrations.enabled', "Enables live state, actions, and opt-in Autopilot for recorded artifacts, including extension integrations. While enabled, Agent Merge is unavailable regardless of `#chat.agentMerge.enabled#`. Switching stops the previous system's automation without clearing saved choices or history. Previously enabled rules can resume when switching back. This does not enable new Autopilot rules or change ordinary artifact recording (`#chat.artifactTools.enabled#`)."),
-		default: false,
+		default: product.quality === 'insider',
 		scope: ConfigurationScope.APPLICATION,
 		tags: ['experimental'],
 		agentHost: { key: AgentHostArtifactIntegrationsConfigKey },
@@ -34,7 +35,7 @@ export const artifactToolsConfigurationProperties = {
 		default: [],
 		scope: ConfigurationScope.RESOURCE,
 		tags: ['experimental', 'advanced'],
-		markdownDescription: nls.localize('prArtifact.ignoredChecks.setting', "Check names that do not need to pass before **Automatically Mark Ready** runs for a pull request artifact. Matching is case-sensitive; `*` matches any text, and other characters are literal. These checks remain visible, are still repaired by **Fix CI**, and must still pass for automatic merging. This setting does not enable automation."),
+		markdownDescription: nls.localize('prArtifact.ignoredChecks.setting', "Check names that do not need to pass before a draft pull request counts as ready for review: before **Automatically Mark Ready** runs for a pull request artifact, and before Agent Merge offers **Mark Ready**. Matching is case-sensitive; `*` matches any text, and other characters are literal. These checks remain visible, are still repaired when required, and must still pass for automatic merging. This setting does not enable automation."),
 		agentHost: { key: AgentHostGitHubArtifactIgnoredChecksConfigKey },
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;

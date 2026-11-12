@@ -8,8 +8,9 @@ import { createHash } from 'crypto';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { appendGeneratedImagePaths, getGeneratedImageFileName, getGeneratedImages, saveGeneratedImages } from '../../node/copilot/copilotGeneratedImages.js';
 
@@ -35,8 +36,7 @@ suite('Copilot generated images', () => {
 	const savedPath = URI.joinPath(sessionDirectory, 'images', GENERATED_PNG_FILE_NAME);
 
 	function createFileService(): FileService {
-		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
 		return fileService;
 	}
 

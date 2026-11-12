@@ -26,6 +26,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel
 import { getChatSessionType, isUntitledChatSession } from '../common/model/chatUri.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
+import { parseForkPromptArgument } from './actions/chatForkActions.js';
 import { ManagePluginsAction } from './actions/chatPluginActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
@@ -243,26 +244,22 @@ export class ChatSlashCommandsContribution extends Disposable {
 			const input = executionContext?.input ?? `/fork${prompt ? ` ${prompt}` : ''}`;
 			const commandEnd = input.indexOf('/fork') + '/fork'.length;
 			const afterCommand = input.slice(commandEnd);
-			const tokenMatch = /^(\s*)prompt(?=\s|$)/.exec(afterCommand);
 			const isAgentHostSession = isAgentHostTarget(getChatSessionType(sessionResource));
-			if (isAgentHostSession && tokenMatch) {
-				const afterToken = afterCommand.slice(tokenMatch[0].length);
-				if (afterToken.trim().length > 0) {
-					// Drop only the token separator. The remainder, including
-					// internal newlines and whitespace, is user-authored prompt text.
-					const separatorLength = /^\s/.test(afterToken) ? 1 : 0;
-					const textOffset = commandEnd + tokenMatch[0].length + separatorLength;
-					const text = afterToken.slice(separatorLength);
+			const forkPrompt = isAgentHostSession ? parseForkPromptArgument(afterCommand) : undefined;
+			if (forkPrompt) {
+				if (forkPrompt.text) {
 					await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, {
 						initialMessage: {
-							text,
-							textOffset,
+							text: forkPrompt.text,
+							textOffset: commandEnd + forkPrompt.offset,
 							requestOptions: options ? {
 								attachedContext: options.attachedContext,
 								resolvedVariables: options.resolvedVariables,
 							} : undefined,
 						},
 					});
+					// The submitting widget clears this draft once the fork
+					// succeeds; see `captureForkPromptSourceInput`.
 					return { followUp: [], preserveInput: true };
 				}
 				// `prompt` is reserved, but an empty prompt is intentionally the

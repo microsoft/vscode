@@ -85,12 +85,33 @@ export interface IArtifactChatAccess {
 
 export type ArtifactAuthorization = { readonly kind: 'allowed' } | { readonly kind: 'blocked'; readonly reason: string };
 
+/** A change of one automation rule, described for a chat notice. */
+export interface ArtifactAutomationNoticeChange {
+	readonly integrationId: string;
+	readonly optionId: string;
+	readonly label: string;
+	readonly kind: 'enabled' | 'changed' | 'disabled';
+	/** Plain-text paragraphs that explain the new state of the rule. */
+	readonly details: readonly string[];
+}
+
+/** Labels of the rules of one artifact integration that remain enabled. */
+export interface ArtifactAutomationEnabledRules {
+	readonly integrationId: string;
+	readonly labels: readonly string[];
+}
+
 export interface ArtifactAutomationNotice {
 	readonly session: string;
 	readonly artifact: ArtifactRecord;
 	readonly kind: 'enabled' | 'changed' | 'disabled';
+	/** Rendered text, used as is only when the notice carries no `changes`. */
 	readonly content: string;
 	readonly iconId?: string;
+	/** The rule changes of the notice. Only notices that carry them are rendered from them and merged with later changes. */
+	readonly changes?: readonly ArtifactAutomationNoticeChange[];
+	/** The enabled rules of each integration that `changes` belong to, after the changes. */
+	readonly enabledRules?: readonly ArtifactAutomationEnabledRules[];
 }
 
 /** The composition must hold exclusive ownership of this authority's store until disposal. */

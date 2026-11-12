@@ -21,14 +21,20 @@ import { EditorInputCapabilities, GroupIdentifier, IMoveResult, ISaveOptions, IU
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ICustomEditorCompatibleInput } from '../../customEditor/common/customEditor.js';
 import { IOverlayWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { asWebviewUri, webviewGenericCspSource } from '../../webview/common/webview.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { IMediaInfo, IMediaTrack, readMediaInfo } from '../common/mediaCodecs.js';
 import { AUDIO_PREVIEW_EDITOR_ID, isGitLfsPointer, VIDEO_PREVIEW_AUTO_PLAY_SETTING, VIDEO_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_LOOP_SETTING } from '../common/mediaPreview.js';
 import { reopenInTextEditor } from './mediaPreviewErrors.js';
 import { saveMediaFileAs } from './mediaPreviewSaveAs.js';
 
 export type MediaPlayerKind = 'audio' | 'video';
+
+// Bounds the memory that playing a WebM file through Media Source Extensions may use, which only
+// happens after normal playback failed
+const maxMediaSourceSize = 200 * 1024 * 1024;
 
 export function isMediaPlayerKind(value: unknown): value is MediaPlayerKind {
 	return value === 'audio' || value === 'video';
@@ -44,7 +50,7 @@ function getMediaPlayerEditorId(kind: MediaPlayerKind): string {
  * {@link WebviewEditor}, which keeps the webview alive while the editor is hidden so playback
  * isn't interrupted.
  */
-export class MediaPlayerEditorInput extends WebviewInput {
+export class MediaPlayerEditorInput extends WebviewInput implements ICustomEditorCompatibleInput {
 
 	static override readonly typeId = 'workbench.input.mediaPlayer';
 
@@ -70,6 +76,7 @@ export class MediaPlayerEditorInput extends WebviewInput {
 
 	private _fileSize: number | undefined;
 	private _rendered: Promise<void> | undefined;
+	private _mediaInfo: Promise<IMediaInfo | undefined> = Promise.resolve(undefined);
 
 	private readonly _onDidChangeFileSize = this._register(new Emitter<void>());
 	readonly onDidChangeFileSize = this._onDidChangeFileSize.event;
@@ -91,6 +98,10 @@ export class MediaPlayerEditorInput extends WebviewInput {
 		this._register(webview.onMessage(e => {
 			if (e.message?.type === 'reopen-as-text') {
 				void reopenInTextEditor(this, this._editorService);
+			} else if (e.message?.type === 'get-audio-codecs') {
+				void this._postAudioCodecs();
+			} else if (e.message?.type === 'get-webm-type') {
+				void this._postWebmType();
 			}
 		}));
 	}
@@ -101,6 +112,10 @@ export class MediaPlayerEditorInput extends WebviewInput {
 
 	override get resource(): URI {
 		return this._resource;
+	}
+
+	get customEditorViewType(): string {
+		return this.viewType;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -202,8 +217,62 @@ export class MediaPlayerEditorInput extends WebviewInput {
 			return;
 		}
 
+		// Read the codecs while the webview loads, since reading them can be slow for remote files
+		this._mediaInfo = isGitLfs ? Promise.resolve(undefined) : readMediaInfo(this._fileService, this._resource);
 		this.webview.setHtml(this._getHtml(isGitLfs));
 		void this._updateFileSize();
+	}
+
+	/**
+	 * Sends the audio codecs of the file to the webview, which warns if it can't play any of them.
+	 * The webview requests them whenever its content loads, so the warning survives the webview
+	 * being recreated, such as when the editor moves to another window.
+	 */
+	private async _postAudioCodecs(): Promise<void> {
+		const mediaInfo = this._mediaInfo;
+		const info = await mediaInfo;
+		const audioTracks = info?.tracks.filter(track => track.kind === 'audio') ?? [];
+		// The webview of a newer render requests its own codecs
+		if (!info || !audioTracks.length || this.isDisposed() || mediaInfo !== this._mediaInfo) {
+			return;
+		}
+
+		void this.webview.postMessage({
+			type: 'audio-codecs',
+			mimeTypes: audioTracks.map(track => `audio/${info.container}; codecs="${track.codec}"`),
+			warning: this._getUnsupportedCodecWarning(audioTracks[0]),
+		});
+	}
+
+	/**
+	 * Sends the type of a WebM file, with the codecs of all its tracks, to the webview, which needs
+	 * it to play the file through Media Source Extensions if it can't be played directly.
+	 */
+	private async _postWebmType(): Promise<void> {
+		const mediaInfo = this._mediaInfo;
+		// Media Source Extensions need the whole file anyway, so it may also be read as a whole to
+		// find the codecs of files that are too large otherwise
+		const info = await mediaInfo ?? await readMediaInfo(this._fileService, this._resource, maxMediaSourceSize);
+		if (this.isDisposed() || mediaInfo !== this._mediaInfo) {
+			return;
+		}
+
+		const codecs = info?.container === 'webm' ? [...new Set(info.tracks.map(track => track.codec))] : [];
+		void this.webview.postMessage({
+			type: 'webm-type',
+			mimeType: codecs.length ? `video/webm; codecs="${codecs.join(',')}"` : undefined,
+		});
+	}
+
+	private _getUnsupportedCodecWarning(track: IMediaTrack): string {
+		if (this.kind === 'audio') {
+			return track.name
+				? localize('audioPreview.unsupportedCodec', "This audio file uses the {0} codec, which can't be played in the audio preview. Open the file in an external application to listen to it.", track.name)
+				: localize('audioPreview.unsupportedUnknownCodec', "This audio file uses a codec that can't be played in the audio preview. Open the file in an external application to listen to it.");
+		}
+		return track.name
+			? localize('videoPreview.unsupportedAudioCodec', "This video's audio uses the {0} codec, which can't be played in the video preview. Open the file in an external application to hear its audio.", track.name)
+			: localize('videoPreview.unsupportedUnknownAudioCodec', "This video's audio uses a codec that can't be played in the video preview. Open the file in an external application to hear its audio.");
 	}
 
 	private async _updateFileSize(): Promise<void> {
@@ -262,6 +331,7 @@ export class MediaPlayerEditorInput extends WebviewInput {
 			box-sizing: border-box;
 			padding: 5px 10px;
 			display: flex;
+			flex-direction: column;
 			justify-content: center;
 			align-items: center;
 			text-align: center;
@@ -271,6 +341,17 @@ export class MediaPlayerEditorInput extends WebviewInput {
 		video {
 			max-width: 100%;
 			max-height: 100%;
+			min-height: 0;
+		}
+		.codec-warning:not(:empty) {
+			flex-shrink: 0;
+			max-width: 600px;
+			margin-bottom: var(--vscode-spacing-size80);
+			padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+			border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-warningBorder);
+			border-radius: var(--vscode-cornerRadius-small);
+			color: var(--vscode-inputValidation-warningForeground);
+			background-color: var(--vscode-inputValidation-warningBackground);
 		}
 		.load-error {
 			display: none;
@@ -282,12 +363,17 @@ export class MediaPlayerEditorInput extends WebviewInput {
 		body.error .load-error {
 			display: block;
 		}
+		/* An audio file without a playable codec fails to load, which the codec warning already explains */
+		body.error.unsupported-codec:has(audio) .load-error-message {
+			display: none;
+		}
 	</style>
 </head>
 <body${isGitLfs ? ' class="error"' : ''} data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
+	<div class="codec-warning" role="status"></div>
 	${media}
 	<div class="load-error">
-		<p>${escape(errorMessage)}</p>
+		<p class="load-error-message">${escape(errorMessage)}</p>
 		<a href="#" class="open-in-text-editor">${escape(openInTextEditor)}</a>
 	</div>
 	<script nonce="${nonce}">
@@ -296,19 +382,29 @@ export class MediaPlayerEditorInput extends WebviewInput {
 			const media = document.querySelector('audio, video');
 			const showError = () => document.body.classList.add('error');
 
+			// Browsers silently drop audio tracks they can't decode, so warn about them instead of
+			// letting the file seem broken
+			const checkAudioCodecs = ({ mimeTypes, warning }) => {
+				if (!media) {
+					return;
+				}
+				const canPlay = type => media.canPlayType(type) !== '' || (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported(type));
+				if (!mimeTypes.some(canPlay)) {
+					document.querySelector('.codec-warning').textContent = warning;
+					document.body.classList.add('unsupported-codec');
+				}
+			};
+
 			// Some Electron builds ship an FFmpeg without the WebM container, so a WebM file
 			// cannot be opened directly. Media Source Extensions parse WebM in Chromium itself.
 			// Remove this fallback once the shipped FFmpeg supports WebM:
 			// https://github.com/microsoft/vscode/issues/195758
-			const webmCodecs = { V_VP8: 'vp8', V_VP9: 'vp9', V_AV1: 'av01.0.08M.08', A_OPUS: 'opus', A_VORBIS: 'vorbis' };
-			// Bounds the memory the fallback may use; this limit only applies after normal playback failed
-			const maxWebmBytes = 200 * 1024 * 1024;
-			const isWebm = bytes => bytes.length >= 4 && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
-			const getWebmType = bytes => {
-				const header = Array.from(bytes.subarray(0, 65536), byte => String.fromCharCode(byte)).join('');
-				const codecs = Object.keys(webmCodecs).filter(id => header.includes(id)).map(id => webmCodecs[id]);
-				return codecs.length ? 'video/webm; codecs="' + codecs.join(',') + '"' : undefined;
-			};
+			const maxMediaSourceBytes = ${maxMediaSourceSize};
+			let resolveWebmType;
+			const getWebmType = () => new Promise(resolve => {
+				resolveWebmType = resolve;
+				vscode.postMessage({ type: 'get-webm-type' });
+			});
 			const concat = (chunks, size) => {
 				const bytes = new Uint8Array(size);
 				let offset = 0;
@@ -318,19 +414,18 @@ export class MediaPlayerEditorInput extends WebviewInput {
 				}
 				return bytes;
 			};
-			// Streams the file so that other formats and oversized files are rejected without reading them completely
-			const readWebm = async url => {
+			// Streams the file so that oversized files are rejected without reading them completely
+			const readMedia = async url => {
 				const response = await fetch(url);
 				if (!response.ok || !response.body) {
 					throw new Error('Failed to load media: ' + response.status);
 				}
-				if (Number(response.headers.get('Content-Length')) > maxWebmBytes) {
+				if (Number(response.headers.get('Content-Length')) > maxMediaSourceBytes) {
 					throw new Error('Media too large');
 				}
 				const reader = response.body.getReader();
 				const chunks = [];
 				let size = 0;
-				let checkedSignature = false;
 				try {
 					while (true) {
 						const { done, value } = await reader.read();
@@ -339,30 +434,22 @@ export class MediaPlayerEditorInput extends WebviewInput {
 						}
 						chunks.push(value);
 						size += value.length;
-						if (size > maxWebmBytes) {
+						if (size > maxMediaSourceBytes) {
 							throw new Error('Media too large');
-						}
-						if (!checkedSignature && size >= 4) {
-							checkedSignature = true;
-							if (!isWebm(concat(chunks, size))) {
-								throw new Error('Unsupported media');
-							}
 						}
 					}
 				} finally {
 					reader.cancel().catch(() => { });
 				}
-				if (!checkedSignature) {
-					throw new Error('Unsupported media');
-				}
 				return concat(chunks, size);
 			};
 			const playWithMediaSource = async video => {
-				const bytes = await readWebm(video.currentSrc || video.src);
-				const type = getWebmType(bytes);
+				// Get the type first, so that other formats are rejected without reading them
+				const type = await getWebmType();
 				if (!type || typeof MediaSource === 'undefined' || !MediaSource.isTypeSupported(type)) {
 					throw new Error('Unsupported media');
 				}
+				const bytes = await readMedia(video.currentSrc || video.src);
 				const source = new MediaSource();
 				const url = URL.createObjectURL(source);
 				const opened = new Promise(resolve => source.addEventListener('sourceopen', resolve, { once: true }));
@@ -377,6 +464,15 @@ export class MediaPlayerEditorInput extends WebviewInput {
 				});
 				source.endOfStream();
 			};
+
+			window.addEventListener('message', e => {
+				if (e.data?.type === 'audio-codecs') {
+					checkAudioCodecs(e.data);
+				} else if (e.data?.type === 'webm-type') {
+					resolveWebmType?.(e.data.mimeType);
+				}
+			});
+			vscode.postMessage({ type: 'get-audio-codecs' });
 
 			let triedMediaSource = false;
 			media?.addEventListener('error', () => {

@@ -215,6 +215,11 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**
+	 * When true, a docked DevTools panel is included in the capture of the whole view.
+	 * Only meant for UI placeholders: DevTools content must not reach agents or other consumers.
+	 */
+	includeDevTools?: boolean;
+	/**
 	 * When true, capture the full scrollable document, not just the visible viewport.
 	 * Ignored when `screenRect` or `pageRect` is set.
 	 */
@@ -277,9 +282,12 @@ export const enum BrowserViewPresentation {
 	Unlisted = 'unlisted',
 }
 
-export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
+export function getBrowserViewPopupAction(presentation: BrowserViewPresentation, url: string, hasRecentUserGesture: boolean, remoteNetwork = false): { action: 'integrated' | 'external' | 'deny'; consumeUserGesture: boolean } {
 	if (presentation === BrowserViewPresentation.Listed) {
 		return { action: 'integrated', consumeUserGesture: false };
+	}
+	if (remoteNetwork) {
+		return { action: 'deny', consumeUserGesture: hasRecentUserGesture };
 	}
 	if (hasRecentUserGesture && matchesSomeScheme(url, Schemas.http, Schemas.https)) {
 		return { action: 'external', consumeUserGesture: true };
@@ -503,6 +511,11 @@ export type IBrowserViewSessionOptions =
 /** The remote network requested by session options; global storage never uses one. */
 export function getBrowserViewSessionNetwork(options: IBrowserViewSessionOptions): IBrowserViewNetwork | undefined {
 	return options.scope !== BrowserViewStorageScope.Global ? options.network : undefined;
+}
+
+/** The affinity requested by session options; only workspace and agent storage use one, and options without a scope keep theirs. */
+export function getBrowserViewSessionAffinity(options: { readonly scope?: BrowserViewStorageScope; readonly affinity?: string }): string | undefined {
+	return options.scope === BrowserViewStorageScope.Global || options.scope === BrowserViewStorageScope.Ephemeral ? undefined : options.affinity;
 }
 
 /** Keep only the network and affinity supported by the storage scope. */

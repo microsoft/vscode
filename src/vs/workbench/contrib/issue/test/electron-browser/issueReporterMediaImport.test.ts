@@ -52,6 +52,7 @@ import { resolveIssueReporterTarget } from '../../common/issueReporterTarget.js'
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 interface INativeResourceAccess {
 	status: number;
@@ -939,6 +940,7 @@ suite('Issue reporter media import lifecycle', () => {
 		const frame = document.createElement('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		frame.contentDocument!.body.appendChild(first.container);
 		const moved = { text: first.editor.value, selection: [first.editor.selectionStart, first.editor.selectionEnd], document: first.editor.ownerDocument === frame.contentDocument };
 		first.pane.dispose();
@@ -1115,11 +1117,11 @@ suite('Issue reporter media import lifecycle', () => {
 		file.readGate = new DeferredPromise<void>();
 		pane.getWizard()!['requestAddAttachments']([file]);
 		await file.reading.p;
-		const pending = { crossGroup: typeof input.canMove(1, 2), sameGroup: input.canMove(1, 1) };
+		const pending = { crossGroup: typeof input.canMove(1, 2), sameGroup: input.canMove(1, 1), newWindow: typeof input.canMoveToNewWindow(1) };
 		await file.readGate.complete();
 		await pane.waitForImports();
-		assert.deepStrictEqual({ pending, completed: input.canMove(1, 2), files: savedFiles(input)?.length }, {
-			pending: { crossGroup: 'string', sameGroup: true }, completed: true, files: 1,
+		assert.deepStrictEqual({ pending, completed: input.canMove(1, 2), completedNewWindow: input.canMoveToNewWindow(1), files: savedFiles(input)?.length }, {
+			pending: { crossGroup: 'string', sameGroup: true, newWindow: 'string' }, completed: true, completedNewWindow: true, files: 1,
 		});
 	});
 

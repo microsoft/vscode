@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,10 +21,12 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { FileChangesEvent, FileChangeType, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IOverlayWebview } from '../../../webview/browser/webview.js';
+import { IOverlayWebview, WebviewMessageReceivedEvent } from '../../../webview/browser/webview.js';
+import { isCustomEditorCompatibleInput } from '../../../customEditor/common/customEditor.js';
 import { AUDIO_PREVIEW_EDITOR_ID, IMAGE_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID } from '../../common/mediaPreview.js';
 import { ImagePreviewEditorInput } from '../../browser/imagePreviewEditorInput.js';
 import { MediaPlayerEditorInput, MediaPlayerKind } from '../../browser/mediaPlayerEditorInput.js';
+import { uint16LE, wav, webm } from '../common/mediaTestFiles.js';
 
 suite('Media Preview - ImagePreviewEditorInput', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,6 +44,7 @@ suite('Media Preview - ImagePreviewEditorInput', () => {
 		assert.deepStrictEqual({
 			typeId: input.typeId,
 			editorId: input.editorId,
+			customEditorViewType: isCustomEditorCompatibleInput(input) ? input.customEditorViewType : undefined,
 			name: input.getName(),
 			readonly: input.hasCapability(EditorInputCapabilities.Readonly),
 			canDropIntoEditor: input.hasCapability(EditorInputCapabilities.CanDropIntoEditor),
@@ -53,6 +56,7 @@ suite('Media Preview - ImagePreviewEditorInput', () => {
 		}, {
 			typeId: ImagePreviewEditorInput.ID,
 			editorId: IMAGE_PREVIEW_EDITOR_ID,
+			customEditorViewType: IMAGE_PREVIEW_EDITOR_ID,
 			name: 'logo.png',
 			readonly: true,
 			canDropIntoEditor: false,
@@ -95,6 +99,7 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		assert.deepStrictEqual({
 			typeIds: [audio.typeId, video.typeId],
 			editorIds: [audio.editorId, video.editorId],
+			customEditorViewTypes: [audio, video].map(input => isCustomEditorCompatibleInput(input) ? input.customEditorViewType : undefined),
 			name: audio.getName(),
 			readonly: audio.hasCapability(EditorInputCapabilities.Readonly),
 			singleton: audio.hasCapability(EditorInputCapabilities.Singleton),
@@ -106,6 +111,7 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		}, {
 			typeIds: [MediaPlayerEditorInput.typeId, MediaPlayerEditorInput.typeId],
 			editorIds: [AUDIO_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID],
+			customEditorViewTypes: [AUDIO_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID],
 			name: 'song.mp3',
 			readonly: true,
 			singleton: false,
@@ -163,6 +169,55 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 			showsLfsMessage: html.includes('The video file is stored with Git LFS and is not available for preview.'),
 			hasVideo: html.includes('<video'),
 		}, { showsError: true, showsLfsMessage: true, hasVideo: false });
+	});
+
+	async function createMediaPlayer(disposables: DisposableStore, kind: MediaPlayerKind, resource: URI, content: number[], reportedSize = content.length) {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const buffer = VSBuffer.fromByteArray(content);
+		const fileService = instantiationService.get(IFileService);
+		fileService.stat = async resource => ({ resource, size: reportedSize } as IFileStatWithMetadata);
+		fileService.readFile = async resource => ({ resource, value: buffer, size: buffer.byteLength } as IFileContent);
+
+		const webview = { html: '', onMessage: disposables.add(new Emitter<WebviewMessageReceivedEvent>()), message: new DeferredPromise<unknown>() };
+		const input = disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, kind, resource, new class extends mock<IOverlayWebview>() {
+			override readonly onMessage = webview.onMessage.event;
+			override setHtml(value: string) { webview.html = value; }
+			override async postMessage(value: unknown) {
+				webview.message.complete(value);
+				return true;
+			}
+			override dispose() { }
+		}));
+		await input.resolve();
+		return webview;
+	}
+
+	test('sends the audio codecs to the webview on request, which warns if it cannot play them', async () => {
+		const disposables = store.add(new DisposableStore());
+		// A WAV file with GSM 6.10 audio
+		const webview = await createMediaPlayer(disposables, 'audio', URI.file('/media/voice.wav'), wav(uint16LE(0x0031)));
+		webview.onMessage.fire({ message: { type: 'get-audio-codecs' } });
+
+		assert.deepStrictEqual({
+			hasWarningRegion: webview.html.includes('<div class="codec-warning" role="status"></div>'),
+			message: await webview.message.p,
+		}, {
+			hasWarningRegion: true,
+			message: {
+				type: 'audio-codecs',
+				mimeTypes: ['audio/wav; codecs="49"'],
+				warning: 'This audio file uses the GSM 6.10 codec, which can\'t be played in the audio preview. Open the file in an external application to listen to it.',
+			},
+		});
+	});
+
+	test('sends the type of a WebM file to the webview on request, which needs it to play the file through Media Source Extensions', async () => {
+		const disposables = store.add(new DisposableStore());
+		// The file is too large to be read as a whole for the codec warning, but not for playback
+		const webview = await createMediaPlayer(disposables, 'video', URI.file('/media/clip.webm'), webm([1, 'V_VP9'], [2, 'A_OPUS'], [2, 'A_OPUS']), 100 * 1024 * 1024);
+		webview.onMessage.fire({ message: { type: 'get-webm-type' } });
+
+		assert.deepStrictEqual(await webview.message.p, { type: 'webm-type', mimeType: 'video/webm; codecs="vp9,opus"' });
 	});
 });
 

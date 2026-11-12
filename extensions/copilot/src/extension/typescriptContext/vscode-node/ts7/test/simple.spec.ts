@@ -6,7 +6,7 @@
 import assert from 'node:assert';
 import path from 'node:path';
 
-import { API } from '@typescript/native/unstable/async';
+import { API } from '@typescript/native/async';
 import { version } from '@typescript/native';
 import type * as vscode from 'vscode';
 import { afterAll, beforeAll, suite, test } from 'vitest';
@@ -100,9 +100,9 @@ suite('TypeScript 7 context engine', () => {
 		const projectDirectory = path.join(fixtures, projectName);
 		const configFile = path.join(projectDirectory, 'tsconfig.json');
 		const fileName = path.join(projectDirectory, relativeFile);
-		const snapshot = await api.updateSnapshot({ openProjects: [configFile] });
+		const snapshot = await api.createSnapshot({ openProjects: [configFile] });
 		try {
-			const project = snapshot.getProject(configFile) ?? await snapshot.getDefaultProjectForFile(fileName);
+			const project = snapshot.getConfiguredProject(configFile) ?? await snapshot.getDefaultProjectForFile(fileName);
 			assert.ok(project !== undefined, `No project for ${fileName}`);
 			const sourceFile = await project.program.getSourceFile(fileName);
 			assert.ok(sourceFile !== undefined, `No source file for ${fileName}`);

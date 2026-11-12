@@ -32,15 +32,17 @@ import { chartsBlue, chartsForeground, chartsGreen, chartsOrange, chartsPurple, 
 import { ChatPillsRow, ChatPillsWidget, IChatPillEntry, withChatPillHoverLabel } from '../../../../../workbench/browser/chatPills.js';
 import '../../../../../workbench/browser/media/style.css';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ArtifactIntegrationPresentation } from '../../browser/artifactIntegrationPresentation.js';
-import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../browser/artifactIntegrationGroup.js';
-import { ArtifactDetailsContextView } from '../../browser/artifactDetailsContextView.js';
+import { ArtifactIntegrationPresentation } from '../../../../../workbench/contrib/sessions/browser/chat/artifactIntegrationPresentation.js';
+import { ArtifactIntegrationGroup, IArtifactIntegrationGroupMember } from '../../../../../workbench/contrib/sessions/browser/chat/artifactIntegrationGroup.js';
+import { ArtifactDetailsContextView } from '../../../../../workbench/contrib/sessions/browser/chat/artifactDetailsContextView.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatRequestViewModel, IChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const observedAt = Date.UTC(2026, 0, 12, 9);
 const chat = 'fixture-chat';
@@ -288,7 +290,6 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 	const details: Record<string, ArtifactDetails> = {
 		overview: {
 			availability, title: 'Preserve keyboard focus between chats',
-			description: 'Keep the focused control stable when a session receives new activity. This change preserves the selected artifact, list position, and keyboard destination while background checks complete.\n\nThe details panel shares the composer width and leaves the conversation and draft in place. It also restores focus after dismissal and supports narrow windows.',
 			facts: [{ id: 'branches', label: 'Branches', value: 'fix/chat-focus into main' }],
 			links: [], items: [], completeness: 'complete',
 		},
@@ -480,7 +481,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	caption.style.fontSize = 'var(--vscode-fontSize-body2)';
 	const previewOperation = (label: string) => { caption.textContent = `Preview only: ${label}`; };
 	const activityChat = URI.parse('artifact-demo:/chat');
-	const activeSession = new class extends mock<IActiveSession>() {
+	const activeSession = new class extends mock<ITestSessionWithChat>() {
 		override readonly activeChat = constObservable(new class extends mock<IChat>() { override readonly resource = activityChat; }());
 	}();
 	const activityWidget = new class extends mock<IChatWidget>() {
@@ -540,7 +541,7 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 				}
 			}());
 			registration.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = constObservable(activeSession);
+				readonly activeSession = constObservable(activeSession);
 				override async openChat(_session: ISession, _resource: URI): Promise<void> { }
 			}());
 			registration.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
@@ -565,6 +566,8 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 			}());
 		},
 	});
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable(activeSession) });
+	instantiationService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(activeSession)));
 	const input = append(container, $('div'));
 	input.style.cssText = 'position:absolute;bottom:24px;left:16px;right:16px;height:100px;box-sizing:border-box;padding:12px;border:1px solid var(--vscode-input-border);border-radius:var(--vscode-cornerRadius-large);background:var(--vscode-input-background);color:var(--vscode-descriptionForeground);';
 	input.textContent = 'Ask a question or describe what to build';

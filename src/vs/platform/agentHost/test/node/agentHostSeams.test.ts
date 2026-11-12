@@ -7,7 +7,6 @@ import assert from 'assert';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from '../../../../base/common/path.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -43,7 +42,7 @@ import type { IAgentHostCredentialSource } from '../../common/agentHostCredentia
 
 suite('Agent Host provider seams', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilot', 'seam-session');
 	const sessionKey = session.toString();
 	const defaultChat = URI.parse(buildDefaultChatUri(sessionKey));
@@ -82,8 +81,6 @@ suite('Agent Host provider seams', () => {
 		authenticationService = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- Exhaustive origin + customizations on every context ---------------
 
@@ -504,6 +501,19 @@ suite('Agent Host provider seams', () => {
 	// ---- Narrow session-title signal ----------------------------------------
 
 	suite('AgentHostSessionTitleSignal', () => {
+
+		test('reads current titles and listed titles without restoring a session', () => {
+			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
+			const session = URI.parse(sessionKey);
+			const titles = [signal.getSessionTitle(session)];
+			manager.prepareSessionSummariesForListing([{ ...summary(), title: 'Listed' }]);
+			titles.push(signal.getSessionTitle(session));
+			manager.createSession({ ...summary(), title: 'Loaded' });
+			titles.push(signal.getSessionTitle(session));
+			manager.dispatchServerAction(sessionKey, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+			titles.push(signal.getSessionTitle(session));
+			assert.deepStrictEqual(titles, [undefined, 'Listed', 'Loaded', 'Renamed']);
+		});
 
 		test('centralizes the provider filter and conversation-id derivation', () => {
 			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));

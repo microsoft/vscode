@@ -41,7 +41,7 @@ import { UriIdentityService } from '../../../../../platform/uriIdentity/common/u
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IRemoteAgentConnection, IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
-import { SashGrippersController } from '../../../sash/browser/sash.js';
+import { SASH_GRIPPERS_HIDDEN_ATTRIBUTE, SashGrippersController } from '../../../sash/browser/sash.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { WebviewElement } from '../../browser/webviewElement.js';
 import { FromWebviewMessage, ToWebviewMessage } from '../../browser/webviewMessages.js';
@@ -53,12 +53,17 @@ suite('WebviewElement', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow) {
+	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow, hashParentOrigin?: (parentOrigin: string, defaultHash: () => Promise<string>) => Promise<string>) {
 		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
 			public override get element(): HTMLIFrameElement | undefined { return super.element; }
 
 			protected override get platform(): string { return platform; }
+
+			protected override hashParentOrigin(parentOrigin: string): Promise<string> {
+				const defaultHash = () => super.hashParentOrigin(parentOrigin);
+				return hashParentOrigin ? hashParentOrigin(parentOrigin, defaultHash) : defaultHash();
+			}
 
 			protected override webviewContentEndpoint(encodedWebviewOrigin: string): string {
 				const origin = `https://${encodedWebviewOrigin}.invalid`;
@@ -128,7 +133,7 @@ suite('WebviewElement', () => {
 		}
 		channel.port2.start();
 		return {
-			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent,
+			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent, setSource,
 			remount: async () => {
 				initialized = new DeferredPromise<string>();
 				webview.reinitializeAfterDismount();
@@ -221,7 +226,7 @@ suite('WebviewElement', () => {
 			containers: [main.container, auxiliary.container],
 			onDidAddContainer: Event.None,
 		})));
-		const hidden = () => [main.container, auxiliary.container].map(container => container.classList.contains('sash-grippers-hidden'));
+		const hidden = () => [main.container, auxiliary.container].map(container => container.hasAttribute(SASH_GRIPPERS_HIDDEN_ATTRIBUTE));
 		await timeout(120);
 		const idle = hidden();
 		await sendMouseMove(main.webview, main.port);
@@ -328,6 +333,30 @@ suite('WebviewElement', () => {
 			});
 		}
 	}
+
+	test('ignores an earlier mount whose origin hash finishes after a remount', async () => {
+		const firstHash = new DeferredPromise<string>();
+		let delayFirstHash = false;
+		const { webview, container, setSource } = await createWebview(undefined, 'browser', false, mainWindow, (_origin, defaultHash) => {
+			if (delayFirstHash) {
+				delayFirstHash = false;
+				return firstHash.p;
+			}
+			return defaultHash();
+		});
+		delayFirstHash = true;
+		const before = setSource.callCount;
+
+		webview.mountTo(container, mainWindow);
+		webview.mountTo(container, mainWindow);
+		await timeout(0);
+		const afterSecondMount = setSource.callCount - before;
+		firstHash.complete('stale-origin');
+		await firstHash.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterSecondMount, afterStaleCompletion: setSource.callCount - before }, { afterSecondMount: 1, afterStaleCompletion: 1 });
+	});
 
 	test('remount rejects the old handshake and key token', async () => {
 		const { webview, frame, createReadyEvent, remount } = await createWebview();

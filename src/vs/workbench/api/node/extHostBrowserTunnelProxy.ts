@@ -6,18 +6,21 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { ISocket } from '../../../base/parts/ipc/common/ipc.net.js';
-import { localize } from '../../../nls.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IAddress, IAddressProvider, IConnectionOptions, connectRemoteAgentTunnel } from '../../../platform/remote/common/remoteAgentConnection.js';
 import { IRemoteConnectionData, RemoteConnectionType } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteSocketFactoryService } from '../../../platform/remote/common/remoteSocketFactoryService.js';
 import { nodeSocketFactory } from '../../../platform/remote/node/nodeSocketFactory.js';
+import { agentHostTcpMaxConnections } from '../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { ITunnelConnectFn, TunnelProxy } from '../../../platform/tunnel/node/tunnelProxy.js';
+import { createTunnelStream, ITunnelStream, takeRemoteTunnelStream } from '../../../platform/tunnel/node/tunnelStream.js';
 import { ITunnelProxyInfo } from '../../../platform/tunnel/common/tunnelProxy.js';
+import { MainContext, MainThreadBrowserTunnelProxyShape } from '../common/extHost.protocol.js';
 import { IExtHostBrowserTunnelProxy } from '../common/extHostBrowserTunnelProxy.js';
 import { IExtHostExtensionService } from '../common/extHostExtensionService.js';
 import { IExtHostManagedSockets } from '../common/extHostManagedSockets.js';
 import { IExtHostInitDataService } from '../common/extHostInitDataService.js';
+import { IExtHostRpcService } from '../common/extHostRpcService.js';
 import { ExtHostManagedSocket } from './extHostTunnelService.js';
 import { ISignService } from '../../../platform/sign/common/sign.js';
 
@@ -27,13 +30,16 @@ import { ISignService } from '../../../platform/sign/common/sign.js';
  * network browsers use. The renderer reference-counts networks and starts and
  * stops their proxies.
  *
- * The window's own remote (network authority = the window's remote authority)
- * dials destinations through the established remote connection (managed or
- * websocket), observed from
- * {@link IExtHostExtensionService.onDidChangeRemoteConnectionData}. Managed
- * connections are dialed in-process through {@link IExtHostManagedSockets},
- * which only exist in the local extension host because the resolver runs
- * there.
+ * Each proxy dials destinations through the connection its network names:
+ * - The window's own remote (network authority = the window's remote
+ *   authority) uses the established remote connection (managed or websocket),
+ *   observed from {@link IExtHostExtensionService.onDidChangeRemoteConnectionData}.
+ *   Managed connections are dialed in-process through
+ *   {@link IExtHostManagedSockets}, which only exist in the local extension
+ *   host because the resolver runs there.
+ * - Any other network is an agent host connection owned by the renderer; each
+ *   destination is opened there as a TCP stream
+ *   ({@link MainThreadBrowserTunnelProxyShape.$openNetworkConnection}).
  *
  * The remote connection's endpoint is fed to its proxy through a long-lived,
  * mutable {@link MutableAddressProvider}. When the endpoint changes we update
@@ -44,12 +50,14 @@ import { ISignService } from '../../../platform/sign/common/sign.js';
 export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHostBrowserTunnelProxy {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _proxy: MainThreadBrowserTunnelProxyShape;
 	private readonly _addressProvider = new MutableAddressProvider();
 	private _connection: IRemoteConnectionData | null = null;
 
 	private readonly _networkProxies = this._register(new DisposableMap<string, INetworkProxy>());
 
 	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
 		@ISignService private readonly _signService: ISignService,
 		@ILogService private readonly _logService: ILogService,
@@ -57,17 +65,21 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 		@IExtHostExtensionService extHostExtensionService: IExtHostExtensionService,
 	) {
 		super();
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadBrowserTunnelProxy);
 		this._setConnection(extHostExtensionService.getRemoteConnectionData());
 		this._register(extHostExtensionService.onDidChangeRemoteConnectionData(() => this._setConnection(extHostExtensionService.getRemoteConnectionData())));
 	}
 
 	$acquireNetworkProxy(authority: string): Promise<ITunnelProxyInfo> {
-		if (authority !== this._initData.remote.authority) {
-			return Promise.reject(new Error(localize('browser.unknownNetwork', "This page was opened for another remote ({0}). Open it again from a window connected to that remote.", authority)));
-		}
 		let entry = this._networkProxies.get(authority);
 		if (!entry) {
-			const proxy = new TunnelProxy(this._createRemoteConnector(), this._logService);
+			const isWindowRemote = authority === this._initData.remote.authority;
+			const connect: ITunnelConnectFn = isWindowRemote
+				? this._createRemoteConnector()
+				: (host, port) => this._connectAgentHost(authority, host, port);
+			// Agent host connects are single requests on an existing connection, which bounds open
+			// connections itself; destinations slow to connect must not hold up the others.
+			const proxy = new TunnelProxy(connect, this._logService, isWindowRemote ? undefined : { maxConcurrentConnects: agentHostTcpMaxConnections });
 			const created: INetworkProxy = { proxy, info: proxy.start(), dispose: () => proxy.dispose() };
 			created.info.catch(err => {
 				this._logService.error(`[ExtHostBrowserTunnelProxy] Failed to start proxy for network ${authority}:`, err);
@@ -86,6 +98,17 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 		this._networkProxies.deleteAndDispose(authority);
 	}
 
+	private async _connectAgentHost(authority: string, host: string, port: number): Promise<ITunnelStream> {
+		const mainThread = this._proxy;
+		const id = await mainThread.$openNetworkConnection(authority, host, port);
+		return createTunnelStream({
+			read: () => mainThread.$readNetworkConnection(id),
+			write: data => mainThread.$writeNetworkConnection(id, data),
+			end: () => mainThread.$endNetworkConnection(id),
+			dispose: () => mainThread.$closeNetworkConnection(id),
+		});
+	}
+
 	private _setConnection(connection: IRemoteConnectionData | null): void {
 		if (!connection) {
 			return; // never clear a known endpoint; mirror connection-data semantics
@@ -102,7 +125,7 @@ export class NodeExtHostBrowserTunnelProxy extends Disposable implements IExtHos
 
 	private _createRemoteConnector(): ITunnelConnectFn {
 		const options = this._createConnectionOptions();
-		return (host, port) => connectRemoteAgentTunnel(options, host, port);
+		return async (host, port) => takeRemoteTunnelStream(await connectRemoteAgentTunnel(options, host, port));
 	}
 
 	private _createConnectionOptions(): IConnectionOptions {

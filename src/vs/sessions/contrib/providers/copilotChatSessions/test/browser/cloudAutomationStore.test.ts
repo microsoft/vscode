@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -29,7 +30,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationUncertainError, AutomationUnavailableError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -37,16 +38,16 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTIN
 import { IToolImpl } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../services/sessions/common/session.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
 import { AutomationSessionDraftSynchronizer } from '../../../../automations/browser/automationDialog.js';
 import { ConfigureAutomationTool, DeleteAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
-import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
+import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.js';
 import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
 import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';
@@ -476,26 +477,23 @@ suite('CloudAutomationStore', () => {
 
 	test('idle definitions do not poll and postdispatch history discovery is bounded', async () => {
 		const clock = useFakeTimers();
-		try {
-			const { provider, api, set } = setup();
-			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
-			await provider.refresh();
-			api.calls.length = 0;
-			api.historyOptions.length = 0;
-			await clock.tickAsync(60_000);
-			assert.deepStrictEqual(api.calls, []);
-			await provider.runAutomation(provider.automations.get()[0].id);
-			await clock.tickAsync(120_000);
-			assert.deepStrictEqual({
-				calls: api.calls.filter(call => call !== 'capability'),
-				priorities: api.historyOptions.map(options => options?.priority),
-			}, {
-				calls: ['run', 'history', 'history', 'history', 'history', 'history'],
-				priorities: Array(5).fill('background'),
-			});
-		} finally {
-			clock.restore();
-		}
+		disposables.add(toDisposable(() => clock.restore()));
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.calls.length = 0;
+		api.historyOptions.length = 0;
+		await clock.tickAsync(60_000);
+		assert.deepStrictEqual(api.calls, []);
+		await provider.runAutomation(provider.automations.get()[0].id);
+		await clock.tickAsync(120_000);
+		assert.deepStrictEqual({
+			calls: api.calls.filter(call => call !== 'capability'),
+			priorities: api.historyOptions.map(options => options?.priority),
+		}, {
+			calls: ['run', 'history', 'history', 'history', 'history', 'history'],
+			priorities: Array(5).fill('background'),
+		});
 	});
 
 	test('background refresh preserves an open cloud draft and its unsaved model selection', async () => {
@@ -650,61 +648,55 @@ suite('CloudAutomationStore', () => {
 
 	test('history poll failures stop automatic retries and manual refresh restores polling', async () => {
 		const clock = useFakeTimers();
-		try {
-			const { provider, api, set } = setup();
-			api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
-			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
-			await provider.refresh();
-			const runId = provider.runs.get()[0].id;
-			api.calls.length = 0;
-			api.historyError = new Error('Offline');
-			await clock.tickAsync(15_000);
-			const failed = { history: provider.historyState.get(), catalogue: provider.catalogueState.get(), runId: provider.runs.get()[0].id };
-			await clock.tickAsync(300_000);
-			const failedReads = api.calls.filter(call => call === 'history').length;
-			api.historyError = undefined;
-			await provider.refresh();
-			api.calls.length = 0;
-			await clock.tickAsync(15_000);
-			assert.deepStrictEqual({ failed, failedReads, recovered: provider.historyState.get(), calls: api.calls }, {
-				failed: { history: 'error', catalogue: 'ready', runId }, failedReads: 1, recovered: 'ready', calls: ['history'],
-			});
-			provider.dispose();
-			api.calls.length = 0;
-			await clock.tickAsync(60_000);
-			assert.deepStrictEqual(api.calls, []);
-		} finally {
-			clock.restore();
-		}
+		disposables.add(toDisposable(() => clock.restore()));
+		const { provider, api, set } = setup();
+		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const runId = provider.runs.get()[0].id;
+		api.calls.length = 0;
+		api.historyError = new Error('Offline');
+		await clock.tickAsync(15_000);
+		const failed = { history: provider.historyState.get(), catalogue: provider.catalogueState.get(), runId: provider.runs.get()[0].id };
+		await clock.tickAsync(300_000);
+		const failedReads = api.calls.filter(call => call === 'history').length;
+		api.historyError = undefined;
+		await provider.refresh();
+		api.calls.length = 0;
+		await clock.tickAsync(15_000);
+		assert.deepStrictEqual({ failed, failedReads, recovered: provider.historyState.get(), calls: api.calls }, {
+			failed: { history: 'error', catalogue: 'ready', runId }, failedReads: 1, recovered: 'ready', calls: ['history'],
+		});
+		provider.dispose();
+		api.calls.length = 0;
+		await clock.tickAsync(60_000);
+		assert.deepStrictEqual(api.calls, []);
 	});
 
 	test('active history refreshes at 15 seconds and stops on completion and client invalidation', async () => {
 		const clock = useFakeTimers();
-		try {
-			const { provider, api, set, clientChanged } = setup();
-			api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
-			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
-			await provider.refresh();
-			api.calls.length = 0;
-			await clock.tickAsync(14_999);
-			assert.deepStrictEqual(api.calls, []);
-			await clock.tickAsync(1);
-			assert.deepStrictEqual(api.calls, ['history']);
-			api.tasks = [{ ...api.tasks[0], state: 'completed' }];
-			await clock.tickAsync(60_000);
-			assert.deepStrictEqual(api.calls, ['history', 'history']);
-			api.tasks = [{ ...api.tasks[0], state: 'in_progress' }];
-			await provider.refresh();
-			api.tasks = [];
-			clientChanged.fire();
-			await clock.tickAsync(0);
-			api.calls.length = 0;
-			await clock.tickAsync(60_000);
-			assert.deepStrictEqual({ calls: api.calls, runs: provider.runs.get() }, { calls: [], runs: [] });
-			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
-		} finally {
-			clock.restore();
-		}
+		disposables.add(toDisposable(() => clock.restore()));
+		const { provider, api, set, clientChanged } = setup();
+		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.calls.length = 0;
+		await clock.tickAsync(14_999);
+		assert.deepStrictEqual(api.calls, []);
+		await clock.tickAsync(1);
+		assert.deepStrictEqual(api.calls, ['history']);
+		api.tasks = [{ ...api.tasks[0], state: 'completed' }];
+		await clock.tickAsync(60_000);
+		assert.deepStrictEqual(api.calls, ['history', 'history']);
+		api.tasks = [{ ...api.tasks[0], state: 'in_progress' }];
+		await provider.refresh();
+		api.tasks = [];
+		clientChanged.fire();
+		await clock.tickAsync(0);
+		api.calls.length = 0;
+		await clock.tickAsync(60_000);
+		assert.deepStrictEqual({ calls: api.calls, runs: provider.runs.get() }, { calls: [], runs: [] });
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
 	});
 
 	test('history failures retain rows without poisoning definition readiness or acknowledgements', async () => {
@@ -749,21 +741,18 @@ suite('CloudAutomationStore', () => {
 
 		test(`uncertain ${error.name} dispatch discovers history without clearing mutation uncertainty`, async () => {
 			const clock = useFakeTimers();
-			try {
-				const { provider, api, set } = setup();
-				await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
-				await provider.refresh();
-				api.calls.length = 0;
-				api.dispatchError = error;
-				await assert.rejects(provider.runAutomation(provider.automations.get()[0].id), candidate => candidate instanceof AutomationMutationUncertainError && candidate.cause === error && candidate.message === reconciliationMessage);
-				await clock.tickAsync(120_000);
-				assert.deepStrictEqual({
-					historyReads: api.calls.filter(call => call === 'history').length,
-					canCreate: provider.canCreateAutomation.get(),
-				}, { historyReads: 5, canCreate: false });
-			} finally {
-				clock.restore();
-			}
+			disposables.add(toDisposable(() => clock.restore()));
+			const { provider, api, set } = setup();
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			await provider.refresh();
+			api.calls.length = 0;
+			api.dispatchError = error;
+			await assert.rejects(provider.runAutomation(provider.automations.get()[0].id), candidate => candidate instanceof AutomationMutationUncertainError && candidate.cause === error && candidate.message === reconciliationMessage);
+			await clock.tickAsync(120_000);
+			assert.deepStrictEqual({
+				historyReads: api.calls.filter(call => call === 'history').length,
+				canCreate: provider.canCreateAutomation.get(),
+			}, { historyReads: 5, canCreate: false });
 		});
 	}
 
@@ -1114,23 +1103,20 @@ suite('CloudAutomationStore', () => {
 
 	test('local follow-ups restart bounded discovery even when the task is not yet in history', async () => {
 		const clock = useFakeTimers();
-		try {
-			const { provider, api, set } = setup();
-			api.tasks = [{ id: 'exact', state: 'completed', created_at: definition.created_at, remote_steerable: true }];
-			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
-			await provider.refresh();
-			assert.strictEqual(provider.runs.get()[0].sessionResource?.toString(), 'copilot-cloud-agent:/task/exact');
-			api.calls.length = 0;
-			provider.observeLocalRequest(URI.parse('copilot-cloud-agent:/task/unlisted'));
-			await clock.tickAsync(120_000);
-			const requests = api.calls.slice();
-			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
-			provider.observeLocalRequest(URI.parse('copilot-cloud-agent:/task/exact'));
-			await clock.tickAsync(120_000);
-			assert.deepStrictEqual({ requests, afterDisabled: api.calls }, { requests: Array(5).fill('history'), afterDisabled: Array(5).fill('history') });
-		} finally {
-			clock.restore();
-		}
+		disposables.add(toDisposable(() => clock.restore()));
+		const { provider, api, set } = setup();
+		api.tasks = [{ id: 'exact', state: 'completed', created_at: definition.created_at, remote_steerable: true }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		assert.strictEqual(provider.runs.get()[0].sessionResource?.toString(), 'copilot-cloud-agent:/task/exact');
+		api.calls.length = 0;
+		provider.observeLocalRequest(URI.parse('copilot-cloud-agent:/task/unlisted'));
+		await clock.tickAsync(120_000);
+		const requests = api.calls.slice();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+		provider.observeLocalRequest(URI.parse('copilot-cloud-agent:/task/exact'));
+		await clock.tickAsync(120_000);
+		assert.deepStrictEqual({ requests, afterDisabled: api.calls }, { requests: Array(5).fill('history'), afterDisabled: Array(5).fill('history') });
 	});
 
 	for (const order of ['before', 'after'] as const) {

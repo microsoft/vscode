@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, Sequencer } from '../../../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout, Sequencer } from '../../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ITransaction, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { stripUTF8BOM } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -46,8 +46,9 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { ChatEditingModifiedDocumentEntry } from '../../chatEditing/chatEditingModifiedDocumentEntry.js';
-import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
+import { agentHostChangesetFileToEntryDiff, getAgentHostResourceAuthority } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+import { AgentHostCheckpointReview, IAgentHostCheckpointReviewSource } from './agentHostCheckpointReview.js';
 
 /** How long diffs between versions of a file may take before the file is compared as a whole. */
 const DIFF_TIMEOUT_MS = 1000;
@@ -56,6 +57,7 @@ const DIFF_TIMEOUT_MS = 1000;
 const WORKING_SET_READY_TIMEOUT_MS = 30_000;
 
 class EditReviewSynchronizationError extends Error { }
+class EditReviewSupersededError extends EditReviewSynchronizationError { }
 
 /** A file of the session's Working Set, and the version of its changes that the agent host published with it. */
 interface IWorkingSetFileChange {
@@ -77,7 +79,8 @@ interface IWorkingSetFile extends IWorkingSetFileChange {
 /** The session's Working Set changeset, while its host advertises one. */
 interface IWorkingSet {
 	readonly connection: IAgentConnection;
-	readonly connectionAuthority: string;
+	/** The authority of the agent host content URIs of its files' recorded contents, as from {@link getAgentHostResourceAuthority}. */
+	readonly resourceAuthority: string;
 	readonly channel: URI;
 }
 
@@ -107,7 +110,7 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 	}
 
 	/** Connects the entry to the Working Set file it reviews; called right after creating it. */
-	connect(operations: IWorkingSetOperations, file: IWorkingSetFile, edit: StringEdit): void {
+	connect(operations: IWorkingSetOperations, file: IWorkingSetFile, edit: StringEdit, refreshReview: () => void): void {
 		this._operations = operations;
 		this._file = file;
 		// Before the first diff starts, the original takes the document's line endings, which edits map onto.
@@ -116,6 +119,9 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 		this._register(this.modifiedModel.onDidChangeContent(e => {
 			if (e.isEolChange) {
 				this._matchLineEndings();
+			}
+			if (!this._isExternalEditInProgress && (e.isUndoing || e.isRedoing || e.detailedReasons.some(reason => reason.metadata.source === 'reloadFromDisk'))) {
+				refreshReview();
 			}
 		}));
 	}
@@ -237,14 +243,27 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 
 	private readonly _entries = new ResourceMap<AgentHostEditReviewEntry>();
 	private readonly _entriesObs = observableValue<readonly AgentHostEditReviewEntry[]>(this, []);
-	readonly entries: IObservable<readonly IModifiedFileEntry[]> = this._entriesObs;
+	readonly entries: IObservable<readonly IModifiedFileEntry[]> = derived(this, reader => this._entriesObs.read(reader).filter(entry => this._isFileVisible(entry, reader)));
+	private readonly _checkpointReview = observableValue<AgentHostCheckpointReview | undefined>(this, undefined);
 
-	private readonly _workingSet: IObservable<(IWorkingSet & { readonly subscription: IAgentSubscription<ChangesetState>; readonly state: IObservable<ChangesetState | undefined> }) | undefined>;
+	private readonly _rawChanges = derived<IAgentHostCheckpointReviewSource | undefined>(this, reader => {
+		const workingSet = this._workingSet.read(reader);
+		const state = workingSet?.state.read(reader);
+		return workingSet ? { channel: workingSet.channel, ready: state?.status === ChangesetStatus.Ready, failed: workingSet.failed.read(reader) || state?.status === ChangesetStatus.Error, files: state ? toWorkingSetFileChanges(state, workingSet) : [] } : undefined;
+	});
+	readonly fileChanges = derived(this, reader => {
+		const current = this._rawChanges.read(reader);
+		return current ? (this._checkpointReview.read(reader)?.project(current.channel, current.files, reader) ?? current.files).map(file => file.diff) : [];
+	});
+
+	private readonly _workingSet: IObservable<(IWorkingSet & { readonly subscription: IAgentSubscription<ChangesetState>; readonly state: IObservable<ChangesetState | undefined>; readonly failed: IObservable<boolean> }) | undefined>;
 	/** Follows the Working Set one update at a time. */
 	private readonly _updates = new Sequencer();
 	/** Runs operations one at a time, since each one changes the Working Set the next one checks. */
 	private readonly _operations = new Sequencer();
 	private readonly _blockedFiles = new ResourceSet();
+	private readonly _suspendedEntries = this._register(new DisposableResourceMap<AgentHostEditReviewEntry>());
+	private readonly _lifetimeToken = cancelOnDispose(this._store);
 
 	constructor(
 		readonly chatSessionResource: URI,
@@ -289,7 +308,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			const state = sessionState.read(reader).read(reader);
 			const changeset = state?.changesets?.find(candidate => candidate.changeKind === ChangesetKind.WorkingSet && !candidate.uriTemplate.includes('{'));
 			return current && changeset
-				? { connection: current.connection, connectionAuthority: current.connectionAuthority, channel: URI.parse(resolveChangesetUriTemplate(current.backendSession.toString(), changeset.uriTemplate)) }
+				? { connection: current.connection, resourceAuthority: getAgentHostResourceAuthority(current), channel: URI.parse(resolveChangesetUriTemplate(current.backendSession.toString(), changeset.uriTemplate)) }
 				: undefined;
 		});
 		this._workingSet = derived(this, reader => {
@@ -298,7 +317,12 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				return undefined;
 			}
 			const subscription = reader.store.add(current.connection.getSubscription(StateComponents.Changeset, current.channel, 'AgentHostEditReview')).object;
-			return { ...current, subscription, state: observableFromSubscription(this, subscription) };
+			return {
+				...current,
+				subscription,
+				state: observableFromSubscription(this, subscription),
+				failed: observableFromEvent(this, Event.any(subscription.onDidChange, subscription.onDidError ?? Event.None), () => subscription.value instanceof Error),
+			};
 		});
 		const retryBlockedFiles = observableSignalFromEvent(this, Event.filter(Event.any(
 			Event.map(this._textFileService.files.onDidSave, event => event.model),
@@ -308,11 +332,13 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			retryBlockedFiles.read(reader);
 			const current = this._workingSet.read(reader);
 			const state = current?.state.read(reader);
-			const files = current && state ? toWorkingSetFileChanges(state, current.connectionAuthority) : [];
+			const rawFiles = current && state ? toWorkingSetFileChanges(state, current) : [];
+			const files = current ? this._checkpointReview.read(reader)?.project(current.channel, rawFiles, reader) ?? rawFiles : rawFiles;
 			for (const file of files) {
 				if (file.editing) {
 					// An edit starts immediately, even while an earlier update is being read or diffed.
-					this._entries.get(this._uriIdentityService.asCanonicalUri(file.diff.modifiedURI))?.setEditing(true);
+					const resource = this._uriIdentityService.asCanonicalUri(file.diff.modifiedURI);
+					(this._entries.get(resource) ?? this._suspendedEntries.get(resource))?.setEditing(true);
 				}
 			}
 			if (current && state?.status !== ChangesetStatus.Ready) {
@@ -325,12 +351,28 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	getEntry(uri: URI): IModifiedFileEntry | undefined {
-		return this._entries.get(uri);
+		const entry = this._entries.get(uri);
+		return entry && this._isFileVisible(entry) ? entry : undefined;
+	}
+
+	setCheckpointReview(review: AgentHostCheckpointReview): void {
+		this._register(review.registerSource(this._rawChanges));
+		this._checkpointReview.set(review, undefined);
+	}
+
+	async resolveEntry(uri: URI): Promise<IModifiedFileEntry | undefined> {
+		const workingSet = this._workingSet.get();
+		if (workingSet && !await whenReady(workingSet.subscription)) {
+			throw new Error(localize('agentHostEditReview.notReady', "The session's changes couldn't be checked. Try again."));
+		}
+		await raceCancellationError(this._updates.queue(async () => { }), this._lifetimeToken);
+		return this.getEntry(uri);
 	}
 
 	readEntry(uri: URI, reader: IReader): IModifiedFileEntry | undefined {
 		this._entriesObs.read(reader);
-		return this._entries.get(uri);
+		const entry = this._entries.get(uri);
+		return entry && this._isFileVisible(entry, reader) ? entry : undefined;
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
@@ -392,7 +434,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			const resource = this._uriIdentityService.asCanonicalUri(file.diff.modifiedURI);
 			listed.add(resource);
 			if (file.editing) {
-				this._entries.get(resource)?.setEditing(true);
+				(this._entries.get(resource) ?? this._suspendedEntries.get(resource))?.setEditing(true);
 				continue;
 			}
 			try {
@@ -418,18 +460,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				if (isCancellationError(error) || token.isCancellationRequested) {
 					return;
 				}
-				this._logService.error(`[AgentHostEditReview] Could not review ${resource}`, error);
-				if (error instanceof EditReviewSynchronizationError) {
-					const entry = this._entries.get(resource);
-					if (entry) {
-						entry.setEditing(false);
-						this._removeEntry(entry);
-					}
-					if (!this._blockedFiles.has(resource)) {
-						this._blockedFiles.add(resource);
-						this._notificationService.warn(localize('agentHostEditReview.reconcileFailed', "Could not update editor review for '{0}': {1} Your text has been preserved. Resolve the file's changes and save or revert it to resume editor review.", basename(resource), error.message));
-					}
-				}
+				this._handleReviewError(resource, error);
 			}
 		}
 		if (token.isCancellationRequested) {
@@ -438,6 +469,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		for (const resource of this._blockedFiles) {
 			if (!listed.has(resource)) {
 				this._blockedFiles.delete(resource);
+				this._suspendedEntries.deleteAndDispose(resource);
 			}
 		}
 		for (const entry of [...this._entries.values()]) {
@@ -445,6 +477,58 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				this._removeEntry(entry);
 			}
 		}
+	}
+
+	private _handleReviewError(resource: URI, error: unknown): void {
+		this._logService.error(`[AgentHostEditReview] Could not review ${resource}`, error);
+		if (error instanceof EditReviewSynchronizationError) {
+			const entry = this._entries.get(resource) ?? this._suspendedEntries.get(resource);
+			if (entry) {
+				entry.setEditing(false);
+				if (this._entries.has(resource)) {
+					this._suspendedEntries.set(resource, entry.acquire());
+					this._removeEntry(entry);
+				}
+			}
+			if (!this._blockedFiles.has(resource)) {
+				this._blockedFiles.add(resource);
+				this._notificationService.warn(localize('agentHostEditReview.reconcileFailed', "Could not update editor review for '{0}': {1} Your text has been preserved. Resolve the file's changes and save or revert it to resume editor review.", basename(resource), error.message));
+			}
+		}
+	}
+
+	/** Rebase reloads and undo/redo against recorded edits, since their replacements can include unchanged agent text. */
+	private _refreshReview(entry: AgentHostEditReviewEntry): void {
+		void this._updates.queue(async () => {
+			const file = entry.file;
+			const isCurrent = () => {
+				if (this._lifetimeToken.isCancellationRequested || !this._isReviewing(entry)
+					|| entry.file !== file || entry.isAgentEditing || entry.state.get() !== ModifiedFileEntryState.Modified) {
+					return false;
+				}
+				const workingSet = this._workingSet.get();
+				const state = workingSet?.state.get();
+				const latest = workingSet && state ? this._findWorkingSetFile(state, workingSet, entry) : undefined;
+				return !!latest && !latest.editing && isSameWorkingSetFile(latest, file);
+			};
+			if (!isCurrent()) {
+				return;
+			}
+			try {
+				const prepared = await this._prepareFile(file, entry.modifiedModel, this._lifetimeToken, entry.originalModel);
+				if (isCurrent()) {
+					await entry.update(file, prepared.original, prepared.edit);
+				}
+			} catch (error) {
+				if (isCurrent()) {
+					if (error instanceof EditReviewSupersededError) {
+						this._refreshReview(entry);
+					} else if (!isCancellationError(error)) {
+						this._handleReviewError(entry.modifiedURI, error);
+					}
+				}
+			}
+		});
 	}
 
 	private async _updateFile(resource: URI, change: IWorkingSetFileChange, token: CancellationToken): Promise<void> {
@@ -456,7 +540,8 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			return;
 		}
 		const contents = await this._readContents(change.diff);
-		const entry = this._entries.get(resource);
+		const suspended = this._suspendedEntries.get(resource);
+		const entry = this._entries.get(resource) ?? suspended;
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			return;
 		}
@@ -464,6 +549,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			if (entry) {
 				this._removeEntry(entry);
 			}
+			this._suspendedEntries.deleteAndDispose(resource);
 			return;
 		}
 		if (entry?.state.get() === ModifiedFileEntryState.Modified) {
@@ -474,15 +560,24 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				return;
 			}
 			const file = { ...change, ...contents };
-			const prepared = await this._prepareFile(file, entry.modifiedModel, token);
+			const trackedOriginal = suspended && isSameWorkingSetFile(suspended.file, file) ? suspended.originalModel : undefined;
+			const prepared = await this._prepareFile(file, entry.modifiedModel, token, trackedOriginal);
 			await entry.update(file, prepared.original, prepared.edit);
+			if (token.isCancellationRequested || this._store.isDisposed) {
+				return;
+			}
+			if (this._suspendedEntries.deleteAndLeak(resource)) {
+				this._entries.set(resource, entry);
+			}
 			entry.updateTelemetryInfo(this._getTelemetryInfo());
+			this._entriesObs.set([...this._entries.values()], undefined);
 			return;
 		}
 		if (entry) {
 			// The user decided on the earlier changes, so the file is reviewed anew.
 			this._removeEntry(entry);
 		}
+		this._suspendedEntries.deleteAndDispose(resource);
 		await this._createEntry(resource, { ...change, ...contents }, token);
 	}
 
@@ -522,7 +617,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			file.diff.isCreated ? ChatEditKind.Created : ChatEditKind.Modified,
 			prepared.original,
 		);
-		entry.connect(this, file, prepared.edit);
+		entry.connect(this, file, prepared.edit, () => this._refreshReview(entry));
 		entry.setEditing(file.editing);
 		// Agent changes wait for a decision, whatever the auto-accept delay.
 		entry.enableReviewModeUntilSettled();
@@ -530,30 +625,34 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		this._entriesObs.set([...this._entries.values()], undefined);
 	}
 
-	private async _prepareFile(file: IWorkingSetFile, model: ITextModel, token: CancellationToken): Promise<{ original: string; edit: StringEdit }> {
+	private async _prepareFile(file: IWorkingSetFile, model: ITextModel, token: CancellationToken, trackedOriginal?: ITextModel): Promise<{ original: string; edit: StringEdit }> {
 		for (let attempt = 0; attempt < 2; attempt++) {
-			if (token.isCancellationRequested || model.isDisposed()) {
+			if (token.isCancellationRequested || model.isDisposed() || trackedOriginal?.isDisposed()) {
 				throw new CancellationError();
 			}
 			const version = model.getVersionId();
+			const originalVersion = trackedOriginal?.getVersionId();
 			const live = model.getValue();
-			const original = await getReviewedOriginal(file, live, model.getEOL(), this._editorWorkerService);
-			if (token.isCancellationRequested || model.isDisposed()) {
+			const original = await getReviewedOriginal(file, live, model.getEOL(), this._editorWorkerService, trackedOriginal?.getValue());
+			if (token.isCancellationRequested || model.isDisposed() || trackedOriginal?.isDisposed()) {
 				throw new CancellationError();
 			}
-			if (version !== model.getVersionId()) {
+			if (version !== model.getVersionId() || originalVersion !== trackedOriginal?.getVersionId()) {
 				continue;
+			}
+			if (original === undefined) {
+				throw new EditReviewSynchronizationError(localize('agentHostEditReview.impreciseDiff', "The file's changes could not be compared precisely."));
 			}
 			const edit = await computeEdit(original, live, this._editorWorkerService)
 				?? StringEdit.replace(OffsetRange.ofLength(original.length), live).removeCommonSuffixAndPrefix(original);
-			if (token.isCancellationRequested || model.isDisposed()) {
+			if (token.isCancellationRequested || model.isDisposed() || trackedOriginal?.isDisposed()) {
 				throw new CancellationError();
 			}
-			if (version === model.getVersionId()) {
+			if (version === model.getVersionId() && originalVersion === trackedOriginal?.getVersionId()) {
 				return { original, edit };
 			}
 		}
-		throw new EditReviewSynchronizationError(localize('agentHostEditReview.prepareChanged', "The document changed while its changes were being compared."));
+		throw new EditReviewSupersededError(localize('agentHostEditReview.prepareChanged', "The document changed while its changes were being compared."));
 	}
 
 	/** Reads a file's baseline and current content, unless they aren't UTF-8 text, as the agent host compares them. */
@@ -650,6 +749,9 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 				}
 				return done;
 			} catch (error) {
+				if (this._store.isDisposed && isCancellationError(error)) {
+					return false;
+				}
 				this._notificationService.error(failed(basename(entry.modifiedURI), toErrorMessage(error)));
 				return false;
 			}
@@ -692,6 +794,31 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			throw new Error(localize('agentHostEditReview.editing', "The agent is editing this file. Try again once it has finished."));
 		}
 		await this._invokeOperation(workingSet, entry, shown, operationId, state, change && !file.diff.isCreated ? change : undefined);
+		if (change) {
+			const isUpdated = (state: ChangesetState | Error | undefined) => {
+				if (state instanceof Error || state?.status === ChangesetStatus.Error) {
+					return true;
+				}
+				const current = state && this._findWorkingSetFile(state, workingSet, entry);
+				return state?.status === ChangesetStatus.Ready && (!current || !isSameWorkingSetFile(current, shown));
+			};
+			if (!isUpdated(workingSet.subscription.value)) {
+				const updated = Event.toPromise(Event.filter(Event.any(workingSet.subscription.onDidChange, workingSet.subscription.onDidError ?? Event.None), () => isUpdated(workingSet.subscription.value)));
+				try {
+					await raceCancellationError(raceTimeout(updated, WORKING_SET_READY_TIMEOUT_MS, () => updated.cancel()), this._lifetimeToken);
+				} finally {
+					updated.cancel();
+				}
+			}
+			const updated = workingSet.subscription.value;
+			if (!isUpdated(updated) || updated instanceof Error || updated?.status !== ChangesetStatus.Ready) {
+				throw new Error(localize('agentHostEditReview.updatePending', "The decision was sent, but the updated changes could not be loaded. Check the working set before trying again."));
+			}
+			await this._updates.queue(async () => { });
+			if (this._isReviewing(entry)) {
+				await entry.getDiffInfo();
+			}
+		}
 		return true;
 	}
 
@@ -749,16 +876,22 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	private _findWorkingSetFile(state: ChangesetState, workingSet: IWorkingSet, entry: AgentHostEditReviewEntry): IWorkingSetFileChange | undefined {
-		return toWorkingSetFileChanges(state, workingSet.connectionAuthority)
+		return toWorkingSetFileChanges(state, workingSet)
 			.find(candidate => isEqual(this._uriIdentityService.asCanonicalUri(candidate.diff.modifiedURI), entry.modifiedURI));
 	}
 
 	private _isReviewing(entry: AgentHostEditReviewEntry): boolean {
-		return this._entries.get(entry.modifiedURI) === entry;
+		return this._entries.get(entry.modifiedURI) === entry && this._isFileVisible(entry);
+	}
+
+	private _isFileVisible(entry: AgentHostEditReviewEntry, reader?: IReader): boolean {
+		const review = this._checkpointReview.read(reader);
+		const current = this._workingSet.read(reader);
+		return !review || !current || review.project(current.channel, [entry.file], reader).length > 0;
 	}
 
 	private _removeEntry(entry: AgentHostEditReviewEntry): void {
-		if (!this._isReviewing(entry)) {
+		if (this._entries.get(entry.modifiedURI) !== entry) {
 			return;
 		}
 		this._entries.delete(entry.modifiedURI);
@@ -807,6 +940,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	 */
 	private _getEntries(uris: readonly URI[]): readonly AgentHostEditReviewEntry[] {
 		return [...this._entries.values()]
+			.filter(entry => this._isFileVisible(entry))
 			.filter(entry => uris.length === 0 || uris.some(uri => isEqual(entry.modifiedURI, uri)))
 			.filter(entry => !entry.isCurrentlyBeingModifiedBy.get())
 			.filter(entry => entry.state.get() === ModifiedFileEntryState.Modified);
@@ -830,19 +964,44 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 }
 
-/**
- * The content to compare a document with: its Working Set baseline, with the
- * changes made to the document since the session last recorded it moved into
- * it. As in the Working Set, changes that touch the agent's stay with them.
- */
-async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService): Promise<string> {
+/** Reconciles the Working Set baseline without expanding an existing review, or returns undefined if precise comparison is unavailable. */
+async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService, trackedOriginal?: string): Promise<string | undefined> {
+	if (trackedOriginal === live) {
+		return live;
+	}
 	const baseline = withLineEndings(file.baseline, eol);
 	const current = withLineEndings(file.current, eol);
-	if (live === current) {
-		return baseline;
+	let original = baseline;
+	if (live !== current) {
+		const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
+		if (!agent || !user) {
+			return undefined;
+		}
+		original = user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline);
 	}
-	const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
-	return agent && user ? user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline) : baseline;
+	if (trackedOriginal === undefined || trackedOriginal === original) {
+		return original;
+	}
+	const [pending, adjustments] = await Promise.all([computeEdit(trackedOriginal, live, workerService, true), computeEdit(trackedOriginal, original, workerService, true)]);
+	if (!pending || !adjustments) {
+		return undefined;
+	}
+	let pendingIndex = 0;
+	const refinements = adjustments.replacements.filter(adjustment => {
+		while (pendingIndex < pending.replacements.length) {
+			const replacement = pending.replacements[pendingIndex];
+			const range = replacement.replaceRange;
+			if (range.containsRange(adjustment.replaceRange)) {
+				return replacement.equals(adjustment);
+			}
+			if (range.endExclusive > adjustment.replaceRange.start) {
+				return false;
+			}
+			pendingIndex++;
+		}
+		return false;
+	});
+	return new StringEdit(refinements).apply(trackedOriginal);
 }
 
 /**
@@ -891,11 +1050,11 @@ function toTextRange(lines: LineRange): TextRange {
 }
 
 /** The edit that turns `original` into `modified`, as their diff spells it out, or `undefined` if the diff times out. */
-async function computeEdit(original: string, modified: string, workerService: IEditorWorkerService): Promise<StringEdit | undefined> {
+async function computeEdit(original: string, modified: string, workerService: IEditorWorkerService, computeRawChanges = false): Promise<StringEdit | undefined> {
 	if (original === modified) {
 		return StringEdit.empty;
 	}
-	const diff = await workerService.computeStringEditFromDiffWithMetadata(original, modified, { maxComputationTimeMs: DIFF_TIMEOUT_MS }, 'advanced');
+	const diff = await workerService.computeStringEditFromDiffWithMetadata(original, modified, { maxComputationTimeMs: DIFF_TIMEOUT_MS, computeRawChanges }, 'advanced');
 	return diff.isCoarse ? undefined : diff.edit;
 }
 
@@ -915,9 +1074,9 @@ function isSameWorkingSetFile(a: IWorkingSetFileChange, b: IWorkingSetFileChange
 }
 
 /** The files of a Working Set, with the version the host published for each. */
-function toWorkingSetFileChanges(state: ChangesetState, connectionAuthority: string): IWorkingSetFileChange[] {
+function toWorkingSetFileChanges(state: ChangesetState, workingSet: IWorkingSet): IWorkingSetFileChange[] {
 	return state.files.map(file => {
-		const diff = agentHostChangesetFileToEntryDiff(file, connectionAuthority);
+		const diff = agentHostChangesetFileToEntryDiff(file, workingSet.connection, workingSet.resourceAuthority);
 		return diff && { diff, nonce: file.nonce, editing: file.isEditing === true };
 	}).filter(isDefined);
 }
@@ -927,8 +1086,13 @@ async function whenReady(subscription: IAgentSubscription<ChangesetState>): Prom
 	const isSettled = (state: ChangesetState | Error | undefined) => state instanceof Error || state?.status === ChangesetStatus.Ready || state?.status === ChangesetStatus.Error;
 	let state = subscription.value;
 	if (!isSettled(state)) {
-		const settled = Event.toPromise(Event.filter(subscription.onDidChange, isSettled));
-		state = await raceTimeout(settled, WORKING_SET_READY_TIMEOUT_MS, () => settled.cancel());
+		const settled = Event.toPromise(Event.filter(Event.any(subscription.onDidChange, subscription.onDidError ?? Event.None), () => isSettled(subscription.value)));
+		try {
+			await raceTimeout(settled, WORKING_SET_READY_TIMEOUT_MS, () => settled.cancel());
+		} finally {
+			settled.cancel();
+		}
+		state = subscription.value;
 	}
 	return state instanceof Error || state?.status !== ChangesetStatus.Ready ? undefined : state;
 }
@@ -959,6 +1123,6 @@ function resolutionEquals(a: IAgentHostSessionResolution | undefined, b: IAgentH
 function workingSetEquals(a: IWorkingSet | undefined, b: IWorkingSet | undefined): boolean {
 	return a === b || (!!a && !!b
 		&& a.connection === b.connection
-		&& a.connectionAuthority === b.connectionAuthority
+		&& a.resourceAuthority === b.resourceAuthority
 		&& isEqual(a.channel, b.channel));
 }

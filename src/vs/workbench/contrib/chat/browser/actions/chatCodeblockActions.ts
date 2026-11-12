@@ -7,7 +7,7 @@ import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
@@ -141,8 +141,9 @@ export class CodeBlockActionRendering extends Disposable implements IWorkbenchCo
 	}
 }
 
-export function registerChatCodeBlockActions() {
-	registerAction2(class CopyCodeBlockAction extends Action2 {
+export function registerChatCodeBlockActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(class CopyCodeBlockAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.copyCodeBlock',
@@ -213,9 +214,9 @@ export function registerChatCodeBlockActions() {
 				});
 			}
 		}
-	});
+	}));
 
-	CopyAction?.addImplementation(50000, 'chat-codeblock', (accessor) => {
+	const copyImplementation = CopyAction?.addImplementation(50000, 'chat-codeblock', (accessor) => {
 		// get active code editor
 		const editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (!editor) {
@@ -300,8 +301,11 @@ export function registerChatCodeBlockActions() {
 		reportCopy();
 		return false;
 	});
+	if (copyImplementation) {
+		store.add(copyImplementation);
+	}
 
-	registerAction2(class SmartApplyInEditorAction extends ChatCodeBlockAction {
+	store.add(registerAction2(class SmartApplyInEditorAction extends ChatCodeBlockAction {
 
 		private operation: ApplyCodeBlockOperation | undefined;
 
@@ -345,9 +349,9 @@ export function registerChatCodeBlockActions() {
 			}
 			return this.operation.run(context);
 		}
-	});
+	}));
 
-	registerAction2(class InsertAtCursorAction extends ChatCodeBlockAction {
+	store.add(registerAction2(class InsertAtCursorAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
@@ -381,9 +385,9 @@ export function registerChatCodeBlockActions() {
 			const operation = accessor.get(IInstantiationService).createInstance(InsertCodeBlockOperation);
 			return operation.run(context);
 		}
-	});
+	}));
 
-	registerAction2(class InsertIntoNewFileAction extends ChatCodeBlockAction {
+	store.add(registerAction2(class InsertIntoNewFileAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
@@ -455,9 +459,9 @@ export function registerChatCodeBlockActions() {
 				});
 			}
 		}
-	});
+	}));
 
-	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
+	store.add(registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
@@ -539,7 +543,7 @@ export function registerChatCodeBlockActions() {
 				});
 			}
 		}
-	});
+	}));
 
 	function navigateCodeBlocks(accessor: ServicesAccessor, reverse?: boolean): void {
 		const codeEditorService = accessor.get(ICodeEditorService);
@@ -572,7 +576,7 @@ export function registerChatCodeBlockActions() {
 		responseCodeblocks[focusIdx]?.focus();
 	}
 
-	registerAction2(class NextCodeBlockAction extends Action2 {
+	store.add(registerAction2(class NextCodeBlockAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.nextCodeBlock',
@@ -592,9 +596,9 @@ export function registerChatCodeBlockActions() {
 		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateCodeBlocks(accessor);
 		}
-	});
+	}));
 
-	registerAction2(class PreviousCodeBlockAction extends Action2 {
+	store.add(registerAction2(class PreviousCodeBlockAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.previousCodeBlock',
@@ -614,7 +618,9 @@ export function registerChatCodeBlockActions() {
 		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateCodeBlocks(accessor, true);
 		}
-	});
+	}));
+
+	return store;
 }
 
 function getContextFromEditor(editor: ICodeEditor, accessor: ServicesAccessor): ICodeBlockActionContext | undefined {

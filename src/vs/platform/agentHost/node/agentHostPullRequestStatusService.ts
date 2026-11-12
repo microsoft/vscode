@@ -20,6 +20,8 @@ import { parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
+import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
@@ -134,12 +136,19 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._sync(this._containingSession(owner))));
 		this._register(this._gitStateService.onDidRefreshSessionGitState(key => this._sync(this._containingSession(key))));
 		this._register(this._gitStateService.onDidChangeSessionGitHubState(session => this._sync(session)));
 		this._register(this._stateManager.onDidRemoveSession(session => this._stopSessionWatches(session)));
+		// Whether a draft is ready for review depends on the check exclusions the user configured.
+		this._register(this._configurationService.onDidRootConfigChange(() => {
+			for (const [key, watch] of this._watches) {
+				this._updateStatus(key, watch, watch.subscription.resource.snapshot.get());
+			}
+		}));
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			switch (envelope.action.type) {
 				case ActionType.SessionIsArchivedChanged:
@@ -524,7 +533,9 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		}
 		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, watch.sessionUri).folderKey;
 		const agentMerge = readAgentMergeFolderState(this._stateManager.getSessionState(watch.sessionUri)?.config?.values, watch.folder.folderKey, sessionFolderKey);
-		this._setStatus(key, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined));
+		// A folder's workspace value, which the client mirrors into its Agent Merge settings, takes precedence over the user's.
+		const ignoredChecks = agentMerge?.readyIgnoredChecks ?? this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubArtifactIgnoredChecksConfigKey) ?? [];
+		this._setStatus(key, watch, toPullRequestStatus(snapshot, agentMerge?.enabled ? agentMerge.target?.commentWatermark : undefined, ignoredChecks));
 	}
 
 	private _setStatus(key: string, watch: IWatch, status: IAgentHostPullRequestStatus | undefined): void {
@@ -610,7 +621,7 @@ function describeStatus(status: IAgentHostPullRequestStatus | undefined): string
  * while either fragment the button bar depends on is still unresolved. Holding
  * back on partial data keeps the client from flashing a wrong primary button.
  */
-function toPullRequestStatus(snapshot: PullRequestSnapshot, agentMergeCommentWatermark?: string): IAgentHostPullRequestStatus | undefined {
+function toPullRequestStatus(snapshot: PullRequestSnapshot, agentMergeCommentWatermark?: string, ignoredChecks: readonly string[] = []): IAgentHostPullRequestStatus | undefined {
 	const core = snapshot.core.value;
 	if (!core) {
 		return undefined;
@@ -638,7 +649,7 @@ function toPullRequestStatus(snapshot: PullRequestSnapshot, agentMergeCommentWat
 		return undefined;
 	}
 	const agentMergeReadyForReview = agentMergeCommentWatermark !== undefined
-		? isAgentMergePullRequestReadyForReview(snapshot, agentMergeCommentWatermark)
+		? isAgentMergePullRequestReadyForReview(snapshot, agentMergeCommentWatermark, ignoredChecks)
 		: undefined;
 
 	return {

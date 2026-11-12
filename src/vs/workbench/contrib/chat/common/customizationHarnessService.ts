@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { AICustomizationManagementSection, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationScope, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
@@ -73,6 +73,8 @@ export interface ICustomizationItemAction {
 	readonly tooltip?: string;
 	readonly icon?: ThemeIcon;
 	readonly enabled?: boolean;
+	/** Checked state for an action that can also be presented as an inline toggle. */
+	readonly checked?: boolean;
 	run(): void | Promise<void>;
 }
 
@@ -132,7 +134,17 @@ export interface ICustomizationMarketplaceRefreshResult {
 }
 
 export interface ICustomizationMarketplaceManagementProvider {
+	/**
+	 * Fires when provider state that may affect the marketplace list changes. Consumers should
+	 * list marketplaces again and treat an identical list as unchanged, because this also fires
+	 * for unrelated customization activity such as MCP server status changes.
+	 */
 	readonly onDidChange: Event<void>;
+	/**
+	 * Fires when marketplace contents may have changed even if the marketplace list is identical,
+	 * for example after a marketplace is added, removed, or refreshed.
+	 */
+	readonly onDidChangeMarketplaces: Event<void>;
 	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
 	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
 	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
@@ -158,6 +170,11 @@ export interface IHarnessDescriptor {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+	/**
+	 * Name of the agent without qualifiers such as the remote host, used to
+	 * label the customizations built into the agent. Defaults to {@link label}.
+	 */
+	readonly agentLabel?: string;
 	/**
 	 * The target whose custom agent format this harness supports.
 	 */
@@ -243,6 +260,24 @@ export interface IHarnessDescriptor {
 	readonly marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider;
 }
 
+/** Organization control over a single customization. */
+export interface ICustomizationOrganizationControl {
+	/**
+	 * Enabled state the organization requires. Undefined when the organization
+	 * supplies the customization without locking its enablement.
+	 */
+	readonly requiredEnabled?: boolean;
+}
+
+/**
+ * Identifies who supplied a built-in or account customization.
+ * `label` is optional for `harness`, which defaults to the active harness name.
+ */
+export interface ICustomizationOrigin {
+	readonly kind: 'vscode' | 'harness' | 'account';
+	readonly label?: string;
+}
+
 /**
  * Represents a customization item provided by any source.
  */
@@ -269,8 +304,25 @@ export interface ICustomizationItem {
 	readonly enabled?: boolean;
 	/** Host-published reason for a disabled customization. */
 	readonly disabledReason?: CustomizationDisabledReason;
+	/** Set when the user's organization manages this customization. */
+	readonly organizationControl?: ICustomizationOrganizationControl;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
+	/**
+	 * Internal display grouping derived from the source or parent configuration.
+	 * When omitted, the normalizer derives it from {@link source}.
+	 */
+	readonly scope?: AICustomizationScope;
+	/**
+	 * Supplier of a built-in or account customization, used to subgroup items
+	 * within their scope. Plugin and extension origins come from
+	 * {@link pluginUri} and {@link extensionId}.
+	 */
+	readonly origin?: ICustomizationOrigin;
+	/** Set when the item was synced from this client to a remote agent environment. */
+	readonly delivery?: 'syncedFromClient';
+	/** Human-readable name of the extension that contributed this customization, if any. */
+	readonly extensionLabel?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
 	readonly badge?: string;
 	/** Tooltip shown when hovering the badge. */
@@ -304,6 +356,29 @@ export interface IAgentFileToolInventoryEntry {
 
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
+}
+
+/**
+ * Legacy group keys that providers used to emit for agent-host provenance.
+ * They are not storage groups; they map to {@link ICustomizationItem.delivery}.
+ */
+const LEGACY_SYNCED_FROM_CLIENT_GROUP_KEY = 'remote-client';
+const LEGACY_HOST_GROUP_KEY = 'remote-host';
+
+/**
+ * Returns whether an item was synced from this client to a remote agent
+ * environment, honoring the legacy `remote-client` group key.
+ */
+export function isSyncedFromClientCustomizationItem(item: Pick<ICustomizationItem, 'delivery' | 'groupKey'>): boolean {
+	return item.delivery === 'syncedFromClient' || item.groupKey === LEGACY_SYNCED_FROM_CLIENT_GROUP_KEY;
+}
+
+/**
+ * Returns whether a group key is a legacy agent-host provenance key rather
+ * than a display group.
+ */
+export function isLegacyDeliveryGroupKey(groupKey: string | undefined): boolean {
+	return groupKey === LEGACY_SYNCED_FROM_CLIENT_GROUP_KEY || groupKey === LEGACY_HOST_GROUP_KEY;
 }
 
 export function getCustomizationDisabledLabel(reason: CustomizationDisabledReason | undefined): string {
@@ -368,10 +443,18 @@ export interface ICustomizationItemProvider {
 	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
 
 	/**
+	 * Returns the readiness of the most recent source-folder discovery for this session.
+	 * Providers that do not expose this treat a completed empty result as authoritative.
+	 */
+	getSourceFolderReadiness?(sessionResource: URI): CustomizationSourceFolderReadiness;
+
+	/**
 	 * Returns the opaque workspace group containing a customization.
 	 */
 	getWorkspaceGroupId?(sessionResource: URI, resource: URI): string | undefined;
 }
+
+export type CustomizationSourceFolderReadiness = 'loading' | 'ready' | 'unavailable';
 
 /**
  * A directory where new customization files of a given type can be created.

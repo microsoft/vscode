@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Barrier } from '../../../../../../base/common/async.js';
+import { Barrier, DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -21,15 +22,17 @@ import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from '../../
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
 import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, ToolRiskPromptKind } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
+import { SpecedToolAliases, isToolResultInputOutputDetails, isToolSet, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -179,6 +182,27 @@ class AutoApprovePolicyTestConfigurationService extends TestConfigurationService
 	}
 }
 
+class McpPolicyTestConfigurationService extends TestConfigurationService {
+	private mcpPolicyValue: McpAccessValue | undefined;
+
+	setMcpPolicyValue(value: McpAccessValue | undefined): void {
+		this.mcpPolicyValue = value;
+		this.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === mcpAccessConfig,
+			affectedKeys: new Set([mcpAccessConfig]),
+			change: { keys: [mcpAccessConfig], overrides: [] },
+			source: ConfigurationTarget.DEFAULT,
+		});
+	}
+
+	override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+		const result = super.inspect<T>(key, overrides);
+		return key === mcpAccessConfig
+			? { ...result, policyValue: this.mcpPolicyValue as T | undefined }
+			: result;
+	}
+}
+
 interface TestToolsServiceSetup {
 	configurationService: TestConfigurationService;
 	chatService: MockChatService;
@@ -192,6 +216,7 @@ interface TestToolsServiceOptions {
 	accessibilitySignalService?: Partial<IAccessibilitySignalService>;
 	telemetryService?: Partial<ITelemetryService>;
 	commandService?: Partial<ICommandService>;
+	extensionService?: Partial<IExtensionService>;
 	dialogService?: IDialogService;
 	configurationService?: TestConfigurationService;
 	confirmationService?: ILanguageModelToolsConfirmationService;
@@ -233,6 +258,9 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 	}
 	if (options?.commandService) {
 		instaService.stub(ICommandService, options.commandService as ICommandService);
+	}
+	if (options?.extensionService) {
+		instaService.stub(IExtensionService, options.extensionService);
 	}
 	if (options?.dialogService) {
 		instaService.stub(IDialogService, options.dialogService);
@@ -601,6 +629,26 @@ suite('LanguageModelToolsService', () => {
 		await service.invokeTool({ ...withRequestId, context: { ...withRequestId.context!, requestId: 'subagent-request' } }, async () => 0, CancellationToken.None);
 
 		assert.deepStrictEqual(preparedRequestIds, [undefined, 'subagent-request']);
+	});
+
+	test('preserves the originating chat during headless preparation without creating rendering context', async () => {
+		const origin = URI.parse('agent-host-test:/session#peer');
+		const observed: { origin?: string; presentation?: string }[] = [];
+		const tool = registerToolForTest(service, store, 'originatingChatTool', {
+			prepareToolInvocation: async context => {
+				observed.push({ origin: context.originatingChatResource?.toString(), presentation: context.chatSessionResource?.toString() });
+				return undefined;
+			},
+			invoke: async invocation => {
+				observed.push({ origin: invocation.originatingChatResource?.toString(), presentation: invocation.context?.sessionResource.toString() });
+				return { content: [{ kind: 'text', value: 'ok' }] };
+			},
+		});
+		await service.invokeTool({ ...tool.makeDto({}), originatingChatResource: origin }, async () => 0, CancellationToken.None);
+		assert.deepStrictEqual(observed, [
+			{ origin: origin.toString(), presentation: undefined },
+			{ origin: origin.toString(), presentation: undefined },
+		]);
 	});
 
 	test('invocation parameters are overridden by input toolSpecificData', async () => {
@@ -4188,6 +4236,252 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(tool.id, 'disabledLookupTool');
 	});
 
+	test('session-scoped tools are hidden from discovery and available by ID with explicit ownership', async () => {
+		const owner = URI.parse('test-session:/a');
+		const implementation: IToolImpl = {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+		};
+		registerToolForTest(service, store, 'normalTool', implementation, { toolReferenceName: 'normalToolRef' });
+		const scopedTool = registerToolForTest(service, store, 'sessionScopedTool', implementation, {
+			toolReferenceName: 'sessionScopedToolRef',
+			sessionResource: owner,
+		});
+		const result = await service.invokeTool({ ...scopedTool.makeDto({}), toolSessionResource: owner }, async () => 0, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			tools: [...service.getTools(undefined)].map(tool => tool.id),
+			allTools: [...service.getAllToolsIncludingDisabled()].map(tool => tool.id),
+			byName: service.getToolByName('sessionScopedToolRef')?.id,
+			observedTools: service.observeTools(undefined).get().map(tool => tool.id),
+			byId: service.getTool('sessionScopedTool')?.id,
+			result,
+		}, {
+			tools: ['normalTool'],
+			allTools: ['normalTool'],
+			byName: undefined,
+			observedTools: ['normalTool'],
+			byId: 'sessionScopedTool',
+			result: { content: [{ kind: 'text', value: 'result' }] },
+		});
+	});
+
+	suite('session-scoped execution', () => {
+		const owner = LocalChatSessionUri.forSession('tool-owner');
+		const other = LocalChatSessionUri.forSession('other-session');
+		const scopeError = /Tool "scopedTool" is not available in this session/;
+
+		for (const scenario of [
+			{ name: 'missing headless scope', toolSessionResource: undefined, context: undefined },
+			{ name: 'missing scope with owner presentation', toolSessionResource: undefined, context: { sessionResource: owner } },
+			{ name: 'wrong headless scope', toolSessionResource: other, context: undefined },
+			{ name: 'wrong scope with owner presentation', toolSessionResource: other, context: { sessionResource: owner } },
+		]) {
+			test(`rejects ${scenario.name} before invocation, streaming, or hook side effects`, async () => {
+				const effects: string[] = [];
+				const setup = createTestToolsService(store, {
+					commandService: { executeCommand: async () => { effects.push('validateInput'); return undefined; } },
+				});
+				stubGetSession(setup.chatService, 'tool-owner');
+				setup.chatService.appendProgress = () => { effects.push('progress'); };
+				const tool = registerToolForTest(setup.service, store, 'scopedTool', {
+					prepareToolInvocation: async () => { effects.push('prepare'); return undefined; },
+					invoke: async () => { effects.push('invoke'); return { content: [] }; },
+					handleToolStream: async () => { effects.push('stream'); return undefined; },
+				}, { sessionResource: owner, inputSchema: { type: 'object' } });
+				store.add(setup.service.onDidInvokeTool(() => effects.push('invokedEvent')));
+				const dto: IToolInvocation = {
+					...tool.makeDto({}),
+					toolSessionResource: scenario.toolSessionResource,
+					context: scenario.context,
+				};
+				await assert.rejects(setup.service.invokeTool({
+					...dto, preToolUseResult: { permissionDecision: 'deny' },
+				}, async () => 0, CancellationToken.None), scopeError);
+				await assert.rejects(setup.service.invokeTool({
+					...dto, preToolUseResult: { updatedInput: { changed: true } },
+				}, async () => 0, CancellationToken.None), scopeError);
+				assert.throws(() => setup.service.beginToolCall({
+					toolId: tool.id,
+					toolCallId: 'stream',
+					sessionResource: scenario.context?.sessionResource,
+					toolSessionResource: scenario.toolSessionResource,
+					force: true,
+				}), scopeError);
+				assert.deepStrictEqual(effects, []);
+			});
+		}
+
+		test('rejects unauthorized calls before extension activation', async () => {
+			const effects: string[] = [];
+			const setup = createTestToolsService(store, {
+				extensionService: { activateByEvent: async () => { effects.push('activate'); } },
+			});
+			store.add(setup.service.registerToolData({
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			}));
+			store.add(setup.service.onDidInvokeTool(() => effects.push('invokedEvent')));
+			for (const toolSessionResource of [undefined, other]) {
+				await assert.rejects(setup.service.invokeTool({
+					callId: 'call', toolId: 'scopedTool', parameters: {}, context: undefined, toolSessionResource,
+				}, async () => 0, CancellationToken.None), scopeError);
+				assert.throws(() => setup.service.beginToolCall({
+					toolCallId: 'stream', toolId: 'scopedTool', toolSessionResource,
+				}), scopeError);
+			}
+			assert.deepStrictEqual(effects, []);
+		});
+
+		for (const scenario of [
+			{ name: 'owning headless call', toolSessionResource: owner, sessionId: undefined },
+			{ name: 'equal URI value', toolSessionResource: URI.parse(owner.toString()), sessionId: undefined },
+			{ name: 'sibling presentation', toolSessionResource: owner, sessionId: 'sibling-chat' },
+			{ name: 'subagent presentation', toolSessionResource: owner, sessionId: 'subagent-chat' },
+		]) {
+			test(`accepts ${scenario.name} with explicit ownership`, async () => {
+				if (scenario.sessionId) {
+					stubGetSession(chatService, scenario.sessionId);
+				}
+				const calls: { scope: string | undefined; context: string | undefined }[] = [];
+				const tool = registerToolForTest(service, store, 'scopedTool', {
+					invoke: async invocation => {
+						calls.push({ scope: invocation.toolSessionResource?.toString(), context: invocation.context?.sessionResource.toString() });
+						return { content: [{ kind: 'text', value: 'owned' }] };
+					},
+				}, { sessionResource: owner });
+				const result = await service.invokeTool({
+					...tool.makeDto({}, scenario.sessionId ? { sessionId: scenario.sessionId } : undefined),
+					toolSessionResource: scenario.toolSessionResource,
+				}, async () => 0, CancellationToken.None);
+				assert.deepStrictEqual({ result, calls }, {
+					result: { content: [{ kind: 'text', value: 'owned' }] },
+					calls: [{ scope: owner.toString(), context: scenario.sessionId ? LocalChatSessionUri.forSession(scenario.sessionId).toString() : undefined }],
+				});
+			});
+		}
+
+		test('leaves unscoped calls unchanged with or without an explicit scope', async () => {
+			const effects: string[] = [];
+			stubGetSession(chatService, 'sibling-chat');
+			const tool = registerToolForTest(service, store, 'unscopedTool', {
+				invoke: async () => { effects.push('invoke'); return { content: [] }; },
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+			});
+			for (const toolSessionResource of [undefined, other]) {
+				service.beginToolCall({ toolCallId: 'stream', toolId: tool.id, toolSessionResource });
+				await service.updateToolStream('stream', {}, CancellationToken.None);
+				await service.invokeTool({
+					...tool.makeDto({}, { sessionId: 'sibling-chat' }, 'stream'),
+					toolSessionResource,
+				}, async () => 0, CancellationToken.None);
+			}
+			assert.deepStrictEqual(effects, ['stream', 'stream', 'invoke', 'stream', 'stream', 'invoke']);
+		});
+
+		test('retains explicit streaming ownership and rejects updates after the tool changes sessions', async () => {
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(service.registerTool(data, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('ownerStream'); return undefined; },
+			}));
+			stubGetSession(chatService, 'sibling-chat');
+			const invocation = service.beginToolCall({
+				toolCallId: 'stream', toolId: data.id,
+				toolSessionResource: URI.parse(owner.toString()),
+				sessionResource: LocalChatSessionUri.forSession('sibling-chat'),
+			});
+			assert.ok(invocation);
+			await service.updateToolStream('stream', { first: true }, CancellationToken.None);
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: other }, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('replacementStream'); return undefined; },
+			}));
+			await assert.rejects(service.updateToolStream('stream', { second: true }, CancellationToken.None), scopeError);
+			assert.deepStrictEqual(effects, ['ownerStream', 'ownerStream']);
+		});
+
+		test('does not gain streaming ownership when an unscoped tool is replaced by a scoped tool', async () => {
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool', source: ToolDataSource.Internal,
+			};
+			const registration = store.add(service.registerTool(data, { invoke: async () => ({ content: [] }) }));
+			service.beginToolCall({ toolCallId: 'stream', toolId: data.id, sessionResource: owner, force: true });
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: owner }, {
+				invoke: async () => ({ content: [] }),
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+			}));
+			await assert.rejects(service.updateToolStream('stream', {}, CancellationToken.None), scopeError);
+			assert.deepStrictEqual(effects, []);
+		});
+
+		test('rechecks ownership after asynchronous activation before preparation', async () => {
+			const activating = new DeferredPromise<void>();
+			const activated = new DeferredPromise<void>();
+			const effects: string[] = [];
+			const setup = createTestToolsService(store, {
+				extensionService: {
+					activateByEvent: async () => { activating.complete(); await activated.p; },
+				},
+			});
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(setup.service.registerToolData(data));
+			const result = setup.service.invokeTool({
+				callId: 'call', toolId: data.id, parameters: {}, context: undefined, toolSessionResource: owner,
+			}, async () => 0, CancellationToken.None);
+			const rejected = assert.rejects(result, scopeError);
+			await activating.p;
+			registration.dispose();
+			store.add(setup.service.registerTool({ ...data, sessionResource: other }, {
+				prepareToolInvocation: async () => { effects.push('replacementPrepare'); return undefined; },
+				invoke: async () => { effects.push('replacementInvoke'); return { content: [] }; },
+			}));
+			await activated.complete();
+			await rejected;
+			assert.deepStrictEqual(effects, []);
+		});
+
+		test('rechecks ownership after asynchronous preparation before invoking a replacement', async () => {
+			const preparing = new DeferredPromise<void>();
+			const prepared = new DeferredPromise<void>();
+			const effects: string[] = [];
+			const data: IToolData = {
+				id: 'scopedTool', displayName: 'Scoped Tool', modelDescription: 'Scoped Tool',
+				source: ToolDataSource.Internal, sessionResource: owner,
+			};
+			const registration = store.add(service.registerTool(data, {
+				prepareToolInvocation: async () => {
+					effects.push('ownerPrepare');
+					preparing.complete();
+					await prepared.p;
+					return undefined;
+				},
+				invoke: async () => { effects.push('ownerInvoke'); return { content: [] }; },
+			}));
+			const result = service.invokeTool({
+				callId: 'call', toolId: data.id, parameters: {}, context: undefined, toolSessionResource: owner,
+			}, async () => 0, CancellationToken.None);
+			const rejected = assert.rejects(result, scopeError);
+			await preparing.p;
+			registration.dispose();
+			store.add(service.registerTool({ ...data, sessionResource: other }, {
+				invoke: async () => { effects.push('replacementInvoke'); return { content: [] }; },
+			}));
+			await prepared.complete();
+			await rejected;
+			assert.deepStrictEqual(effects, ['ownerPrepare']);
+		});
+	});
+
 	test('getToolByName returns tool regardless of when clause', () => {
 		contextKeyService.createKey('anotherFlag', false);
 
@@ -4228,6 +4522,299 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(tool.models.length, 2, 'tool should have 2 model selectors');
 		assert.deepStrictEqual(tool.models[0], { vendor: 'openai', family: 'gpt-4' });
 		assert.deepStrictEqual(tool.models[1], { vendor: 'anthropic', family: 'claude-3' });
+	});
+
+	suite('MCP enterprise policy for extension tools', () => {
+		const extensionSource: ToolDataSource = {
+			type: 'extension', label: 'Test Extension', extensionId: new ExtensionIdentifier('test.extension'),
+		};
+		const policyError = /disabled because your organization has disabled MCP and third-party extension tools/;
+
+		test('only policy none filters extension tools and reactively updates tools and toolsets', () => {
+			const config = new McpPolicyTestConfigurationService({ [mcpAccessConfig]: McpAccessValue.None });
+			const { service } = createTestToolsService(store, { configurationService: config });
+			for (const [id, source] of [
+				['extensionTool', extensionSource],
+				['internalTool', ToolDataSource.Internal],
+				['mcpTool', { type: 'mcp', label: 'MCP', serverLabel: 'MCP', instructions: undefined, collectionId: 'collection', definitionId: 'server' }],
+			] satisfies [string, ToolDataSource][]) {
+				store.add(service.registerToolData({ id, source, displayName: id, modelDescription: id }));
+			}
+			store.add(service.createToolSet(extensionSource, 'extensionSet', 'extensionSet'));
+			service.flushToolUpdates();
+			const observedTools: string[][] = [];
+			const observedToolSets: string[][] = [];
+			const tools = service.observeTools(undefined);
+			store.add(autorun(reader => {
+				observedTools.push(tools.read(reader).map(tool => tool.id));
+			}));
+			store.add(autorun(reader => {
+				observedToolSets.push(Array.from(service.toolSets.read(reader), toolSet => toolSet.id));
+			}));
+			const snapshots = [];
+			for (const policyValue of [undefined, McpAccessValue.Registry, McpAccessValue.None, undefined]) {
+				config.setMcpPolicyValue(policyValue);
+				service.flushToolUpdates();
+				snapshots.push(Array.from(service.getAllToolsIncludingDisabled(), tool => tool.id));
+			}
+
+			const enabledTools = ['extensionTool', 'internalTool', 'mcpTool'];
+			const disabledTools = ['internalTool', 'mcpTool'];
+			const internalToolSets = ['vscode', 'execute', 'read', 'agent'];
+			const enabledToolSets = [...internalToolSets, 'extensionSet'];
+			assert.deepStrictEqual({ snapshots, observedTools, observedToolSets }, {
+				snapshots: [enabledTools, enabledTools, disabledTools, enabledTools],
+				observedTools: [enabledTools, disabledTools, enabledTools],
+				observedToolSets: [enabledToolSets, internalToolSets, enabledToolSets],
+			});
+		});
+
+		test('rejects streaming calls during policy refresh before observable listeners update', () => {
+			const config = new McpPolicyTestConfigurationService();
+			const { service } = createTestToolsService(store, { configurationService: config });
+			const effects: string[] = [];
+			const tool = registerToolForTest(service, store, 'extensionTool', {
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+				invoke: async () => ({ content: [] }),
+			}, { source: extensionSource });
+			store.add(service.createToolSet(extensionSource, 'extensionSet', 'extensionSet'));
+			let errorMessage: string | undefined;
+			let invocationCreated = false;
+			store.add(config.onDidChangeConfiguration(() => {
+				try {
+					invocationCreated = !!service.beginToolCall({ toolCallId: 'stream', toolId: tool.id });
+				} catch (error) {
+					errorMessage = error instanceof Error ? error.message : String(error);
+				}
+			}));
+			store.add(autorun(reader => {
+				service.toolSets.read(reader);
+			}));
+
+			config.setMcpPolicyValue(McpAccessValue.None);
+
+			assert.deepStrictEqual({
+				blocked: policyError.test(errorMessage ?? ''),
+				invocationCreated,
+				effects,
+			}, {
+				blocked: true,
+				invocationCreated: false,
+				effects: [],
+			});
+		});
+
+		test('toolsets and references cannot reenable prohibited extension members', () => {
+			const config = new McpPolicyTestConfigurationService();
+			config.setMcpPolicyValue(McpAccessValue.None);
+			const { service } = createTestToolsService(store, { configurationService: config });
+			const extensionTool: IToolData = {
+				id: 'extensionTool', source: extensionSource, displayName: 'Extension Tool', modelDescription: 'Extension Tool',
+				toolReferenceName: 'extensionTool', canBeReferencedInPrompt: true,
+			};
+			const internalTool: IToolData = {
+				id: 'internalTool', source: ToolDataSource.Internal, displayName: 'Internal Tool', modelDescription: 'Internal Tool',
+				toolReferenceName: 'internalTool', canBeReferencedInPrompt: true,
+			};
+			store.add(service.registerToolData(extensionTool));
+			store.add(service.registerToolData(internalTool));
+			const extensionSet = store.add(service.createToolSet(extensionSource, 'extensionSet', 'extensionSet'));
+			const userSet = store.add(service.createToolSet({
+				type: 'user', label: 'User Tools', file: URI.file('/tools.json'),
+			}, 'userSet', 'userSet'));
+			store.add(extensionSet.addTool(extensionTool));
+			store.add(service.readToolSet.addTool(extensionTool));
+			store.add(service.readToolSet.addTool(internalTool));
+			store.add(userSet.addToolSet(extensionSet));
+			store.add(userSet.addTool(internalTool));
+			const selection = service.toToolAndToolSetEnablementMap([
+				'read', 'extensionSet', 'read/extensionTool', 'extensionSet/extensionTool',
+			], undefined);
+			const model = { id: 'test-model', vendor: 'test', family: 'test', version: '1' } as ILanguageModelChatMetadata;
+			const readToolSets = [undefined, model].map(model =>
+				Array.from(service.getToolSetsForModel(model)).find(toolSet => toolSet.id === 'read'));
+
+			assert.deepStrictEqual({
+				extensionReferences: ['read/extensionTool', 'extensionSet/extensionTool', 'test.extension/extensionTool'].map(name => service.getToolByFullReferenceName(name)),
+				enabledTools: Array.from(selection).filter(([tool, enabled]) => !isToolSet(tool) && enabled).map(([tool]) => tool.id),
+				extensionSetSelected: selection.has(extensionSet),
+				extensionMembers: Array.from(extensionSet.getTools(), tool => tool.id),
+				userMembers: Array.from(userSet.getTools(), tool => tool.id),
+				modelMembers: readToolSets.map(toolSet => Array.from(toolSet?.getTools() ?? [], tool => tool.id)),
+			}, {
+				extensionReferences: [undefined, undefined, undefined],
+				enabledTools: ['internalTool'],
+				extensionSetSelected: false,
+				extensionMembers: [],
+				userMembers: ['internalTool'],
+				modelMembers: [['internalTool'], ['internalTool']],
+			});
+		});
+
+		test('rejects direct calls before activation or preparation while preserving internal tools and policy removal', async () => {
+			const config = new McpPolicyTestConfigurationService({ [mcpAccessConfig]: McpAccessValue.None });
+			config.setMcpPolicyValue(McpAccessValue.None);
+			const effects: string[] = [];
+			const { service } = createTestToolsService(store, {
+				configurationService: config,
+				extensionService: { activateByEvent: async () => { effects.push('activate'); } },
+			});
+			store.add(service.registerToolData({
+				id: 'lazyExtensionTool', source: extensionSource, displayName: 'Lazy Tool', modelDescription: 'Lazy Tool',
+			}));
+			const extensionTool = registerToolForTest(service, store, 'extensionTool', {
+				prepareToolInvocation: async () => { effects.push('prepare'); return undefined; },
+				invoke: async () => { effects.push('extensionInvoke'); return { content: [] }; },
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+			}, { source: extensionSource });
+			const internalTool = registerToolForTest(service, store, 'internalTool', {
+				invoke: async () => { effects.push('internalInvoke'); return { content: [] }; },
+			});
+
+			for (const toolId of ['lazyExtensionTool', extensionTool.id]) {
+				await assert.rejects(service.invokeTool({
+					callId: toolId, toolId, parameters: {}, context: undefined,
+				}, async () => 0, CancellationToken.None), policyError);
+			}
+			assert.throws(() => service.beginToolCall({ toolCallId: 'stream', toolId: extensionTool.id }), policyError);
+			await service.invokeTool(internalTool.makeDto({}), async () => 0, CancellationToken.None);
+			config.setMcpPolicyValue(undefined);
+			await service.invokeTool(extensionTool.makeDto({}), async () => 0, CancellationToken.None);
+			service.beginToolCall({ toolCallId: 'stream', toolId: extensionTool.id });
+			config.setMcpPolicyValue(McpAccessValue.None);
+			await assert.rejects(service.updateToolStream('stream', {}, CancellationToken.None), policyError);
+			assert.deepStrictEqual(effects, ['internalInvoke', 'prepare', 'extensionInvoke', 'stream']);
+		});
+
+		for (const useStreamAlias of [false, true]) {
+			test(`cancels a policy-denied pending invocation matched by ${useStreamAlias ? 'stream alias' : 'call id'}`, async () => {
+				const config = new McpPolicyTestConfigurationService();
+				const { service, chatService } = createTestToolsService(store, { configurationService: config });
+				const owner = LocalChatSessionUri.forSession('policy-owner');
+				stubGetSession(chatService, 'policy-owner');
+				const effects: string[] = [];
+				const tool = registerToolForTest(service, store, 'extensionTool', {
+					handleToolStream: async () => { effects.push('stream'); return undefined; },
+					invoke: async () => { effects.push('invoke'); return { content: [] }; },
+				}, { source: extensionSource, sessionResource: owner });
+				const invocation = service.beginToolCall({
+					toolId: tool.id, toolCallId: 'stream', toolSessionResource: owner, sessionResource: owner,
+				});
+				config.setMcpPolicyValue(McpAccessValue.None);
+
+				await assert.rejects(service.invokeTool({
+					...tool.makeDto({}, { sessionId: 'policy-owner' }, useStreamAlias ? 'invoke' : 'stream'),
+					chatStreamToolCallId: useStreamAlias ? 'stream' : undefined,
+					toolSessionResource: owner,
+				}, async () => 0, CancellationToken.None), policyError);
+				config.setMcpPolicyValue(undefined);
+				await service.updateToolStream('stream', {}, CancellationToken.None);
+
+				const state = invocation?.state.get();
+				assert.deepStrictEqual({
+					state: state?.type,
+					reason: state?.type === IChatToolInvocation.StateKind.Cancelled ? state.reason : undefined,
+					hasPolicyReason: state?.type === IChatToolInvocation.StateKind.Cancelled && typeof state.reasonMessage === 'string' && policyError.test(state.reasonMessage),
+					effects,
+				}, {
+					state: IChatToolInvocation.StateKind.Cancelled,
+					reason: ToolConfirmKind.Denied,
+					hasPolicyReason: true,
+					effects: ['stream'],
+				});
+			});
+		}
+
+		test('policy denial cannot cancel a pending call owned by another tool or session', async () => {
+			const config = new McpPolicyTestConfigurationService();
+			const { service } = createTestToolsService(store, { configurationService: config });
+			const owner = LocalChatSessionUri.forSession('policy-owner');
+			const other = LocalChatSessionUri.forSession('other-session');
+			const effects: string[] = [];
+			const tool = registerToolForTest(service, store, 'extensionTool', {
+				handleToolStream: async () => { effects.push('stream'); return undefined; },
+				invoke: async () => ({ content: [] }),
+			}, { source: extensionSource, sessionResource: owner });
+			registerToolForTest(service, store, 'otherTool', {
+				invoke: async () => ({ content: [] }),
+			}, { source: extensionSource, sessionResource: owner });
+			const invocation = service.beginToolCall({
+				toolId: tool.id, toolCallId: 'stream', toolSessionResource: owner, sessionResource: owner,
+			});
+			config.setMcpPolicyValue(McpAccessValue.None);
+			const states = [];
+			for (const scenario of [
+				{ toolId: 'otherTool', callId: 'stream', scope: owner, presentation: owner, error: policyError },
+				{ toolId: tool.id, callId: 'stream', scope: other, presentation: owner, error: /not available in this session/ },
+				{ toolId: tool.id, callId: 'stream', scope: owner, presentation: other, error: policyError },
+				{ toolId: tool.id, callId: 'other-call', scope: owner, presentation: owner, error: policyError },
+			]) {
+				await assert.rejects(service.invokeTool({
+					callId: scenario.callId, toolId: scenario.toolId, parameters: {},
+					toolSessionResource: scenario.scope, context: { sessionResource: scenario.presentation },
+				}, async () => 0, CancellationToken.None), scenario.error);
+				states.push(invocation?.state.get().type);
+			}
+			config.setMcpPolicyValue(undefined);
+			await service.updateToolStream('stream', {}, CancellationToken.None);
+			assert.deepStrictEqual({ states, effects }, {
+				states: Array(4).fill(IChatToolInvocation.StateKind.Streaming),
+				effects: ['stream', 'stream'],
+			});
+		});
+
+		for (const phase of ['activation', 'preparation']) {
+			test(`rechecks policy after asynchronous ${phase}`, async () => {
+				const config = new McpPolicyTestConfigurationService();
+				const entered = new DeferredPromise<void>();
+				const resume = new DeferredPromise<void>();
+				const effects: string[] = [];
+				const { service } = createTestToolsService(store, {
+					configurationService: config,
+					extensionService: {
+						activateByEvent: async () => {
+							effects.push('activate');
+							entered.complete();
+							await resume.p;
+						},
+					},
+				});
+				const toolData: IToolData = {
+					id: 'extensionTool', source: extensionSource, displayName: 'Extension Tool', modelDescription: 'Extension Tool',
+				};
+				const implementation: IToolImpl = {
+					prepareToolInvocation: async () => {
+						effects.push('prepare');
+						entered.complete();
+						await resume.p;
+						return undefined;
+					},
+					invoke: async () => { effects.push('invoke'); return { content: [] }; },
+				};
+				store.add(service.registerToolData(toolData));
+				if (phase === 'preparation') {
+					store.add(service.registerToolImplementation(toolData.id, implementation));
+				}
+				const pendingInvocation = phase === 'activation'
+					? service.beginToolCall({ toolId: toolData.id, toolCallId: 'call', force: true })
+					: undefined;
+				const result = service.invokeTool({
+					callId: 'call', toolId: toolData.id, parameters: {}, context: undefined,
+				}, async () => 0, CancellationToken.None);
+				const rejected = assert.rejects(result, policyError);
+				await entered.p;
+				config.setMcpPolicyValue(McpAccessValue.None);
+				if (phase === 'activation') {
+					store.add(service.registerToolImplementation(toolData.id, implementation));
+				}
+				await resume.complete();
+				await rejected;
+				assert.deepStrictEqual({ effects, pendingState: pendingInvocation?.state.get().type }, {
+					effects: [phase === 'activation' ? 'activate' : 'prepare'],
+					pendingState: phase === 'activation' ? IChatToolInvocation.StateKind.Cancelled : undefined,
+				});
+			});
+		}
 	});
 
 	test('tools with extension tools disabled setting are filtered', () => {

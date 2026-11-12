@@ -78,9 +78,9 @@ Cookies/login/storage → **sessions**. "Which pages can this client see" → **
 
 ## Remote pages
 
-A browser context (its storage) is bound to a **network**: local, or remote by authority. Tabs save their requested session (storage scope, affinity and network); creation applies current trust and proxy restrictions without overwriting that request. Popups and automation contexts inherit their parent's network. Remote traffic uses an HTTPS proxy in the window's local extension host; proxy startup failure fails the view rather than falling back locally.
+A browser context (its storage) is bound to a **network**: local, or remote by authority: the window's remote (remote workspace windows) or a remote agent host (Agents window sessions). Tabs save their requested session (storage scope, affinity and network); creation applies current trust and proxy restrictions without overwriting that request. Popups and automation contexts inherit their parent's network. Remote traffic uses an HTTPS proxy in the window's local extension host; proxy startup failure fails the view rather than falling back locally. A host known not to support proxying leaves new tabs on the local network with a visible warning.
 
-The network belongs to the browser context, not its owner, audience, or policy. Global storage is always local. Workspace storage uses the window's network; other networks require a storage **affinity** selecting a partition within the workspace's storage folder, or use per-view in-memory storage without one. Clearing workspace storage includes these partitions.
+The network belongs to the browser context, not its owner, audience, or policy. Global storage is always local. Workspace storage uses the window's network; other networks require a storage **affinity** (an agent host plus folder roots) selecting a partition within the workspace's storage folder, or use per-view in-memory storage without one. Clearing workspace storage includes these partitions.
 
 ## Testing strategy
 

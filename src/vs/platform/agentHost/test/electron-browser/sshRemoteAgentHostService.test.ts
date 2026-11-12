@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -308,6 +308,7 @@ class LifecycleSSHMainService extends Disposable implements ISSHRemoteAgentHostM
 	readonly onDidAnnounceHostKeys = Event.None;
 
 	readonly initializedRelays = new Set<string>();
+	readonly forwardingRequests: Array<boolean | undefined> = [];
 	readonly connectCalls: Array<{ config: ISSHAgentHostConfig; expectedConnectionId: string | undefined }> = [];
 	readonly reconnectCalls: Array<{ sshConfigHost: string; preferredAgentLocation: RemoteAgentHostLocationPreference | undefined; expectedConnectionId: string | undefined }> = [];
 	readonly disconnectCalls: string[] = [];
@@ -325,8 +326,9 @@ class LifecycleSSHMainService extends Disposable implements ISSHRemoteAgentHostM
 		return this._acquireRelay(config, config.sshConfigHost);
 	}
 
-	async reconnect(sshConfigHost: string, name: string, _remoteAgentHostCommand?: string, _agentForward?: boolean, _userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, _remoteAgentHostCommand?: string, agentForward?: boolean, _userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this.reconnectCalls.push({ sshConfigHost, preferredAgentLocation, expectedConnectionId });
+		this.forwardingRequests.push(agentForward);
 		this._onDidReconnect.fire();
 		const error = this.nextReconnectError;
 		this.nextReconnectError = undefined;
@@ -664,7 +666,7 @@ class TestRemoteAgentHostLocationPreferenceService implements IRemoteAgentHostLo
 
 suite('SSHRemoteAgentHostService (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let remoteAgentHostService: MockRemoteAgentHostService;
 	let configurationService: TestConfigurationService;
@@ -734,8 +736,6 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sampleConfig: ISSHAgentHostConfig = {
 		host: 'remote.example',
@@ -1277,7 +1277,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let locationPreferenceService: TestRemoteAgentHostLocationPreferenceService;
 	let dialogServiceStub: Partial<IDialogService>;
@@ -1320,8 +1320,6 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const connectionKey = 'ssh:remote.example';
 
@@ -1456,25 +1454,25 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		assert.strictEqual(locationPreferenceService.getPreference(connectionKey), 'editor');
 	});
 
-	test('resolves to the live editor candidate with the lexicographically smallest instanceId, regardless of array order', async () => {
+	test('resolves to the first live editor candidate in newest-first registry order', async () => {
 		locationPreferenceService.setPreference(connectionKey, 'editor');
 
 		mainService.fireEndpointSelectionRequest(makeRequest([editorCandidate, otherEditorCandidate]));
 		await mainService.waitForEndpointSelectionResponse();
 
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
-			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 333, instanceId: 'editor-instance-1' } },
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'editor', pid: 111, instanceId: 'editor-instance-2' } },
 		]);
 	});
 
-	test('resolves to the live standalone candidate with the lexicographically smallest instanceId, regardless of array order', async () => {
+	test('resolves to the first live standalone candidate in newest-first registry order', async () => {
 		locationPreferenceService.setPreference(connectionKey, 'dedicated');
 
 		mainService.fireEndpointSelectionRequest(makeRequest([standaloneCandidate, otherStandaloneCandidate]));
 		await mainService.waitForEndpointSelectionResponse();
 
 		assert.deepStrictEqual(mainService.endpointSelectionResponses, [
-			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 444, instanceId: 'standalone-instance-1' } },
+			{ requestId: 'req-1', selection: { kind: 'candidate', type: 'standalone', pid: 222, instanceId: 'standalone-instance-2' } },
 		]);
 	});
 
@@ -1544,7 +1542,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 
 suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let mainService: MockSSHMainService;
 	let hostKeyTrustService: SSHHostKeyTrustService;
 	let notificationService: CapturingNotificationService;
@@ -1606,8 +1604,6 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		disposables.add(instantiationService.createInstance(TestableService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Settles once every verification the test has triggered has finished. */
 	async function settleVerifications(): Promise<void> {
@@ -2114,7 +2110,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 });
 
 suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const config: ISSHAgentHostConfig = {
 		host: 'remote.example',
 		username: 'user',
@@ -2182,8 +2178,6 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
 	});
 
-	teardown(() => disposables.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function waitForTransport(count: number): Promise<void> {
 		while (transports.length < count) {
@@ -2400,6 +2394,31 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 			connectCalls: 1,
 			reconnectCalls: 1,
 		});
+	});
+
+	test('configured-host requests resolve in the main service without staging renderer credentials', async () => {
+		const connecting = service.connect({ sshConfigHost: 'remote.example', name: 'My Remote' });
+		await waitForTransport(1);
+		await transports[0].completeInitialize();
+		const connected = await connecting;
+
+		assert.deepStrictEqual({
+			connectCalls: mainService.connectCalls,
+			reconnectCalls: mainService.reconnectCalls,
+			address: connected.localAddress,
+			forwardingRequests: mainService.forwardingRequests,
+		}, {
+			connectCalls: [],
+			reconnectCalls: [{ sshConfigHost: 'remote.example', preferredAgentLocation: undefined, expectedConnectionId: undefined }],
+			address: 'ssh:remote.example',
+			forwardingRequests: [true],
+		});
+
+		const recovery = service.reconnect('remote.example', 'My Remote', false);
+		await waitForTransport(2);
+		await transports[1].completeInitialize();
+		await recovery;
+		assert.deepStrictEqual(mainService.forwardingRequests, [true, undefined]);
 	});
 
 	test('replaces the relay during explicit recovery and disposes the transferred lease without disconnecting it', async () => {

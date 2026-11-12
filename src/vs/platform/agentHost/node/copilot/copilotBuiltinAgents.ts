@@ -13,6 +13,7 @@ import type { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
+import { withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { CustomizationLoadStatus, customizationId, type DirectoryCustomization } from '../../common/state/sessionState.js';
 import { toSdkClientToolName } from './copilotPluginConverters.js';
 import type { IActiveClientSnapshot } from './copilotSessionLauncher.js';
@@ -94,7 +95,7 @@ export function buildCopilotBuiltinAgentMarkdown(agent: ICopilotBuiltinAgent): s
 	].join('\n');
 }
 
-/** Owns read-only built-in agent files served through the host's normal resource-read path. */
+/** Owns read-only built-in customization files served through the host's normal resource-read path. */
 export class CopilotBuiltinAgentsStore extends Disposable {
 	constructor(fileService: IFileService) {
 		super();
@@ -123,6 +124,7 @@ export function buildCopilotBuiltinAgentsContainer(): DirectoryCustomization {
 		contents: CustomizationType.Agent,
 		writable: false,
 		load: { kind: CustomizationLoadStatus.Loaded },
+		_meta: withCustomizationDiscoveryMeta(undefined, { source: 'builtin' }),
 		children: COPILOT_BUILTIN_AGENTS.map(agent => {
 			const agentUri = getCopilotBuiltinAgentUri(agent).toString();
 			return {

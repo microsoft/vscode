@@ -366,7 +366,7 @@ suite('LocalModelCopilotRequestHandler', () => {
 		test('re-issues /auto cloud-only when the local pick has no usable fallback', async () => {
 			const h = createHarness();
 			h.onProxy = (_path, body) => body?.local_models
-				? json({ ...A2_RESPONSE, cloud_fallback_model: { id: 'responses-only', supported_endpoints: ['/responses'] } })
+				? json({ ...A2_RESPONSE, cloud_fallback_model: { id: 'messages-only', supported_endpoints: ['/v1/messages'] } })
 				: json({ session_token: 'cloud-token', selected_model: { id: 'gpt-5' } });
 			const answer = await (await h.handler.handleRequest(autoRequest(), context(AUTO_URL))).json();
 			assert.deepStrictEqual({ answer, declared: h.fetches.map(f => !!f.body?.local_models), routes: h.routeTable.size, telemetry: h.telemetry.map(e => `${e.selection}:${e.reason}:${e.tier}`) }, {
@@ -1038,6 +1038,52 @@ suite('LocalModelCopilotRequestHandler', () => {
 			h.onProxy = () => json({ error: 'token expired' }, 401);
 			const response = await h.handler.handleRequest(chatRequest(), context(CHAT_URL));
 			assert.deepStrictEqual({ status: response.status, body: await response.json() }, { status: 401, body: { error: 'token expired' } });
+		});
+
+		test('routes a local pick whose fallback serves only /responses, and falls back through the Responses API without streaming', async () => {
+			const h = createHarness();
+			h.onProxy = path => path === '/auto'
+				? json({ ...A2_RESPONSE, cloud_fallback_model: { ...A2_RESPONSE.cloud_fallback_model, id: 'gpt-6-luna', supported_endpoints: ['/responses', 'ws:/responses'] } })
+				: json({ id: 'resp_1', created_at: 1, model: 'gpt-6-luna', status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'cloud answer' }] }], usage: { input_tokens: 5, output_tokens: 2, total_tokens: 7 } });
+			await declare(h);
+			const routes = h.routeTable.size;
+			h.onLoopback = () => json({ error: { message: 'busy' } }, 503);
+			const generation = h.ledger.beginTurn('session-1');
+			const streamed = await h.handler.handleRequest(chatRequest(), context(CHAT_URL));
+			const streamedAnswer = { status: streamed.status, contentType: streamed.headers.get('content-type'), text: await streamed.text() };
+			const nonStreaming = await h.handler.handleRequest(chatRequest({ stream: false }), context(CHAT_URL));
+			const nonStreamingAnswer = { status: nonStreaming.status, body: await nonStreaming.json() };
+			const turn = h.ledger.endTurn('session-1', generation);
+			// CAPI errors, such as an expired route token, reach the runtime as CAPI sent them.
+			h.onProxy = () => json({ error: 'token expired' }, 401);
+			const expired = await h.handler.handleRequest(chatRequest(), context(CHAT_URL));
+
+			const message = { role: 'assistant', content: 'cloud answer' };
+			const usage = { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 };
+			assert.deepStrictEqual({
+				routes,
+				sent: h.fetches.filter(f => f.via === 'proxy').map(f => ({ path: f.path, model: f.body?.model, stream: f.body?.stream, input: f.body?.input, maxOutputTokens: f.body?.max_output_tokens, token: f.headers['copilot-session-token'] })),
+				streamedAnswer,
+				nonStreamingAnswer,
+				expired: { status: expired.status, body: await expired.json() },
+				turn,
+				telemetry: h.telemetry.map(e => `${e.selection}:${e.reason}`),
+			}, {
+				routes: 1,
+				sent: [0, 1, 2].map(() => ({ path: '/responses', model: 'gpt-6-luna', stream: false, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }], maxOutputTokens: 64000, token: TOKEN })),
+				streamedAnswer: {
+					status: 200,
+					contentType: 'text/event-stream',
+					text: `data: ${JSON.stringify({ id: 'resp_1', object: 'chat.completion.chunk', created: 1, model: 'gpt-6-luna', choices: [{ index: 0, delta: message, finish_reason: 'stop' }], usage })}\n\ndata: [DONE]\n\n`,
+				},
+				nonStreamingAnswer: {
+					status: 200,
+					body: { id: 'resp_1', object: 'chat.completion', created: 1, model: 'gpt-6-luna', choices: [{ index: 0, message, finish_reason: 'stop' }], usage },
+				},
+				expired: { status: 401, body: { error: 'token expired' } },
+				turn: { execution: 'fallback', fallbackReason: 'httpError', fallbackModel: 'gpt-6-luna', familyId: MAI_IDENTITY.familyId },
+				telemetry: ['fallback:httpError', 'fallback:httpError', 'fallback:httpError'],
+			});
 		});
 
 		test('rejects other sentinel endpoints and -local ids on other CAPI paths without forwarding', async () => {

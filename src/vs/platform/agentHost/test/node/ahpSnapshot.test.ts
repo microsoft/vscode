@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatToolCallStart, chatTurnComplete } from '../common/chatActionBuilders.js';
 import type { AhpNotification } from '../../common/state/sessionProtocol.js';
 import { createErrorResponsePart, ResponsePartKind } from '../../common/state/sessionState.js';
 import { AhpSnapshotRecorder, waitForChatTurnComplete, waitForChatUnreadAfterTurn, waitForFinalServerMessage } from './e2e/harness/ahpSnapshot.js';
@@ -45,13 +46,7 @@ suite('AhpSnapshotRecorder', () => {
 			method: 'action',
 			params: {
 				channel: 'ahp-chat://session/chat',
-				action: {
-					type: ActionType.ChatToolCallStart,
-					turnId: 'turn-1',
-					toolCallId: 'tool-1',
-					toolName: 'bash',
-					displayName: 'Run command',
-				},
+				action: chatToolCallStart('turn-1', 'tool-1', 'bash', 'Run command'),
 			},
 		});
 
@@ -120,12 +115,12 @@ suite('AhpSnapshotRecorder', () => {
 		const chat = 'ahp-chat://session/chat';
 		const turnId = 'resumed-turn';
 		const notifications: AhpNotification[] = [
-			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 9, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId, duration: 0 } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 9, origin: undefined, action: chatTurnComplete(turnId, 0) } },
 			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 10, origin: undefined, action: { type: ActionType.ChatError, turnId, duration: 0, part: createErrorResponsePart({ errorType: 'requestFailed', message: 'previous failure' }, true) } } },
-			{ jsonrpc: '2.0', method: 'action', params: { channel: 'ahp-chat://session/other', serverSeq: 11, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId, duration: 0 } } },
-			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 12, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId: 'other-turn', duration: 0 } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: 'ahp-chat://session/other', serverSeq: 11, origin: undefined, action: chatTurnComplete(turnId, 0) } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 12, origin: undefined, action: chatTurnComplete('other-turn', 0) } },
 			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 13, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: false } } },
-			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 14, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId, duration: 0 } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 14, origin: undefined, action: chatTurnComplete(turnId, 0) } },
 			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 15, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: false } } },
 		];
 		const matched: number[] = [];
@@ -314,9 +309,9 @@ suite('AhpSnapshotRecorder', () => {
 		const turnId = 'completed-turn';
 		const notifications: AhpNotification[] = [
 			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 9, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: false } } },
-			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 10, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId: 'previous-turn', duration: 0 } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 10, origin: undefined, action: chatTurnComplete('previous-turn', 0) } },
 			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 11, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: true } } },
-			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 12, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId, duration: 0 } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 12, origin: undefined, action: chatTurnComplete(turnId, 0) } },
 			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 13, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: true } } },
 			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 14, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: false } } },
 		];
@@ -344,8 +339,8 @@ suite('AhpSnapshotRecorder', () => {
 	test('a snapshot round cannot complete on an outcome from a previous round of the same turn', async () => {
 		const chat = 'ahp-chat://session/chat';
 		const turnId = 'resumed-turn';
-		const previous: AhpNotification = { jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 10, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId, duration: 0 } } };
-		const current: AhpNotification = { jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 12, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId, duration: 0 } } };
+		const previous: AhpNotification = { jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 10, origin: undefined, action: chatTurnComplete(turnId, 0) } };
+		const current: AhpNotification = { jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 12, origin: undefined, action: chatTurnComplete(turnId, 0) } };
 		const unread: AhpNotification = { jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 13, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: false } } };
 		const matched: number[] = [];
 		const client = {
