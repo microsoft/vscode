@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
-import { getOrSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile, BrowserViewChangeEvent, BrowserViewEvent, BrowserViewEventMap, serializeBrowserViewInfo, IBrowserViewAccessibilitySnapshot, getBrowserViewSessionNetwork } from '../common/browserView.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
@@ -16,6 +15,8 @@ import { BrowserView } from './browserView.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
+import { computeFileTrust } from './browserFileTrust.js';
+import { Iterable } from '../../../base/common/iterator.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IPermissionCategoryState } from '../common/browserPermissions.js';
 import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
@@ -25,8 +26,6 @@ import { INativeHostMainService } from '../../native/electron-main/nativeHostMai
 import { htmlAttributeEncodeValue } from '../../../base/common/strings.js';
 import { BrowserViewInspectElementId } from './browserViewInspector.js';
 import { equals } from '../../../base/common/objects.js';
-import { Schemas } from '../../../base/common/network.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../agentHost/common/agentHostUri.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
@@ -407,35 +406,12 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	private _recomputeTrustedFileRoots(): void {
-		const roots = new Set<string>();
-		let trustAllFiles = false;
-		const remotes = new Map<string, { roots: Set<string>; trustAll: boolean; windowId: number; scheme: string }>();
-		for (const [windowId, configuration] of this._windowConfigurations) {
-			// A window connected to a remote contributes remote roots and trust-all to that remote only.
-			const remoteAuthority = this.windowsMainService.getWindowById(windowId)?.remoteAuthority;
-			const remoteKey = remoteAuthority?.toLowerCase();
-			const remote = remoteKey ? getOrSet(remotes, remoteKey, { roots: new Set<string>(), trustAll: false, windowId, scheme: Schemas.vscodeRemote }) : undefined;
-			if (remote) {
-				remote.trustAll ||= configuration.trustAllFiles;
-			} else {
-				trustAllFiles ||= configuration.trustAllFiles;
-			}
-			for (const components of configuration.trustedFileRoots) {
-				const root = URI.revive(components);
-				if (root.scheme === Schemas.file) {
-					roots.add(root.fsPath);
-				} else if (remote && root.scheme === Schemas.vscodeRemote && root.authority.toLowerCase() === remoteKey) {
-					remote.roots.add(root.path);
-				} else if (root.scheme === AGENT_HOST_SCHEME) {
-					// An agent host's files are read through the window that contributed them.
-					const original = fromAgentHostUri(root);
-					if (original.scheme === Schemas.file) {
-						getOrSet(remotes, root.authority.toLowerCase(), { roots: new Set<string>(), trustAll: false, windowId, scheme: AGENT_HOST_SCHEME }).roots.add(original.path);
-					}
-				}
-			}
-		}
-		BrowserSession.setTrustedFileRoots([...roots], trustAllFiles);
+		const { local, remotes } = computeFileTrust(Iterable.map(this._windowConfigurations, ([windowId, configuration]) => ({
+			...configuration,
+			windowId,
+			remoteAuthority: this.windowsMainService.getWindowById(windowId)?.remoteAuthority,
+		})));
+		BrowserSession.setTrustedFileRoots([...local.roots], local.trustAll);
 		BrowserSession.setTrustedRemoteFileRoots(remotes);
 	}
 

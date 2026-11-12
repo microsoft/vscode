@@ -294,12 +294,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 		this._networkResolver = resolver;
 		const statusListener = resolver.onDidChangeNetworkStatus(() => this._onDidChangeNetworkStatus.fire());
+		const trustListener = resolver.onDidChangeTrustedFileRoots?.(() => void this._updateWindowConfiguration());
 		this._onDidChangeNetworkStatus.fire();
+		void this._updateWindowConfiguration();
 		return toDisposable(() => {
 			statusListener.dispose();
+			trustListener?.dispose();
 			if (this._networkResolver === resolver) {
 				this._networkResolver = undefined;
 				this._onDidChangeNetworkStatus.fire();
+				void this._updateWindowConfiguration();
 			}
 		});
 	}
@@ -988,6 +992,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			for (const folder of this.workspaceContextService.getWorkspace().folders) {
 				roots.push(folder.uri);
 			}
+			roots.push(...this._networkResolver?.getTrustedFileRoots?.() ?? []);
 		}
 		roots.push(...this.workspaceTrustManagementService.getTrustedUris());
 		return roots;

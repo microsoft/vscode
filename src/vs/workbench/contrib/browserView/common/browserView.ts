@@ -314,6 +314,10 @@ export interface IBrowserViewNetworkResolver {
 	 * Called synchronously alongside {@link resolveNetwork}.
 	 */
 	resolveStorageAffinity?(owner: IBrowserViewOwner): string | undefined;
+	/** Roots of the file systems of the networks this resolver resolves views to, which tabs of any session may load files from. */
+	getTrustedFileRoots?(): readonly URI[];
+	/** Fires when {@link getTrustedFileRoots} may have changed. */
+	readonly onDidChangeTrustedFileRoots?: Event<void>;
 	/** The status of a network this resolver resolves views to. */
 	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;
 	/** Fires when the status of any network may have changed. */

@@ -366,12 +366,6 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
 	return URI.from({ scheme: Schemas.file, path: original.path, query: original.query, fragment: uri.fragment }).toString(true);
 }
 
-/** The URL a file resource opens at: an agent host file's own path, which its session's network serves as `file:`. */
-export function getBrowserFileResourceUrl(resource: URI): string {
-	const original = resource.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(resource) : resource;
-	return (original.scheme === Schemas.file ? original.with({ authority: '' }) : resource).toString();
-}
-
 export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
 	const targetResource = URI.parse(target);
 	return extUriBiasedIgnorePathCase.isEqual(

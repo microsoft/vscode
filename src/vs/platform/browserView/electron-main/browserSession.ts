@@ -25,6 +25,16 @@ import { localize } from '../../../nls.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
+/** What a window contributes to the `file:` requests of sessions on a remote network. */
+export interface IRemoteFileTrust<TRoots = ReadonlySet<string>> {
+	readonly roots: TRoots;
+	readonly trustAll: boolean;
+	/** The window whose file service reads the remote's files. */
+	readonly windowId: number;
+	/** The scheme `windowId` reads them with: `vscode-remote` or `vscode-agent-host`. */
+	readonly scheme: string;
+}
+
 /**
  * Holds an Electron session along with its storage scope and unique browser
  * context identifier.  Each instance maps one-to-one to an Electron
@@ -41,16 +51,6 @@ import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSetting
  * constructor is not meant to be called directly; use the factories so
  * the internal registry stays consistent.
  */
-/** What a window contributes to the `file:` requests of sessions on a remote network. */
-export interface IRemoteFileTrust {
-	readonly roots: ReadonlySet<string>;
-	readonly trustAll: boolean;
-	/** The window whose file service reads the remote's files. */
-	readonly windowId: number;
-	/** The scheme `windowId` reads them with: `vscode-remote` or `vscode-agent-host`. */
-	readonly scheme: string;
-}
-
 export class BrowserSession {
 
 	// #region Static registry
@@ -270,7 +270,7 @@ export class BrowserSession {
 
 	private static readonly _trustedFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
 	private static _trustAllFiles = false;
-	private static _trustedRemoteFileRoots = new Map<string, { readonly roots: TernarySearchTree<string, true>; readonly trustAll: boolean; readonly windowId: number; readonly scheme: string }>();
+	private static _trustedRemoteFileRoots = new Map<string, IRemoteFileTrust<TernarySearchTree<string, true>>>();
 
 	/**
 	 * Set trusted file roots for all browser sessions.
@@ -298,7 +298,7 @@ export class BrowserSession {
 					roots.set(posix.normalize(root), true);
 				}
 			}
-			BrowserSession._trustedRemoteFileRoots.set(authority.toLowerCase(), { roots, trustAll: remote.trustAll, windowId: remote.windowId, scheme: remote.scheme });
+			BrowserSession._trustedRemoteFileRoots.set(authority.toLowerCase(), { ...remote, roots });
 		}
 	}
 

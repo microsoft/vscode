@@ -74,6 +74,8 @@ suite('SessionBrowserNetworkContribution', () => {
 			onDidReplaceSession: Event.None,
 			onDidReplaceNewDraftSession: Event.None,
 			onDidDiscardNewSession: Event.None,
+			onDidChangeSessions: Event.None,
+			getSessions: () => [],
 			...services.sessionsManagement,
 		}));
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
@@ -145,6 +147,47 @@ suite('SessionBrowserNetworkContribution', () => {
 			// Not the local network: views that require their owner's network fail instead.
 			unknownChat: { network: null, storageAffinity: undefined },
 			activeLocal: localNetwork,
+		});
+	});
+
+	test('keeps the folders of sessions on remote hosts trusted after focus moves to another session', () => {
+		const withFolder = (id: string, providerId: string, folder: string, requiresWorkspaceTrust: boolean) => upcastPartial<ISession>({
+			sessionId: id,
+			resource: URI.parse(`session:/${id}`),
+			providerId,
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ requiresWorkspaceTrust, folders: [upcastPartial<ISessionFolder>({ root: URI.file(folder), workingDirectory: URI.file(folder) })] })),
+		});
+		const first = withFolder('first', 'agenthost-ssh', '/first', false);
+		const second = withFolder('second', 'agenthost-ssh', '/second', false);
+		const needsTrust = withFolder('needs-trust', 'agenthost-ssh', '/trust', true);
+		const local = withFolder('local', 'local-agent-host', '/local', false);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active', undefined);
+		const onDidChangeSessions = store.add(new Emitter<void>());
+		let sessions = [first, local, needsTrust];
+
+		const resolver = createResolver({
+			sessionsManagement: { getSessions: () => sessions, onDidChangeSessions: onDidChangeSessions.event as never },
+			sessions: { activeSession },
+			connections: {
+				resolveSessionResourceIdentity: resource => ({ connectionAuthority: resource.path === '/local' ? AMBIENT_AGENT_HOST_AUTHORITY : 'ssh-host', backendSession: resource }),
+			},
+		});
+		let changes = 0;
+		store.add(resolver.onDidChangeTrustedFileRoots!(() => changes++));
+		const roots = () => resolver.getTrustedFileRoots!().map(root => root.path);
+
+		activeSession.set(upcastPartial<ITestSessionWithChat>(first), undefined);
+		const focusedFirst = roots();
+		activeSession.set(upcastPartial<ITestSessionWithChat>(second), undefined);
+		onDidChangeSessions.fire();
+		const afterFocusMoved = { roots: roots(), changes };
+		sessions = [first, second, local, needsTrust];
+		onDidChangeSessions.fire();
+
+		assert.deepStrictEqual({ focusedFirst, afterFocusMoved, afterSessionAdded: { roots: roots(), changes } }, {
+			focusedFirst: ['/first'],
+			afterFocusMoved: { roots: ['/first'], changes: 0 },
+			afterSessionAdded: { roots: ['/first', '/second'], changes: 1 },
 		});
 	});
 

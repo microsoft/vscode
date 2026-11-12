@@ -22,7 +22,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { BrowserViewCommandId, getBrowserFileResourceUrl } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
@@ -399,7 +399,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		logBrowserOpen(telemetryService, 'openFileCommand');
 
 		const browserUri = BrowserViewUri.forId(generateUuid());
-		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: getBrowserFileResourceUrl(fileUri) } } }, await browserViewService.getPreferredGroup());
+		await editorService.openEditor({ resource: browserUri, options: { viewState: { url: fileUri.toString() } } }, await browserViewService.getPreferredGroup());
 	}
 }
 

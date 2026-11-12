@@ -8,6 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IReader, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../platform/agentHost/common/agentHostTcpSupport.js';
@@ -89,6 +90,16 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		const onDidChangeNetworkStatus = this._register(new Emitter<void>());
 		this._register(runOnChange(statuses, () => onDidChangeNetworkStatus.fire()));
 
+		const onDidChangeTrustedFileRoots = this._register(new Emitter<void>());
+		let trustedFileRootsKey = this._getTrustedFileRootsKey();
+		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
+			const key = this._getTrustedFileRootsKey();
+			if (key !== trustedFileRootsKey) {
+				trustedFileRootsKey = key;
+				onDidChangeTrustedFileRoots.fire();
+			}
+		}));
+
 		this._register(this._browserViewService.registerNetworkResolver({
 			resolveNetwork: owner => {
 				const host = this._resolveHost(owner);
@@ -96,6 +107,8 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 				return owner.type === 'agent' && !host ? null : this._getNetwork(host?.authority);
 			},
 			resolveStorageAffinity: owner => this._getStorageAffinity(this._resolveHost(owner)),
+			getTrustedFileRoots: () => this._getTrustedFileRoots(),
+			onDidChangeTrustedFileRoots: onDidChangeTrustedFileRoots.event,
 			getNetworkStatus: network => this._getNetworkStatus(network.authority, undefined),
 			onDidChangeNetworkStatus: onDidChangeNetworkStatus.event,
 		}));
@@ -167,6 +180,25 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			return provider.remoteAddress ? agentHostAuthority(provider.remoteAddress) : AMBIENT_AGENT_HOST_AUTHORITY;
 		}
 		return undefined;
+	}
+
+	/**
+	 * The working directories of all sessions on remote agent hosts, not just the focused one the window mounts.
+	 * Sessions that require workspace trust are covered by the window's trusted URIs instead.
+	 */
+	private _getTrustedFileRoots(): URI[] {
+		const roots: URI[] = [];
+		for (const session of this._sessionsManagementService.getSessions()) {
+			const workspace = session.workspace.get();
+			if (workspace && !workspace.requiresWorkspaceTrust && this._getNetwork(this._getSessionAuthority(session))) {
+				roots.push(...workspace.folders.map(folder => folder.workingDirectory));
+			}
+		}
+		return roots;
+	}
+
+	private _getTrustedFileRootsKey(): string {
+		return JSON.stringify(this._getTrustedFileRoots().map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort());
 	}
 
 	private _getNetworkStatus(authority: string, reader: IReader | undefined): IBrowserViewNetworkStatus {

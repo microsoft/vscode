@@ -17,7 +17,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Schemas } from '../../../../base/common/network.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
-import { getBrowserFileResourceUrl } from '../../../../platform/browserView/common/browserView.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
@@ -126,7 +125,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 							id: generateUuid(),
 							associatedResource: resource,
 							...viewState,
-							url: viewState.url ?? getBrowserFileResourceUrl(resource)
+							url: viewState.url ?? resource.toString()
 						});
 						void browserInput.resolve();
 
