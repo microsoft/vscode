@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,8 +19,9 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ICommentController, ICommentService } from '../../../../../workbench/contrib/comments/browser/commentService.js';
 import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 import { AgentFeedbackWorkbenchCommentsContribution } from '../../browser/agentFeedbackWorkbenchComments.js';
-import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { ICodeReviewService, IPRReviewState, PRReviewStateKind } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 
 suite('Agent Feedback Workbench Comments', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,6 +33,7 @@ suite('Agent Feedback Workbench Comments', () => {
 		const onDidDeleteDataProvider = store.add(new Emitter<string | undefined>());
 		const commentChanges: CommentThreadChangedEvent<Range>[] = [];
 		let registeredController: ICommentController | undefined;
+		let commentingRangesUpdates = 0;
 		const commentService = new class extends mock<ICommentService>() {
 			override readonly onDidDeleteDataProvider = onDidDeleteDataProvider.event;
 			override registerCommentController(_owner: string, controller: ICommentController): void {
@@ -43,7 +47,9 @@ suite('Agent Feedback Workbench Comments', () => {
 			override getCommentController(): ICommentController | undefined {
 				return registeredController;
 			}
-			override updateCommentingRanges(): void { }
+			override updateCommentingRanges(): void {
+				commentingRangesUpdates++;
+			}
 			override updateComments(_owner: string, event: CommentThreadChangedEvent<Range>): void {
 				commentChanges.push(event);
 			}
@@ -53,17 +59,19 @@ suite('Agent Feedback Workbench Comments', () => {
 			registeredController = undefined;
 			onDidDeleteDataProvider.fire(undefined);
 		};
-		return { commentService, commentChanges, unregisterAll };
+		return { commentService, commentChanges, unregisterAll, getCommentingRangesUpdates: () => commentingRangesUpdates };
 	}
 
-	function createFeedbackService(initialFeedback: readonly IAgentFeedback[] = []) {
+	function createFeedbackService(initialFeedback: readonly IAgentFeedback[] = [], visibleResolvedFeedbackIds: ReadonlySet<string> = new Set()) {
 		let feedback = initialFeedback;
 		let addedFeedbackText: string | undefined;
 		const onDidChangeFeedback = store.add(new Emitter<IAgentFeedbackChangeEvent>());
+		const onDidRevealSessionComment = store.add(new Emitter<IAgentFeedbackCommentRevealEvent>());
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = onDidChangeFeedback.event;
 			override readonly onDidChangeFeedbackVisibility = Event.None;
 			override readonly onDidChangeFeedbackScope = Event.None;
+			override readonly onDidRevealSessionComment = onDidRevealSessionComment.event;
 			override getFeedbackSessionResource(): URI {
 				return sessionResource;
 			}
@@ -71,7 +79,13 @@ suite('Agent Feedback Workbench Comments', () => {
 				return feedback;
 			}
 			override getVisibleResolvedFeedbackIds(): ReadonlySet<string> {
-				return new Set();
+				return visibleResolvedFeedbackIds;
+			}
+			override isAgentHostSession(): boolean {
+				return false;
+			}
+			override hasLoadedFeedback(): boolean {
+				return true;
 			}
 			override addFeedback(_sessionResource: URI, _resource: URI, _range: IRange, text: string): IAgentFeedback {
 				addedFeedbackText = text;
@@ -82,7 +96,18 @@ suite('Agent Feedback Workbench Comments', () => {
 			feedback = newFeedback;
 			onDidChangeFeedback.fire({ sessionResource, feedbackItems: newFeedback });
 		};
-		return { feedbackService, setFeedback, getAddedFeedbackText: () => addedFeedbackText };
+		const reveal = (commentId: string) => onDidRevealSessionComment.fire({ sessionResource, commentId, resourceUri: resource });
+		return { feedbackService, setFeedback, reveal, getAddedFeedbackText: () => addedFeedbackText };
+	}
+
+	function createCodeReviewService() {
+		const prReviewState = observableValue<IPRReviewState>('prReviewState', { kind: PRReviewStateKind.None });
+		const codeReviewService = new class extends mock<ICodeReviewService>() {
+			override getPRReviewState() {
+				return prReviewState;
+			}
+		}();
+		return { codeReviewService, prReviewState };
 	}
 
 	const modelService = new class extends mock<IModelService>() {
@@ -99,13 +124,14 @@ suite('Agent Feedback Workbench Comments', () => {
 		const log: string[] = [];
 		const { commentService, unregisterAll } = createCommentService(log);
 		const { feedbackService } = createFeedbackService();
+		const { codeReviewService } = createCodeReviewService();
 		const configurationService = new TestConfigurationService({ [AGENTS_WINDOW_EDITOR_COMMENTS_SETTING]: false });
 		const setEnabled = (enabled: boolean) => {
 			log.push(enabled ? 'enable' : 'disable');
 			configurationService.setUserConfiguration(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING, enabled);
 			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === AGENTS_WINDOW_EDITOR_COMMENTS_SETTING }));
 		};
-		const contribution = store.add(new AgentFeedbackWorkbenchCommentsContribution(commentService, feedbackService, modelService, configurationService));
+		const contribution = store.add(new AgentFeedbackWorkbenchCommentsContribution(commentService, feedbackService, codeReviewService, modelService, configurationService));
 
 		unregisterAll();
 		setEnabled(true);
@@ -147,8 +173,9 @@ suite('Agent Feedback Workbench Comments', () => {
 				state: AgentFeedbackState.Resolved,
 			},
 		]);
+		const { codeReviewService } = createCodeReviewService();
 		const configurationService = new TestConfigurationService({ [AGENTS_WINDOW_EDITOR_COMMENTS_SETTING]: true });
-		const contribution = store.add(new AgentFeedbackWorkbenchCommentsContribution(commentService, feedbackService, modelService, configurationService));
+		const contribution = store.add(new AgentFeedbackWorkbenchCommentsContribution(commentService, feedbackService, codeReviewService, modelService, configurationService));
 
 		const commentInfo = await contribution.getDocumentComments(resource);
 		await contribution.createCommentThreadTemplate(resource, new Range(5, 1, 5, 5));
@@ -181,8 +208,8 @@ suite('Agent Feedback Workbench Comments', () => {
 				range: new Range(2, 1, 2, 5),
 				canReply: false,
 				comments: [
-					{ body: 'Please change this', userName: 'You' },
-					{ body: 'Fixed', userName: 'Agent' },
+					{ body: new MarkdownString('Please change this'), userName: 'You' },
+					{ body: new MarkdownString('Fixed'), userName: 'Agent' },
 				],
 			}],
 			addedFeedbackText: 'Local feedback',
@@ -197,8 +224,9 @@ suite('Agent Feedback Workbench Comments', () => {
 		const { commentService } = createCommentService();
 		const feedback: IAgentFeedback = { id: 'feedback', text: 'Please change this', resourceUri: resource, range: new Range(2, 1, 2, 5), sessionResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted };
 		const { feedbackService, setFeedback } = createFeedbackService([feedback]);
+		const { codeReviewService } = createCodeReviewService();
 		const configurationService = new TestConfigurationService({ [AGENTS_WINDOW_EDITOR_COMMENTS_SETTING]: true });
-		const contribution = store.add(new AgentFeedbackWorkbenchCommentsContribution(commentService, feedbackService, modelService, configurationService));
+		const contribution = store.add(new AgentFeedbackWorkbenchCommentsContribution(commentService, feedbackService, codeReviewService, modelService, configurationService));
 
 		const [thread] = (await contribution.getDocumentComments(resource)).threads;
 		const initialCollapsibleState = thread.collapsibleState;
@@ -220,9 +248,57 @@ suite('Agent Feedback Workbench Comments', () => {
 			refreshed: {
 				isSameThread: true,
 				collapsibleState: CommentThreadCollapsibleState.Collapsed,
-				comments: ['Please change this instead'],
+				comments: [new MarkdownString('Please change this instead')],
 			},
 			isDisposed: true,
+		});
+	});
+
+	test('shows pull request review comments and expands revealed threads', async () => {
+		const { commentService, getCommentingRangesUpdates } = createCommentService();
+		const { feedbackService, reveal } = createFeedbackService([
+			{ id: 'open', text: 'Please change this', resourceUri: resource, range: new Range(2, 1, 2, 5), sessionResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
+			{ id: 'resolved', text: 'Done', resourceUri: resource, range: new Range(3, 1, 3, 5), sessionResource, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Resolved },
+		], new Set(['resolved']));
+		const { codeReviewService, prReviewState } = createCodeReviewService();
+		const configurationService = new TestConfigurationService({ [AGENTS_WINDOW_EDITOR_COMMENTS_SETTING]: true });
+		const contribution = store.add(new AgentFeedbackWorkbenchCommentsContribution(commentService, feedbackService, codeReviewService, modelService, configurationService));
+
+		// Navigation reveals a comment while its editor is still opening, before its thread exists.
+		reveal('agentFeedback:resolved');
+		const resolvedThread = (await contribution.getDocumentComments(resource)).threads[1];
+		const revealedBeforeCreation = resolvedThread.collapsibleState;
+		resolvedThread.collapsibleState = CommentThreadCollapsibleState.Collapsed;
+		reveal('agentFeedback:resolved');
+		const revealedAfterCreation = resolvedThread.collapsibleState;
+		prReviewState.set({
+			kind: PRReviewStateKind.Loaded,
+			incompletePullRequests: [],
+			comments: [{ id: 'review', pullRequest: { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') }, uri: resource, range: new Range(4, 1, 4, 1), body: 'Use a constant', author: 'reviewer' }],
+		}, undefined);
+		const commentingRangesUpdates = getCommentingRangesUpdates();
+		const threads = (await contribution.getDocumentComments(resource)).threads;
+
+		assert.deepStrictEqual({
+			revealedBeforeCreation,
+			revealedAfterCreation,
+			commentingRangesUpdates,
+			threads: threads.map(thread => ({
+				threadId: thread.threadId,
+				label: thread.label,
+				canReply: thread.canReply,
+				collapsibleState: thread.collapsibleState,
+				comments: thread.comments?.map(comment => ({ body: comment.body, userName: comment.userName })),
+			})),
+		}, {
+			revealedBeforeCreation: CommentThreadCollapsibleState.Expanded,
+			revealedAfterCreation: CommentThreadCollapsibleState.Expanded,
+			commentingRangesUpdates: 1,
+			threads: [
+				{ threadId: 'agentFeedback:open', label: 'Agent Feedback', canReply: false, collapsibleState: CommentThreadCollapsibleState.Expanded, comments: [{ body: new MarkdownString('Please change this'), userName: 'You' }] },
+				{ threadId: 'agentFeedback:resolved', label: 'Agent Feedback', canReply: false, collapsibleState: CommentThreadCollapsibleState.Expanded, comments: [{ body: new MarkdownString('Done'), userName: 'You' }] },
+				{ threadId: 'prReview:review', label: 'Pull Request Review', canReply: false, collapsibleState: CommentThreadCollapsibleState.Expanded, comments: [{ body: new MarkdownString('Use a constant'), userName: 'reviewer' }] },
+			],
 		});
 	});
 });
