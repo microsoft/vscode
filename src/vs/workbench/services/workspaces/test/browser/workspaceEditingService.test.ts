@@ -110,7 +110,6 @@ suite('WorkspaceEditingService', () => {
 				},
 				undefined, undefined, undefined,
 				{
-					...identityFake,
 					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', providerId: 'test', builtIn: options.builtIn ?? true }; },
 					setLocation: (_folder: unknown, _location: unknown, reason?: string) => { reasons.push(reason); }
 				}
@@ -186,21 +185,21 @@ suite('WorkspaceEditingService', () => {
 			const switched: (URI | undefined)[] = [];
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
-				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }] }), setFolderLocation: async (_primary: URI, location: URI | undefined) => { switched.push(location); } },
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], identity: primary }), setFolderLocation: async (location: URI) => { switched.push(location); } },
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
 				{ getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
 				undefined, undefined, undefined,
-				{ ...identityFake, resolveLocation: () => resolution.p, setCurrentLocation: () => { } }
+				{ resolveLocation: () => resolution.p, setCurrentLocation: () => { } }
 			));
 
-			const pending = service.setFolderLocation(primary, alt);
-			await service.setFolderLocation(primary, undefined, { ifIdle: true });
+			const pending = service.setFolderLocation(alt);
+			await service.setFolderLocation(primary, { ifIdle: true });
 			resolution.complete({ uri: alt, label: 'Alt', providerId: 'test', builtIn: false });
 			await pending;
-			await service.setFolderLocation(primary, undefined, { ifIdle: true });
+			await service.setFolderLocation(primary, { ifIdle: true });
 
-			assert.deepStrictEqual(switched.map(u => u?.toString()), [alt.toString(), undefined]);
+			assert.deepStrictEqual(switched.map(u => u?.toString()), [alt.toString(), primary.toString()]);
 		});
 
 		function createServiceWithPendingTrust() {

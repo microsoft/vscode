@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWindowFolderLocation } from '../../../../../platform/window/common/window.js';
 import { IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, IWorkspaceFolder, Workspace, WorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, Workspace, WorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { FOLDER_LOCATION_RESTORE_TIMEOUT, FolderLocationPersistenceContribution } from '../../electron-browser/folderLocationPersistence.js';
@@ -35,7 +35,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		readonly folderUri?: URI;
 		readonly providerAvailable?: boolean;
 		readonly resolveLocation?: () => Promise<IResolvedFolderLocation | undefined>;
-		readonly setFolderLocation?: (primary: URI, location: URI | undefined, options?: { readonly ifIdle?: boolean }) => Promise<void>;
+		readonly setFolderLocation?: (location: URI, options?: { readonly ifIdle?: boolean }) => Promise<void>;
 	}
 
 	function createFixture(options: IFixtureOptions) {
@@ -43,20 +43,19 @@ suite('FolderLocationPersistenceContribution', () => {
 		const notifications: string[] = [];
 		const notificationIds: (string | undefined)[] = [];
 		const errors: string[] = [];
-		const returns: [URI, URI | undefined][] = [];
+		const returns: URI[] = [];
 		const onDidChangeProviders = ds.add(new Emitter<void>());
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
 		let currentLocation: IResolvedFolderLocation | undefined;
 		let providerAvailable = !!options.providerAvailable;
 		let folderUri = options.folderUri ?? alternate;
 
-		const getWorkspace = () => new Workspace('id', [new WorkspaceFolder({ uri: folderUri, identity: primary, name: 'project', index: 0 })], false, null, () => false);
+		const getWorkspace = () => new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 
 		const locationService = {
 			onDidChangeProviders: onDidChangeProviders.event,
 			onDidChangeCurrentLocation: onDidChangeCurrentLocation.event,
-			getFolderIdentity: (folder: IWorkspaceFolder) => folder.identity ?? folder.uri,
-			isFolderAtAlternateLocation: (folder: IWorkspaceFolder) => !extUri.isEqual(folder.uri, folder.identity ?? folder.uri),
+			isAtAlternateLocation: () => !extUri.isEqual(folderUri, primary),
 			get currentLocation() { return currentLocation; },
 			setCurrentLocation(location: IResolvedFolderLocation | undefined) { currentLocation = location; onDidChangeCurrentLocation.fire({ reason: 'programmatic' }); },
 			resolveLocation: options.resolveLocation ?? (async () => providerAvailable ? resolvedLocation : undefined)
@@ -66,7 +65,7 @@ suite('FolderLocationPersistenceContribution', () => {
 			{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace } as unknown as IWorkspaceContextService,
 			locationService,
 			{
-				setFolderLocation: options.setFolderLocation ?? (async (p: URI, l: URI | undefined) => { returns.push([p, l]); folderUri = l ?? p; })
+				setFolderLocation: options.setFolderLocation ?? (async (l: URI) => { returns.push(l); folderUri = l; })
 			} as unknown as IWorkspaceEditingService,
 			{ setWindowFolderLocation: (value: IWindowFolderLocation | undefined) => { persistedCalls.push(value); } } as unknown as INativeHostService,
 			{ folderLocation: options.persisted } as unknown as INativeWorkbenchEnvironmentService,
@@ -140,8 +139,8 @@ suite('FolderLocationPersistenceContribution', () => {
 		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
 
 		assert.deepStrictEqual(
-			{ current: fixture.locationService.currentLocation, persisted: fixture.persistedCalls, notifications: fixture.notifications.length, returns: fixture.returns.map(([p, l]) => [p.toString(), l?.toString()]), listeners: fixture.hasProvidersListener() },
-			{ current: undefined, persisted: [undefined], notifications: 1, returns: [[primary.toString(), undefined]], listeners: false });
+			{ current: fixture.locationService.currentLocation, persisted: fixture.persistedCalls, notifications: fixture.notifications.length, returns: fixture.returns.map(l => l.toString()), listeners: fixture.hasProvidersListener() },
+			{ current: undefined, persisted: [undefined], notifications: 1, returns: [primary.toString()], listeners: false });
 	}));
 
 	test('a positive result after the deadline is ignored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -203,7 +202,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		const fixture = createFixture({
 			persisted,
 			// the newer switch moved the folder, so the idle-only return does nothing
-			setFolderLocation: async (_p, _l, options) => { assert.strictEqual(options?.ifIdle, true); fixture.moveFolderTo(other); }
+			setFolderLocation: async (_l, options) => { assert.strictEqual(options?.ifIdle, true); fixture.moveFolderTo(other); }
 		});
 
 		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
@@ -221,7 +220,7 @@ suite('FolderLocationPersistenceContribution', () => {
 
 	test('disposing while the return is pending has no side effects once it succeeds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const returning = new DeferredPromise<void>();
-		const fixture = createFixture({ persisted, setFolderLocation: async (p, l) => { await returning.p; fixture.moveFolderTo(l ?? p); } });
+		const fixture = createFixture({ persisted, setFolderLocation: async l => { await returning.p; fixture.moveFolderTo(l); } });
 
 		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
 		fixture.contribution.dispose();

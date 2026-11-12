@@ -67,7 +67,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 
 	private isAtAlternate(location: URI): boolean {
 		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
-		return !!folder && this.folderLocationService.isFolderAtAlternateLocation(folder) && this.uriIdentityService.extUri.isEqual(folder.uri, location);
+		return !!folder && this.folderLocationService.isAtAlternateLocation() && this.uriIdentityService.extUri.isEqual(folder.uri, location);
 	}
 
 	private async restore(persisted: IWindowFolderLocation, token: CancellationToken): Promise<void> {
@@ -80,7 +80,8 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			return;
 		}
 
-		const primary = this.folderLocationService.getFolderIdentity(this.contextService.getWorkspace().folders[0]);
+		const workspace = this.contextService.getWorkspace();
+		const primary = workspace.identity ?? workspace.folders[0].uri;
 		const resolved = await this.resolve(primary, location, token);
 		if (token.isCancellationRequested || this.folderLocationService.currentLocation || !this.isAtAlternate(location)) {
 			return; // disposed, or switched by someone else in the meantime
@@ -140,7 +141,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		try {
 
 			// Does nothing while a newer switch is in flight: that one is authoritative
-			await this.workspaceEditingService.setFolderLocation(primary, undefined, { ifIdle: true });
+			await this.workspaceEditingService.setFolderLocation(primary, { ifIdle: true });
 		} catch (error) {
 			if (token.isCancellationRequested) {
 				return;
@@ -155,8 +156,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			return;
 		}
 
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
-		if (folder && !this.folderLocationService.isFolderAtAlternateLocation(folder)) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER && !this.folderLocationService.isAtAlternateLocation()) {
 			this.discard(persisted);
 		}
 	}
