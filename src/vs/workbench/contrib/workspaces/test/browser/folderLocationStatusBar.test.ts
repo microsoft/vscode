@@ -128,8 +128,8 @@ suite('FolderLocationStatusBarContribution', () => {
 		}
 		const [step] = await (scenario().presentation.payload as ISpotlightPayload).resolveSteps!();
 		assert.deepStrictEqual(
-			{ whileHidden, signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction?.label, endTour: step.endTourLabel },
-			{ whileHidden: false, signal: true, target: true, primaryAction: 'Return to project', endTour: 'Got It' });
+			{ whileHidden, signal: signal(), target: resolveOnboardingTarget(mainWindow, step.targetId)?.element === element, primaryAction: step.primaryAction?.label, endTour: step.endTourLabel, focusEndTour: step.focusEndTour },
+			{ whileHidden: false, signal: true, target: true, primaryAction: 'Return to project', endTour: 'Got It', focusEndTour: true });
 
 		await step.primaryAction!.run(undefined as never);
 		assert.deepStrictEqual(fixture.executed, [RETURN_TO_PRIMARY_FOLDER_LOCATION_COMMAND_ID]);
@@ -248,30 +248,32 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	suite('switch command', () => {
 
-		async function pickLocation(choose: (items: { label: string; description?: string; picked?: boolean }[]) => number | undefined, switchedWhileOpen?: URI, primaryChangedTo?: URI, atPrimary?: boolean) {
+		async function pickLocation(choose: (items: { label: string; description?: string; iconClasses?: readonly string[] }[]) => number | undefined, switchedWhileOpen?: URI, primaryChangedTo?: URI, atPrimary?: boolean) {
 			const calls: [string, string | undefined, string | undefined][] = [];
-			let shown: { label: string; description?: string; picked?: boolean }[] = [];
+			let shown: { label: string; description?: string; iconClasses?: readonly string[] }[] = [];
+			let activeItem: IQuickPickItem | undefined;
 			let workspace = new Workspace('id', [new WorkspaceFolder(atPrimary ? { uri: primary, name: 'project', index: 0 } : { uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
 					: id === IWorkspaceFolderLocationService ? { getLocations: async () => [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }] }
 						: id === IUriIdentityService ? { extUri }
-							: id === IQuickInputService ? { pick: async (items: (IQuickPickItem & { uri: URI })[]) => { shown = items; const index = choose(items); if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, primaryUri: primaryChangedTo ?? primary, name: 'project', index: 0 })], false, null, () => false); } return index === undefined ? undefined : items[index]; } }
+							: id === IQuickInputService ? { pick: async (items: (IQuickPickItem & { uri: URI })[], options?: { activeItem?: IQuickPickItem }) => { shown = items; activeItem = options?.activeItem; const index = choose(items); if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, primaryUri: primaryChangedTo ?? primary, name: 'project', index: 0 })], false, null, () => false); } return index === undefined ? undefined : items[index]; } }
 								: id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p.toString(), l?.toString(), o?.reason]); } } : undefined
 			} as unknown as ServicesAccessor;
 
 			await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor);
-			return { shown, calls };
+			return { shown, calls, activeItem };
 		}
 
-		test('lists the primary and the locations, marking the current one', async () => {
-			const { shown, calls } = await pickLocation(() => undefined);
-			assert.deepStrictEqual({ shown: shown.map(item => ({ ...item, uri: (item as unknown as { uri: URI }).uri.toString() })), calls }, {
+		test('lists the primary and the locations with icon classes, marking the current one', async () => {
+			const { shown, calls, activeItem } = await pickLocation(() => undefined);
+			assert.deepStrictEqual({ shown: shown.map(item => ({ ...item, uri: (item as unknown as { uri: URI }).uri.toString() })), active: (activeItem as unknown as { uri: URI }).uri.toString(), calls }, {
 				shown: [
-					{ uri: primary.toString(), label: '$(folder) project', description: 'Primary Location', picked: false },
-					{ uri: alternate.toString(), label: '$(git-branch) Alternate', description: 'feature/x', picked: true },
-					{ uri: URI.file('/work/other').toString(), label: '$(location) Other', description: undefined, picked: false }
+					{ uri: primary.toString(), label: 'project', iconClasses: ['codicon', 'codicon-folder'], description: 'Primary Location' },
+					{ uri: alternate.toString(), label: 'Alternate', iconClasses: ['codicon', 'codicon-git-branch'], description: 'feature/x (Current)' },
+					{ uri: URI.file('/work/other').toString(), label: 'Other', iconClasses: ['codicon', 'codicon-location'], description: undefined }
 				],
+				active: alternate.toString(),
 				calls: []
 			});
 		});
@@ -284,7 +286,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		});
 
 		test('at the primary location the picker lists the locations, marks the primary and switches as a user choice', async () => {
-			const atPrimaryPick = await pickLocation(items => { assert.deepStrictEqual(items.map(item => item.picked), [true, false, false]); return 1; }, undefined, undefined, true);
+			const atPrimaryPick = await pickLocation(items => { assert.deepStrictEqual(items.map(item => item.description), ['Primary Location (Current)', 'feature/x', undefined]); return 1; }, undefined, undefined, true);
 			assert.deepStrictEqual(atPrimaryPick.calls, [[primary.toString(), alternate.toString(), 'user']]);
 		});
 

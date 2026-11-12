@@ -120,6 +120,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 				advance: true
 			},
 			endTourLabel: localize('gotIt', "Got It"),
+			focusEndTour: true,
 			placement: 'above',
 			missingTarget: { kind: 'abort' }
 		};
@@ -243,18 +244,22 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const uriIdentityService = accessor.get(IUriIdentityService);
 
 		const locations = await accessor.get(IWorkspaceFolderLocationService).getLocations(primary, CancellationToken.None);
-		const toItem = (uri: URI, label: string, description: string | undefined, icon: ThemeIcon): ILocationQuickPickItem => ({
-			uri,
-			label: `$(${icon.id}) ${label}`,
-			description,
-			picked: uriIdentityService.extUri.isEqual(uri, folder.uri)
-		});
+		const toItem = (uri: URI, label: string, description: string | undefined, icon: ThemeIcon): ILocationQuickPickItem => {
+			const isCurrent = uriIdentityService.extUri.isEqual(uri, folder.uri);
+			return {
+				uri,
+				label,
+				iconClasses: ThemeIcon.asClassNameArray(icon),
+				description: isCurrent ? (description ? localize('currentLocationWithDescription', "{0} (Current)", description) : localize('currentLocation', "Current")) : description
+			};
+		};
 		const items: ILocationQuickPickItem[] = [
 			toItem(primary, basename(primary), localize('primaryLocation', "Primary Location"), Codicon.folder),
 			...locations.map(location => toItem(location.uri, location.label, location.description, location.icon ?? Codicon.location))
 		];
+		const currentItem = items.find(item => uriIdentityService.extUri.isEqual(item.uri, folder.uri));
 
-		const picked = await quickInputService.pick(items, { placeHolder: localize('switchFolderLocationPlaceholder', "Select a Location for the Folder") });
+		const picked = await quickInputService.pick(items, { placeHolder: localize('switchFolderLocationPlaceholder', "Select a Location for the Folder"), activeItem: currentItem });
 		if (!picked) {
 			return;
 		}
