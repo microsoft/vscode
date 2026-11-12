@@ -298,6 +298,22 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
+	test('Canvas signals during chat registration preserve the new chat before its catalog entry is installed', () => {
+		const resource = 'ahp-canvas:/registered';
+		const canvas: CanvasState = { instanceId: 'registered', extensionId: 'preview', canvasId: 'preview' };
+		disposables.add(manager.onDidRegisterChat(({ chat }) => {
+			manager.setCanvasState(chat, resource, canvas);
+			manager.dispatchServerAction(chat, { type: ActionType.ChatCanvasesChanged, canvases: [{ resource }] });
+		}));
+		manager.createSession(makeSessionSummary());
+		const collection = manager.getChatState(sessionChatUri)?.canvasesUri;
+		assert.deepStrictEqual({
+			chat: manager.getChatState(sessionChatUri)?.resource,
+			canvas: manager.getCanvas(resource)?.state,
+			membership: collection ? manager.getCanvasCollection(collection)?.state.canvases : undefined,
+		}, { chat: sessionChatUri, canvas, membership: [{ resource }] });
+	});
+
 	test('Canvas membership batches preserve staged instances through initial publication and replacement', () => {
 		manager.createSession(makeSessionSummary());
 		const state = (id: string): CanvasState => ({ instanceId: id, extensionId: 'preview', canvasId: 'preview' });

@@ -12,7 +12,8 @@ import { mainWindow } from '../../browser/window.js';
  * Unit test runs load many test files into one page, and the files and their order differ between runs (all tests,
  * `--runList`, `--workers`). A suite that leaves state behind can change the result of a later suite, so a test passes
  * alone but fails in a full run, or the other way around. The checks only report what they find, they never fail a
- * suite: the findings are collected for the test runner to write out.
+ * suite: the findings are collected for the test runner to write out. A detector with a `reset`, such as the scroll
+ * position, also puts its state back after reporting it, so later suites start from the same page.
  */
 export interface IIsolationDetector<S = unknown> {
 	/** A short name for the kind of state, used to group findings. */
@@ -26,6 +27,11 @@ export interface IIsolationDetector<S = unknown> {
 	 * the last check left pending once all suites have run, since no later suite checks it. Its findings go to the last suite.
 	 */
 	finalize?(): Promise<string[]>;
+	/**
+	 * Puts back the state from before the suite after it was checked, for state that no test may depend on and that
+	 * later suites would otherwise inherit. The next suite starts once a returned promise settles.
+	 */
+	reset?(before: S): void | Promise<void>;
 }
 
 export interface IIsolationFinding {
@@ -134,6 +140,15 @@ export const scrollDetector: IIsolationDetector<IScrollPosition> = {
 		return (['page', 'body', 'root'] as const)
 			.filter(key => after[key][0] !== before[key][0] || after[key][1] !== before[key][1])
 			.map(key => `left the ${key === 'page' ? 'page' : key === 'body' ? 'body' : 'document element'} scrolled to (${after[key][0]}, ${after[key][1]}), it was (${before[key][0]}, ${before[key][1]})`);
+	},
+	// Suites share one page, so a suite that scrolls it moves the origin of every later suite that measures positions.
+	reset: before => {
+		const document = mainWindow.document;
+		document.body.scrollLeft = before.body[0];
+		document.body.scrollTop = before.body[1];
+		document.documentElement.scrollLeft = before.root[0];
+		document.documentElement.scrollTop = before.root[1];
+		mainWindow.scrollTo(before.page[0], before.page[1]);
 	},
 };
 /**
@@ -337,14 +352,14 @@ export function installIsolationCheck(root: Mocha.Suite, detectors: readonly IIs
 				continue;
 			}
 			checked.add(suite);
-			suite.afterAll('Isolation check', () => {
+			suite.afterAll('Isolation check', async () => {
 				const before = snapshots.get(suite);
 				snapshots.delete(suite);
 				if (!before) {
 					return;
 				}
 				lastChecked = suite;
-				detectors.forEach((detector, index) => {
+				for (const [index, detector] of detectors.entries()) {
 					let details: string[];
 					try {
 						details = detector.check(before[index]);
@@ -352,7 +367,12 @@ export function installIsolationCheck(root: Mocha.Suite, detectors: readonly IIs
 						details = [`check failed: ${error}`];
 					}
 					pushFindings(detector.kind, suite, details);
-				});
+					try {
+						await detector.reset?.(before[index]);
+					} catch (error) {
+						pushFindings(detector.kind, suite, [`reset failed: ${error}`]);
+					}
+				}
 			});
 		}
 	});

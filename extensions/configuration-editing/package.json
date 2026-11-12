@@ -16,8 +16,7 @@
     "onLanguage:jsonc"
   ],
   "enabledApiProposals": [
-    "profileContentHandlers",
-    "github"
+    "profileContentHandlers"
   ],
   "main": "./out/configurationEditingMain",
   "browser": "./dist/browser/configurationEditingMain",
@@ -194,7 +193,9 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "mocha": "^10.8.2"
   },
   "repository": {
     "type": "git",

@@ -24,6 +24,7 @@ import { IAgentHostOTelService, NullAgentHostOTelService } from '../../../common
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import type { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { createAgentServiceFoundation } from '../../../node/agentServiceFoundation.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../../node/agentHostClientConnectionService.js';
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../../node/agentHostServices.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { CopilotAgent } from '../../../node/copilot/copilotAgent.js';
@@ -107,6 +108,7 @@ export function createLocalEndpointCopilotAgent(store: DisposableStore, home: st
 		[ISessionDataService, sessionDataService],
 		[ITelemetryService, NullTelemetryService],
 		[IByokLmBridgeRegistry, new NullByokLmBridgeRegistry()],
+		[IAgentHostClientConnectionService, store.add(new AgentHostClientConnectionService())],
 	);
 	const localFetch: typeof globalThis.fetch = (input, init) => {
 		const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);

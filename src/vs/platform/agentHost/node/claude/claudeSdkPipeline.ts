@@ -721,7 +721,8 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);
 				}
 				if (message.type === 'result' && !signal.aborted && !this._needsRebind && this._query === query) {
-					const completed = this._queue.settleHead();
+					const consumedUuids = message.user_message_uuids ?? (message.user_message_uuid ? [message.user_message_uuid] : undefined);
+					const completed = this._queue.settleResult(consumedUuids);
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
 					// Intermediate result (still pending entries from a

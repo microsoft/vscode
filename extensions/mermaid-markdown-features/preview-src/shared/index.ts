@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import elkLayouts from '@mermaid-js/layout-elk';
 import tidyTreeLayouts from '@mermaid-js/layout-tidy-tree';
 import zenuml from '@mermaid-js/mermaid-zenuml';
 import mermaid, { MermaidConfig } from 'mermaid';
@@ -153,7 +152,6 @@ export async function renderMermaidBlocksInElement(
 
 export async function registerMermaidAddons() {
 	mermaid.registerIconPacks(iconPacks);
-	mermaid.registerLayoutLoaders(elkLayouts);
 	mermaid.registerLayoutLoaders(tidyTreeLayouts);
 	await mermaid.registerExternalDiagrams([zenuml]);
 }
@@ -188,7 +186,19 @@ export function buildMermaidConfig(
 ): MermaidConfig {
 	return {
 		startOnLoad: false,
-		flowchart: { subGraphTitleMargin: { ...subgraphTitleMargin } },
+		look: 'classic',
+		// Mermaid 12 lays out these diagram types with ELK unless a diagram sets a layout. ELK lays out diagrams with many
+		// edges in a single task that can block the webview for many seconds, so keep them on dagre, the layout before
+		// Mermaid 12 (use case and agentflow diagrams are new in Mermaid 12). The layout is set per diagram type rather
+		// than globally, so diagram types with their own default layout, such as mindmaps and swimlanes, keep it.
+		// Diagrams can still opt into `layout: elk`.
+		flowchart: { layout: 'dagre', subGraphTitleMargin: { ...subgraphTitleMargin } },
+		class: { layout: 'dagre' },
+		state: { layout: 'dagre' },
+		er: { layout: 'dagre' },
+		requirement: { layout: 'dagre' },
+		usecase: { layout: 'dagre' },
+		agentflow: { layout: 'dagre' },
 		...vsCodeThemeTracker.resolveMermaidTheme(extensionConfig),
 	};
 }

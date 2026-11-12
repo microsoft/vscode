@@ -24,7 +24,6 @@ import { ContextKeyValue } from '../../../../../../platform/contextkey/common/co
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ISharedProcessService } from '../../../../../../platform/ipc/electron-browser/services.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
@@ -36,13 +35,13 @@ import { IChatEntitlementService } from '../../../../../../workbench/services/ch
 import { IEditorService } from '../../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext } from '../../../../../common/contextkeys.js';
-import { Menus } from '../../../../../browser/menus.js';
-import { RemotesEditorInput } from '../../browser/remotesEditorInput.js';
-import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../browser/remotesModel.js';
-import { RemotesEditor } from '../../electron-browser/remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../chat/common/constants.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID, TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { IsPhoneLayoutContext } from '../../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
+import { RemotesEditorInput } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesEditorInput.js';
+import { ICustomizationRemote, IRemotesModel, RemoteKind, RemotesModel } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesModel.js';
+import { RemotesEditor } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/remotesEditor.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../electron-browser/remotes.contribution.js';
 
 class TestRemotesModel extends Disposable implements IRemotesModel {
@@ -82,10 +81,14 @@ class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	override readonly onDidChangeTunnelStatus = this.onDidChangeStatusEmitter.event;
 	override readonly onDidChangeMode = Event.None;
 	override async getMode(): Promise<TunnelMode> { return INACTIVE_TUNNEL_MODE; }
-	override async getTunnelStatus(): Promise<TunnelStatus> { return { type: 'disconnected' }; }
+	private status: TunnelStatus = { type: 'disconnected' };
+	override async getTunnelStatus(): Promise<TunnelStatus> { return this.status; }
 	override async getTunnelName(): Promise<string | undefined> { return 'my-workstation'; }
 	override async stopTunnel(): Promise<void> { }
-	fireStatus(status: TunnelStatus): void { this.onDidChangeStatusEmitter.fire(status); }
+	fireStatus(status: TunnelStatus): void {
+		this.status = status;
+		this.onDidChangeStatusEmitter.fire(status);
+	}
 	dispose(): void { this.onDidChangeStatusEmitter.dispose(); }
 }
 
@@ -100,7 +103,6 @@ suite('RemotesEditor', () => {
 		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(ISSHRemoteAgentHostService, {});
 		instantiation.stub(IPreferencesService, {});
-		instantiation.stub(ISharedProcessService, { getChannel: () => ({ call: async (): Promise<never> => { throw new Error('Unexpected IPC call'); }, listen: () => Event.None }) });
 		const tunnel = store.add(new TestRemoteTunnelService());
 		instantiation.stub(IRemoteTunnelService, tunnel);
 		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
@@ -229,11 +231,11 @@ suite('RemotesEditor', () => {
 			before: { name: 'my-workstation', options: ['Off (selected)', 'GitHub Environments (Preview)', 'Dev Tunnels'], status: 'Remote connections are off.' },
 			after: { name: 'my-workstation', options: ['Off', 'GitHub Environments (Preview)', 'Dev Tunnels (selected)'], status: 'Remote connections are on via Dev Tunnels.' },
 			commands: [TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID],
-			accessible: 'This Computer\nSharing name: my-workstation\nRemote connections are on via Dev Tunnels.\nLocal sessions run directly here. Sharing lets other clients access agents and folders on this computer.\nLearn More: https://aka.ms/vscode-agent-environments',
+			accessible: 'This Computer\nSharing name: my-workstation\nRemote connections are on via Dev Tunnels.\nLocal sessions run directly here. Sharing lets other devices use agents and folders on this computer. Files and tools stay here.\nLearn More: https://aka.ms/vscode-agent-environments',
 			optionNames: [
-				'Off: Only accessible from this machine.',
-				'GitHub Environments (Preview): Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.',
-				'Dev Tunnels: Access workspaces and agents on this machine from VS Code or vscode.dev/agents.',
+				'Off: Don\'t allow connections from other devices through this app.',
+				'GitHub Environments (Preview): Continue agent sessions across supported Copilot apps, VS Code, and vscode.dev/agents. Agents use folders and tools on this computer; features vary by app.',
+				'Dev Tunnels: Use agents and folders on this computer from VS Code or vscode.dev/agents. For full-editor access, use Remote Tunnels.',
 			],
 		});
 	});
@@ -351,7 +353,10 @@ suite('RemotesEditor', () => {
 		const read = () => ({
 			hidden: container.querySelector<HTMLElement>('.remotes-editor-this-computer')?.hidden,
 			sections: container.querySelectorAll('.remotes-this-computer').length,
+			heading: container.querySelector<HTMLElement>('.remotes-heading:not([hidden])')?.textContent,
+			region: container.querySelector('.remotes-widget[role="region"]')?.getAttribute('aria-labelledby') === container.querySelector('.remotes-heading-title')?.id,
 			accessible: editor.getAccessibilityContent().startsWith('This Computer'),
+			accessibleHeading: editor.getAccessibilityContent().includes('\n\nOther Environments\n'),
 		});
 		const setEnabled = async (enabled: boolean) => {
 			await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, enabled);
@@ -366,9 +371,9 @@ suite('RemotesEditor', () => {
 		const enabled = read();
 		await setEnabled(false);
 		assert.deepStrictEqual({ initial, enabled, disabled: read() }, {
-			initial: { hidden: true, sections: 0, accessible: false },
-			enabled: { hidden: false, sections: 1, accessible: true },
-			disabled: { hidden: true, sections: 0, accessible: false },
+			initial: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
+			enabled: { hidden: false, sections: 1, heading: 'Other Environments', region: true, accessible: true, accessibleHeading: true },
+			disabled: { hidden: true, sections: 0, heading: undefined, region: false, accessible: false, accessibleHeading: false },
 		});
 	});
 

@@ -100,7 +100,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	private readonly _editor: ICodeEditor;
 
-	private _currentPasteOperation?: CancelablePromise<void>;
+	private _currentPasteOperation?: CancelablePromise<boolean>;
 	private _pasteAsActionContext?: { readonly preferred?: PastePreference };
 
 	private readonly _pasteProgressManager: InlineProgressManager;
@@ -158,8 +158,9 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		return this._editor.getOption(EditorOption.pasteAs).enabled;
 	}
 
-	public async finishedPaste(): Promise<void> {
-		await this._currentPasteOperation;
+	/** Returns false if the pending paste did not apply an edit. */
+	public async finishedPaste(): Promise<boolean> {
+		return (await this._currentPasteOperation) ?? true;
 	}
 
 	private handleCopy(e: IClipboardCopyEvent) {
@@ -329,7 +330,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const p = createCancelablePromise(async (pToken) => {
 			const editor = this._editor;
 			if (!editor.hasModel()) {
-				return;
+				return false;
 			}
 			const model = editor.getModel();
 
@@ -341,14 +342,14 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			try {
 				await this.mergeInDataFromCopy(allProviders, dataTransfer, metadata, token);
 				if (token.isCancellationRequested) {
-					return;
+					return false;
 				}
 
 				const supportedProviders = allProviders.filter(provider => this.isSupportedPasteProvider(provider, dataTransfer));
 				if (!supportedProviders.length
 					|| (supportedProviders.length === 1 && supportedProviders[0] instanceof DefaultTextPasteOrDropEditProvider) // Only our default text provider is active
 				) {
-					return this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
+					return await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
 				}
 
 				const context: DocumentPasteContext = {
@@ -357,12 +358,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				const editSession = disposables.add(await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token));
 				if (token.isCancellationRequested) {
-					return;
+					return false;
 				}
 
 				// If the only edit returned is our default text edit, use the default paste handler
 				if (editSession.edits.length === 1 && editSession.edits[0].provider instanceof DefaultTextPasteOrDropEditProvider) {
-					return this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
+					return await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
 				}
 
 				if (editSession.edits.length) {
@@ -388,7 +389,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					}, token, editSession);
 				}
 
-				await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
+				return await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
 			} finally {
 				disposables.dispose();
 				if (this._currentPasteOperation === p) {
@@ -417,7 +418,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const p = createCancelablePromise(async (token) => {
 			const editor = this._editor;
 			if (!editor.hasModel()) {
-				return;
+				return false;
 			}
 			const model = editor.getModel();
 
@@ -426,7 +427,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			try {
 				await this.mergeInDataFromCopy(allProviders, dataTransfer, metadata, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested) {
-					return;
+					return false;
 				}
 
 				// Filter out any providers the don't match the full data transfer we will send them.
@@ -442,7 +443,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				};
 				const editSession = disposables.add(await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token));
 				if (tokenSource.token.isCancellationRequested) {
-					return;
+					return false;
 				}
 
 				// Filter out any edits that don't match the requested kind
@@ -463,7 +464,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					if (preference) {
 						this.showPasteAsNoEditMessage(selections, preference);
 					}
-					return;
+					return false;
 				}
 
 				let pickedEdit: DocumentPasteEdit | undefined;
@@ -497,18 +498,19 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 					if (selected === configureDefaultItem) {
 						CopyPasteController._configureDefaultAction?.run();
-						return;
+						return false;
 					}
 
 					pickedEdit = selected?.edit;
 				}
 
 				if (!pickedEdit) {
-					return;
+					return false;
 				}
 
 				const combinedWorkspaceEdit = createCombinedWorkspaceEdit(model.uri, selections, pickedEdit);
-				await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor });
+				const result = await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor });
+				return result.isApplied;
 			} finally {
 				disposables.dispose();
 				if (this._currentPasteOperation === p) {
@@ -521,6 +523,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			location: ProgressLocation.Window,
 			title: localize('pasteAsProgress', "Running paste handlers"),
 		}, () => p);
+		this._currentPasteOperation = p;
 	}
 
 	private setCopyMetadata(clipboardData: IWritableClipboardData, metadata: CopyMetadata) {
@@ -616,11 +619,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		return new PasteEditSession(sortEditsByYieldTo(edits), disposables);
 	}
 
-	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken, clipboardEvent: ClipboardEvent | undefined) {
+	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken, clipboardEvent: ClipboardEvent | undefined): Promise<boolean> {
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
 		const text = (await textDataTransfer?.asString()) ?? '';
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 
 		const payload: PastePayload = {
@@ -633,6 +636,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		};
 		this._logService.trace('CopyPasteController#applyDefaultPasteHandler for id : ', metadata?.id);
 		this._editor.trigger('keyboard', Handler.Paste, payload);
+		return true;
 	}
 
 	/**

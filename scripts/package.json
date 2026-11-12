@@ -1,3 +1,18 @@
 {
-	"type": "commonjs"
+	"name": "vscode-dev-scripts",
+	"private": true,
+	"type": "commonjs",
+	"devDependencies": {
+		"@playwright/test": "^1.61.1",
+		"@vscode/test-electron": "^2.4.0",
+		"@vscode/test-web": "^0.0.81",
+		"@vscode/vscode-perf": "^0.0.19",
+		"ansi-colors": "^3.2.3",
+		"fancy-log": "^1.3.3",
+		"kerberos": "2.1.1",
+		"minimist": "^1.2.8",
+		"open": "^10.1.2",
+		"typescript": "npm:@typescript/typescript6@^6.0.2",
+		"ws": "^8.19.0"
+	}
 }
