@@ -815,12 +815,11 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 
 		// Applying removes the editors in place, so focus that is inside of an editor
-		// part would be lost: remember it to bring it to the new active editor.
+		// part would be lost: it is recovered afterwards if it ended up lost or still in an editor.
 		const isEditorFocus = () => this.parts.some(part => {
 			const container = part.getContainer();
 			return !part.isTransient && !!container && isAncestorOfActiveElement(container);
 		});
-		const hadEditorFocus = !!options?.preserveFocus && isEditorFocus();
 
 		// Apply state: begin with auxiliary windows first because it helps to keep
 		// editors around that need confirmation by moving them into the main part.
@@ -833,7 +832,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
 
 		// Restore Focus unless instructed otherwise
-		if (!options?.preserveFocus || hadEditorFocus) {
+		{
 			const mostRecentActivePart = this.mostRecentActiveParts.find(part => !part.isTransient); // parts owned by someone else are not part of working sets
 			if (mostRecentActivePart) {
 				await mostRecentActivePart.whenReady;
