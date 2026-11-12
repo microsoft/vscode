@@ -191,12 +191,6 @@ export interface IBrowserViewWindowConfiguration {
 	 * applies to that remote only, never to local files.
 	 */
 	readonly trustAllFiles: boolean;
-	/**
-	 * Authorities (`vscode-remote` or agent host) this window knows to have
-	 * a case-insensitive file system, as on Windows and macOS hosts. Other
-	 * remotes are case-sensitive.
-	 */
-	readonly caseInsensitiveRemoteAuthorities: readonly string[];
 }
 
 export interface IBrowserViewBounds {

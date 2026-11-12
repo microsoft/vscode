@@ -39,10 +39,6 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { OperatingSystem } from '../../../../base/common/platform.js';
-import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { IRemoteAgentHostService } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
 import { getCopilotRootPaths } from '../../../../platform/environment/common/copilotHome.js';
 import { ICopilotHomeService } from '../../../services/environment/common/copilotHomeService.js';
 import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
@@ -167,8 +163,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IFileService private readonly fileService: IFileService,
-		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
 	) {
 		super();
@@ -191,12 +185,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => void this._updateWindowConfiguration()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => void this._updateWindowConfiguration()));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => void this._updateWindowConfiguration()));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (e.scheme === Schemas.vscodeRemote) {
-				void this._updateWindowConfiguration();
-			}
-		}));
-		this._register(this.remoteAgentHostService.onDidChangeConnections(() => void this._updateWindowConfiguration()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
 				void this._updateWindowConfiguration();
@@ -952,7 +940,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			networkProxies: this._getNetworkProxies(),
 			trustedFileRoots: this._getTrustedFileRoots(),
 			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
-			caseInsensitiveRemoteAuthorities: this._getCaseInsensitiveRemoteAuthorities(),
 		});
 	}
 
@@ -995,24 +982,6 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			font: DEFAULT_FONT_FAMILY,
 			reducedMotion: this.accessibilityService.isMotionReduced(),
 		};
-	}
-
-	/** The remotes whose file systems ignore path case, as reported by the window's own remote connection and by connected agent hosts. */
-	private _getCaseInsensitiveRemoteAuthorities(): string[] {
-		const authorities: string[] = [];
-		const remoteAuthority = this.environmentService.remoteAuthority;
-		if (remoteAuthority) {
-			const remoteResource = URI.from({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
-			if (this.fileService.hasProvider(remoteResource) && !this.fileService.hasCapability(remoteResource, FileSystemProviderCapabilities.PathCaseSensitive)) {
-				authorities.push(remoteAuthority);
-			}
-		}
-		for (const { address, operatingSystem } of this.remoteAgentHostService.connections) {
-			if (operatingSystem !== undefined && operatingSystem !== OperatingSystem.Linux) {
-				authorities.push(agentHostAuthority(address));
-			}
-		}
-		return authorities;
 	}
 
 	/** Main decides which roots apply to which sessions based on their scheme. */

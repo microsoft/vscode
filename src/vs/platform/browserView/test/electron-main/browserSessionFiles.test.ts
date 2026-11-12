@@ -13,8 +13,8 @@ import { computeFileTrust, IWindowFileTrust, normalizeRemoteFilePath } from '../
 suite('computeFileTrust', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function window(windowId: number, remoteAuthority: string | undefined, trustAllFiles: boolean, roots: URI[], caseInsensitiveRemoteAuthorities: string[] = []): IWindowFileTrust {
-		return { windowId, remoteAuthority, trustAllFiles, trustedFileRoots: roots, caseInsensitiveRemoteAuthorities };
+	function window(windowId: number, remoteAuthority: string | undefined, trustAllFiles: boolean, roots: URI[]): IWindowFileTrust {
+		return { windowId, remoteAuthority, trustAllFiles, trustedFileRoots: roots };
 	}
 
 	function snapshot(windows: IWindowFileTrust[]) {
@@ -44,9 +44,9 @@ suite('computeFileTrust', () => {
 		assert.deepStrictEqual([...remotes.get('host-a')!.roots], ['/repo']);
 	});
 
-	test('keeps every window that contributed to a remote and ignores case only for remotes reported case-insensitive', () => {
+	test('keeps every window that contributed to a remote and ignores case only for Windows paths', () => {
 		const { remotes } = computeFileTrust([
-			window(1, undefined, false, [toAgentHostUri(URI.file('/repo'), 'host-a'), toAgentHostUri(URI.file('/c:/Repo'), 'host-w')], ['Host-W']),
+			window(1, undefined, false, [toAgentHostUri(URI.file('/repo'), 'host-a'), toAgentHostUri(URI.file('/c:/Repo'), 'host-w')]),
 			window(2, undefined, false, [toAgentHostUri(URI.file('/other'), 'host-a')]),
 		]);
 		assert.deepStrictEqual({
