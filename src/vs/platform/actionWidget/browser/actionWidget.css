@@ -116,7 +116,7 @@
 }
 
 /* Pointer navigation uses the dashed hover boundary. */
-.action-widget .monaco-list.mouse-navigation .monaco-list-row.action.focused:not(.option-disabled) {
+.action-widget .monaco-list.mouse-navigation .monaco-list-row.action.focused:is(:hover, .hovered):not(.option-disabled) {
 	outline-style: dashed;
 	outline-color: var(--vscode-contrastActiveBorder, transparent);
 }

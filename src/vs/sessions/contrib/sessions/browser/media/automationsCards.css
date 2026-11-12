@@ -210,12 +210,12 @@
 	touch-action: manipulation;
 }
 
-.automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered:has(> .automations-card-actions:is(:hover, .hovered, .menu-open)) {
+.automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered:has(> .automations-card-actions:is(:hover, .hovered, .menu-open, :focus-within, .focus-within)) {
 	background-color: transparent;
 	outline: none;
 }
 
-:is(.hc-black, .hc-light) .automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered:has(> .automations-card-actions:is(:hover, .hovered, .menu-open)) {
+:is(.hc-black, .hc-light) .automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered:has(> .automations-card-actions:is(:hover, .hovered, .menu-open, :focus-within, .focus-within)) {
 	border-color: var(--vscode-editorWidget-border);
 }
 

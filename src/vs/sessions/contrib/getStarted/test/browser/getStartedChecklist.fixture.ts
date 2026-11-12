@@ -42,6 +42,7 @@ function createChecklist(instantiationService: IInstantiationService, disposable
 
 function renderChecklist(context: ComponentFixtureContext, state: IChecklistFixtureState): void {
 	const { container, disposableStore, theme } = context;
+	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.style.width = `${state.width ?? 300}px`;
 	container.style.padding = '4px 0';
 	container.style.background = 'var(--vscode-agents-background)';

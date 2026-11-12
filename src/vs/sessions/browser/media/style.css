@@ -33,11 +33,16 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.agent-sessions-interactive.agent-sessions-interactive-list:not(.checked, .selected, [aria-selected='true'], [aria-checked='true']):is(:hover, .hovered):not(.disabled, :disabled, [aria-disabled='true'], :active, [aria-expanded='true'], [aria-pressed='true'], :focus-visible, .focus-visible) {
+.agent-sessions-interactive.agent-sessions-interactive-list:not(.checked, .selected, [aria-selected='true'], [aria-checked='true']):is(:hover, .hovered):not(.disabled, :disabled, [aria-disabled='true'], :active, [aria-pressed='true'], :focus-visible, .focus-visible) {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
 .monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .agent-sessions-interactive:is(:active, [aria-expanded='true'], [aria-pressed='true']):not(.disabled, :disabled, [aria-disabled='true'], :focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) details[open] > summary.agent-sessions-interactive:not(.disabled, [aria-disabled='true'], :focus-visible, .focus-visible) {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
@@ -52,6 +57,10 @@
 }
 
 :is(.hc-black, .hc-light) .agent-sessions-interactive-bordered:is(:hover, .hovered, :active, [aria-expanded='true'], [aria-pressed='true'], :focus-visible, .focus-visible):not(.disabled, :disabled, [aria-disabled='true']) {
+	border-color: transparent;
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) details[open] > summary.agent-sessions-interactive-bordered:not(.disabled, [aria-disabled='true']) {
 	border-color: transparent;
 }
 

@@ -600,12 +600,22 @@ suite('Menu', () => {
 			outline: getWindow(label).getComputedStyle(label).outlineStyle,
 		});
 		const keyboard = describe();
+		const actionsList = menuElement.querySelector<HTMLElement>('.monaco-action-bar.vertical')!;
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true }));
+		const deadSpace = describe();
+		item.classList.add('hovered');
 		item.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true }));
 		const pointer = describe();
+		item.classList.remove('hovered');
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+		const pointerAway = describe();
 
-		assert.deepStrictEqual({ keyboard, pointer }, {
+		assert.deepStrictEqual({ keyboard, deadSpace, pointer, pointerAway }, {
 			keyboard: { keyboard: true, mouse: false, outline: 'solid' },
+			deadSpace: { keyboard: true, mouse: false, outline: 'solid' },
 			pointer: { keyboard: false, mouse: true, outline: 'dashed' },
+			pointerAway: { keyboard: false, mouse: true, outline: 'solid' },
 		});
 	});
 
@@ -640,6 +650,7 @@ suite('Menu', () => {
 			};
 		};
 		const keyboard = readOutline(focusedMenuItem);
+		focusedAction.classList.add('hovered');
 		menu.classList.add('mouse-navigation');
 		const pointer = readOutline(focusedMenuItem);
 		assert.deepStrictEqual({

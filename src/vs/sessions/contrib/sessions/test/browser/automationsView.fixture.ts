@@ -232,7 +232,7 @@ interface IAutomationsFixtureOptions {
 	readonly emptyHistory?: boolean;
 	readonly remoteEntries?: readonly IRemoteAgentHostEntry[];
 	readonly githubEnvironments?: readonly IMissionControlHost[];
-	readonly interaction?: 'cardHover' | 'cardActionHover' | 'cardActionOpen' | 'cardFocus' | 'templateHover' | 'templateSectionHover';
+	readonly interaction?: 'cardHover' | 'cardActionHover' | 'cardActionOpen' | 'cardActionFocus' | 'cardFocus' | 'templateHover' | 'templateSectionHover';
 }
 
 const TUNNEL_ENTRIES: readonly IRemoteAgentHostEntry[] = [
@@ -380,6 +380,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['The More Actions control is open. In high contrast themes, only the action has a solid active-contrast boundary; the parent card does not.'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardActionOpen' }),
+	}),
+	CardActionFocus: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The More Actions control has keyboard focus while the pointer remains over the card. In high contrast themes, only the action has a solid focus boundary; the parent card does not.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardActionFocus' }),
 	}),
 	CardFocus: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -531,7 +537,7 @@ async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomat
 	stubSessionHosts(instantiationService, ctx.disposableStore);
 
 	ctx.container.classList.add('monaco-workbench');
-	if (options.interaction === 'cardActionHover' || options.interaction === 'cardActionOpen') {
+	if (options.interaction === 'cardActionHover' || options.interaction === 'cardActionOpen' || options.interaction === 'cardActionFocus') {
 		ctx.container.classList.add('agent-sessions-workbench');
 	}
 	ctx.container.style.width = `${options.width}px`;
@@ -553,7 +559,7 @@ async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomat
 	node.layout(options.width, options.height);
 	if (options.interaction === 'cardHover') {
 		node.element.querySelector<HTMLElement>('.automations-card')?.classList.add('hovered');
-	} else if (options.interaction === 'cardActionHover' || options.interaction === 'cardActionOpen') {
+	} else if (options.interaction === 'cardActionHover' || options.interaction === 'cardActionOpen' || options.interaction === 'cardActionFocus') {
 		const card = node.element.querySelector<HTMLElement>('.automations-card');
 		const actions = card?.querySelector<HTMLElement>('.automations-card-actions');
 		const action = card?.querySelector<HTMLElement>('.automations-card-more-actions-button');
@@ -561,11 +567,13 @@ async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomat
 			throw new Error('Automation card action was not rendered');
 		}
 		card.classList.add('hovered');
-		actions.classList.add('hovered');
-		action.classList.add('hovered');
+		actions.classList.add(options.interaction === 'cardActionFocus' ? 'focus-within' : 'hovered');
+		action.classList.add(options.interaction === 'cardActionFocus' ? 'focus-visible' : 'hovered');
 		if (options.interaction === 'cardActionOpen') {
 			actions.classList.add('menu-open');
 			action.setAttribute('aria-expanded', 'true');
+		} else if (options.interaction === 'cardActionFocus') {
+			ctx.focus({ focus: () => action.focus({ focusVisible: true }) });
 		}
 	} else if (options.interaction === 'cardFocus') {
 		const main = node.element.querySelector<HTMLElement>('.automations-card-main');

@@ -70,6 +70,11 @@ suite('Sessions Interaction Styles', () => {
 		const buttonHover = append(root, $('.monaco-button.hovered'));
 		const buttonExpandedHover = append(root, $('.monaco-button.hovered', { 'aria-expanded': 'true' }));
 		const buttonFocusHover = append(root, $('.monaco-button.focus-visible.hovered'));
+		const closedDetails = append(root, $('details'));
+		const closedSummary = append(closedDetails, $('summary.agent-sessions-interactive.agent-sessions-interactive-bordered.hovered'));
+		const openDetails = append(root, $('details')) as HTMLDetailsElement;
+		openDetails.open = true;
+		const openSummary = append(openDetails, $('summary.agent-sessions-interactive.agent-sessions-interactive-bordered.hovered'));
 
 		assert.deepStrictEqual({
 			toolbarHover: getInteractionStyles(toolbarHover),
@@ -86,6 +91,8 @@ suite('Sessions Interaction Styles', () => {
 			buttonHover: getInteractionStyles(buttonHover),
 			buttonExpandedHover: getInteractionStyles(buttonExpandedHover),
 			buttonFocusHover: getInteractionStyles(buttonFocusHover),
+			closedSummary: getInteractionStyles(closedSummary),
+			openSummary: getInteractionStyles(openSummary),
 		}, {
 			toolbarHover: {
 				background: 'rgb(17, 34, 51)',
@@ -158,7 +165,7 @@ suite('Sessions Interaction Styles', () => {
 				outlineWidth: '1px',
 			},
 			expandedListHover: {
-				background: 'rgba(0, 0, 0, 0)',
+				background: 'rgb(34, 51, 68)',
 				outlineColor: 'rgb(85, 102, 119)',
 				outlineOffset: '-1px',
 				outlineStyle: 'solid',
@@ -185,7 +192,32 @@ suite('Sessions Interaction Styles', () => {
 				outlineStyle: 'solid',
 				outlineWidth: '1px',
 			},
+			closedSummary: {
+				background: 'rgb(17, 34, 51)',
+				outlineColor: 'rgb(68, 85, 102)',
+				outlineOffset: '-1px',
+				outlineStyle: 'dashed',
+				outlineWidth: '1px',
+			},
+			openSummary: {
+				background: 'rgb(17, 34, 51)',
+				outlineColor: 'rgb(85, 102, 119)',
+				outlineOffset: '-1px',
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+			},
 		});
+	});
+
+	test('expanded list controls retain normal-theme hover feedback', () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.vs'));
+		root.style.setProperty('--vscode-list-hoverBackground', '#223344');
+		root.style.setProperty('--vscode-contrastActiveBorder', 'transparent');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		store.add(toDisposable(() => root.remove()));
+		const expanded = append(root, $('.agent-sessions-interactive.agent-sessions-interactive-list.hovered', { 'aria-expanded': 'true' }));
+
+		assert.strictEqual(mainWindow.getComputedStyle(expanded).backgroundColor, 'rgb(34, 51, 68)');
 	});
 
 	test('project bar states share one high contrast indicator geometry', () => {

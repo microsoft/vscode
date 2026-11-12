@@ -278,6 +278,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	ExpandedHeaderHovered: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The expanded Customizations header is hovered. In high contrast themes, one solid active-contrast boundary surrounds the header without a nested inset outline.'],
 		render: (ctx) => renderWidget(ctx, { headerHovered: true }),
 	}),
 

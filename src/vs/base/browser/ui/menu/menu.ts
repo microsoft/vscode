@@ -199,60 +199,62 @@ export class Menu extends ActionBar {
 			}
 		}));
 
-		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_MOVE, e => {
-			if (e.movementX === 0 && e.movementY === 0) {
-				return;
-			}
-			this.setKeyboardNavigation(false);
-
-			let target = e.target as HTMLElement;
+		const resolveActionItem = (eventTarget: EventTarget | null): HTMLElement | undefined => {
+			let target = eventTarget as HTMLElement | null;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
-				return;
+				return undefined;
 			}
 
 			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
 				target = target.parentElement;
 			}
 
-			if (target.classList.contains('action-item')) {
-				const lastFocusedItem = this.focusedItem;
-				// Moving within the focused item is the common case; skip the item lookup for it
-				if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
-					return;
-				}
+			return target.classList.contains('action-item') ? target : undefined;
+		};
 
-				this.setFocusedItem(target);
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_MOVE, e => {
+			if (e.movementX === 0 && e.movementY === 0) {
+				return;
+			}
+			const target = resolveActionItem(e.target);
+			if (!target) {
+				return;
+			}
+			this.setKeyboardNavigation(false);
 
-				if (lastFocusedItem !== this.focusedItem) {
-					this.updateFocus();
-				}
+			const lastFocusedItem = this.focusedItem;
+			// Moving within the focused item is the common case; skip the item lookup for it
+			if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
+				return;
+			}
+
+			this.setFocusedItem(target);
+
+			if (lastFocusedItem !== this.focusedItem) {
+				this.updateFocus();
 			}
 		}));
 
-		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_DOWN, () => {
-			this.setKeyboardNavigation(false);
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_DOWN, e => {
+			if (resolveActionItem(e.target)) {
+				this.setKeyboardNavigation(false);
+			}
 		}, true));
 
 		// Support touch on actions list to focus items (needed for submenus)
 		this._register(Gesture.addTarget(this.actionsList));
 		this._register(addDisposableListener(this.actionsList, TouchEventType.Tap, e => {
-			this.setKeyboardNavigation(false);
-			let target = e.initialTarget as HTMLElement;
-			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+			const target = resolveActionItem(e.initialTarget);
+			if (!target) {
 				return;
 			}
+			this.setKeyboardNavigation(false);
 
-			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
-				target = target.parentElement;
-			}
+			const lastFocusedItem = this.focusedItem;
+			this.setFocusedItem(target);
 
-			if (target.classList.contains('action-item')) {
-				const lastFocusedItem = this.focusedItem;
-				this.setFocusedItem(target);
-
-				if (lastFocusedItem !== this.focusedItem) {
-					this.updateFocus();
-				}
+			if (lastFocusedItem !== this.focusedItem) {
+				this.updateFocus();
 			}
 		}));
 
@@ -1509,8 +1511,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px)) !important;
 }
 
-.hc-black .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
-.hc-light .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+.hc-black .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item,
+.hc-light .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item {
 	outline-style: dashed !important;
 	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-menu-selectionBorder)) !important;
 }
@@ -1527,8 +1529,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px)) !important;
 }
 
-:host-context(.hc-black) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
-:host-context(.hc-light) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+:host-context(.hc-black) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item {
 	outline-style: dashed !important;
 	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-menu-selectionBorder)) !important;
 }

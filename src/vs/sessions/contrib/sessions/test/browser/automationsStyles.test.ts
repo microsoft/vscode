@@ -70,6 +70,7 @@ suite('Automations Styles', () => {
 			'--vscode-list-hoverBackground: #223344',
 			'--vscode-toolbar-hoverBackground: #334455',
 			'--vscode-contrastActiveBorder: #445566',
+			'--vscode-focusBorder: #778899',
 		].join(';');
 		store.add(toDisposable(() => root.remove()));
 
@@ -99,8 +100,17 @@ suite('Automations Styles', () => {
 			card: readOutline(card),
 			button: readOutline(button),
 		};
+		actions.classList.remove('hovered', 'menu-open');
+		actions.classList.add('focus-within');
+		button.removeAttribute('aria-expanded');
+		button.classList.remove('hovered');
+		button.classList.add('focus-visible');
+		const focused = {
+			card: readOutline(card),
+			button: readOutline(button),
+		};
 
-		assert.deepStrictEqual({ hovered, open }, {
+		assert.deepStrictEqual({ hovered, open, focused }, {
 			hovered: {
 				card: {
 					background: 'rgba(0, 0, 0, 0)',
@@ -112,6 +122,10 @@ suite('Automations Styles', () => {
 			open: {
 				card: { color: 'none', style: 'none', width: '0px' },
 				button: { color: 'rgb(68, 85, 102)', style: 'solid', width: '1px' },
+			},
+			focused: {
+				card: { color: 'none', style: 'none', width: '0px' },
+				button: { color: 'rgb(119, 136, 153)', style: 'solid', width: '1px' },
 			},
 		});
 	});

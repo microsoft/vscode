@@ -669,14 +669,22 @@ suite('ActionListWidget', () => {
 			widget.focus();
 			widget.focusNext();
 			const states = [outline()];
+			rows[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			rows[0].classList.add('hovered');
 			rows[0].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 			states.push(outline());
 			widget.focusNext();
 			states.push(outline());
+			rows[1].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			rows[0].classList.remove('hovered');
+			rows[1].classList.add('hovered');
 			rows[1].dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementY: 1 }));
 			states.push(outline());
 			widget.focusPrevious();
 			states.push(outline());
+			rows[0].dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			rows[1].classList.remove('hovered');
+			rows[0].classList.add('hovered');
 			rows[0].dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 			states.push(outline());
 			dispatchKeyDown(filterAsCombobox ? widget.filterInput! : widget.domNode.querySelector<HTMLElement>('.monaco-list')!, { key: 'Shift', keyCode: 16 });
@@ -722,6 +730,8 @@ suite('ActionListWidget', () => {
 		};
 		const keyboard = readOutline(keyboardRow);
 		const row = widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')[1];
+		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		row.classList.add('hovered');
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 
 		assert.deepStrictEqual({
@@ -750,15 +760,27 @@ suite('ActionListWidget', () => {
 
 		widget.focus();
 		const initial = readOutline();
-		widget.domNode.querySelector<HTMLElement>('.monaco-list-row.focused')!
+		widget.domNode.querySelector<HTMLElement>('.monaco-list')!
 			.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+		const deadSpace = readOutline();
+		widget.filterInput!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+		const filterPointer = readOutline();
+		const focusedRow = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.focused')!;
+		focusedRow.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		focusedRow.classList.add('hovered');
+		focusedRow.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 		const pointer = readOutline();
+		focusedRow.classList.remove('hovered');
+		const pointerAway = readOutline();
 		dispatchKeyDown(widget.filterInput!, { key: 'Shift', keyCode: 16 });
 		const keyboard = readOutline();
 
-		assert.deepStrictEqual({ initial, pointer, keyboard }, {
+		assert.deepStrictEqual({ initial, deadSpace, filterPointer, pointer, pointerAway, keyboard }, {
 			initial: { style: 'solid', color: 'rgb(243, 133, 24)' },
+			deadSpace: { style: 'solid', color: 'rgb(243, 133, 24)' },
+			filterPointer: { style: 'solid', color: 'rgb(243, 133, 24)' },
 			pointer: { style: 'dashed', color: 'rgb(243, 133, 24)' },
+			pointerAway: { style: 'solid', color: 'rgb(243, 133, 24)' },
 			keyboard: { style: 'solid', color: 'rgb(243, 133, 24)' },
 		});
 	});

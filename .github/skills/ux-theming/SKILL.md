@@ -138,6 +138,44 @@ Modal dialogs must trap focus within the dialog until dismissed. Use `dom.trackF
   }
   ```
 
+### High-Contrast Interaction-State Contract
+
+Interaction boundaries communicate different semantics. Do not collapse hover, keyboard focus, selection, and persistent state into one generic rule.
+
+| State | Boundary | Required behavior |
+|---|---|---|
+| Pointer hover | Dashed `contrastActiveBorder` | Apply only to the actionable element actually under the pointer. A `mouse-navigation` class plus a stale focused row is not sufficient. |
+| Keyboard focus | Solid `focusBorder` or the owning list focus token | Must win over simultaneous hover. Preserve the focus ring when the pointer remains over the control. |
+| Open, expanded, or pressed | Solid `contrastActiveBorder` | This is persistent state, not transient hover. Keep normal-theme hover fill separate so an expanded control can still respond to the pointer without becoming dashed. |
+| Selected or checked | The component's selection palette and semantic foreground | Hover must not replace the selected background while leaving the selected foreground behind. |
+| Disabled | No hover or active boundary | Disabled styling remains owned by the component. |
+
+Assign one boundary owner per interaction. A pseudo-element may paint an inset hover fill, but it must not also draw an outline when the component root owns the shared boundary. When a card contains independent actions, suppress the card boundary while a nested action is hovered, focused, or open so the user sees one target. For virtualized trees, inspect both the `.monaco-list-row` and its painted child such as `.monaco-tl-row`; never clear the child focus ring when the outer row's outline is intentionally suppressed.
+
+Native disclosure state is not exposed as `aria-expanded` on `<summary>`. Use `details[open] > summary` for visual state, or explicitly synchronize a component state class/ARIA attribute when the component is not using native disclosure semantics.
+
+Keep background and boundary selectors independent. For example, a normal-theme hover background may apply to an expanded control while the HC boundary remains solid:
+
+```css
+.control:is(:hover, .hovered) {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .control:is(:hover, .hovered):not(:focus-visible, [aria-expanded='true']) {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .control:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) :is(.control[aria-expanded='true'], details[open] > summary.control) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+}
+```
+
+Validate a state matrix rather than isolated screenshots: rest, hover, keyboard focus, focus plus hover, open/expanded/pressed plus hover, selected/checked plus hover, disabled plus hover, and nested-action focus/hover. Load all production styles that compete for the boundary and verify both HC Dark and HC Light, plus normal Dark/Light when selector exclusions can affect hover fills.
+
 Validate both HC themes explicitly when changing borders, focus, or theme-dependent visibility; default dark/light screenshots do not cover them. Render through the production state-owning services so intentionally omitted decoration remains absent.
 
 Test runtime theme changes and custom color overrides, including transitions where a previously defined token becomes absent. Clear stale inline colors or classes rather than leaving the previous theme's state behind. Include competing workbench styles when inspecting the cascade.
