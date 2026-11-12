@@ -1531,7 +1531,7 @@ export function resolveMcpLoginHint(
 		configuration?.defaults?.[providerId],
 		issuerOrigin && configuration?.defaults?.[issuerOrigin],
 		microsoftProvider && configuration?.defaults?.[microsoftProvider],
-	].find(value => typeof value === 'string' && value.trim().length > 0)?.trim();
+	].find((value): value is string => typeof value === 'string' && value.trim().length > 0)?.trim();
 }
 
 function getAllowedMcpSession(
