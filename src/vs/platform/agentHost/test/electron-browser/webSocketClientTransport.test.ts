@@ -117,6 +117,28 @@ suite('WebSocketClientTransport', () => {
 		})));
 	});
 
+	test('allows localhost subdomains and root dots without allowing lookalike hosts', async () => {
+		const cases = [
+			{ address: 'api.localhost:8080', url: 'ws://api.localhost:8080/?tkn=test-token' },
+			{ address: 'ws://api.localhost:8080', url: 'ws://api.localhost:8080/?tkn=test-token' },
+			{ address: 'ws://localhost.:8080', url: 'ws://localhost.:8080/?tkn=test-token' },
+			{ address: 'ws://api.localhost.:8080', url: 'ws://api.localhost.:8080/?tkn=test-token' },
+			{ address: 'ws://api.dev.LOCALHOST.:8080/agent?mode=local', url: 'ws://api.dev.localhost.:8080/agent?mode=local&tkn=test-token' },
+			{ address: 'ws://localhost.example:8080', url: undefined },
+			{ address: 'ws://localhost.example.:8080', url: undefined },
+			{ address: 'ws://api.localhost.example:8080', url: undefined },
+			{ address: 'ws://notlocalhost:8080', url: undefined },
+			{ address: 'ws://localhost..:8080', url: undefined },
+			{ address: 'ws://api.localhost..:8080', url: undefined },
+		];
+		const results = await Promise.all(cases.map(async ({ address }) => ({ address, ...await connect(address, 'test-token') })));
+		assert.deepStrictEqual(results, cases.map(({ address, url }) => ({
+			address,
+			urls: url ? [url] : [],
+			error: url ? undefined : 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
+		})));
+	});
+
 	test('allows IPv4-mapped IPv6 loopback without allowing mapped remote addresses', async () => {
 		const cases = [
 			{ address: 'ws://[::ffff:127.0.0.1]:8080', url: 'ws://[::ffff:7f00:1]:8080/' },

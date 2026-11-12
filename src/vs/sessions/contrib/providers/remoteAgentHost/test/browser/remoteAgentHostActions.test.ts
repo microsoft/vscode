@@ -66,6 +66,11 @@ suite('Remote Agent Host actions', () => {
 			{ value: 'ws://[::ffff:192.0.2.1]:8080', allowed: false },
 			{ value: 'ws://127.0.0.1:8080', allowed: true },
 			{ value: 'ws://[::ffff:127.0.0.1]:8080', allowed: true },
+			{ value: 'ws://api.localhost:8080', allowed: true },
+			{ value: 'ws://localhost.:8080', allowed: true },
+			{ value: 'http://api.localhost.:8080', allowed: true },
+			{ value: 'ws://localhost.example.:8080', allowed: false },
+			{ value: 'ws://api.localhost.example:8080', allowed: false },
 			{ value: 'https://host.example:8080?tkn=test-token', allowed: true },
 		];
 		const outcomes: object[] = [];

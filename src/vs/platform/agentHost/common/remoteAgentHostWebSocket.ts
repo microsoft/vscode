@@ -16,10 +16,12 @@ export class InsecureRemoteAgentHostError extends NonReconnectableTransportError
 /** Returns the URL to connect to, rejecting plaintext destinations outside loopback. */
 export function getRemoteAgentHostWebSocketUrl(address: string): URL {
 	const url = new URL(address.startsWith('ws://') || address.startsWith('wss://') ? address : `ws://${address}`);
+	const hostname = url.hostname.replace(/\.$/, '');
 	// URL canonicalizes IPv4-mapped IPv6 addresses to hexadecimal.
-	const loopback = isLoopbackHost(url.hostname)
-		|| /^127(?:\.\d{1,3}){3}$/.test(url.hostname)
-		|| /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/.test(url.hostname);
+	const loopback = isLoopbackHost(hostname)
+		|| hostname.endsWith('.localhost')
+		|| /^127(?:\.\d{1,3}){3}$/.test(hostname)
+		|| /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/.test(hostname);
 	if (url.protocol !== 'wss:' && !loopback) {
 		throw new InsecureRemoteAgentHostError();
 	}
