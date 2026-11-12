@@ -87,7 +87,7 @@ export const mcpWorkspaceRootConfig = 'chat.mcp.workspaceRootConfig.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
 export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
 
-/** User-scoped account hints for MCP servers managed by Copilot Agent Host. */
+/** User-scoped account hints for MCP servers managed by Agent Host. */
 export const agentHostMcpLoginHintsSection = 'chat.agentHost.mcp.loginHints';
 
 export interface IAgentHostMcpLoginHints {
