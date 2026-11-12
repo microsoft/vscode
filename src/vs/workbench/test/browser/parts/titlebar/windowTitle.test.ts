@@ -107,13 +107,13 @@ suite('Folder Location in Window Title and Command Center', () => {
 		});
 	});
 
-	test('command center label renders the compact worktree icon for the full worktree icon and for no icon', () => {
-		const iconClasses = (icon: typeof Codicon.worktree | undefined) => {
+	test('command center label renders the folder-with-branch icon by default and the location own icon otherwise', () => {
+		const iconClasses = (icon: typeof Codicon.gitBranch | undefined) => {
 			const element = document.createElement('div');
 			renderCommandCenterLabel(element, 'repo', { ...createLocation(), icon }, noHover).dispose();
 			return element.querySelector('.folder-location-icon')?.className;
 		};
-		assert.deepStrictEqual([iconClasses(Codicon.worktree), iconClasses(undefined), iconClasses(Codicon.gitBranch)].map(c => /codicon-(worktree-compact|worktree|git-branch)\b/.exec(c ?? '')?.[1]), ['worktree-compact', 'worktree-compact', 'git-branch']);
+		assert.deepStrictEqual([iconClasses(Codicon.gitBranchCheckout), iconClasses(undefined), iconClasses(Codicon.gitBranch)].map(c => /codicon-(git-branch-checkout|git-branch)\b/.exec(c ?? '')?.[1]), ['git-branch-checkout', 'git-branch-checkout', 'git-branch']);
 	});
 
 	test('command center label without a description has no branch group', () => {

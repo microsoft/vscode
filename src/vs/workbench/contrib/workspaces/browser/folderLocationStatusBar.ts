@@ -158,7 +158,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${location.icon?.id ?? Codicon.worktree.id}) ${location.label}`,
+			text: `$(${location.icon?.id ?? Codicon.gitBranchCheckout.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", getFolderLocationText(location)),
 			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", getFolderLocationText(location), primaryName),
 			command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: localize('folderLocation', "Folder Location"), arguments: [FOLDER_LOCATION_STATUS_ENTRY_ID] },
@@ -268,9 +268,9 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const currentLocation = folderLocationService.currentLocation;
 		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), description: localize('primaryLocation', "Primary Location"), icon: Codicon.folder };
 		// Seed the current location so that accepting before the lookup resolves keeps it
-		const currentSeed: ILocationEntry | undefined = folder.primaryUri && currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.worktree } : undefined;
+		const currentSeed: ILocationEntry | undefined = folder.primaryUri && currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.gitBranchCheckout } : undefined;
 		const seedEntries = currentSeed ? [primaryEntry, currentSeed] : [primaryEntry];
-		const toEntries = (locations: readonly IFolderLocation[]) => [primaryEntry, ...locations.map((location): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.worktree }))];
+		const toEntries = (locations: readonly IFolderLocation[]) => [primaryEntry, ...locations.map((location): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.gitBranchCheckout }))];
 
 		const store = new DisposableStore();
 		const cts = store.add(new CancellationTokenSource());
