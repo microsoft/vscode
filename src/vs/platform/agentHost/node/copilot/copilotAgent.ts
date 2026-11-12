@@ -91,7 +91,7 @@ import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlash
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { CopilotCustomizationInstallations } from './customizations/copilotCustomizationInstallations.js';
 import { ISessionDataService, SESSION_DB_FILENAME, type ISessionDatabase, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
-import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
+import { getProxyUrlCredentials, IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -10618,21 +10618,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** The credentials of the `http.proxy` setting when it names `proxy`, as this agent host's own requests use them. */
 	private _readConfiguredProxyCredentials(proxy: string): NetworkAuthenticateBasicResult | undefined {
-		const setting = this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim();
-		if (!setting || !hasProxyCredentials(setting)) {
-			return undefined;
-		}
-		try {
-			const configured = new URL(setting);
-			if (configured.origin !== new URL(proxy).origin) {
-				return undefined;
-			}
-			const username = decodeURIComponent(configured.username);
-			// Basic credentials cannot carry a user name with a colon.
-			return username && !username.includes(':') ? { username, password: decodeURIComponent(configured.password) } : undefined;
-		} catch {
-			return undefined;
-		}
+		return getProxyUrlCredentials(this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.Proxy)?.trim(), proxy);
 	}
 
 	/**

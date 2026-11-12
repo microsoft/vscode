@@ -43,6 +43,39 @@ export async function loadAgentHostCertificates(
 	return [...systemCertificates, ...extraCertificates];
 }
 
+/**
+ * An HTTP(S) proxy URL without the credentials in its user info. undici sends those in a `Proxy-Authorization` header
+ * ahead of the one the proxy authorization lookup adds, and proxies such as Squid check only the first, so stale
+ * credentials in the `http.proxy` setting or a proxy environment variable would fail every request even after a client
+ * supplied valid ones. The lookup answers the URL's credentials instead, until the proxy rejects them.
+ */
+export function withoutProxyCredentials(proxyURL: string | undefined): string | undefined {
+	try {
+		const url = proxyURL ? new URL(proxyURL) : undefined;
+		if (url && (url.protocol === 'http:' || url.protocol === 'https:') && (url.username || url.password)) {
+			return `${url.protocol}//${url.host}`;
+		}
+	} catch {
+		// Not a URL, keep it.
+	}
+	return proxyURL;
+}
+
+/** The Basic credentials in the user info of the HTTP(S) proxy URL `configuredProxy` when it names the same proxy as `proxy`. */
+export function getProxyUrlCredentials(configuredProxy: string | undefined, proxy: string): Credentials | undefined {
+	try {
+		const configured = configuredProxy ? new URL(configuredProxy) : undefined;
+		if (!configured || configured.protocol !== 'http:' && configured.protocol !== 'https:' || !configured.username && !configured.password || configured.origin !== new URL(proxy).origin) {
+			return undefined;
+		}
+		const username = decodeURIComponent(configured.username);
+		// Basic credentials cannot carry a user name with a colon.
+		return username && !username.includes(':') ? { username, password: decodeURIComponent(configured.password) } : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 /** The log `@vscode/proxy-agent` writes to, with URLs reduced to their origins: a model download URL's path and query must never be logged. */
 function createUrlRedactingProxyLog(logService: ILogService): ProxyLog {
 	const redactArg = (value: unknown) => typeof value === 'string' ? originsOnlyForLog(value) : value instanceof Error ? originsOnlyForLog(value.message) : value;
@@ -161,6 +194,8 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
 	private readonly _sharedNetworkClients = new Map<string, IAgentHostSharedNetworkClient>();
+	/** Per proxy origin, the configured credentials answered for this agent host's own requests and whether the proxy rejected them. */
+	private readonly _configuredCredentialsStates = new Map<string, { readonly key: string; rejected: boolean }>();
 	private readonly _certificatesByClient = new Map<string, readonly string[]>();
 	private readonly _certificateProviders = this._register(new DisposableMap<string, IClientCertificateProvider>());
 	private _certificateProviderGeneration = 0;
@@ -366,7 +401,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		await this.loadClientCertificates();
 		if (!this._fetch) {
 			const { params, resolver } = this._getProxyResolver();
-			this._fetch = createFetchPatch(params, globalThis.fetch, resolver.resolveProxyURL);
+			this._fetch = createFetchPatch(params, this._getFetch(), async url => withoutProxyCredentials(await resolver.resolveProxyURL(url)));
 		}
 		return this._fetch(input, init);
 	}
@@ -374,7 +409,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 	createWebSocket(url: string, protocol: string): InstanceType<typeof globalThis.WebSocket> {
 		if (!this._webSocket) {
 			const { params, resolver } = this._getProxyResolver();
-			this._webSocket = createWebSocketPatch(params, globalThis.WebSocket, resolver.resolveProxyURL);
+			this._webSocket = createWebSocketPatch(params, globalThis.WebSocket, async url => withoutProxyCredentials(await resolver.resolveProxyURL(url)));
 		}
 		return new this._webSocket(url, protocol);
 	}
@@ -429,6 +464,11 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 		return process.env;
 	}
 
+	/** The undici fetch that {@link fetch} routes through the proxy. */
+	protected _getFetch(): typeof globalThis.fetch {
+		return globalThis.fetch;
+	}
+
 	private async _hostResolveProxy(url: string): Promise<string | undefined> {
 		for (const connection of [...this._connections.values(), ...this._sharedNetworkClients.values()]) {
 			try {
@@ -452,13 +492,55 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 			if (!lookup) {
 				lookup = createProxyAuthorizationLookup({
 					log,
-					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo, proxyURL),
+					lookupAuthorization: authInfo => this._lookupProxyAuthorization(authInfo, proxyURL),
 					lookupKerberosAuthorization: url => this._lookupMachineOrClientKerberosAuthorization(url, this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal)),
 				});
 				lookups.set(proxyURL, lookup);
 			}
 			return lookup(proxyURL, proxyAuthenticate, state);
 		};
+	}
+
+	/**
+	 * Credentials for a proxy of this agent host's own requests, whose proxy URLs carry none (see
+	 * {@link withoutProxyCredentials}): like Electron's login handler, the credentials of the `http.proxy` setting, else
+	 * of a proxy environment variable, when they name this proxy, until the proxy rejects them, then a client's.
+	 */
+	private async _lookupProxyAuthorization(authInfo: AuthInfo, proxyURL: string): Promise<Credentials | undefined> {
+		const configured = authInfo.scheme.toLowerCase() === 'basic' ? getProxyUrlCredentials(this._getConfiguredProxy(), proxyURL) : undefined;
+		if (!configured) {
+			return this._hostLookupAuthorization(authInfo, proxyURL);
+		}
+		const origin = new URL(proxyURL).origin;
+		const key = JSON.stringify([configured.username, configured.password]);
+		const state = this._configuredCredentialsStates.get(origin);
+		if (state?.key !== key) {
+			this._configuredCredentialsStates.set(origin, { key, rejected: false });
+			return configured;
+		}
+		if (!state.rejected) {
+			if (authInfo.attempt === 1) {
+				return configured;
+			}
+			state.rejected = true;
+			this._logService.info(`[AgentHostProxyResolver] The proxy ${originsOnlyForLog(origin)} rejected the configured proxy credentials, asking a client for credentials`);
+		}
+		// Requests that answered the configured credentials first take one attempt more to reach a client's.
+		const attempt = Math.max(1, authInfo.attempt - 1);
+		const credentials = await this._hostLookupAuthorization({ ...authInfo, attempt }, proxyURL);
+		if (attempt === 1 && credentials?.username === configured.username && credentials.password === configured.password) {
+			// The client answered the rejected credentials of its own `http.proxy` setting, a second attempt tells it they were rejected.
+			return this._hostLookupAuthorization({ ...authInfo, attempt: 2 }, proxyURL);
+		}
+		return credentials;
+	}
+
+	/** The proxy URL of the `http.proxy` setting, else of a proxy environment variable, as `@vscode/proxy-agent` uses them. */
+	private _getConfiguredProxy(): string | undefined {
+		const env = this._getProxyEnvironment();
+		return this.getConfigurationValue<string>(AgentHostProxyConfigKey.Proxy)?.trim()
+			|| (env.https_proxy || env.HTTPS_PROXY || env.http_proxy || env.HTTP_PROXY)?.trim()
+			|| undefined;
 	}
 
 	private async _hostLookupAuthorization(authInfo: AuthInfo, proxyUrl: string): Promise<Credentials | undefined> {

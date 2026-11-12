@@ -538,8 +538,7 @@ export function setup(logger: Logger, quality: Quality) {
 			this.timeout(10 * 60 * 1000);
 			const app = this.app as Application;
 			const requestTag = `[proxy-request:${randomUUID()}]`;
-			const login = app.workbench.agentsWindow.fillProxyAuthenticationDialog(basicPacProxyCredentials.username, basicPacProxyCredentials.password, 8 * 60 * 1000);
-			login.catch(() => undefined);
+			const logins = app.workbench.agentsWindow.fillProxyAuthenticationDialogs(basicPacProxyCredentials.username, basicPacProxyCredentials.password);
 			try {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
@@ -548,8 +547,8 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
-				assert.match(await login, /^The proxy localhost:\d+ requires a username and password\.$/);
 				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				assertProxyLoginDialogs(await logins.stop(), 1);
 				await assertProxyPasswordChangeAsksAgain(app, context.mockServer, {
 					scenario: `${scenario}-new-password`,
 					firstPrompt: prompt,
@@ -561,6 +560,8 @@ export function setup(logger: Logger, quality: Quality) {
 				logger.log(`Agents Window (local Basic PAC proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
+			} finally {
+				await logins.stop();
 			}
 		});
 	});
@@ -602,7 +603,7 @@ export function setup(logger: Logger, quality: Quality) {
 				assert.ok(CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG.test(log), `Expected the Agent Host to answer the Copilot runtime's Basic proxy challenge with the credentials of the http.proxy setting in ${agentHostLogPath}`);
 				assert.ok(rejectedLogLine.test(log), `Expected the Agent Host to ask a client for credentials after the proxy rejected those of the http.proxy setting in ${agentHostLogPath}`);
 				const details = await logins.stop();
-				assert.ok(details.some(detail => /^The proxy localhost:\d+ requires a username and password\.$/.test(detail)), `Expected a proxy login dialog, got ${JSON.stringify(details)}`);
+				assertProxyLoginDialogs(details, 1);
 			} catch (error) {
 				logger.log(`Agents Window (local Basic PAC proxy, stale http.proxy credentials) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy, stale http.proxy credentials)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
@@ -637,8 +638,7 @@ export function setup(logger: Logger, quality: Quality) {
 			const fixture = context.remoteFixture;
 			assert.ok(fixture, 'Expected the WSL connection fixture');
 			const requestTag = `[proxy-request:${randomUUID()}]`;
-			const login = app.workbench.agentsWindow.fillProxyAuthenticationDialog(basicPacProxyCredentials.username, basicPacProxyCredentials.password, 8 * 60 * 1000);
-			login.catch(() => undefined);
+			const logins = app.workbench.agentsWindow.fillProxyAuthenticationDialogs(basicPacProxyCredentials.username, basicPacProxyCredentials.password);
 			try {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
@@ -648,8 +648,8 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
-				assert.match(await login, /^The proxy localhost:\d+ requires a username and password\.$/);
 				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				assertProxyLoginDialogs(await logins.stop(), 1);
 				await fixture.verifyMockServerRouting?.();
 				await assertClientNetworkServed(context.logsPath, 'wsl', basicPacProxyScheme === 'https' ? 'HTTPS' : 'PROXY', { basicUsername: basicPacProxyCredentials.username });
 				const readAgentHostLog = fixture.readAgentHostLog;
@@ -672,6 +672,8 @@ export function setup(logger: Logger, quality: Quality) {
 				}
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (WSL Basic PAC proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
+			} finally {
+				await logins.stop();
 			}
 		});
 	});
@@ -1315,11 +1317,19 @@ async function assertProxyPasswordChangeAsksAgain(app: Application, mockServer: 
 		const log = await waitForLogContent(options.readAgentHostLog, log => rejectedCount(log) > rejectedBefore, 30_000);
 		assert.ok(rejectedCount(log) > rejectedBefore, 'Expected the Copilot runtime to ask the Agent Host for credentials again after the proxy rejected the old password');
 		const details = await logins.stop();
-		assert.ok(details.some(detail => /^The proxy localhost:\d+ requires a username and password\.$/.test(detail)), `Expected a proxy login dialog for the new password, got ${JSON.stringify(details)}`);
+		assertProxyLoginDialogs(details, 1);
 	} finally {
 		await logins.stop();
 		await setProxyPassword(password);
 	}
+}
+
+/**
+ * Asserts that `details`, those of the proxy login dialogs filled, are of exactly `count` login dialogs for the proxy:
+ * clients share the credentials entered in one, and the main process shows one at a time.
+ */
+function assertProxyLoginDialogs(details: readonly string[], count: number): void {
+	assert.deepStrictEqual(details.map(detail => detail.replace(/^The proxy localhost:\d+ /, 'The proxy localhost:<port> ')), Array.from({ length: count }, () => 'The proxy localhost:<port> requires a username and password.'));
 }
 
 async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {

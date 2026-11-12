@@ -262,26 +262,9 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Waits for the proxy login dialog in any window, as the main process shows it in the focused or last active one,
-	 * then logs in with `username` and `password`, leaving "Remember my credentials" unchanged. Returns the dialog's
-	 * detail, which names the proxy.
-	 */
-	async fillProxyAuthenticationDialog(username: string, password: string, timeoutMs: number): Promise<string> {
-		const deadline = Date.now() + timeoutMs;
-		while (Date.now() < deadline) {
-			const detail = await this.tryFillProxyAuthenticationDialog(username, password);
-			if (detail !== undefined) {
-				return detail;
-			}
-			await new Promise(resolve => setTimeout(resolve, 250));
-		}
-		throw new Error(`Timed out waiting ${timeoutMs}ms for the proxy login dialog`);
-	}
-
-	/**
-	 * Like {@link fillProxyAuthenticationDialog}, but logs in to every proxy login dialog until stopped, as a proxy that
-	 * rejects the remembered credentials makes each client that used them ask again. `stop` returns the details of the
-	 * dialogs filled.
+	 * Logs in with `username` and `password` to every proxy login dialog until stopped, in any window, as the main
+	 * process shows it in the focused or last active one, leaving "Remember my credentials" unchanged. `stop` returns
+	 * the details of the dialogs filled, which name the proxy.
 	 */
 	fillProxyAuthenticationDialogs(username: string, password: string): { stop(): Promise<string[]> } {
 		const details: string[] = [];

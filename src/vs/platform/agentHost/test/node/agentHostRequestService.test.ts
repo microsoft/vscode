@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import { getOrLoadAdditionalCertificates, resetCaches, type ProxyAgentParams, type ResolvedProxyInfo } from '@vscode/proxy-agent';
+import { createServer, type AddressInfo } from 'net';
 import { rootCertificates } from 'tls';
+import { fetch as undiciFetch } from 'undici';
 import { X509Certificate } from 'crypto';
 import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -23,7 +25,7 @@ import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostProxyResolver, IAgentHostProxyResolver, loadAgentHostCertificates } from '../../node/agentHostProxyResolver.js';
+import { AgentHostProxyResolver, IAgentHostProxyResolver, loadAgentHostCertificates, withoutProxyCredentials } from '../../node/agentHostProxyResolver.js';
 import { ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
 import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
@@ -522,6 +524,103 @@ suite('AgentHostProxyResolver', () => {
 			wsl: { username: 'wsl', password: 'secret' },
 			lookups: [['http://pac.proxy', 'Squid', 1]],
 		});
+	});
+
+	// undici's fetch needs Node.js: the Electron test runner exposes Chromium's fetch, which ignores the dispatcher.
+	(process.versions.electron ? test.skip : test)('answers the credentials of the http.proxy setting for its own requests instead of sending them with the proxy URL, until the proxy rejects them', async () => {
+		const valid = 'Basic dXNlcjpzZWNyZXQ=';
+		const connects: string[][] = [];
+		// Like Squid, the proxy checks only the first Proxy-Authorization header.
+		const proxy = createServer(socket => socket.once('data', data => {
+			const authorizations = data.toString().split('\r\n')
+				.filter(line => /^proxy-authorization:/i.test(line))
+				.map(line => line.replace(/^proxy-authorization:\s*/i, ''));
+			connects.push(authorizations);
+			socket.end(authorizations[0] === valid
+				? 'HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n'
+				: 'HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm="Corp"\r\nContent-Length: 0\r\n\r\n');
+		}));
+		disposables.add(toDisposable(() => proxy.close()));
+		await new Promise<void>(resolve => proxy.listen(0, '127.0.0.1', resolve));
+		const configurationService = createAgentConfigurationService(disposables);
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: `http://stale:pa%40ss@127.0.0.1:${(proxy.address() as AddressInfo).port}` });
+		const resolver = disposables.add(new class extends ProxyEnvironmentIsolatedAgentHostProxyResolver {
+			// The Electron test runner's global fetch is Chromium's, which ignores the proxy dispatcher.
+			protected override _getFetch(): typeof globalThis.fetch {
+				return undiciFetch as unknown as typeof globalThis.fetch;
+			}
+		}(configurationService, new NullLogService()));
+		const attempts: number[] = [];
+		disposables.add(resolver.register('window', {
+			resolveProxy: async () => undefined,
+			// Like Electron's login handler, the renderer answers the credentials of its own http.proxy setting first.
+			lookupAuthorization: async ({ attempt }) => {
+				attempts.push(attempt);
+				return attempt === 1 ? { username: 'stale', password: 'pa@ss' } : attempt === 2 ? { username: 'user', password: 'secret' } : undefined;
+			},
+		}));
+
+		const error = await resolver.fetch('https://example.invalid/').then(() => undefined, (error: Error) => error);
+
+		assert.deepStrictEqual({ failed: !!error, connects, attempts }, {
+			failed: true,
+			connects: [
+				[],
+				['Basic c3RhbGU6cGFAc3M='],
+				['Basic c3RhbGU6cGFAc3M='],
+				[valid],
+			],
+			// The renderer is told that the credentials of its http.proxy setting were rejected.
+			attempts: [1, 2],
+		});
+	});
+
+	test('answers the credentials of a proxy environment variable only for the proxy it names, else a client\'s', async () => {
+		const resolver = disposables.add(new class extends AgentHostProxyResolver {
+			protected override _getProxyEnvironment(): NodeJS.ProcessEnv {
+				return { HTTPS_PROXY: 'http://env:secret@proxy.example:8080' };
+			}
+		}(createAgentConfigurationService(disposables), new NullLogService()));
+		const lookups: [string, string | undefined, number][] = [];
+		disposables.add(resolver.registerSharedNetworkClient('wsl', {
+			resolveProxy: async () => undefined,
+			lookupKerberosAuthorization: async () => undefined,
+			lookupBasicAuthorization: async (proxyUrl, realm, attempt) => {
+				lookups.push([proxyUrl, realm, attempt]);
+				return { username: 'user', password: 'secret' };
+			},
+		}));
+		const { lookupProxyAuthorization } = (resolver as unknown as {
+			_getProxyResolver(): { readonly params: ProxyAgentParams };
+		})._getProxyResolver().params;
+
+		assert.deepStrictEqual({
+			named: await lookupProxyAuthorization!('http://proxy.example:8080', 'Basic realm="Corp"', {}),
+			otherScheme: await lookupProxyAuthorization!('https://proxy.example:8080', 'Basic realm="Corp"', {}),
+			lookups,
+		}, {
+			named: 'Basic ZW52OnNlY3JldA==',
+			otherScheme: 'Basic dXNlcjpzZWNyZXQ=',
+			lookups: [['https://proxy.example:8080', 'Corp', 1]],
+		});
+	});
+
+	test('removes the credentials only from HTTP(S) proxy URLs', () => {
+		assert.deepStrictEqual([
+			'http://user:pass@proxy.example:8080/',
+			'https://user@proxy.example',
+			'http://proxy.example:8080',
+			'socks5://user:pass@proxy.example:1080',
+			'not a URL',
+			undefined,
+		].map(proxyURL => withoutProxyCredentials(proxyURL)), [
+			'http://proxy.example:8080',
+			'https://proxy.example',
+			'http://proxy.example:8080',
+			'socks5://user:pass@proxy.example:1080',
+			'not a URL',
+			undefined,
+		]);
 	});
 
 	test('resolves proxies through a client sharing the network only while it is registered', async () => {
