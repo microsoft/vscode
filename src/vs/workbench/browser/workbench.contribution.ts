@@ -17,6 +17,7 @@ import { CustomEditorLabelService } from '../services/editor/common/customEditor
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, ModernUIFrostedGlassOpacity } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
+import { NEW_TAB_BUTTON_SETTING } from './parts/editor/newTabButton.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -92,6 +93,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'wrapTabs' }, "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when {0} is not set to '{1}'.", '`#workbench.editor.showTabs#`', '`multiple`'),
 				'default': false
+			},
+			[NEW_TAB_BUTTON_SETTING]: {
+				'type': 'boolean',
+				tags: ['experimental', 'onExp'],
+				'markdownDescription': localize('newTabButton', "Controls whether the editor tab bar shows a button to open a new tab, such as a new untitled file or a chat."),
+				'default': false,
+				experiment: { mode: 'auto' }
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
@@ -169,6 +177,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enum': ['text', 'hidden'],
 				'default': 'text',
 				'markdownDescription': localize("workbench.editor.empty.hint", "Controls if the empty editor text hint should be visible in the editor.")
+			},
+			'workbench.editor.experimental.emptyEditorHintActions': {
+				'type': 'boolean',
+				'default': false,
+				'tags': ['experimental', 'onExp'],
+				'experiment': { mode: 'auto' },
+				'markdownDescription': localize("workbench.editor.experimental.emptyEditorHintActions", "Controls whether the empty editor hint of new untitled files shows a list of actions instead of a single line. Only applies when `#workbench.editor.empty.hint#` is `text`.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',

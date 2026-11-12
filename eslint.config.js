@@ -213,6 +213,16 @@ export default [
 			'local/code-no-telemetry-common-property': 'warn',
 		}
 	},
+	// src compiles with useDefineForClassFields: false, but must keep working with JavaScript class field semantics,
+	// which src/tsconfig.defineClassFields.json checks (see define-class-fields-check in package.json)
+	{
+		files: [
+			'src/**/*.ts',
+		],
+		rules: {
+			'local/code-no-parameter-property-before-init': 'warn',
+		}
+	},
 	// Force all gulp imports under build/ to go through the gulp facade
 	{
 		files: [

@@ -45,10 +45,19 @@ export interface CanvasState {
 	/** Provider-supplied status text, when available. */
 	status?: string;
 	/**
-	 * Current absolute HTTP(S) source URL; absent when the live source is unavailable.
-	 * Hosts MUST clear this field when the provider becomes unavailable.
+	 * Absolute URI of the canvas's live content, typically an HTTP(S) URL;
+	 * absent when the live source is unavailable. Hosts MUST clear this field
+	 * when the provider becomes unavailable.
 	 *
-	 * Source URLs MUST be redacted from diagnostic logs and MUST NOT be reused
+	 * A client that can't load this URI directly, for example because it is a
+	 * loopback address in the host's environment or uses a scheme that the
+	 * client doesn't load, reads it with `resourceRead`. The client resolves the
+	 * relative references in its content and reads them the same way. Hosts
+	 * SHOULD serve reads of this URI, and of other URLs on its origin when it is
+	 * an HTTP(S) URL, to clients that can subscribe to the canvas. The provider
+	 * chooses the URI, so the host decides which sources it is willing to read.
+	 *
+	 * Source URIs MUST be redacted from diagnostic logs and MUST NOT be reused
 	 * from persisted state after a provider or host restart.
 	 */
 	url?: URI;
