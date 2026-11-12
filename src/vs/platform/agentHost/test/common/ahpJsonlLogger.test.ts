@@ -15,6 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { RegisterGitHubEnvironmentExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -335,6 +336,31 @@ suite('AhpJsonlLogger', () => {
 			tokens: ['<redacted>', '<redacted>'],
 			resources: ['https://api.github.com', 'https://api.github.com'],
 			containsCredential: false, liveToken: 'private-token', truncated: true,
+		});
+	});
+
+	test('redacts GitHub environment credentials without mutating live requests, including oversized entries', async () => {
+		const fileService = createInMemoryFileService(store, Schemas.file);
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'github-environment', connectionId: 'client', transport: 'websocket' },
+			fileService, new NullLogService(),
+		));
+		const request = { jsonrpc: '2.0', id: 1, method: RegisterGitHubEnvironmentExtensionMethod, params: { accountId: '42', credential: 'private-credential' } };
+		logger.log(request, 'c2s');
+		logger.log({ ...request, id: 2, params: { ...request.params, extra: 'x'.repeat(2 * 1024 * 1024) } }, 'c2s');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const entries = content.trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			credentials: entries.map(entry => entry.params.credential),
+			accountIds: entries.map(entry => entry.params.accountId),
+			containsCredential: content.includes(request.params.credential),
+			liveCredential: request.params.credential,
+			truncated: entries[1]._ahpLog.truncated,
+		}, {
+			credentials: ['<redacted>', '<redacted>'],
+			accountIds: ['42', '42'],
+			containsCredential: false, liveCredential: 'private-credential', truncated: true,
 		});
 	});
 

@@ -822,7 +822,8 @@ export class ChatCompositeBar extends Disposable {
 			// own key handlers only react to keys targeting the tab itself.
 		}));
 
-		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(false)));
+		// Clicking away keeps the new name, like the rename in the sessions list.
+		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(true)));
 
 		store.add(addDisposableListener(inputBox.element, EventType.CLICK, e => e.stopPropagation()));
 		store.add(addDisposableListener(inputBox.element, EventType.DBLCLICK, e => e.stopPropagation()));

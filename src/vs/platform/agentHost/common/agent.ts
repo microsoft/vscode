@@ -341,6 +341,8 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 	readonly enabled?: boolean;
 	/** Effective activation in the exact live chat; absent before that chat is initialized. */
 	readonly effectiveEnabled?: boolean;
+	/** Explicit repository override; null inherits global state, absent means unavailable. */
+	readonly repositoryEnabled?: boolean | null;
 	readonly managedDesiredEnabled?: boolean;
 	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
 	readonly resource?: URI;
@@ -2051,7 +2053,7 @@ export interface IAgent {
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Persists enablement at the requested scope, deriving the repository from the target chat. */
-	setPluginEnabled?(plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
+	setPluginEnabled?(plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;

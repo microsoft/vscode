@@ -1136,7 +1136,7 @@ export class AgentHostSessionInputPills extends Disposable {
 
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
 			onDidChange: inputPills.onDidChange,
-			getElements: () => inputPills.getPillElements(),
+			getElements: () => inputPills.getPillItemElements(),
 		}));
 		const pillsVisible = observableFromEvent(this, inputPills.onDidChangeVisibility, () => inputPills.visible);
 		this._register(autorun(reader => {
