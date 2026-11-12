@@ -93,7 +93,6 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	private _windowId: number | undefined = undefined;
 	private get window() { return typeof this._windowId === 'number' ? getWindowById(this._windowId)?.window : undefined; }
 
-	private _encodedWebviewOriginPromise?: Promise<string>;
 	private _encodedWebviewOrigin: string | undefined;
 	private readonly _mountDisposables = this._register(new DisposableStore());
 
@@ -488,6 +487,10 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
 
+	protected hashParentOrigin(parentOrigin: string): Promise<string> {
+		return parentOriginHash(parentOrigin, this.origin);
+	}
+
 	public mountTo(element: HTMLElement, targetWindow: CodeWindow) {
 		if (!this.element) {
 			return;
@@ -496,11 +499,16 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this._mountDisposables.clear();
 		this.element.remove();
 		this._windowId = targetWindow.vscodeWindowId;
-		const mountId = this._mountId = generateUuid();
-		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin);
-		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
+		this._mountId = generateUuid();
+		const mountId = this._mountId;
+		const originPromise = this.hashParentOrigin(targetWindow.origin).then(id => {
+			if (this._mountId === mountId) {
+				this._encodedWebviewOrigin = id;
+			}
+			return id;
+		});
+		originPromise.then(encodedWebviewOrigin => {
 			if (!this._disposed && this._mountId === mountId) {
-				this._encodedWebviewOrigin = encodedWebviewOrigin;
 				this._initElement(encodedWebviewOrigin, this.extension, this._options, targetWindow);
 				this.perfMark('mounted');
 				element.appendChild(this.element!);

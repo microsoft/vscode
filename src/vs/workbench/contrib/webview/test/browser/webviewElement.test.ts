@@ -57,12 +57,17 @@ suite('WebviewElement', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow, options: WebviewOptions = {}) {
+	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow, hashParentOrigin?: (parentOrigin: string, defaultHash: () => Promise<string>) => Promise<string>, options: WebviewOptions = {}) {
 		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
 			public override get element(): HTMLIFrameElement | undefined { return super.element; }
 
 			protected override get platform(): string { return platform; }
+
+			protected override hashParentOrigin(parentOrigin: string): Promise<string> {
+				const defaultHash = () => super.hashParentOrigin(parentOrigin);
+				return hashParentOrigin ? hashParentOrigin(parentOrigin, defaultHash) : defaultHash();
+			}
 
 			protected override webviewContentEndpoint(encodedWebviewOrigin: string): string {
 				const origin = `https://${encodedWebviewOrigin}.invalid`;
@@ -137,7 +142,7 @@ suite('WebviewElement', () => {
 		}
 		channel.port2.start();
 		return {
-			webview, instantiationService, port: channel.port2, errorNotification, contextMenus, frame, container, configurationService, createReadyEvent, connectedWhenSourceAssigned,
+			webview, instantiationService, port: channel.port2, errorNotification, contextMenus, frame, container, configurationService, createReadyEvent, setSource, connectedWhenSourceAssigned,
 			activeMountListeners: () => addListener.callCount - removeListener.callCount,
 			remount: async () => {
 				initialized = new DeferredPromise<string>();
@@ -169,7 +174,7 @@ suite('WebviewElement', () => {
 
 	test('adds host-owned context actions only to the opted-in webview and retains the standard menu', async () => {
 		const action = store.add(new Action('test.preview', 'Preview'));
-		const customized = await createWebview(undefined, 'browser', true, mainWindow, { getContextMenuActions: () => [action] });
+		const customized = await createWebview(undefined, 'browser', true, mainWindow, undefined, { getContextMenuActions: () => [action] });
 		const ordinary = await createWebview();
 		const result = [];
 		for (const { webview, port, contextMenus } of [customized, ordinary]) {
@@ -383,6 +388,30 @@ suite('WebviewElement', () => {
 			});
 		}
 	}
+
+	test('ignores an earlier mount whose origin hash finishes after a remount', async () => {
+		const firstHash = new DeferredPromise<string>();
+		let delayFirstHash = false;
+		const { webview, container, setSource } = await createWebview(undefined, 'browser', false, mainWindow, (_origin, defaultHash) => {
+			if (delayFirstHash) {
+				delayFirstHash = false;
+				return firstHash.p;
+			}
+			return defaultHash();
+		});
+		delayFirstHash = true;
+		const before = setSource.callCount;
+
+		webview.mountTo(container, mainWindow);
+		webview.mountTo(container, mainWindow);
+		await timeout(0);
+		const afterSecondMount = setSource.callCount - before;
+		firstHash.complete('stale-origin');
+		await firstHash.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterSecondMount, afterStaleCompletion: setSource.callCount - before }, { afterSecondMount: 1, afterStaleCompletion: 1 });
+	});
 
 	test('remount rejects the old handshake and key token', async () => {
 		const { webview, frame, createReadyEvent, remount } = await createWebview();

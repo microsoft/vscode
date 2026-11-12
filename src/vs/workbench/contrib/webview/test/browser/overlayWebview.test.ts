@@ -20,6 +20,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import '../../../../browser/media/style.css';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../contrib/modernUI/browser/media/editorBorder.css';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('OverlayWebview', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -196,6 +197,7 @@ suite('OverlayWebview', () => {
 		sheet.textContent = '.aux-overlay-test .part { border-radius: 8px; }';
 		const frame = append(document.body, $<HTMLIFrameElement>('iframe'));
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		const target = frame.contentWindow!;
 		store.add(cloneGlobalStylesheets(target));
 		const root = $('.monaco-workbench.agent-sessions-workbench.aux-overlay-test');

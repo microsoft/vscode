@@ -132,6 +132,7 @@ import '../workbench/services/chat/common/chatEntitlementService.js';
 import '../workbench/services/log/common/defaultLogLevels.js';
 import '../workbench/services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
+import '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
 import '../platform/agentHost/browser/agentHostEnablementService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
