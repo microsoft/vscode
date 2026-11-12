@@ -82,7 +82,7 @@ suite('SessionEnvironmentPicker', () => {
 			}),
 			upcastPartial<IAgentHostSessionsProvider>({
 				...provider('agenthost-remote-hidden', 'remote'),
-				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.disconnected),
+				connectionStatus: constObservable(RemoteAgentHostConnectionStatus.connected),
 				isVisibleInEnvironmentPicker: constObservable(false),
 			}),
 			upcastPartial<IAgentHostSessionsProvider>({
@@ -132,7 +132,7 @@ suite('SessionEnvironmentPicker', () => {
 		}, { environments: [], workspace, workspaceSelection: true });
 	});
 
-	test('available remotes remain in the picker while disconnected or connecting, but incompatible remotes do not', () => {
+	test('only connected remotes appear in the picker without losing disconnected draft destinations', () => {
 		const states = [
 			RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.connecting,
 			RemoteAgentHostConnectionStatus.disconnected, RemoteAgentHostConnectionStatus.reconnecting,
@@ -147,9 +147,6 @@ suite('SessionEnvironmentPicker', () => {
 		}, {
 			picker: [
 				{ id: 'agenthost-remote-0', description: 'Connected' },
-				{ id: 'agenthost-remote-1', description: 'Connecting' },
-				{ id: 'agenthost-remote-2', description: 'Disconnected' },
-				{ id: 'agenthost-remote-3', description: 'Reconnecting' },
 			],
 			retainedDraft: 'agenthost-remote-2',
 		});

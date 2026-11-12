@@ -1491,6 +1491,7 @@ suite('RemotesModel', () => {
 		await assert.rejects(model.setConnected(id, true), /offline/);
 		environmentHosts.set([host], undefined);
 		provider.isAvailableInEnvironmentPicker.set(true, undefined);
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
 		const hiddenOnline = snapshot();
 		model.setHidden(id, false);
 		const shownOnline = snapshot();
@@ -1583,7 +1584,7 @@ suite('RemotesModel', () => {
 				discovered: { hidden: false, reason: undefined, inPicker: false },
 				hiddenBeforeRegistration: { hidden: true, reason: undefined, inPicker: false },
 				registeredHidden: { hidden: true, reason: undefined, inPicker: false },
-				registered: { hidden: false, reason: undefined, inPicker: true },
+				registered: { hidden: false, reason: undefined, inPicker: false },
 				hiddenDisconnected: { hidden: true, reason: undefined, inPicker: false },
 				hiddenConnected: { hidden: true, reason: undefined, inPicker: false },
 				connected: { hidden: false, reason: undefined, inPicker: true },
@@ -1591,7 +1592,7 @@ suite('RemotesModel', () => {
 				unavailable: { hidden: true, reason: undefined, inPicker: false },
 				shownUnavailable: { hidden: false, reason: undefined, inPicker: false },
 				availableAgain: { hidden: false, reason: undefined, inPicker: true },
-				disconnected: { hidden: false, reason: undefined, inPicker: true },
+				disconnected: { hidden: false, reason: undefined, inPicker: false },
 				incompatible: { hidden: false, reason: undefined, inPicker: false },
 				hiddenIncompatible: { hidden: true, reason: undefined, inPicker: false },
 				withdrawn: { hidden: false, reason: undefined, inPicker: false },

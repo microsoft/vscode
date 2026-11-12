@@ -73,7 +73,7 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 	}
 	for (const provider of visible) {
 		const environment = getRemoteSessionCreationEnvironment(provider);
-		if (environment && isRemoteSessionCreationEnvironment(provider) && !RemoteAgentHostConnectionStatus.isIncompatible(provider.connectionStatus.get())) {
+		if (environment && isRemoteSessionCreationEnvironment(provider) && RemoteAgentHostConnectionStatus.isConnected(provider.connectionStatus.get())) {
 			environments.push(environment);
 		}
 	}

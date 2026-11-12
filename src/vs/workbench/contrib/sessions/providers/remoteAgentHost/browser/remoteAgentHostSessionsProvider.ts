@@ -65,7 +65,6 @@ import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { INewSessionComposerService } from '../../../browser/newSessionComposerService.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING } from '../../../common/chatConstants.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v5.';
@@ -381,14 +380,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.localRegistration = config.localRegistration;
 		const pickerVisibility = this._register(new RemoteAgentHostPickerVisibility(storageService));
 		const pickerKey = config.pickerVisibilityKey ?? getRemoteAgentHostPickerKey(config.preferenceKey ?? config.address);
-		const manageRemotes = observableConfigValue(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, true, this._configurationService);
 		this.isAvailableInEnvironmentPicker = config.isVisibleInEnvironmentPicker ?? constObservable(true);
 		this.isVisibleInEnvironmentPicker = derived(this, reader =>
-			(!manageRemotes.read(reader) || !pickerVisibility.isHidden(pickerKey, reader)) && this.isAvailableInEnvironmentPicker?.read(reader) !== false);
+			!pickerVisibility.isHidden(pickerKey, reader) && this.isAvailableInEnvironmentPicker?.read(reader) !== false);
 		this.showInEnvironmentPicker = () => {
-			if (manageRemotes.get()) {
-				pickerVisibility.setHidden(pickerKey, false);
-			}
+			pickerVisibility.setHidden(pickerKey, false);
 		};
 		this.removeLabel = config.removeLabel;
 		this.canRemove = config.canRemove;
