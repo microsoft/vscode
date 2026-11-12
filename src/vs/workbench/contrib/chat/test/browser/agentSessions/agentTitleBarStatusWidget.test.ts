@@ -55,6 +55,7 @@ suite('AgentTitleBarStatusWidget', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const windowTitle = inert<WindowTitle>({
 			workspaceName: 'repo-tasks',
+			getCommandCenterLabel: () => 'repo-tasks',
 			get folderLocationInfo() { return location.current; },
 			getTitleDecorations: () => ({ prefix: undefined, suffix: undefined }),
 			isCustomTitleFormat: () => false,
