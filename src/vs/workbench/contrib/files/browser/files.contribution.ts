@@ -109,7 +109,7 @@ registerWorkbenchContribution2(ExplorerViewletViewsContribution.ID, ExplorerView
 registerWorkbenchContribution2(TextFileEditorTracker.ID, TextFileEditorTracker, WorkbenchPhase.BlockStartup);
 
 // Untitled document telemetry: created eagerly so that it sees the untitled documents restored on startup
-registerSingleton(IUntitledDocumentTelemetryService, UntitledDocumentTelemetry, InstantiationType.Delayed);
+registerSingleton(IUntitledDocumentTelemetryService, UntitledDocumentTelemetry, InstantiationType.Eager);
 class UntitledDocumentTelemetryContribution implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.untitledDocumentTelemetry';
 	constructor(@IUntitledDocumentTelemetryService _untitledDocumentTelemetryService: IUntitledDocumentTelemetryService) { }

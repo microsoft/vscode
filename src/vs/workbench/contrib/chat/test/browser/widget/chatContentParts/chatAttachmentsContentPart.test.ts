@@ -417,6 +417,39 @@ suite('ChatAttachmentsContentPart', () => {
 			});
 		});
 
+		test('should mark up an image of the input right away, also from its Mark Up button, and say so', () => {
+			const imageHoverContents = captureImageHovers();
+			const contextResourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+			let markUps = 0;
+			const widget = disposables.add(instantiationService.createInstance(
+				ImageAttachmentWidget,
+				undefined,
+				{ kind: 'image', id: 'screenshot', name: 'Screenshot', value: new Uint8Array([0x89, 0x50, 0x4E, 0x47]), mimeType: 'image/png' },
+				undefined,
+				{ shouldFocusClearButton: false, supportsDeletion: true, isCurrentInput: true, markUp: async () => { markUps++; } },
+				dom.$('div'),
+				contextResourceLabels
+			));
+			widget.element.click();
+			widget.element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+			const markUpButton = widget.element.querySelector<HTMLElement>('.chat-attached-context-mark-up-button');
+			markUpButton?.click();
+			// A double click on the button does not also open the pill.
+			markUpButton?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				markUps,
+				ariaLabel: widget.element.ariaLabel,
+				hoverText: imageHoverContents.map(content => content.textContent),
+				markUpButton: { icon: markUpButton?.classList.contains('codicon-edit-compact'), tabIndex: markUpButton?.tabIndex },
+			}, {
+				markUps: 3,
+				ariaLabel: 'Attached image, Screenshot. Press Enter to mark it up. (Delete)',
+				hoverText: ['Click to mark up this image.'],
+				markUpButton: { icon: true, tabIndex: -1 },
+			});
+		});
+
 		suite('hydrated image attachments', () => {
 			async function renderImageAndCollectReads(image: IChatRequestVariableEntry): Promise<string[]> {
 				const fileService = instantiationService.get(IFileService) as TestFileService;

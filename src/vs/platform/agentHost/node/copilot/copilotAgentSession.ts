@@ -788,6 +788,8 @@ export interface ICopilotAgentSessionOptions {
 interface ICopilotCanvasProjection {
 	readonly resource: URI;
 	readonly canvas: CanvasState;
+	/** The instance's open input; kept private so a replacement runtime can reopen the instance with it. */
+	readonly input?: JsonValue;
 }
 
 /** Canvases a configuration refresh carries from a chat's previous runtime to its replacement. */
@@ -5168,9 +5170,10 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
 	takeCanvasProjection(): ICopilotCanvasHandoff | undefined {
-		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas } }) => ({
+		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas }, input }) => ({
 			resource,
 			canvas,
+			...(input !== undefined ? { input } : {}),
 		}));
 		const pendingCloseInstanceIds = new Set(this._deferredCanvasCloseInstanceIds);
 		this._releaseCanvasRegistrySnapshot();
@@ -5458,17 +5461,87 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		// Canvases the runtime reported while the request was pending are no longer marked, so they keep that newer state.
+		const missing: ICanvasProjectionEntry[] = [];
 		for (const projection of [...this._canvasByInstanceId.values()]) {
 			if (!projection.handedOver) {
 				continue;
 			}
 			const instanceId = projection.canvas.instanceId;
-			const open = this._deferredCanvasCloseInstanceIds.has(instanceId) ? undefined : openByInstanceId.get(instanceId);
+			if (this._deferredCanvasCloseInstanceIds.has(instanceId)) {
+				this._canvasByInstanceId.delete(instanceId);
+				continue;
+			}
+			const open = openByInstanceId.get(instanceId);
 			if (open) {
 				this._projectOpenedCanvas(open);
 			} else {
-				this._canvasByInstanceId.delete(instanceId);
+				missing.push(projection);
 			}
+		}
+		if (missing.length > 0) {
+			await this._reopenHandedOverCanvases(wrapper, missing);
+		}
+	}
+
+	/**
+	 * Keeps handed-over canvases the replacement runtime restored but has not rendered, and reopens them in the
+	 * background. A lazily activated provider only rehydrates a restored instance when it is demanded, so the
+	 * explicit open starts the provider; the runtime treats it as a reopen, which records no new first open.
+	 * Canvases the runtime no longer declares are closed; the others stay unavailable until they reopen.
+	 */
+	private async _reopenHandedOverCanvases(wrapper: CopilotSessionWrapper, projections: readonly ICanvasProjectionEntry[]): Promise<void> {
+		let declared: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] | undefined;
+		try {
+			({ canvases: declared } = await this._awaitControlPlaneRpc('rpc.canvas.list', wrapper.session.rpc.canvas.list()));
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read declared canvases while reopening handed-over canvases: ${getErrorMessage(error)}`);
+		}
+		if (this._store.isDisposed) {
+			return;
+		}
+		for (const projection of projections) {
+			const { instanceId, extensionId, canvasId } = projection.canvas;
+			if (this._canvasByInstanceId.get(instanceId) !== projection) {
+				continue;
+			}
+			if (declared && !declared.some(canvas => canvas.extensionId === extensionId && canvas.canvasId === canvasId)) {
+				this._canvasByInstanceId.delete(instanceId);
+				continue;
+			}
+			const { handedOver: _handedOver, ...unavailable } = projection;
+			this._canvasByInstanceId.set(instanceId, unavailable);
+			if (declared) {
+				void this._reopenCanvas(wrapper, unavailable);
+			}
+		}
+	}
+
+	/**
+	 * Reopens a restored canvas without delaying the resume or the turn that triggered it. The wait is bounded but,
+	 * unlike control-plane requests, a timeout does not desynchronize the session: the canvas stays unavailable,
+	 * and a late reopen still arrives as an opened event.
+	 */
+	private async _reopenCanvas(wrapper: CopilotSessionWrapper, projection: ICopilotCanvasProjection): Promise<void> {
+		const { instanceId, extensionId, canvasId } = projection.canvas;
+		let reopened: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>> | undefined;
+		try {
+			reopened = await raceTimeout(wrapper.session.rpc.canvas.open({
+				extensionId,
+				canvasId,
+				instanceId,
+				...(projection.input !== undefined ? { input: projection.input } : {}),
+			}), this._controlPlaneRpcTimeoutMs);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to reopen a restored canvas: ${getErrorMessage(error)}`);
+			return;
+		}
+		if (!reopened) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Reopening a restored canvas did not finish within ${this._controlPlaneRpcTimeoutMs}ms`);
+			return;
+		}
+		// Events received during the request, such as a close, supersede its result.
+		if (!this._store.isDisposed && this._wrapper === wrapper && this._canvasByInstanceId.get(instanceId) === projection) {
+			this._projectOpenedCanvas(reopened);
 		}
 	}
 
@@ -5558,8 +5631,12 @@ export class CopilotAgentSession extends Disposable {
 			&& existing.canvas.canvasId === data.canvasId
 			&& existing.canvas.title === data.title
 			&& existing.canvas.status === data.status) {
-			if (existing.handedOver) {
-				this._canvasByInstanceId.set(data.instanceId, { resource: existing.resource, canvas: existing.canvas });
+			if (existing.handedOver || !equals(existing.input, data.input)) {
+				this._canvasByInstanceId.set(data.instanceId, {
+					resource: existing.resource,
+					canvas: existing.canvas,
+					...(data.input !== undefined ? { input: data.input } : {}),
+				});
 			}
 			return;
 		}
@@ -5586,6 +5663,7 @@ export class CopilotAgentSession extends Disposable {
 		const projection: ICopilotCanvasProjection = {
 			resource: existing?.resource ?? buildCanvasUri(this._chatChannelUri, generateUuid()),
 			canvas,
+			...(data.input !== undefined ? { input: data.input } : {}),
 		};
 		this._canvasByInstanceId.set(canvas.instanceId, projection);
 		this._publishCanvasState(projection);
@@ -13342,7 +13420,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const { url, ...canvas } = projection.canvas;
-			const unavailable: ICopilotCanvasProjection = { resource: projection.resource, canvas };
+			const unavailable: ICopilotCanvasProjection = { resource: projection.resource, canvas, ...(projection.input !== undefined ? { input: projection.input } : {}) };
 			this._canvasByInstanceId.set(canvas.instanceId, unavailable);
 			if (url !== undefined) {
 				this._publishCanvasState(unavailable);
