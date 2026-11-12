@@ -7,6 +7,7 @@ import assert from 'assert';
 import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { revive } from '../../../../../../base/common/marshalling.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -28,15 +29,16 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, createChatInputToolbarContext, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../../browser/actions/chatQueueActions.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { isChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode, IChatModes, IChatModeService, ICustomAgentInfo } from '../../../common/chatModes.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
-import { MockChatWidgetService } from '../widget/mockChatWidget.js';
+import { MockChatWidgetService, createCircularChatWidget } from '../widget/mockChatWidget.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 
@@ -717,5 +719,29 @@ suite('ChatSubmitAction', () => {
 		});
 
 		assert.deepStrictEqual(acceptedOptions, { cancelCurrentRequest: true });
+	});
+});
+
+suite('createChatInputToolbarContext', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps the live widget for built-in actions and serializes as the chat view context', () => {
+		const sessionResource = URI.parse('vscode-chat-session://local/session');
+		const inputUri = URI.parse('vscode-chat-input:input-1');
+		const widget = createCircularChatWidget(inputUri, sessionResource);
+		const widgetWithoutSession = createCircularChatWidget(inputUri, undefined);
+		const contexts = [createChatInputToolbarContext(widget), createChatInputToolbarContext(widgetWithoutSession)];
+		const [serialized, serializedWithoutSession] = revive<unknown[]>(JSON.parse(JSON.stringify(contexts)));
+
+		assert.throws(() => JSON.stringify({ widget }), /circular/);
+		assert.deepStrictEqual({
+			liveWidgets: contexts[0].widget === widget && contexts[1].widget === widgetWithoutSession,
+			serialized: isChatViewTitleActionContext(serialized) ? { sessionResource: serialized.sessionResource.toString(), inputUri: serialized.inputUri?.toString() } : serialized,
+			serializedWithoutSession,
+		}, {
+			liveWidgets: true,
+			serialized: { sessionResource: sessionResource.toString(), inputUri: inputUri.toString() },
+			serializedWithoutSession: null,
+		});
 	});
 });
