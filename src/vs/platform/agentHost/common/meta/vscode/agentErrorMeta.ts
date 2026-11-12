@@ -55,3 +55,10 @@ export function readForwardedChatError(error: Pick<ErrorInfo, '_meta'>): Record<
 	}
 	return record;
 }
+
+/** The fetch classification of a forwarded chat error, such as `quotaExceeded` or `rateLimited`. */
+export function readForwardedChatErrorFetchType(error: Pick<ErrorInfo, '_meta'>): string | undefined {
+	const fetchError = readForwardedChatError(error)?.fetchError;
+	const type = isObject(fetchError) ? (fetchError as Record<string, unknown>).type : undefined;
+	return isString(type) ? type : undefined;
+}
