@@ -722,7 +722,7 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(
 				window.activeTextEditor.document.uri, this._template, blameInformation[0].blameInformation)}`;
 
-			this._statusBarItem.tooltip2 = (cancellationToken: CancellationToken) => {
+			this._statusBarItem.tooltip = (cancellationToken: CancellationToken) => {
 				return this._provideTooltip(window.activeTextEditor!.document.uri,
 					blameInformation[0].blameInformation as BlameInformation, cancellationToken);
 			};
