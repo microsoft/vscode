@@ -368,8 +368,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		customizations = observableValue<readonly ClientPluginCustomization[]>('customizations', []);
 		insta.stub(IAgentHostActiveClientService, {
 			areScopeRootsEqual: (first, second) => areCustomizationScopeRootsEqual(first, second, new ExtUri(() => false)),
-			acquireScope: (_sessionType: string, roots: readonly URI[]) => {
-				acquiredScopeRoots.push(roots.map(root => root.toString()));
+			acquireScope: (_sessionType: string, roots: readonly URI[] | undefined) => {
+				acquiredScopeRoots.push((roots ?? []).map(root => root.toString()));
 				return {
 					customizations,
 					customAgents: constObservable([]),

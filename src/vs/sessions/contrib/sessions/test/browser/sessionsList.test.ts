@@ -7242,6 +7242,77 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual(headers(), ['Triage', 'Recent', 'Release work', 'Older', 'Archived']);
 		});
+
+		test('headers dropped onto "+N more workspaces" or a workspace it reveals land above it', () => {
+			const now = Date.now();
+			const daysAgo = (days: number) => new Date(now - days * 24 * 60 * 60_000);
+			const sessions = [
+				createTestSession('Fresh', { workspaceLabel: 'recent', createdAt: daysAgo(0) }).session,
+				createTestSession('Alpha', { workspaceLabel: 'alpha', createdAt: daysAgo(10) }).session,
+				createTestSession('Bravo', { workspaceLabel: 'bravo', createdAt: daysAgo(11) }).session,
+				createTestSession('Charlie', { workspaceLabel: 'charlie', createdAt: daysAgo(12) }).session,
+			];
+			const harness = createListHarness(disposables, sessions);
+			const storageService = harness.instantiationService.get(IStorageService);
+			storageService.store('sessionsListControl.groups', JSON.stringify({ groups: [triage], membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+			const orderService = harness.store.add(new SessionSectionOrderService(storageService));
+			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+			harness.instantiationService.stub(ISessionGroupsService, harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				onDidDeleteSession: Event.None,
+				onDidArchiveSession: Event.None,
+				onWillSendRequest: Event.None,
+				onDidReplaceNewDraftSession: Event.None,
+				onDidReplaceSession: Event.None,
+				onDidStartSession: Event.None,
+				onDidDiscardNewSession: Event.None,
+				onDidAcceptNewSessionRequest: Event.None,
+				onDidEndNewSessionRequest: Event.None,
+				onDidMoveChat: Event.None,
+				getSessions: () => sessions,
+				getInFlightNewSessionRequests: () => [],
+				getSession: () => undefined,
+			}), orderService)));
+			const container = harness.createContainer(400, 800);
+			harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			})).layout(800, 400);
+			const rows = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top));
+			const rowLabel = (row: HTMLElement) => row.querySelector('.session-group, .session-section') ? labelOf(row) : row.querySelector('.session-show-more-label')?.textContent;
+			const headers = () => rows().flatMap(row => rowLabel(row) ?? []);
+			const rowNamed = (label: string) => {
+				const row = rows().find(candidate => rowLabel(candidate) === label);
+				assert.ok(row, `Expected a "${label}" row`);
+				return row;
+			};
+			const drag = (source: string, target: string, fraction: number) => {
+				let feedback: string[] = [];
+				dragRow(rowNamed(source), rowNamed(target), fraction, () => {
+					feedback = rows().filter(row => /drop-target/.test(row.className)).map(row => `${rowLabel(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ')}`);
+				});
+				return { feedback, headers: headers() };
+			};
+
+			const collapsed = headers();
+			const triageOntoMore = drag('Triage', '+3 more workspaces', 0.5);
+			clickRow(rowNamed('+3 more workspaces'));
+			const expanded = headers();
+			const charlieOntoAlpha = drag('charlie', 'alpha', 0.1);
+			const bravoOntoShowFewer = drag('bravo', 'Show fewer workspaces', 0.5);
+			clickRow(rowNamed('Show fewer workspaces'));
+
+			assert.deepStrictEqual({ collapsed, triageOntoMore, expanded, charlieOntoAlpha, bravoOntoShowFewer, collapsedAgain: headers() }, {
+				collapsed: ['Triage', 'recent', '+3 more workspaces'],
+				triageOntoMore: { feedback: ['+3 more workspaces: drop-target-before'], headers: ['recent', 'Triage', '+3 more workspaces'] },
+				expanded: ['recent', 'Triage', 'alpha', 'bravo', 'charlie', 'Show fewer workspaces'],
+				// A revealed workspace dropped among the revealed ones lands above them and stays visible.
+				charlieOntoAlpha: { feedback: ['alpha: drop-target-before'], headers: ['recent', 'Triage', 'charlie', 'alpha', 'bravo', 'Show fewer workspaces'] },
+				bravoOntoShowFewer: { feedback: ['alpha: drop-target-before'], headers: ['recent', 'Triage', 'charlie', 'bravo', 'alpha', 'Show fewer workspaces'] },
+				collapsedAgain: ['recent', 'Triage', 'charlie', 'bravo', '+1 more workspace'],
+			});
+		});
 	});
 
 	suite('section collapse persistence', () => {

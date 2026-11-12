@@ -2475,6 +2475,36 @@ suite('ChatListRenderer', () => {
 		});
 	}));
 
+	test('sticky progress measures placement once per frame while streaming renders repeat', async () => {
+		const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
+		let outsideViewport = false;
+		let measurements = 0;
+		renderer.setWorkingProgressContainer(sticky, () => {
+			measurements++;
+			return outsideViewport;
+		});
+		renderer.renderElement(node, 0, template);
+		const nextFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
+		await nextFrame();
+		const progress = container.querySelector('.chat-working-progress');
+		measurements = 0;
+
+		outsideViewport = true;
+		for (let i = 0; i < 20; i++) {
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('More progress. ') });
+			renderer.renderElement(node, 0, template);
+		}
+		const beforeFrame = { measurements, sticky: progress?.parentElement === sticky };
+		await nextFrame();
+
+		assert.deepStrictEqual({ beforeFrame, measurements, sticky: progress?.parentElement === sticky }, {
+			beforeFrame: { measurements: 0, sticky: false },
+			measurements: 1,
+			sticky: true,
+		});
+	});
+
 	test('sticky progress replaces a stale anchor when a hidden completed turn resumes', async () => {
 		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
 		const sticky = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));

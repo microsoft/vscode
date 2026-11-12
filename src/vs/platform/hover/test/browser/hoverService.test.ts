@@ -1037,6 +1037,38 @@ suite('HoverService', () => {
 
 			disposable.dispose();
 		}));
+
+		test('should hide a hover when the mouse left the target shortly before the delay ended', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.delay', 500);
+			const renderSpy = sinon.spy(HoverWidget.prototype, 'render');
+
+			const disposable = hoverService.setupDelayedHover(target, { content: 'Session', persistence: { hideOnHover: false } });
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+			// Leave the target less than the mouseout debounce before the hover is shown, so the
+			// show (render and layout) happens while the mouseout is pending
+			await timeout(400);
+			target.dispatchEvent(new MouseEvent('mouseleave'));
+			await timeout(100);
+			const hoversWhenShown = mainWindow.document.querySelectorAll('.monaco-hover').length;
+			const shownHover = renderSpy.thisValues[0] as HoverWidget;
+			renderSpy.restore();
+			// A layout after the hover is shown (e.g. from a resize) must not keep it open either
+			shownHover.layout();
+
+			await timeout(200);
+			assert.deepStrictEqual({
+				hoversWhenShown,
+				hoversAfterMouseOut: mainWindow.document.querySelectorAll('.monaco-hover').length
+			}, {
+				hoversWhenShown: 1,
+				hoversAfterMouseOut: 0
+			});
+
+			disposable.dispose();
+			hoverService.hideHover(true);
+		}));
 	});
 
 	suite('getStickyHover', () => {
