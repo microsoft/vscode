@@ -232,19 +232,22 @@ suite('Copilot account resource authentication', () => {
 		});
 	});
 
-	test('a ready conversation acquires a challenged credential without another selection operation', async () => {
+	test('a ready conversation returns a credential challenge without waiting and retries after delivery', async () => {
 		const f = fixture();
 		await f.authenticate();
 		await f.authenticate(f.credential('github'));
 		const context = f.context.requireReady();
 		const credential = f.credential('m365');
-		const token = f.context.authenticationOptions!.tokenProvider!({
+		const request: Parameters<EntraTokenProvider>[0] = {
 			kind: 'token', clientId: copilotEntraClientId, accountId: 'entra-identity', reason: 'renewal',
 			audience: copilotEntraM365Audience, scopes: [...credential.scopes!], skipCachedAccessToken: false,
-		}, CancellationToken.None as Parameters<EntraTokenProvider>[1]);
+		};
+		const challenged = await f.context.authenticationOptions!.tokenProvider!(request, CancellationToken.None as Parameters<EntraTokenProvider>[1]);
 		const accepted = await f.authenticate(credential);
-		assert.deepStrictEqual({ accepted, token: await token, selectionUnchanged: f.context.state.get() === context }, {
-			accepted: { authenticated: true }, token: { kind: 'token', accountId: 'entra-identity', accessToken: 'synthetic-only' }, selectionUnchanged: true,
+		const retried = await f.context.authenticationOptions!.tokenProvider!(request, CancellationToken.None as Parameters<EntraTokenProvider>[1]);
+		assert.deepStrictEqual({ challenged, accepted, retried, selectionUnchanged: f.context.state.get() === context }, {
+			challenged: { kind: 'unavailable' }, accepted: { authenticated: true },
+			retried: { kind: 'token', accountId: 'entra-identity', accessToken: 'synthetic-only' }, selectionUnchanged: true,
 		});
 	});
 
@@ -314,6 +317,27 @@ suite('Copilot account resource authentication', () => {
 			sessionId: 'conversation', calls: ['begin:entra', 'select:conversation-opaque-m365', 'cancel'],
 		});
 	});
+
+	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} preserves the ready context after restoring the setup session`, async () => {
+			const f = fixture();
+			await f.authenticate();
+			await f.authenticate(f.credential('m365'));
+			const context = f.context.requireReady();
+			await f.context.releaseSession();
+			const conversation = conversationSession();
+			f.state.conversation = conversation.session;
+			const opened = await f.context.openSession(f.client, { kind, sessionId: 'conversation', enableSessionStore: false }, context, CancellationToken.None);
+			assert.deepStrictEqual({
+				contextUnchanged: opened.context === context && f.context.state.get() === context,
+				sessionId: opened.session.sessionId, calls: conversation.calls, created: f.state.created, resumed: f.state.resumed,
+			}, {
+				contextUnchanged: true, sessionId: 'conversation',
+				calls: kind === 'create' ? ['begin:entra', 'select:conversation-opaque-m365', 'cancel'] : [],
+				created: kind === 'create' ? 3 : 2, resumed: kind === 'resume' ? 1 : 0,
+			});
+		});
+	}
 
 	test('a new conversation accepts automatic login with its own registration and completion', async () => {
 		const f = fixture();
