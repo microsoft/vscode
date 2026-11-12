@@ -3013,6 +3013,7 @@ export class ChatPetWidget extends Disposable {
 
 	private _updateSubagentPets(subagents: ReadonlySet<string>): void {
 		let removed = false;
+		let added = false;
 		for (const [id, pet] of this._subagentPets) {
 			if (!subagents.has(id)) {
 				removed = true;
@@ -3024,6 +3025,7 @@ export class ChatPetWidget extends Disposable {
 			if (this._subagentPets.has(id)) {
 				continue;
 			}
+			added = true;
 			const element = dom.append(this._subagentLayer, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
 			const miniScale = 0.5 * this._scale;
 			const miniWidth = CHAT_PET_DISPLAY_SIZE * miniScale;
@@ -3196,7 +3198,9 @@ export class ChatPetWidget extends Disposable {
 			setState('idle');
 			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance, fallTo, isRespawning: () => respawnPhase !== 'none' });
 		}
-		this._constrainSubagentPets();
+		if (added || removed) {
+			this._constrainSubagentPets();
+		}
 		if (removed) {
 			this._settleSubagentPets();
 		}
@@ -3284,17 +3288,15 @@ export class ChatPetWidget extends Disposable {
 		if (width < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE || height < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE) {
 			return;
 		}
-		const pets = activePets.map(pet => ({
-			left: Number.parseFloat(pet.element.style.left),
-			top: Number.parseFloat(pet.element.style.top),
-			size: CHAT_PET_DISPLAY_SIZE * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale')),
-		}));
-		const left = Math.min(...pets.map(pet => pet.left));
-		const right = Math.max(...pets.map(pet => pet.left + pet.size));
-		const bottom = Math.max(...pets.map(pet => pet.top + pet.size));
-		if (left < minimumLeft - CHAT_PET_SUBAGENT_BOUNDARY_EPSILON || right > maximumRight + CHAT_PET_SUBAGENT_BOUNDARY_EPSILON || bottom > maximumBottom + CHAT_PET_SUBAGENT_BOUNDARY_EPSILON) {
-			if (!this._subagentResizeScheduler.isScheduled()) {
-				this._subagentResizeScheduler.schedule();
+		for (const pet of activePets) {
+			const left = Number.parseFloat(pet.element.style.left);
+			const top = Number.parseFloat(pet.element.style.top);
+			const size = CHAT_PET_DISPLAY_SIZE * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale'));
+			if (left < minimumLeft - CHAT_PET_SUBAGENT_BOUNDARY_EPSILON || left + size > maximumRight + CHAT_PET_SUBAGENT_BOUNDARY_EPSILON || top + size > maximumBottom + CHAT_PET_SUBAGENT_BOUNDARY_EPSILON) {
+				if (!this._subagentResizeScheduler.isScheduled()) {
+					this._subagentResizeScheduler.schedule();
+				}
+				break;
 			}
 		}
 	}
