@@ -24,6 +24,7 @@
   ],
   "activationEvents": [
     "onCommand:simpleBrowser.api.open",
+    "onCommand:simpleBrowser.focusContent",
     "onOpenExternalUri:http",
     "onOpenExternalUri:https",
     "onWebviewPanel:simpleBrowser.view"
@@ -40,6 +41,11 @@
         "command": "simpleBrowser.show",
         "title": "Show",
         "category": "Simple Browser"
+      },
+      {
+        "command": "simpleBrowser.focusContent",
+        "title": "%command.focusContent.title%",
+        "category": "Simple Browser"
       }
     ],
     "menus": {
@@ -47,6 +53,10 @@
         {
           "command": "simpleBrowser.show",
           "when": "isWeb"
+        },
+        {
+          "command": "simpleBrowser.focusContent",
+          "when": "activeWebviewPanelId == 'simpleBrowser.view'"
         }
       ]
     },
