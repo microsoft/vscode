@@ -1031,7 +1031,24 @@ class AutomationCardsSection extends Disposable {
 		createButton.label = label;
 		createButton.element.classList.add('automations-cards-create-dropdown');
 		createButton.primaryButton.element.classList.add(buttonClassName);
-		disposables.add(createButton.onDidClick(() => this.commandService.executeCommand(CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID)));
+		const updateEnabled = () => {
+			createButton.primaryButton.enabled = this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+		};
+		updateEnabled();
+		const enabledContextKeys = new Set([ChatContextKeys.enabled.key]);
+		disposables.add(this.contextKeyService.onDidChangeContext(event => {
+			if (event.affectsSome(enabledContextKeys)) {
+				updateEnabled();
+			}
+		}));
+		disposables.add(createButton.onDidClick(() => {
+			void this.commandService.executeCommand(CREATE_AUTOMATION_WITH_AGENT_COMMAND_ID).catch(error => {
+				if (!isCancellationError(error)) {
+					this.logService.error('[Automations] Failed to open agent creation session', error);
+					this.notificationService.error(localize('automationsAgentCreationFailed', "Could not open a session to create an automation: {0}", getErrorMessage(error)));
+				}
+			});
+		}));
 		if (onboardingTarget) {
 			disposables.add(markOnboardingTarget(createButton.primaryButton.element, CREATE_AUTOMATION_ONBOARDING_TARGET_ID, {
 				onDidActivate: Event.map(createButton.onDidClick, () => undefined),
@@ -2999,14 +3016,60 @@ class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 		}));
 		button.label = label;
 		this._register(button.onDidClick(() => this.actionRunner.run(this._action, this._context)));
+		this._register(DOM.addDisposableListener(button.primaryButton.element, DOM.EventType.KEY_DOWN, event => {
+			if (new StandardKeyboardEvent(event).equals(KeyCode.RightArrow)) {
+				this.focus(true);
+				DOM.EventHelper.stop(event, true);
+			}
+		}));
+		this._register(DOM.addDisposableListener(button.dropdownButton.element, DOM.EventType.KEY_DOWN, event => {
+			if (this._action.enabled && new StandardKeyboardEvent(event).equals(KeyCode.LeftArrow)) {
+				this.focus();
+				DOM.EventHelper.stop(event, true);
+			}
+		}));
 		if (this.onboardingTargetId) {
 			this._register(markOnboardingTarget(button.primaryButton.element, this.onboardingTargetId, {
 				onDidActivate: Event.map(button.onDidClick, () => undefined),
 			}));
 		}
+		this.updateEnabled();
 	}
 
-	override focus(): void { this.button?.focus(); }
+	override isEnabled(): boolean {
+		return this._action.enabled || this.dropdownActions.some(action => action.enabled);
+	}
+
+	override focus(fromRight = false): void {
+		if (!this.button) {
+			return;
+		}
+		const dropdown = fromRight || !this._action.enabled;
+		this.button.primaryButton.element.tabIndex = dropdown ? -1 : 0;
+		this.button.dropdownButton.element.tabIndex = dropdown ? 0 : -1;
+		(dropdown ? this.button.dropdownButton : this.button.primaryButton).focus();
+	}
+
+	override blur(): void {
+		this.button?.primaryButton.element.blur();
+		this.button?.dropdownButton.element.blur();
+		this.setFocusable(false);
+	}
+
+	override setFocusable(focusable: boolean): void {
+		if (this.button) {
+			this.button.primaryButton.element.tabIndex = focusable && this._action.enabled ? 0 : -1;
+			this.button.dropdownButton.element.tabIndex = focusable && !this._action.enabled ? 0 : -1;
+		}
+	}
+
+	protected override updateEnabled(): void {
+		if (this.button) {
+			const focusable = this.button.primaryButton.element.tabIndex === 0 || this.button.dropdownButton.element.tabIndex === 0;
+			this.button.primaryButton.enabled = this._action.enabled;
+			this.setFocusable(focusable);
+		}
+	}
 }
 
 async function refreshAutomations(automationService: IAutomationService, logService: ILogService, notificationService?: INotificationService, options?: IAutomationRefreshOptions): Promise<void> {
@@ -3098,7 +3161,7 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 			title: localize2('createAutomationWithAgent', "Create Automation with Agent"),
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext),
 			// The empty state hosts this button until the first automation exists.
-			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
+			menu: [{ id: AgentsWindowMenus.CustomViewAutomations, group: 'navigation', order: 1, when: ContextKeyExpr.and(ChatAutomationsEnabledContext, AutomationsHasItemsContext) }],
 		});
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {

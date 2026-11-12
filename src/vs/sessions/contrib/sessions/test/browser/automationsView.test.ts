@@ -1322,6 +1322,60 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	for (const chatEnabled of [true, false]) {
+		test(`header split button supports toolbar navigation and manual creation (chat enabled: ${chatEnabled})`, async () => {
+			const { actionFactories, automationService, contextKeyService, contextMenuService, instantiationService } = setup();
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(chatEnabled);
+			automationService.setAutomations([automation()]);
+			const actions = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+				.flatMap(([, actions]) => actions);
+			const create = actions.find(action => action.id === 'sessions.automations.createWithAgent')!;
+			const container = document.createElement('div');
+			document.body.append(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const toolbar = disposables.add(new ActionBar(container, {
+				actionViewItemProvider: (action, options) => actionFactories.get(action.id)?.(action, options, instantiationService, 1),
+			}));
+			toolbar.push([create, disposables.add(new Action('other', 'Other'))]);
+			const [primary, dropdown] = container.querySelectorAll<HTMLElement>('.monaco-button');
+			const other = container.querySelector<HTMLElement>('.action-label')!;
+			const wrapper = primary.closest<HTMLElement>('.action-item')!;
+			const initialTabStops = [wrapper, primary, dropdown, other].map(element => element.tabIndex);
+			const key = (key: string, keyCode: number) => {
+				document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+				document.activeElement!.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true }));
+			};
+			toolbar.focus(0);
+			const entry = document.activeElement === (chatEnabled ? primary : dropdown);
+			if (chatEnabled) {
+				key('ArrowRight', 39);
+			}
+			const rightToDropdown = document.activeElement === dropdown;
+			key('Enter', 13);
+			const menu = contextMenuService.delegate!.getActions().map(action => action.label);
+			contextMenuService.delegate!.onHide?.(false);
+			key('ArrowRight', 39);
+			const rightToOther = document.activeElement === other;
+			key('ArrowLeft', 37);
+			const leftFromOther = document.activeElement === dropdown;
+			if (chatEnabled) {
+				key('ArrowLeft', 37);
+			}
+			const leftWithinSplit = document.activeElement === (chatEnabled ? primary : dropdown);
+			toolbar.setFocusable(false);
+
+			assert.deepStrictEqual({
+				initialTabStops, primaryDisabled: primary.getAttribute('aria-disabled'), entry, rightToDropdown, menu,
+				rightToOther, leftFromOther, leftWithinSplit,
+				finalTabStops: [wrapper, primary, dropdown, other].map(element => element.tabIndex),
+			}, {
+				initialTabStops: [-1, chatEnabled ? 0 : -1, chatEnabled ? -1 : 0, -1],
+				primaryDisabled: String(!chatEnabled), entry: true, rightToDropdown: true, menu: ['Create Manually'],
+				rightToOther: true, leftFromOther: true, leftWithinSplit: true, finalTabStops: [-1, -1, -1, -1],
+			});
+		});
+	}
+
 	test('refreshes every 60 seconds while visible without refreshing on window focus or overlapping requests', async () => {
 		const clock = useFakeTimersWithRealAnimationFrames();
 		const { widget, automationService, windowFocus } = setup();
@@ -2967,6 +3021,48 @@ suite('AutomationsCardsWidget', () => {
 			executed: ['sessions.automations.createWithAgent'],
 			dropdown: ['Create Manually'],
 			manualDialogs: 1,
+		});
+	});
+
+	test('empty-state split buttons keep manual creation available while chat readiness changes', async () => {
+		const { automationDialogService, automationService, commandService, contextKeyService, contextMenuService, widget } = setup();
+		const execute = stub(commandService, 'executeCommand').resolves();
+		disposables.add(toDisposable(() => execute.restore()));
+		automationService.setCatalogueState('ready');
+		const chatEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
+		chatEnabled.set(false);
+		const primary = widget.element.querySelector<HTMLElement>('.automations-cards-empty .automations-cards-create-button')!;
+		primary.click();
+		primary.parentElement!.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+		await contextMenuService.delegate!.getActions()[0].run();
+		const unavailable = { disabled: primary.getAttribute('aria-disabled'), agentCalls: execute.callCount, manualDialogs: automationDialogService.showCalls };
+		chatEnabled.set(true);
+		primary.click();
+
+		assert.deepStrictEqual({ unavailable, restored: primary.getAttribute('aria-disabled'), agentCalls: execute.callCount }, {
+			unavailable: { disabled: 'true', agentCalls: 0, manualDialogs: 1 }, restored: 'false', agentCalls: 1,
+		});
+	});
+
+	test('in-view Create with Agent failures are logged and surfaced in every catalogue state', async () => {
+		const { automationService, commandService, logService, refreshErrors, widget } = setup();
+		const failure = new Error('Session could not open');
+		const execute = stub(commandService, 'executeCommand').rejects(failure);
+		disposables.add(toDisposable(() => execute.restore()));
+		const states: readonly AutomationCatalogueState[] = ['loading', 'ready', 'unavailable', 'error'];
+		for (const state of states) {
+			automationService.setCatalogueState(state);
+			const selector = state === 'ready' ? '.automations-cards-empty .automations-cards-create-button' : `.automations-cards-${state} .automations-cards-state-create-button`;
+			widget.element.querySelector<HTMLElement>(selector)!.click();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({
+			notifications: refreshErrors,
+			logs: logService.errors.map(entry => ({ message: entry.message, error: entry.args[0] })),
+		}, {
+			notifications: states.map(() => 'Could not open a session to create an automation: Session could not open'),
+			logs: states.map(() => ({ message: '[Automations] Failed to open agent creation session', error: failure })),
 		});
 	});
 
@@ -5501,6 +5597,9 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider);
 		disposables.add(provider);
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.startsWith('Create with Agent')), [
+			'Create with Agent opens a new session with /automate prefilled and the input focused. This button is in the empty state, or in the view header once automations exist. Choose Create Manually from its adjacent More Actions dropdown to open the automation dialog. In the header, use Left Arrow and Right Arrow to move between the button and dropdown; in the empty state, use Tab and Shift+Tab. Press Enter or Space to activate either control. Create Manually remains available while chat is not ready.',
+		]);
 	});
 
 	test('accessibility help explains the disconnected remote management link', () => {
