@@ -5079,7 +5079,7 @@ suite('ProtocolServerHandler', () => {
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
 			));
-			const connect = (clientId: string, passive = false, owner = '123', expiry?: Event<void>) => {
+			const connect = (clientId: string, passive = false, owner = '123', expiry?: Event<void>, reconnectSubscriptions?: readonly string[]) => {
 				const transport = disposables.add(new class extends MockProtocolTransport {
 					override get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
 						return { resource, owner, authenticated: this.relayAuthenticated === true };
@@ -5094,7 +5094,9 @@ suite('ProtocolServerHandler', () => {
 					return params;
 				};
 				relay.simulateConnection(transport);
-				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+				transport.simulateMessage(reconnectSubscriptions
+					? request(1, 'reconnect', { clientId, lastSeenServerSeq: -1, subscriptions: [...reconnectSubscriptions] })
+					: request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
 				return transport;
 			};
 			const authenticate = async (transport: MockProtocolTransport, token: string, scopes?: readonly string[]) => {
@@ -5439,6 +5441,70 @@ suite('ProtocolServerHandler', () => {
 				desktop: f.authentication.getAuthToken({ resource }),
 			}, { freshSource: true, before: AHP_AUTH_REQUIRED, fresh: 'fresh-token', other: 'other-token', desktop: 'desktop-token' });
 		});
+
+		for (const reconnect of [false, true]) {
+			test(`queued sponsorship recovers after ${reconnect ? 'reconnect' : 'fresh initialize'}, authentication and a completed chat subscription`, async () => {
+				const f = await fixture();
+				stateManager.createSession(makeSessionSummary());
+				const previous = f.connect('queued-client');
+				const previousSource = await f.authenticate(previous, 'previous-token');
+				const pending = previousSource.createQueuedCredentialSource!(defaultChatUri);
+				previous.simulateClose();
+				const fresh = f.connect('queued-client', false, '123', undefined, reconnect ? [defaultChatUri] : undefined);
+				await f.scopedHandler.whenIdle();
+				const beforeAuthentication = pending.resolve();
+				await f.authenticate(fresh, 'fresh-token');
+				const beforeSubscription = pending.resolve();
+				const barrier = new DeferredPromise<void>();
+				agentService.subscribeBarriers.set(defaultChatUri, barrier);
+				fresh.simulateMessage(request(3, 'subscribe', { channel: defaultChatUri }));
+				await Promise.resolve();
+				const duringSubscription = pending.resolve();
+				const recovered: string[] = [];
+				disposables.add(pending.onDidChange(() => {
+					const source = pending.resolve();
+					if (source) {
+						assert.ok(findResponse(fresh.sent, 3));
+						recovered.push(source.getCredential({ resource })!.token);
+					}
+				}));
+				await barrier.complete();
+				await f.scopedHandler.whenIdle();
+				const resolved = pending.resolve();
+				assert.throws(() => previousSource.getCredential({ resource }), { code: AHP_AUTH_REQUIRED });
+				assert.deepStrictEqual({
+					beforeAuthentication, beforeSubscription, duringSubscription,
+					recovered, token: resolved?.getCredential({ resource })?.token,
+					samePrincipal: resolved?.principal,
+				}, {
+					beforeAuthentication: undefined, beforeSubscription: undefined, duringSubscription: undefined,
+					recovered: ['fresh-token'], token: 'fresh-token',
+					samePrincipal: { apiOrigin: resource, userId: '123' },
+				});
+			});
+		}
+
+		for (const mismatch of ['client', 'owner', 'passive', 'chat'] as const) {
+			test(`queued sponsorship cannot recover through another ${mismatch}`, async () => {
+				const f = await fixture();
+				stateManager.createSession(makeSessionSummary());
+				const otherSession = 'copilot:/other-session';
+				stateManager.createSession(makeSessionSummary(otherSession));
+				const previous = f.connect('queued-client');
+				const previousSource = await f.authenticate(previous, 'previous-token');
+				const pending = previousSource.createQueuedCredentialSource!(defaultChatUri);
+				previous.simulateClose();
+				const fresh = f.connect(mismatch === 'client' ? 'other-client' : 'queued-client', mismatch === 'passive', mismatch === 'owner' ? '456' : '123');
+				await f.authenticate(fresh, 'fresh-token');
+				fresh.simulateMessage(request(3, 'subscribe', { channel: mismatch === 'chat' ? buildDefaultChatUri(otherSession) : defaultChatUri }));
+				await f.scopedHandler.whenIdle();
+				assert.deepStrictEqual({
+					subscribed: !!findResponse(fresh.sent, 3) && hasKey(findResponse(fresh.sent, 3)!, { result: true }),
+					recovered: pending.resolve(),
+					desktop: f.authentication.getAuthToken({ resource }),
+				}, { subscribed: true, recovered: undefined, desktop: 'desktop-token' });
+			});
+		}
 
 		test('unauthenticated requests require identity and passive authentication captures only its own identity without updating providers', async () => {
 			const f = await fixture();

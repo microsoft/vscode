@@ -735,6 +735,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
+	private readonly _onDidChangeQueuedCredentials = this._register(new Emitter<void>());
 	private readonly _connectionChannels = new Map<IProtocolTransport, AgentHostConnectionChannels>();
 	private readonly _tcpBudget: AgentHostTcpBudget;
 
@@ -877,6 +878,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						const sendInitializeResult = (response: IAgentHostExtensionInitializeResult) => {
 							if (!disposables.isDisposed) {
 								transport.send(jsonRpcSuccess(msg.id, { ...response, snapshots: this._projectRelaySnapshots(result.client, response.snapshots) }));
+								this._onDidChangeQueuedCredentials.fire();
 							}
 						};
 						if (result.response instanceof Promise) {
@@ -912,6 +914,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							response => {
 								if (!disposables.isDisposed) {
 									channels.respond(jsonRpcSuccess(msg.id, this._projectRelayReconnectResult(reconnectingClient, response, msg.params.subscriptions)), response.windows?.items);
+									this._onDidChangeQueuedCredentials.fire();
 								}
 							},
 							err => {
@@ -2914,6 +2917,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.channels.respond(jsonRpcSuccess(id, projected ?? null),
 				method === 'subscribe' && isParamsObject(params) && typeof params.channel === 'string'
 					? [{ channel: params.channel, flowControl: (result as SubscribeResult).flowControl }] : undefined);
+			if (method === 'authenticate' || method === 'subscribe') {
+				this._onDidChangeQueuedCredentials.fire();
+			}
 		}).catch(error => {
 			if (client.disposables.isDisposed) {
 				return;
@@ -3345,8 +3351,36 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			() => this._captureRelayAuthorization(client)(),
 			principal,
 			resolveCredentials ? resource => resolveCredentials(principal, resource) : undefined,
+			chat => ({
+				onDidChange: this._onDidChangeQueuedCredentials.event,
+				resolve: () => this._resolveQueuedCredentials(client, chat),
+			}),
 		));
 		return client.authenticationScope;
+	}
+
+	private _resolveQueuedCredentials(original: IConnectedClient, chat: string): IAgentHostCredentialSource | undefined {
+		const principal = original.authenticationScope?.principal;
+		if (!principal || this._store.isDisposed) {
+			return undefined;
+		}
+		const record = this._clients.get(original.clientId);
+		const candidates = !original.disposables.isDisposed ? [original] : record?.state === 'active' ? record.connections : [];
+		for (const candidate of candidates) {
+			const identity = candidate.transport.relayAuthentication;
+			const subscription = candidate.subscriptions.get(chat);
+			if (candidate.disposables.isDisposed || candidate.transport.relayPassive !== false
+				|| candidate.transport.relayClientId !== original.clientId
+				|| identity?.authenticated !== true || identity.owner !== principal.userId || identity.resource !== principal.apiOrigin
+				|| (candidate !== original && (subscription?.kind !== ChannelKind.State || !subscription.active))) {
+				continue;
+			}
+			const source = this._getScopedAuthentication(candidate);
+			if (source.principal?.userId === principal.userId && source.principal.apiOrigin === principal.apiOrigin) {
+				return source;
+			}
+		}
+		return undefined;
 	}
 
 	private _clearScopedModels(client: IConnectedClient): void {
