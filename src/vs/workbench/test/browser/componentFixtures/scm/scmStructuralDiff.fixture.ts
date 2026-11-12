@@ -102,18 +102,18 @@ function renderStructuralChanges(context: ComponentFixtureContext, { width = 360
 		type: 'structuralDiff', id: 'class', generation: 1, order: 0, resource, parent: resource, children: members,
 		node: {
 			id: 'class',
-			original: { name: 'Calculator', kind: SymbolKind.Class, range },
-			modified: { name: 'Calculator', kind: SymbolKind.Class, range },
+			originalItem: { name: 'Calculator', kind: SymbolKind.Class, range },
+			modifiedItem: { name: 'Calculator', kind: SymbolKind.Class, range },
 			originalChanges: [], modifiedChanges: [], children: nodes,
 		},
 	};
 	for (const [order, status] of ['changed', 'added', 'deleted'].entries()) {
 		const name = status === 'changed' ? width < 300 ? 'calculateWithAdditionalValidation' : 'calculate' : status === 'added' ? 'newMethod' : 'oldMethod';
-		const entity = { name, kind: SymbolKind.Method, range, detail: status === 'changed' ? '(value: number): number' : undefined };
+		const item = { name, kind: SymbolKind.Method, range, detail: status === 'changed' ? '(value: number): number' : undefined };
 		const node: StructuralDiffNode = {
 			id: status,
-			original: status === 'added' ? undefined : status === 'changed' && originalName ? { ...entity, name: originalName } : entity,
-			modified: status === 'deleted' ? undefined : entity,
+			originalItem: status === 'added' ? undefined : status === 'changed' && originalName ? { ...item, name: originalName } : item,
+			modifiedItem: status === 'deleted' ? undefined : item,
 			originalChanges: [],
 			modifiedChanges: status === 'changed' ? classifications.map((classification, index) => ({
 				textChangeIndex: 0, range: new Range(index + 3, 1, index + 3, 12), classification,

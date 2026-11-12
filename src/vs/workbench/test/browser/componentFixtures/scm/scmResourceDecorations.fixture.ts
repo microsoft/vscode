@@ -182,14 +182,14 @@ function renderResourceDecorations({ container, disposableStore, theme, fileIcon
 				override readonly sourceUri = fixtureResource.resource;
 			};
 			const range = new Range(1, 1, 3, 1);
-			const entity = { name: 'calculateWithValidation', kind: SymbolKind.Method, range };
+			const item = { name: 'calculateWithValidation', kind: SymbolKind.Method, range };
 			const element: SCMStructuralDiffNode = {
 				type: 'structuralDiff', id: fixtureResource.resource.toString(), generation: 1, order: 0, resource: scmResource, parent: scmResource, children: [],
 				node: {
 					id: 'method',
-					original: fixtureResource.structuralChange === 'added' ? undefined
-						: fixtureResource.structuralChange === 'renamed' ? { ...entity, name: 'calculate' } : entity,
-					modified: fixtureResource.structuralChange === 'deleted' ? undefined : entity,
+					originalItem: fixtureResource.structuralChange === 'added' ? undefined
+						: fixtureResource.structuralChange === 'renamed' ? { ...item, name: 'calculate' } : item,
+					modifiedItem: fixtureResource.structuralChange === 'deleted' ? undefined : item,
 					originalChanges: [],
 					modifiedChanges: fixtureResource.structuralChange === 'modified'
 						? [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Implementation }] : [],

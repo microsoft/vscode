@@ -1785,7 +1785,7 @@ export interface StructuralDiffContext {
 }
 
 /** @internal */
-export interface StructuralDiffEntity {
+export interface StructuralDiffItem {
 	readonly name: string;
 	readonly detail?: string;
 	readonly kind: SymbolKind;
@@ -1818,8 +1818,8 @@ export interface StructuralDiffCoverage {
 /** @internal */
 export interface StructuralDiffNode {
 	readonly id: string;
-	readonly original?: StructuralDiffEntity;
-	readonly modified?: StructuralDiffEntity;
+	readonly originalItem?: StructuralDiffItem;
+	readonly modifiedItem?: StructuralDiffItem;
 	readonly originalChanges: readonly StructuralDiffCoverage[];
 	readonly modifiedChanges: readonly StructuralDiffCoverage[];
 	readonly children: readonly StructuralDiffNode[];

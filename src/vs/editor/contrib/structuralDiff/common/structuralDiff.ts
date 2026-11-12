@@ -13,7 +13,7 @@ import { diffEditorDefaultOptions } from '../../../common/config/diffEditor.js';
 import { clampedInt } from '../../../common/config/editorOptions.js';
 import { IRange, Range } from '../../../common/core/range.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
-import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffCoverage, StructuralDiffEntity, StructuralDiffNode, StructuralDiffProvider, StructuralDiffResult, StructuralDiffTag, SymbolKind, symbolKindNames } from '../../../common/languages.js';
+import { StructuralDiff, StructuralDiffClassification, StructuralDiffContext, StructuralDiffCoverage, StructuralDiffItem, StructuralDiffNode, StructuralDiffProvider, StructuralDiffResult, StructuralDiffTag, SymbolKind, symbolKindNames } from '../../../common/languages.js';
 import { ITextModel } from '../../../common/model.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
 import { ITextResourceConfigurationService } from '../../../common/services/textResourceConfiguration.js';
@@ -128,6 +128,10 @@ type Side = 'original' | 'modified';
 
 const sides: readonly Side[] = ['original', 'modified'];
 
+function getItem(node: StructuralDiffNode, side: Side): StructuralDiffItem | undefined {
+	return side === 'original' ? node.originalItem : node.modifiedItem;
+}
+
 function invalid(node: StructuralDiffNode, problem: string): Error {
 	return new Error(`Invalid structural diff: node '${node.id}' ${problem}`);
 }
@@ -168,27 +172,27 @@ function containsChangedText(range: IRange, changedRanges: readonly IRange[]): b
 	return index < changedRanges.length && Range.areIntersecting(range, changedRanges[index]);
 }
 
-function validateEntity(node: StructuralDiffNode, side: Side, entity: StructuralDiffEntity, model: ITextModel, parent: StructuralDiffNode | undefined): void {
-	if (typeof entity !== 'object' || entity === null) {
-		throw invalid(node, `has an invalid ${side} entity`);
+function validateItem(node: StructuralDiffNode, side: Side, item: StructuralDiffItem, model: ITextModel, parent: StructuralDiffNode | undefined): void {
+	if (typeof item !== 'object' || item === null) {
+		throw invalid(node, `has an invalid ${side} item`);
 	}
-	if (typeof entity.name !== 'string' || !isOptionalString(entity.detail) || !isEnumValue(symbolKindNames, entity.kind)) {
-		throw invalid(node, `has an invalid ${side} entity name, detail or kind`);
+	if (typeof item.name !== 'string' || !isOptionalString(item.detail) || !isEnumValue(symbolKindNames, item.kind)) {
+		throw invalid(node, `has an invalid ${side} item name, detail or kind`);
 	}
-	const range = toValidRange(model, entity.range);
+	const range = toValidRange(model, item.range);
 	if (!range) {
 		throw invalid(node, `has a range outside the ${side} document`);
 	}
-	if (entity.selectionRange !== undefined && !(toValidRange(model, entity.selectionRange) && range.containsRange(entity.selectionRange))) {
-		throw invalid(node, `has a selection range in the ${side} document that is invalid or not contained in the entity range`);
+	if (item.selectionRange !== undefined && !(toValidRange(model, item.selectionRange) && range.containsRange(item.selectionRange))) {
+		throw invalid(node, `has a selection range in the ${side} document that is invalid or not contained in the item range`);
 	}
-	const parentEntity = parent?.[side];
-	if (parent && !(parentEntity && Range.containsRange(parentEntity.range, range))) {
-		throw invalid(node, `has an entity in the ${side} document that is not contained in its parent`);
+	const parentItem = parent && getItem(parent, side);
+	if (parent && !(parentItem && Range.containsRange(parentItem.range, range))) {
+		throw invalid(node, `has an item in the ${side} document that is not contained in its parent`);
 	}
 }
 
-function validateCoverage(node: StructuralDiffNode, side: Side, coverage: StructuralDiffCoverage, entity: StructuralDiffEntity, model: ITextModel, context: StructuralDiffContext): Range {
+function validateCoverage(node: StructuralDiffNode, side: Side, coverage: StructuralDiffCoverage, item: StructuralDiffItem, model: ITextModel, context: StructuralDiffContext): Range {
 	const textChange = Number.isInteger(coverage.textChangeIndex) ? context.changes[coverage.textChangeIndex] : undefined;
 	if (!textChange) {
 		throw invalid(node, `has ${side} changes that refer to a text change that does not exist`);
@@ -197,8 +201,8 @@ function validateCoverage(node: StructuralDiffNode, side: Side, coverage: Struct
 	if (!range || range.isEmpty() || !Range.containsRange(side === 'original' ? textChange.originalRange : textChange.modifiedRange, range)) {
 		throw invalid(node, `has ${side} changes with a range that is empty, invalid or not contained in its text change`);
 	}
-	if (!Range.containsRange(entity.range, range)) {
-		throw invalid(node, `has ${side} changes that are not contained in its ${side} entity`);
+	if (!Range.containsRange(item.range, range)) {
+		throw invalid(node, `has ${side} changes that are not contained in its ${side} item`);
 	}
 	if (!isEnumValue(StructuralDiffClassification, coverage.classification)
 		|| (coverage.tags !== undefined && !(Array.isArray(coverage.tags) && coverage.tags.every(tag => isEnumValue(StructuralDiffTag, tag))))) {
@@ -227,23 +231,23 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 			throw invalid(node, 'must have an identifier that is unique within the result');
 		}
 		ids.add(node.id);
-		if (node.original === undefined && node.modified === undefined) {
-			throw invalid(node, 'must have an original or a modified entity');
+		if (node.originalItem === undefined && node.modifiedItem === undefined) {
+			throw invalid(node, 'must have an original or a modified item');
 		}
 		let isChanged = false;
 		for (const side of sides) {
-			const entity = node[side];
+			const item = getItem(node, side);
 			const changes = side === 'original' ? node.originalChanges : node.modifiedChanges;
-			if (entity === undefined) {
+			if (item === undefined) {
 				if (changes.length > 0) {
-					throw invalid(node, `has ${side} changes but no ${side} entity`);
+					throw invalid(node, `has ${side} changes but no ${side} item`);
 				}
 				continue;
 			}
-			validateEntity(node, side, entity, models[side], parent);
-			isChanged ||= containsChangedText(entity.range, changedRanges[side]);
+			validateItem(node, side, item, models[side], parent);
+			isChanged ||= containsChangedText(item.range, changedRanges[side]);
 			for (const change of changes) {
-				const range = validateCoverage(node, side, change, entity, models[side], context);
+				const range = validateCoverage(node, side, change, item, models[side], context);
 				const ranges = coverage[side].get(change.textChangeIndex);
 				if (ranges) {
 					ranges.push(range);
@@ -267,11 +271,11 @@ function validateStructuralDiff(diff: StructuralDiff, context: StructuralDiffCon
 		throw new Error('Invalid structural diff: isIncomplete must be true or false');
 	}
 	const { root } = diff;
-	if (root.original?.kind !== SymbolKind.File || root.modified?.kind !== SymbolKind.File) {
+	if (root.originalItem?.kind !== SymbolKind.File || root.modifiedItem?.kind !== SymbolKind.File) {
 		throw invalid(root, 'must be a file on both sides');
 	}
 	for (const side of sides) {
-		if (!Range.equalsRange(root[side]?.range, models[side].getFullModelRange())) {
+		if (!Range.equalsRange(getItem(root, side)?.range, models[side].getFullModelRange())) {
 			throw invalid(root, `must cover the complete ${side} document`);
 		}
 	}
