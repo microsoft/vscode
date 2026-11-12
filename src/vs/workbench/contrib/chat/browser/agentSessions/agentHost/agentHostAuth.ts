@@ -995,6 +995,9 @@ async function authenticateProtectedResourceWithServices(
 		logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
 		return false;
 	}
+	if (resource.required === false && !await isGrantedByDefaultSignIn(authenticationService, defaultAccountService, logService, resource, resolution, options)) {
+		return false;
+	}
 
 	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId, resolution.entitlement);
 	if (!authenticated) {
@@ -1003,6 +1006,37 @@ async function authenticateProtectedResourceWithServices(
 	}
 	logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 	return true;
+}
+
+/** Whether the default account's primary sign-in already grants an optional resource, so forwarding it needs no new consent. */
+async function isGrantedByDefaultSignIn(
+	authenticationService: IAuthenticationService,
+	defaultAccountService: IDefaultAccountService,
+	logService: ILogService,
+	resource: ProtectedResourceMetadata,
+	resolution: Extract<AuthenticationSessionResolution, { readonly kind: 'resolved' }>,
+	options: IResolvedAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	const account = defaultAccountService.currentDefaultAccount;
+	if (!account || account.authenticationProvider.id !== resolution.providerId) {
+		logService.trace(`${options.logPrefix} Deferring optional authentication outside the default account: ${resource.resource}`);
+		return false;
+	}
+	const server = resource.authorization_servers?.[0];
+	const sessionOptions = {
+		account: resolution.session.account, silent: true,
+		authorizationServer: resolution.session.authorizationServer ?? (server ? URI.parse(server) : undefined),
+	};
+	const isGranted = (sessions: readonly AuthenticationSession[]) => sessions.some(session => session.id === account.sessionId && resource.scopes_supported?.every(scope => session.scopes.includes(scope)) !== false);
+	// A scoped query may only match exactly and an unscoped one may omit grants, so the primary sign-in is checked both ways.
+	const granted = isGranted(await authenticationService.getSessions(resolution.providerId, resource.scopes_supported ?? [], sessionOptions, true))
+		|| isGranted(await authenticationService.getSessions(resolution.providerId, undefined, sessionOptions, true));
+	throwIfAuthenticationStale(options);
+	throwIfDefaultAccountChanged(defaultAccountService, account);
+	if (!granted) {
+		logService.trace(`${options.logPrefix} Deferring optional permissions not supplied by the default sign-in: ${resource.resource}`);
+	}
+	return granted;
 }
 
 /**

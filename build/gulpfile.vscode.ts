@@ -255,6 +255,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', allowEmpty: true });
+		// `cleanedDeps` has already dropped dot files; `filterCopilotDependencies` keeps only SDK plugin dot files (such as manifests).
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
 			.pipe(filterCopilotDependencies(platform, arch))
 			.pipe(filter(getFoundryLocalExcludeFilter(), { dot: true }))
