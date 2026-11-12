@@ -110,7 +110,7 @@ suite('WorkspaceEditingService', () => {
 				undefined, undefined, undefined,
 				{
 					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', providerId: 'test', builtIn: options.builtIn ?? true }; },
-					setCurrentLocation: (_location: unknown, reason?: string) => { reasons.push(reason); }
+					setLocation: (_folder: unknown, _location: unknown, reason?: string) => { reasons.push(reason); }
 				}
 			));
 			return { service, reasons, trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
@@ -166,7 +166,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
 				undefined, undefined, undefined,
-				{ resolveLocation: () => resolution.p, setCurrentLocation: () => { } }
+				{ resolveLocation: () => resolution.p, setLocation: () => { } }
 			));
 
 			const pending = service.setFolderLocation(alt);
@@ -193,7 +193,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ getUriTrustInfo: () => trustInfo.p, setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setCurrentLocation: (location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } }
+				{ resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } }
 			));
 			return {
 				service, primary, alt, trustInfo,
@@ -242,7 +242,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ resolveLocation: (_primary: URI, location: URI) => resolutions.get(location.toString())!.p, setCurrentLocation: () => { } }
+				{ resolveLocation: (_primary: URI, location: URI) => resolutions.get(location.toString())!.p, setLocation: () => { } }
 			));
 
 			const p1 = service.setFolderLocation(first);
