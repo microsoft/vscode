@@ -53,6 +53,7 @@ import { ISessionsManagementService } from '../../../../../workbench/contrib/ses
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import { AutomationComposer } from '../../../automations/browser/automationComposer.js';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
@@ -482,6 +483,10 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		},
 	});
 	stubSessionHosts(instantiationService, ctx.disposableStore);
+	// The composer needs the full chat input stack; these fixtures cover the automation states and cards below it.
+	const composerElement = document.createElement('div');
+	composerElement.className = 'automation-authoring-composer';
+	instantiationService.stubInstance(AutomationComposer, { element: composerElement, focus: () => { }, dispose: () => { } });
 
 	ctx.disposableStore.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 	customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
