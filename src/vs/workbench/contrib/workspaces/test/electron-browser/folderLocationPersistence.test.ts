@@ -56,7 +56,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		let multiRoot = false;
 		const getWorkspace = () => multiRoot
 			? new Workspace('multi', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, URI.file('/work/a.code-workspace'), () => false)
-			: new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
+			: new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
 
 		const locationService = {
 			onDidChangeProviders: onDidChangeProviders.event,
