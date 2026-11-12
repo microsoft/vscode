@@ -1085,12 +1085,13 @@ suite('WorkspaceContextService - Folder', () => {
 
 	const folderName = 'Folder A';
 	let folder: URI;
+	let folderFileService: FileService;
 	let testObject: WorkspaceService;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
 		const logService = new NullLogService();
-		const fileService = disposables.add(new FileService(logService));
+		const fileService = folderFileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
@@ -1228,6 +1229,28 @@ suite('WorkspaceContextService - Folder', () => {
 		assert.deepStrictEqual(
 			{ opened, restored: { uri: restored.uri, folder: restored.folders[0].uri.toString(), isCurrent: testObject.isCurrentWorkspace(folder) } },
 			{ opened: { uri: folder, folder: folder.toString() }, restored: { uri: folder, folder: alternate.toString(), isCurrent: true } });
+	});
+
+	test('setFolderLocation() loads the destination with its own trust, never applying restricted settings of an untrusted destination', async () => {
+		const settingKey = 'configurationService.folder.restrictedSetting';
+		const alternate = joinPath(ROOT, 'Alternate');
+		await folderFileService.writeFile(joinPath(alternate, '.vscode', 'settings.json'), VSBuffer.fromString(`{ "${settingKey}": "alternateValue" }`));
+		await folderFileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString(`{ "${settingKey}": "primaryValue" }`));
+		await testObject.reloadConfiguration();
+		testObject.updateWorkspaceTrust(true);
+
+		const published: unknown[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(() => published.push(testObject.getValue(settingKey, { resource: testObject.getWorkspace().folders[0].uri }))));
+		let unflagged = 0;
+		disposables.add(testObject.onWillChangeWorkspaceFolders(e => { if (!e.isFolderLocationChange) { unflagged++; } }));
+
+		await testObject.setFolderLocation(alternate, { trusted: false });
+		const untrusted = testObject.getValue(settingKey, { resource: alternate });
+		await testObject.setFolderLocation(folder, { trusted: true });
+		await testObject.setFolderLocation(alternate, { trusted: true });
+		const trusted = testObject.getValue(settingKey, { resource: alternate });
+
+		assert.deepStrictEqual({ untrusted, trusted, published, unflagged }, { untrusted: undefined, trusted: 'alternateValue', published: [undefined, 'primaryValue', 'alternateValue'], unflagged: 0 });
 	});
 
 	test('setFolderLocation() switches the folder and keeps the identity', async () => {
