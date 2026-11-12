@@ -90,6 +90,16 @@ suite('SessionArchiveNudge', () => {
 		}();
 	}
 
+	function createPeerChat(path: string, canArchive = true) {
+		return new class extends mock<IChat>() {
+			override readonly resource = URI.from({ scheme: 'test-chat', path: `/${path}` });
+			override readonly status = observableValue<SessionStatus>(this, SessionStatus.Completed);
+			override readonly workspace = observableValue<ISessionWorkspace | undefined>(this, undefined);
+			override readonly isArchived = observableValue(this, false);
+			override readonly capabilities = constObservable({ canRename: true, canArchive, canDelete: true });
+		}();
+	}
+
 	function pullRequestRef(number: number, overrides: Partial<IGitHubPullRequestRef> = {}): IGitHubPullRequestRef {
 		return { owner: 'owner', repo: 'repo', number, uri: URI.parse(`https://github.com/owner/repo/pull/${number}`), createdByThisSession: true, ...overrides };
 	}
@@ -130,6 +140,7 @@ suite('SessionArchiveNudge', () => {
 		let archiveError: Error | undefined;
 		let archiveNoop = false;
 		const archiveTargets: ISession[] = [];
+		const chatArchiveTargets: string[] = [];
 		const management = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidArchiveSession = archived.event;
 			override readonly onDidUnarchiveSession = unarchived.event;
@@ -145,6 +156,9 @@ suite('SessionArchiveNudge', () => {
 					sessions.find(candidate => candidate.sessionId === session.sessionId)?.isArchived.set(true, undefined);
 					archived.fire(session);
 				}
+			}
+			override async archiveChat(session: ISession, chat: IChat): Promise<void> {
+				chatArchiveTargets.push(chat.resource.path);
 			}
 		}();
 		const requests: string[] = [];
@@ -274,7 +288,7 @@ suite('SessionArchiveNudge', () => {
 			return nudge;
 		}
 		return {
-			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets, commands,
+			current, configuration, entitlement, storage, archived, unarchived, deleted, changed, events, requests, archiveTargets, chatArchiveTargets, commands,
 			triggers: triggerTelemetry.triggers,
 			get service() { return service; },
 			get counts() { return { references, polling, refreshes }; },
@@ -454,7 +468,7 @@ suite('SessionArchiveNudge', () => {
 			count: nudge.options.get()?.pullRequestCount, requests: context.requests, counts: context.counts, events: context.events,
 		}, {
 			count: 2, requests: ['owner/repo/1', 'owner/repo/2'], counts: { references: 2, polling: 2, refreshes: 2 },
-			events: [{ name: 'agents/sessionArchiveNudge', data: { agentSessionId: hashSessionIdForTelemetry(session.sessionId), action: 'shown', pullRequestCount: 2, hasWorktree: false } }],
+			events: [{ name: 'agents/sessionArchiveNudge', data: { agentSessionId: hashSessionIdForTelemetry(session.sessionId), action: 'shown', pullRequestCount: 2, hasWorktree: false, archivesChat: false } }],
 		});
 	});
 
@@ -560,11 +574,7 @@ suite('SessionArchiveNudge', () => {
 
 	test('scopes pull requests to the chat that recorded them, excluding associations echoed from other chats', () => {
 		const session = createSession();
-		const nestedChat = upcastPartial<IChat>({
-			resource: URI.from({ scheme: 'test-chat', path: '/nested' }),
-			status: observableValue<SessionStatus>('nestedStatus', SessionStatus.Completed),
-			workspace: observableValue<ISessionWorkspace | undefined>('nestedWorkspace', undefined),
-		});
+		const nestedChat = createPeerChat('nested');
 		session.chats.set([nestedChat], undefined);
 		session.artifacts.set([artifact(1, { chat: nestedChat.resource })], undefined);
 		// Providers echo every chat's records into the workspace associations and can rediscover them from git.
@@ -586,6 +596,58 @@ suite('SessionArchiveNudge', () => {
 				{ main: 1, nested: undefined },
 			],
 			requests: ['owner/repo/1', 'owner/repo/2'],
+		});
+	});
+
+	test('archives only the peer chat showing the suggestion, and the whole session only from its main chat', async () => {
+		const session = createSession();
+		const peer = createPeerChat('peer');
+		const unarchivablePeer = createPeerChat('unarchivable', false);
+		session.chats.set([peer, unarchivablePeer], undefined);
+		session.artifacts.set([artifact(1), artifact(2, { chat: peer.resource }), artifact(3, { chat: unarchivablePeer.resource })], undefined);
+		session.workspace.set(upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root: URI.file('/folder'), workingDirectory: URI.file('/folder'), name: 'folder', description: undefined,
+				gitRepository: { uri: URI.file('/repo'), workTreeUri: URI.file('/worktree'), baseBranchName: undefined, gitHubInfo: observableValue('gitHubInfo', undefined) },
+			}],
+			isVirtualWorkspace: false,
+		}), undefined);
+		const context = setup([session], true, undefined, true);
+		for (const number of [1, 2, 3]) {
+			context.setPullRequest(number, GitHubPullRequestState.Merged);
+		}
+		const main = context.createNudge();
+		const peerNudge = context.createNudge(constObservable(peer));
+		const unarchivable = context.createNudge(constObservable(unarchivablePeer));
+		const describe = (nudge: SessionArchiveNudge) => {
+			const options = nudge.options.get();
+			return options && { archivesChat: options.archivesChat, hasWorktree: options.hasWorktree };
+		};
+		const before = { main: describe(main), peer: describe(peerNudge), unarchivable: describe(unarchivable) };
+		peerNudge.markShown();
+		await peerNudge.options.get()!.onArchive();
+		peer.isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({
+			before,
+			after: { main: describe(main), peer: describe(peerNudge) },
+			chatArchiveTargets: context.chatArchiveTargets,
+			sessionArchiveTargets: context.archiveTargets,
+			sessionArchived: session.isArchived.get(),
+			onboarding: context.onboarding.events,
+			events: context.events.map(event => event.data),
+		}, {
+			before: {
+				main: { archivesChat: false, hasWorktree: true },
+				peer: { archivesChat: true, hasWorktree: false },
+				unarchivable: undefined,
+			},
+			after: { main: { archivesChat: false, hasWorktree: true }, peer: undefined },
+			chatArchiveTargets: ['/peer'],
+			sessionArchiveTargets: [],
+			sessionArchived: false,
+			onboarding: [],
+			events: ['shown', 'archived'].map(action => ({ agentSessionId: hashSessionIdForTelemetry(session.sessionId), action, pullRequestCount: 1, hasWorktree: false, archivesChat: true })),
 		});
 	});
 
@@ -808,11 +870,7 @@ suite('SessionArchiveNudge', () => {
 
 	test('keeps a continued chat suggestion suppressed after another chat shows its own pull requests, including after reload', () => {
 		const session = createSession();
-		const nestedChat = upcastPartial<IChat>({
-			resource: URI.from({ scheme: 'test-chat', path: '/nested' }),
-			status: observableValue<SessionStatus>('nestedStatus', SessionStatus.Completed),
-			workspace: observableValue<ISessionWorkspace | undefined>('nestedWorkspace', undefined),
-		});
+		const nestedChat = createPeerChat('nested');
 		session.chats.set([nestedChat], undefined);
 		session.artifacts.set([artifact(1), artifact(2, { chat: nestedChat.resource })], undefined);
 		const context = setup([session]);
@@ -991,7 +1049,7 @@ suite('SessionArchiveNudge', () => {
 		context.archived.fire(session);
 		nudge.markShown();
 		await nudge.options.get()!.onArchive();
-		const payload = { agentSessionId: hashSessionIdForTelemetry(session.sessionId), pullRequestCount: 1, hasWorktree: false };
+		const payload = { agentSessionId: hashSessionIdForTelemetry(session.sessionId), pullRequestCount: 1, hasWorktree: false, archivesChat: false };
 		assert.deepStrictEqual({
 			events: context.events,
 			targets: context.archiveTargets.map(target => target.sessionId),

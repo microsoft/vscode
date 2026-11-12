@@ -607,6 +607,38 @@ suite('ChatSessionArchiveNudge', () => {
 		});
 	});
 
+	test('uses chat wording when marking only the chat as done, including after updates and for errors', async () => {
+		const pending = new DeferredPromise<void>();
+		const { widget, archive, errors } = createWidget(undefined, undefined, ChatSessionArchiveActionWording.MarkAsDone);
+		const describe = () => ({
+			title: widget.domNode.querySelector('h3')?.textContent,
+			description: widget.domNode.querySelector('.chat-session-archive-nudge-description')?.textContent,
+			recovery: widget.domNode.querySelector('details > p')?.textContent,
+			worktreeHidden: widget.domNode.querySelector<HTMLElement>('.chat-session-archive-nudge-worktree')?.hidden,
+		});
+		const session = describe();
+		widget.setOptions(options({ archivesChat: true, pullRequestCount: 2, onArchive: () => pending.p }));
+		const chat = describe();
+		archive.click();
+		await pending.error(new Error('Chat archive failed'));
+
+		assert.deepStrictEqual({ session, chat, errors }, {
+			session: {
+				title: 'PR merged. Mark this session as done?',
+				description: 'Mark this session as done to set it aside and focus on your remaining tasks.',
+				recovery: 'The session is not deleted. Ask your agent to find it, or look in the "Done" section of the sessions list. You can restore it anytime.',
+				worktreeHidden: true,
+			},
+			chat: {
+				title: 'All PRs merged. Mark this chat as done?',
+				description: 'Mark this chat as done to set it aside and focus on the rest of this session.',
+				recovery: 'Other chats in this session are not affected. This chat is not deleted. Look in the "Done" section of the sessions list. You can restore it anytime.',
+				worktreeHidden: true,
+			},
+			errors: ['Unable to mark the chat as done: Chat archive failed'],
+		});
+	});
+
 	test('updates content and callbacks without replacing focused controls', async () => {
 		let oldActions = 0;
 		let archives = 0;
