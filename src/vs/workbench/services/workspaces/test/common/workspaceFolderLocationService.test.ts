@@ -12,8 +12,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../platform/workspace/common/folderLocations.js';
+import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { WorkspaceFolderLocationService } from '../../common/workspaceFolderLocationService.js';
 
 suite('WorkspaceFolderLocationService', () => {
@@ -32,8 +33,8 @@ suite('WorkspaceFolderLocationService', () => {
 		};
 	}
 
-	function createService(): WorkspaceFolderLocationService {
-		return new WorkspaceFolderLocationService(disposables.add(new UriIdentityService(disposables.add(new FileService(new NullLogService())))));
+	function createService(workspace = new Workspace('id', [new WorkspaceFolder({ uri: primary, name: '', index: 0 })], false, null, () => false)): WorkspaceFolderLocationService {
+		return new WorkspaceFolderLocationService(disposables.add(new UriIdentityService(disposables.add(new FileService(new NullLogService())))), new TestContextService(workspace));
 	}
 
 	test('getLocations merges providers, dedupes and reports failures', async () => {
@@ -79,13 +80,16 @@ suite('WorkspaceFolderLocationService', () => {
 	});
 
 	test('folder identity and alternate location checks', () => {
-		const service = disposables.add(createService());
-		const atAlternate = { uri: a, identity: primary, name: '', index: 0, toResource: () => a };
-		const withoutIdentity: IWorkspaceFolder = { uri: a, name: '', index: 0, toResource: () => a };
+		const folder = (uri: URI) => new WorkspaceFolder({ uri, name: '', index: 0 });
+		const check = (workspace: Workspace) => disposables.add(createService(workspace)).isAtAlternateLocation();
 
 		assert.deepStrictEqual(
-			{ identity: service.getFolderIdentity(atAlternate).toString(), alternate: service.isFolderAtAlternateLocation(atAlternate), fallback: service.getFolderIdentity(withoutIdentity).toString(), fallbackAlternate: service.isFolderAtAlternateLocation(withoutIdentity) },
-			{ identity: primary.toString(), alternate: true, fallback: a.toString(), fallbackAlternate: false });
+			{
+				alternate: check(new Workspace('id', [folder(a)], false, null, () => false, undefined, primary)),
+				atIdentity: check(new Workspace('id', [folder(primary)], false, null, () => false, undefined, primary)),
+				withoutIdentity: check(new Workspace('id', [folder(a)], false, null, () => false))
+			},
+			{ alternate: true, atIdentity: false, withoutIdentity: false });
 	});
 
 	test('getLocationText joins label and description', () => {

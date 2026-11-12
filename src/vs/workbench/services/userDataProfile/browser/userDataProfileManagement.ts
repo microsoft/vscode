@@ -18,7 +18,6 @@ import { IRequestService, asJson } from '../../../../platform/request/common/req
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfilesService, IUserDataProfileUpdateOptions } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { isEmptyWorkspaceIdentifier, IWorkspaceContextService, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { CONFIG_NEW_WINDOW_PROFILE } from '../../../common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
@@ -41,7 +40,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
-		@IWorkspaceFolderLocationService private readonly workspaceFolderLocationService: IWorkspaceFolderLocationService,
 	) {
 		super();
 		this._register(userDataProfileService.onDidChangeCurrentProfile(e => this.onDidChangeCurrentProfile(e)));
@@ -74,7 +72,7 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 
 	private getWorkspaceUri(): URI | undefined {
 		const workspace = this.workspaceContextService.getWorkspace();
-		return workspace.configuration ?? (workspace.folders[0] && this.workspaceFolderLocationService.getFolderIdentity(workspace.folders[0]));
+		return workspace.configuration ?? workspace.identity ?? workspace.folders[0]?.uri;
 	}
 
 	private getProfileToUseForCurrentWorkspace(): IUserDataProfile {

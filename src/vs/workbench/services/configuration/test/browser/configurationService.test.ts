@@ -1223,23 +1223,21 @@ suite('WorkspaceContextService - Folder', () => {
 		const target = sinon.spy();
 		disposables.add(testObject.onDidChangeWorkspaceFolders(target));
 
-		await testObject.setFolderLocation(folder, alternate);
+		await testObject.setFolderLocation(alternate);
 
 		const actual = testObject.getWorkspace();
 		assert.deepStrictEqual(
-			{ id: actual.id, uri: actual.folders[0].uri.toString(), identity: actual.folders[0].identity?.toString(), name: actual.folders[0].name, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
+			{ id: actual.id, uri: actual.folders[0].uri.toString(), identity: actual.identity?.toString(), name: actual.folders[0].name, events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
 			{ id: workspaceId, uri: alternate.toString(), identity: folder.toString(), name: folderName, events: 1, isCurrent: true });
 
-		await testObject.setFolderLocation(folder, undefined);
+		const second = joinPath(ROOT, 'Alternate2');
+		await testObject.setFolderLocation(second);
+		await testObject.setFolderLocation(folder);
 
-		const restored = testObject.getWorkspace().folders[0];
+		const restored = testObject.getWorkspace();
 		assert.deepStrictEqual(
-			{ uri: restored.uri.toString(), identity: restored.identity.toString(), json: restored.toJSON().identity, events: target.callCount },
-			{ uri: folder.toString(), identity: folder.toString(), json: undefined, events: 2 });
-	});
-
-	test('setFolderLocation() rejects an unknown primary', async () => {
-		await assert.rejects(() => testObject.setFolderLocation(joinPath(ROOT, 'other'), joinPath(ROOT, 'Alternate')));
+			{ uri: restored.folders[0].uri.toString(), identity: restored.identity?.toString(), events: target.callCount, isCurrent: testObject.isCurrentWorkspace(folder) },
+			{ uri: folder.toString(), identity: folder.toString(), events: 3, isCurrent: true });
 	});
 });
 

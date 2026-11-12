@@ -9,7 +9,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { getWorkspaceIdentifier } from '../../../../platform/workspaces/common/workspaceIdentifier.js';
@@ -37,7 +36,6 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		@IFileService private readonly fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IWorkspaceFolderLocationService private readonly workspaceFolderLocationService: IWorkspaceFolderLocationService,
 	) {
 		super();
 
@@ -75,7 +73,7 @@ export class BrowserWorkspacesService extends Disposable implements IWorkspacesS
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
-				this.addRecentlyOpened([{ folderUri: this.workspaceFolderLocationService.getFolderIdentity(workspace.folders[0]), remoteAuthority }]);
+				this.addRecentlyOpened([{ folderUri: workspace.identity ?? workspace.folders[0].uri, remoteAuthority }]);
 				break;
 			case WorkbenchState.WORKSPACE:
 				this.addRecentlyOpened([{ workspace: { id: workspace.id, configPath: workspace.configuration! }, remoteAuthority }]);

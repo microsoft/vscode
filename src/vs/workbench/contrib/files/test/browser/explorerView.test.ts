@@ -19,7 +19,7 @@ import { NullFilesConfigurationService, TestFileService } from '../../../../test
 import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -61,8 +61,8 @@ suite('Files - ExplorerView', () => {
 		const renderer = ds.add(new FilesRenderer(
 			dom.$('div'), undefined!, undefined!, () => { },
 			undefined!, configService, undefined!, undefined!,
-			{ getWorkspace: () => ({ folders: [switched ? { uri: alternate, identity: primary } : { uri: alternate, identity: alternate }] }) } as unknown as IWorkspaceContextService,
-			{ getFolderIdentity: (folder: IWorkspaceFolder) => folder.identity, isFolderAtAlternateLocation: (folder: IWorkspaceFolder) => folder.identity!.toString() !== folder.uri.toString(), getLocationText: (location: IFolderLocation) => location.description ? `${location.label} · ${location.description}` : location.label, get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
+			{ getWorkspace: () => ({ folders: [{ uri: alternate }], identity: switched ? primary : alternate }) } as unknown as IWorkspaceContextService,
+			{ isAtAlternateLocation: () => switched, getLocationText: (location: IFolderLocation) => location.description ? `${location.label} · ${location.description}` : location.label, get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
 			undefined!));
 		const root = new ExplorerItem(alternate, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
 		const child = new ExplorerItem(URI.file('/work/project-alt/a'), fileService, configService, NullFilesConfigurationService, root, false, false, false, false, 'a', 0, false);

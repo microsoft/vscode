@@ -79,8 +79,7 @@ export class WindowTitle extends Disposable {
 
 	/** The alternate folder location the folder is at, or `undefined` while it is at its primary location. */
 	get folderLocationInfo() {
-		const folder = this.contextService.getWorkspace().folders[0];
-		return folder && this.folderLocationService.isFolderAtAlternateLocation(folder) ? this.folderLocationService.currentLocation : undefined;
+		return this.folderLocationService.isAtAlternateLocation() ? this.folderLocationService.currentLocation : undefined;
 	}
 	get fileName() {
 		const activeEditor = this.editorService.activeEditor;
@@ -368,7 +367,7 @@ export class WindowTitle extends Disposable {
 		if (workspace.configuration) {
 			root = workspace.configuration;
 		} else if (workspace.folders.length) {
-			root = this.folderLocationService.getFolderIdentity(workspace.folders[0]);
+			root = workspace.identity ?? workspace.folders[0].uri;
 		}
 
 		// Compute active editor folder

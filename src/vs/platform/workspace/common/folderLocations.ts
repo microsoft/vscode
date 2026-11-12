@@ -9,7 +9,6 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { IWorkspaceFolder } from './workspace.js';
 
 /**
  * An alternate location of a workspace folder.
@@ -73,14 +72,10 @@ export interface IWorkspaceFolderLocationService {
 	getLocationText(location: Pick<IFolderLocation, 'label' | 'description'>): string;
 
 	/**
-	 * The identity of a folder: its own location, which is `uri` unless the folder is at an alternate location.
+	 * Whether the single folder of the workspace is opened at an alternate location, that is,
+	 * its `uri` differs from the `identity` of the workspace.
 	 */
-	getFolderIdentity(folder: IWorkspaceFolder): URI;
-
-	/**
-	 * Whether the folder is opened at an alternate location, that is, `uri` differs from its identity.
-	 */
-	isFolderAtAlternateLocation(folder: IWorkspaceFolder): boolean;
+	isAtAlternateLocation(): boolean;
 
 	/**
 	 * Fires when a provider is registered or unregistered.

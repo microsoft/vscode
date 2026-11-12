@@ -11,7 +11,7 @@ import { ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
@@ -35,7 +35,8 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	readonly onDidChangeCurrentLocation = this._onDidChangeCurrentLocation.event;
 
 	constructor(
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 	}
@@ -44,12 +45,9 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 		return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
 	}
 
-	getFolderIdentity(folder: IWorkspaceFolder): URI {
-		return folder.identity ?? folder.uri;
-	}
-
-	isFolderAtAlternateLocation(folder: IWorkspaceFolder): boolean {
-		return !this.uriIdentityService.extUri.isEqual(folder.uri, this.getFolderIdentity(folder));
+	isAtAlternateLocation(): boolean {
+		const workspace = this.contextService.getWorkspace();
+		return !!workspace.identity && workspace.folders.length === 1 && !this.uriIdentityService.extUri.isEqual(workspace.folders[0].uri, workspace.identity);
 	}
 
 	setCurrentLocation(location: IResolvedFolderLocation | undefined, reason: FolderLocationChangeReason = 'programmatic'): void {

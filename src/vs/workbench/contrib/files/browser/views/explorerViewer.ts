@@ -1123,7 +1123,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private getRootLabel(stat: ExplorerItem): string {
 		const location = this.folderLocationService.currentLocation;
-		const atAlternateLocation = this.contextService.getWorkspace().folders.some(folder => this.folderLocationService.isFolderAtAlternateLocation(folder) && (isEqual(folder.uri, stat.resource) || isEqual(this.folderLocationService.getFolderIdentity(folder), stat.resource)));
+		const workspace = this.contextService.getWorkspace();
+		const atAlternateLocation = this.folderLocationService.isAtAlternateLocation() && (isEqual(workspace.folders[0].uri, stat.resource) || (!!workspace.identity && isEqual(workspace.identity, stat.resource)));
 		return atAlternateLocation && location ? localize('explorerRootAtLocation', "{0} ({1})", stat.name, this.folderLocationService.getLocationText(location)) : stat.name;
 	}
 

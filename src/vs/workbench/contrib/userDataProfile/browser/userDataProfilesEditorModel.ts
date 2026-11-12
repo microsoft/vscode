@@ -43,7 +43,6 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { isString } from '../../../../base/common/types.js';
 import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
@@ -113,7 +112,6 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IWorkspaceContextService protected readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceFolderLocationService protected readonly workspaceFolderLocationService: IWorkspaceFolderLocationService,
 		@IHostService protected readonly hostService: IHostService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
@@ -349,7 +347,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	getCurrentWorkspace(): URI | undefined {
 		const workspace = this.workspaceContextService.getWorkspace();
-		return workspace.configuration ?? (workspace.folders[0] && this.workspaceFolderLocationService.getFolderIdentity(workspace.folders[0]));
+		return workspace.configuration ?? workspace.identity ?? workspace.folders[0]?.uri;
 	}
 
 	openWorkspace(workspace: URI): void {
@@ -421,7 +419,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 		@IHostService hostService: IHostService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
@@ -438,7 +435,6 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			userDataProfilesService,
 			commandService,
 			workspaceContextService,
-			workspaceFolderLocationService,
 			hostService,
 			uriIdentityService,
 			fileService,
@@ -576,7 +572,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 		@IHostService hostService: IHostService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
@@ -593,7 +588,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			userDataProfilesService,
 			commandService,
 			workspaceContextService,
-			workspaceFolderLocationService,
 			hostService,
 			uriIdentityService,
 			fileService,

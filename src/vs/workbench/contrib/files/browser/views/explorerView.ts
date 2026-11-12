@@ -279,7 +279,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const label = this.labelService.getWorkspaceLabel(workspace);
 		// In a single-folder workspace the root is this header, so it carries the location
 		const location = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.folderLocationService.currentLocation : undefined;
-		const atAlternateLocation = !!workspace.folders[0] && this.folderLocationService.isFolderAtAlternateLocation(workspace.folders[0]);
+		const atAlternateLocation = this.folderLocationService.isAtAlternateLocation();
 		return atAlternateLocation && location ? nls.localize('explorerRootAtLocation', "{0} ({1})", label, this.folderLocationService.getLocationText(location)) : label;
 	}
 

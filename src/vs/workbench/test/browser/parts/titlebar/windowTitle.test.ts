@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, IWorkspaceFolder, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { TestViewsService, workbenchInstantiationService } from '../../workbenchTestServices.js';
@@ -31,13 +31,12 @@ suite('Folder Location in Window Title and Command Center', () => {
 	}
 
 	function createWindowTitle(windowTitleFormat: string, atAlternate = true) {
-		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: atAlternate ? alternate : primary, index: 0, name: 'repo', identity: primary })], false, null, () => false);
+		const workspace = new Workspace('id', [new WorkspaceFolder({ uri: atAlternate ? alternate : primary, index: 0, name: 'repo' })], false, null, () => false, undefined, primary);
 		const onDidChangeCurrentLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
 		const locationService = new class extends mock<IWorkspaceFolderLocationService>() {
 			override currentLocation: IResolvedFolderLocation | undefined = undefined;
 			override readonly onDidChangeCurrentLocation = onDidChangeCurrentLocation.event;
-			override getFolderIdentity(folder: IWorkspaceFolder) { return folder.identity ?? folder.uri; }
-			override isFolderAtAlternateLocation(folder: IWorkspaceFolder) { return folder.identity?.toString() !== folder.uri.toString(); }
+			override isAtAlternateLocation() { return atAlternate; }
 			override getLocationText(location: IFolderLocation) { return location.label; }
 		}();
 

@@ -192,7 +192,7 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 	if (workspace.folders.length === 1) {
 		return {
 			id: workspace.id,
-			uri: workspace.folders[0].identity ?? workspace.folders[0].uri
+			uri: workspace.identity ?? workspace.folders[0].uri
 		};
 	}
 
@@ -292,6 +292,13 @@ export interface IWorkspace {
 	 */
 	readonly name?: string;
 
+	/**
+	 * The URI that identifies a single-folder workspace: its folder's own location,
+	 * unchanged while the folder is at an alternate location. `undefined` for other
+	 * workspaces, and when the folder is at its own location it equals the folder `uri`.
+	 */
+	readonly identity?: URI;
+
 }
 
 export function isWorkspace(thing: unknown): thing is IWorkspace {
@@ -319,13 +326,6 @@ export interface IWorkspaceFolderData {
 	 * The ordinal number of this workspace folder.
 	 */
 	readonly index: number;
-
-	/**
-	 * The folder's identity: its own location. `uri` is where it is currently
-	 * opened, which differs from the identity while the folder is at an
-	 * alternate location. Defaults to `uri` when omitted.
-	 */
-	readonly identity?: URI;
 }
 
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
@@ -364,6 +364,7 @@ export class Workspace implements IWorkspace {
 		private _configuration: URI | null,
 		private ignorePathCasing: (key: URI) => boolean,
 		private _workspaceName?: string,
+		private _identity?: URI,
 	) {
 		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		this.folders = folders;
@@ -374,6 +375,7 @@ export class Workspace implements IWorkspace {
 		this._configuration = workspace.configuration;
 		this._transient = workspace.transient;
 		this._workspaceName = workspace.name;
+		this._identity = workspace.identity;
 		this.ignorePathCasing = workspace.ignorePathCasing;
 		this.folders = workspace.folders;
 	}
@@ -396,6 +398,10 @@ export class Workspace implements IWorkspace {
 
 	get name(): string | undefined {
 		return this._workspaceName;
+	}
+
+	get identity(): URI | undefined {
+		return this._identity;
 	}
 
 	getFolder(resource: URI): IWorkspaceFolder | null {
@@ -433,7 +439,6 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	readonly uri: URI;
 	readonly name: string;
 	readonly index: number;
-	readonly identity: URI;
 
 	constructor(
 		data: IWorkspaceFolderData,
@@ -449,7 +454,6 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 		this.uri = data.uri;
 		this.index = data.index;
 		this.name = data.name;
-		this.identity = data.identity ?? data.uri;
 	}
 
 	toResource(relativePath: string): URI {
@@ -457,7 +461,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toJSON(): IWorkspaceFolderData {
-		return { uri: this.uri, name: this.name, index: this.index, ...(this.identity.toString() !== this.uri.toString() ? { identity: this.identity } : undefined) };
+		return { uri: this.uri, name: this.name, index: this.index };
 	}
 }
 

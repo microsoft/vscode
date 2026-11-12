@@ -129,7 +129,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	private folderLocationRequest = 0;
 
-	async setFolderLocation(primary: URI, location: URI | undefined, options?: { readonly reason?: FolderLocationChangeReason }): Promise<void> {
+	async setFolderLocation(location: URI, options?: { readonly reason?: FolderLocationChangeReason }): Promise<void> {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 		}
@@ -137,26 +137,29 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		// Only the most recent invocation takes effect, regardless of the order in which resolutions complete
 		const request = ++this.folderLocationRequest;
 
-		const validatePrimary = () => {
+		const getIdentity = () => {
 			if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 				throw new Error(localize('folderLocationSingleFolderOnly', "Folder locations are only supported in single-folder workspaces."));
 			}
-			const currentFolder = this.contextService.getWorkspace().folders[0];
-			if (!currentFolder || !this.uriIdentityService.extUri.isEqual(this.workspaceFolderLocationService.getFolderIdentity(currentFolder), primary)) {
-				throw new Error(localize('folderLocationWrongPrimary', "'{0}' is not the primary location of the workspace folder.", primary.toString()));
+			const workspace = this.contextService.getWorkspace();
+			return workspace.identity ?? workspace.folders[0].uri;
+		};
+		const identity = getIdentity();
+		const validatePrimary = () => {
+			if (!this.uriIdentityService.extUri.isEqual(getIdentity(), identity)) {
+				throw new Error(localize('folderLocationWrongPrimary', "The workspace changed while the folder location was being set."));
 			}
 		};
-		validatePrimary();
 
 		let resolved: IResolvedFolderLocation | undefined;
-		if (location && !this.uriIdentityService.extUri.isEqual(location, primary)) {
-			if (primary.scheme !== Schemas.file || location.scheme !== Schemas.file) {
+		if (!this.uriIdentityService.extUri.isEqual(location, identity)) {
+			if (identity.scheme !== Schemas.file || location.scheme !== Schemas.file) {
 				throw new Error(localize('folderLocationLocalOnly', "Folder locations are only supported for local folders."));
 			}
 
-			resolved = await this.workspaceFolderLocationService.resolveLocation(primary, location, CancellationToken.None);
+			resolved = await this.workspaceFolderLocationService.resolveLocation(identity, location, CancellationToken.None);
 			if (!resolved) {
-				throw new Error(localize('folderLocationUnknown', "'{0}' is not an alternate location of '{1}'.", location.toString(), primary.toString()));
+				throw new Error(localize('folderLocationUnknown', "'{0}' is not an alternate location of '{1}'.", location.toString(), identity.toString()));
 			}
 
 			if (request !== this.folderLocationRequest) {
@@ -166,7 +169,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 			// A built-in provider vouches for its locations: they inherit the trust of the primary location
 			if (resolved.builtIn) {
-				const primaryTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(primary)).trusted;
+				const primaryTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(identity)).trusted;
 
 				// Nothing may have changed while reading the trust of the primary location
 				if (request !== this.folderLocationRequest) {
@@ -185,7 +188,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 		validatePrimary();
 
-		await this.contextService.setFolderLocation(primary, location);
+		await this.contextService.setFolderLocation(location);
 		this.workspaceFolderLocationService.setCurrentLocation(resolved, options?.reason);
 	}
 

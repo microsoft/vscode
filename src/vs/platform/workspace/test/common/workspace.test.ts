@@ -48,12 +48,14 @@ suite('Workspace', () => {
 	});
 
 	test('single folder identifier uses the primary location', () => {
-		const alternate = new Workspace('id', [new WorkspaceFolder({ uri: test1FolderUri, identity: mainFolderUri, name: '', index: 0 })], false, null, () => !isLinux);
+		const alternate = new Workspace('id', [new WorkspaceFolder({ uri: test1FolderUri, name: '', index: 0 })], false, null, () => !isLinux, undefined, mainFolderUri);
 		const primary = new Workspace('id', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 })], false, null, () => !isLinux);
+		const updated = new Workspace('id', [new WorkspaceFolder({ uri: mainFolderUri, name: '', index: 0 })], false, null, () => !isLinux);
+		updated.update(alternate);
 
 		assert.deepStrictEqual(
-			{ alternate: toWorkspaceIdentifier(alternate), primary: toWorkspaceIdentifier(primary), json: alternate.folders[0].toJSON().identity?.toString() },
-			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, json: mainFolderUri.toString() });
+			{ alternate: toWorkspaceIdentifier(alternate), primary: toWorkspaceIdentifier(primary), updated: updated.identity?.toString(), json: JSON.stringify(alternate.toJSON()).includes('identity') },
+			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, updated: mainFolderUri.toString(), json: false });
 	});
 
 	test('getFolder returns the closest folder if the uri is sub', () => {

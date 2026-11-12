@@ -93,7 +93,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 		return this.doUpdateFolders(foldersToAdd, foldersToDelete, index);
 	}
 
-	async setFolderLocation(_primary: URI, _location: URI | undefined): Promise<void> { }
+	async setFolderLocation(_location: URI): Promise<void> { }
 
 	async enterWorkspace(_path: URI): Promise<void> { }
 
