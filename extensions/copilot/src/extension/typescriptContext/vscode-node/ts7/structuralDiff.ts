@@ -130,7 +130,7 @@ export function computeStructuralDiff(originalFile: ts.SourceFile, modifiedFile:
 		classify(tree, 'original', original, textChangeIndex, change.original, checkCancellation);
 		classify(tree, 'modified', modified, textChangeIndex, change.modified, checkCancellation);
 	}
-	const prune = (node: DiffTree): vscode.StructuralDiffNode => {
+	const prune = (node: DiffTree): MutableDiffNode => {
 		for (const child of node.children) {
 			const result = prune(child);
 			if (result.originalChanges.length > 0 || result.modifiedChanges.length > 0 || result.children.length > 0) {
