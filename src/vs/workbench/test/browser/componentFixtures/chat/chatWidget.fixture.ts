@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -2768,14 +2769,15 @@ async function renderDisabledPetResizeObserverProbe(context: ComponentFixtureCon
 	status.textContent = 'Completed disabled pet observer probe';
 }
 
-async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false): Promise<void> {
+async function renderPendingDivider(context: ComponentFixtureContext, kind: ChatRequestQueueKind, isSystemInitiated = false, scheduledWidth?: number): Promise<void> {
 	await renderChatWidget(context, {
+		width: scheduledWidth,
 		messages: [{
 			user: 'Review the current changes',
 			assistant: [{ kind: 'thinking', text: 'Reviewing the workspace changes.' }],
 			responseComplete: false,
 		}],
-		onRendered: ({ model, listWidget }) => {
+		onRendered: ({ model, viewModel, listWidget }) => {
 			const pendingRequest = new ChatRequestModel({
 				session: model,
 				message: makeUserMessage(isSystemInitiated ? 'Check for new system notifications' : 'Summarize the findings'),
@@ -2783,6 +2785,15 @@ async function renderPendingDivider(context: ComponentFixtureContext, kind: Chat
 				isSystemInitiated,
 			});
 			model.addPendingRequest(pendingRequest, kind, { isSystemInitiated });
+			if (scheduledWidth !== undefined) {
+				viewModel.setScheduledRequests([{
+					id: 'scheduled-follow-up',
+					text: 'Check the review feedback tomorrow and summarize any remaining changes.',
+					description: 'Scheduled for Nov 13, 2026, 10:00 AM PST',
+					attachments: ['review-notes.md'],
+					actions: ['Preview', 'Send Now', 'Reschedule...', 'Edit', 'Cancel Schedule'].map(label => toAction({ id: label, label, run: () => { } })),
+				}]);
+			}
 			listWidget.refresh();
 			listWidget.scrollToEnd();
 		},
@@ -2820,6 +2831,13 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	PendingTerminalApprovalWithIntention: defineComponentFixture({ render: ctx => renderChatWidget(ctx, { messages: PENDING_TERMINAL_APPROVAL_WITH_INTENTION, sideChatSupported: true }) }),
 	PendingMessages: defineThemedFixtureGroup({
+		Scheduled: defineComponentFixture({
+			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, false, 600),
+		}),
+		ScheduledNarrow: defineComponentFixture({
+			render: context => renderPendingDivider(context, ChatRequestQueueKind.Steering, false, 320),
+		}),
 		Queued: defineComponentFixture({
 			labels: { kind: 'screenshot', blocksCi: true },
 			expectedVisualDescriptions: ['A pending message appears below a sentence-case "Queued" divider while an earlier response is still running.'],

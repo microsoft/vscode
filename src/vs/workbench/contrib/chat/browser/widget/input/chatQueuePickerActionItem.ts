@@ -15,7 +15,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
-import { IMenu, IMenuService, MenuId, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -194,6 +194,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		const secondaryActions = this._secondaryExecuteMenu.getActions({ shouldForwardArgs: true }).flatMap(([, actions]) => actions).map(action => ({
 			id: action.id, label: action.label, tooltip: action.tooltip, enabled: action.enabled,
 			class: action.class, checked: action.checked,
+			icon: action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon) ? action.item.icon : undefined,
 			run: () => action.run(this._executeContext),
 		}));
 		if (!this._primaryActionAction) {

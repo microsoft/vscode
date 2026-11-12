@@ -35,7 +35,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuEntryActionViewItem, createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -65,7 +65,7 @@ import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/c
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart, IChatScheduledRequestViewModel, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { getConfiguredProgressAnimation } from './chatWorkingLogo.js';
@@ -1902,7 +1902,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.renderedParts = undefined;
 			templateData.renderedContent = undefined;
 			dom.clearNode(templateData.value);
-		} else if (isPendingDividerVM(templateData.currentElement)) {
+		} else if (isPendingDividerVM(templateData.currentElement) || isScheduledRequestVM(templateData.currentElement)) {
 			dom.clearNode(templateData.value);
 		}
 		templateData.stickyScrollSource = undefined;
@@ -1967,7 +1967,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Clear pending-related classes and drag handle from previous renders
 		// Do this before element-type checks to ensure dividers also get cleaned up
-		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'chat-pending-dragging', 'terminal-command-request', 'chat-system-notification-response');
+		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'scheduled-request', 'chat-pending-dragging', 'terminal-command-request', 'chat-system-notification-response');
 		templateData.dragHandle?.remove();
 		templateData.dragHandle = undefined;
 		delete templateData.rowContainer.dataset.pendingRequestId;
@@ -1976,6 +1976,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Handle pending divider with simplified rendering
 		if (isPendingDividerVM(element)) {
 			this.renderPendingDivider(element, templateData);
+			return;
+		}
+		if (isScheduledRequestVM(element)) {
+			this.renderScheduledRequest(element, templateData);
 			return;
 		}
 
@@ -2289,9 +2293,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.renderedPartsMounted = true;
 	}
 
-	private renderPendingDivider(element: IChatPendingDividerViewModel, templateData: IChatListItemTemplate): void {
+	private preparePendingItem(templateData: IChatListItemTemplate): void {
+		ChatContextKeys.isRequest.bindTo(templateData.contextKeyService).set(false);
+		ChatContextKeys.isResponse.bindTo(templateData.contextKeyService).set(false);
+		ChatContextKeys.isPendingRequest.bindTo(templateData.contextKeyService).set(false);
+		ChatContextKeys.isFirstRequest.bindTo(templateData.contextKeyService).set(false);
 		templateData.rowContainer.classList.add('pending-item');
-		templateData.rowContainer.classList.add('pending-divider');
 		templateData.rowContainer.classList.remove('interactive-request', 'interactive-response', 'pending-request');
 
 		// Hide header elements not applicable to pending divider
@@ -2308,11 +2315,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.detail);
 		dom.clearNode(templateData.requestTimestampContainer);
+	}
+
+	private renderScheduledRequest(element: IChatScheduledRequestViewModel, templateData: IChatListItemTemplate): void {
+		this.preparePendingItem(templateData);
+		templateData.rowContainer.classList.add('scheduled-request');
+		const header = dom.append(templateData.value, dom.$('.scheduled-request-header'));
+		dom.append(header, dom.$('span.codicon.codicon-clock', { 'aria-hidden': 'true' }));
+		dom.append(header, dom.$('span.scheduled-request-description', undefined, element.description));
+		const toolbarContainer = dom.append(header, dom.$('.scheduled-request-actions'));
+		const toolbar = templateData.elementDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
+			ariaLabel: localize('scheduledRequestActions', "Scheduled Message Actions"),
+		}));
+		toolbar.setActions([], [...element.actions]);
+		dom.append(templateData.value, dom.$('.scheduled-request-text', undefined, element.text));
+		if (element.attachments.length) {
+			dom.append(templateData.value, dom.$('.scheduled-request-attachments', undefined,
+				localize('scheduledRequestAttachments', "Attachments: {0}", element.attachments.join(', '))));
+		}
+	}
+
+	private renderPendingDivider(element: IChatPendingDividerViewModel, templateData: IChatListItemTemplate): void {
+		this.preparePendingItem(templateData);
+		templateData.rowContainer.classList.add('pending-divider');
 
 		const dividerContent = dom.$('.pending-divider-content');
 		const label = dom.append(dividerContent, dom.$('span.pending-divider-label'));
 
-		if (element.dividerKind === ChatRequestQueueKind.Steering) {
+		if (element.dividerKind === 'scheduled') {
+			label.textContent = localize('scheduledDivider', "Scheduled");
+		} else if (element.dividerKind === ChatRequestQueueKind.Steering) {
 			if (element.isSystemInitiated) {
 				label.textContent = localize('systemNotificationDivider', "System notification");
 				label.title = localize('systemNotificationDividerTooltip', "System notification will be sent after the next tool call happens");

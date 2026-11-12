@@ -46,7 +46,7 @@ suite('Sessions - pending list items', () => {
 	}
 
 	for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Environment, SessionsGrouping.Date, SessionsGrouping.Inbox]) {
-		test(`fixed pending sections follow Pinned in ${grouping}, preserving data order and collapse state`, () => {
+		test(`drafts and new-session schedules share Drafts after Pinned in ${grouping}`, () => {
 			const pinned = createTestSession('pinned').session;
 			const regular = createTestSession('regular').session;
 			const harness = createListHarness(disposables, [pinned, regular], { pinnedSessionIds: new Set(['pinned']) });
@@ -57,28 +57,71 @@ suite('Sessions - pending list items', () => {
 			}
 			const pendingSections = observableValue<readonly IPendingSessionSection[]>('pending', [
 				{ id: 'drafts', label: 'Drafts', items: [item('z-draft'), item('a-draft')] },
-				{ id: 'scheduled', label: 'Scheduled', items: [item('send-later', { kind: 'scheduled' })] },
 			]);
+			const scheduledSessions = observableValue<readonly IPendingSessionItem[]>('scheduled', [item('send-later', { kind: 'scheduled' })]);
 			const create = () => disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
-				grouping: () => grouping, sorting: () => SessionsSorting.Updated, pendingSections, onSessionOpen: () => { },
+				grouping: () => grouping, sorting: () => SessionsSorting.Updated, pendingSections,
+				scheduledSessions, onSessionOpen: () => { },
 			}));
 			const list = create();
 			list.layout(800, 400);
-			const headers = list.getTreeSnapshot().filter(node => node.type !== 'session').map(node => node.id).slice(0, 3);
+			const headers = list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [node.id] : []).slice(0, 2);
+			const scheduledRow = !!list.getItemRow({ pendingSession: 'send-later' });
 			const draftTitles = [...list.element.querySelectorAll('.session-title')].map(element => element.textContent).filter(title => title?.endsWith('-draft'));
 			list.setItemCollapsed({ section: 'drafts' }, true);
-			pendingSections.set([{ id: 'scheduled', label: 'Scheduled', items: [] }], undefined);
+			const scheduledCollapsed = !list.getItemRow({ pendingSession: 'send-later' });
+			pendingSections.set([], undefined);
+			const scheduledOnlySection = list.getTreeSnapshot().some(node => node.type === 'section' && node.id === 'drafts');
+			scheduledSessions.set([], undefined);
+			list.update();
 			const empty = list.getTreeSnapshot().filter(node => node.type !== 'session').map(node => node.id);
 			pendingSections.set([{ id: 'drafts', label: 'Drafts', items: [item('reappeared')] }], undefined);
 			const restored = create();
 			const restoredSection = restored.getTreeSnapshot().find(node => node.type !== 'session' && node.id === 'drafts');
 			assert.deepStrictEqual({
-				headers, draftTitles,
+				headers, draftTitles, scheduledRow, scheduledCollapsed, scheduledOnlySection,
 				emptyHasPending: empty.includes('drafts') || empty.includes('scheduled'),
 				restoredCollapsed: restoredSection?.type === 'section' && restoredSection.collapsed,
-			}, { headers: ['pinned', 'scheduled', 'drafts'], draftTitles: ['z-draft', 'a-draft'], emptyHasPending: false, restoredCollapsed: true });
+			}, { headers: ['pinned', 'drafts'], draftTitles: ['z-draft', 'a-draft'], scheduledRow: true, scheduledCollapsed: true, scheduledOnlySection: true, emptyHasPending: false, restoredCollapsed: true });
 		});
 	}
+
+	test('scheduled-only Drafts retains schedule metadata and works without ordinary saved drafts', () => {
+		const harness = createListHarness(disposables, []);
+		const pendingSections = observableValue<readonly IPendingSessionSection[]>('drafts', [
+			{ id: 'drafts', label: 'Drafts', items: [item('ordinary-draft')] },
+		]);
+		const scheduledSessions = observableValue<readonly IPendingSessionItem[]>('scheduled', [
+			item('Follow up', { kind: 'scheduled', folderUri: URI.file('/workspace/vscode'), description: 'Scheduled for tomorrow at 10:00 AM' }),
+		]);
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			pendingSections, scheduledSessions, schedulingEnabled: constObservable(true), onSessionOpen: () => { },
+		}));
+		list.layout(800, 400);
+		list.filters.setScheduledOnly(true);
+		const row = list.getItemRow({ pendingSession: 'Follow up' })!;
+		const filtered = {
+			draftHidden: !list.getItemRow({ pendingSession: 'ordinary-draft' }),
+			description: row.querySelector('.session-details-row')?.textContent,
+			clock: row.querySelector<HTMLElement>('.session-scheduled-indicator')?.style.display,
+			ariaLabel: row.getAttribute('aria-label'),
+		};
+		pendingSections.set([], undefined);
+		const schedulesWithoutSavedDrafts = [...list.element.querySelectorAll('.session-section-label')].map(element => element.textContent);
+		scheduledSessions.set([], undefined);
+		list.update();
+		assert.deepStrictEqual({
+			filtered, schedulesWithoutSavedDrafts,
+			emptySections: list.element.querySelectorAll('.session-section-label').length,
+		}, {
+			filtered: {
+				draftHidden: true, description: 'vscode - Scheduled for tomorrow at 10:00 AM', clock: '',
+				ariaLabel: 'Follow up, scheduled, vscode - Scheduled for tomorrow at 10:00 AM',
+			},
+			schedulesWithoutSavedDrafts: ['Drafts'], emptySections: 0,
+		});
+	});
 
 	test('omitting pending input leaves normal row dispatch and session inventory unchanged', async () => {
 		const session = createTestSession('normal').session;
@@ -109,8 +152,7 @@ suite('Sessions - pending list items', () => {
 				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
 				pendingSections: constObservable<readonly IPendingSessionSection[]>([
 					{ id: 'drafts', label: 'Drafts', items: [item('draft')] },
-					{ id: 'scheduled', label: 'Scheduled', items: [item('scheduled', { kind: 'scheduled' })] },
-				]), onSessionOpen: () => { },
+				]), scheduledSessions: constObservable([item('scheduled', { kind: 'scheduled' })]), onSessionOpen: () => { },
 			}));
 			list.layout(800, 400);
 			const draft = list.getItemRow({ pendingSession: 'draft' })!.querySelector<HTMLElement>('.session-item')!;
@@ -180,8 +222,8 @@ suite('Sessions - pending list items', () => {
 			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, findWidgetContainer,
 			pendingSections: constObservable<readonly IPendingSessionSection[]>([
 				{ id: 'drafts', label: 'Drafts', items: [item('Fix layout', { folderUri: URI.file('/workspace/editor'), description: 'Tomorrow afternoon' })] },
-				{ id: 'scheduled', label: 'Scheduled', items: [item('Other task', { kind: 'scheduled' })] },
 			]),
+			scheduledSessions: constObservable([item('Other task', { kind: 'scheduled' })]),
 			onSessionOpen: () => { },
 		}));
 		list.layout(600, 400);
@@ -199,6 +241,40 @@ suite('Sessions - pending list items', () => {
 		list.closeFind();
 		await timeout(350);
 		assert.deepStrictEqual({ matching, unmatched }, { matching: { titles: ['Fix layout'], headers: ['Drafts'] }, unmatched: 0 });
+	});
+
+	test('scheduled filtering and indicators update without duplicating conversations or affecting the disabled feature', () => {
+		const scheduled = createTestSession('scheduled').session;
+		const normal = createTestSession('normal').session;
+		const harness = createListHarness(disposables, [scheduled, normal]);
+		const schedulingEnabled = observableValue('enabled', true);
+		const scheduledSessionResources = observableValue<ReadonlySet<string>>('scheduled resources', new Set([scheduled.resource.toString()]));
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(400, 800), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			schedulingEnabled, scheduledSessionResources,
+			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: [item('draft')] }]),
+			onSessionOpen: () => { },
+		}));
+		list.layout(800, 400);
+		const row = list.getItemRow({ session: scheduled.resource })!;
+		const indicator = row.querySelector<HTMLElement>('.session-scheduled-indicator')!;
+		const before = { indicator: indicator.style.display, aria: row.getAttribute('aria-label')?.includes('has scheduled messages') };
+		list.filters.setScheduledOnly(true);
+		const filtered = list.getVisibleSessions().map(session => session.sessionId);
+		const draftHidden = !list.getItemRow({ pendingSession: 'draft' });
+		scheduledSessionResources.set(new Set(), undefined);
+		list.update();
+		const afterDispatch = list.getVisibleSessions().map(session => session.sessionId);
+		schedulingEnabled.set(false, undefined);
+		list.update();
+		assert.deepStrictEqual({
+			before, filtered, draftHidden, afterDispatch,
+			disabled: list.getVisibleSessions().map(session => session.sessionId).sort(),
+			indicatorHidden: list.getItemRow({ session: scheduled.resource })?.querySelector<HTMLElement>('.session-scheduled-indicator')?.style.display,
+		}, {
+			before: { indicator: '', aria: true }, filtered: ['scheduled'], draftHidden: true, afterDispatch: [],
+			disabled: ['normal', 'scheduled'], indicatorHidden: 'none',
+		});
 	});
 
 	test('pending filtering composes harness, environment and application with strict Inbox workspace scope', () => {

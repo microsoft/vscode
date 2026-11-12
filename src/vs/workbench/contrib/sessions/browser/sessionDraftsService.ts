@@ -160,7 +160,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 				id: draft.id,
 				kind: 'draft' as const,
 				title: draft.input.inputText.trim().split('\n')[0] || localize('draft.attachmentTitle', "Attached Context"),
-				description: draft.target.folderUri ? localize('draft.descriptionWithWorkspace', "Draft - {0}", basename(draft.target.folderUri)) : localize('draft.description', "Draft"),
+				description: draft.target.folderUri ? basename(draft.target.folderUri) : '',
 				folderUri: draft.target.folderUri,
 				providerId: draft.target.providerId,
 				sessionType: draft.target.sessionTypeId,

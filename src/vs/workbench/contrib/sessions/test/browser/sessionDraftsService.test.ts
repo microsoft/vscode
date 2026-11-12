@@ -18,6 +18,7 @@ import { InMemoryStorageService, StorageScope } from '../../../../../platform/st
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { SessionDraftsService } from '../../browser/sessionDraftsService.js';
+import { getPendingSessionAriaLabel } from '../../browser/views/pendingSessions.js';
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISavedSessionDraft } from '../../common/savedSessionDrafts.js';
@@ -66,6 +67,18 @@ suite('Saved session draft lifecycle', () => {
 			sections: service.sections.get(),
 			draftHistory: navigation.filter(Boolean),
 		}, { saved: undefined, sections: [], draftHistory: [] });
+	});
+
+	test('draft rows show only workspace metadata while retaining accessible draft semantics', () => {
+		const { service } = create();
+		service.save({ inputText: 'Workspace request', attachments: [] }, { folderUri: URI.file('/workspace/vscode') });
+		service.save({ inputText: 'Unscoped request', attachments: [] }, {});
+		assert.deepStrictEqual(service.sections.get()[0].items.map(item => ({
+			title: item.title, description: item.description, ariaLabel: getPendingSessionAriaLabel(item),
+		})).sort((a, b) => a.title.localeCompare(b.title)), [
+			{ title: 'Unscoped request', description: '', ariaLabel: 'Unscoped request, draft' },
+			{ title: 'Workspace request', description: 'vscode', ariaLabel: 'Workspace request, draft, vscode' },
+		]);
 	});
 
 	test('saves several compositions, resumes the same identity, and retains them on live disable', async () => {

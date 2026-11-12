@@ -43,7 +43,8 @@ import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionDraftsService } from './sessionDraftsService.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsService } from './sessionsService.js';
-import { IPendingSessionSection } from './views/pendingSessions.js';
+import { IPendingSessionItem } from './views/pendingSessions.js';
+import { IChatScheduledRequest } from '../../chat/common/model/chatViewModel.js';
 
 const handoffStorageKey = 'sessions.scheduledChatHandoffs';
 interface IScheduledChatHandoff {
@@ -64,10 +65,14 @@ interface IScheduledChatHandoff {
 
 export const IScheduledChatsService = createDecorator<IScheduledChatsService>('scheduledChatsService');
 
+interface IScheduledChatItem extends IPendingSessionItem, IChatScheduledRequest {
+	readonly conversation?: IAutomationDescriptor['conversation'];
+}
+
 export interface IScheduledChatsService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
-	readonly sections: IObservable<readonly IPendingSessionSection[]>;
+	readonly items: IObservable<readonly IScheduledChatItem[]>;
 	readonly claimedDraftIds: IObservable<ReadonlySet<string>>;
 	canSchedule(session: ISession | undefined, conversation?: IAutomationDescriptor['conversation']): boolean;
 	readonly availableProviders: IAutomationService['availableProviders'];
@@ -82,7 +87,7 @@ export interface IScheduledChatsService {
 export class ScheduledChatsService extends Disposable implements IScheduledChatsService {
 	declare readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
-	readonly sections: IObservable<readonly IPendingSessionSection[]>;
+	readonly items: IObservable<readonly IScheduledChatItem[]>;
 	readonly claimedDraftIds: IObservable<ReadonlySet<string>>;
 	readonly availableProviders: IAutomationService['availableProviders'];
 	private readonly chatInputs = new Map<IChatWidget, { schedule(): Promise<void>; assertUnscheduled(query: string): void }>();
@@ -136,7 +141,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 				}
 			}
 		}));
-		this.sections = derived(this, reader => {
+		this.items = derived(this, reader => {
 			if (!this.enabled.read(reader)) {
 				return [];
 			}
@@ -147,9 +152,12 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			const items = automationService.automations.read(reader)
 				.filter(automation => automation.purpose === 'scheduledChat' && !automation.oneTimeDispatchedAt)
 				.sort((a, b) => (a.schedule.runAt ?? '').localeCompare(b.schedule.runAt ?? ''))
-				.map(automation => ({
+				.map((automation): IScheduledChatItem => ({
 					pendingSession: true as const, id: automation.id, kind: 'scheduled' as const,
 					title: automation.name,
+					text: automation.request?.text ?? automation.prompt,
+					attachments: automation.request?.attachments?.map(attachment => attachment.label) ?? [],
+					conversation: automation.conversation ?? handoffs.find(handoff => handoff.id === automation.creationId)?.conversation,
 					description: automation.readOnlyReason ?? (automation.oneTimeRunId
 						? runs.find(run => run.id === automation.oneTimeRunId)?.errorMessage ?? localize('scheduledChat.startedOrFailed', "Starting or needs attention")
 						: automation.enabled ? localize('scheduledChat.at', "Scheduled for {0}", formatTime(automation.schedule.runAt)) : localize('scheduledChat.cancelled', "Not scheduled")),
@@ -176,6 +184,9 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 				items.push({
 					pendingSession: true, id: `handoff:${handoff.id}`, kind: 'scheduled',
 					title: handoff.input.inputText.trim().split('\n')[0] || localize('sendLater.attachmentTitle', "Scheduled Request"),
+					text: handoff.input.inputText,
+					attachments: handoff.request.attachments?.map(attachment => attachment.label) ?? [],
+					conversation: handoff.conversation,
 					description: localize('sendLater.confirming', "Scheduling outcome not yet confirmed"),
 					folderUri: handoff.target.folderUri, providerId: handoff.target.providerId, sessionType: handoff.target.sessionTypeId, isQuickChat: !handoff.target.folderUri,
 					environmentId: handoff.target.environmentId, harness: handoff.target.harness, applicationId: handoff.target.applicationId,
@@ -183,7 +194,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 					actions: [toAction({ id: 'sessions.scheduled.reconcile', label: localize('sendLater.reconcile', "Reconcile Schedule"), run: async () => { await this.retryHandoff(handoff); } })],
 				});
 			}
-			return items.length ? [{ id: 'scheduled', label: localize('scheduledChats', "Scheduled"), items }] : [];
+			return items;
 		});
 	}
 
@@ -196,6 +207,17 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 
 	registerChatInput(widget: IChatWidget, session: IObservable<ISession | undefined>, chatResource: IObservable<URI | undefined>, canSend: IObservable<boolean>): IDisposable {
 		const store = new DisposableStore();
+		const modelChanged = observableSignalFromEvent(this, widget.onDidChangeViewModel);
+		store.add(autorun(reader => {
+			modelChanged.read(reader);
+			const currentSession = session.read(reader);
+			const resource = chatResource.read(reader);
+			const requests = this.items.read(reader).filter(item => item.conversation
+				&& isEqual(item.conversation.sessionResource, currentSession?.resource)
+				&& isEqual(item.conversation.chatResource, resource));
+			widget.viewModel?.setScheduledRequests(requests);
+		}));
+		store.add(toDisposable(() => widget.viewModel?.setScheduledRequests([])));
 		const busy = observableValue(this, false);
 		let compositionId = generateUuid();
 		const available = derived(this, reader => {
@@ -273,7 +295,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 					!handoff.recoverySaved && !handoff.sourceReleased && isEqual(handoff.conversation?.sessionResource, currentSession.resource)
 					&& isEqual(handoff.conversation?.chatResource, resource)
 					&& stringify(toStoredChatDraft(handoff.input)) === stringify(toStoredChatDraft(captureChatInput(widget))))) {
-					throw new Error(localize('sendLater.chatHandedOff', "This request is being scheduled. Reconcile or cancel it in Scheduled or Automations before sending it again."));
+					throw new Error(localize('sendLater.chatHandedOff', "This request is being scheduled. Reconcile or cancel it in this chat or Automations before sending it again."));
 				}
 			},
 		};
@@ -333,7 +355,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 
 	assertUnscheduled(compositionId: string, input: IChatDraft): void {
 		if (this.hasPendingHandoff(compositionId, input) || this.readHandoffs().some(handoff => handoff.compositionId === compositionId)) {
-			throw new Error(localize('sendLater.alreadyHandedOff', "This request has a scheduling handoff. Reconcile or cancel it in Scheduled or Automations before sending it again."));
+			throw new Error(localize('sendLater.alreadyHandedOff', "This request has a scheduling handoff. Reconcile or cancel it in the sessions list or Automations before sending it again."));
 		}
 	}
 
@@ -480,7 +502,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		}
 		const result = await this.automationService.updateAutomationIfUnchanged(automation.id, { schedule: { ...automation.schedule, runAt: date.toISOString() } }, automation, () => this.assertEnabled());
 		if (result.kind !== 'updated') {
-			throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh Scheduled before trying again."));
+			throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
 		}
 		status(localize('scheduledChat.rescheduled', "Request rescheduled for {0}", formatTime(date.toISOString())));
 	}

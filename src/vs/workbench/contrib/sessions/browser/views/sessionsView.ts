@@ -61,7 +61,7 @@ import { ISessionsHostLayoutService } from '../../../../services/sessions/browse
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
 import { IPinnedCanvasService } from '../pinnedCanvases.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
@@ -340,8 +340,12 @@ export class SessionsView extends ViewPane {
 				const drafts = this.sessionDraftsService.sections.read(reader)
 					.map(section => ({ ...section, items: section.items.filter(item => !claimedDraftIds.has(item.id)) }))
 					.filter(section => section.items.length);
-				return [...this.scheduledChatsService.sections.read(reader), ...drafts];
+				return drafts;
 			}),
+			schedulingEnabled: this.scheduledChatsService.enabled,
+			scheduledSessions: derived(this, reader => this.scheduledChatsService.items.read(reader).filter(item => !item.conversation)),
+			scheduledSessionResources: derived(this, reader => new Set(this.scheduledChatsService.items.read(reader)
+				.flatMap(item => item.conversation ? [item.conversation.sessionResource.toString()] : []))),
 			sectionRowHeight: this.presentation.sectionRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,
@@ -463,6 +467,7 @@ export class SessionsView extends ViewPane {
 
 		this.registerSessionFilters(sessionsControl);
 		this.registerAutomationFilter(sessionsControl);
+		this.registerScheduledFilter(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
 		this.registerResetFiltersAction();
 
@@ -741,6 +746,33 @@ export class SessionsView extends ViewPane {
 				const show = !sessionsControl.filters.isShowAutomationRuns();
 				sessionsControl.filters.setShowAutomationRuns(show);
 				contextKeyInstance.set(show);
+			}
+		}));
+	}
+
+	private registerScheduledFilter(sessionsControl: SessionsList): void {
+		const contextKey = new RawContextKey<boolean>('sessionsViewPane.filter.scheduledOnly', sessionsControl.filters.isScheduledOnly());
+		const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, read: () => sessionsControl.filters.isScheduledOnly() });
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterScheduled',
+					title: localize('scheduledOnly', "Scheduled Only"),
+					toggled: ContextKeyExpr.equals(contextKey.key, true),
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
+					menu: [{
+						id: Menus.SessionsViewFilter,
+						group: '3_visibility',
+						order: 0.6,
+						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
+					}],
+				});
+			}
+			override run() {
+				const scheduledOnly = !sessionsControl.filters.isScheduledOnly();
+				sessionsControl.filters.setScheduledOnly(scheduledOnly);
+				contextKeyInstance.set(scheduledOnly);
 			}
 		}));
 	}

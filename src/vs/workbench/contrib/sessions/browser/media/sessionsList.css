@@ -13,6 +13,12 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
+.session-item .session-scheduled-indicator {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+}
+
 .agent-sessions-navigation-container {
 	.monaco-list-row {
 		left: var(--vscode-spacing-size40);

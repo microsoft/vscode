@@ -1758,6 +1758,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			/** While searching, the field a session matched in that neither its row, through `shownTexts`, nor its section headers show. */
 			getSearchHint?: (session: ISession, shownTexts: readonly string[]) => ISessionSearchHint | undefined;
 			renderInlineActions?: (session: ISession, before: HTMLElement) => IDisposable;
+			scheduledSessionResources?: IObservable<ReadonlySet<string>>;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1914,6 +1915,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
+		const scheduledSessionResources = this.options.scheduledSessionResources;
+		if (scheduledSessionResources) {
+			const indicator = DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' });
+			template.externalApplicationBadge.before(indicator);
+			template.elementDisposables.add(toDisposable(() => indicator.remove()));
+			template.elementDisposables.add(autorun(reader => {
+				indicator.style.display = scheduledSessionResources.read(reader).has(element.resource.toString()) ? '' : 'none';
+			}));
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(indicator, {
+				content: localize('scheduledSessionIndicator', "Has scheduled messages"),
+				appearance: { showPointer: true },
+			}));
+		}
 		setSessionGroupDepth(template.container, this.options.getGroupDepth?.(element) ?? 0);
 		if (this.options.renderInlineActions) {
 			template.elementDisposables.add(this.options.renderInlineActions(element, template.approvalRow));
@@ -3559,6 +3573,7 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 //#region Accessibility
 
 interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPresentationOptions {
+	readonly scheduledSessionResources?: IObservable<ReadonlySet<string>>;
 	readonly grouping: () => SessionsGrouping;
 	readonly isWorkspaceScoped?: () => boolean;
 	readonly isPinned: (session: ISession) => boolean;
@@ -3752,6 +3767,9 @@ class SessionsAccessibilityProvider {
 				label = updatedAt ? localize('sessionItemAria', "{0}, updated {1}", title, fromNow(updatedAt, true)) : title;
 			}
 			const collapsed = this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
+			if (this.options?.scheduledSessionResources?.read(reader).has(element.resource.toString())) {
+				label = localize('scheduledSessionAria', "{0}, has scheduled messages", label);
+			}
 			const status = getSessionRowStatus(
 				element,
 				reader,
@@ -4487,6 +4505,9 @@ function toDropReaction(feedback: ISessionDropFeedback | undefined): ITreeDragOv
 
 interface ISessionsListControlBaseOptions {
 	readonly pendingSections?: IObservable<readonly IPendingSessionSection[]>;
+	readonly schedulingEnabled?: IObservable<boolean>;
+	readonly scheduledSessions?: IObservable<readonly IPendingSessionItem[]>;
+	readonly scheduledSessionResources?: IObservable<ReadonlySet<string>>;
 	readonly sectionRowHeight?: number;
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
@@ -5055,6 +5076,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getGroupDepth: session => this.getRowGroupDepth(session),
 				getSearchHint,
 				renderInlineActions,
+				scheduledSessionResources: this.options.scheduledSessionResources,
 			},
 			approvalModel,
 			undefined,
@@ -5264,6 +5286,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
+					scheduledSessionResources: this.options.scheduledSessionResources,
 					widgetAriaLabel: label,
 					getTriageDescription: (session, reader) => this.getInboxDescription(session, reader),
 					grouping: this.options.grouping,
@@ -5725,6 +5748,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.options.pendingSections) {
 			this._register(runOnChange(this.options.pendingSections, () => this.update()));
 		}
+		if (this.options.schedulingEnabled || this.options.scheduledSessions || this.options.scheduledSessionResources) {
+			this._register(autorun(reader => {
+				this.options.schedulingEnabled?.read(reader);
+				this.options.scheduledSessions?.read(reader);
+				this.options.scheduledSessionResources?.read(reader);
+				this.scheduleListUpdate();
+			}));
+		}
 		const archivesAvailable = derived(this, reader => this._sessionsManagementService.archivedSessionItems.read(reader).available);
 		this._register(autorun(reader => {
 			archivesAvailable.read(reader);
@@ -5848,6 +5879,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
 		filtered = filtered.filter(session => this.filters.matches(session, inbox));
+		const scheduledOnly = this.options.schedulingEnabled?.get() && this.filters.isScheduledOnly();
+		if (scheduledOnly) {
+			filtered = filtered.filter(session => this.options.scheduledSessionResources?.get().has(session.resource.toString()));
+		}
 		// The default only changes what the list shows for archived content that the other filters keep.
 		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session))) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
@@ -6394,23 +6429,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 			children.push(renderSection(pinnedSection));
 		}
 
-		const pendingSections = this.options.pendingSections?.get() ?? [];
-		for (const id of ['scheduled', 'drafts'] as const) {
-			const section = pendingSections.find(section => section.id === id);
-			if (!section) {
-				continue;
-			}
-			const items = section.items.filter(item => matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
-			if (items.length === 0) {
-				continue;
-			}
-			const element: ISessionSection = { id: section.id, label: section.label, sessions: [], pendingItems: items };
+		const draftsSection = this.options.pendingSections?.get().find(section => section.id === 'drafts');
+		const pendingItems = [
+			...(this.options.scheduledSessions?.get() ?? []),
+			...(scheduledOnly ? [] : draftsSection?.items ?? []),
+		].filter(item => matchesPendingSession(item, this.filters, inbox, scopedProviderIds));
+		if (pendingItems.length > 0) {
+			const element: ISessionSection = { id: 'drafts', label: draftsSection?.label ?? localize('drafts', "Drafts"), sessions: [], pendingItems };
 			children.push({
 				element,
 				collapsible: true,
-				collapsed: resolveCollapsed(element, this.getSavedCollapseState(section.id)
+				collapsed: resolveCollapsed(element, this.getSavedCollapseState(element.id)
 					? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded),
-				children: items.map(item => ({ element: item })),
+				children: pendingItems.map(item => ({ element: item })),
 			});
 		}
 

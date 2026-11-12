@@ -11,7 +11,7 @@ import { IAction, Separator, toAction } from '../../../../../base/common/actions
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { getComparisonKey } from '../../../../../base/common/resources.js';
+import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -94,13 +94,23 @@ export function getPendingSessionActions(item: IPendingSessionItem, multiple: bo
 }
 
 export function getPendingSessionAriaLabel(item: IPendingSessionItem): string {
+	const description = getPendingSessionDescription(item);
 	return item.kind === 'draft'
-		? localize('pendingDraftAria', "{0}, draft, {1}", item.title, item.description)
-		: localize('pendingScheduledAria', "{0}, scheduled, {1}", item.title, item.description);
+		? description
+			? localize('pendingDraftAria', "{0}, draft, {1}", item.title, description)
+			: localize('pendingDraftWithoutDescriptionAria', "{0}, draft", item.title)
+		: localize('pendingScheduledAria', "{0}, scheduled, {1}", item.title, description);
+}
+
+function getPendingSessionDescription(item: IPendingSessionItem): string {
+	return item.kind === 'scheduled' && item.folderUri
+		? localize('pendingScheduledWorkspace', "{0} - {1}", basename(item.folderUri), item.description)
+		: item.description;
 }
 
 interface IPendingSessionTemplate {
 	readonly icon: HTMLElement;
+	readonly scheduledIndicator: HTMLElement;
 	readonly title: HighlightedLabel;
 	readonly description: HTMLElement;
 	readonly compactDescription: HTMLElement;
@@ -125,6 +135,7 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const main = DOM.append(container, DOM.$('.session-main'));
 		const titleRow = DOM.append(main, DOM.$('.session-title-row'));
 		const title = disposables.add(new HighlightedLabel(DOM.append(titleRow, DOM.$('.session-title'))));
+		const scheduledIndicator = DOM.append(titleRow, DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' }));
 		const compactDescription = DOM.append(titleRow, DOM.$('.session-compact-hover-description'));
 		const toolbarContainer = DOM.append(titleRow, DOM.$('.session-title-toolbar'));
 		const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {}));
@@ -133,7 +144,7 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		disposables.add(Gesture.ignoreTarget(toolbarContainer));
 		const description = DOM.append(main, DOM.$('.session-details-row'));
-		return { icon, title, description, compactDescription, toolbar, toolbarContainer, disposables };
+		return { icon, scheduledIndicator, title, description, compactDescription, toolbar, toolbarContainer, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: IPendingSessionTemplate): void {
@@ -144,9 +155,11 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const icon = DOM.$(`span${ThemeIcon.asCSSSelector(Codicon.circleSmallFilled)}`);
 		icon.style.color = asCssVariable('agentSessionReadIndicator.foreground');
 		DOM.reset(template.icon, icon);
+		template.scheduledIndicator.style.display = item.kind === 'scheduled' ? '' : 'none';
 		template.title.set(item.title, createMatches(node.filterData));
-		template.description.textContent = item.description;
-		template.compactDescription.textContent = item.description;
+		const description = getPendingSessionDescription(item);
+		template.description.textContent = description;
+		template.compactDescription.textContent = description;
 		template.toolbar.setActions([toAction({
 			id: 'sessions.pending.actions',
 			label: localize('pendingSessionActions', "More Actions..."),

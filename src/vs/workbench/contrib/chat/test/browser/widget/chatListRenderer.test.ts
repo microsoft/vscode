@@ -93,7 +93,7 @@ import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerial
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
 import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
-import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -1117,6 +1117,43 @@ suite('ChatListRenderer', () => {
 			systemNotificationDividerLabel: 'System notification',
 		});
 
+		disposables.dispose();
+	});
+
+	test('scheduled messages render literal content and management actions without immediate-queue controls', async () => {
+		const { disposables, instantiationService, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		let actions: readonly IAction[] = [];
+		let sent = 0;
+		instantiationService.stub(IContextMenuService, {
+			showContextMenu: delegate => { actions = delegate.getActions!(); },
+		});
+		const send = disposables.add(new Action('sendNow', 'Send Now', undefined, true, async () => { sent++; }));
+		viewModel.setScheduledRequests([{
+			id: 'later', text: '<b>Later</b>\nSecond line', description: 'Tomorrow at 10:00 AM',
+			attachments: ['notes.txt'], actions: [send],
+		}]);
+		const request = viewModel.getItems().find(isRequestVM)!;
+		renderer.renderElement({ ...node, element: request }, 0, template);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const scheduled = {
+			text: template.value.querySelector('.scheduled-request-text')?.textContent,
+			attachments: template.value.querySelector('.scheduled-request-attachments')?.textContent,
+			description: template.value.querySelector('.scheduled-request-description')?.textContent,
+			html: !!template.value.querySelector('b'),
+			requestActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isRequest.key),
+			pendingActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isPendingRequest.key),
+			dragHandle: template.dragHandle,
+		};
+		template.value.querySelector<HTMLElement>('.scheduled-request-actions .action-label')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await actions[0].run();
+		renderer.renderElement({ ...node, element: request }, 0, template);
+		assert.deepStrictEqual({
+			scheduled, sent, actions: actions.map(action => action.id),
+			recycled: { hasScheduledContent: !!template.value.querySelector('.scheduled-request-text'), scheduledClass: template.rowContainer.classList.contains('scheduled-request') },
+		}, {
+			scheduled: { text: '<b>Later</b>\nSecond line', attachments: 'Attachments: notes.txt', description: 'Tomorrow at 10:00 AM', html: false, requestActions: false, pendingActions: false, dragHandle: undefined },
+			sent: 1, actions: ['sendNow'], recycled: { hasScheduledContent: false, scheduledClass: false },
+		});
 		disposables.dispose();
 	});
 

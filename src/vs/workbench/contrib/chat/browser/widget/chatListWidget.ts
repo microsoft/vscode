@@ -44,7 +44,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions, IChatScrollAnchor } from '../chat.js';
@@ -1135,8 +1135,7 @@ export class ChatListWidget extends Disposable {
 
 	/** The diff identity of an element; when it changes, a refresh replaces and re-renders its row. */
 	private getDiffIdentity(element: ChatTreeItem, editing: IChatRequestViewModel | undefined, consecutiveRequestIds: ReadonlySet<string>): string {
-		// Pending types only have 'id', request/response have 'dataId'
-		const baseId = (isRequestVM(element) || isResponseVM(element)) ? element.dataId : element.id;
+		const baseId = (isRequestVM(element) || isResponseVM(element) || isScheduledRequestVM(element)) ? element.dataId : element.id;
 		const disablement = (isRequestVM(element) || isResponseVM(element)) ? element.shouldBeRemovedOnSend : undefined;
 		const isLastItem = element.id === this._lastItem?.id;
 		// Per-element editing state: only re-render items whose editing role changed
