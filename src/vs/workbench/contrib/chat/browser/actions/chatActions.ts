@@ -42,6 +42,8 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { NewTabButtonEntryAction } from '../../../../browser/parts/editor/newTabButton.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -813,6 +815,25 @@ export function registerChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
 			await widgetService.openSession(input.resource, ACTIVE_GROUP, input.options);
+		}
+	});
+
+	registerAction2(class NewChatEditorFromNewTabButtonAction extends NewTabButtonEntryAction {
+		constructor() {
+			super({
+				id: ACTION_ID_OPEN_CHAT + '.fromNewTabButton',
+				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.commentDiscussion,
+				order: 3,
+				action: 'chat',
+				when: ChatContextKeys.enabled
+			});
+		}
+
+		protected override openTab(accessor: ServicesAccessor, group: IEditorGroup): Promise<unknown> {
+			const widgetService = accessor.get(IChatWidgetService);
+			const input = getNewChatEditorInput(accessor);
+			return widgetService.openSession(input.resource, group, input.options);
 		}
 	});
 
