@@ -40,7 +40,7 @@ export class BrowserPromptFeature extends BrowserEditorContribution {
 				cleanup.dispose();
 			}
 		}));
-		let value: string | null = null;
+		let value: string | null | undefined;
 		try {
 			const result = await this._dialogService.input({
 				type: Severity.Info,
@@ -50,9 +50,14 @@ export class BrowserPromptFeature extends BrowserEditorContribution {
 				token: cts.token,
 			});
 			value = result.confirmed ? (result.values?.[0] ?? '') : null;
+		} catch {
+			// The dialog can't be shown (for example in integration tests). Leave the prompt
+			// pending so an attached agent can still answer it; navigating away settles it.
 		} finally {
 			cleanup.dispose();
-			void model.respondToPrompt(request.requestId, value);
+			if (value !== undefined) {
+				void model.respondToPrompt(request.requestId, value);
+			}
 		}
 	}
 }
