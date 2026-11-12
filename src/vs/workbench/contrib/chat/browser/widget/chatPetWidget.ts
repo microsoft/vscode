@@ -146,6 +146,7 @@ const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_DISPLAY_SIZE = 48;
 const CHAT_PET_SUBAGENT_MAX_WIDTH = 288;
 const CHAT_PET_SUBAGENT_MAX_HEIGHT = 96;
+const CHAT_PET_FOLDED_ANTENNAE_FRAME = 20;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
@@ -226,6 +227,7 @@ interface ChatPetSubagent {
 	readonly updateBlink: () => void;
 	readonly updateAppearance: (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => void;
 	readonly fallTo: (top: number) => void;
+	readonly updateStacked: (stacked: boolean) => void;
 }
 
 interface ChatPetPendingRender {
@@ -1801,9 +1803,9 @@ export class ChatPetWidget extends Disposable {
 				if (enabled && (wasMotionReduced !== this._motionReduced || colorChanged || accessoryChanged)) {
 					pet.updateAppearance(wasMotionReduced !== this._motionReduced, variantChanged, accessoryChanged);
 				}
-				if (this._motionReduced) {
-					pet.eyes.classList.remove('bobbed');
-				}
+			}
+			if (wasMotionReduced !== this._motionReduced) {
+				this._updateSubagentStacking();
 			}
 
 			if (!enabled) {
@@ -2245,6 +2247,7 @@ export class ChatPetWidget extends Disposable {
 
 	private _handleHostLayoutChange(): void {
 		this._constrainSubagentPets();
+		this._updateSubagentStacking();
 		if (this._jumpGame.value) {
 			this._jumpGame.value.layout();
 			return;
@@ -2934,6 +2937,7 @@ export class ChatPetWidget extends Disposable {
 			}
 			const disposables = this._subagentEffects.add(new DisposableStore());
 			let state: 'idle' | 'splat' = 'idle';
+			let stacked = false;
 			const blink = disposables.add(new ChatPetBlinkController(blinking => eyes.classList.toggle('blink', blinking)));
 			const updateBlink = () => blink.setEnabled(state === 'idle' && this._enabled && !this._motionReduced && this._isAnimationVisible(this._visual) && this._isAnimationVisible(element));
 			disposables.add(this._onDidChangeAnimationVisibility.event(updateBlink));
@@ -2949,12 +2953,20 @@ export class ChatPetWidget extends Disposable {
 			const animation = disposables.add(new MutableDisposable<IDisposable>());
 			const image = dom.append(element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
 			image.alt = '';
+			const getSource = (): ChatPetSpriteSource => {
+				const sources = getChatPetSpriteSources(this._variant)[state];
+				return stacked && state === 'idle'
+					? { ...sources.animated, frameIndices: [CHAT_PET_FOLDED_ANTENNAE_FRAME], frameDurations: [], iterations: 1 }
+					: this._motionReduced ? sources.reducedMotion : sources.animated;
+			};
 			const setState = (nextState: 'idle' | 'splat') => {
 				animation.clear();
 				state = nextState;
 				updateBlink();
-				const sources = getChatPetSpriteSources(this._variant)[state];
-				setChatPetImageSource(image, (this._motionReduced ? sources.reducedMotion : sources.animated).url);
+				if (this._motionReduced) {
+					eyes.classList.toggle('bobbed', stacked && state === 'idle');
+				}
+				setChatPetImageSource(image, getSource().url);
 			};
 			const sprite: ChatPetSpriteElement = { container: element, canvas, image, color: this._color };
 			let accessory = this._selectedAccessory ? getChatPetAccessory(this._selectedAccessory) : undefined;
@@ -2982,11 +2994,10 @@ export class ChatPetWidget extends Disposable {
 					setState('idle');
 					return;
 				}
-				const sources = getChatPetSpriteSources(this._variant)[state];
-				const source = this._motionReduced ? sources.reducedMotion : sources.animated;
+				const source = getSource();
 				eyes.classList.toggle('tracking', state === 'idle');
 				this._startSpriteAnimation(source, sprite, animation, state === 'splat' ? () => setState('idle') : undefined, false, frameIndex => {
-					eyes.classList.toggle('bobbed', state === 'idle' && !this._motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
+					eyes.classList.toggle('bobbed', state === 'idle' && (stacked || !this._motionReduced) && (source.accessoryRigFrame ?? frameIndex) >= CHAT_PET_FOLDED_ANTENNAE_FRAME);
 					if (accessoryImage?.complete && accessoryImage.naturalWidth > 0 && accessory) {
 						const context = canvas.getContext('2d');
 						if (context) {
@@ -3001,6 +3012,7 @@ export class ChatPetWidget extends Disposable {
 					if (!this._motionReduced) {
 						setState('splat');
 					}
+					this._updateSubagentStacking();
 				}
 			}));
 			const updateAppearance = (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => {
@@ -3032,12 +3044,36 @@ export class ChatPetWidget extends Disposable {
 					element.classList.add('arriving');
 				}
 			};
+			const updateStacked = (value: boolean) => {
+				if (stacked !== value) {
+					stacked = value;
+					if (state === 'idle') {
+						setState('idle');
+					}
+				}
+			};
 			setState('idle');
-			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance, fallTo });
+			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance, fallTo, updateStacked });
 		}
 		this._constrainSubagentPets();
 		if (removed) {
 			this._settleSubagentPets();
+		}
+		this._updateSubagentStacking();
+	}
+
+	/** Hold the folded idle pose only while another mini pet is resting directly on this one. */
+	private _updateSubagentStacking(): void {
+		const pets = [...this._subagentPets.values()].map(pet => ({
+			pet,
+			left: Number.parseFloat(pet.element.style.left),
+			top: Number.parseFloat(pet.element.style.top),
+			size: CHAT_PET_DISPLAY_SIZE * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale')),
+		}));
+		for (const pet of pets) {
+			pet.pet.updateStacked(pets.some(above => above !== pet && !above.pet.element.classList.contains('arriving')
+				&& Math.abs(above.top + above.size - pet.top) <= POSITION_EPSILON
+				&& pet.left < above.left + above.size - POSITION_EPSILON && pet.left + pet.size > above.left + POSITION_EPSILON));
 		}
 	}
 

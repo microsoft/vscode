@@ -2505,6 +2505,62 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
+	for (const variant of ['stable', 'insiders'] as const) {
+		for (const reducedMotion of [false, true]) {
+			test(`mini pets hold folded antennae while supporting another pet (${variant}, ${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+				disposables.add(toDisposable(() => clock.restore()));
+				const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness(reducedMotion, 'teleport', variant);
+				const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+				const tools = ['bottom', 'top'].map(id => {
+					const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+					tool.toolSpecificData = { kind: 'subagent', isActive: true };
+					return tool;
+				});
+				widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+				const [bottom, top] = overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent');
+				const image = bottom.querySelector<HTMLImageElement>('img')!;
+				await Promise.all([whenSpriteLoaded(image), whenSpriteLoaded(top.querySelector<HTMLImageElement>('img')!)]);
+				bottom.classList.remove('arriving');
+				bottom.style.left = top.style.left = '48px';
+				bottom.style.top = '-24px';
+				top.style.top = '-48px';
+				changed.fire({ reason: 'other' });
+				if (!reducedMotion) {
+					assert.ok(!bottom.querySelector('.chat-pet-eyes.bobbed'));
+					top.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-subagent-fall' }));
+				}
+				await whenSpriteLoaded(image);
+				const canvas = bottom.querySelector<HTMLCanvasElement>('canvas')!;
+				const expected = mainWindow.document.createElement('canvas');
+				expected.width = expected.height = 96;
+				const checkFrame = (frame: number) => {
+					const context = expected.getContext('2d')!;
+					context.clearRect(0, 0, 96, 96);
+					context.drawImage(image, frame * 96, 0, 96, 96, 0, 0, 96, 96);
+					assert.deepStrictEqual({ pixels: canvas.toDataURL(), eyesLowered: !!bottom.querySelector('.chat-pet-eyes.bobbed') },
+						{ pixels: expected.toDataURL(), eyesLowered: frame === 20 });
+				};
+				checkFrame(20);
+				clock.tick(2_500);
+				checkFrame(20);
+				setReducedMotion(!reducedMotion);
+				await whenSpriteLoaded(image);
+				checkFrame(20);
+				setReducedMotion(reducedMotion);
+				await whenSpriteLoaded(image);
+				tools[1].toolSpecificData = { kind: 'subagent', isActive: false };
+				changed.fire({ reason: 'other' });
+				await whenSpriteLoaded(image);
+				checkFrame(0);
+				if (!reducedMotion) {
+					clock.tick(800);
+					checkFrame(20);
+				}
+			});
+		}
+	}
+
 	test('mini pets update appearance and motion settings while active', async () => {
 		const { widget, firstHost, button, overlay, service, setReducedMotion } = createHostTransitionHarness();
 		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
