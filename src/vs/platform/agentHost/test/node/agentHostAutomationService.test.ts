@@ -1548,15 +1548,19 @@ suite('AgentHostAutomationService', () => {
 		return chat;
 	}
 
-	/** Stores continue-session Automations, the default one and `others`, whose previous runs used `session`; returns the default. */
-	async function storeContinuedAutomation(session: URI, others: readonly string[] = []): Promise<string> {
+	/**
+	 * Stores continue-session Automations, the default one and `others`, whose previous runs used `session`; returns the default.
+	 * `templateRevision` is the time of the Automations' last edit of what a session keeps, which the previous runs' sessions were created from.
+	 */
+	async function storeContinuedAutomation(session: URI, others: readonly string[] = [], templateRevision?: string): Promise<string> {
 		const automations = [createAction().resource, ...others];
 		const epoch = new Date(0).toISOString();
+		const _meta = templateRevision !== undefined ? { 'vscode.sessionTemplateChangedAt': templateRevision } : undefined;
 		storageService.set('automations', {
-			catalog: { automations: automations.map(resource => ({ resource, definition: { ...definition(), _meta: withAgentHostAutomationContinueSession(undefined, true) }, runs: [], operations: [], createdAt: epoch, modifiedAt: epoch })) },
+			catalog: { automations: automations.map(resource => ({ resource, definition: { ...definition(), _meta: withAgentHostAutomationContinueSession(undefined, true) }, runs: [], operations: [], createdAt: epoch, modifiedAt: epoch, _meta })) },
 			runs: automations.map(automation => ({
 				resource: `${automation}-previous`, automation, origin: { kind: AutomationRunOriginKind.Manual }, sessions: [session.toString()], primarySession: session.toString(),
-				lifecycle: { status: AutomationRunStatus.Completed, createdAt: epoch, startedAt: epoch, completedAt: epoch },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: epoch, startedAt: epoch, completedAt: epoch }, _meta,
 			})),
 			runProviders: Object.fromEntries(automations.map(automation => [`${automation}-previous`, 'mock'])),
 		});
@@ -1869,6 +1873,33 @@ suite('AgentHostAutomationService', () => {
 			sessions: [next.toString()],
 		});
 	});
+
+	for (const clearModel of [false, true]) {
+		test(`a continued run ${clearModel ? 'starts over once the model is cleared, as a turn without a model keeps its session\'s' : 'continues a session created after an edit, even if the run was due before it'}`, async () => {
+			const previous = URI.parse('mock:/previous');
+			const next = URI.parse('mock:/next');
+			createIdleSession(previous);
+			// The previous run was due at the epoch, before the edit, and created its session from the edited settings.
+			const automation = await storeContinuedAutomation(previous, [], new Date(1000).toISOString());
+			const used = new DeferredPromise<string>();
+			const service = createService({
+				canContinueSession: async () => true,
+				continueSession: async candidate => { await used.complete(candidate.toString()); },
+				createSession: async () => {
+					createIdleSession(next);
+					return next;
+				},
+				startSession: async session => { await used.complete(session.toString()); },
+			});
+			await service.handleConfigurationChanged();
+			for (const model of clearModel ? [{ id: 'chosen' }, undefined] : []) {
+				await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { message: { ...definition().message, model } } });
+			}
+			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'next' });
+
+			assert.strictEqual(await used.p, (clearModel ? next : previous).toString());
+		});
+	}
 
 	test('a continued run waits while an earlier run of its session waits to resume after a wake, until that run is cancelled', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
 		const session = URI.parse('mock:/shared');

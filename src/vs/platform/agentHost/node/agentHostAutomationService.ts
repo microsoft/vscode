@@ -403,7 +403,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			modifiedAt: new Date().toISOString(),
 		};
 		this._validateDefinition(automation.definition);
-		if (!equals(toSessionShape(existing.definition.session), toSessionShape(automation.definition.session))) {
+		// A turn without a model keeps its session's model, so clearing the model starts over too.
+		const clearsModel = getExecutionSessionTemplate(existing.definition).model !== undefined && getExecutionSessionTemplate(automation.definition).model === undefined;
+		if (clearsModel || !equals(toSessionShape(existing.definition.session), toSessionShape(automation.definition.session))) {
 			automation = { ...automation, _meta: { ...automation._meta, [SESSION_TEMPLATE_CHANGED_META_KEY]: automation.modifiedAt } };
 		}
 		if (action.changes.session !== undefined) {
@@ -1150,7 +1152,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				...(definition.message.model === undefined && template.model !== undefined ? { model: template.model } : {}),
 				...(template.agent !== undefined ? { agent: template.agent } : {}),
 			};
-			if (hasAgentHostAutomationContinueSession(definition) && await this._continueSession(initialRun, template, configuration, message, activeClient)) {
+			const templateRevision = readSessionTemplateChangedAt(entry._meta);
+			if (hasAgentHostAutomationContinueSession(definition) && await this._continueSession(initialRun, template, configuration, message, activeClient, templateRevision)) {
 				return;
 			}
 			const allocation = await this._execution.allocateSession(template);
@@ -1159,7 +1162,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				return;
 			}
 			const session = await this._execution.createSession({ ...template, provider: allocation.provider }, running, allocation.session, activeClient);
-			const shouldStart = await this._enqueueMutation(() => this._linkRunSession(running.resource, session.toString(), configuration, allocation.provider));
+			const shouldStart = await this._enqueueMutation(() => this._linkRunSession(running.resource, session.toString(), configuration, allocation.provider, templateRevision));
 			if (!shouldStart) {
 				await this._execution.cancelSession(session);
 				return;
@@ -1185,7 +1188,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	 * Sends the run's message in the session of the Automation's latest run that has one. `false` when that session can't
 	 * be continued, such as after it was deleted or archived, so the run creates a new session that later runs continue.
 	 */
-	private async _continueSession(run: AutomationRunState, template: AutomationSessionTemplate, configuration: IAutomationConfigurationTelemetry, message: Message, activeClient: SessionActiveClient | undefined): Promise<boolean> {
+	private async _continueSession(run: AutomationRunState, template: AutomationSessionTemplate, configuration: IAutomationConfigurationTelemetry, message: Message, activeClient: SessionActiveClient | undefined, templateRevision: string | undefined): Promise<boolean> {
 		let previous: AutomationRunState | undefined;
 		for (const candidate of this._runs.values()) {
 			if (candidate.automation === run.automation && candidate.resource !== run.resource && candidate.primarySession !== undefined
@@ -1195,9 +1198,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const provider = previous && this._runProviders.get(previous.resource);
 		const session = previous?.primarySession !== undefined ? URI.parse(previous.primarySession) : undefined;
-		// A session keeps the folders, mode, approvals and sandbox it was created with, so an edit of them starts over.
-		const changedAt = readSessionTemplateChangedAt(this._catalog?.entries.find(entry => entry.resource === run.automation)?._meta);
-		if (!session || !provider || !previous || changedAt !== undefined && Date.parse(previous.lifecycle.createdAt) <= Date.parse(changedAt)) {
+		// A session keeps the folders, mode, approvals and sandbox it was created with, so an edit of them since starts over.
+		if (!session || !provider || !previous || readSessionTemplateChangedAt(previous._meta) !== templateRevision) {
 			return false;
 		}
 		try {
@@ -1217,7 +1219,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			const continued: IContinuedRun = { session: session.toString(), message: withAgentHostAutomationRunMessage(message, run.resource), activeClient, held: true };
 			this._continuedRuns.set(run.resource, continued);
 			try {
-				const linked = await this._linkRunSession(run.resource, session.toString(), configuration, provider);
+				const linked = await this._linkRunSession(run.resource, session.toString(), configuration, provider, templateRevision);
 				continued.held = false;
 				return linked;
 			} catch (error) {
@@ -1275,13 +1277,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		return next;
 	}
 
-	private async _linkRunSession(resource: string, session: string, configuration: IAutomationConfigurationTelemetry | undefined, provider: string): Promise<boolean> {
+	/** `templateRevision` is the Automation's revision of what a session keeps from its creation that `session` was created from. */
+	private async _linkRunSession(resource: string, session: string, configuration: IAutomationConfigurationTelemetry | undefined, provider: string, templateRevision?: string): Promise<boolean> {
 		const run = this._runs.get(resource);
 		if (!run) {
 			throw new Error(`Automation run not found while linking session: ${resource}`);
 		}
 		const sessions = run.sessions.includes(session) ? run.sessions : [...run.sessions, session];
-		const next = { ...run, sessions, primarySession: session };
+		const next = { ...run, sessions, primarySession: session, ...(templateRevision !== undefined ? { _meta: { ...run._meta, [SESSION_TEMPLATE_CHANGED_META_KEY]: templateRevision } } : {}) };
 		const actions: Array<AutomationRunSessionSetAction | AutomationRunPrimarySessionChangedAction> = [];
 		if (!run.sessions.includes(session)) {
 			actions.push({ type: ActionType.AutomationRunSessionSet, session });
@@ -1731,8 +1734,8 @@ function readSessionTemplateChangedAt(meta: Record<string, unknown> | undefined)
 
 /**
  * What of a session template a session keeps from its creation and a run of it must not silently ignore: its folders,
- * mode, approvals and sandbox. Model and agent apply per turn; derived configuration values and customization snapshots change
- * without an edit of the Automation.
+ * mode, approvals and sandbox. Model and agent apply per turn, except that a turn without a model keeps its session's;
+ * derived configuration values and customization snapshots change without an edit of the Automation.
  */
 function toSessionShape(template: AutomationSessionTemplate): unknown {
 	const config = template.config ?? {};
