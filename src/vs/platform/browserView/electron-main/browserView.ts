@@ -154,7 +154,10 @@ export class BrowserView extends Disposable {
 			webviewTag: false,
 			session: this.session.electronSession,
 
-			focusOnNavigation: false
+			focusOnNavigation: false,
+
+			// Hidden views (e.g. agent-opened background tabs) must keep rendering so rAF-based automation doesn't stall.
+			backgroundThrottling: false
 		};
 
 		this._view = new WebContentsView({
@@ -162,6 +165,8 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		// Preferences are ignored for pre-existing webContents (popups), so set it explicitly too.
+		this._view.webContents.setBackgroundThrottling(false);
 		if (this.session.network) {
 			this._view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
 		}
