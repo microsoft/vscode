@@ -299,7 +299,7 @@ suite('FolderLocationStatusBarContribution', () => {
 				shown: [
 					{ uri: primary.toString(), label: 'project', iconClass: 'codicon codicon-folder', description: 'Primary Location' },
 					{ uri: alternate.toString(), label: 'Alternate', iconClass: 'codicon codicon-git-branch', description: 'feature/x (Current)' },
-					{ uri: URI.file('/work/other').toString(), label: 'Other', iconClass: 'codicon codicon-worktree', description: undefined }
+					{ uri: URI.file('/work/other').toString(), label: 'Other', iconClass: 'codicon codicon-git-branch-checkout', description: undefined }
 				],
 				active: alternate.toString(),
 				calls: []
@@ -363,7 +363,7 @@ suite('FolderLocationStatusBarContribution', () => {
 				};
 				const accessor = {
 					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false) }
-						: id === IWorkspaceFolderLocationService ? { currentLocation: { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.worktree }, getLocations: async () => { await lookup; return []; } }
+						: id === IWorkspaceFolderLocationService ? { currentLocation: { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranchCheckout }, getLocations: async () => { await lookup; return []; } }
 							: id === IUriIdentityService ? { extUri }
 								: id === IActionWidgetService ? widget
 									: id === IWorkspaceEditingService ? { setFolderLocation: async (_p: URI, l: URI | undefined) => { calls.push(l?.toString()); } } : undefined
@@ -382,7 +382,7 @@ suite('FolderLocationStatusBarContribution', () => {
 					options: { preferredAnchorPosition: AnchorPosition.ABOVE, inlineDescription: true },
 					items: [
 						{ id: extUri.getComparisonKey(primary), aria: 'project, Primary Location', icon: 'folder', check: 'blank' },
-						{ id: extUri.getComparisonKey(alternate), aria: 'Alternate, feature/x, Current', icon: 'worktree', check: 'check' }
+						{ id: extUri.getComparisonKey(alternate), aria: 'Alternate, feature/x, Current', icon: 'git-branch-checkout', check: 'check' }
 					],
 					initiallyFocused: extUri.getComparisonKey(alternate),
 					calls: [alternate.toString()],
