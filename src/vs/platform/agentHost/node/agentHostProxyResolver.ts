@@ -69,8 +69,8 @@ export function getProxyUrlCredentials(configuredProxy: string | undefined, prox
 			return undefined;
 		}
 		const username = decodeURIComponent(configured.username);
-		// Basic credentials cannot carry a user name with a colon.
-		return username && !username.includes(':') ? { username, password: decodeURIComponent(configured.password) } : undefined;
+		// Basic credentials cannot carry a user name with a colon, but can carry an empty one, as with `http://:token@proxy`.
+		return !username.includes(':') ? { username, password: decodeURIComponent(configured.password) } : undefined;
 	} catch {
 		return undefined;
 	}

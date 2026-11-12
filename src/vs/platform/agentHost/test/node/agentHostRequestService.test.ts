@@ -25,7 +25,7 @@ import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostProxyResolver, IAgentHostProxyResolver, loadAgentHostCertificates, withoutProxyCredentials } from '../../node/agentHostProxyResolver.js';
+import { AgentHostProxyResolver, getProxyUrlCredentials, IAgentHostProxyResolver, loadAgentHostCertificates, withoutProxyCredentials } from '../../node/agentHostProxyResolver.js';
 import { ProxyEnvironmentIsolatedAgentHostProxyResolver } from './agentServiceTestUtils.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
 import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
@@ -619,6 +619,24 @@ suite('AgentHostProxyResolver', () => {
 			'http://proxy.example:8080',
 			'socks5://user:pass@proxy.example:1080',
 			'not a URL',
+			undefined,
+		]);
+	});
+
+	test('reads the Basic credentials of a proxy URL naming the proxy, including password-only ones', () => {
+		assert.deepStrictEqual([
+			'http://us%40er:pa%3Ass@proxy.example:8080',
+			'http://:token@proxy.example:8080',
+			'http://user@proxy.example:8080',
+			'http://us%3Aer:pass@proxy.example:8080',
+			'http://user:pass@other.example:8080',
+			'http://proxy.example:8080',
+		].map(configured => getProxyUrlCredentials(configured, 'http://proxy.example:8080')), [
+			{ username: 'us@er', password: 'pa:ss' },
+			{ username: '', password: 'token' },
+			{ username: 'user', password: '' },
+			undefined,
+			undefined,
 			undefined,
 		]);
 	});
