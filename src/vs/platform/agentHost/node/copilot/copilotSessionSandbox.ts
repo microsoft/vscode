@@ -23,11 +23,12 @@ import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilo
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { MessageAttachment } from '../../common/state/protocol/state.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
-import type { ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
+import { SAVE_SESSION_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxPathGrant.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
+import { ISessionSandboxPathService } from '../sessionSandboxPathService.js';
 import type { ActionOrigin } from '../../common/state/sessionActions.js';
 import { attributePermissionResult } from './copilotPermissionAttribution.js';
 import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
@@ -90,12 +91,17 @@ export class CopilotSessionSandbox extends Disposable {
 		private readonly _options: ICopilotSessionSandboxOptions,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@ISessionSandboxPathService private readonly _sessionPaths: ISessionSandboxPathService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this._diagnostics = this._register(instantiationService.createInstance(CopilotSandboxDiagnostics, _options.ownerSession.toString(), _options.getHostSupport, _options.platform));
 		this._certificateDiagnostics = this._register(instantiationService.createInstance(CopilotSandboxCertificateDiagnostics, _options.getConfigWriteTarget, _options.getCertificateStatus));
+	}
+
+	prepare(): Promise<void> {
+		return this._sessionPaths.load(this._options.ownerSession);
 	}
 
 	setPendingRequest(toolCallId: string, requestId: string): void {
@@ -153,14 +159,25 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	async grantPathForPendingRequest(toolCallId: string, requestId: string | undefined, grant: ISandboxPathGrant | undefined, context: IAgentPermissionResponseContext, token: CancellationToken): Promise<PermissionRequestResult | AttributedPermissionResult> {
+		const sessionScope = context.selectedOptionId === SAVE_SESSION_SANDBOX_PATH;
+		const saved = !sessionScope && context.sandboxPathGrantSaved === true;
 		try {
 			return await this._configSequencer.queue(async () => {
-				if (!context.sandboxPathGrantSaved) {
+				if (!sessionScope && !saved) {
 					throw new Error(localize('copilot.permission.grant.unsupportedClient', "This client did not save the sandbox path grant. Update VS Code and retry."));
 				}
 				// The SDK session stops being available once it starts disconnecting.
 				const session = this._options.getSession();
-				if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId || !session) {
+				const validate = () => {
+					if (token.isCancellationRequested || !requestId || !grant || this._requests.get(toolCallId) !== requestId || !session
+						|| this._options.getSession() !== session || this._store.isDisposed
+						|| this._pendingPathGrants.get(toolCallId) !== grant
+						|| this._options.getConfigWriteTarget().session !== this._options.ownerSession.toString()) {
+						throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
+					}
+				};
+				validate();
+				if (!session || !requestId || !grant) {
 					throw new Error(localize('copilot.permission.grant.expired', "The sandbox permission request is no longer pending."));
 				}
 				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource, context.userFeedback);
@@ -173,16 +190,37 @@ export class CopilotSessionSandbox extends Disposable {
 				if (!result.success) {
 					throw new Error(localize('copilot.permission.grant.rejected', "The SDK did not grant sandbox access for this request."));
 				}
+				const target = this._target();
+				const os = this._options.platform === 'win32' ? OperatingSystem.Windows : this._options.platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+				const persistence = sessionScope
+					? this._sessionPaths.grant(this._options.ownerSession, grant)
+					: this._sessionPaths.removeReadonlyPaths(this._options.ownerSession, grant.removedReadonlyPaths ?? [], os);
+				void persistence.catch(error => {
+					this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to persist session sandbox path access`);
+					this._configurationService.reportChatSandboxConflict(target, sessionScope
+						? localize(
+							'copilot.permission.grant.sessionSaveFailed',
+							"Sandbox access was granted for this session, but could not be saved. You may need to approve it again when resuming the session. {0}",
+							getErrorMessage(error),
+						)
+						: localize(
+							'copilot.permission.grant.sessionCleanupFailed',
+							"Sandbox access was granted, but the removal of this session's previous read-only access could not be saved. You may need to approve it again when resuming the session. {0}",
+							getErrorMessage(error),
+						));
+				});
 				return { kind: 'no-result' };
 			});
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this._options.sessionId}] Failed to grant sandbox path access`);
-			const message = context.sandboxPathGrantSaved
+			const message = saved
 				? localize('copilot.permission.grant.savedButFailed', "The path was saved to your sandbox settings, but this request could not be retried. {0}", getErrorMessage(error))
 				: getErrorMessage(error);
 			if (context.origin) {
 				const target = this._target();
 				this._configurationService.setChatSandboxEnabled(target, this._configurationService.getChatSandboxEnabled(target) ?? true, { ...context.origin, message });
+			} else {
+				this._configurationService.reportChatSandboxConflict(this._target(), message);
 			}
 			return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
 		}

@@ -861,7 +861,7 @@ export class ChatListWidget extends Disposable {
 		// Cloning a range never yields the anchors around it, so ask the selection what it
 		// touches: otherwise a selection inside a link looks clean while the browser still
 		// copies the enclosing anchor.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const touched = Array.from(this._container.querySelectorAll('a, img'))
 			.filter(element => selection.containsNode(element, true));
 		if (!touched.length) {

@@ -144,6 +144,10 @@ class TestGitHubCredentialService implements IGitHubCredentials {
 		this._onDidInvalidate.fire({ credential: this.credential, reason });
 	}
 
+	reauthorize(): void {
+		this._onDidInvalidate.fire({ credential: this.credential, reason: 'reauthorization' });
+	}
+
 	dispose(): void {
 		this._onDidInvalidate.dispose();
 	}
@@ -508,6 +512,71 @@ suite('PullRequestResourceService', () => {
 		clock.flushDue();
 		await flushAsync();
 		assert.strictEqual(queries.calls.length, 0);
+		subscription.dispose();
+	});
+
+	test('reauthorization retries only the fragments the credential failed', async () => {
+		const { clock, credentials, queries, service } = setup();
+		const subscription = service.subscribePullRequest(ref, { priority: 'interactive', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		queries.handlers.set('checks', () => { throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403); });
+		await assert.rejects(subscription.refresh('checks'));
+		queries.handlers.delete('checks');
+		queries.calls.length = 0;
+
+		credentials.reauthorize();
+		clock.flushDue();
+		await flushAsync();
+
+		const snapshot = subscription.resource.snapshot.get();
+		assert.deepStrictEqual({
+			calls: queries.calls.map(call => call.fragment),
+			core: snapshot.core.status,
+			checks: { status: snapshot.checks.status, error: snapshot.checks.error },
+			credentialAborted: credentials.credential.signal.aborted,
+		}, {
+			calls: ['checks'],
+			core: 'ready',
+			checks: { status: 'ready', error: undefined },
+			credentialAborted: false,
+		});
+		subscription.dispose();
+	});
+
+	test('retries a credential refusal of a request sent before reauthorization without refreshing healthy fragments', async () => {
+		const { credentials, queries, service } = setup();
+		const subscription = service.subscribePullRequest(ref, { priority: 'interactive', core: true, checks: { required: true } });
+		await subscription.refresh('core');
+		queries.calls.length = 0;
+		const started = new DeferredPromise<void>();
+		const refuse = new DeferredPromise<void>();
+		let attempts = 0;
+		queries.handlers.set('checks', async () => {
+			if (++attempts === 1) {
+				await started.complete();
+				await refuse.p;
+				throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403);
+			}
+			return checksResult('reauthorized');
+		});
+		const pending = subscription.refresh('checks');
+		await started.p;
+		credentials.reauthorize();
+		await refuse.complete();
+		await pending;
+
+		const checks = subscription.resource.snapshot.get().checks;
+		assert.deepStrictEqual({
+			calls: queries.calls.map(call => call.fragment),
+			status: checks.status,
+			error: checks.error,
+			checkId: checks.value?.checks[0]?.id,
+		}, {
+			calls: ['checks', 'checks'],
+			status: 'ready',
+			error: undefined,
+			checkId: 'reauthorized',
+		});
 		subscription.dispose();
 	});
 

@@ -74,7 +74,7 @@ import { IChatService, type ChatSendResult, type IChatModelReference, type IChat
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type INestedChatWorkspace, NestedChatWorkspaceError, type ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
@@ -94,6 +94,7 @@ import { devContainerSamples, devContainerSampleUri } from '../../../../../../pl
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { LocalAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProvider.js';
+import { AgentHostArtifactIntegrations } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostArtifactIntegrations.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
 import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -755,6 +756,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 ], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<ITestSessionWithChat | undefined>; visibleSessions?: IObservable<readonly (ITestSessionWithChat | undefined)[]>; windowSessions?: IObservable<readonly ITestSessionWithChat[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
+	instantiationService.stubInstance(AgentHostArtifactIntegrations, { setConnection: () => { }, dispose: () => { } });
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 		private readonly _resources = new ResourceMap<URI>();
@@ -3592,6 +3594,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	}));
 
+	for (const rejected of [false, true]) {
+		test(`archive waits for host confirmation and propagates rejection=${rejected}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const backend = URI.parse('opaque-session://tenant/archiving');
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			fireSessionAdded(agentHost, 'archiving', { resource: backend });
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			const acknowledgement = new DeferredPromise<void>();
+			const dispatched = new DeferredPromise<void>();
+			const calls: string[] = [];
+			agentHost.dispatchConfirmed = async (channel, _subscription, action) => {
+				calls.push(channel);
+				await dispatched.complete();
+				await acknowledgement.p;
+				return { channel, action, serverSeq: 1, origin: undefined, ...(rejected ? { rejectionReason: 'Archive denied' } : {}) };
+			};
+			let completed = false;
+			const archive = provider.archiveSession(session.sessionId).then(() => { completed = true; });
+			const result = rejected ? assert.rejects(archive, /Archive denied/) : archive;
+			await dispatched.p;
+			const beforeAcknowledgement = completed;
+			await acknowledgement.complete();
+			await result;
+			assert.deepStrictEqual({ beforeAcknowledgement, completed, archived: session.isArchived.get(), calls, released: agentHost.sessionUnsubscribeCounts.get(backend.toString()) }, {
+				beforeAcknowledgement: false, completed: !rejected, archived: !rejected, calls: [backend.toString()], released: 1,
+			});
+		}));
+	}
+
 	test('a summaryChanged modifiedAt advances the last turn end like a listing', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('turn-end', { summary: 'Turn End', modifiedTime: 1_000 }));
 		const provider = createProvider(disposables, agentHost);
@@ -3740,7 +3772,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	test('resolveSessionResource seeds the twin in cache when the legacy provider is absent and refresh produces no row', async () => {
-		const configurationService = new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true });
+		const configurationService = new TestConfigurationService();
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
 		const legacyUri = URI.parse('copilotcli:/missing-from-list');
 		const twinUri = URI.parse('agent-host-copilotcli:/missing-from-list');
@@ -4155,6 +4187,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 			cleared: provider.getModelsSnapshot(session.sessionId).models.map(model => model.identifier),
 		}, { unavailable: [], source: { name: agent.name, uri: URI.parse(agent.uri) }, available: ids.slice(1), current: ids[2], cleared: ids });
 	});
+
+	for (const disconnectDuringLoad of [false, true]) {
+		test(`background row sends reject an unavailable local host before optimistic submission and allow retry (disconnectDuringLoad=${disconnectDuringLoad})`, async () => {
+			const connected = observableValue('connected', true);
+			const host = new class extends MockAgentHostService {
+				override readonly connectionAvailable = connected;
+			}();
+			disposables.add(toDisposable(() => host.dispose()));
+			host.addSession(createSession('retry', { summary: 'Retry' }));
+			let loads = 0;
+			let sends = 0;
+			let releases = 0;
+			const provider = createRefreshableProvider(disposables, host, {
+				acquireOrLoadSession: async () => {
+					loads++;
+					if (disconnectDuringLoad && loads === 1) {
+						connected.set(false, undefined);
+					}
+					return {
+						object: new class extends mock<IChatModel>() {
+							override readonly inputModel = new class extends mock<IInputModel>() {
+								override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+								override setState(): void { }
+								override clearState(): void { }
+							}();
+						}(),
+						dispose: () => { releases++; },
+					};
+				},
+				sendRequest: async () => {
+					sends++;
+					return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			await provider.refreshForTest();
+			const session = provider.getSessions()[0];
+			const chat = session.mainChat.get();
+			const management = createManagementService(disposables, provider);
+			if (!disconnectDuringLoad) {
+				connected.set(false, undefined);
+			}
+			await assert.rejects(management.sendRequestInBackground(session, chat, { query: '/fix-ci' }), /agent host is unavailable/);
+			const failed = { sends, loads, releases };
+			connected.set(true, undefined);
+			await management.sendRequestInBackground(session, chat, { query: '/fix-ci' });
+			const retried = { sends, loads, releases };
+			connected.set(false, undefined);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'Foreground request' });
+			assert.deepStrictEqual({ failed, retried, foregroundSends: sends }, {
+				failed: { sends: 0, loads: disconnectDuringLoad ? 1 : 0, releases: disconnectDuringLoad ? 1 : 0 },
+				retried: { sends: 1, loads: disconnectDuringLoad ? 2 : 1, releases: disconnectDuringLoad ? 2 : 1 },
+				foregroundSends: 2,
+			});
+		});
+	}
 
 	test('agent metadata changes refresh model availability without changing the selected agent', async () => {
 		const agent: AgentCustomization = {

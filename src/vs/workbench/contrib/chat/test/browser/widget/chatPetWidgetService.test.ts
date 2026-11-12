@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatPetWidgetHost } from '../../../browser/widget/chatPetWidget.js';
 import { ChatPetWidgetCoordinator } from '../../../browser/widget/chatPetWidgetService.js';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatPetWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -148,6 +149,7 @@ suite('ChatPetWidgetService', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		disposables.add(toDisposable(() => iframe.remove()));
+		disposables.add(registerTestIframe(iframe));
 
 		const auxiliaryDocument = iframe.contentDocument!;
 		const parent = auxiliaryDocument.createElement('div');
