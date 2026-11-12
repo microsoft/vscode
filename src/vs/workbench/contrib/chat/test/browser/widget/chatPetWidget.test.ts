@@ -3112,6 +3112,29 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
+	test('mini pets never shrink below the size of a mini pet at minimum main pet scale', async () => {
+		const { widget, firstHost, overlay, firstParent, root, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, false, service => service.setScale(0.4));
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tools = Array.from({ length: 100 }, (_, index) => {
+			const id = `subagent-${index}`;
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		});
+		widget.setHost({ ...firstHost, transition: undefined, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+		const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
+		const minimumSize = pets[0].getBoundingClientRect().width;
+		assert.ok(Math.abs(minimumSize - 9.6) < 0.1);
+		for (const width of [120, 80, 120]) {
+			firstParent.style.width = `${width}px`;
+			root.style.height = '64px';
+			firstParent.style.top = '32px';
+			layout();
+			await timeout(50);
+			assert.ok(pets.every(pet => pet.getBoundingClientRect().width >= minimumSize - 0.1));
+		}
+	});
+
 	for (const petLeft of [0, 300]) {
 		test(`mini pets stay in a bounded area with many subagents (main pet at ${petLeft})`, async () => {
 			const { widget, firstHost, button, overlay, firstParent, root, layout } = createHostTransitionHarness(true);
@@ -3133,15 +3156,13 @@ suite('ChatPetWidget', () => {
 				const right = Math.max(...rects.map(rect => rect.right));
 				const top = Math.min(...rects.map(rect => rect.top));
 				const bottom = Math.max(...rects.map(rect => rect.bottom));
-				const overlaps = rects.some((rect, index) => rects.slice(index + 1).some(other =>
-					rect.left < other.right - 0.1 && rect.right > other.left + 0.1 && rect.top < other.bottom - 0.1 && rect.bottom > other.top + 0.1));
+				// At the minimum size, this many pets cannot fit in the narrowest area without overlapping.
 				assert.deepStrictEqual({
 					count: rects.length,
 					withinChat: left >= input.left - 0.1 && right <= input.right + 0.1 && top >= movement.top - 0.1 && bottom <= Math.min(input.top, movement.bottom) + 0.1,
 					bounded: right - left <= input.width + 0.1 && bottom - top <= 96.1,
-					visible: rects.every(rect => rect.width > 0 && rect.height > 0),
-					overlaps,
-				}, { count, withinChat: true, bounded: true, visible: true, overlaps: false }, JSON.stringify({ left, right, top, bottom, input: input.toJSON(), movement: movement.toJSON() }));
+					largeEnough: rects.every(rect => rect.width >= 9.5 && rect.height >= 9.5),
+				}, { count, withinChat: true, bounded: true, largeEnough: true }, JSON.stringify({ left, right, top, bottom, input: input.toJSON(), movement: movement.toJSON() }));
 			};
 			checkBounds(100);
 			firstParent.style.width = '120px';

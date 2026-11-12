@@ -159,6 +159,7 @@ const CHAT_PET_DIZZY_SOURCE_HEIGHT = 128;
 const CHAT_PET_MAX_VERTICAL_OFFSET = 10;
 const CHAT_PET_DEFAULT_RIGHT_INSET = 32;
 const CHAT_PET_MIN_SCALE = 0.4;
+const CHAT_PET_MIN_SUBAGENT_SCALE = CHAT_PET_MIN_SCALE * 0.5;
 const CHAT_PET_SCALE_STEP = 0.2;
 const CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG = 20;
 const CHAT_PET_SLEEP_RIGHT_OVERHANG = (CHAT_PET_SLEEP_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
@@ -2965,7 +2966,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	/** Choose a random landing point, accounting for mini pets already on the platform. */
-	private _getSubagentLanding(size: number): { left: number; top: number } {
+	private _getSubagentLanding(size: number): { left: number; top: number; fits: boolean } {
 		const overlay = this._overlay.getBoundingClientRect();
 		const input = this.dragBounds.getBoundingClientRect();
 		const movement = this.movementBounds.getBoundingClientRect();
@@ -3000,13 +3001,14 @@ export class ChatPetWidget extends Disposable {
 				}
 			}
 			if (top >= minimumTop - CHAT_PET_SUBAGENT_BOUNDARY_EPSILON) {
-				return { left, top };
+				return { left, top, fits: true };
 			}
 			if (!best || top > best.top) {
 				best = { left, top };
 			}
 		}
-		return best!;
+		// When even the minimum size cannot fit, keep pets visible within the bounded area.
+		return { ...best!, top: size <= CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE ? Math.max(best!.top, minimumTop) : best!.top, fits: false };
 	}
 
 	private _updateSubagentPets(subagents: ReadonlySet<string>): void {
@@ -3023,10 +3025,16 @@ export class ChatPetWidget extends Disposable {
 				continue;
 			}
 			const element = dom.append(this._subagentLayer, dom.$('.chat-pet-subagent', { 'aria-hidden': 'true' }));
-			const miniScale = 0.5 * (this._scale || 1);
-			const miniWidth = 48 * miniScale;
+			let miniScale = Math.max(CHAT_PET_MIN_SUBAGENT_SCALE, 0.5 * (this._scale || 1));
+			let miniWidth = CHAT_PET_DISPLAY_SIZE * miniScale;
 			const overlayBounds = this._overlay.getBoundingClientRect();
-			const { left, top } = this._getSubagentLanding(miniWidth);
+			let landing = this._getSubagentLanding(miniWidth);
+			if (!landing.fits && miniScale > CHAT_PET_MIN_SUBAGENT_SCALE) {
+				miniScale = CHAT_PET_MIN_SUBAGENT_SCALE;
+				miniWidth = CHAT_PET_DISPLAY_SIZE * miniScale;
+				landing = this._getSubagentLanding(miniWidth);
+			}
+			const { left, top } = landing;
 			element.style.left = `${left}px`;
 			element.style.top = `${top}px`;
 			element.style.setProperty('--chat-pet-subagent-scale', String(miniScale));
@@ -3185,7 +3193,11 @@ export class ChatPetWidget extends Disposable {
 					element.style.top = `${this.movementBounds.getBoundingClientRect().top - overlay.top}px`;
 					setState('idle');
 				} else if (respawnPhase === 'respawning') {
-					const landing = this._getSubagentLanding(size);
+					let landing = this._getSubagentLanding(size);
+					if (!landing.fits && size > CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE) {
+						element.style.setProperty('--chat-pet-subagent-scale', String(CHAT_PET_MIN_SUBAGENT_SCALE));
+						landing = this._getSubagentLanding(CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE);
+					}
 					element.style.left = `${landing.left}px`;
 					fallTo(landing.top);
 					this._constrainSubagentPets();
@@ -3243,7 +3255,7 @@ export class ChatPetWidget extends Disposable {
 		const bottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
 		const height = Math.min(CHAT_PET_SUBAGENT_MAX_HEIGHT, bottom - (movement.top - overlay.top));
 		const width = right - left;
-		if (width <= 0 || height <= 0) {
+		if (width < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE || height < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE) {
 			return;
 		}
 		const maxSize = Math.max(...pets.map(pet => CHAT_PET_DISPLAY_SIZE * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale'))));
@@ -3261,8 +3273,9 @@ export class ChatPetWidget extends Disposable {
 			for (const pet of pets) {
 				const scale = Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale'));
 				const size = CHAT_PET_DISPLAY_SIZE * scale;
-				pet.element.style.top = `${Number.parseFloat(pet.element.style.top) + size * (1 - factor)}px`;
-				pet.element.style.setProperty('--chat-pet-subagent-scale', String(scale * factor));
+				const nextScale = Math.max(CHAT_PET_MIN_SUBAGENT_SCALE, scale * factor);
+				pet.element.style.top = `${Number.parseFloat(pet.element.style.top) + size - CHAT_PET_DISPLAY_SIZE * nextScale}px`;
+				pet.element.style.setProperty('--chat-pet-subagent-scale', String(nextScale));
 			}
 		}
 		let displaced = false;
@@ -3298,7 +3311,7 @@ export class ChatPetWidget extends Disposable {
 		const maximumBottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
 		const width = maximumRight - minimumLeft;
 		const height = Math.min(CHAT_PET_SUBAGENT_MAX_HEIGHT, maximumBottom - minimumTop);
-		if (width <= 0 || height <= 0) {
+		if (width < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE || height < CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE) {
 			return;
 		}
 		const pets = activePets.map(pet => ({
@@ -3320,11 +3333,12 @@ export class ChatPetWidget extends Disposable {
 		if (bottom - top <= height) {
 			return;
 		}
-		const factor = Math.min(1, height / (bottom - top), width / Math.max(1, right - left));
+		const minimumFactor = Math.max(...pets.map(pet => CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE / pet.size));
+		const factor = Math.min(1, Math.max(minimumFactor, Math.min(height / (bottom - top), width / Math.max(1, right - left))));
 		const scaledLeft = Math.max(minimumLeft, Math.min(left, maximumRight - (right - left) * factor));
 		for (const pet of pets) {
-			const petTop = bottom - (bottom - pet.top) * factor;
-			const size = pet.size * factor;
+			const petTop = Math.max(minimumTop, bottom - height, bottom - (bottom - pet.top) * factor);
+			const size = Math.max(CHAT_PET_DISPLAY_SIZE * CHAT_PET_MIN_SUBAGENT_SCALE, pet.size * factor);
 			pet.element.style.left = `${scaledLeft + (pet.left - left) * factor}px`;
 			pet.element.style.top = `${petTop}px`;
 			pet.element.style.setProperty('--chat-pet-subagent-scale', String(size / CHAT_PET_DISPLAY_SIZE));
