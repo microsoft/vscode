@@ -143,6 +143,14 @@ export class ChatNativeComponentsPart extends Disposable implements IChatNativeC
 			}
 		}, true));
 		this.disclosures.forEach((details, index) => {
+			// The transcript's list consumes Enter before the browser toggles a native disclosure, so the
+			// summary handles the key itself, like a button. Space reaches the browser and needs no help.
+			this._register(dom.addDisposableListener(details, dom.EventType.KEY_DOWN, event => {
+				if (event.target === details.firstElementChild && new StandardKeyboardEvent(event).equals(KeyCode.Enter)) {
+					dom.EventHelper.stop(event, true);
+					details.open = !details.open;
+				}
+			}));
 			this._register(dom.addDisposableListener(details, 'toggle', () => {
 				if (details.open !== this.readViewState().expanded.has(index)) {
 					this.writeViewState((_state, expanded) => {

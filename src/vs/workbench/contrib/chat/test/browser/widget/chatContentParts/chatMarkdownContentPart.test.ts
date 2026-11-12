@@ -2205,6 +2205,34 @@ suite('ChatMarkdownContentPart', () => {
 			});
 		});
 
+		test('toggles a disclosure with Enter on its own summary, before the transcript list can consume the key', () => {
+			const nested = '<Disclosure summary="Outer"><Disclosure summary="Inner"><Text>Nested.</Text></Disclosure></Disclosure>';
+			const part = attach(createMarkdownPart(fenced(`${visual}\n${nested}`), undefined, false, false, options));
+			const [method, , inner] = Array.from(root(part)!.querySelectorAll('details'));
+			// Stands for the list, which listens above the visual and handles Enter itself.
+			const reachedList: string[] = [];
+			disposables.add(addDisposableListener(part.domNode, 'keydown', event => reachedList.push(`${event.key === ' ' ? 'Space' : event.key} on ${(event.target as Element).tagName}`)));
+			const press = (target: Element, key: string, keyCode: number) => {
+				target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+				return shown(part)!.expanded;
+			};
+			assert.deepStrictEqual({
+				enterOnSummary: press(method.querySelector('summary')!, 'Enter', 13),
+				enterOnNestedSummary: press(inner.querySelector('summary')!, 'Enter', 13),
+				enterAgain: press(method.querySelector('summary')!, 'Enter', 13),
+				spaceIsLeftToTheBrowser: press(method.querySelector('summary')!, ' ', 32),
+				enterElsewhere: press(method.querySelector('.chat-native-text')!, 'Enter', 13),
+				reachedList,
+			}, {
+				enterOnSummary: [true, false, false],
+				enterOnNestedSummary: [true, false, true],
+				enterAgain: [false, false, true],
+				spaceIsLeftToTheBrowser: [false, false, true],
+				enterElsewhere: [false, false, true],
+				reachedList: ['Space on SUMMARY', 'Enter on DIV'],
+			});
+		});
+
 		test('stops reacting to its visual once disposed', () => {
 			const part = attach(createMarkdownPart(fenced(), undefined, false, false, options));
 			const element = root(part)!;
