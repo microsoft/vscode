@@ -9,8 +9,12 @@
  * settings, and every color is a theme token, so visuals follow the active theme.
  */
 
-/* The visual has no frame of its own, so its focus ring stands clear of the content instead of crossing it. */
-.chat-native-components:focus-visible {
+/*
+ * The visual has no frame of its own, so its focus ring stands clear of the content instead of crossing
+ * it. The second selector outranks the workbench's inset ring for focusable elements.
+ */
+.chat-native-components:focus-visible,
+.monaco-workbench .chat-native-components[tabindex="0"]:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
