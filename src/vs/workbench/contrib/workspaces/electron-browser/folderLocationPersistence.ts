@@ -164,6 +164,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	private discard(persisted: IWindowFolderLocation): void {
 		this.nativeHostService.setWindowFolderLocation(undefined);
 		this.notificationService.notify({
+			id: 'workbench.folderLocationRestoreFailed',
 			severity: Severity.Warning,
 			message: localize('folderLocationRestoreFailed', "Could not restore the folder location '{0}'. The folder is open at its primary location.", persisted.label)
 		});

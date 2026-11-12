@@ -41,6 +41,7 @@ suite('FolderLocationPersistenceContribution', () => {
 	function createFixture(options: IFixtureOptions) {
 		const persistedCalls: (IWindowFolderLocation | undefined)[] = [];
 		const notifications: string[] = [];
+		const notificationIds: (string | undefined)[] = [];
 		const errors: string[] = [];
 		const returns: [URI, URI | undefined][] = [];
 		const onDidChangeProviders = ds.add(new Emitter<void>());
@@ -67,13 +68,13 @@ suite('FolderLocationPersistenceContribution', () => {
 			} as unknown as IWorkspaceEditingService,
 			{ setWindowFolderLocation: (value: IWindowFolderLocation | undefined) => { persistedCalls.push(value); } } as unknown as INativeHostService,
 			{ folderLocation: options.persisted } as unknown as INativeWorkbenchEnvironmentService,
-			{ notify: (n: { message: string }) => { notifications.push(n.message); } } as unknown as INotificationService,
+			{ notify: (n: { message: string; id?: string }) => { notifications.push(n.message); notificationIds.push(n.id); } } as unknown as INotificationService,
 			{ extUri } as unknown as IUriIdentityService,
 			{ error: (message: string) => { errors.push(message); } } as unknown as ILogService
 		));
 
 		return {
-			persistedCalls, notifications, errors, returns, locationService, contribution,
+			persistedCalls, notifications, notificationIds, errors, returns, locationService, contribution,
 			registerProvider() { providerAvailable = true; onDidChangeProviders.fire(); },
 			fireProvidersChanged() { onDidChangeProviders.fire(); },
 			hasProvidersListener: () => onDidChangeProviders.hasListeners(),
@@ -90,6 +91,13 @@ suite('FolderLocationPersistenceContribution', () => {
 		assert.deepStrictEqual(
 			{ current: fixture.locationService.currentLocation?.label, persisted: fixture.persistedCalls, notifications: fixture.notifications, returns: fixture.returns },
 			{ current: 'Alternate', persisted: [persisted], notifications: [], returns: [] });
+	});
+
+	test('the restore failure notification carries an id so that it is never duplicated', async () => {
+		const fixture = createFixture({ persisted, folderUri: primary });
+		await settle();
+
+		assert.deepStrictEqual(fixture.notificationIds, ['workbench.folderLocationRestoreFailed']);
 	});
 
 	test('a missing location is discarded and the user is notified', async () => {
