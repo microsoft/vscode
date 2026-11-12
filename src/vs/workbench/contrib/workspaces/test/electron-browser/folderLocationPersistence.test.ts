@@ -53,12 +53,15 @@ suite('FolderLocationPersistenceContribution', () => {
 		let providerAvailable = !!options.providerAvailable;
 		let folderUri = options.folderUri ?? alternate;
 
-		const getWorkspace = () => new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
+		let multiRoot = false;
+		const getWorkspace = () => multiRoot
+			? new Workspace('multi', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, URI.file('/work/a.code-workspace'), () => false)
+			: new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false, undefined, { id: 'id', uri: primary });
 
 		const locationService = {
 			onDidChangeProviders: onDidChangeProviders.event,
 			onDidChangeLocation: onDidChangeCurrentLocation.event,
-			isAtAlternateLocation: () => !extUri.isEqual(folderUri, primary),
+			isAtAlternateLocation: () => !multiRoot && !extUri.isEqual(folderUri, primary),
 			getLocation: () => currentLocation,
 			setLocation(folder: unknown, location: IResolvedFolderLocation | undefined) { currentLocation = location; onDidChangeCurrentLocation.fire({ folder, reason: 'programmatic' }); },
 			resolveLocation: options.resolveLocation ?? (async () => providerAvailable ? resolvedLocation : undefined)
@@ -85,7 +88,8 @@ suite('FolderLocationPersistenceContribution', () => {
 			current: () => currentLocation,
 			setCurrent(location: IResolvedFolderLocation | undefined) { currentLocation = location; onDidChangeCurrentLocation.fire({ folder: getWorkspace().folders[0], reason: 'programmatic' }); },
 			hasProvidersListener: () => onDidChangeProviders.hasListeners(),
-			moveFolderTo(uri: URI) { folderUri = uri; }
+			moveFolderTo(uri: URI) { folderUri = uri; },
+			enterMultiRoot() { multiRoot = true; }
 		};
 	}
 
@@ -292,6 +296,18 @@ suite('FolderLocationPersistenceContribution', () => {
 		});
 
 		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors }, { persisted: [], notifications: [], errors: [] });
+	}));
+
+	test('entering a multi-root workspace while the return is pending has no side effects once it succeeds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const returning = new DeferredPromise<void>();
+		const fixture = createFixture({ persisted, setFolderLocation: async l => { await returning.p; fixture.moveFolderTo(l); } });
+
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+		fixture.enterMultiRoot();
+		returning.complete();
+		await timeout(1);
 
 		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors }, { persisted: [], notifications: [], errors: [] });
 	}));

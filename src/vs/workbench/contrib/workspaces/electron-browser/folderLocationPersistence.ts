@@ -180,8 +180,11 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			return;
 		}
 
-		const folder = this.contextService.getWorkspace().folders[0];
-		if (folder && !this.folderLocationService.isAtAlternateLocation(folder)) {
+		// Only announce when this is still the original single-folder workspace, at its primary location
+		const workspace = this.contextService.getWorkspace();
+		const identity = toWorkspaceIdentifier(workspace);
+		const folder = workspace.folders[0];
+		if (isSingleFolderWorkspaceIdentifier(identity) && this.uriIdentityService.extUri.isEqual(identity.uri, primary) && folder && this.uriIdentityService.extUri.isEqual(folder.uri, primary)) {
 			this.discard(persisted);
 		}
 	}
