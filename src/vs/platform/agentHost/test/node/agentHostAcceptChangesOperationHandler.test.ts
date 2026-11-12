@@ -240,6 +240,62 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 		});
 	});
 
+	test('accepts a file that several chats changed, in the database of every chat whose changes it accepts', async () => {
+		const { db, chat, tracked, accepted, invoke, workingSet } = setup(disposables);
+		const addChat = async (name: string) => {
+			const source = { chat: buildChatUri(SESSION, name), storage: buildChatUri(SESSION, name), db: disposables.add(await SessionDatabase.open(':memory:')) };
+			tracked.sources.push(source);
+			return source;
+		};
+		const first = await addChat('first');
+		const second = await addChat('second');
+		const acceptRows = async () => Promise.all([db, first.db, second.db].map(async database => (await database.getAllFileEdits()).filter(isFileEditAcceptRecord).length));
+
+		// A chat's change is accepted, then another chat changes the file.
+		await storeEdit(first.db, 'f1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'F1' }));
+		await invoke(FILE);
+		await storeEdit(second.db, 's1', 'tc2', FILE, FileEditKind.Edit, lines({ 0: 'F1' }), lines({ 0: 'F1', 2: 'S3' }));
+		const afterOtherChatEdited = await workingSet();
+		await invoke(FILE);
+		const afterOtherChatAccepted = { workingSet: await workingSet(), acceptRows: await acceptRows() };
+		// Two chats change the file before it is accepted.
+		await storeEdit(first.db, 'f2', 'tc3', FILE, FileEditKind.Edit, lines({ 0: 'F1', 2: 'S3' }), lines({ 0: 'F1', 2: 'S3', 4: 'F5' }));
+		await storeEdit(db, 't1', 'tc4', FILE, FileEditKind.Edit, lines({ 0: 'F1', 2: 'S3', 4: 'F5' }), lines({ 0: 'F1', 1: 'D2', 2: 'S3', 4: 'F5' }));
+		const range = await toError(invoke(FILE, undefined, { range: lineRange(4) }));
+		const [shown] = await computeWorkingSetFiles(tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new TestDiffComputeService(), tracked.folderScope);
+		const staleNonce = await toError(invoke(FILE, undefined, undefined, 'tc3'));
+		await invoke(FILE, undefined, undefined, shown.nonce);
+
+		assert.deepStrictEqual({ afterOtherChatEdited, afterOtherChatAccepted, range, nonce: shown.nonce, staleNonce, workingSet: await workingSet(), acceptRows: await acceptRows(), accepted }, {
+			afterOtherChatEdited: [FILE.toString()],
+			afterOtherChatAccepted: { workingSet: [], acceptRows: [0, 1, 1] },
+			// Hunks are split from the changes of one database.
+			range: { code: JsonRpcErrorCodes.InvalidParams, message: `Changes to 'file.ts' can only be accepted for the whole file.` },
+			// The nonce names the last record of every chat with changes.
+			nonce: 'tc4,tc3',
+			staleNonce: { code: AhpErrorCodes.Conflict, message: `The changes to 'file.ts' were updated after they were shown. Try again.` },
+			workingSet: [],
+			acceptRows: [1, 2, 1],
+			accepted: [first.chat, second.chat, chat, first.chat],
+		});
+	});
+
+	test('accepts the records of a chat that restored the file, so they do not show as changes afterwards', async () => {
+		const { db, chat, tracked, accepted, invoke, workingSet } = setup(disposables);
+		const fork = { chat: buildChatUri(SESSION, 'fork'), storage: buildChatUri(SESSION, 'fork'), db: disposables.add(await SessionDatabase.open(':memory:')) };
+		tracked.sources.push(fork);
+		await storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+		// A forked chat's database starts as a copy of its parent's rows. The fork then restores the file.
+		await storeEdit(fork.db, 'f1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+		await storeEdit(fork.db, 'f2', 'tc2', FILE, FileEditKind.Edit, lines({ 0: 'L1' }), lines());
+		await storeEdit(db, 't2', 'tc3', FILE, FileEditKind.Edit, lines(), lines({ 4: 'L5' }));
+		const before = await workingSet();
+
+		await invoke(FILE);
+
+		assert.deepStrictEqual({ before, after: await workingSet(), accepted }, { before: [FILE.toString()], after: [], accepted: [chat, fork.chat] });
+	});
+
 	test('accepts the hunks that a range touches, leaving the other changes in the working set', async () => {
 		const { db, chat, accepted, invoke, contents, rows } = setup(disposables);
 		await storeEdit(db, 't1', 'tc1', FILE, FileEditKind.Edit, lines(), lines({ 0: 'L1', 4: 'L5' }));
@@ -307,20 +363,6 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 				await db.storeFileEdit({ turnId: 't2', toolCallId: 'tc-rename', filePath: URI.file('/repo/src/renamed.ts').fsPath, originalPath: FILE.fsPath, kind: FileEditKind.Rename, addedLines: undefined, removedLines: undefined });
 				return {};
 			},
-			// The session's Working Set can't order one chat's acceptance against another chat's edits.
-			changedBySeveralChats: async ({ tracked }) => {
-				const peer = disposables.add(await SessionDatabase.open(':memory:'));
-				await storeEdit(peer, 'p1', 'ptc1', FILE, FileEditKind.Edit, 'v1', 'v9');
-				const peerChat = buildChatUri(SESSION, 'peer');
-				tracked.sources.push({ chat: peerChat, storage: peerChat, db: peer });
-				return {};
-			},
-			editedByAnotherChat: async ({ tracked }) => {
-				const peer = disposables.add(await SessionDatabase.open(':memory:'));
-				await storeEdit(peer, 'p1', 'ptc1', FILE, FileEditKind.Edit, 'v1', 'v9');
-				tracked.otherChatDatabases.push(peer);
-				return {};
-			},
 			editedWhileAccepting: async ({ db }) => {
 				db.beforeStore = () => storeEdit(db, 't3', 'tc-late', FILE, FileEditKind.Edit, 'v1', 'v2');
 				return {};
@@ -346,8 +388,6 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			fileNotInSession: rejected(`'unknown.ts' has no changes to accept.`),
 			outsideFolderScope: rejected(`'file.ts' has no changes to accept.`),
 			renamed: rejected(`Changes to a renamed file can't be accepted.`),
-			changedBySeveralChats: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
-			editedByAnotherChat: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
 			editedWhileAccepting: rejected(`'file.ts' changed while its changes were being accepted. Try again.`),
 			rewrittenWhileAccepting: rejected(`'file.ts' changed while its changes were being accepted. Try again.`),
 		});
