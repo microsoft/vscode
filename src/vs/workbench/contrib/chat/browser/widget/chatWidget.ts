@@ -1027,6 +1027,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.viewOptions.rendererOptions?.renderInputRequests !== false;
 	}
 
+	get rendersNativeComponents(): boolean {
+		return !!this.viewOptions.rendererOptions?.renderNativeComponents;
+	}
+
 	get rendersInputOnTop(): boolean {
 		return this.viewOptions.renderInputOnTop ?? false;
 	}

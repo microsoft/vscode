@@ -13,6 +13,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -25,6 +26,7 @@ import { IChatResponseViewModel, isResponseVM, isRequestVM } from '../../common/
 import { getChatRequestAccessibleText } from '../chatRequestText.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { getChatNativeComponentsRenderer, getNativeComponentsFenceInfo } from '../widget/chatContentParts/chatNativeComponents.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
@@ -35,6 +37,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
 		const storageService = accessor.get(IStorageService);
+		const configurationService = accessor.get(IConfigurationService);
 		const widget = widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -69,9 +72,22 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 			return;
 		}
 
-		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused, storageService);
+		// A block that the widget shows as native components reads as its text alternative, not as markup.
+		const describeCodeBlock: ChatCodeBlockDescriber = (languageId, text, raw) => {
+			const renderer = verifiedWidget.rendersNativeComponents ? getChatNativeComponentsRenderer(configurationService) : undefined;
+			const fenceInfo = renderer && getNativeComponentsFenceInfo(languageId, raw);
+			return renderer && fenceInfo !== undefined ? renderer.describe(text, fenceInfo) : undefined;
+		};
+		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused, storageService, describeCodeBlock);
 	}
 }
+
+/**
+ * Returns the text that stands for a code block which is displayed as something other than its
+ * source, or `undefined` for a code block that is displayed as code. `raw` is the block's Markdown
+ * source, including its fences.
+ */
+export type ChatCodeBlockDescriber = (languageId: string, text: string, raw: string) => string | undefined;
 
 type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
@@ -270,7 +286,8 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		private readonly _widget: IChatWidget,
 		item: ChatTreeItem,
 		private readonly _wasOpenedFromInput: boolean,
-		private readonly _storageService: IStorageService
+		private readonly _storageService: IStorageService,
+		private readonly _describeCodeBlock: ChatCodeBlockDescriber,
 	) {
 		super();
 		this._storageDisposables.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, this._storageDisposables)(() => {
@@ -300,7 +317,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			return '';
 		}
 
-		const parts = getChatResponsePlaintextParts(item, this._shouldIncludeThinkingContent());
+		const parts = getChatResponsePlaintextParts(item, this._shouldIncludeThinkingContent(), this._describeCodeBlock);
 		return this._normalizeWhitespace(parts.map(part => part.text).join('\n'));
 	}
 
@@ -379,7 +396,7 @@ export function renderChatMessageAsPlaintext(message: string | IMarkdownString):
  * the transcript Find feature, so collapsed/virtualized content remains
  * fully searchable and both features stay in sync.
  */
-export function getChatResponsePlaintextParts(item: IChatResponseViewModel, includeThinking: boolean): IChatResponsePlaintextPart[] {
+export function getChatResponsePlaintextParts(item: IChatResponseViewModel, includeThinking: boolean, describeCodeBlock?: ChatCodeBlockDescriber): IChatResponsePlaintextPart[] {
 	const contentParts: IChatResponsePlaintextPart[] = [];
 
 	if ('errorDetails' in item && item.errorDetails) {
@@ -401,7 +418,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				break;
 			}
 			case 'markdownContent': {
-				const text = renderAsPlaintext(part.content, { includeCodeBlocksFences: true, useLinkFormatter: true });
+				const text = renderAsPlaintext(part.content, { includeCodeBlocksFences: true, useLinkFormatter: true, codeBlockText: describeCodeBlock });
 				if (text.trim()) {
 					contentParts.push({ partIndex, text });
 				}

@@ -50,6 +50,7 @@ import { areDevContainerSamplesEnabled } from '../../../../workbench/contrib/ses
 import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../workbench/contrib/webview/browser/webview.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { getChatNativeComponentsRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
@@ -77,6 +78,10 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 				content.push(localize('sessionsChat.htmlPreviewSkill', "For visual reports, comparisons, diagrams, and static mockups, use the built-in /html-preview skill when it is enabled for your agent. Its authoring guidance follows the current VS Code theme and the preview's supported content."));
 			} else {
 				content.push(localize('sessionsChat.htmlPreviewDisabled', "Inline HTML previews are disabled by {0}. Responses marked with an html-preview code fence are shown as source code. Enable this setting to render previews.", ChatConfiguration.HtmlPreviewEnabled));
+			}
+			if (getChatNativeComponentsRenderer(configurationService)) {
+				content.push(localize('sessionsChat.nativeComponents', "The {1} setting shows responses marked with a vscode-ui code fence as visuals that VS Code renders itself: metrics, badges, tables, bar charts, and expandable details. Side-by-side columns stack when the chat is narrow. A bar chart is read as a table of its labels and values. A positive, negative, or warning tone is shown by an icon that is read by name, never by color alone. Press Enter or Space on expandable details to open or close them. Visuals have no permanent buttons. Use Tab to focus a visual and press Shift+F10, or right-click it, to open its context menu. Choose Show Source to toggle the original markup; the menu item is checked while source is shown. A block that is not valid shows its source with the reason. Find in Chat searches the original markup and shows source when a match is selected. The chat Accessible View{0} presents each visual as text.", '<keybinding:editor.action.accessibleView>', ChatConfiguration.NativeComponentsEnabled));
+				content.push(localize('sessionsChat.nativeComponentsSkill', "To have an agent present data this way, use the built-in /vscode-ui skill when it is enabled for your agent."));
 			}
 			content.push(localize('sessionsChat.remoteConnections.renameHelp', "In the Remote Connections menu, press Tab to reach the name link in the footer, then Enter or Space to rename the shared environment. The input starts with the current name. Enter saves the name shown on other clients, and Escape cancels. Shift+Tab returns to the connection options. Renaming while Off does not enable sharing."));
 			content.push(localize('sessionsChat.remoteConnections.policyHelp', "If GitHub Environments is disabled by your organization, the footer explains the restriction. Press Tab to reach View Setting and Enter to open the managed setting. Shift+Tab returns to the connection options."));

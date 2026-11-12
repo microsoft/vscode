@@ -12,13 +12,19 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
+import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { registerChatNativeComponentsRenderer } from '../../../browser/widget/chatContentParts/chatNativeComponents.js';
+import { chatNativeComponentsRenderer } from '../../../browser/widget/chatContentParts/chatNativeComponentsPart.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatAutoModeResolutionPart, IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionTargetData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
-import { Response, type IResponse } from '../../../common/model/chatModel.js';
+import { Response, type IChatResponseModel, type IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatRequestViewModel, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -739,6 +745,89 @@ suite('ChatResponseAccessibleView', () => {
 				content: 'Analyse Scorecard: Experiment 42\nSearch ranking\nScorecard\nResults are ready to analyse.\nState: Completed\nSuccessful searches: +2.3%',
 				restored: true,
 			});
+		});
+
+		test('presents a native visual as its text alternative only where it is rendered, and its markup everywhere else', async () => {
+			const markdown = [
+				'The incremental build is faster.',
+				'',
+				'```vscode-ui',
+				'<Columns>',
+				'  <Metric label="Full build" value="12.4 s" />',
+				'  <Metric label="Incremental build" value="1.8 s" delta="-85%" tone="positive" />',
+				'</Columns>',
+				'<BarChart title="Build duration" unit="s"><Bar label="Full" value="12.4" /><Bar label="Incremental" value="1.8" /></BarChart>',
+				'```',
+				'',
+				'```vscode-ui',
+				'<Chart />',
+				'```',
+				'',
+				'```ts',
+				'const cached = true;',
+				'```',
+			].join('\n');
+			const responseItem = upcastPartial<IChatResponseViewModel>({
+				response: upcastPartial<IResponse>({ value: [{ kind: 'markdownContent', content: new MarkdownString(markdown) }] }),
+				model: upcastPartial<IChatResponseModel>({ onDidChange: Event.None }),
+				setVote: () => { },
+			});
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.NativeComponentsEnabled]: true });
+			const content = (rendersNativeComponents: boolean) => {
+				const instantiationService = store.add(new TestInstantiationService());
+				const widget = upcastPartial<IChatWidget>({
+					rendersNativeComponents,
+					hasInputFocus: () => false, getFocus: () => responseItem,
+				});
+				instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: widget }));
+				instantiationService.stub(IStorageService, store.add(new TestStorageService()));
+				instantiationService.stub(IConfigurationService, configurationService);
+				const provider = instantiationService.invokeFunction(accessor => new ChatResponseAccessibleView().getProvider(accessor));
+				assert.ok(provider);
+				store.add(provider);
+				return provider.provideContent().split('\n');
+			};
+			const source = [
+				'The incremental build is faster.',
+				'```',
+				'<Columns>',
+				'  <Metric label="Full build" value="12.4 s" />',
+				'  <Metric label="Incremental build" value="1.8 s" delta="-85%" tone="positive" />',
+				'</Columns>',
+				'<BarChart title="Build duration" unit="s"><Bar label="Full" value="12.4" /><Bar label="Incremental" value="1.8" /></BarChart>',
+				'```',
+				'```',
+				'<Chart />',
+				'```',
+				'```',
+				'const cached = true;',
+				'```',
+			];
+			const described = [
+				'The incremental build is faster.',
+				'Full build: 12.4 s',
+				'Incremental build: 1.8 s (-85%, Positive)',
+				'Bar chart: Build duration',
+				'Full: 12.4 s',
+				'Incremental: 1.8 s',
+				'```',
+				'<Chart />',
+				'```',
+				'```',
+				'const cached = true;',
+				'```',
+			];
+
+			const withoutRenderer = content(true);
+			store.add(registerChatNativeComponentsRenderer(chatNativeComponentsRenderer));
+			const rendered = content(true);
+			const otherSurface = content(false);
+			await configurationService.setUserConfiguration(ChatConfiguration.NativeComponentsEnabled, false);
+			const settingOff = content(true);
+			await configurationService.setUserConfiguration(ChatConfiguration.NativeComponentsEnabled, true);
+			await configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
+			const aiDisabled = content(true);
+			assert.deepStrictEqual({ withoutRenderer, rendered, otherSurface, settingOff, aiDisabled }, { withoutRenderer: source, rendered: described, otherSurface: source, settingOff: source, aiDisabled: source });
 		});
 
 		test('omits thinking content when disabled in storage', () => {

@@ -845,6 +845,14 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	 * default because it changes long-standing output for every caller.
 	 */
 	readonly omitMarkdownSyntax?: boolean;
+	/**
+	 * Provides the text of a code block that is displayed as something other than its source.
+	 * `raw` is the block's Markdown source, including its fences. Return `undefined` to keep the code.
+	 *
+	 * A code block inside a list item is not offered, unless `omitMarkdownSyntax` is set: such an
+	 * item is emitted as its source.
+	 */
+	readonly codeBlockText?: (languageId: string, text: string, raw: string) => string | undefined;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -859,6 +867,14 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	const renderer = createPlainTextRenderer();
 	if (options?.includeCodeBlocksFences) {
 		renderer.code = codeBlockFences;
+	}
+	const codeBlockText = options?.codeBlockText;
+	if (codeBlockText) {
+		const renderCode = options?.includeCodeBlocksFences ? codeBlockFences : plainCodeBlock;
+		renderer.code = token => {
+			const text = codeBlockText(postProcessCodeBlockLanguageId(token.lang), token.text, token.raw);
+			return text === undefined ? renderCode(token) : `\n${escape(text)}\n`;
+		};
 	}
 	if (options?.useLinkFormatter) {
 		renderer.link = linkFormatter;
@@ -889,9 +905,7 @@ const unescapeInfo = new Map<string, string>([
 function createPlainTextRenderer(): marked.Renderer {
 	const renderer = new marked.Renderer();
 
-	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return escape(text);
-	};
+	renderer.code = plainCodeBlock;
 	renderer.blockquote = ({ text }: marked.Tokens.Blockquote): string => {
 		return text + '\n';
 	};
@@ -948,6 +962,10 @@ function createPlainTextRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
+
+const plainCodeBlock = ({ text }: marked.Tokens.Code): string => {
+	return escape(text);
+};
 
 const codeBlockFences = ({ text }: marked.Tokens.Code): string => {
 	return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;

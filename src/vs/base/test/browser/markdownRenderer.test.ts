@@ -887,6 +887,30 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(result, expected);
 		});
 
+		test('replaces the code blocks that codeBlockText describes and keeps the others, including one inside a list item', () => {
+			const markdown = { value: 'Before\n\n```chart v1\n<Bar value="1" />\n```\n\n- item\n  ```chart\n  nested\n  ```\n\n```ts\nconst a = 1 < 2;\n```' };
+			const calls: string[][] = [];
+			const codeBlockText = (languageId: string, text: string, raw: string) => {
+				calls.push([languageId, text, raw]);
+				return languageId === 'chart' ? `Chart <${text.length}> & more` : undefined;
+			};
+			assert.deepStrictEqual({
+				fenced: renderAsPlaintext(markdown, { includeCodeBlocksFences: true, codeBlockText }).split('\n').filter(line => line),
+				plain: renderAsPlaintext(markdown, { codeBlockText }).split('\n').filter(line => line),
+				withoutSyntax: renderAsPlaintext(markdown, { omitMarkdownSyntax: true, codeBlockText }).split('\n').filter(line => line),
+				calls: calls.slice(0, 2),
+			}, {
+				// A list item is emitted as its source, so the block inside it is not offered for replacement.
+				fenced: ['Before', 'Chart <17> & more', 'item', '```chart', 'nested', '```', '```', 'const a = 1 < 2;', '```'],
+				plain: ['Before', 'Chart <17> & more', 'item', '```chart', 'nested', '```', 'const a = 1 < 2;'],
+				withoutSyntax: ['Before', 'Chart <17> & more', 'item', 'Chart <6> & more', 'const a = 1 < 2;'],
+				calls: [
+					['chart', '<Bar value="1" />', '```chart v1\n<Bar value="1" />\n```'],
+					['ts', 'const a = 1 < 2;', '```ts\nconst a = 1 < 2;\n```'],
+				],
+			});
+		});
+
 		test('does not double-escape entities inside code spans', () => {
 			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
 			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');

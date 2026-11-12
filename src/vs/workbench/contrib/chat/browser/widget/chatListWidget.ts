@@ -24,6 +24,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -818,6 +819,8 @@ export class ChatListWidget extends Disposable {
 				|| e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)
 				|| e.affectsConfiguration(ChatConfiguration.RichLinks)
 				|| e.affectsConfiguration(ChatConfiguration.HtmlPreviewEnabled)
+				|| e.affectsConfiguration(ChatConfiguration.NativeComponentsEnabled)
+				|| e.affectsConfiguration(ChatAIDisabledSettingId)
 				|| e.affectsConfiguration(ChatConfiguration.ProgressBorder)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgress)
 				|| e.affectsConfiguration(ChatConfiguration.PersistentProgressVerbosity)) {

@@ -49,6 +49,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../../workbench/contrib/webview/browser/webview.js';
 import { WebviewFindAccessibilityHelp } from '../../../../../workbench/contrib/webview/browser/webviewFindAccessibilityHelp.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatNativeComponentsRenderer, registerChatNativeComponentsRenderer } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ITestSessionWithChat, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -160,6 +161,37 @@ suite('SessionsChatAccessibilityHelp', () => {
 			});
 		});
 	}
+
+	test('documents native visuals only while this window renders them', () => {
+		const help = (nativeComponentsEnabled: boolean, aiDisabled = false) => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled, [ChatConfiguration.NativeComponentsEnabled]: nativeComponentsEnabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden: false } });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			return {
+				visuals: content.includes('vscode-ui code fence'),
+				sourceToggle: content.includes('Choose Show Source to toggle the original markup'),
+				textAlternative: content.includes('presents each visual as text'),
+				setting: content.includes(ChatConfiguration.NativeComponentsEnabled),
+				skill: content.includes('built-in /vscode-ui skill'),
+			};
+		};
+		const all = (documented: boolean) => ({ visuals: documented, sourceToggle: documented, textAlternative: documented, setting: documented, skill: documented });
+
+		const withoutRenderer = help(true);
+		store.add(registerChatNativeComponentsRenderer(upcastPartial<IChatNativeComponentsRenderer>({})));
+		assert.deepStrictEqual({ withoutRenderer, enabled: help(true), settingOff: help(false), aiDisabled: help(true, true) }, {
+			withoutRenderer: all(false), enabled: all(true), settingOff: all(false), aiDisabled: all(false),
+		});
+	});
 
 	for (const remotesEnabled of [false, true]) {
 		for (const manageEnabled of [undefined, false, true]) {
