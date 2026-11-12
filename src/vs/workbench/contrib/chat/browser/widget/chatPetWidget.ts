@@ -225,6 +225,7 @@ interface ChatPetSubagent {
 	readonly disposables: DisposableStore;
 	readonly updateBlink: () => void;
 	readonly updateAppearance: (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => void;
+	readonly fallTo: (top: number) => void;
 }
 
 interface ChatPetPendingRender {
@@ -2880,8 +2881,10 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _updateSubagentPets(subagents: ReadonlySet<string>): void {
+		let removed = false;
 		for (const [id, pet] of this._subagentPets) {
 			if (!subagents.has(id)) {
+				removed = true;
 				this._subagentPets.delete(id);
 				this._despawnSubagentPet(pet);
 			}
@@ -3015,10 +3018,54 @@ export class ChatPetWidget extends Disposable {
 					sprite.redrawFrame?.();
 				}
 			};
+			const fallTo = (top: number) => {
+				const previousTop = element.getBoundingClientRect().top - this._overlay.getBoundingClientRect().top;
+				element.classList.remove('arriving');
+				element.style.top = `${top}px`;
+				setState('idle');
+				if (!this._motionReduced && top > previousTop) {
+					const distance = top - previousTop;
+					element.style.setProperty('--chat-pet-subagent-fall-distance', `${distance}px`);
+					element.style.setProperty('--chat-pet-subagent-fall-duration', `${getChatPetFallDuration(distance)}ms`);
+					// Restart the existing fall animation, including when another support disappears mid-fall.
+					void element.offsetWidth;
+					element.classList.add('arriving');
+				}
+			};
 			setState('idle');
-			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance });
+			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance, fallTo });
 		}
 		this._constrainSubagentPets();
+		if (removed) {
+			this._settleSubagentPets();
+		}
+	}
+
+	/** Settle each column from the bottom up so remaining mini pets can support those above them. */
+	private _settleSubagentPets(): void {
+		const overlay = this._overlay.getBoundingClientRect();
+		const platforms = this._getPlatforms();
+		const floor = this.movementBounds.getBoundingClientRect().bottom;
+		const pets = [...this._subagentPets.values()].map(pet => ({
+			pet,
+			left: Number.parseFloat(pet.element.style.left),
+			top: Number.parseFloat(pet.element.style.top),
+			size: CHAT_PET_DISPLAY_SIZE * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale')),
+		})).sort((a, b) => b.top - a.top);
+		for (const [index, pet] of pets.entries()) {
+			const landing = getChatPetFallTarget(overlay.left + pet.left, overlay.top + pet.top - POSITION_EPSILON, pet.size, pet.size, platforms, floor);
+			let top = Math.max(pet.top, landing.top - overlay.top);
+			for (let below = 0; below < index; below++) {
+				const support = pets[below];
+				if (pet.left < support.left + support.size - POSITION_EPSILON && pet.left + pet.size > support.left + POSITION_EPSILON && support.top >= pet.top + pet.size - POSITION_EPSILON) {
+					top = Math.min(top, support.top - pet.size);
+				}
+			}
+			if (top > pet.top + POSITION_EPSILON) {
+				pet.pet.fallTo(top);
+				pet.top = top;
+			}
+		}
 	}
 
 	/** Keep settled mini pets in a bounded area without coupling them to the main pet's movement. */

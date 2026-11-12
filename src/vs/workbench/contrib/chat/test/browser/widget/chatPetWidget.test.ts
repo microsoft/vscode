@@ -2458,6 +2458,53 @@ suite('ChatPetWidget', () => {
 		});
 	}
 
+	for (const reducedMotion of [false, true]) {
+		for (const removedIndex of [0, 1]) {
+			test(`mini pets fall when their ${removedIndex === 0 ? 'bottom' : 'middle'} support finishes (${reducedMotion ? 'reduced motion' : 'animated'})`, () => {
+				const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness(reducedMotion);
+				const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+				const tools = ['bottom', 'middle', 'top', 'neighbor'].map(id => {
+					const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+					tool.toolSpecificData = { kind: 'subagent', isActive: true };
+					return tool;
+				});
+				widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+				const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
+				// A three-high stack on the input platform and an independent neighbor on the ground.
+				pets.forEach((pet, index) => {
+					pet.classList.remove('arriving');
+					pet.style.left = index === 3 ? '96px' : '48px';
+					pet.style.top = `${index === 3 ? -24 : -(index + 1) * 24}px`;
+				});
+				const neighborPosition = pets[3].getBoundingClientRect().toJSON();
+				tools[removedIndex].toolSpecificData = { kind: 'subagent', isActive: false };
+				changed.fire({ reason: 'other' });
+				assert.deepStrictEqual({
+					remaining: [...overlay.querySelectorAll('.chat-pet-subagent')],
+					tops: pets.filter((_, index) => index !== removedIndex).map(pet => pet.style.top),
+					falling: pets[2].classList.contains('arriving'),
+					neighbor: pets[3].getBoundingClientRect().toJSON(),
+				}, { remaining: pets.filter((_, index) => index !== removedIndex), tops: ['-24px', '-48px', '-24px'], falling: !reducedMotion, neighbor: neighborPosition });
+				// Removing the next support mid-fall must continue from the currently rendered position.
+				for (const animation of pets[2].getAnimations()) {
+					animation.pause();
+				}
+				const previousTop = pets[2].getBoundingClientRect().top - overlay.getBoundingClientRect().top;
+				tools[1 - removedIndex].toolSpecificData = { kind: 'subagent', isActive: false };
+				changed.fire({ reason: 'other' });
+				assert.strictEqual(pets[2].style.top, '-24px');
+				if (!reducedMotion) {
+					assert.ok(Math.abs(Number.parseFloat(pets[2].style.getPropertyValue('--chat-pet-subagent-fall-distance')) - (-24 - previousTop)) < 0.1);
+					setReducedMotion(true);
+				}
+				assert.deepStrictEqual({
+					falling: pets[2].classList.contains('arriving'),
+					bottom: pets[2].getBoundingClientRect().bottom,
+				}, { falling: false, bottom: overlay.getBoundingClientRect().top });
+			});
+		}
+	}
+
 	test('mini pets update appearance and motion settings while active', async () => {
 		const { widget, firstHost, button, overlay, service, setReducedMotion } = createHostTransitionHarness();
 		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
