@@ -71,7 +71,6 @@ suite('Mission Control inventory', () => {
 		let deleting: Promise<void> = Promise.resolve();
 		const deletions: { id: string; account: string; token: CancellationToken }[] = [];
 		let connectionStatus: RemoteAgentHostConnectionStatus | undefined;
-		const sharingState = observableValue<'disabled' | 'connecting' | 'enabled'>('sharingState', 'disabled');
 		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 			override async waitForConnection(address: string) {
 				calls.waits.push(address);
@@ -110,6 +109,10 @@ suite('Mission Control inventory', () => {
 		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
 			override async getMissionControlEnvironmentId() { return own; }
 		}());
+		const sharingState = observableValue<'disabled' | 'connecting' | 'enabled'>('sharingState', 'disabled');
+		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
+			override readonly state = sharingState;
+		}());
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IEnvironmentService, { isBuilt: built, isExtensionDevelopment: extensionDevelopment });
@@ -124,9 +127,6 @@ suite('Mission Control inventory', () => {
 				events.push({ eventName, data });
 			}
 		}());
-		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
-			override readonly state = sharingState;
-		}());
 		const service = store.add(instantiation.createInstance(MissionControlEnvironmentService));
 		return {
 			service, storage, calls, configuration, authenticationChanged, events, availability, deletions,
@@ -139,7 +139,7 @@ suite('Mission Control inventory', () => {
 			changeAccount: (value: string | undefined) => { account = value; accountChanged.fire(value); },
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
 			setOwn: (id: string | undefined) => { own = id; },
-			setSharing: (state: 'disabled' | 'connecting' | 'enabled') => { sharingState.set(state, undefined); },
+			setSharingState: (state: 'disabled' | 'connecting' | 'enabled') => sharingState.set(state, undefined),
 			setConnectionStatus: (status: RemoteAgentHostConnectionStatus) => { connectionStatus = status; },
 		};
 	}
@@ -166,14 +166,51 @@ suite('Mission Control inventory', () => {
 		]);
 	}));
 
-	test('discovers native hosts before connection, including this computer, and excludes managed compute', async () => {
+	test('discovers native hosts before connection, identifies this computer and excludes managed compute', async () => {
 		const { service, calls, setList } = fixture();
-		setList(Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]));
+		void setList(Promise.resolve([host('remote'), host('own'), { ...host('managed'), kind: 'managed-sandbox' }]));
 		await service.refresh(CancellationToken.None);
-		assert.deepStrictEqual({ hosts: service.hosts.get(), ownEnvironmentId: service.ownEnvironmentId.get(), calls }, {
+		assert.deepStrictEqual({ hosts: service.hosts.get(), own: service.ownEnvironmentId.get(), calls }, {
 			hosts: [{ ...host('remote'), displayName: undefined }, { ...host('own'), displayName: undefined }],
-			ownEnvironmentId: 'own',
+			own: 'own',
 			calls: { lists: 1, lookups: [], connects: [], disconnects: [], waits: [] },
+		});
+	});
+
+	test('remembers this computer while sharing is off and forgets it once its registration is gone', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const withOwn = [host('remote'), host('own')];
+		const first = fixture(storage);
+		void first.setList(Promise.resolve(withOwn));
+		await first.service.refresh(CancellationToken.None);
+		const second = fixture(storage);
+		second.setOwn(undefined);
+		void second.setList(Promise.resolve(withOwn));
+		await second.service.refresh(CancellationToken.None);
+		const remembered = second.service.ownEnvironmentId.get();
+		void second.setList(Promise.resolve([host('remote')]));
+		await second.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ remembered, forgotten: second.service.ownEnvironmentId.get() }, { remembered: 'own', forgotten: undefined });
+	});
+
+	test('identifies this computer once sharing turns on and remembers it for later windows', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const withOwn = [host('remote'), host('own')];
+		const first = fixture(storage);
+		first.setOwn(undefined);
+		void first.setList(Promise.resolve(withOwn));
+		await first.service.refresh(CancellationToken.None);
+		const beforeSharing = first.service.ownEnvironmentId.get();
+		first.setOwn('own');
+		first.setSharingState('enabled');
+		await timeout(0);
+		const afterSharing = first.service.ownEnvironmentId.get();
+		const later = fixture(storage);
+		later.setOwn(undefined);
+		void later.setList(Promise.resolve(withOwn));
+		await later.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ beforeSharing, afterSharing, laterWindow: later.service.ownEnvironmentId.get() }, {
+			beforeSharing: undefined, afterSharing: 'own', laterWindow: 'own',
 		});
 	});
 
@@ -290,65 +327,7 @@ suite('Mission Control inventory', () => {
 		});
 	}
 
-	test('remembers this computer registration while sharing is off and clears deleted registrations', async () => {
-		const context = fixture();
-		context.setList(Promise.resolve([host('remote'), host('own')]));
-		await context.service.refresh(CancellationToken.None);
-		context.service.dispose();
-		const reopened = fixture(context.storage);
-		reopened.setOwn(undefined);
-		await reopened.service.initialize();
-		reopened.setList(Promise.resolve([host('remote'), host('own')]));
-		await reopened.service.refresh(CancellationToken.None);
-		const whileOff = reopened.service.ownEnvironmentId.get();
-		reopened.setList(Promise.resolve([host('remote')]));
-		await reopened.service.refresh(CancellationToken.None);
-		assert.deepStrictEqual({
-			whileOff,
-			afterDeletion: reopened.service.ownEnvironmentId.get(),
-		}, {
-			whileOff: 'own',
-			afterDeletion: undefined,
-		});
-	});
-
-	test('persists a registration that becomes ready before sharing is disabled', async () => {
-		const context = fixture();
-		context.setOwn(undefined);
-		await context.service.initialize();
-		context.setOwn('new-own');
-		context.setSharing('enabled');
-		await timeout(0);
-		context.setOwn(undefined);
-		context.setSharing('disabled');
-		assert.deepStrictEqual({
-			ownEnvironmentId: context.service.ownEnvironmentId.get(),
-			stored: context.storage.get(`missionControl.ownEnvironment.v1.${encodeURIComponent(firstAccount)}`, StorageScope.PROFILE),
-		}, {
-			ownEnvironmentId: 'new-own',
-			stored: 'new-own',
-		});
-	});
-
-	test('adopts an own-environment ID persisted by another window before reconciling deletion', async () => {
-		const sharedStorage = store.add(new InMemoryStorageService());
-		const stale = fixture(sharedStorage);
-		stale.setOwn(undefined);
-		await stale.service.initialize();
-		const writer = fixture(sharedStorage);
-		await writer.service.initialize();
-		stale.setList(Promise.resolve([host('remote'), host('own')]));
-		await stale.service.refresh(CancellationToken.None);
-		assert.deepStrictEqual({
-			ownEnvironmentId: stale.service.ownEnvironmentId.get(),
-			stored: sharedStorage.get(`missionControl.ownEnvironment.v1.${encodeURIComponent(firstAccount)}`, StorageScope.PROFILE),
-		}, {
-			ownEnvironmentId: 'own',
-			stored: 'own',
-		});
-	});
-
-	test('identifies a native host whose registration becomes ready during discovery', async () => {
+	test('identifies a native host whose registration becomes ready during discovery as this computer', async () => {
 		const { service, setList, setOwn, calls } = fixture();
 		const inventory = new DeferredPromise<readonly IMissionControlEnvironment[]>();
 		const listed = setList(inventory.p);
@@ -357,11 +336,7 @@ suite('Mission Control inventory', () => {
 		setOwn('remote');
 		await inventory.complete([host('remote')]);
 		await refresh;
-		assert.deepStrictEqual({ hosts: service.hosts.get().map(host => host.id), ownEnvironmentId: service.ownEnvironmentId.get(), connects: calls.connects }, {
-			hosts: ['remote'],
-			ownEnvironmentId: 'remote',
-			connects: [],
-		});
+		assert.deepStrictEqual({ hosts: service.hosts.get().map(host => host.id), own: service.ownEnvironmentId.get(), connects: calls.connects }, { hosts: ['remote'], own: 'remote', connects: [] });
 	});
 
 	test('restores account/profile-local metadata before network and preserves rename on refresh', async () => {
@@ -390,6 +365,106 @@ suite('Mission Control inventory', () => {
 			storedFields: ['id', 'kind', 'name', 'status'],
 		});
 	});
+
+	for (const status of ['online', 'offline']) {
+		test(`cached online availability is not discovered until a fresh ${status} response`, async () => {
+			const first = fixture();
+			await first.service.refresh(CancellationToken.None);
+			first.service.dispose();
+			const reopened = fixture(first.storage);
+			await reopened.service.initialize();
+			const snapshot = () => ({
+				status: reopened.service.hosts.get()[0]?.status,
+				online: [...reopened.service.discoveredOnlineHostIds.get()],
+			});
+			const cached = snapshot();
+			const response = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+			const listed = reopened.setList(response.p);
+			const refresh = reopened.service.refresh(CancellationToken.None);
+			await listed;
+			const pending = snapshot();
+			await response.complete([host('remote', 'Machine', status)]);
+			await refresh;
+			assert.deepStrictEqual({ cached, pending, refreshed: snapshot() }, {
+				cached: { status: 'online', online: [] },
+				pending: { status: 'online', online: [] },
+				refreshed: { status, online: status === 'online' ? ['remote'] : [] },
+			});
+		});
+	}
+
+	test('failed startup discovery retains cached UI and manual admission without confirming cached availability', async () => {
+		const first = fixture();
+		await first.service.refresh(CancellationToken.None);
+		first.service.dispose();
+		const reopened = fixture(first.storage);
+		await reopened.service.initialize();
+		reopened.setList(Promise.reject(new Error('Inventory unavailable')));
+		await assert.rejects(reopened.service.refresh(CancellationToken.None), /Inventory unavailable/);
+		await reopened.service.connect('remote', CancellationToken.None);
+		assert.deepStrictEqual({
+			hosts: reopened.service.hosts.get(),
+			online: [...reopened.service.discoveredOnlineHostIds.get()],
+			lookups: reopened.calls.lookups,
+			connects: reopened.calls.connects.length,
+		}, { hosts: [{ ...host('remote'), displayName: undefined }], online: [], lookups: ['remote'], connects: 1 });
+	});
+
+	test('storage updates cannot turn a freshly offline host into a discovered online host', async () => {
+		const context = fixture();
+		context.setList(Promise.resolve([host('remote', 'Machine', 'offline')]));
+		await context.service.refresh(CancellationToken.None);
+		context.storage.store(`missionControl.userLocalHosts.v1.${encodeURIComponent(firstAccount)}.remote.metadata`,
+			JSON.stringify(host('remote')), StorageScope.PROFILE, StorageTarget.MACHINE);
+		assert.deepStrictEqual({
+			status: context.service.hosts.get()[0].status,
+			online: [...context.service.discoveredOnlineHostIds.get()],
+		}, { status: 'online', online: [] });
+	});
+
+	for (const change of ['account', 'disable'] as const) {
+		test(`${change} invalidates discovered availability and rejects an old in-flight response`, async () => {
+			const first = fixture();
+			await first.service.refresh(CancellationToken.None);
+			first.service.dispose();
+			const context = fixture(first.storage);
+			await context.service.refresh(CancellationToken.None);
+			const before = [...context.service.discoveredOnlineHostIds.get()];
+			const oldResponse = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+			const oldListed = context.setList(oldResponse.p);
+			const oldRefresh = context.service.refresh(CancellationToken.None);
+			const rejected = assert.rejects(oldRefresh, CancellationError);
+			await oldListed;
+			const newResponse = new DeferredPromise<readonly IMissionControlEnvironment[]>();
+			const newListed = context.setList(newResponse.p);
+			if (change === 'account') {
+				context.changeAccount(secondAccount);
+			} else {
+				context.availability.set(false, undefined);
+				context.availability.set(true, undefined);
+			}
+			await newListed;
+			const pending = {
+				hosts: context.service.hosts.get().map(host => host.id),
+				online: [...context.service.discoveredOnlineHostIds.get()],
+			};
+			await oldResponse.complete([host('remote')]);
+			await rejected;
+			const afterOldResponse = [...context.service.discoveredOnlineHostIds.get()];
+			const refresh = context.service.refresh(CancellationToken.None);
+			await newResponse.complete([host('remote', 'Current', 'offline')]);
+			await refresh;
+			assert.deepStrictEqual({
+				before, pending, afterOldResponse,
+				online: [...context.service.discoveredOnlineHostIds.get()],
+				status: context.service.hosts.get()[0].status,
+			}, {
+				before: ['remote'],
+				pending: { hosts: change === 'account' ? [] : ['remote'], online: [] },
+				afterOldResponse: [], online: [], status: 'offline',
+			});
+		});
+	}
 
 	test('previously hidden hosts are restored and connectable without losing local names', async () => {
 		const { service, storage, calls } = fixture();
@@ -575,9 +650,8 @@ suite('Mission Control inventory', () => {
 		const signedOut = service.hosts.get();
 		const firstAgain = fixture(storage);
 		await firstAgain.service.initialize();
-		assert.deepStrictEqual({ switched, secondHosts, signedOut, ownEnvironmentId: service.ownEnvironmentId.get(), firstAgain: firstAgain.service.hosts.get() }, {
+		assert.deepStrictEqual({ switched, secondHosts, signedOut, firstAgain: firstAgain.service.hosts.get() }, {
 			switched: [], secondHosts: [{ ...host('remote'), displayName: undefined }], signedOut: [],
-			ownEnvironmentId: undefined,
 			firstAgain: [{ ...host('remote'), displayName: 'First account label' }],
 		});
 	});

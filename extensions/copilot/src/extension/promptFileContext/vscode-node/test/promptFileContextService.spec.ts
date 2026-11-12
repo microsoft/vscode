@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from 'chai';
-import { suite, test } from 'vitest';
+import { assert, suite, test } from 'vitest';
 import { getAgentFileContext, getAgentFileTarget } from '../promptFileContextService';
 
 suite('PromptFileContextContribution', () => {

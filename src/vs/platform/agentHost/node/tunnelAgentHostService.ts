@@ -221,6 +221,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 			}
 		} catch (err) {
 			this._logService.error(`${LOG_PREFIX} Failed to enumerate tunnels`, err);
+			throw err;
 		}
 
 		if (additionalTunnelNames) {
@@ -242,6 +243,7 @@ export class TunnelAgentHostMainService extends Disposable implements ITunnelAge
 					}
 				} catch (err) {
 					this._logService.warn(`${LOG_PREFIX} Failed to look up tunnel '${tunnelName}'`, err);
+					throw err;
 				}
 			}
 		}

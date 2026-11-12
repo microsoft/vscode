@@ -53,6 +53,7 @@ import { COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUS
 import { isPromptTypeBlocked, StrictPluginOnlyCustomization } from '../../customizationLockdown.js';
 import { isAgentPluginForceEnabledByPolicy } from '../../plugins/agentPluginEnablement.js';
 import { ChatConfiguration } from '../../constants.js';
+import { isValidSlashCommandName, sanitizeSlashCommandName } from '../utils/promptsServiceUtils.js';
 
 /**
  * Maximum number of prompt files to read in parallel during discovery.
@@ -147,7 +148,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	/**
 	 * Cached file locations commands. Caching only happens if the corresponding `fileLocatorEvents` event is used.
 	 */
-	private readonly cachedFileLocations: { [key in PromptsType]?: Promise<readonly IPromptPath[]> } = {};
+	private readonly cachedFileLocations: { [key in PromptsType]?: CachedPromise<readonly IPromptPath[]> } = {};
 
 	/**
 	 * Lazily created events that notify listeners when the file locations for a given prompt type change.
@@ -194,22 +195,22 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const onDidChangeExtensionPromptFiles = this.extensionPromptFiles.onDidChange;
 		const onDidChangeBundledPromptFiles = Event.any(this._onDidPluginPromptFilesChange.event, this.onDidChangeBuiltinPromptFiles);
 		this._register(onDidChangeBundledPromptFiles(type => {
-			this.cachedFileLocations[type] = undefined;
+			this.cachedFileLocations[type]?.refresh();
 		}));
 		const onDidChangeCustomizationLockdown = Event.filter(this.configurationService.onDidChangeConfiguration,
 			e => e.affectsConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG) || e.affectsConfiguration(COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG));
 		this._register(onDidChangeCustomizationLockdown(() => {
-			this.cachedFileLocations[PromptsType.agent] = undefined;
-			this.cachedFileLocations[PromptsType.skill] = undefined;
-			this.cachedFileLocations[PromptsType.hook] = undefined;
-			this.cachedFileLocations[PromptsType.instructions] = undefined;
+			this.cachedFileLocations[PromptsType.agent]?.refresh();
+			this.cachedFileLocations[PromptsType.skill]?.refresh();
+			this.cachedFileLocations[PromptsType.hook]?.refresh();
+			this.cachedFileLocations[PromptsType.instructions]?.refresh();
 			this._onDidChangeAgentInstructions.fire();
 		}));
 
 		// Invalidate the cached file location list whenever an extension contribution
 		// or provider for the same type changes (or its `when` re-evaluates).
 		this._register(onDidChangeExtensionPromptFiles(e => {
-			this.cachedFileLocations[e.type] = undefined;
+			this.cachedFileLocations[e.type]?.refresh();
 		}));
 
 		const modelChangeEvent = this._register(new ModelChangeTracker(this.modelService)).onDidPromptChange;
@@ -316,7 +317,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 
 			this._pluginPromptFilesByType.set(PromptsType.hook, hookFiles);
-			this.cachedFileLocations[PromptsType.hook] = undefined;
+			this.cachedFileLocations[PromptsType.hook]?.refresh();
 			this._onDidPluginHooksChange.fire();
 		}));
 	}
@@ -360,7 +361,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!event) {
 			event = this.fileLocatorEvents[type] = this._register(this.fileLocator.createFilesUpdatedEvent(type)).event;
 			this._register(event(() => {
-				this.cachedFileLocations[type] = undefined;
+				this.cachedFileLocations[type]?.refresh();
 			}));
 		}
 		return event;
@@ -379,23 +380,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		const cached = this.cachedFileLocations[type];
-		if (cached) {
-			return cached;
-		}
-		// Drop the entry if the computation fails (e.g. it was cancelled), otherwise a
-		// cancelled scan would stay cached as a permanent empty result.
-		const listPromise: Promise<readonly IPromptPath[]> = this.computeListPromptFiles(type, token).catch(err => {
-			if (this.cachedFileLocations[type] === listPromise) {
-				this.cachedFileLocations[type] = undefined;
-			}
-			throw err;
-		});
 		if (!this.fileLocatorEvents[type]) {
-			return listPromise;
+			return this.computeListPromptFiles(type, token);
 		}
-		this.cachedFileLocations[type] = listPromise;
-		return listPromise;
+		// Session disposal must not cancel discovery shared with another session.
+		const cached = this.cachedFileLocations[type] ??= this._register(new CachedPromise(
+			token => this.computeListPromptFiles(type, token),
+			() => Event.None,
+		));
+		return cached.get(token);
 	}
 
 	private async computeListPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
@@ -675,7 +668,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public isValidSlashCommandName(command: string): boolean {
-		return command.match(/^[\p{L}\d_\-\.:]+$/u) !== null;
+		return isValidSlashCommandName(command);
 	}
 
 	public hasPromptSlashCommand(name: string): boolean {
@@ -714,8 +707,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private asChatPromptSlashCommand(argumentHint: string | undefined, userInvocable: boolean | undefined, promptPath: IPromptPath): IChatPromptSlashCommand {
-		let name = promptPath.name ?? getCleanPromptName(promptPath.uri);
-		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
+		const name = sanitizeSlashCommandName(promptPath.name ?? getCleanPromptName(promptPath.uri));
 		return {
 			uri: promptPath.uri,
 			name: name,
@@ -1790,7 +1782,8 @@ export namespace CustomAgent {
 		if (target === Target.Claude && tools) {
 			tools = mapClaudeTools(tools);
 		}
-		return { id, uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
+		const reasoningEffort = ast.header.reasoningEffort;
+		return { id, uri, name, description, model, ...(reasoningEffort !== undefined ? { reasoningEffort } : {}), ...(ast.header.modelPolicy ? { modelPolicy: ast.header.modelPolicy } : {}), tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source, sessionTypes, hooks, enabled };
 
 	}
 }

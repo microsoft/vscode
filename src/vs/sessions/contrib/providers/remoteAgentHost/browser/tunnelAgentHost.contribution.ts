@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { derived, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import * as nls from '../../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -19,32 +19,17 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { logTunnelConnectAttempt, logTunnelConnectResolved, logTunnelDiscoveryResult, TunnelDiscoveryTrigger } from '../../../../common/sessionsTelemetry.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
-import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
+import { logTunnelConnectAttempt, logTunnelConnectResolved, logTunnelDiscoveryResult, TunnelDiscoveryTrigger } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
+import { watchForIncompatibleNotifications } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 
 /** Minimum interval between silent status checks (5 minutes). */
 const STATUS_CHECK_INTERVAL = 5 * 60 * 1000;
-const LOCAL_TUNNEL_REGISTRATION_KEY = 'tunnelAgentHost.localRegistrationTunnelId';
-
-export function resolveLocalTunnelRegistrationId(
-	discoveredTunnels: readonly Pick<ITunnelInfo, 'tunnelId'>[] | undefined,
-	rememberedTunnelId: string | undefined,
-	status: TunnelStatus,
-): string | undefined {
-	if (status.type === 'connected' && status.info.tunnelId) {
-		return status.info.tunnelId;
-	}
-	if (!discoveredTunnels) {
-		return rememberedTunnelId;
-	}
-	return rememberedTunnelId && discoveredTunnels.some(tunnel => tunnel.tunnelId === rememberedTunnelId)
-		? rememberedTunnelId
-		: undefined;
-}
+/** The tunnel this computer last hosted, so it stays identifiable while remote connections are off. */
+const LOCAL_TUNNEL_ID_KEY = 'tunnelAgentHost.localTunnelId';
 
 export class TunnelAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
@@ -58,9 +43,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private _lastStatusCheck = 0;
 	private readonly _hostedTunnelSuppressions = new Set<string>();
 	private _remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
-	private _lastDiscoveredTunnels: readonly Pick<ITunnelInfo, 'tunnelId'>[] | undefined;
-	private readonly _localRegistrationTunnelId = observableValue<string | undefined>(this, undefined);
 	private _hasReceivedRemoteTunnelStatus = false;
+	private readonly _localTunnelId = observableValue<string | undefined>(this, undefined);
 	/**
 	 * `false` until the first {@link _silentStatusCheck} resolves. Until then
 	 * we keep newly-created providers in the `Connecting` state so the picker
@@ -88,9 +72,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	) {
 		super();
 
-		this._localRegistrationTunnelId.set(this._storageService.get(LOCAL_TUNNEL_REGISTRATION_KEY, StorageScope.APPLICATION), undefined);
-		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, LOCAL_TUNNEL_REGISTRATION_KEY, this._store)(() => {
-			this._localRegistrationTunnelId.set(this._storageService.get(LOCAL_TUNNEL_REGISTRATION_KEY, StorageScope.APPLICATION), undefined);
+		this._localTunnelId.set(this._storageService.get(LOCAL_TUNNEL_ID_KEY, StorageScope.APPLICATION), undefined);
+		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, LOCAL_TUNNEL_ID_KEY, this._store)(() => {
+			this._localTunnelId.set(this._storageService.get(LOCAL_TUNNEL_ID_KEY, StorageScope.APPLICATION), undefined);
+			this._syncHostedTunnelSuppression();
 		}));
 		this._syncHostedTunnelSuppression();
 		// Create providers for cached tunnels
@@ -119,7 +104,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._register(this._remoteTunnelService.onDidChangeTunnelStatus(status => {
 			this._hasReceivedRemoteTunnelStatus = true;
 			this._remoteTunnelStatus = status;
-			this._rememberLocalRegistration(status);
+			this._rememberLocalTunnel(status);
 			this._syncHostedTunnelSuppression();
 			void this._silentStatusCheck();
 		}));
@@ -152,7 +137,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		// through the filter service's `rediscover` so the host pill
 		// pulses while the initial automatic discovery is in flight,
 		// then switches to a static label once we know what hosts exist.
-		agentHostFilterService.rediscover();
+		agentHostFilterService.rediscover('automatic');
 	}
 
 	/**
@@ -170,17 +155,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _reconcileProviders(): void {
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
-		const available = this._getProviderTunnels();
-		const cached = enabled ? available : [];
-		const localRegistrationTunnelId = resolveLocalTunnelRegistrationId(this._lastDiscoveredTunnels, this._localRegistrationTunnelId.get(), this._remoteTunnelStatus);
-		if (localRegistrationTunnelId !== this._localRegistrationTunnelId.get()) {
-			if (localRegistrationTunnelId) {
-				this._storageService.store(LOCAL_TUNNEL_REGISTRATION_KEY, localRegistrationTunnelId, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			} else {
-				this._storageService.remove(LOCAL_TUNNEL_REGISTRATION_KEY, StorageScope.APPLICATION);
-			}
-			this._localRegistrationTunnelId.set(localRegistrationTunnelId, undefined);
-		}
+		const cached = enabled ? this._getProviderTunnels() : [];
 		const desiredAddresses = new Set(cached.map(t => `${TUNNEL_ADDRESS_PREFIX}${t.tunnelId}`));
 
 		// Remove providers no longer cached
@@ -208,27 +183,39 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		return isTunnelHosted(this._remoteTunnelStatus.type === 'connected' ? this._remoteTunnelStatus.info : undefined, tunnel);
 	}
 
+	/** Whether the tunnel belongs to this computer, either hosted now or remembered from earlier sharing. */
+	private _isLocalTunnel(tunnel: Pick<ITunnelInfo, 'tunnelId' | 'name'>): boolean {
+		return this._isHostedTunnel(tunnel) || tunnel.tunnelId === this._localTunnelId.get();
+	}
+
 	private async _loadRemoteTunnelStatus(): Promise<void> {
 		const status = await this._remoteTunnelService.getTunnelStatus();
 		if (!this._hasReceivedRemoteTunnelStatus) {
 			this._remoteTunnelStatus = status;
 		}
-		this._rememberLocalRegistration(this._remoteTunnelStatus);
+		this._rememberLocalTunnel(this._remoteTunnelStatus);
 		this._syncHostedTunnelSuppression();
 	}
 
-	private _rememberLocalRegistration(status: TunnelStatus): void {
-		if (status.type !== 'connected' || !status.info.tunnelId || this._localRegistrationTunnelId.get() === status.info.tunnelId) {
-			return;
+	/**
+	 * Remembers the tunnel this computer hosts so its row can be labeled even
+	 * while sharing is off. The ID is kept until this computer hosts a different
+	 * tunnel: discovery can report an empty list on transient failures, and a
+	 * stale ID cannot match another machine's tunnel.
+	 */
+	private _rememberLocalTunnel(status: TunnelStatus): void {
+		const tunnelId = status.type === 'connected' ? status.info.tunnelId : undefined;
+		if (tunnelId && tunnelId !== this._localTunnelId.get()) {
+			this._storageService.store(LOCAL_TUNNEL_ID_KEY, tunnelId, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this._localTunnelId.set(tunnelId, undefined);
 		}
-		this._localRegistrationTunnelId.set(status.info.tunnelId, undefined);
-		this._storageService.store(LOCAL_TUNNEL_REGISTRATION_KEY, status.info.tunnelId, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
+	/** Keeps this computer's own tunnels from auto-connecting, also after sharing stops. */
 	private _syncHostedTunnelSuppression(): void {
 		const hostedTunnelIds = new Set<string>();
 		for (const tunnel of this._tunnelService.getCachedTunnels()) {
-			if (!this._isHostedTunnel(tunnel)) {
+			if (!this._isLocalTunnel(tunnel)) {
 				continue;
 			}
 			hostedTunnelIds.add(tunnel.tunnelId);
@@ -251,7 +238,18 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _createProvider(address: string, name: string): void {
 		const store = new DisposableStore();
-		const provider = this._instantiateProvider(address, name);
+		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
+		const isLocal = derived(this, reader => this._localTunnelId.read(reader) === tunnelId);
+		const provider = this._instantiateProvider({
+			address,
+			name,
+			localRegistration: derived(this, reader => isLocal.read(reader) ? 'devTunnel' : undefined),
+			// This computer's own tunnel runs sessions directly as This Computer.
+			isVisibleInEnvironmentPicker: derived(this, reader => !isLocal.read(reader)),
+			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
+			disconnectOnDemand: () => this._disconnectTunnel(address),
+			removeOnDemand: () => this._removeTunnel(address),
+		});
 		// Surface as "Connecting" until the first silent status check determines
 		// the real state; otherwise the picker
 		// flashes "Offline" for every cached tunnel on startup.
@@ -267,19 +265,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._providerStores.set(address, store);
 	}
 
-	protected _instantiateProvider(address: string, name: string): RemoteAgentHostSessionsProvider {
-		const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
-		return this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, {
-			address,
-			name,
-			localRegistration: derived(this, reader => this._localRegistrationTunnelId.read(reader) === tunnelId ? 'devTunnel' : undefined),
-			localRegistrationName: observableFromEvent(this, this._tunnelService.onDidChangeTunnels, () => this._tunnelService.getCachedTunnels().find(tunnel => tunnel.tunnelId === tunnelId)?.name),
-			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
-			disconnectOnDemand: () => this._disconnectTunnel(address),
-			removeOnDemand: () => this._removeTunnel(address),
-		},
-		);
+	protected _instantiateProvider(config: IRemoteAgentHostSessionsProviderConfig): RemoteAgentHostSessionsProvider {
+		return this._instantiationService.createInstance(RemoteAgentHostSessionsProvider, config);
 	}
 
 	// -- Connection status --
@@ -426,7 +413,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 		for (const tunnel of this._tunnelService.getCachedTunnels()) {
-			if (this._isHostedTunnel(tunnel) || this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
+			if (this._isLocalTunnel(tunnel) || this._tunnelService.isAutoConnectSuppressed(tunnel.tunnelId)) {
 				continue;
 			}
 			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
@@ -501,7 +488,6 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		const cached = this._tunnelService.getCachedTunnels();
 		if (onlineTunnels) {
-			this._lastDiscoveredTunnels = onlineTunnels;
 			const onlineIds = new Set(onlineTunnels.map(t => t.tunnelId));
 			// Remove cached tunnels that no longer exist on the account
 			for (const tunnel of cached) {
@@ -522,7 +508,6 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 					this._tunnelService.cacheTunnel(tunnel, 'github');
 				}
 			}
-			this._reconcileProviders();
 
 			// Update online/offline status based on hostConnectionCount for
 			// tunnels that do not currently have a service-owned connection.
@@ -536,14 +521,16 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 				const tunnelId = address.slice(TUNNEL_ADDRESS_PREFIX.length);
 				const info = onlineTunnelMap.get(tunnelId);
-				if (info && info.hostConnectionCount > 0) {
+				if (info && info.hostConnectionCount !== undefined && info.hostConnectionCount > 0) {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
 
 				} else {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 					// Host is not online — drop any cached sessions we were
 					// showing for it so the UI doesn't list stale entries.
-					provider.unpublishCachedSessions();
+					if (!info || info.hostConnectionCount === 0) {
+						provider.unpublishCachedSessions();
+					}
 				}
 			}
 
@@ -553,7 +540,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._updateConnectionStatuses();
 
 		const totalFound = onlineTunnels?.length ?? 0;
-		const withActiveHost = onlineTunnels?.filter(t => t.hostConnectionCount > 0).length ?? 0;
+		const withActiveHost = onlineTunnels?.filter(t => t.hostConnectionCount !== undefined && t.hostConnectionCount > 0).length ?? 0;
 		this._logService.info(
 			`[TunnelAgentHost] Silent status check (${resolvedTrigger}): totalFound=${totalFound}, withActiveHost=${withActiveHost}, cachedBefore=${cachedBefore}, autoConnect=${autoConnectEnabled}`
 		);

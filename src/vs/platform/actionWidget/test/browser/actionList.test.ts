@@ -203,34 +203,6 @@ function createActionList(disposables: ReturnType<typeof ensureNoDisposablesAreL
 suite('ActionListWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('the header name is keyboard-operable without selecting a method', () => {
-		let renames = 0;
-		let selections = 0;
-		let dismissals = 0;
-		const widget = createActionListWidget(disposables, {
-			onSelect: () => selections++,
-			onHide: () => dismissals++,
-			listOptions: {
-				headerText: 'Shared as Workstation',
-				headerAction: toAction({ id: 'rename', label: 'Workstation', tooltip: 'Rename Remote Environment', run: () => renames++ }),
-			},
-		});
-		widget.domNode.parentElement!.prepend(widget.headerContainer!);
-		widget.focus();
-		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
-		const link = widget.headerContainer!.querySelector<HTMLElement>('.monaco-link')!;
-		dispatchKeyDown(list, { key: 'Tab' });
-		const tabFocus = isActiveElement(link);
-		dispatchKeyDown(link, { key: 'Enter', keyCode: 13 });
-		dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
-		const returned = isActiveElement(list);
-		dispatchKeyDown(list, { key: 'Tab' });
-		dispatchKeyDown(link, { key: 'Tab' });
-		assert.deepStrictEqual({ tabFocus, returned, renames, selections, dismissals, text: widget.headerContainer?.textContent }, {
-			tabFocus: true, returned: true, renames: 1, selections: 0, dismissals: 1, text: 'Shared as Workstation',
-		});
-	});
-
 	test('the footer name is independently keyboard-operable without selecting a row', () => {
 		let renames = 0;
 		let selections = 0;
@@ -309,6 +281,50 @@ suite('ActionListWidget', () => {
 			before: widget.footerContainer?.firstChild?.textContent,
 			link: widget.footerContainer?.querySelector('.monaco-link')?.textContent,
 		}, { before: 'Registered as GitHub environment \'', link: 'GitHub' });
+	});
+
+	test('the header name is reached with Shift+Tab from the list and describes the list', () => {
+		let renames = 0;
+		const widget = createActionListWidget(disposables, {
+			listOptions: {
+				showFilter: false,
+				headerText: 'Will be shared as: Workstation',
+				headerAction: toAction({ id: 'rename', label: 'Workstation', tooltip: 'Rename Remote Environment', run: () => renames++ }),
+				footerText: 'Policy footer',
+			},
+		});
+		widget.focus();
+		const list = widget.domNode.querySelector<HTMLElement>('.monaco-list')!;
+		const link = widget.headerContainer!.querySelector<HTMLElement>('.monaco-link')!;
+		const forwardFromList = dispatchKeyDown(list, { key: 'Tab' });
+		const reverseFromList = dispatchKeyDown(list, { key: 'Tab', shiftKey: true });
+		const reverseFocusedLink = isActiveElement(link);
+		const reverseFromLink = dispatchKeyDown(link, { key: 'Tab', shiftKey: true });
+		const forwardFromLink = dispatchKeyDown(link, { key: 'Tab' });
+		const forwardFocusedList = isActiveElement(list);
+		link.click();
+		const headerText = widget.headerContainer!.querySelector('.action-list-header-text')!;
+		assert.deepStrictEqual({
+			forwardFromList: forwardFromList.defaultPrevented,
+			reverseFromList: reverseFromList.defaultPrevented,
+			reverseFocusedLink,
+			reverseFromLink: reverseFromLink.defaultPrevented,
+			forwardFromLink: forwardFromLink.defaultPrevented,
+			forwardFocusedList,
+			renames,
+			text: headerText.textContent,
+			describedBy: list.getAttribute('aria-describedby'),
+		}, {
+			forwardFromList: false,
+			reverseFromList: true,
+			reverseFocusedLink: true,
+			reverseFromLink: false,
+			forwardFromLink: true,
+			forwardFocusedList: true,
+			renames: 1,
+			text: 'Will be shared as: Workstation',
+			describedBy: `${headerText.id} ${widget.footerContainer!.id}`,
+		});
 	});
 
 	test('label icons are decorative, preserve the selection icon, and reset when a row is reused', () => {
@@ -797,6 +813,25 @@ suite('ActionListWidget', () => {
 			assert.deepStrictEqual({ selected, opened, keyboardFocused, retained, elapsed, closedOnCompletion: panel.style.display === 'none' }, {
 				selected: [], opened: true, keyboardFocused: true, retained: true, elapsed: true, closedOnCompletion: true,
 			});
+		});
+	}
+
+	for (const zoom of [1, 1.25]) {
+		test(`fractional hover content fits its panel at ${zoom} zoom`, () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('details'), hover: { content: 'Details about this action', expandable: true } }],
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.style.zoom = String(zoom);
+			widget.domNode.style.fontFamily = 'monospace';
+			widget.domNode.style.letterSpacing = '0.01px';
+			widget.domNode.style.setProperty('--vscode-editorHoverWidget-border', 'transparent');
+			widget.focus();
+			widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			const paragraph = widget.domNode.querySelector('.action-list-submenu-hover-header p')!;
+			const range = document.createRange();
+			range.selectNodeContents(paragraph);
+			assert.strictEqual(range.getClientRects().length, 1);
 		});
 	}
 

@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { localize } from '../../../../../nls.js';
 
 const $ = DOM.$;
 
@@ -28,6 +29,10 @@ export interface ICustomizationGroupHeaderEntry {
 	readonly isFirst: boolean;
 	readonly description: string;
 	collapsed: boolean;
+}
+
+export function getCustomizationGroupAriaLabel(label: string, count: number, description: string): string {
+	return localize('customizationGroupAriaLabel', "{0}, {1} items. {2}", label, count, description);
 }
 
 interface ICustomizationGroupHeaderTemplateData {

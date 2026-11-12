@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeHex } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -93,6 +94,13 @@ export interface ISSHAgentHostConfig {
 	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
 }
 
+/** Configured hosts resolve their connection settings in the node-side connect attempt. */
+export type SSHAgentHostConnectionRequest = ISSHAgentHostConfig | {
+	readonly sshConfigHost: string;
+	readonly name: string;
+	readonly userInitiated?: boolean;
+};
+
 /**
  * Compute the stable per-host key used to key in-flight SSH connections,
  * the shared endpoint-selection request/candidates, and this host's
@@ -111,6 +119,66 @@ export function computeSSHConnectionKey(config: { sshConfigHost?: string; userna
 	return config.sshConfigHost
 		? `ssh:${config.sshConfigHost}`
 		: `${config.username}@${config.host}:${config.port ?? 22}`;
+}
+
+interface ISSHRemoteAuthority {
+	readonly hostName: string;
+	readonly user?: string;
+	readonly port?: number;
+}
+
+/** Parses the plain or hex-encoded authority used by Remote - SSH. */
+export function parseSSHRemoteAuthority(remoteAuthority: string): ISSHRemoteAuthority | undefined {
+	if (!remoteAuthority.startsWith('ssh-remote+')) {
+		return undefined;
+	}
+	const host = remoteAuthority.slice('ssh-remote+'.length);
+	return host ? readSSHAuthorityObject(host) ?? parseSSHHostString(host) : undefined;
+}
+
+/** The {@link computeSSHConnectionKey} of a Remote - SSH authority, keying the Agents Window's stored settings for that host. */
+export function getSSHRemoteAuthorityConnectionKey(remoteAuthority: string): string | undefined {
+	const ssh = parseSSHRemoteAuthority(remoteAuthority);
+	if (!ssh) {
+		return undefined;
+	}
+	if (ssh.user === undefined && ssh.port === undefined) {
+		return computeSSHConnectionKey({ sshConfigHost: ssh.hostName });
+	}
+	// Without the user, the key depends on SSH config that cannot be resolved here.
+	return ssh.user === undefined ? undefined : computeSSHConnectionKey({ host: ssh.hostName, username: ssh.user, port: ssh.port });
+}
+
+function readSSHAuthorityObject(host: string): ISSHRemoteAuthority | undefined {
+	try {
+		const value: { hostName?: unknown; user?: unknown; port?: unknown } = JSON.parse(decodeHex(host).toString());
+		if (typeof value?.hostName !== 'string' || !value.hostName) {
+			return undefined;
+		}
+		return {
+			hostName: value.hostName,
+			user: typeof value.user === 'string' && value.user ? value.user : undefined,
+			port: typeof value.port === 'number' ? value.port : undefined,
+		};
+	} catch {
+		// Plain host names are not hex-encoded JSON.
+		return undefined;
+	}
+}
+
+/** Mirrors `HostInfo.fromString` of Remote - SSH. An address with more than one colon is an IPv6 address. */
+function parseSSHHostString(host: string): ISSHRemoteAuthority {
+	const { user, address = host } = /^(?:(?<user>.*)@)?(?<address>.+?)$/.exec(host)?.groups ?? {};
+	const toPort = (port: string | undefined) => port ? parseInt(port, 10) : undefined;
+	const bracketed = /^\[(?<hostName>.+?)\](?::(?<port>\d+))?$/.exec(address)?.groups;
+	if (bracketed) {
+		return { hostName: bracketed.hostName, user: user || undefined, port: toPort(bracketed.port) };
+	}
+	if (address.indexOf(':') !== address.lastIndexOf(':')) {
+		return { hostName: address, user: user || undefined };
+	}
+	const withPort = /^(?<hostName>.+?)(?::(?<port>\d+))?$/.exec(address)?.groups;
+	return { hostName: withPort?.hostName ?? address, user: user || undefined, port: toPort(withPort?.port) };
 }
 
 /**
@@ -174,7 +242,7 @@ export interface ISSHRemoteAgentHostService {
 	 *
 	 * Resolves with the connection handle once the agent host is reachable.
 	 */
-	connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection>;
+	connect(config: SSHAgentHostConnectionRequest): Promise<ISSHAgentHostConnection>;
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
@@ -200,8 +268,11 @@ export interface ISSHRemoteAgentHostService {
 	 */
 	listSSHConfigFiles(): Promise<URI[]>;
 
-	/** Resolve full SSH config for a host via `ssh -G`. */
+	/** Resolve current SSH config for a host via a fresh `ssh -G` evaluation. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
+
+	/** See {@link ISSHRemoteAgentHostMainService.checkReachability}. */
+	checkReachability?(host: string, port?: number): Promise<SSHHostReachability>;
 
 	/**
 	 * Re-establish an SSH tunnel on startup for a previously connected host.
@@ -265,6 +336,9 @@ export type SSHStrictHostKeyChecking = 'ask' | 'accept-new' | 'yes' | 'no' | 'of
 export function isSSHStrictHostKeyChecking(value: string): value is SSHStrictHostKeyChecking {
 	return value === 'ask' || value === 'accept-new' || value === 'yes' || value === 'no' || value === 'off';
 }
+
+/** Whether an SSH server answered at a host's address, without signing in. */
+export type SSHHostReachability = 'reachable' | 'unreachable' | 'unknown';
 
 /**
  * Resolved SSH configuration for a host, obtained from `ssh -G`.
@@ -599,8 +673,19 @@ export interface ISSHRemoteAgentHostMainService {
 	/** List the known SSH configuration file URIs (user config always included). */
 	listSSHConfigFiles(): Promise<URI[]>;
 
-	/** Resolve full SSH config for a host via `ssh -G`. */
+	/** Resolve current SSH config for a host via a fresh `ssh -G` evaluation. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
+
+	/**
+	 * Check whether an SSH server answers at a host without signing in. Opens a
+	 * TCP connection to the resolved address and waits for the SSH greeting.
+	 * Hosts reached through `ProxyCommand` or `ProxyJump` can't be checked
+	 * directly and report `unknown`.
+	 *
+	 * @param host An `~/.ssh/config` alias or host name.
+	 * @param port Overrides the configured port.
+	 */
+	checkReachability?(host: string, port?: number): Promise<SSHHostReachability>;
 
 	/**
 	 * Re-establish an SSH tunnel for a previously connected host.

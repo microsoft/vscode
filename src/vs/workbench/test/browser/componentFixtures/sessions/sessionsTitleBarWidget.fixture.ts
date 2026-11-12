@@ -15,28 +15,18 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChat, ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../sessions/common/sessionConfig.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
-// eslint-disable-next-line local/code-import-patterns
-import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
-// eslint-disable-next-line local/code-import-patterns
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../contrib/sessions/common/sessionConfig.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostFilterService } from '../../../../contrib/sessions/common/agentHostFilter.js';
+import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../contrib/sessions/browser/blockedSessions.js';
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
-// eslint-disable-next-line local/code-import-patterns
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
-// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
-// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
+import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
@@ -44,7 +34,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 // Mock helpers
 // ============================================================================
 
-function createMockActiveSession(title: string, workspaceLabel?: string, branch?: string): IActiveSession {
+function createMockActiveSession(title: string, workspaceLabel?: string, branch?: string): ITestSessionWithChat {
 	let workspace: ISessionWorkspace | undefined;
 	if (workspaceLabel) {
 		const label = workspaceLabel;
@@ -71,11 +61,13 @@ function createMockActiveSession(title: string, workspaceLabel?: string, branch?
 		override readonly title: IObservable<string> = constObservable('Current chat');
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 	}();
-	return new class extends mock<IActiveSession>() {
+	return new class extends mock<ITestSessionWithChat>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
+		override readonly isCreated: IObservable<boolean> = constObservable(true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }
@@ -125,7 +117,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 
 interface ITitleBarState {
 	/** The active session whose workspace is shown in the default pill. */
-	activeSession?: IActiveSession;
+	activeSession?: ITestSessionWithChat;
 	chatTabsMode?: SessionsChatTabsMode;
 	/** Number of blocked sessions (drives the orange "N sessions require input"). */
 	blockedCount?: number;
@@ -156,8 +148,9 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 				[SESSIONS_CHAT_TABS_SETTING]: state.chatTabsMode ?? SessionsChatTabsMode.Multiple,
 			}));
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(state.activeSession);
-				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
+				readonly activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(state.activeSession);
+				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
@@ -210,6 +203,8 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		override readonly blockedSessions: IObservable<readonly ISession[]> = constObservable(blocked.map(entry => entry.session));
 		override readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]> = constObservable(blocked);
 	}();
+
+	stubSessionHosts(instantiationService, disposableStore, { session: constObservable(state.activeSession) });
 
 	// A no-op CI-fix model seam: the fixture never clicks "Fix CI", so it only
 	// needs to report no sessions hidden. Supplying it avoids the real model,

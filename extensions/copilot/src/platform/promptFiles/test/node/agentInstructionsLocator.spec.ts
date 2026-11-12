@@ -20,6 +20,7 @@ import { SnapshotSearchService } from '../../../test/node/simulationWorkspaceSer
 import { TestWorkspaceService } from '../../../test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 import { INativeEnvService } from '../../../env/common/envService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { AgentInstructionsLocator } from '../../vscode-node/agentInstructionsLocator';
 import { mockFiles } from './mockFiles';
 import { AgentInstructionFileType, PromptConfig } from '../../common/promptsService';
@@ -101,6 +102,39 @@ suite('AgentInstructionsLocator', () => {
 
 	afterEach(() => {
 		accessor?.dispose();
+	});
+
+	test.each([
+		{ enabled: true, trusted: true, gitEntry: 'directory', includesParent: true },
+		{ enabled: true, trusted: true, gitEntry: 'file', includesParent: true },
+		{ enabled: false, trusted: true, gitEntry: 'directory', includesParent: false },
+		{ enabled: true, trusted: false, gitEntry: 'directory', includesParent: false },
+		{ enabled: true, trusted: true, gitEntry: 'missing', includesParent: false },
+	])('resolves discovery roots (enabled: $enabled, trusted: $trusted, .git: $gitEntry)', async ({ enabled, trusted, gitEntry, includesParent }) => {
+		const gitUri = URI.joinPath(parentFolderUri, '.git');
+		if (gitEntry === 'directory') {
+			fileSystem.mockDirectory(gitUri, []);
+		} else if (gitEntry === 'file') {
+			fileSystem.mockFile(gitUri, 'gitdir: ../main/.git/worktrees/feature');
+		}
+		workspaceService.setTrusted(parentFolderUri, trusted);
+		await configService.setNonExtensionConfig(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, enabled);
+
+		expect(await locator.getWorkspaceFolderRoots()).toEqual(includesParent ? [rootFolderUri, parentFolderUri] : [rootFolderUri]);
+	});
+
+	test('resolves trusted parents of an explicit working directory instead of workspace folders', async () => {
+		const workingDirectory = URI.joinPath(parentFolderUri, 'other/nested');
+		fileSystem.mockDirectory(URI.joinPath(parentFolderUri, '.git'), []);
+		workspaceService.setTrusted(parentFolderUri, true);
+		await configService.setNonExtensionConfig(PromptConfig.USE_CUSTOMIZATIONS_IN_PARENT_REPOS, true);
+
+		const roots = await locator.getWorkspaceFolderRoots([workingDirectory]);
+		expect(roots.map(root => root.toString())).toEqual([
+			workingDirectory,
+			URI.joinPath(parentFolderUri, 'other'),
+			parentFolderUri,
+		].map(root => root.toString()));
 	});
 
 	test('should collect parent folder copilot-instructions.md and AGENTS.md when includeWorkspaceFolderParents is enabled', async () => {

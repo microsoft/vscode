@@ -43,6 +43,15 @@ suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('round trips agent model preferences and ignores malformed optional values', () => {
+		const preferences = { 'vscode.models': ['missing', 'sonnet'], 'vscode.reasoningEffort': 'low', 'vscode.modelPolicy': 'required' as const };
+		assert.deepStrictEqual([
+			readAgentCustomizationMeta(agentCustomization(toAgentCustomizationMeta(preferences))),
+			readAgentCustomizationMeta(agentCustomization({ 'vscode.models': ['sonnet', 42], 'vscode.reasoningEffort': 42, 'vscode.modelPolicy': 'unknown' })),
+			readAgentCustomizationMeta(agentCustomization(undefined)),
+		], [preferences, {}, {}]);
+	});
+
 	test('round trips optional app tool origin and rejects malformed metadata', () => {
 		const tool = withAgentToolOrigin({ name: 'semantic_search', _meta: { unrelated: true } }, 'mcpApp');
 		assert.deepStrictEqual({

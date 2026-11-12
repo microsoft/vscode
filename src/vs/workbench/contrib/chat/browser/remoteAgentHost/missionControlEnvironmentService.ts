@@ -54,6 +54,7 @@ function isHost(value: unknown): value is IMissionControlHost {
 export class MissionControlEnvironmentService extends Disposable implements IMissionControlEnvironmentService {
 	declare readonly _serviceBrand: undefined;
 	readonly hosts = observableValue<readonly IMissionControlHost[]>(this, []);
+	readonly discoveredOnlineHostIds = observableValue<ReadonlySet<string>>(this, new Set());
 	readonly ownEnvironmentId = observableValue<string | undefined>(this, undefined);
 	private _accountKey: string | undefined;
 	private _generation = 0;
@@ -122,7 +123,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		}));
 		this._register(autorun(reader => {
 			if (sharing.state.read(reader) === 'enabled') {
-				void this._captureOwnEnvironmentId();
+				void this._captureOwnEnvironmentId().catch(error => this._reportBackgroundError(error));
 			}
 		}));
 	}
@@ -139,6 +140,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	private get _storagePrefix(): string { return `${INVENTORY_PREFIX}${encodeURIComponent(this._accountKey!)}.`; }
 	private _ownEnvironmentStorageKey(account: string): string { return `${OWN_ENVIRONMENT_PREFIX}${encodeURIComponent(account)}`; }
 
+	/** Remembers this computer's registration so it stays identifiable while sharing is off. */
 	private _setOwnEnvironmentId(account: string, environmentId: string | undefined, persist: boolean): void {
 		if (persist) {
 			const key = this._ownEnvironmentStorageKey(account);
@@ -191,8 +193,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				this._setOwnEnvironmentId(account, own ?? this._storage.get(this._ownEnvironmentStorageKey(account), StorageScope.PROFILE), !!own);
 				this._restore();
 			}
-		} else if (own !== this.ownEnvironmentId.get()) {
-			this._setOwnEnvironmentId(account!, own ?? this.ownEnvironmentId.get(), !!own);
+		} else if (account && own && own !== this.ownEnvironmentId.get()) {
+			this._setOwnEnvironmentId(account, own, true);
 		}
 	}
 
@@ -228,10 +230,10 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		if (account !== currentAccount || refreshGeneration !== this._refreshGeneration) {
 			throw new CancellationError();
 		}
+		// A remembered registration only identifies this computer while the service still lists it.
 		const rememberedOwn = this.ownEnvironmentId.get() ?? this._storage.get(this._ownEnvironmentStorageKey(account), StorageScope.PROFILE);
-		const rememberedOwnStillExists = rememberedOwn !== undefined
-			&& environments.some(environment => environment.kind === 'user-local' && environment.id === rememberedOwn);
-		const own = activeOwn ?? (rememberedOwnStillExists ? rememberedOwn : undefined);
+		const rememberedOwnExists = rememberedOwn !== undefined && environments.some(environment => environment.kind === 'user-local' && environment.id === rememberedOwn);
+		const own = activeOwn ?? (rememberedOwnExists ? rememberedOwn : undefined);
 		this._setOwnEnvironmentId(account, own, activeOwn !== undefined || own === undefined);
 		const previous = new Map(this.hosts.get().map(host => [host.id, host]));
 		const next = new Map<string, IMissionControlHost>();
@@ -246,6 +248,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		}
 		this._replaceHosts([...next.values()]);
 		this._persist();
+		// Publish last so automatic attachment cannot observe fresh admission with cached availability.
+		this.discoveredOnlineHostIds.set(new Set([...next.values()].filter(host => host.status === 'online').map(host => host.id)), undefined);
 	}
 
 	async connect(id: string, token: CancellationToken): Promise<void> {
@@ -474,6 +478,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 
 	private _withdraw(): void {
 		this._generation++;
+		this.discoveredOnlineHostIds.set(new Set(), undefined);
 		this._discoveryCancellation.value?.cancel();
 		this._discoveryCancellation.clear();
 		this._initializing = undefined;

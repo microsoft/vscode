@@ -108,8 +108,8 @@ export interface ITunnelInfo {
 	readonly tags: readonly string[];
 	/** Parsed protocol version from tags. */
 	readonly protocolVersion: number;
-	/** Number of hosts currently accepting connections (0 = offline). */
-	readonly hostConnectionCount: number;
+	/** Number of hosts accepting connections at discovery time; undefined if status was not reported. */
+	readonly hostConnectionCount: number | undefined;
 }
 
 /** How startup auto-connect should establish a tunnel connection. */
@@ -566,6 +566,12 @@ export interface ITunnelAgentHostService {
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
 	/** Requests the configured tunnel permissions without connecting to a host. */
 	signIn?(authProvider: 'github' | 'microsoft'): Promise<void>;
+
+	/**
+	 * The type of the agent host that the tunnel's gateway selected for the current or most recent connection to the
+	 * tunnel at {@link address}, or `undefined` when this service has not connected it or cannot tell.
+	 */
+	getSelectedServerType(address: string): TunnelGatewayServerType | 'unknown' | undefined;
 }
 
 /** Information about an actively hosted tunnel. */

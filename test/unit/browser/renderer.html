@@ -385,13 +385,17 @@
 	</script>
 
 	<script type="text" id="bootstrap">
-		const {data: {modules, grep, rerunTargets, claimTestFiles}, manual} = await globalThis._VSCODE_TEST_RUN
+		const {data: {modules, grep, rerunTargets, claimTestFiles, isolationProbes}, manual} = await globalThis._VSCODE_TEST_RUN
 
 		try {
 			// load
 			const testFiles = claimTestFiles ? parallelTestFiles.trackTestFiles(mocha.suite) : undefined;
 			const { installRegistryLeakCheck } = await import(`../../../${out}/vs/platform/actions/test/common/registryLeakCheck.js`);
 			installRegistryLeakCheck(mocha.suite);
+			const { installIsolationCheck, defaultIsolationDetectors, animationFrameQueueDetector } = await import(`../../../${out}/vs/base/test/browser/isolationCheck.js`);
+			const { menuChangeListenerDetector } = await import(`../../../${out}/vs/platform/actions/test/common/menuChangeListenerDetector.js`);
+			// The animation frame probe changes when queued runners run, so only reporting runs use it.
+			installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...(isolationProbes ? [animationFrameQueueDetector] : [])]);
 			await loadModules(modules);
 			prepareTestsForRerun(rerunTargets);
 			if (testFiles) {

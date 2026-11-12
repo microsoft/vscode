@@ -141,8 +141,6 @@ export const WorkspaceRemoteAgentHostsSettingId = 'chat.workspaceRemoteAgentHost
 
 /** Configuration key to enable remote agent host connections. */
 export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
-export const ManageRemoteAgentHostsCommandId = 'workbench.action.sessions.manageRemoteAgentHosts';
-export const ToggleRemoteConnectionsCommandId = 'sessions.tunnelHost.toggleSharingFromAgents';
 
 /** Configuration key that controls whether online dev tunnels, configured SSH remote agent hosts, and WSL remote agent hosts are auto-connected at startup. */
 export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoConnect';
@@ -275,6 +273,8 @@ export type RemoteAgentHostProtocolClientState = 'connecting' | 'incompatible' |
  */
 export interface IRemoteAgentHostProtocolClient extends IAgentConnection, IDisposable {
 	readonly defaultDirectory: string | undefined;
+	/** Original terminal handshake error, including host-advertised protocol upgrade metadata. */
+	readonly connectionError?: ProtocolError;
 	/** Deadline for the next scheduled reconnect attempt, if one is pending. */
 	readonly nextReconnectAt: number | undefined;
 	readonly onDidClose: Event<AgentHostTransportFailureReason | undefined>;

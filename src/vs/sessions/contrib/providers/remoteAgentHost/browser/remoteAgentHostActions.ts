@@ -25,9 +25,9 @@ import { SnippetController2 } from '../../../../../editor/contrib/snippet/browse
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, ManageRemoteAgentHostsCommandId, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig, type SSHAgentHostConnectionRequest } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -39,33 +39,21 @@ import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remo
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { SessionsCategories } from '../../../../common/categories.js';
-import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../common/sessionsTelemetry.js';
-import { SessionWorkspacePickerGroupContext } from '../../../../common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { confirmTunnelDeletion, runServerUpgrade } from './remoteHostOptions.js';
-import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
-import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
+import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
+import { categorizeSSHConnectError, logSSHConnectAttempt } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { SessionWorkspacePickerGroupContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { confirmTunnelDeletion, runServerUpgrade } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
+import { IConnectionDiagnosticsService } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-
-/** Action / command IDs registered by this file. */
-export const RemoteAgentHostCommandIds = {
-	addRemoteAgentHost: 'sessions.remoteAgentHost.add',
-	connectViaSSH: 'workbench.action.sessions.connectViaSSH',
-	addNewSSHHost: 'workbench.action.sessions.addNewSSHHost',
-	configureSSHHosts: 'workbench.action.sessions.configureSSHHosts',
-	connectViaTunnel: 'workbench.action.sessions.connectViaTunnel',
-	connectViaMissionControl: 'workbench.action.sessions.connectViaMissionControl',
-	connectViaWSL: 'workbench.action.sessions.connectViaWSL',
-	manageRemoteAgentHosts: ManageRemoteAgentHostsCommandId,
-	updateRemoteAgentHost: 'workbench.action.sessions.updateRemoteAgentHost',
-} as const;
+import { RemoteAgentHostCommandIds } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -86,8 +74,8 @@ registerAction2(class extends Action2 {
 
 		// Prompt for address
 		const address = await quickInputService.input({
-			title: localize('addRemoteTitle', "Add Remote Agent Host"),
-			prompt: localize('addRemotePrompt', "Paste a host, host:port, or WebSocket URL. Example: {0}", 'ws://127.0.0.1:8089'),
+			title: localize('addRemoteTitle', "Add remote agent host"),
+			prompt: localize('addRemotePrompt', "Enter the address of an already running remote agent host (host, host:port, or WebSocket URL). Example: {0}", 'ws://127.0.0.1:8089'),
 			placeHolder: 'ws://127.0.0.1:8080?tkn=abc-123',
 			ignoreFocusLost: true,
 			validateInput: async value => {
@@ -112,9 +100,9 @@ registerAction2(class extends Action2 {
 		// Prompt for display name
 		const defaultName = parsed.parsed.suggestedName;
 		const name = await quickInputService.input({
-			title: localize('nameRemoteTitle', "Name Remote Agent Host"),
-			prompt: localize('nameRemotePrompt', "Enter a display name for this remote agent host."),
-			placeHolder: localize('nameRemotePlaceholder', "My Remote"),
+			title: localize('nameRemoteTitle', "Name remote agent host"),
+			prompt: localize('nameRemotePrompt', "Enter a name for this remote agent host."),
+			placeHolder: localize('nameRemotePlaceholder', "My remote"),
 			value: defaultName,
 			valueSelection: [0, defaultName.length],
 			ignoreFocusLost: true,
@@ -136,7 +124,7 @@ registerAction2(class extends Action2 {
 			});
 			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
-			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));
+			notificationService.error(localize('addRemoteFailed', "Couldn't connect to remote agent host {0}.", parsed.parsed.address));
 		}
 	}
 });
@@ -425,20 +413,10 @@ async function connectToConfiguredSSHHost(
 	const port = resolvedConfig.port !== 22 ? resolvedConfig.port : undefined;
 	const suggestedName = hostAlias;
 
-	// Pass through the first resolved IdentityFile (if any) as the explicit
-	// key. The main process is responsible for de-duplicating against its
-	// default-key scan, so we don't need to filter here.
 	const defaultKeyPath = resolvedConfig.identityFile[0];
 
 	if (username) {
-		const config: ISSHAgentHostConfig = {
-			host,
-			port,
-			username,
-			authMethod: SSHAuthMethod.Agent,
-			privateKeyPath: defaultKeyPath,
-			identityAgent: resolvedConfig.identityAgent,
-			agentForward: resolvedConfig.forwardAgent || undefined,
+		const config: SSHAgentHostConnectionRequest = {
 			name: suggestedName,
 			sshConfigHost: hostAlias,
 		};
@@ -471,7 +449,7 @@ async function promptForCredentialsAndConnect(
 
 	if (!username) {
 		const usernameInput = await quickInputService.input({
-			title: localize('sshUsernameTitle', "SSH Username"),
+			title: localize('sshUsernameTitle', "SSH username"),
 			prompt: localize('sshUsernamePrompt', "Enter the username for {0}.", host),
 			placeHolder: 'root',
 			ignoreFocusLost: true,
@@ -486,12 +464,12 @@ async function promptForCredentialsAndConnect(
 	const authPicks: ISSHAuthMethodPickItem[] = [
 		{
 			method: SSHAuthMethod.Agent,
-			label: localize('sshAuthAgent', "SSH Agent"),
+			label: localize('sshAuthAgent', "SSH agent"),
 			description: localize('sshAuthAgentDesc', "Use the running SSH agent for authentication"),
 		},
 		{
 			method: SSHAuthMethod.KeyFile,
-			label: localize('sshAuthKey', "Private Key File"),
+			label: localize('sshAuthKey', "Private key file"),
 			description: localize('sshAuthKeyDesc', "Authenticate with a private key file"),
 		},
 		{
@@ -502,7 +480,7 @@ async function promptForCredentialsAndConnect(
 	];
 
 	const authPicked = await quickInputService.pick(authPicks, {
-		title: localize('sshAuthTitle', "Authentication Method"),
+		title: localize('sshAuthTitle', "Authentication method"),
 		placeHolder: localize('sshAuthPlaceholder', "Choose how to authenticate with {0}", host),
 		ignoreFocusLost: true,
 	});
@@ -516,7 +494,7 @@ async function promptForCredentialsAndConnect(
 
 	if (authMethod === SSHAuthMethod.KeyFile) {
 		const keyPath = await quickInputService.input({
-			title: localize('sshKeyTitle', "Private Key Path"),
+			title: localize('sshKeyTitle', "Private key path"),
 			prompt: localize('sshKeyPrompt', "Enter the path to your SSH private key."),
 			placeHolder: '~/.ssh/id_rsa',
 			value: defaultKeyPath ?? '~/.ssh/id_rsa',
@@ -529,7 +507,7 @@ async function promptForCredentialsAndConnect(
 		privateKeyPath = keyPath.trim();
 	} else if (authMethod === SSHAuthMethod.Password) {
 		const pw = await quickInputService.input({
-			title: localize('sshPasswordTitle', "SSH Password"),
+			title: localize('sshPasswordTitle', "SSH password"),
 			prompt: localize('sshPasswordPrompt', "Enter the password for {0}@{1}.", username, host),
 			password: true,
 			ignoreFocusLost: true,
@@ -543,9 +521,9 @@ async function promptForCredentialsAndConnect(
 
 	const defaultName = suggestedName ?? `${username}@${host}`;
 	const name = await quickInputService.input({
-		title: localize('sshNameTitle', "Name Remote"),
+		title: localize('sshNameTitle', "Name remote"),
 		prompt: localize('sshNamePrompt', "Enter a display name for this SSH remote."),
-		placeHolder: localize('sshNamePlaceholder', "My Remote"),
+		placeHolder: localize('sshNamePlaceholder', "My remote"),
 		value: defaultName,
 		valueSelection: [0, defaultName.length],
 		ignoreFocusLost: true,
@@ -576,7 +554,7 @@ async function promptForCredentialsAndConnect(
 
 export async function connectWithProgress(
 	accessor: ServicesAccessor,
-	config: ISSHAgentHostConfig,
+	config: SSHAgentHostConnectionRequest,
 	displayHost: string,
 ): Promise<string | undefined> {
 	const sshService = accessor.get(ISSHRemoteAgentHostService);
@@ -672,7 +650,7 @@ async function promptForRemoteFolder(
 
 	provider.showInEnvironmentPicker?.();
 	await sessionsService.openNewSession();
-	sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId)?.selectWorkspace(folderUri, { providerId: provider.id });
+	sessionsPartService.getActiveSessionView()?.selectWorkspace(folderUri, { providerId: provider.id });
 }
 
 registerAction2(class extends Action2 {
@@ -681,6 +659,7 @@ registerAction2(class extends Action2 {
 			id: RemoteAgentHostCommandIds.connectViaSSH,
 			title: localize2('connectViaSSH', "Connect to Remote Agent Host via SSH"),
 			shortTitle: localize2('connectViaSSHShort', "SSH..."),
+			tooltip: localize2('connectViaSSHTooltip', "Connect to a computer over SSH"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -909,9 +888,11 @@ async function promptToConnectViaTunnel(
 		.filter(tunnel => !isHostedTunnel(tunnel))
 		.map(tunnel => ({
 			label: tunnel.name,
-			description: tunnel.hostConnectionCount > 0
-				? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
-				: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
+			description: tunnel.hostConnectionCount === undefined
+				? localize('tunnelPickUnknown', "{0} · Status unknown", tunnel.tunnelId)
+				: tunnel.hostConnectionCount > 0
+					? localize('tunnelPickOnline', "{0} · Online", tunnel.tunnelId)
+					: localize('tunnelPickOffline', "{0} · Offline", tunnel.tunnelId),
 			buttons: tunnelService.canDeleteTunnels ? [deleteTunnelButton] : undefined,
 			tunnel,
 		}));
@@ -1125,6 +1106,7 @@ registerAction2(class extends Action2 {
 			id: RemoteAgentHostCommandIds.connectViaTunnel,
 			title: localize2('connectViaTunnel', "Connect to Remote Agent Host via Dev Tunnel"),
 			shortTitle: localize2('connectViaTunnelShort', "Dev Tunnels..."),
+			tooltip: localize2('connectViaTunnelTooltip', "Connect to a computer shared through a dev tunnel"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.remote,
@@ -1295,6 +1277,7 @@ registerAction2(class extends Action2 {
 			id: RemoteAgentHostCommandIds.connectViaWSL,
 			title: localize2('connectViaWSL', "Connect to Remote Agent Host via WSL"),
 			shortTitle: localize2('connectViaWSLShort', "WSL..."),
+			tooltip: localize2('connectViaWSLTooltip', "Run sessions in a WSL distribution on this computer"),
 			category: SessionsCategories.Sessions,
 			f1: true,
 			icon: Codicon.terminalLinux,

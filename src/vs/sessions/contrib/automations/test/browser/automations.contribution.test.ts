@@ -30,11 +30,11 @@ import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IOpenSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../sessions/browser/automationsConstants.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IOpenSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 
 import '../../browser/automations.contribution.js';
 
@@ -383,29 +383,23 @@ suite('Automations Contribution', () => {
 
 		test('dismisses the notification after exactly ten seconds', async () => {
 			const clock = useFakeTimers();
-			try {
-				const { state, run } = setup();
-				await run();
-				clock.tick(9_999);
-				const beforeTimeout = state.closed;
-				clock.tick(1);
-				assert.deepStrictEqual({ beforeTimeout, afterTimeout: state.closed }, { beforeTimeout: 0, afterTimeout: 1 });
-			} finally {
-				clock.restore();
-			}
+			store.add(toDisposable(() => clock.restore()));
+			const { state, run } = setup();
+			await run();
+			clock.tick(9_999);
+			const beforeTimeout = state.closed;
+			clock.tick(1);
+			assert.deepStrictEqual({ beforeTimeout, afterTimeout: state.closed }, { beforeTimeout: 0, afterTimeout: 1 });
 		});
 
 		test('closing the notification cancels its dismissal timer', async () => {
 			const clock = useFakeTimers();
-			try {
-				const { state, notification, run } = setup();
-				await run();
-				notification.close();
-				clock.tick(10_000);
-				assert.strictEqual(state.closed, 1);
-			} finally {
-				clock.restore();
-			}
+			store.add(toDisposable(() => clock.restore()));
+			const { state, notification, run } = setup();
+			await run();
+			notification.close();
+			clock.tick(10_000);
+			assert.strictEqual(state.closed, 1);
 		});
 
 		test('reports an error if the run cannot be opened', async () => {

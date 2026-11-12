@@ -6,8 +6,9 @@
 import { createHash, randomUUID } from 'crypto';
 import { link, mkdir, open, readFile, realpath } from 'fs/promises';
 import { join } from '../../../../base/common/path.js';
-import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
-import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
+import { disposableLongTimeout, raceTimeout, Sequencer, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { combinedDisposable, Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import type { Event } from '../../../../base/common/event.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { Promises as FSPromises } from '../../../../base/node/pfs.js';
@@ -24,6 +25,7 @@ import { MissionControlProtocolServer, type IMissionControlRelayDetails, type IM
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { MissionControlOwnerMismatchError } from '../../common/missionControlEnvironment.js';
 
 interface IEnvironmentResponse {
 	readonly id: string;
@@ -125,6 +127,7 @@ export class MissionControlEnvironment extends Disposable {
 	private readonly _mirrorSource = this._register(new MutableDisposable<IDisposable>());
 	private _mirrorEnvironment: string | undefined;
 	private readonly _configuration = new Sequencer();
+	private readonly _configurationWait = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _heartbeat = this._register(new MutableDisposable<IDisposable>());
 	private _heartbeatNotBefore = 0;
 	private _nextHeartbeatAt = 0;
@@ -136,7 +139,9 @@ export class MissionControlEnvironment extends Disposable {
 	private _roots: readonly string[] = [];
 	private _initialRoots: readonly string[] | undefined;
 	private _environment: IEnvironmentResponse | undefined;
+	private _registration: { readonly id: string; readonly options: IMissionControlOptions } | undefined;
 	private _currentCheckIn: { readonly generation: number; readonly operation: Promise<boolean> } | undefined;
+	private readonly _checkIns = new Set<Promise<boolean>>();
 	private _generation = 0;
 	private _configurationEpoch = 0;
 	private _policyRefresh = 0;
@@ -175,15 +180,32 @@ export class MissionControlEnvironment extends Disposable {
 	}
 
 	/** Renderer withdrawals identify their requested account; unbound withdrawal is reserved for process-owned cleanup. */
-	configure(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+	configure(options: IMissionControlOptions | undefined, withdrawingAccountId?: string, deleteRegistration = false): Promise<void> {
 		if (!options) {
-			if (withdrawingAccountId !== undefined && this._ownerAccount !== undefined && withdrawingAccountId !== this._ownerAccount) {
+			if (deleteRegistration && withdrawingAccountId === undefined
+				|| withdrawingAccountId !== undefined && this._ownerAccount !== undefined && withdrawingAccountId !== this._ownerAccount) {
 				return Promise.reject(new Error('Only the Agent Host owner can withdraw Mission Control registration'));
 			}
 			const registered = this._environment;
 			const previous = this._options;
+			const checkingIn = [...this._checkIns];
 			this._withdraw();
 			return this._configuration.queue(async () => {
+				if (deleteRegistration) {
+					await Promise.all(checkingIn.map(operation => operation.catch(this._host.onError)));
+					const registration = this._registration && previous ? { ...this._registration, options: previous } : this._registration;
+					if (registration) {
+						this._registration = registration;
+						await this._request(
+							`cmc_internal/api/agents/environments/${encodeURIComponent(registration.id)}`,
+							undefined, registration.options, 'DELETE',
+						);
+						if (this._registration === registration) {
+							this._registration = undefined;
+						}
+					}
+					return;
+				}
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
 					await this._request(
 						`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`,
@@ -233,6 +255,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._configurationEpoch++;
 		this._generation++;
 		this._options = undefined;
+		this._configurationWait.clear();
 		this._environment = undefined;
 		this._roots = [];
 		this._initialRoots = undefined;
@@ -266,7 +289,7 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control requires a safe origin, credential, account, and project roots');
 		}
 		if (this._ownerAccount && this._ownerAccount !== options.accountId) {
-			throw new Error('Agent Host already belongs to another local account; restart the process to change owners');
+			throw new MissionControlOwnerMismatchError('Agent Host already belongs to another local account; restart the process to change owners');
 		}
 		const identityApiBase = this._getIdentityApiBase();
 		if (options.live && (new URL(identityApiBase).protocol !== 'https:' || (this._identityApiBase && this._identityApiBase !== identityApiBase))) {
@@ -280,7 +303,7 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('GitHub identity authority changed during Mission Control configuration');
 		}
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
-			throw new Error('Credential does not match the Agent Host owner');
+			throw new MissionControlOwnerMismatchError('Credential does not match the Agent Host owner');
 		}
 		const roots = await Promise.all(options.roots.map(root => realpath(root)));
 		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(project => realpath(project)));
@@ -318,9 +341,12 @@ export class MissionControlEnvironment extends Disposable {
 				this._recoveryStopped = false;
 				this._requestFailures = 0;
 				this._failureStartedAt = undefined;
-				await this._checkIn();
+				await this._checkInForConfiguration(epoch);
 			} else {
 				this._options = { ...options, roots: this._roots };
+				if (!this._server.value || this._server.value.isClosed) {
+					await this._checkInForConfiguration(epoch);
+				}
 			}
 			await this._host.updateProjects?.();
 			return;
@@ -341,7 +367,7 @@ export class MissionControlEnvironment extends Disposable {
 				}
 				this._sealing.value = new MissionControlSealing();
 			}
-			await this._checkIn();
+			await this._checkInForConfiguration(epoch);
 		} catch (error) {
 			if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 				throw error;
@@ -449,23 +475,29 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _request(path: string, body?: Record<string, unknown>, options = this._options): Promise<unknown> {
-		const operation = path.endsWith('/register') ? 'register' : path.endsWith('/heartbeat') ? 'heartbeat' : path.endsWith('/token') ? 'token' : 'signingKeys';
-		return traceConnectionOperation(this._host.onDiagnostic, operation, () => this._doRequest(path, body, options));
+	private async _request(path: string, body?: Record<string, unknown>, options = this._options, method?: 'DELETE'): Promise<unknown> {
+		const operation = method === 'DELETE' ? 'unregister' : path.endsWith('/register') ? 'register' : path.endsWith('/heartbeat') ? 'heartbeat' : path.endsWith('/token') ? 'token' : 'signingKeys';
+		return traceConnectionOperation(this._host.onDiagnostic, operation, () => this._doRequest(path, body, options, method));
 	}
 
-	private async _doRequest(path: string, body: Record<string, unknown> | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
+	private async _doRequest(path: string, body: Record<string, unknown> | undefined, options: IMissionControlOptions | undefined, method?: 'DELETE'): Promise<unknown> {
 		if (!options) {
 			throw new Error('Mission Control is disabled');
 		}
 		const generation = this._generation;
 		const response = await this._host.fetch(new URL(path, `${options.baseUrl.replace(/\/$/, '')}/`), {
-			method: body ? 'POST' : 'GET',
+			method: method ?? (body ? 'POST' : 'GET'),
 			headers: { Authorization: `Bearer ${options.credential}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
 			body: body ? JSON.stringify(body) : undefined,
 			redirect: 'error',
 			signal: AbortSignal.timeout(15_000),
 		});
+		if (method === 'DELETE' && (response.status === 204 || response.status === 404)) {
+			return undefined;
+		}
+		if (method === 'DELETE' && response.ok) {
+			throw new Error(`Mission Control environment deletion returned unexpected status (${response.status})`);
+		}
 		if (path.endsWith('/heartbeat')) {
 			if (response.ok) {
 				this._nextHeartbeatAt = Date.now() + heartbeatInterval;
@@ -511,15 +543,39 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _checkIn(): Promise<void> {
+	private async _checkInForConfiguration(epoch: number): Promise<void> {
+		const wait = new DisposableStore();
+		this._configurationWait.value = wait;
+		const token = cancelOnDispose(wait);
+		try {
+			await this._checkIn(token);
+		} catch (error) {
+			if (!token.isCancellationRequested || epoch === this._configurationEpoch && !this._store.isDisposed) {
+				throw error;
+			}
+		} finally {
+			if (this._configurationWait.value === wait) {
+				this._configurationWait.clear();
+			}
+		}
+	}
+
+	private async _checkIn(waitForRetry?: CancellationToken): Promise<void> {
 		if (!this._recoveryStopped && this._failureStartedAt !== undefined && Date.now() - this._failureStartedAt >= MISSION_CONTROL_RETRY_BUDGET_MS) {
 			this._recoveryStopped = true;
 			this._host.onError(new Error('Mission Control request retry budget exhausted; reconfigure the environment to reconnect.'));
 		}
 		if (this._recoveryStopped) {
+			if (waitForRetry) {
+				throw new Error('Mission Control request recovery stopped; reconfigure the environment to reconnect.');
+			}
 			return;
 		}
 		if (Date.now() < this._requestNotBefore) {
+			if (waitForRetry) {
+				await timeout(this._requestNotBefore - Date.now(), waitForRetry);
+				return this._checkIn(waitForRetry);
+			}
 			this._heartbeat.value = disposableLongTimeout(() => {
 				this._heartbeat.clear();
 				this._checkIn().catch(this._host.onError);
@@ -530,11 +586,12 @@ export class MissionControlEnvironment extends Disposable {
 		if (this._currentCheckIn?.generation === generation) {
 			await this._currentCheckIn.operation;
 			if (generation === this._generation && this._options && this._appliedPolicyRefresh !== this._policyRefresh) {
-				return this._checkIn();
+				return this._checkIn(waitForRetry);
 			}
 			return;
 		}
 		const operation = traceConnectionOperation(this._host.onDiagnostic, 'checkIn', () => this._doCheckIn());
+		this._checkIns.add(operation);
 		const current = { generation, operation };
 		this._currentCheckIn = current;
 		try {
@@ -560,6 +617,7 @@ export class MissionControlEnvironment extends Disposable {
 			}
 			throw error;
 		} finally {
+			this._checkIns.delete(operation);
 			if (this._currentCheckIn === current) {
 				this._currentCheckIn = undefined;
 			}
@@ -651,9 +709,6 @@ export class MissionControlEnvironment extends Disposable {
 			return false;
 		}
 		const reply = await this._request(path, body, options);
-		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
-			return false;
-		}
 		const response = parseEnvironment(reply);
 		if (response.user_id !== this._canonicalOwner || (this._environment && (response.id !== this._environment.id || response.owner_id !== this._environment.owner_id))) {
 			throw new Error('Mission Control environment owner changed');
@@ -661,6 +716,13 @@ export class MissionControlEnvironment extends Disposable {
 		parseGroupName(response.webpubsub.groups.control, { expected: { uid: response.user_id, eid: response.id } });
 		if (!response.webpubsub.groups.control.endsWith('.control')) {
 			throw new Error('Mission Control returned an invalid control lane');
+		}
+		// Keep late registration replies available for an explicit opt-out queued behind this check-in.
+		if (register) {
+			this._registration = { id: response.id, options };
+		}
+		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
+			return false;
 		}
 		this._environment = response;
 		if (options.live && this._host.createMirror && (!this._mirror.value || this._mirrorEnvironment !== response.id)) {

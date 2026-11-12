@@ -1,0 +1,282 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.remotes-this-computer {
+	display: flex;
+	flex-direction: column;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.remotes-this-computer.sharing-expanded {
+	height: 100%;
+}
+
+.remotes-this-computer-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.remotes-this-computer-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	flex-shrink: 0;
+	min-width: 0;
+	padding-inline-start: var(--vscode-spacing-size240);
+}
+
+.remotes-this-computer.sharing-expanded .remotes-this-computer-heading,
+.remotes-this-computer.sharing-expanded .remotes-this-computer-header {
+	display: none;
+}
+
+.remotes-this-computer-summary {
+	min-width: 0;
+	flex: 1;
+}
+
+.remotes-this-computer-name-row {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	min-height: 28px;
+}
+
+.remotes-this-computer-title {
+	flex-shrink: 0;
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	white-space: nowrap;
+}
+
+.remotes-this-computer-name {
+	margin: 0;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.5;
+}
+
+.remotes-this-computer-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	margin-top: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-foreground);
+}
+
+.remotes-this-computer:not(.sharing-active) .remotes-this-computer-status [role="status"] {
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-this-computer-system {
+	color: var(--vscode-descriptionForeground);
+	padding-inline-end: var(--vscode-spacing-size80);
+	margin-inline-end: var(--vscode-spacing-size40);
+	border-inline-end: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+
+.remotes-this-computer-name {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.remotes-this-computer-description {
+	margin: 0 0 var(--vscode-spacing-size240);
+	line-height: 1.5;
+}
+
+.remotes-this-computer-share {
+	display: flex;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size80);
+	margin-inline-start: auto;
+}
+
+.remotes-this-computer-share > .monaco-button {
+	width: auto;
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.remotes-this-computer-heading > .codicon,
+.remotes-sharing-status-icon {
+	flex-shrink: 0;
+}
+
+.remotes-this-computer-heading > .codicon {
+	width: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.remotes-this-computer-share .monaco-button-dropdown {
+	width: auto;
+}
+
+.remotes-this-computer-share .monaco-text-button {
+	white-space: nowrap;
+}
+
+.remotes-this-computer.sharing-active .remotes-sharing-status-icon > .codicon {
+	color: var(--vscode-focusBorder);
+}
+
+.remotes-sharing-status-icon {
+	display: flex;
+}
+
+.remotes-sharing-status-icon > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.remotes-this-computer-rename {
+	flex-shrink: 0;
+}
+
+.remotes-this-computer-rename[hidden],
+.remotes-this-computer-header .monaco-button[hidden],
+.remotes-this-computer-share .monaco-button-dropdown[hidden],
+.remotes-sharing-footer .monaco-button[hidden],
+.remotes-sharing-details[hidden] {
+	display: none;
+}
+
+.remotes-sharing-feedback-container[hidden],
+.remotes-sharing-preview[hidden] {
+	display: none;
+}
+
+.remotes-sharing-feedback-container {
+	margin-top: var(--vscode-spacing-size160);
+}
+
+.remotes-sharing-feedback-container.sharing-failed {
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-errorBorder);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-inputValidation-errorBackground);
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+}
+
+.remotes-sharing-feedback-container.sharing-failed .remotes-sharing-feedback {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.remotes-sharing-details {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	margin-top: 0;
+}
+
+.remotes-sharing-scroll {
+	flex: 1;
+	min-height: 0;
+}
+
+.remotes-sharing-body {
+	padding-inline-start: var(--vscode-spacing-size320);
+	padding-bottom: var(--vscode-spacing-size160);
+}
+
+.remotes-sharing-type-field {
+	margin-bottom: var(--vscode-spacing-size240);
+}
+
+.remotes-sharing-help {
+	margin: var(--vscode-spacing-size240) 0 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+}
+
+.remotes-sharing-feedback {
+	margin: 0;
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.remotes-sharing-question {
+	margin: 0 0 var(--vscode-spacing-size120);
+}
+
+.remotes-sharing-choice-description,
+.remotes-sharing-choice-detail {
+	flex-basis: 100%;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+	margin: 0;
+}
+
+.remotes-sharing-choice-description {
+	padding-inline-start: var(--vscode-spacing-size200);
+	list-style: disc;
+}
+
+.remotes-sharing-choice-description > li + li {
+	margin-top: var(--vscode-spacing-size60);
+}
+
+.remotes-sharing-preview {
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 18px;
+	flex-shrink: 0;
+}
+
+.remotes-sharing-policy:not([hidden]) {
+	display: flex;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size60);
+}
+
+.remotes-sharing-footer {
+	display: flex;
+	flex-shrink: 0;
+	justify-content: flex-start;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size160);
+}
+
+.remotes-sharing-footer > .monaco-button {
+	width: auto;
+}
+
+.remotes-sharing-name-field {
+	max-width: 420px;
+}
+
+.remotes-sharing-name-field > label {
+	display: block;
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.remotes-sharing-name-hint {
+	margin: var(--vscode-spacing-size40) 0 0;
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.5;
+	color: var(--vscode-descriptionForeground);
+}
+
+.remotes-sharing-name-hint.not-applicable {
+	visibility: hidden;
+}

@@ -40,7 +40,7 @@ suite('CompressedObjectTree', function () {
 		test('small', function () {
 			const decompressed: ICompressedTreeElement<number> = { element: 1 };
 			const compressed: IResolvedCompressedTreeElement<ICompressedTreeNode<number>> =
-				{ element: { elements: [1], incompressible: false } };
+			{ element: { elements: [1], incompressible: false } };
 
 			assert.deepStrictEqual(resolve(compress(decompressed)), compressed);
 			assert.deepStrictEqual(resolve(decompress(compressed)), decompressed);

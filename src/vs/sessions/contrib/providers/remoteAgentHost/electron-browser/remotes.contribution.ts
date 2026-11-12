@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -14,61 +15,114 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../../workbench/browser/editor.js';
 import { EditorExtensions } from '../../../../../workbench/common/editor.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionsCategories } from '../../../../common/categories.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { RemotesEditorInput } from '../browser/remotesEditorInput.js';
-import { RemotesEditor, RemotesEditorFocusedContext } from './remotesEditor.js';
-import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { OPEN_REMOTES_EDITOR_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
+import { IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { RemotesEditorInput } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesEditorInput.js';
+import { RemotesDetailsExpandedContext } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remotesWidget.js';
+import { RemotesEditor, RemotesEditorFocusedContext, RemotesSharingExpandedContext } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/electron-browser/remotesEditor.js';
+import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(RemotesEditor, RemotesEditor.ID, localize('remotes.editorLabel', "Remote Environments")),
 	[new SyncDescriptor(RemotesEditorInput)],
 );
 
+const remotesEnabled = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
+	ContextKeyExpr.equals(`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`, true),
+	ContextKeyExpr.equals(`config.${ENVIRONMENT_PICKER_SETTING}`, true),
+);
+
+async function openRemotesEditor(accessor: ServicesAccessor): Promise<void> {
+	if (!accessor.get(IConfigurationService).getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
+		throw new Error(localize('remotes.managementDisabled', "Remote Environments management is disabled."));
+	}
+	if (!accessor.get(IConfigurationService).getValue<boolean>(ENVIRONMENT_PICKER_SETTING)) {
+		throw new Error(localize('remotes.environmentPickerDisabled', "The environment picker is disabled."));
+	}
+	if (!accessor.get(IConfigurationService).getValue<boolean>(RemoteAgentHostsEnabledSettingId) || accessor.get(IChatEntitlementService).sentiment.hidden) {
+		throw new Error(localize('remotes.editorDisabled', "Remote agent hosts are disabled."));
+	}
+	await accessor.get(IEditorService).openEditor(RemotesEditorInput.getOrCreate(), { pinned: true });
+}
+
 registerAction2(class extends Action2 {
 	constructor() {
-		const enabled = ContextKeyExpr.and(
-			ChatContextKeys.enabled,
-			ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true),
-			ContextKeyExpr.equals(`config.${ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING}`, true),
-			ContextKeyExpr.equals(`config.${ENVIRONMENT_PICKER_SETTING}`, true),
-		);
 		super({
 			id: OPEN_REMOTES_EDITOR_COMMAND_ID,
 			title: localize2('remotes.openEditor', "Manage Remote Environments"),
 			category: SessionsCategories.Sessions,
 			icon: Codicon.remote,
 			f1: true,
-			precondition: enabled,
+			precondition: remotesEnabled,
 			menu: {
 				id: Menus.SidebarSessionsHeader,
 				group: '2_manage',
 				order: 0,
-				when: ContextKeyExpr.and(enabled, IsPhoneLayoutContext.negate()),
+				when: ContextKeyExpr.and(remotesEnabled, IsPhoneLayoutContext.negate()),
 			},
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		if (!accessor.get(IConfigurationService).getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING)) {
-			throw new Error(localize('remotes.managementDisabled', "Remote Environments management is disabled."));
+		await openRemotesEditor(accessor);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.remotes.closeDetails',
+			title: localize2('remotes.closeDetails', "Close Environment Details"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, RemotesEditorFocusedContext, RemotesDetailsExpandedContext),
+			keybinding: {
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.SessionsContrib + 1,
+				when: ContextKeyExpr.and(RemotesEditorFocusedContext, RemotesDetailsExpandedContext),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const editor = accessor.get(IEditorService).activeEditorPane;
+		if (editor instanceof RemotesEditor) {
+			editor.closeEnvironmentDetails();
 		}
-		if (!accessor.get(IConfigurationService).getValue<boolean>(ENVIRONMENT_PICKER_SETTING)) {
-			throw new Error(localize('remotes.environmentPickerDisabled', "The Environment picker is disabled."));
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.remotes.collapseSharing',
+			title: localize2('remotes.collapseSharing', "Collapse Sharing Options"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, RemotesEditorFocusedContext, RemotesSharingExpandedContext),
+			keybinding: {
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.SessionsContrib,
+				when: ContextKeyExpr.and(RemotesEditorFocusedContext, RemotesSharingExpandedContext),
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const editor = accessor.get(IEditorService).activeEditorPane;
+		if (editor instanceof RemotesEditor) {
+			editor.collapseSharing();
 		}
-		if (!accessor.get(IConfigurationService).getValue<boolean>(RemoteAgentHostsEnabledSettingId) || accessor.get(IChatEntitlementService).sentiment.hidden) {
-			throw new Error(localize('remotes.editorDisabled', "Remote agent hosts are disabled."));
-		}
-		await accessor.get(IEditorService).openEditor(RemotesEditorInput.getOrCreate(), { pinned: true });
 	}
 });
 
@@ -85,18 +139,27 @@ class RemotesAccessibleView implements IAccessibleViewImplementation {
 			return undefined;
 		}
 		const focused = dom.getActiveElement();
+		if (this.type === AccessibleViewType.Help) {
+			// The help describes the This Computer section only in the treatment arm.
+			logSettingExperimentTrigger(accessor.get(ITelemetryService), REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
+		}
+		const showThisComputer = accessor.get(IConfigurationService).getValue<boolean>(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Remotes,
 			{ type: this.type },
 			() => this.type === AccessibleViewType.Help ? [
-				localize('remotes.help.overview', "Remote Environments lists known SSH hosts and Dev Tunnels in a table grouped by connection type. Open it with Manage Remote Environments in the Command Palette, from the Sessions section's More Actions menu, or with Manage Remote Environments in the Environment picker. WSL distributions are also available on Windows. When enabled and available, GitHub Environments lists known user-shared machines, including offline machines. The columns are Name, Connection, and Actions."),
-				localize('remotes.help.environments', "For GitHub Environments, Connect is disabled when the owning application is offline. Disconnect retains the environment and follows its existing reconnection preferences. Rename applies only to the current account and profile. Delete asks for confirmation before removing the user-shared environment registration and disconnecting this client. It does not delete files on the machine. The environment can reappear if its owning application registers it again. The GitHub Environments gear opens its settings."),
-				localize('remotes.help.navigation', "Type in Search to filter remotes by name, address, or connection type. Clear Search and Collapse All are at the right of the search field; use Tab to reach these actions and Left and Right Arrow to move between them. Clear Search returns focus to the input. Collapse All preserves the search text. Groups without matches are hidden while searching. Use Down Arrow from Search to enter the table. Use Up and Down Arrow to navigate rows. On a group, use Left and Right Arrow to collapse or expand it, or press Enter to toggle it. Visibility icons are always shown; other row actions appear on hover or keyboard focus. On a remote, press Tab to reach its actions and use Left and Right Arrow to move between Connect or Disconnect and Rename. Use Enter or Space to activate an action. Resize columns by dragging their boundaries. Narrow windows scroll horizontally."),
-				localize('remotes.help.connection', "The This Computer section shows this application's remote sharing state and its registration name. Its Remote Connections dropdown offers the same sharing choices as the title-bar antenna. Use Tab to reach sharing and rename actions. Sharing does not change direct local session access. The table's Connection column describes this window: Connected, Connecting, Reconnecting, Disconnected, or Incompatible. A separate Host online, Host offline, or Host availability unknown label reports the last known backend availability. Refresh checks availability without connecting. This Computer badges identify registrations by stable identity. A warning preserves a user-requested connection error; hover it or open Accessible View for details. Connect and Disconnect manage this client's connection, not host sharing. An offline user-shared environment must be started in its owning application; connecting does not provision compute."),
-				localize('remotes.help.visibility', "Use the eye action at the start of an eligible remote row to show or hide it in the Environment and workspace pickers. Focus the row and press Tab, then Enter or Space to toggle it. Hidden remotes remain in this editor with a dimmed name and a Show action. Remotes that cannot currently appear have a disabled unavailable indicator instead of an eye; hover it or open the Accessible View for the reason. Newly discovered remotes must first be connected, and offline shared environments must come online. Your hidden preference is retained while a remote is unavailable. Choosing a folder through a remote subpicker shows that remote again. Hiding a remote does not prevent sending an existing draft when the remote is available and connected. This preference is local to your profile on this machine and does not connect, disconnect, or remove sessions."),
-				localize('remotes.help.manage', "Rename changes the remote's display name in this client. Leave the name empty to restore its default. Copy Address copies a remote's connection address without connecting, including while it is offline or busy. SSH and tunnel rows offer Change Preferred Agent Location, which uses the existing choice of a dedicated process or remote editor window and reconnects after saving. Cancelling leaves the preference unchanged. Incompatible hosts offer Update Server when they advertise an update method. This reports progress and reconnects after the server restarts. Environment and supported tunnel rows also offer Delete with confirmation. Deleting a tunnel removes its service-side registration and disconnects its clients, without deleting remote files. A tunnel currently hosted by this application must be stopped before it can be deleted. A deleted tunnel may reappear if a machine starts hosting it again. Saved SSH connections offer Delete only after discovery confirms the host is absent from SSH configuration. Deleting one asks for confirmation, forgets the saved connection, and disconnects this client without editing SSH configuration or remote files. Use the arrow keys to reach these row actions. WSL distributions must be managed at the source."),
-				localize('remotes.help.discovery', "Refresh looks for remotes without connecting. Its icon spins while discovery is running. Each group also shows a spinner after its count while that group's discovery is running. A failed group immediately shows a warning instead of its spinner, even if other groups are still loading. The tooltip and group label explain the problem; the Window log contains diagnostic details. If tunnel sign-in permissions are missing, a Sign In action appears instead of an error. Focus that row and press Tab, then Enter or Space to sign in and grant access to your tunnels. Sign In is disabled with a spinner while sign-in is in progress. This refreshes the list without connecting to a remote. Known locations remain available, and Refresh retries discovery."),
-				localize('remotes.help.setup', "Empty groups show setup guidance and a documentation link. Focus the placeholder row and press Tab to reach its link. Groups with documentation also have an info action that opens the same guide, even when they contain remotes or are collapsed. Focus the group and use Tab and the arrow keys to reach its actions. The SSH settings action opens your user SSH config in a modal editor and creates it if necessary. The Dev Tunnels group has an Open Dev Tunnels Settings action. After configuring a host, return to Remotes and choose Refresh."),
+				localize('remotes.help.overview', "Remote Environments groups environments by status: Connected, Available, and Offline. Select Connect on an available environment to use it. Available includes stopped WSL distributions that Connect can start, and environments whose status couldn't be confirmed but can be tried. Offline environments offer Troubleshoot Connection instead of Connect; bring them online and select Refresh. Select New Session on a connected environment to open the composer with that environment selected. Columns are Name, Connection method, and Actions. Known system, active sessions, and last connection appear below the name. Last connection is from this computer. Historical session counts are available in the details hover, not shown as live counts."),
+				...(showThisComputer ? [localize('remotes.help.thisComputer', "This computer shows its name, operating system, and sharing status. Select Share This Computer to choose GitHub Environment (Preview) or Dev Tunnel. GitHub Environment makes this computer discoverable through your GitHub account for supported Copilot clients. GitHub stores session actions for history; conversation content isn't end-to-end encrypted. Dev Tunnel supports VS Code and the browser-based Agents window. Keep VS Code open and this computer awake and online while sharing. Use arrow keys to choose a method, then Tab to the sharing name and action buttons. Select Start Sharing to apply your choice. Results appear below the buttons and are announced. Cancel, Back, or Escape returns to the overview. Select Stop Sharing to end access from other devices. Select Change Connection Method to choose another method. Change the sharing name other clients see. Open Sharing Log to view sharing activity.")] : []),
+				localize('remotes.help.filters', "Use the connection method filters to show All, GitHub Environment (Preview), Dev Tunnel, WSL, or SSH. Tab to reach the filter toolbar; use Left and Right Arrow to move between filters, then press Enter or Space to apply one."),
+				localize('remotes.help.configureSSH', "To add an SSH host, select Open SSH Configuration. Add or edit a Host entry, save it, then refresh Remote Environments."),
+				localize('remotes.help.environments', "Connect to an online GitHub Environment. Disconnecting keeps the environment and its tasks running. Rename changes its display name in this profile. Remove Environment clears the registration and disconnects this client. The remote computer and its files stay available; the entry returns when sharing resumes."),
+				localize('remotes.help.navigation', "Enter a name, address, or connection method in Search to filter environments. Clear Filter and Collapse All are beside the search field. Use Tab to reach them, then Left and Right Arrow to move between them. Clear Filter resets both Search and the connection method filter and returns focus to Search. Collapse All preserves your search. Search shows groups with matching environments. Use Down Arrow from Search to enter the table, and Up and Down Arrow to navigate rows. Use Left and Right Arrow on a group to collapse or expand it, or press Enter to toggle it. New Session, Connect, Disconnect, and More Actions appear on hover or keyboard focus. On an environment, press Tab to reach these controls. More Actions lists session, connection, and troubleshooting first, then picker visibility, copying, and management. Use Up and Down Arrow to move in a menu and Enter to run an action. Press Escape to close the menu. Drag column boundaries to resize columns. Narrow layouts scroll horizontally."),
+				localize('remotes.help.connection', "Select Troubleshoot Connection to open an environment's connection details and recovery steps. The Status row shows its current connection state and progress during recovery. Recognized SSH errors offer specific steps; an unconfirmed availability check isn't a diagnosis. Available recovery actions include Connect, Retry Connection, Refresh, and Update Server. Progress and results are announced. Additional results appear below the action buttons when needed. Once connected, New Session and Disconnect work just as they do in the environment list. New Session opens the composer with this environment selected; Disconnect leaves its agent tasks running. Copy Report and Open Diagnostic Report have separate feedback in Collect diagnostics and are available in any connection state. Their labels show progress while collecting a report. Open Diagnostic Report closes management and opens the report in the editor; Copy Report keeps management open. Reports may include names, addresses, and local logs for all environments. Review and remove sensitive details before sharing. Back or Escape returns to the environment list."),
+				localize('remotes.help.visibility', "Use Show or Hide in an environment's More actions menu to control its visibility in the environment and workspace pickers, even while it is offline or disconnected. Hidden remotes stay in this editor and show a Show action. Showing an unavailable environment saves your preference without connecting it; it appears in pickers when available. Your choice is saved in this profile. Choose a folder through a remote subpicker to show that remote again."),
+				localize('remotes.help.runBehavior', "SSH and Dev Tunnel rows offer Configure Agent Run Behavior. Under Preferred run behavior, choose Run in the Background for tasks you want to leave running, or Use Remote VS Code to use an open window on the remote computer when available. Agents in that window stop when it closes. Keep the remote computer awake and online while agents work. If a Dev Tunnel is shared by VS Code, keep that remote window open to stay connected. Saved preference marks the saved choice; the selected card shows your changes. Select Save to keep the choice for the next connection without connecting. For a connected environment, select Save and Reconnect to apply the choice immediately. Existing sessions are not moved. Save results appear below the buttons. Select Cancel, Back, or Escape to discard changes and return to the overview."),
+				localize('remotes.help.manage', "Rename changes the environment's display name in this profile. Clear the name to restore the default. Copy Address copies the SSH host for use with Connect via SSH. Update Server appears when supported. Remove Environment clears the GitHub Environment registration and disconnects this client. Forget SSH Connection removes the saved connection; your SSH configuration stays unchanged. Delete Dev Tunnel removes the tunnel registration and disconnects all its clients. Confirm each removal. The remote computer and its files stay available. Manage WSL distributions in WSL."),
+				localize('remotes.help.discovery', "Select Refresh to find environments and check their online status. Dev Tunnels report whether the host is running, GitHub Environments report sharing status, and WSL reports installed distributions that are running. An unanswered SSH check, a saved tunnel missing from discovery, or a failed refresh doesn't prove the environment is offline. These remain available for a connection attempt, with an explanation in the environment's hover. Environments appear once their first check finishes, without a temporary group. If no environments appear, Run and manage remote agent sessions opens the general setup documentation. Filtering by a connection method shows its specific setup guidance. For Dev Tunnels, sign in with the GitHub or Microsoft account used on the remote computer. Known environments stay listed if a refresh fails. When filters have no matches, select Clear Filter to reset Search and the connection method. Use Tab to reach actions and links, or Down Arrow from Search to reach the first empty-state action."),
+				localize('remotes.help.gitHubEnvironment', "When GitHub Environments are enabled and available, connected SSH, WSL, and Dev Tunnel environments whose agent host supports it offer Share as GitHub Environment in More Actions. This registers the remote's agent host for other applications signed in with your GitHub account. The environment keeps its original connection method and shows a GitHub icon beside its name; hover it or open the Accessible View for its sharing state. Sharing continues while this client is disconnected and is restored when the remote's agent host restarts and this client reconnects. Use Stop Sharing in More Actions to stop, including sharing started by another client with the same GitHub account. If another account or the remote itself shares it, the action is unavailable and its label explains why. Removing the environment also stops sharing it."),
 			].join('\n\n') : editor.getAccessibilityContent(),
 			() => dom.isHTMLElement(focused) && focused.isConnected ? focused.focus() : editor.focus(),
 			AccessibilityVerbositySettingId.Remotes,

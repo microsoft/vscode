@@ -22,7 +22,6 @@ paths-ignore:
   - 'extensions/copilot/script/**'
   - 'extensions/copilot/vite.config.ts'
   - 'extensions/esbuild*.mts'
-  - 'extensions/postinstall.mjs'
   - 'extensions/search-result/syntaxes/generateTMLanguage.js'
   - 'gulpfile.mjs'
   - 'scripts/**'

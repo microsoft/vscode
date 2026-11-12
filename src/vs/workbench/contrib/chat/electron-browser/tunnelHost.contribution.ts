@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -16,13 +16,14 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IsSessionsWindowContext, RemoteNameContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
-import { getRemoteTunnelAccessState, RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
+import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
+import { getRemoteTunnelAccessState, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
 
 export const TUNNEL_HOST_SHARING_KEY = 'tunnelHostSharing';
 export const TUNNEL_HOST_SHARING_CONTEXT = new RawContextKey<boolean>(TUNNEL_HOST_SHARING_KEY, false);
@@ -30,26 +31,37 @@ export const TOGGLE_SHARING_ID = 'sessions.tunnelHost.toggleSharing';
 
 const CATEGORY = localize2('tunnelHost.category', 'Remote Connections');
 
-export async function executeToggleRemoteConnections(accessor: ServicesAccessor, startOptions?: IRemoteTunnelStartOptions): Promise<void> {
+export async function executeToggleRemoteConnections(accessor: ServicesAccessor, startOptions?: IRemoteTunnelStartOptions): Promise<RemoteConnectionsToggleResult> {
 	const remoteTunnelService = accessor.get(IRemoteTunnelService);
 	const configurationService = accessor.get(IConfigurationService);
 	if (isGitHubEnvironmentBackend(configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))) {
 		const sharingService = accessor.get(IMissionControlSharingService);
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
-		const enabled = sharingService.state.get() !== 'disabled';
-		try {
-			if (!enabled) {
-				await remoteTunnelService.stopTunnel();
-			}
-			await sharingService.setEnabled(!enabled);
-		} catch (error) {
-			if (!isCancellationError(error)) {
+		const setEnabled = async (enabled: boolean): Promise<RemoteConnectionsToggleResult> => {
+			try {
+				if (enabled) {
+					await remoteTunnelService.stopTunnel();
+				}
+				await sharingService.setEnabled(enabled);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					return 'completed';
+				}
 				logService.error('Failed to toggle GitHub environment sharing', error);
-				notificationService.error(error);
+				if (enabled) {
+					notificationService.error(localize('tunnelHost.enableSharingFailed', "Failed to enable GitHub environment sharing: {0}", getErrorMessage(error)));
+				} else {
+					notificationService.prompt(Severity.Error, localize('tunnelHost.disableSharingFailed', "Failed to disable GitHub environment sharing: {0}", getErrorMessage(error)), [{
+						label: localize('tunnelHost.retryStopSharing', "Retry Stop Sharing"),
+						run: () => setEnabled(false),
+					}]);
+				}
+				return 'failed';
 			}
-		}
-		return;
+			return 'completed';
+		};
+		return setEnabled(sharingService.state.get() === 'disabled');
 	}
 	const commandService = accessor.get(ICommandService);
 	const [mode, status] = await Promise.all([
@@ -63,6 +75,7 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 	} else {
 		await commandService.executeCommand(command);
 	}
+	return 'completed';
 }
 
 export class TunnelHostContribution extends Disposable implements IWorkbenchContribution {
@@ -112,7 +125,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
 			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true, {});
 		};
-		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory, this.remoteTunnelService.onDidChangeTunnelStatus));
+		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory));
 		void this._loadState();
 	}
 
@@ -149,8 +162,8 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 
 	private _updateSharingContext(): void {
 		this._sharingContext.set(isGitHubEnvironmentBackend(this.configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId))
-			? this.missionControlSharingService.state.get() !== 'disabled'
-			: getRemoteTunnelAccessState(this._mode, this._status).isSharing || getRemoteTunnelAccessState(this._mode, this._status).isConnecting);
+			? this.missionControlSharingService.state.get() === 'enabled'
+			: getRemoteTunnelAccessState(this._mode, this._status).isSharing);
 	}
 }
 
@@ -158,14 +171,11 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_SHARING_ID,
-			title: localize2('turnOnRemoteConnections', "Turn On Remote Connections"),
+			title: localize2('toggleSharing', "Allow Remote Connections"),
 			category: CATEGORY,
 			icon: Codicon.radioTower,
 			precondition: ChatContextKeys.enabled,
-			toggled: {
-				condition: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
-				title: localize2('turnOffRemoteConnections', "Turn Off Remote Connections").value,
-			},
+			toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
 			menu: {
 				id: MenuId.ChatInputSecondary,
 				order: 10,
@@ -180,8 +190,8 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		await executeToggleRemoteConnections(accessor);
+	run(accessor: ServicesAccessor): Promise<RemoteConnectionsToggleResult> {
+		return executeToggleRemoteConnections(accessor);
 	}
 });
 

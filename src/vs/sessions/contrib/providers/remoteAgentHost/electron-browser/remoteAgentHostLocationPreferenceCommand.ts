@@ -25,10 +25,10 @@ import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platfo
 import { ChangeRemoteAgentHostLocationPreferenceCommandId } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreferenceDialog.js';
 import { CHAT_CATEGORY } from '../../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { changeRemoteAgentHostLocationPreference } from '../browser/remoteHostOptions.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { changeRemoteAgentHostLocationPreference } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteHostOptions.js';
 
 /** A remote host that can have a preferred agent run location, deduplicated by its stable preference key. */
 export interface IRemoteAgentHostLocationTarget {
@@ -136,7 +136,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ChangeRemoteAgentHostLocationPreferenceCommandId,
-			title: localize2('changeRemoteAgentHostLocationPreference', "Change Preferred Remote Agent Location"),
+			title: localize2('changeRemoteAgentHostLocationPreference', "Configure Remote Agent Run Behavior"),
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ContextKeyExpr.and(

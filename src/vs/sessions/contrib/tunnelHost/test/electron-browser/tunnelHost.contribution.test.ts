@@ -11,7 +11,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import type { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,7 +23,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, type TunnelMode, type TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, RemoteNameContext } from '../../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { RemoteTunnelCommandIds } from '../../../../../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { TOGGLE_SHARING_ID } from '../../../../../workbench/contrib/chat/electron-browser/tunnelHost.contribution.js';
 import { SessionsTunnelHostTitlebarContribution, TOGGLE_SHARING_FROM_AGENTS_ID } from '../../electron-browser/tunnelHost.contribution.js';
@@ -58,18 +57,16 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			.filter(isIMenuItem)
 			.find(item => item.command.id === id);
 
-		assert.strictEqual(findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
+		assert.strictEqual(findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 		assert.strictEqual(CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 
-		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), new TestCommandService(), new TestConfigurationService());
+		const titlebarConfiguration = new TestConfigurationService();
+		store.add(titlebarConfiguration.onDidChangeConfigurationEmitter);
+		const contribution = new SessionsTunnelHostTitlebarContribution(new NullActionViewItemService(), titlebarConfiguration, new TestCommandService());
 
 		const summarize = (menu: MenuId, id: string) => {
 			const item = findToggle(menu, id);
-			const title = item && (typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
-			const toggledTitle = isICommandActionToggleInfo(item?.command.toggled) ? item.command.toggled.title : undefined;
 			return item && {
-				title,
-				toggledTitle,
 				group: item.group,
 				order: item.order,
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
@@ -78,16 +75,14 @@ suite('Sessions - Tunnel Host Contribution', () => {
 
 		try {
 			assert.deepStrictEqual({
-				titlebar: summarize(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
-				workspaceManage: summarize(Menus.SessionWorkspaceManage, TOGGLE_SHARING_FROM_AGENTS_ID),
+				titlebar: summarize(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID),
 				chatInput: summarize(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID),
 			}, {
-				titlebar: { title: 'Turn On Remote Connections', toggledTitle: 'Turn Off Remote Connections', group: 'navigation', order: 90, icon: Codicon.radioTower.id },
-				workspaceManage: undefined,
-				chatInput: { title: 'Turn On Remote Connections', toggledTitle: 'Turn Off Remote Connections', group: 'navigation', order: 10, icon: Codicon.radioTower.id },
+				titlebar: { group: 'navigation', order: 90, icon: Codicon.radioTower.id },
+				chatInput: { group: 'navigation', order: 10, icon: Codicon.radioTower.id },
 			});
 
-			const titlebarToggle = findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
+			const titlebarToggle = findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID);
 			const chatInputToggle = findToggle(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID);
 			if (!titlebarToggle?.when || !chatInputToggle?.when) {
 				assert.fail('remote connections menu items should have when clauses');
@@ -120,7 +115,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			contribution.dispose();
 		}
 
-		assert.strictEqual(findToggle(Menus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
+		assert.strictEqual(findToggle(AgentsWindowMenus.TitleBarRightLayout, TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 		assert.strictEqual(CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID), undefined);
 	});
 
@@ -132,21 +127,17 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configuration);
-		const contribution = new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), commandService, configuration);
+		store.add(new SessionsTunnelHostTitlebarContribution(new NullActionViewItemService(), configuration, commandService));
 
-		try {
-			const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
-			assert.ok(command);
+		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
+		assert.ok(command);
 
-			await instantiationService.invokeFunction(command.handler);
+		await instantiationService.invokeFunction(command.handler);
 
-			assert.deepStrictEqual(commandService.calls, [{
-				id: RemoteTunnelCommandIds.turnOn,
-				args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
-			}]);
-		} finally {
-			contribution.dispose();
-		}
+		assert.deepStrictEqual(commandService.calls, [{
+			id: RemoteTunnelCommandIds.turnOn,
+			args: [{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false }],
+		}]);
 	});
 
 	test('Agents sharing toggle uses Mission Control when selected', async () => {
@@ -164,7 +155,7 @@ suite('Sessions - Tunnel Host Contribution', () => {
 			override readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
 			override async setEnabled(enabled: boolean) { calls.push(enabled); }
 		}());
-		store.add(new SessionsTunnelHostTitlebarContribution(new TestRemoteTunnelService(), new NullActionViewItemService(), new TestCommandService(), new TestConfigurationService()));
+		store.add(new SessionsTunnelHostTitlebarContribution(new NullActionViewItemService(), configuration, commandService));
 		const command = CommandsRegistry.getCommand(TOGGLE_SHARING_FROM_AGENTS_ID);
 		assert.ok(command);
 		await instantiation.invokeFunction(command.handler);

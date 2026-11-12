@@ -91,6 +91,19 @@ namespace RemoteTunnelCommandLabels {
 	export const learnMore = localize('remoteTunnel.actions.learnMore', 'Get Started with Tunnels');
 }
 
+export function validateRemoteTunnelName(input: string): string | undefined {
+	if (input.length === 0) {
+		return undefined;
+	}
+	if (input.length > MAX_TUNNEL_NAME_LENGTH) {
+		return localize('renameTunnel.maxLength', "The name must not be longer than {0} characters.", MAX_TUNNEL_NAME_LENGTH);
+	}
+	if (!TUNNEL_NAME_REGEX.test(input) || input.startsWith('-')) {
+		return localize('renameTunnel.invalidName', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash.");
+	}
+	return undefined;
+}
+
 export async function promptToRenameRemoteTunnel(
 	quickInputService: IQuickInputService,
 	configurationService: IConfigurationService,
@@ -101,18 +114,7 @@ export async function promptToRenameRemoteTunnel(
 		prompt: localize('renameTunnel.prompt', "Enter a name for this tunnel."),
 		value: currentName,
 		placeHolder: localize('renameTunnel.placeholder', "Leave blank to use this machine's host name."),
-		validateInput: async input => {
-			if (input.length === 0) {
-				return undefined;
-			}
-			if (input.length > MAX_TUNNEL_NAME_LENGTH) {
-				return localize('renameTunnel.maxLength', "The name must not be longer than {0} characters.", MAX_TUNNEL_NAME_LENGTH);
-			}
-			if (!TUNNEL_NAME_REGEX.test(input) || input.startsWith('-')) {
-				return localize('renameTunnel.invalidName', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash.");
-			}
-			return undefined;
-		},
+		validateInput: async input => validateRemoteTunnelName(input),
 	});
 
 	if (name !== undefined) {
@@ -760,7 +762,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 				const { confirmed } = await that.dialogService.confirm({ message });
 				if (confirmed) {
-					that.remoteTunnelService.stopTunnel();
+					await that.remoteTunnelService.stopTunnel();
 				}
 			}
 		}));
