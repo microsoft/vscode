@@ -963,7 +963,17 @@ suite('CloudAutomationStore', () => {
 			const refresh = provider.refresh();
 			await initialAccount.complete(resolvedAccount);
 			await refresh;
-			assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'unavailable', calls: [] });
+			assert.deepStrictEqual({
+				state: provider.catalogueState.get(),
+				history: provider.historyState.get(),
+				reason: provider.unavailableReason.get(),
+				calls: api.calls,
+			}, {
+				state: 'unavailable',
+				history: 'unavailable',
+				reason: 'Sign in to GitHub.com and enable cloud automations before continuing.',
+				calls: [],
+			});
 		});
 	}
 
