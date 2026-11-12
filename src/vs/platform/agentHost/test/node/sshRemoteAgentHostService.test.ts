@@ -1920,6 +1920,73 @@ class AuthAttemptsTestService extends SSHRemoteAgentHostMainService {
 	}
 }
 
+suite('SSHRemoteAgentHostMainService - SSH config Includes', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	let directory: string;
+	let service: SSHRemoteAgentHostMainService;
+	let logService: RecordingLogService;
+
+	setup(async () => {
+		directory = await fsp.mkdtemp(join(os.tmpdir(), 'vscode-ssh-includes-'));
+		logService = new RecordingLogService();
+		service = disposables.add(new SSHRemoteAgentHostMainService(
+			logService,
+			{ _serviceBrand: undefined, quality, dataFolderName } as IProductService,
+			NullTelemetryService,
+		));
+	});
+
+	teardown(async () => {
+		await fsp.rm(directory, { recursive: true, force: true });
+	});
+
+	test('discovers the same hosts through quoted and unquoted Include paths', async () => {
+		const file = join(directory, 'ssh_config');
+		await fsp.writeFile(file, 'Host pj-jump pj-target\n');
+		const values = ['ssh_config', '"ssh_config"', JSON.stringify(file)];
+		const hosts: string[][] = [];
+		for (const value of values) {
+			hosts.push(await service['_parseSSHConfigHosts'](`Include ${value}`, directory));
+		}
+		assert.deepStrictEqual(hosts, values.map(() => ['pj-jump', 'pj-target']));
+	});
+
+	test('follows multiple quoted paths, nested Includes and globs without following comments', async () => {
+		const includeDirectory = join(directory, 'included files');
+		const globDirectory = join(directory, 'more configs');
+		await fsp.mkdir(includeDirectory);
+		await fsp.mkdir(globDirectory);
+		const jumpFile = join(includeDirectory, 'jump config');
+		const ignoredFile = join(directory, 'ignored');
+		await fsp.writeFile(jumpFile, 'Host pj-jump\nInclude "nested # config"\n');
+		await fsp.writeFile(join(includeDirectory, 'nested # config'), `Host pj-target\nInclude ${JSON.stringify(jumpFile)}\n`);
+		await fsp.writeFile(join(globDirectory, 'other.conf'), 'Host pj-other\n');
+		await fsp.writeFile(ignoredFile, 'Host must-not-appear\n');
+
+		assert.deepStrictEqual(await service['_parseSSHConfigHosts'](
+			`Include "included files/jump config" ${JSON.stringify(join(globDirectory, '*.conf'))}\t# ${JSON.stringify(ignoredFile)}`,
+			directory,
+		), ['pj-jump', 'pj-target', 'pj-other']);
+	});
+
+	test('warns about malformed Includes and continues discovering other hosts', async () => {
+		const file = join(directory, 'ssh_config');
+		await fsp.writeFile(file, 'Host included\n');
+		const hosts = await service['_parseSSHConfigHosts']([
+			'Host direct',
+			'Include "unterminated',
+			`Include "" ${JSON.stringify(file)}`,
+			`Include ${JSON.stringify(file)}`,
+		].join('\n'), directory);
+
+		assert.deepStrictEqual({ hosts, warnings: logService.warnings.length }, {
+			hosts: ['direct', 'included'],
+			warnings: 2,
+		});
+	});
+});
+
 suite('SSHRemoteAgentHostMainService - resolveSSHConfig', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
