@@ -19,7 +19,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { getHostOfSession, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
@@ -108,6 +108,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -795,9 +796,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return submitted;
 		}
 
-		const widget = await whenChatWidgetForSession(this._chatWidgetService, options?.targetChat ?? sessionResource);
+		const targetChat = options?.targetChat ?? this._getDefaultTargetChat(sessionResource);
+		const widget = await whenChatWidgetForSession(this._chatWidgetService, targetChat);
 		if (!widget) {
-			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', (options?.targetChat ?? sessionResource).toString());
+			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', targetChat.toString());
 			return false;
 		}
 
@@ -826,6 +828,23 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		// covers sessions without that contribution.
 		const nonAgentHostOptions = options?.feedbackIds ? { ...options, feedbackIds: undefined } : options;
 		return this._sendActOnFeedbackRequest(widget, sessionResource, nonAgentHostOptions);
+	}
+
+	/**
+	 * The chat that receives feedback submitted without an explicit target. The
+	 * session's resource names only its main chat, but an Agent Host session can
+	 * have several chats and a host shows one of them at a time, so only the
+	 * shown chat may have a widget. Agent Host feedback is attached to whichever
+	 * chat receives the request. Other providers keep their reactive feedback
+	 * attachment in the widget of the session's own chat, so their requests
+	 * stay there.
+	 */
+	private _getDefaultTargetChat(sessionResource: URI): URI {
+		if (!this.isAgentHostSession(sessionResource)) {
+			return sessionResource;
+		}
+		const host = getHostOfSession(this._sessionHostService, this._sessionsService, sessionResource, this._focusedSessionHostService.getFocusedHost());
+		return host?.chat.get()?.resource ?? sessionResource;
 	}
 
 	/**

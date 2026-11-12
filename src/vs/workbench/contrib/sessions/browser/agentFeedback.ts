@@ -95,7 +95,9 @@ export interface ISubmitFeedbackOptions {
 	/**
 	 * The chat to send the request to, when it differs from the feedback's
 	 * session resource: feedback is read and marked under the session, and the
-	 * request goes to this chat.
+	 * request goes to this chat. Without it, an Agent Host session's request goes
+	 * to the chat a host shows of the session, and other sessions' requests go to
+	 * the session's own chat.
 	 */
 	readonly targetChat?: URI;
 	/** Sends to the explicit target chat without a widget; accepts selected Created comments only on success and rejects on failure. */

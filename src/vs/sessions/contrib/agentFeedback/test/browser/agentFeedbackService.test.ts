@@ -11,7 +11,7 @@ import { ISettableObservable, observableValue } from '../../../../../base/common
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { AgentFeedbackService, shouldIncludeRawPRReviewComments } from '../../browser/agentFeedbackService.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { AgentFeedbackKind, AgentFeedbackState } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
@@ -31,7 +31,7 @@ import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, ITestShownChat, stubFocusedSessionHostFromSessionsService, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 function r(startLine: number, endLine: number = startLine): Range {
 	return new Range(startLine, 1, endLine, 1);
@@ -975,6 +975,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let backgroundChat: IChat;
 	let backgroundCalls: { chat: IChat; options: ISendRequestOptions }[];
 	let backgroundAcceptance: DeferredPromise<void>;
+	/** What the panes of the main window's grid show. */
+	let gridShown: ISettableObservable<readonly ITestShownChat[]>;
 
 	setup(() => {
 		widgetOps = [];
@@ -982,6 +984,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		widgetLookups = [];
 		backgroundCalls = [];
 		backgroundAcceptance = new DeferredPromise<void>();
+		gridShown = observableValue<readonly ITestShownChat[]>('gridShown', []);
 		backgroundChat = new class extends mock<IChat>() {
 			override readonly resource = URI.parse('test:/session/1/peer');
 		}();
@@ -1011,8 +1014,8 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 				await backgroundAcceptance.p;
 			}
 		});
-		instantiationService.stub(ISessionsService, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly ITestSessionWithChat[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []) } as unknown as ISessionsService);
-		stubFocusedSessionHostFromSessionsService(instantiationService);
+		instantiationService.stub(ISessionsService, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly ITestSessionWithChat[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []), gridShown } as unknown as ISessionsService);
+		stubSessionHostsFromSessionsService(instantiationService);
 
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const widget = {
@@ -1216,6 +1219,24 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			state: AgentFeedbackState.Submitted,
 		});
 	});
+
+	for (const agentHost of [true, false]) {
+		test(`submission without a target chat goes to the chat a host shows of an Agent Host session only (agentHost=${agentHost})`, async () => {
+			if (!agentHost) {
+				providerId = 'test-provider';
+			}
+			const shownChat = URI.parse('test://session/1#peer');
+			gridShown.set([{ session: upcastPartial<ISession>({ resource: session }), chat: upcastPartial<IChat>({ resource: shownChat }) }], undefined);
+			service.addFeedback(session, fileA, r(10), 'Please simplify');
+
+			const submitted = await service.submitFeedback(session);
+
+			assert.deepStrictEqual({ submitted, lookups: [...new Set(widgetLookups)] }, {
+				submitted: true,
+				lookups: [(agentHost ? shownChat : session).toString()],
+			});
+		});
+	}
 
 	for (const accepted of [true, false]) {
 		test(`background submission attaches selected feedback without looking up or modifying a widget: ${accepted}`, async () => {
