@@ -20,6 +20,7 @@ import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../common/chatLayout.js';
 import { LEGACY_SESSION_TOOLBAR_SETTING, SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING, DetailsPosition } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ConfigurationKeyValuePairs, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../workbench/common/configuration.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
+import { SessionActivityBarExtensionEntries } from '../../../../workbench/contrib/sessions/browser/parts/sessionActivityBarExtensionEntries.js';
 
 registerSingleton(ISessionEditorWorkingSetService, SessionEditorWorkingSetService, InstantiationType.Delayed);
 
@@ -71,6 +72,7 @@ export class SessionsSidePaneLayoutContribution extends Disposable implements IW
 }
 
 registerWorkbenchContribution2(SessionsSidePaneLayoutContribution.ID, SessionsSidePaneLayoutContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionActivityBarExtensionEntries.ID, SessionActivityBarExtensionEntries, WorkbenchPhase.BlockRestore);
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'sessions',
