@@ -366,14 +366,27 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
 	// Encode each segment so literal percent sequences in file names survive. Colons are valid in
 	// both POSIX paths and Windows drive letters, and must stay literal for relative URLs to resolve.
 	const path = 'file://' + original.path.split('/').map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
-	const suffix = URI.from({ scheme: Schemas.file, path: '/', query: original.query, fragment: uri.fragment }).toString(true).slice('file:///'.length);
+	// Keep the query and fragment exactly as written, since decoding them would change their meaning.
+	// The query of an agent host URL holds the original URL, which is not part of the page URL.
+	const hashIndex = url.indexOf('#');
+	const fragment = hashIndex === -1 ? '' : url.slice(hashIndex);
+	const beforeHash = hashIndex === -1 ? url : url.slice(0, hashIndex);
+	const queryIndex = beforeHash.indexOf('?');
+	const query = uri.scheme === AGENT_HOST_SCHEME
+		? URI.from({ scheme: Schemas.file, path: '/', query: original.query }).toString(true).slice('file:///'.length)
+		: (queryIndex === -1 ? '' : beforeHash.slice(queryIndex));
+	const suffix = query + fragment;
 	return path + suffix;
 }
 
-export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {
-	const targetResource = URI.parse(target);
+/**
+ * Whether navigating to {@link target} stays on the {@link associatedResource}, apart from its query and fragment.
+ * Pass the session's {@link network} when the page can display the resource as a `file:` URL (see {@link remoteUrlToFileUrl}).
+ */
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string, network?: IBrowserViewNetwork): boolean {
+	const targetResource = URI.parse(remoteUrlToFileUrl(network, target));
 	return extUriBiasedIgnorePathCase.isEqual(
-		associatedResource.with({ query: null, fragment: null }),
+		URI.parse(remoteUrlToFileUrl(network, associatedResource.toString())).with({ query: null, fragment: null }),
 		targetResource.with({ query: null, fragment: null })
 	);
 }

@@ -15,8 +15,10 @@ import { IBrowserViewWindowConfiguration } from '../common/browserView.js';
 export interface IRemoteFileTrust<TRoots = ReadonlySet<string>> {
 	readonly roots: TRoots;
 	readonly trustAll: boolean;
-	/** The window whose file service reads the remote's files. */
-	readonly windowId: number;
+	/** Whether the remote's file system ignores path case, as on a Windows remote. */
+	readonly ignoreCase: boolean;
+	/** The windows that contributed to this remote, in order. The first one that is still open reads its files. */
+	readonly windowIds: readonly number[];
 	/** The scheme `windowId` reads them with: `vscode-remote` or `vscode-agent-host`. */
 	readonly scheme: string;
 }
@@ -35,7 +37,7 @@ export interface IFileTrust {
 
 /**
  * Splits the trusted roots of all windows by file system. A remote window's roots and trust-all
- * apply only to its own remote, and agent host roots only to that host, read through the window
+ * apply only to its own remote, and agent host roots only to that host, read through the windows
  * that contributed them. Only `file:` roots apply to the local file system.
  */
 export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrust {
@@ -44,8 +46,9 @@ export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrus
 	const remotes = new Map<string, Mutable<IRemoteFileTrust<Set<string>>>>();
 	for (const { windowId, remoteAuthority, trustAllFiles, trustedFileRoots } of windows) {
 		const remoteKey = remoteAuthority?.toLowerCase();
-		const remote = remoteKey ? getOrSet(remotes, remoteKey, { roots: new Set<string>(), trustAll: false, windowId, scheme: Schemas.vscodeRemote }) : undefined;
+		const remote = remoteKey ? getOrSet(remotes, remoteKey, newRemote(Schemas.vscodeRemote)) : undefined;
 		if (remote) {
+			addWindow(remote, windowId);
 			remote.trustAll ||= trustAllFiles;
 		} else {
 			localTrustAll ||= trustAllFiles;
@@ -55,11 +58,14 @@ export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrus
 			if (root.scheme === Schemas.file) {
 				localRoots.add(root.fsPath);
 			} else if (remote && root.scheme === Schemas.vscodeRemote && root.authority.toLowerCase() === remoteKey) {
-				addRemoteRoot(remote.roots, root.path);
+				addRemoteRoot(remote, root.path);
 			} else if (root.scheme === AGENT_HOST_SCHEME) {
 				const original = fromAgentHostUri(root);
-				if (original.scheme === Schemas.file) {
-					addRemoteRoot(getOrSet(remotes, root.authority.toLowerCase(), { roots: new Set<string>(), trustAll: false, windowId, scheme: AGENT_HOST_SCHEME }).roots, original.path);
+				// A root with an authority (`file://server/share`) is not a path on the host's own file system.
+				if (original.scheme === Schemas.file && !original.authority) {
+					const hostRemote = getOrSet(remotes, root.authority.toLowerCase(), newRemote(AGENT_HOST_SCHEME));
+					addWindow(hostRemote, windowId);
+					addRemoteRoot(hostRemote, original.path);
 				}
 			}
 		}
@@ -67,10 +73,24 @@ export function computeFileTrust(windows: Iterable<IWindowFileTrust>): IFileTrus
 	return { local: { roots: localRoots, trustAll: localTrustAll }, remotes };
 }
 
-/** Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories. */
-function addRemoteRoot(roots: Set<string>, path: string): void {
+function newRemote(scheme: string): Mutable<IRemoteFileTrust<Set<string>>> {
+	return { roots: new Set<string>(), trustAll: false, ignoreCase: false, windowIds: [], scheme };
+}
+
+function addWindow(remote: Mutable<IRemoteFileTrust<Set<string>>>, windowId: number): void {
+	if (!remote.windowIds.includes(windowId)) {
+		remote.windowIds = [...remote.windowIds, windowId];
+	}
+}
+
+/**
+ * Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories.
+ * A root starting with a drive letter (`/c:/repo`) means a Windows remote, whose paths ignore case.
+ */
+function addRemoteRoot(remote: Mutable<IRemoteFileTrust<Set<string>>>, path: string): void {
 	if (!path.includes('\\')) {
-		roots.add(path);
+		remote.roots.add(path);
+		remote.ignoreCase ||= /^\/[a-z]:(\/|$)/i.test(path);
 	}
 }
 

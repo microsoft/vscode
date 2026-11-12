@@ -400,7 +400,7 @@ export class BrowserEditorInput extends EditorInput {
 
 		const currentUrl = this.url;
 		let renamedUrl = currentUrl;
-		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl)) {
+		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, this.network)) {
 			const currentResource = URI.parse(currentUrl);
 			renamedUrl = target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString();
 		}

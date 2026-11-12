@@ -75,7 +75,7 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 }
 
 export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string): string | undefined {
-	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target)) {
+	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target, editor.network)) {
 		return undefined;
 	}
 

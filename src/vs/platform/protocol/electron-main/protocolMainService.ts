@@ -16,7 +16,7 @@ import { isUNCAccessAllowed } from '../../../base/node/unc.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
 import { NodeRemoteResourceResponse } from '../../remote/common/electronRemoteResources.js';
-import { createManagedRemoteResourceRequestHandler } from './managedRemoteResourceProtocol.js';
+import { createManagedRemoteResourceRequestHandler, createManagedRemoteResourceUriHandler } from './managedRemoteResourceProtocol.js';
 import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 
@@ -28,6 +28,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
 	private managedRemoteResourceHandler: ((request: GlobalRequest) => Promise<GlobalResponse>) | undefined;
+	private managedRemoteResourceUriHandler: ((url: URI) => Promise<GlobalResponse>) | undefined;
 	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.otf', '.ttf']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
@@ -84,18 +85,20 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	registerManagedRemoteResourceProtocol(requestRemoteResource: (url: URI) => Promise<NodeRemoteResourceResponse>): void {
 		const handler = createManagedRemoteResourceRequestHandler(requestRemoteResource, this.logService);
 		this.managedRemoteResourceHandler = handler;
+		this.managedRemoteResourceUriHandler = createManagedRemoteResourceUriHandler(requestRemoteResource, this.logService);
 		session.defaultSession.protocol.handle(Schemas.vscodeManagedRemoteResource, handler);
 		this._register(toDisposable(() => {
 			this.managedRemoteResourceHandler = undefined;
+			this.managedRemoteResourceUriHandler = undefined;
 			session.defaultSession.protocol.unhandle(Schemas.vscodeManagedRemoteResource);
 		}));
 	}
 
 	async requestManagedRemoteResource(url: URI): Promise<GlobalResponse> {
-		if (!this.managedRemoteResourceHandler) {
+		if (!this.managedRemoteResourceUriHandler) {
 			return new Response('Remote resources are not available', { status: 503 });
 		}
-		return this.managedRemoteResourceHandler(new Request(url.toString()));
+		return this.managedRemoteResourceUriHandler(url);
 	}
 
 	//#region file://

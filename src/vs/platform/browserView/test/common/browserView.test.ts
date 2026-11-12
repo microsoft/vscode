@@ -24,6 +24,8 @@ suite('BrowserView', () => {
 			encodedPercent: remoteUrlToFileUrl(network, 'vscode-remote://ssh-remote%2Bhost/a/report%2520.html'),
 			posixColon: remoteUrlToFileUrl(network, 'vscode-remote://ssh-remote%2Bhost/a:b/c:d e.html'),
 			windowsDrive: remoteUrlToFileUrl(network, 'vscode-remote://ssh-remote%2Bhost/c:/work/index.html'),
+			encodedSuffix: remoteUrlToFileUrl(network, 'vscode-remote://ssh-remote%2Bhost/a/i.html?q=a%26b#item%2520id'),
+			agentHostQuery: remoteUrlToFileUrl({ authority: 'host-a' }, toAgentHostUri(URI.file('/a/i.html').with({ query: 'q=a%26b' }), 'host-a').toString()),
 			agentHost: remoteUrlToFileUrl({ authority: 'Host-A' }, toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString()),
 			otherAgentHost: remoteUrlToFileUrl({ authority: 'host-b' }, toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString()),
 		}, {
@@ -34,6 +36,8 @@ suite('BrowserView', () => {
 			encodedPercent: 'file:///a/report%2520.html',
 			posixColon: 'file:///a:b/c:d%20e.html',
 			windowsDrive: 'file:///c:/work/index.html',
+			encodedSuffix: 'file:///a/i.html?q=a%26b#item%2520id',
+			agentHostQuery: 'file:///a/i.html?q=a%26b',
 			agentHost: 'file:///a/index.html',
 			otherAgentHost: toAgentHostUri(URI.file('/a/index.html'), 'host-a').toString(),
 		});
@@ -54,6 +58,24 @@ suite('BrowserView', () => {
 			fragment: true,
 			otherFile: false,
 			otherScheme: false
+		});
+	});
+
+	test('treats the file URL of a remote resource as the same resource', () => {
+		const network = { authority: 'ssh-remote+host' };
+		const remote = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/a/index.html' });
+		const agentHost = toAgentHostUri(URI.file('/a/index.html'), 'host-a');
+
+		assert.deepStrictEqual({
+			remoteFile: isBrowserViewAssociatedResourceNavigation(remote, 'file:///a/index.html?x=1', network),
+			remoteOther: isBrowserViewAssociatedResourceNavigation(remote, 'file:///a/other.html', network),
+			agentHostFile: isBrowserViewAssociatedResourceNavigation(agentHost, 'file:///a/index.html#top', { authority: 'host-a' }),
+			remoteWithoutNetwork: isBrowserViewAssociatedResourceNavigation(remote, 'file:///a/index.html'),
+		}, {
+			remoteFile: true,
+			remoteOther: false,
+			agentHostFile: true,
+			remoteWithoutNetwork: false,
 		});
 	});
 

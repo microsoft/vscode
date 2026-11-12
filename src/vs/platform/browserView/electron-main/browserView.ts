@@ -804,7 +804,7 @@ export class BrowserView extends Disposable {
 	}
 
 	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(URI.parse(remoteUrlToFileUrl(this.session.network, this.associatedResource.toString())), url)) {
+		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url, this.session.network)) {
 			return false;
 		}
 

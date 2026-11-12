@@ -6,6 +6,7 @@
 import { session } from 'electron';
 import { createHash } from 'crypto';
 import { normalize, posix } from '../../../base/common/path.js';
+import { isDefined } from '../../../base/common/types.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
@@ -283,7 +284,7 @@ export class BrowserSession {
 	static setTrustedRemoteFileRoots(remotes: ReadonlyMap<string, IRemoteFileTrust>): void {
 		BrowserSession._trustedRemoteFileRoots = new Map();
 		for (const [authority, remote] of remotes) {
-			const roots = TernarySearchTree.forPaths<true>();
+			const roots = TernarySearchTree.forPaths<true>(remote.ignoreCase);
 			for (const root of remote.roots) {
 				if (root) {
 					roots.set(posix.normalize(root), true);
@@ -458,7 +459,7 @@ export class BrowserSession {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 
-		const window = this.windowsMainService.getWindowById(trusted.windowId);
+		const window = trusted.windowIds.map(id => this.windowsMainService.getWindowById(id)).find(isDefined);
 		if (!window) {
 			return new Response(localize('browserSession.remoteUnavailable', 'The remote connection is not available.'), { status: 503 });
 		}
