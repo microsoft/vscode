@@ -233,7 +233,7 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		],
 		merged: [section('checks', '6/6', Codicon.passFilledCompact, chartsGreen, 'All 6 checks passed')],
 		closed: [],
-		loading: [section('availability', 'Loading status', Codicon.sync, chartsForeground)],
+		loading: [section('availability', 'Loading status', Codicon.circleFilled, chartsForeground)],
 		unavailable: [],
 	};
 	const automationOptions: readonly ArtifactAutomationOption[] = [

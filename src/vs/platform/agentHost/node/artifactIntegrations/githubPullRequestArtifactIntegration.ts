@@ -1260,7 +1260,7 @@ function checkIcon(state: ReturnType<typeof checkPresentationState>): ArtifactIc
 	return state === 'passed' ? { id: 'pass-filled-compact', colorId: 'charts.green' }
 		: state === 'failed' ? { id: 'error-compact', colorId: 'errorForeground' }
 			: state === 'skipped' ? { id: 'skip', colorId: 'descriptionForeground' }
-				: { id: 'sync-compact', colorId: 'editorWarning.foreground' };
+				: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' };
 }
 
 type PullRequestDisplayState = 'open' | 'draft' | 'merged' | 'closed';
