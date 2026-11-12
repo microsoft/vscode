@@ -592,8 +592,7 @@ const apiMenus: IAPIMenu[] = [
 		key: 'agents/sessionActivityBar',
 		id: MenuId.AgentsSessionActivityBar,
 		description: localize('menus.agentsSessionActivityBar', "The Session Activity Bar at the right edge of the agents window. Its entries show as icons, after the built-in entries; commands without an icon are not shown."),
-		supportsSubmenus: false,
-		proposed: 'contribSessionActivityBar'
+		supportsSubmenus: false
 	},
 ];
 
