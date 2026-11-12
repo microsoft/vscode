@@ -9,9 +9,11 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { INewSessionComposer, NewSessionComposerService } from '../../browser/newSessionComposerService.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../services/sessions/common/workspaceSelection.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ISessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 
 suite('NewSessionComposerService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -107,6 +109,39 @@ suite('NewSessionComposerService', () => {
 		secondFocus.fire();
 		firstVisible.set(true, undefined);
 		assert.deepStrictEqual(states, ['second', 'first', 'second', 'none', 'first']);
+	});
+
+	test('resolves the last-focused composer within a window', () => {
+		const service = disposables.add(new NewSessionComposerService());
+		const mainWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.MainWindow, parent: undefined, windowId: constObservable(1) });
+		const chatWindowHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(2) });
+		const chatWindowPane = upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane, parent: chatWindowHost, windowId: constObservable(2) });
+		const firstHostedFocus = disposables.add(new Emitter<void>());
+		const secondHostedFocus = disposables.add(new Emitter<void>());
+		const main = composer();
+		const firstHosted = { ...composer(), onDidFocus: firstHostedFocus.event };
+		const secondHosted = { ...composer(), onDidFocus: secondHostedFocus.event };
+		disposables.add(service.registerComposer(main, constObservable(true), mainWindowHost));
+		disposables.add(service.registerComposer(firstHosted, constObservable(false), chatWindowPane));
+		disposables.add(service.registerComposer(secondHosted, constObservable(false), chatWindowPane));
+		const selected: string[] = [];
+		disposables.add(autorun(reader => {
+			const current = service.getComposer(chatWindowHost, reader);
+			selected.push(current === firstHosted ? 'first' : current === secondHosted ? 'second' : 'none');
+		}));
+
+		firstHostedFocus.fire();
+		secondHostedFocus.fire();
+
+		assert.deepStrictEqual({
+			active: service.activeComposer.get() === main,
+			main: service.getComposer(mainWindowHost) === main,
+			selected,
+		}, {
+			active: true,
+			main: true,
+			selected: ['second', 'first', 'second'],
+		});
 	});
 
 	test('hidden composers still protect their unsent drafts', () => {

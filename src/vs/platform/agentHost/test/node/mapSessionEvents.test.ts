@@ -2565,6 +2565,25 @@ suite('mapSessionEvents — history replay', () => {
 		}
 	}
 
+	test('a message the host sent for an automation, an agent or itself starts a turn, unlike a runtime injection', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', id: 'automation-event', data: { content: 'Run the nightly task', source: 'automation-ahp-automation:/nightly', clientTurnId: 'turn-1' } },
+			{ type: 'assistant.message', data: { content: 'Done.', toolRequests: [] } },
+			{ type: 'user.message', id: 'injected-event', data: { content: 'Continue', source: 'system' } },
+			{ type: 'user.message', id: 'agent-event', data: { content: 'Review this', source: 'agent-copilot:/coordinator', clientTurnId: 'turn-2' } },
+			{ type: 'user.message', id: 'injected-agent-event', data: { content: 'Injected context', source: 'agent' } },
+			{ type: 'user.message', id: 'system-event', data: { content: 'Continue in the requested workspace.', source: 'system', clientTurnId: 'turn-3' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, message: turn.message.text })), [
+			{ id: 'automation-event', message: 'Run the nightly task' },
+			{ id: 'agent-event', message: 'Review this' },
+			{ id: 'system-event', message: 'Continue in the requested workspace.' },
+		]);
+	});
+
 	test('synthetic user messages do not start a new turn', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'user-event-1', data: { interactionId: 'interaction-1', content: 'Use the skill' } },

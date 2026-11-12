@@ -803,8 +803,17 @@
 		max-width: 100%;
 		font-size: var(--vscode-fontSize-label1);
 		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
+
+		> span:not(.codicon) {
+			min-width: 0;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		> .codicon {
+			flex-shrink: 0;
+		}
 	}
 
 	&[hidden] {
@@ -1447,6 +1456,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		color: var(--session-group-foreground, inherit);
 	}
 
 	.session-section-icon {
@@ -1555,10 +1565,18 @@
 
 .sessions-list-control {
 	.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label,
-	.monaco-list-row.focused .session-section .session-section-label,
+	.monaco-list-row.focused .session-section .session-section-label {
+		color: var(--session-group-hover-foreground, var(--vscode-strongForeground));
+	}
+
 	.monaco-list-row:is(:hover, .hovered) .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
+	}
+
+	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored,
+	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored .session-section-label {
+		color: inherit;
 	}
 
 	&.session-section-focus-from-pointer {

@@ -30,7 +30,6 @@ export const sessionInboxSections = [
 	SessionInboxSection.Working,
 	SessionInboxSection.ReadyToMerge,
 	SessionInboxSection.OnHold,
-	SessionInboxSection.Done,
 ] as const;
 
 export function getSessionInboxActivity(session: ISession, reader?: IReader): string {
@@ -96,7 +95,6 @@ export function getSessionInboxDescription(state: SessionInboxState | undefined)
 		case 'snoozed': return localize('inboxSnoozedUntil', "Snoozed until {0}", new Date(state.until).toLocaleString());
 		case 'untilActivity': return localize('inboxSnoozedUntilActivity', "Snoozed until new activity");
 		case 'hold': return localize('inboxHeldUntilResumed', "On hold until you return it to Inbox");
-		case 'done': return localize('inboxClearedNotArchived', "Cleared from Inbox, not archived");
 		default: return undefined;
 	}
 }
