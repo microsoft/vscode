@@ -180,10 +180,17 @@ export interface IBrowserViewWindowConfiguration {
 	 */
 	readonly trustedFileRoots: readonly string[];
 	/**
+	 * Trusted paths on the remote file system of a window connected to a remote,
+	 * checked against the `file:` requests of sessions bound to that remote's network.
+	 * Usually the trusted remote URIs plus, when the workspace itself is trusted, its remote folders.
+	 */
+	readonly trustedRemoteFileRoots?: readonly string[];
+	/**
 	 * Whether Workspace Trust is disabled entirely
 	 * (`security.workspace.trust.enabled: false`) for this window. When
 	 * `true`, every `file://` request is allowed regardless of
-	 * {@link trustedFileRoots} since there is no meaningful notion of an
+	 * {@link trustedFileRoots} (or {@link trustedRemoteFileRoots} for a window
+	 * connected to a remote) since there is no meaningful notion of an
 	 * untrusted folder to enforce.
 	 */
 	readonly trustAllFiles: boolean;
@@ -346,17 +353,15 @@ export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
 }
 
 /**
- * Decides whether a `vscode-remote:` request may be served for a session bound to {@link network}:
- * the resource must belong to the network's remote and may only be loaded by the remote's own pages.
+ * Maps a `vscode-remote:` URL of the remote a session is bound to onto the `file:` URL that
+ * sessions on that network serve from the remote's file system. Other URLs are returned as is.
  */
-export function getRemoteResourceRequestDenial(network: IBrowserViewNetwork | undefined, resource: URI, referrer: string | undefined): 'network' | 'initiator' | undefined {
-	if (!network || resource.authority.toLowerCase() !== network.authority.toLowerCase()) {
-		return 'network';
+export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url: string): string {
+	const uri = URI.parse(url);
+	if (!network || uri.scheme !== Schemas.vscodeRemote || uri.authority.toLowerCase() !== network.authority.toLowerCase()) {
+		return url;
 	}
-	if (referrer && referrer !== 'about:client' && URI.parse(referrer).scheme !== Schemas.vscodeRemote) {
-		return 'initiator';
-	}
-	return undefined;
+	return URI.from({ scheme: Schemas.file, path: uri.path, query: uri.query, fragment: uri.fragment }).toString(true);
 }
 
 export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string): boolean {

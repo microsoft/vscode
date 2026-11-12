@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -792,6 +792,7 @@ export class BrowserView extends Disposable {
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
+		url = remoteUrlToFileUrl(this.session.network, url);
 		if (this._redirectPinnedNavigation(url)) {
 			return;
 		}
@@ -803,7 +804,7 @@ export class BrowserView extends Disposable {
 	}
 
 	private _redirectPinnedNavigation(url: string): boolean {
-		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(this.associatedResource, url)) {
+		if (!this.associatedResource || isBrowserViewAssociatedResourceNavigation(URI.parse(remoteUrlToFileUrl(this.session.network, this.associatedResource.toString())), url)) {
 			return false;
 		}
 

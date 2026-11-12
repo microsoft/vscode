@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { getOrSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, isBrowserViewStorageScopeShareableWithAgent, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserViewAudience, IBrowserViewBounds, IBrowserViewState, IBrowserViewService, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, BrowserViewCommandId, IBrowserViewOwner, IBrowserViewInfo, IBrowserViewCreatedEvent, IBrowserViewEditorOpenOptions, IBrowserViewCreateOptions, IBrowserViewCreationContext, IBrowserViewWindowConfiguration, IBrowserDeviceProfile, BrowserViewChangeEvent, BrowserViewEvent, BrowserViewEventMap, serializeBrowserViewInfo, IBrowserViewAccessibilitySnapshot, getBrowserViewSessionNetwork } from '../common/browserView.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
@@ -406,13 +407,26 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	private _recomputeTrustedFileRoots(): void {
 		const roots = new Set<string>();
 		let trustAllFiles = false;
-		for (const configuration of this._windowConfigurations.values()) {
+		const remotes = new Map<string, { roots: Set<string>; trustAll: boolean }>();
+		for (const [windowId, configuration] of this._windowConfigurations) {
 			for (const root of configuration.trustedFileRoots) {
 				roots.add(root);
 			}
-			trustAllFiles ||= configuration.trustAllFiles;
+
+			// A window connected to a remote contributes to that remote only; its trust settings never open up local files.
+			const authority = this.windowsMainService.getWindowById(windowId)?.remoteAuthority;
+			if (!authority) {
+				trustAllFiles ||= configuration.trustAllFiles;
+				continue;
+			}
+			const remote = getOrSet(remotes, authority.toLowerCase(), { roots: new Set<string>(), trustAll: false });
+			for (const root of configuration.trustedRemoteFileRoots ?? []) {
+				remote.roots.add(root);
+			}
+			remote.trustAll ||= configuration.trustAllFiles;
 		}
 		BrowserSession.setTrustedFileRoots([...roots], trustAllFiles);
+		BrowserSession.setTrustedRemoteFileRoots(remotes);
 	}
 
 	/**

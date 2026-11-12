@@ -6,27 +6,25 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewPresentation, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, getRemoteResourceRequestDenial, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewPresentation, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('restricts vscode-remote requests to the session network and remote pages', () => {
+	test('maps vscode-remote URLs of the session network to file URLs', () => {
 		const network = { authority: 'ssh-remote+Host' };
-		const resource = URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+host', path: '/a/index.html' });
+		const url = 'vscode-remote://ssh-remote%2Bhost/a/index.html?x=1#top';
 
 		assert.deepStrictEqual({
-			noNetwork: getRemoteResourceRequestDenial(undefined, resource, undefined),
-			otherNetwork: getRemoteResourceRequestDenial({ authority: 'wsl+Ubuntu' }, resource, undefined),
-			navigation: getRemoteResourceRequestDenial(network, resource, undefined),
-			remotePage: getRemoteResourceRequestDenial(network, resource, resource.toString()),
-			webPage: getRemoteResourceRequestDenial(network, resource, 'https://example.com/'),
+			sameRemote: remoteUrlToFileUrl(network, url),
+			noNetwork: remoteUrlToFileUrl(undefined, url),
+			otherNetwork: remoteUrlToFileUrl({ authority: 'wsl+Ubuntu' }, url),
+			web: remoteUrlToFileUrl(network, 'https://example.com/a'),
 		}, {
-			noNetwork: 'network',
-			otherNetwork: 'network',
-			navigation: undefined,
-			remotePage: undefined,
-			webPage: 'initiator',
+			sameRemote: 'file:///a/index.html?x=1#top',
+			noNetwork: url,
+			otherNetwork: url,
+			web: 'https://example.com/a',
 		});
 	});
 

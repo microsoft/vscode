@@ -73,11 +73,7 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 		// The network the tab was opened for, which it may not be able to use.
 		const network = this.editor.input?.network;
 		if (model) {
-			if (model.url.startsWith('file://') && (network || model.network)) {
-				isVisible = true;
-				isWarning = true;
-				statusMessage = localize('browser.connectedLocally.file', "File URLs are served locally, not over the remote connection.");
-			} else if (model.network) {
+			if (model.network) {
 				isVisible = true;
 				const { label: host, connected } = this.browserViewWorkbenchService.getNetworkStatus(model.network);
 				if (connected) {

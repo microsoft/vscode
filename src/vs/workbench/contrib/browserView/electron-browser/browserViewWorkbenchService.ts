@@ -935,6 +935,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 			networkProxies: this._getNetworkProxies(),
 			trustedFileRoots: this._getTrustedFileRoots(),
+			trustedRemoteFileRoots: this._getTrustedRemoteFileRoots(),
 			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
 	}
@@ -978,6 +979,29 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			font: DEFAULT_FONT_FAMILY,
 			reducedMotion: this.accessibilityService.isMotionReduced(),
 		};
+	}
+
+	/** Trusted paths on the file system of the window's remote, which its sessions serve `file:` requests from. */
+	private _getTrustedRemoteFileRoots(): string[] {
+		const authority = this.environmentService.remoteAuthority;
+		if (!authority) {
+			return [];
+		}
+		const isRemoteUri = (uri: URI) => uri.scheme === Schemas.vscodeRemote && uri.authority === authority;
+		const roots = new Set<string>();
+		if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+			for (const folder of this.workspaceContextService.getWorkspace().folders) {
+				if (isRemoteUri(folder.uri)) {
+					roots.add(folder.uri.path);
+				}
+			}
+		}
+		for (const uri of this.workspaceTrustManagementService.getTrustedUris()) {
+			if (isRemoteUri(uri)) {
+				roots.add(uri.path);
+			}
+		}
+		return [...roots];
 	}
 
 	private _getTrustedFileRoots(): string[] {

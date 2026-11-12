@@ -15,7 +15,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
@@ -31,13 +31,18 @@ import { BrowserEditor, BrowserEditorContribution } from '../browserEditor.js';
 
 const BrowserAutoReloadOnFileChangeSettingId = 'workbench.browser.autoReloadOnFileChange';
 
-function getFileUri(url: string): URI | undefined {
+function getFileUri(url: string, network: IBrowserViewNetwork | undefined): URI | undefined {
 	if (!url) {
 		return undefined;
 	}
 
 	const uri = URI.parse(url);
-	return uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote ? uri.with({ query: null, fragment: null }) : undefined;
+	if (uri.scheme !== Schemas.file) {
+		return undefined;
+	}
+	// Sessions on a remote network serve `file:` URLs from the remote's file system.
+	const fileUri = network ? uri.with({ scheme: Schemas.vscodeRemote, authority: network.authority }) : uri;
+	return fileUri.with({ query: null, fragment: null });
 }
 
 interface IBrowserAutoReloadStateChangeEvent {
@@ -108,7 +113,7 @@ export class BrowserAutoReloadWatcher extends Disposable {
 			return;
 		}
 
-		const uri = getFileUri(model.url);
+		const uri = getFileUri(model.url, model.network);
 		if (!uri) {
 			return;
 		}
@@ -248,7 +253,7 @@ class BrowserEditorAutoReloadContribution extends BrowserEditorContribution {
 	}
 
 	get isFile(): boolean {
-		return !!this._model && !!getFileUri(this._model.url);
+		return !!this._model && !!getFileUri(this._model.url, this._model.network);
 	}
 
 	override getActionViewItem(action: IAction, options: IActionViewItemOptions, instantiationService: IInstantiationService): IActionViewItem | undefined {
