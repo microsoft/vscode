@@ -158,13 +158,16 @@ const eslintConfigurationPaths = [
  *   Hygiene also does. The Copilot checks lint with the same configuration, so the copilot rule lists these paths.
  * - The sanity tests in test/sanity/, which only the product builds run against the built packages (see
  *   build/azure-pipelines/common/sanity-tests.yml). In pull requests, only ESLint and hygiene check their sources.
+ * - The rulesets in .github/rulesets/, which the Rulesets workflow checks against the live rulesets on main. In pull
+ *   requests, only the build script tests and the linters read its script.
  */
 export function shouldSkipTestJobs(path: string): boolean {
 	const isAzurePipelinesDefinition = path.startsWith('build/azure-pipelines/') && /\.ya?ml$/.test(path);
 	const isWorkspaceConfiguration = path.startsWith('.vscode/');
 	const isEslintConfiguration = matchesAny(path, eslintConfigurationPaths);
 	const isSanityTest = path.startsWith('test/sanity/');
-	return isAzurePipelinesDefinition || isWorkspaceConfiguration || isEslintConfiguration || isSanityTest;
+	const isRuleset = path.startsWith('.github/rulesets/');
+	return isAzurePipelinesDefinition || isWorkspaceConfiguration || isEslintConfiguration || isSanityTest || isRuleset;
 }
 
 /**

@@ -181,6 +181,7 @@ suite('Detect Changes', () => {
 			['eslint.config.js', ['false', 'false', 'false']],
 			['.eslint-plugin-local/code-no-any-casts.ts', ['false', 'false', 'false']],
 			['test/sanity/src/cli.test.ts', ['false', 'false', 'false']],
+			['.github/rulesets/main-merge-queue.json', ['false', 'false', 'false']],
 			['test/smoke/src/main.ts', ['true', 'true', 'true']],
 			['package.json', ['true', 'true', 'true']],
 		];
