@@ -46,6 +46,8 @@ export interface IRemoteDevContainerFixture {
 	readonly workspacePath?: string;
 	/** The authority of a remote editor window for {@link workspacePath}. */
 	readonly remoteAuthority?: string;
+	/** Whether the remote host runs the client's commit, or, like a client run from sources, a source checkout. */
+	readonly hostMatchesClientCommit?: boolean;
 	readonly ssh?: { host: string; port: number; username: string; password: string; fingerprint: string };
 	/**
 	 * Checks the Agent Host's routing to the mock server. With `credentialedProxy`, also checks that it forwarded the
@@ -935,13 +937,12 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		}
 	}
 	await run(`test -x ${shellQuote(nodePath)} && test -f ${shellQuote(`${serverPath}/out/${server ? 'server-main.js' : 'bootstrap-fork.js'}`)}${copilotRuntimePath ? ` && test -x ${shellQuote(copilotRuntimePath)}` : ''}`);
-	if (server && options.appOptions.codePath) {
+	// Clients run from sources and source checkouts have no commit.
+	const clientCommit: string | undefined = options.appOptions.codePath ? JSON.parse(fs.readFileSync(getBuildProductPath(options.appOptions.codePath), 'utf8')).commit : undefined;
+	const serverCommit: string | undefined = JSON.parse(await run(`cat ${shellQuote(`${serverPath}/product.json`)}`)).commit;
+	if (server && clientCommit && serverCommit && clientCommit !== serverCommit) {
 		// The server refuses a built client of another commit.
-		const clientCommit: string | undefined = JSON.parse(fs.readFileSync(getBuildProductPath(options.appOptions.codePath), 'utf8')).commit;
-		const serverCommit: string | undefined = JSON.parse(await run(`cat ${shellQuote(`${serverPath}/product.json`)}`)).commit;
-		if (clientCommit && serverCommit && clientCommit !== serverCommit) {
-			throw new Error(`The remote editor window needs a WSL server of the client's commit ${clientCommit}, but ${serverPath} is ${serverCommit}.`);
-		}
+		throw new Error(`The remote editor window needs a WSL server of the client's commit ${clientCommit}, but ${serverPath} is ${serverCommit}.`);
 	}
 	// Published servers bundle their NLS messages; a source checkout runs in development mode.
 	const sourceCheckout = (await run(`if [ -f ${shellQuote(`${serverPath}/out/nls.messages.json`)} ]; then echo bundled; fi`)) !== 'bundled';
@@ -1038,6 +1039,7 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 	return {
 		name: distro,
 		workspacePath,
+		hostMatchesClientCommit: clientCommit === serverCommit,
 		...(server ? {
 			remoteAuthority: `wsl+${distro}`,
 			settings: {},

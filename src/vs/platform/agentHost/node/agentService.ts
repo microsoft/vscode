@@ -6862,7 +6862,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.listPluginInstallations(session, chat);
 	}
 
-	async setPluginEnabled(providerId: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+	async setPluginEnabled(providerId: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.setPluginEnabled) {
 			throw new Error(`Plugin enablement is unavailable for provider '${providerId}'.`);

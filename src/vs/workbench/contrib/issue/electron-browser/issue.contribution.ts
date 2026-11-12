@@ -28,8 +28,6 @@ import { BaseIssueContribution } from '../common/issue.contribution.js';
 import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
 import { NativeIssueService } from './issueService.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
-import { IScreenshotService } from '../browser/screenshotService.js';
-import { NativeScreenshotService } from './nativeScreenshotService.js';
 import { IRecordingService } from '../browser/recordingService.js';
 import { NativeRecordingService } from './nativeRecordingService.js';
 import { IGitHubUploadService } from '../browser/githubUploadService.js';
@@ -41,7 +39,6 @@ import { issueReporterAdditionalRepositoriesSettingId, issueReporterRepositoryPa
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
 registerSingleton(IIssueFormService, NativeIssueFormService, InstantiationType.Delayed);
-registerSingleton(IScreenshotService, NativeScreenshotService, InstantiationType.Delayed);
 registerSingleton(IRecordingService, NativeRecordingService, InstantiationType.Delayed);
 registerSingleton(IGitHubUploadService, NativeGitHubUploadService, InstantiationType.Delayed);
 

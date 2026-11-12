@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, DisposableResizeObserver, EventType, getWindow } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IScreenshot } from './issueReporterOverlay.js';
+import './media/screenshotAnnotation.css';
 
 const enum AnnotationTool {
 	Select = 'select',
@@ -47,8 +47,11 @@ const FONT_FAMILIES = [
 const DEFAULT_TEXT_BOX_WIDTH = 240;
 const MIN_TEXT_BOX_WIDTH = 48;
 const TEXT_DRAG_THRESHOLD = 4;
-/** Padding on each side of the displayed image inside the canvas container at fit-to-window scale. */
-const CANVAS_BREATHING_ROOM = 64;
+/**
+ * Padding on each side of the displayed image inside the canvas container at fit-to-window scale. The image fills most
+ * of the markup's host, such as a modal editor, which already has a margin around it.
+ */
+const CANVAS_BREATHING_ROOM = 24;
 const FILL_COLORS = ['transparent', ...COLORS];
 const STROKE_WIDTHS = [2, 4, 8, 12];
 const TEXT_SIZES = [14, 18, 24, 32, 48];
@@ -105,7 +108,11 @@ export interface IAnnotationEditorState {
 
 export interface IAnnotationSaveResult {
 	readonly dataUrl: string;
+	readonly width: number;
+	readonly height: number;
 	readonly state: IAnnotationEditorState;
+	/** Whether the image was drawn on or cropped. */
+	readonly annotated: boolean;
 }
 
 function cloneDrawAction(action: IAnnotationDrawAction, identityMap: Map<IAnnotationDrawAction, IAnnotationDrawAction> = new Map()): IAnnotationDrawAction {
@@ -183,6 +190,8 @@ function moveSnapshotsEqual(a: IAnnotationMoveSnapshot, b: IAnnotationMoveSnapsh
 
 export class ScreenshotAnnotationEditor {
 
+	private static hintIds = 0;
+
 	private readonly disposables = new DisposableStore();
 	private readonly toolOptionsDisposables = new DisposableStore();
 	private readonly _onDidSave = new Emitter<IAnnotationSaveResult>();
@@ -201,6 +210,10 @@ export class ScreenshotAnnotationEditor {
 	private activeOpacity = 1;
 	private readonly actions: DrawAction[] = [];
 	private readonly undoneActions: DrawAction[] = [];
+	/** Counts changes to the actions, so that finishing a markup knows whether it changed the image. */
+	private revision = 0;
+	private savedRevision = 0;
+	private disposed = false;
 	private currentAction: DrawAction | null = null;
 	private isDrawing = false;
 	private isErasing = false;
@@ -239,6 +252,8 @@ export class ScreenshotAnnotationEditor {
 	private preCropState: { element: HTMLImageElement; width: number; height: number; currentCrop: { x: number; y: number; width: number; height: number } | null } | null = null;
 	private mainToolbar: HTMLElement | null = null;
 	private cropToolbar: HTMLElement | null = null;
+	/** Holds Done while marking up, which hides with the main toolbar while cropping. */
+	private doneContainer: HTMLElement | null = null;
 
 	/** Annotations are stored in original-image coords. While in crop mode the canvas already shows the original image, so the offset is 0. */
 	private get cropOffsetX(): number { return this.cropMode ? 0 : (this.currentCrop?.x ?? 0); }
@@ -285,20 +300,36 @@ export class ScreenshotAnnotationEditor {
 
 
 	constructor(
-		private readonly screenshot: IScreenshot,
+		private readonly screenshot: { readonly dataUrl: string },
 		private readonly parentElement: HTMLElement,
 		private readonly initialState?: IAnnotationEditorState,
 	) {
 		this.createUI();
+		this.savedRevision = this.revision;
 		this.loadImage();
 	}
 
+	get element(): HTMLElement {
+		return this.container;
+	}
+
+	focus(): void {
+		this.container.focus();
+	}
+
 	private createUI(): void {
-		this.container = append(this.parentElement, $('div.issue-reporter-annotation-overlay'));
+		this.container = append(this.parentElement, $('div.screenshot-annotation-editor'));
 		this.container.tabIndex = -1;
+		// The markup is part of whatever hosts it, such as a modal editor that already is a dialog.
+		this.container.setAttribute('role', 'group');
+		this.container.setAttribute('aria-label', localize('markUpImage', "Mark Up Image"));
+
+		// The tools are centered in a header row that ends with Done.
+		const toolbarParent = append(this.container, $('div.annotation-mark-up-header'));
+		append(toolbarParent, $('div.annotation-mark-up-header-start'));
 
 		// Main toolbar (hidden during crop mode)
-		const toolbar = append(this.container, $('div.annotation-toolbar'));
+		const toolbar = append(toolbarParent, $('div.annotation-toolbar'));
 		this.mainToolbar = toolbar;
 
 		// 1. Drawing tools: Select, Pan, Crop, Draw, Rectangle, Ellipse, Arrow
@@ -368,30 +399,8 @@ export class ScreenshotAnnotationEditor {
 		this.redoBtn = redoBtn;
 		this.updateUndoRedoState();
 
-		// 8. Separator
-		append(toolbar, $('div.toolbar-separator'));
-
-		// 9. Discard button
-		const discardBtn = this.disposables.add(new Button(toolbar, { ...defaultButtonStyles, secondary: true }));
-		discardBtn.label = localize('discard', "Discard");
-		this.disposables.add(discardBtn.onDidClick(() => {
-			this.cancelTextEdit();
-			this._onDidCancel.fire();
-			this.dispose();
-		}));
-
-		// 10. Save button
-		const saveBtn = this.disposables.add(new Button(toolbar, defaultButtonStyles));
-		saveBtn.label = localize('save', "Save");
-		this.disposables.add(saveBtn.onDidClick(() => {
-			this.commitTextEdit();
-			const dataUrl = this.compositeToDataUrl();
-			this._onDidSave.fire({ dataUrl, state: this.captureState() });
-			this.dispose();
-		}));
-
 		// Crop toolbar (shown only during crop mode, hidden by default)
-		const cropToolbar = append(this.container, $('div.annotation-toolbar.annotation-crop-toolbar'));
+		const cropToolbar = append(toolbarParent, $('div.annotation-toolbar.annotation-crop-toolbar'));
 		cropToolbar.style.display = 'none';
 		this.cropToolbar = cropToolbar;
 
@@ -407,9 +416,16 @@ export class ScreenshotAnnotationEditor {
 			this.commitCrop();
 		}));
 
+		this.doneContainer = append(toolbarParent, $('div.annotation-mark-up-header-end'));
+		const doneBtn = this.disposables.add(new Button(this.doneContainer, defaultButtonStyles));
+		doneBtn.label = localize('done', "Done");
+		this.disposables.add(doneBtn.onDidClick(() => this.finish()));
+
 		// Hint label
 		const hint = append(this.container, $('div.annotation-hint'));
-		hint.textContent = localize('annotationHint', "Edit screenshot to highlight the problem");
+		hint.textContent = localize('markUpHint', "Draw on the image or crop it, then select Done to apply your changes.");
+		hint.id = `screenshot-annotation-hint-${ScreenshotAnnotationEditor.hintIds++}`;
+		this.container.setAttribute('aria-describedby', hint.id);
 
 		// Canvas container
 		const canvasContainer = append(this.container, $('div.annotation-canvas-container'));
@@ -486,14 +502,16 @@ export class ScreenshotAnnotationEditor {
 					return;
 				}
 				if (this.selectedActionIndex >= 0) {
+					// Whoever hosts the markup ends it on Escape, which must only clear the selection here.
+					e.preventDefault();
+					e.stopPropagation();
 					this.selectedActionIndex = -1;
 					this.redraw();
 					return;
 				}
 				e.preventDefault();
 				e.stopPropagation();
-				this._onDidCancel.fire();
-				this.dispose();
+				this.finish();
 			} else if (e.key === 'Enter' && this.cropMode) {
 				e.preventDefault();
 				this.commitCrop();
@@ -518,8 +536,8 @@ export class ScreenshotAnnotationEditor {
 			}
 		}));
 
-		// Re-fit canvas when container resizes
-		const resizeObserver = new ResizeObserver(() => {
+		// Re-fit canvas when container resizes. The editor can be in any window, so observe with that window's observer.
+		const resizeObserver = this.disposables.add(new DisposableResizeObserver('screenshotAnnotationEditor', () => {
 			if (this.imageElement) {
 				// On resize, ensure the user's current zoom is still at least the new fit-to-window
 				// scale. Without this, growing the window after zooming out could leave the image
@@ -535,9 +553,8 @@ export class ScreenshotAnnotationEditor {
 				this.canvas.style.transform = `translate(${this.panX}px, ${this.panY}px)`;
 				this.redraw();
 			}
-		});
-		resizeObserver.observe(canvasContainer);
-		this.disposables.add({ dispose: () => resizeObserver.disconnect() });
+		}, getWindow(this.parentElement)));
+		this.disposables.add(resizeObserver.observe(canvasContainer));
 	}
 
 	private addToolButton(toolbar: HTMLElement, tool: AnnotationTool, label: string, icon: HTMLSpanElement): void {
@@ -766,6 +783,7 @@ export class ScreenshotAnnotationEditor {
 		}
 		// Toggle toolbars
 		if (this.mainToolbar) { this.mainToolbar.style.display = 'none'; }
+		if (this.doneContainer) { this.doneContainer.style.visibility = 'hidden'; }
 		if (this.cropToolbar) { this.cropToolbar.style.display = ''; }
 		// Reset zoom/pan to fit original
 		this.hasUserZoomed = false;
@@ -785,6 +803,7 @@ export class ScreenshotAnnotationEditor {
 		this.preCropState = null;
 		// Restore main toolbar
 		if (this.mainToolbar) { this.mainToolbar.style.display = ''; }
+		if (this.doneContainer) { this.doneContainer.style.visibility = ''; }
 		if (this.cropToolbar) { this.cropToolbar.style.display = 'none'; }
 		// Reactivate previous tool
 		this.setActiveTool(this.activeTool);
@@ -863,6 +882,7 @@ export class ScreenshotAnnotationEditor {
 
 			// Restore prior crop, if any.
 			this.applyDisplayedCrop(this.initialState?.crop ?? null);
+			this.savedRevision = this.revision;
 		};
 		// Use original screenshot (not annotated) so we can re-crop from full original
 		img.src = this.screenshot.dataUrl;
@@ -1326,6 +1346,7 @@ export class ScreenshotAnnotationEditor {
 	}
 
 	private updateUndoRedoState(): void {
+		this.revision++;
 		if (this.undoBtn) {
 			this.undoBtn.disabled = this.actions.length === 0;
 		}
@@ -1661,12 +1682,14 @@ export class ScreenshotAnnotationEditor {
 		return Math.max(1, this.getTextImageRight() - startX);
 	}
 
-	private cleanupTextEditor(): void {
+	private cleanupTextEditor(focusEditor = true): void {
 		this.stopTextCaretBlink();
 		this.textEditor?.remove();
 		this.textEditor = null;
 		this.textEditState = null;
-		this.container.focus();
+		if (focusEditor) {
+			this.container.focus();
+		}
 	}
 
 	private redraw(): void {
@@ -2410,14 +2433,47 @@ export class ScreenshotAnnotationEditor {
 		return finalCanvas.toDataURL('image/png');
 	}
 
+	/**
+	 * Ends a markup and keeps what changed: fires `onDidSave` when something changed, and `onDidCancel` when nothing
+	 * did. Done and Escape end it as well.
+	 */
+	finish(): void {
+		if (this.disposed) {
+			return;
+		}
+		this.cancelTextPlacement();
+		this.commitTextEdit();
+		if (this.cropMode) {
+			this.cancelCrop();
+		}
+		if (this.revision === this.savedRevision) {
+			this._onDidCancel.fire();
+		} else {
+			const annotated = this.actions.length > 0 || this.currentCrop !== null;
+			this._onDidSave.fire({
+				dataUrl: annotated ? this.compositeToDataUrl() : this.screenshot.dataUrl,
+				width: this.imageWidth,
+				height: this.imageHeight,
+				state: this.captureState(),
+				annotated,
+			});
+		}
+		this.dispose();
+	}
+
 	dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+		this.disposed = true;
 		if (this.pendingZoomRaf) {
 			getWindow(this.canvas).cancelAnimationFrame(this.pendingZoomRaf);
 			this.pendingZoomRaf = 0;
 			this.pendingZoom = null;
 		}
 		this.cancelTextPlacement();
-		this.cleanupTextEditor();
+		// Whoever opened the editor restores focus, so closing it must not move focus itself.
+		this.cleanupTextEditor(false);
 		this.container.remove();
 		this.toolOptionsDisposables.dispose();
 		this.disposables.dispose();
