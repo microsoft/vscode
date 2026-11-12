@@ -1774,14 +1774,14 @@ export interface DocumentSymbolProvider {
 }
 
 /** @internal */
-export interface StructuralDiffTextChange {
+export interface DiffTextChange {
 	readonly originalRange: IRange;
 	readonly modifiedRange: IRange;
 }
 
 /** @internal */
 export interface StructuralDiffContext {
-	readonly changes: readonly StructuralDiffTextChange[];
+	readonly changes: readonly DiffTextChange[];
 }
 
 /** @internal */
