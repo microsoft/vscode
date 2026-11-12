@@ -163,6 +163,9 @@ suite('Dev Container samples', () => {
 			protected override _runDevContainer(_connectionId: string, args: readonly string[]) {
 				return commands.devcontainer(args);
 			}
+			protected override async _getContainerMounts() {
+				return [];
+			}
 		}(
 			new NullLogService(), new class extends mock<IProductService>() { }(), NullTelemetryService,
 			configuration, new class extends mock<INativeEnvironmentService>() { override readonly userDataPath = cacheDirectory; }(),
