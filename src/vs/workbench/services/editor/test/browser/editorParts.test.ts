@@ -407,6 +407,23 @@ suite('Editor Parts', () => {
 		assert.strictEqual(mainWindow.document.activeElement, outside);
 	});
 
+	test('applying a working set with preserved focus recovers focus lost to the body when it started outside of the editor parts', async () => {
+		const { parts } = await createServices();
+		const mainPart = parts.testMainPart;
+		const transient = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+		disposables.add({ dispose: () => transient.remove() });
+
+		const first = disposables.add(new TestFileEditorInput(URI.file('/first.txt'), 'testTypeId'));
+		await mainPart.activeGroup.openEditor(first, { pinned: true });
+
+		transient.focus();
+		const applied = parts.applyWorkingSet('empty', { preserveFocus: true });
+		transient.remove(); // like the quick input hiding while the state is applied
+		await applied;
+
+		assert.strictEqual(mainPart.getContainer()!.contains(mainWindow.document.activeElement), true);
+	});
+
 	async function moveGroupAcrossParts(inputs: (instantiationService: IInstantiationService) => EditorInput[]) {
 		const { instantiationService, parts } = await createServices();
 		const partA = createOwnedPart(instantiationService, parts);
