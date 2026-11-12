@@ -86,6 +86,8 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/ses
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { INewSessionInAgentsWindowOptions, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { readNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
@@ -3168,10 +3170,23 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 	}
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
+		const dialogService = accessor.get(IDialogService);
 		const configurationService = accessor.get(IConfigurationService);
 		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
 		const customViewService = accessor.get(ICustomViewService);
 		const sessionsService = accessor.get(ISessionsService);
+		const mountedDraftHasInput = accessor.get(INewSessionComposerService).hasDraftInput;
+		const savedDraft = mountedDraftHasInput === undefined ? readNewChatDraftState(accessor.get(IStorageService)) : undefined;
+		if (mountedDraftHasInput ?? (!!savedDraft?.inputText || !!savedDraft?.attachments.length)) {
+			const { confirmed } = await dialogService.confirm({
+				message: localize('replaceAutomationDraft', "Replace your existing draft?"),
+				detail: localize('replaceAutomationDraftDetail', "The draft's text and attachments will be removed and replaced with /automate."),
+				primaryButton: localize('replaceAutomationDraftButton', "Replace Draft"),
+			});
+			if (!confirmed) {
+				return;
+			}
+		}
 		const activeSession = mainWindowHost.session.get();
 		const useLocalCopilot = activeSession?.sessionType === SessionType.CopilotCloud && !isCloudSandboxEnabled(configurationService);
 		const options: INewSessionInAgentsWindowOptions = {
