@@ -47,6 +47,30 @@ export const singleArchFiles = `{${[
 	'**/foundry-local-sdk/prebuilds/darwin-arm64/**',
 ].join(',')}}`;
 
+const x64ArchFiles = `{${[
+	'*/kerberos.node',
+	'**/extensions/microsoft-authentication/dist/libmsalruntime.dylib',
+	'**/extensions/microsoft-authentication/dist/msal-node-runtime.node',
+	'**/node_modules/@github/copilot-darwin-*/**',
+	'**/node_modules/@github/copilot-sdk-darwin-*/**',
+	'**/node_modules/@github/copilot/prebuilds/darwin-*/*',
+	'**/node_modules/@github/copilot/tgrep/bin/darwin-*/*',
+	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*',
+	'**/node_modules.asar.unpacked/@github/copilot-darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-*/**',
+	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*',
+	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*',
+	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*',
+	'**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*',
+	'**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*',
+	'**/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*',
+	'**/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-*/*',
+	'**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*',
+	'**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*',
+	'**/node_modules/@vscode/os-proxy-resolver-darwin-*/**',
+	'**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-*/**',
+].join(',')}}`;
+
 /**
  * Ensures a directory exists in both the x64 and arm64 app bundles by copying
  * it from whichever build has it to the one that does not. This is needed for
@@ -169,7 +193,7 @@ async function main(buildDir?: string) {
 		// prefix). Over-covering is harmless: the allowlist is only consulted for files
 		// that are actually unique to one arch.
 		singleArchFiles,
-		x64ArchFiles: '{*/kerberos.node,**/extensions/microsoft-authentication/dist/libmsalruntime.dylib,**/extensions/microsoft-authentication/dist/msal-node-runtime.node,**/node_modules/@github/copilot-darwin-*/**,**/node_modules/@github/copilot-sdk-darwin-*/**,**/node_modules/@github/copilot/prebuilds/darwin-*/*,**/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot-darwin-*/**,**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-*/**,**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/prebuilds/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/ripgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/*,**/extensions/copilot/node_modules/@github/copilot/tgrep/bin/darwin-*/*,**/node_modules/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/darwin-*/*,**/node_modules/@vscode/os-proxy-resolver-darwin-*/**,**/node_modules.asar.unpacked/@vscode/os-proxy-resolver-darwin-*/**}',
+		x64ArchFiles,
 		filesToSkipComparison: (file: string) => {
 			for (const expected of filesToSkip) {
 				if (minimatch(file, expected)) {
