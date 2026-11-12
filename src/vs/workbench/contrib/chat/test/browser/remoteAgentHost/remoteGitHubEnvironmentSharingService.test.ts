@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -29,6 +29,7 @@ function initializeResult(): InitializeResult {
 }
 
 const sharesStorageKey = 'agentHost.remoteGitHubEnvironments.shared';
+const pendingUnregistrationsStorageKey = 'agentHost.remoteGitHubEnvironments.pendingUnregister';
 
 suite('RemoteGitHubEnvironmentSharingService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,6 +43,7 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const remotes = new Map<string, { configured: boolean; connected: boolean; connection: IAgentConnection }>();
 		let session: AuthenticationSession = { id: 'session', accessToken: 'token-1', account: { id: 'account', label: 'Account' }, scopes: [] };
+		let signedIn = true;
 		let enabled = true;
 
 		const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
@@ -63,7 +65,7 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 			new class extends mock<IChatEntitlementService>() { override readonly onDidChangeSentiment = Event.None; }(),
 			new class extends mock<IAuthenticationService>() {
 				override readonly onDidChangeSessions = sessionsChanged.event;
-				override async getSessions() { return [session]; }
+				override async getSessions() { return signedIn ? [session] : []; }
 			}(),
 			new class extends mock<IDefaultAccountService>() {
 				override readonly onDidChangeDefaultAccount = Event.None;
@@ -78,6 +80,8 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 			service, calls, storage,
 			addRemote(address: string, capable = true) {
 				let instance = 0;
+				let unregisterFails = false;
+				let held: { readonly started: DeferredPromise<void>; readonly released: DeferredPromise<void> } | undefined;
 				const initialize = observableValue<InitializeResult | undefined>('initializeResult', initializeResult());
 				const status = observableValue<IAgentHostGitHubEnvironmentStatus | undefined>('gitHubEnvironment', capable ? { instanceId: `${address}#0` } : undefined);
 				// Mirrors the agent host, which reports its new status before it responds.
@@ -91,12 +95,21 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 					override readonly gitHubEnvironment = status;
 					override async registerGitHubEnvironment(accountId: string, credential: string) {
 						calls.push(`register ${address} ${accountId} ${credential}`);
+						const current = held;
+						held = undefined;
+						if (current) {
+							current.started.complete();
+							await current.released.p;
+						}
 						const registration = { accountId, environmentId: `environment-${address}`, name: address };
 						setStatus(registration);
 						return { environmentId: registration.environmentId, name: registration.name };
 					}
 					override async unregisterGitHubEnvironment(accountId: string) {
-						calls.push(`unregister ${address} ${accountId}`);
+						calls.push(`unregister ${address} ${accountId}${unregisterFails ? ' (failed)' : ''}`);
+						if (unregisterFails) {
+							throw new Error('Connection lost');
+						}
 						if (status.get()?.registration?.accountId === accountId) {
 							setStatus();
 						}
@@ -117,11 +130,21 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 					setRegisteredByHost: () => setStatus(undefined, true),
 					setConnected: (connected: boolean) => { remotes.get(address)!.connected = connected; connectionsChanged.fire(); },
 					setConfigured: (configured: boolean) => { remotes.get(address)!.configured = configured; entriesChanged.fire(); },
+					/** Holds the next registration request until it is released. */
+					holdRegistration: () => {
+						held = { started: new DeferredPromise<void>(), released: new DeferredPromise<void>() };
+						return held;
+					},
+					setUnregisterFails: (fails: boolean) => { unregisterFails = fails; },
 				};
 			},
 			changeAccount(accountId: string) {
 				session = { ...session, accessToken: `token-${accountId}`, account: { id: accountId, label: accountId } };
 				sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: [session], removed: undefined, changed: undefined } });
+			},
+			signOut() {
+				signedIn = false;
+				sessionsChanged.fire({ providerId: 'github', label: 'GitHub', event: { added: undefined, removed: [session], changed: undefined } });
 			},
 			setEnabled(value: boolean) {
 				enabled = value;
@@ -141,8 +164,8 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 					environmentIds: [...service.environmentIds.get()],
 				};
 			},
-			stored(): unknown {
-				return JSON.parse(storage.get(sharesStorageKey, StorageScope.APPLICATION, '{}'));
+			stored(key = sharesStorageKey): unknown {
+				return JSON.parse(storage.get(key, StorageScope.APPLICATION, '{}'));
 			},
 		};
 	}
@@ -273,6 +296,120 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 			shares: { 'wsl:Ubuntu': { state: 'enabled', environmentId: 'environment-wsl:Ubuntu-account' } },
 			stored: { 'wsl:Ubuntu': { accountId: 'account', environmentId: 'environment-wsl:Ubuntu-account', instanceId: 'wsl:Ubuntu#0' } },
 			calls: [],
+		});
+	});
+
+	test('registers again after a protocol reconnect and withdraws a registration the gate closed meanwhile', async () => {
+		const context = fixture();
+		const ubuntu = context.addRemote('wsl:Ubuntu');
+		await context.flush();
+		await context.service.setShared('wsl:Ubuntu', true);
+
+		// A protocol reconnect keeps the handshake object.
+		ubuntu.setConnected(false);
+		ubuntu.setConnected(true);
+		await context.flush();
+
+		const held = ubuntu.holdRegistration();
+		ubuntu.reconnect();
+		await held.started.p;
+		context.setEnabled(false);
+		held.released.complete();
+		// The completed registration schedules the withdrawal behind the first flush.
+		await context.flush();
+		await context.flush();
+
+		assert.deepStrictEqual({ stored: context.stored(), calls: context.calls }, {
+			stored: { 'wsl:Ubuntu': { accountId: 'account', environmentId: 'environment-wsl:Ubuntu' } },
+			calls: [
+				'register wsl:Ubuntu account token-1',
+				'register wsl:Ubuntu account token-1',
+				'register wsl:Ubuntu account token-1',
+				'unregister wsl:Ubuntu account',
+			],
+		});
+	});
+
+	test('stops sharing after signing out and withdraws from disconnected remotes on their next connection', async () => {
+		const context = fixture();
+		context.addRemote('wsl:Ubuntu');
+		const debian = context.addRemote('wsl:Debian');
+		await context.flush();
+		await context.service.setShared('wsl:Ubuntu', true);
+		await context.service.setShared('wsl:Debian', true);
+		debian.setConnected(false);
+
+		context.signOut();
+		await context.flush();
+		const signedOut = { shares: context.snapshot().shares, stored: context.stored(), pending: context.stored(pendingUnregistrationsStorageKey) };
+
+		debian.setConnected(true);
+		await context.flush();
+
+		assert.deepStrictEqual({ signedOut, pending: context.stored(pendingUnregistrationsStorageKey), calls: context.calls }, {
+			signedOut: { shares: {}, stored: {}, pending: { 'wsl:Debian': 'account' } },
+			pending: {},
+			calls: [
+				'register wsl:Ubuntu account token-1',
+				'register wsl:Debian account token-1',
+				'unregister wsl:Ubuntu account',
+				'unregister wsl:Debian account',
+			],
+		});
+	});
+
+	test('retries stopping a share from another computer after the next connection', async () => {
+		const context = fixture();
+		const ubuntu = context.addRemote('wsl:Ubuntu');
+		await context.flush();
+		ubuntu.setRegistration('account');
+		await context.flush();
+
+		ubuntu.setUnregisterFails(true);
+		await context.service.setShared('wsl:Ubuntu', false);
+		const failed = context.stored(pendingUnregistrationsStorageKey);
+
+		ubuntu.setUnregisterFails(false);
+		ubuntu.setConnected(false);
+		ubuntu.setConnected(true);
+		await context.flush();
+
+		assert.deepStrictEqual({ failed, shares: context.snapshot().shares, pending: context.stored(pendingUnregistrationsStorageKey), calls: context.calls }, {
+			failed: { 'wsl:Ubuntu': 'account' },
+			shares: {},
+			pending: {},
+			calls: ['unregister wsl:Ubuntu account (failed)', 'unregister wsl:Ubuntu account'],
+		});
+	});
+
+	test('follows sharing changes other windows make during a registration', async () => {
+		const context = fixture();
+		const ubuntu = context.addRemote('wsl:Ubuntu');
+		const debian = context.addRemote('wsl:Debian');
+		await context.flush();
+		await context.service.setShared('wsl:Ubuntu', true);
+
+		const held = ubuntu.holdRegistration();
+		ubuntu.reconnect();
+		await held.started.p;
+		// Another window stops sharing Ubuntu and defers withdrawing its Debian registration.
+		context.storage.remove(sharesStorageKey, StorageScope.APPLICATION, true);
+		debian.setRegistration('account');
+		context.storage.store(pendingUnregistrationsStorageKey, JSON.stringify({ 'wsl:Debian': 'account' }), StorageScope.APPLICATION, StorageTarget.MACHINE, true);
+		held.released.complete();
+		await context.flush();
+		await context.flush();
+
+		assert.deepStrictEqual({ shares: context.snapshot().shares, stored: context.stored(), pending: context.stored(pendingUnregistrationsStorageKey), calls: context.calls }, {
+			shares: {},
+			stored: {},
+			pending: {},
+			calls: [
+				'register wsl:Ubuntu account token-1',
+				'register wsl:Ubuntu account token-1',
+				'unregister wsl:Ubuntu account',
+				'unregister wsl:Debian account',
+			],
 		});
 	});
 });

@@ -17,6 +17,9 @@ export function getGitHubEnvironmentAuthentication(product: IProductService): { 
 	};
 }
 
+/** Raised when no GitHub account can register GitHub environments, as opposed to a failure to look one up. */
+export class GitHubEnvironmentAccountUnavailableError extends Error { }
+
 /**
  * Returns the sessions that can register GitHub environments: those of the
  * Copilot default account, or of any account when there is no default
@@ -27,7 +30,7 @@ export async function getGitHubEnvironmentSessions(authentication: IAuthenticati
 	let account: AuthenticationSessionAccount | undefined;
 	if (defaultAccount) {
 		if (defaultAccount.authenticationProvider.id !== providerId) {
-			throw new Error(localize('missionControlSharing.githubAccountRequired', "GitHub environment sharing requires a GitHub.com Copilot account."));
+			throw new GitHubEnvironmentAccountUnavailableError(localize('missionControlSharing.githubAccountRequired', "GitHub environment sharing requires a GitHub.com Copilot account."));
 		}
 		const allSessions = await authentication.getSessions(providerId, undefined, undefined, true);
 		account = allSessions.find(session => session.id === defaultAccount.sessionId)?.account;
