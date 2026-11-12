@@ -189,7 +189,7 @@ suite('ChatListRenderer', () => {
 
 		suite('getFinalResponseStartIndex', () => {
 			for (const serialized of [false, true]) {
-				test(`completed response folding crosses only one trailing single-tool gap (serialized=${serialized})`, async () => {
+				test(`completed response folding crosses only one trailing single-tool gap and its reasoning (serialized=${serialized})`, async () => {
 					const invocation = new ChatToolInvocation(
 						{ invocationMessage: 'Finish bookkeeping' },
 						{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -207,6 +207,10 @@ suite('ChatListRenderer', () => {
 						[thinking, markdown, tool, tool, summary],
 						[markdown, tool, markdown, tool, summary],
 						[markdown, tool, thinking, summary],
+						[tool, markdown, thinking, tool, thinking, summary],
+						[markdown, tool, thinking, tool, summary],
+						[markdown, thinking, summary],
+						[tool, thinking, summary],
 						[tool, summary],
 						[tool],
 					];
@@ -218,7 +222,11 @@ suite('ChatListRenderer', () => {
 						{ contiguous: 4, singleToolGap: 1 },
 						{ contiguous: 4, singleToolGap: 4 },
 						{ contiguous: 4, singleToolGap: 2 },
-						{ contiguous: 3, singleToolGap: 3 },
+						{ contiguous: 3, singleToolGap: 0 },
+						{ contiguous: 5, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 4 },
+						{ contiguous: 2, singleToolGap: 2 },
+						{ contiguous: 2, singleToolGap: 2 },
 						{ contiguous: 1, singleToolGap: 1 },
 						{ contiguous: undefined, singleToolGap: undefined },
 					]);
@@ -2577,8 +2585,8 @@ suite('ChatListRenderer', () => {
 	});
 
 	suite('single-tool completed response collapse', () => {
-		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
-			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
+		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean, reasonBeforeMarkdown = false, ids = ['initial-work', 'follow-up-work', 'final-bookkeeping']): Promise<void> {
+			for (const id of ids) {
 				const tool = new ChatToolInvocation(
 					{ invocationMessage: id, pastTenseMessage: id },
 					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -2587,6 +2595,9 @@ suite('ChatListRenderer', () => {
 				await tool.didExecuteTool(undefined);
 				model.acceptResponseProgress(request, serialized ? tool.toJSON() : tool);
 				if (id !== 'initial-work') {
+					if (reasonBeforeMarkdown) {
+						model.acceptResponseProgress(request, { kind: 'thinking', value: `Reasoning after ${id}`, id: `reasoning-after-${id}` });
+					}
 					model.acceptResponseProgress(request, {
 						kind: 'markdownContent',
 						content: new MarkdownString(id === 'final-bookkeeping' ? 'Task completed.' : 'Detailed answer with the full analysis.'),
@@ -2626,6 +2637,61 @@ suite('ChatListRenderer', () => {
 				}
 			}
 		}
+
+		// Conversation folds the earlier work into one section, which needs no disclosure.
+		for (const [progressVerbosity, collapsedLabel] of [[ChatProgressVerbosity.Verbose, 'Completed 3 steps'], [ChatProgressVerbosity.Compact, 'Completed 2 steps'], [ChatProgressVerbosity.Conversation, undefined]] as const) {
+			for (const initiallyComplete of [false, true]) {
+				test(`preserves the detailed answer when reasoning follows the final tool (${progressVerbosity}, restored=${initiallyComplete})`, async () => {
+					const setup = createPersistentProgressRenderer({ progressVerbosity, chatMode: ChatModeKind.Agent });
+					const { disposables, configurationService, request, renderer, template, node } = setup;
+					configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					await addCompletionResponse(setup, initiallyComplete, true);
+					if (!initiallyComplete) {
+						renderer.renderElement(node, 0, template);
+					}
+					request.response?.complete();
+					renderer.renderElement(node, 0, template);
+					await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+					await timeout(0);
+					assert.deepStrictEqual({
+						collapsedLabel: template.completedResponseDisclosure?.querySelector('summary')?.textContent,
+						visibleMarkdown: Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim()),
+					}, {
+						collapsedLabel,
+						visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'],
+					});
+					disposables.dispose();
+				});
+			}
+		}
+
+		test('waits for the closing summary to finish revealing before collapsing', async () => {
+			const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+			const { disposables, configurationService, request, renderer, template, node } = setup;
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'word');
+			const markdownParts = () => template.renderedParts?.filter(part => part instanceof ChatMarkdownContentPart) ?? [];
+			await addCompletionResponse(setup, false, true, ['initial-work', 'follow-up-work']);
+			renderer.renderElement(node, 0, template);
+			const answer = markdownParts()[0];
+			if (!answer.isRenderComplete) {
+				await Event.toPromise(answer.onDidFinishRendering);
+			}
+			await addCompletionResponse(setup, false, true, ['final-bookkeeping']);
+			renderer.renderElement(node, 0, template);
+			const summary = markdownParts()[1];
+			const revealing = markdownParts().map(part => !part.isRenderComplete);
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			const collapsedWhileRevealing = !!template.completedResponseDisclosure;
+			if (!summary.isRenderComplete) {
+				await Event.toPromise(summary.onDidFinishRendering);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ revealing, collapsedWhileRevealing, collapsed: !!template.completedResponseDisclosure }, { revealing: [false, true], collapsedWhileRevealing: false, collapsed: true });
+			disposables.dispose();
+		});
 
 		for (const permissionLevel of [ChatPermissionLevel.Default, ChatPermissionLevel.Autopilot]) {
 			for (const subagent of [false, true]) {
@@ -9228,6 +9294,8 @@ suite('ChatListRenderer', () => {
 
 	async function addCompletedProgressResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, finalText = 'Final review.\n\nAll checks passed.'): Promise<void> {
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'first', value: '**Checking the implementation**\nReview the current changes.' });
+		// Several tools follow this text, so it folds with the work instead of being kept as a single-tool tail.
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Checking the remaining paths.\n\nComparing the results.') });
 		for (const id of ['first', 'second']) {
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: `Read ${id} file` },
@@ -9237,7 +9305,6 @@ suite('ChatListRenderer', () => {
 			model.acceptResponseProgress(request, tool);
 			await tool.didExecuteTool(undefined);
 		}
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Checking the remaining paths.\n\nComparing the results.') });
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'second', value: '**Verifying the result**\nCheck the external reference.' });
 		const externalTool = new ChatToolInvocation(
 			{ invocationMessage: 'Read external reference' },

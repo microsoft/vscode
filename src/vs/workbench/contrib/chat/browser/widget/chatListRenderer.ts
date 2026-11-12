@@ -293,18 +293,31 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 		return undefined;
 	}
 
-	let canCrossTool = allowSingleToolGap;
-	while (index > 0) {
-		const previous = content[index - 1];
-		if (previous.kind === 'markdownContent') {
-			index--;
-		} else if (canCrossTool && (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') && content[index - 2]?.kind === 'markdownContent') {
-			// A final tool can separate a detailed answer from its closing summary.
-			index -= 2;
-			canCrossTool = false;
-		} else {
+	index = getMarkdownRunStartIndex(content, index);
+	if (!allowSingleToolGap) {
+		return index;
+	}
+
+	// A final tool call, and the reasoning around it, can separate a detailed answer from its closing summary.
+	let gapStartIndex = index;
+	let toolCount = 0;
+	while (gapStartIndex > 0) {
+		const previous = content[gapStartIndex - 1];
+		if (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') {
+			toolCount++;
+		} else if (previous.kind !== 'thinking') {
 			break;
 		}
+		gapStartIndex--;
+	}
+	return toolCount === 1 && content[gapStartIndex - 1]?.kind === 'markdownContent'
+		? getMarkdownRunStartIndex(content, gapStartIndex - 1)
+		: index;
+}
+
+function getMarkdownRunStartIndex(content: ReadonlyArray<IChatRendererContent>, index: number): number {
+	while (index > 0 && content[index - 1].kind === 'markdownContent') {
+		index--;
 	}
 	return index;
 }
@@ -4111,10 +4124,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 		const finalResponsePart = templateData.renderedParts?.[finalResponseStartIndex];
-		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || !finalResponsePart.isRenderComplete) {
+		// The preserved response can span several markdown parts, so wait for whichever is still revealing its text.
+		const revealingPart = templateData.renderedParts?.slice(finalResponseStartIndex)
+			.find((part): part is ChatMarkdownContentPart => part instanceof ChatMarkdownContentPart && !part.isRenderComplete);
+		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || revealingPart) {
 			this.removeCompletedResponseDisclosure(templateData);
-			if (finalResponsePart instanceof ChatMarkdownContentPart) {
-				templateData.completedResponseDisclosureDisposables.add(Event.once(finalResponsePart.onDidFinishRendering)(() => {
+			if (revealingPart) {
+				templateData.completedResponseDisclosureDisposables.add(Event.once(revealingPart.onDidFinishRendering)(() => {
 					this.updateCompletedResponseDisclosure(element, content, templateData, false);
 				}));
 			}
