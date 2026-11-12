@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
@@ -27,7 +28,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostUtilityModelService, AgentHostUtilityModelUnavailableError } from '../../node/agentHostUtilityModelService.js';
 import type { IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import type { ICopilotApiService, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
-import type { TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import type { IAgentHostGitHubTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import type { IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -70,18 +71,20 @@ interface IScenario {
 	readonly telemetryService?: ITelemetryService;
 	/** Token usage the BYOK bridge reports. */
 	readonly byokUsage?: IByokLmChatResult['usage'];
+	/** Whether looking up the Copilot account for telemetry fails. */
+	readonly copilotAccountUnavailable?: boolean;
 	readonly onCopilotRequest?: (request: ICopilotUtilityChatCompletionRequest) => void;
 }
 
 class RecordingTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { stream: 'microsoft' | 'github'; name: string | undefined; data?: ITelemetryData | TelemetryProps; measurements?: TelemetryMeasurements }[] = [];
+	readonly events: { stream: 'microsoft' | 'github'; context?: IAgentHostGitHubTelemetryContext; name: string | undefined; data?: ITelemetryData | TelemetryProps; measurements?: TelemetryMeasurements }[] = [];
 
 	override publicLog2(name?: string, data?: ITelemetryData): void {
 		this.events.push({ stream: 'microsoft', name, data });
 	}
 
-	sendGHTelemetryEvent(name: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
-		this.events.push({ stream: 'github', name, data: properties, measurements });
+	sendGHTelemetryEventForContext(context: IAgentHostGitHubTelemetryContext, name: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.events.push({ stream: 'github', context, name, data: properties, measurements });
 	}
 }
 
@@ -105,6 +108,12 @@ suite('AgentHostUtilityModelService', () => {
 				copilotCalls.push(token);
 				scenario.onCopilotRequest?.(request);
 				return 'copilot text';
+			},
+			resolveRestrictedTelemetryContext: async token => {
+				if (scenario.copilotAccountUnavailable) {
+					throw new Error('account unavailable');
+				}
+				return { restrictedTelemetryEnabled: true, trackingId: `tracking-${token}`, telemetryEndpoint: 'https://telemetry.example' };
 			},
 		});
 		const rendererConnected = scenario.rendererConnected ?? true;
@@ -168,6 +177,8 @@ suite('AgentHostUtilityModelService', () => {
 		} catch (err) {
 			result = err instanceof AgentHostUtilityModelUnavailableError ? `unavailable: ${err.reason}` : `error: ${err}`;
 		}
+		// BYOK calls report after the Copilot account for telemetry resolves.
+		await timeout(0);
 		return includeInput
 			? { result, byokRequests }
 			: { result, copilotCalls, byokRequests: byokRequests.map(r => `${r.vendor}|${r.modelId}`) };
@@ -339,7 +350,7 @@ suite('AgentHostUtilityModelService', () => {
 		});
 	});
 
-	test('attributes utility calls to the session, reports BYOK calls with a redacted model, and skips calls with no utility model', async () => {
+	test('attributes utility calls to the session, reports BYOK calls with a redacted model under the session Copilot account, and skips calls with no utility model', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
 		try {
 			const telemetryService = new RecordingTelemetryService();
@@ -348,17 +359,23 @@ suite('AgentHostUtilityModelService', () => {
 			await run({ utilitySmallModel: 'ollama/llama3', telemetryService, byokUsage: { inputTokens: 20, outputTokens: 5, reasoningTokens: 2 } });
 			await run({ utilitySmallModel: 'ollama/llama3', rendererConnected: false, telemetryService });
 			await run({ mainModel: 'claude-sonnet-4.5', copilotToken: false, telemetryService });
+			await run({ utilitySmallModel: 'ollama/llama3', copilotToken: false, telemetryService });
+			await run({ utilitySmallModel: 'ollama/llama3', copilotAccountUnavailable: true, telemetryService });
 
 			const properties = { source: 'title', initiatorType: 'agent', requestKind: 'conversation-background' };
 			const byokSuccess = { ...properties, outcome: 'success' };
 			const byokMeasurements = { isBYOK: 1, promptTokenCount: 20, completionTokens: 5, tokenCount: 25, reasoningTokens: 2, timeToComplete: 0 };
+			const byokMicrosoft = { stream: 'microsoft', name: 'agentHost.utilityModelCall', data: { ...byokSuccess, isBYOK: 1, timeToComplete: 0, agentSessionId: 'session', model: 'byokModel' } };
 			assert.deepStrictEqual({ copilotRequests, events: telemetryService.events }, {
 				// The Copilot API service reports Copilot-routed calls. A disconnected
 				// BYOK bridge or a signed-out user reaches no model and reports nothing.
 				copilotRequests: [{ source: 'title', agentSessionId: 'session' }],
 				events: [
 					{ stream: 'microsoft', name: 'agentHost.utilityModelCall', data: { ...byokSuccess, ...byokMeasurements, agentSessionId: 'session', model: 'byokModel' } },
-					{ stream: 'github', name: 'agentHost.utilityModelCall', data: { ...byokSuccess, conversationId: 'session', model: 'byokModel' }, measurements: byokMeasurements },
+					{ stream: 'github', context: { trackingId: 'tracking-copilot-token', telemetryEndpoint: 'https://telemetry.example/telemetry' }, name: 'agentHost.utilityModelCall', data: { ...byokSuccess, conversationId: 'session', model: 'byokModel' }, measurements: byokMeasurements },
+					// Without a Copilot account, BYOK calls report on the Microsoft stream only.
+					byokMicrosoft,
+					byokMicrosoft,
 				],
 			});
 		} finally {

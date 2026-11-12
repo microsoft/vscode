@@ -18,7 +18,7 @@ import product from '../../../../product/common/product.js';
 import { captureCopilotTelemetryContext, toCopilotTelemetryData } from '../../../node/shared/copilotSkuTelemetry.js';
 import { ITelemetryData, ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape, TelemetryTrustedValue } from '../../../../telemetry/common/telemetryUtils.js';
-import type { TelemetryMeasurements, TelemetryProps } from '../../../node/agentHostRestrictedTelemetry.js';
+import type { IAgentHostGitHubTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../../node/agentHostRestrictedTelemetry.js';
 
 // #region Test Helpers
 
@@ -33,10 +33,10 @@ class DiscoveryTelemetryService extends NullTelemetryServiceShape {
 }
 
 class UtilityTelemetryService extends DiscoveryTelemetryService {
-	readonly ghEvents: { name: string; properties?: TelemetryProps; measurements?: TelemetryMeasurements }[] = [];
+	readonly ghEvents: { context: IAgentHostGitHubTelemetryContext; name: string; properties?: TelemetryProps; measurements?: TelemetryMeasurements }[] = [];
 
-	sendGHTelemetryEvent(name: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
-		this.ghEvents.push({ name, properties, measurements });
+	sendGHTelemetryEventForContext(context: IAgentHostGitHubTelemetryContext, name: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
+		this.ghEvents.push({ context, name, properties, measurements });
 	}
 }
 
@@ -1305,7 +1305,11 @@ suite('CopilotApiService', () => {
 				const service = createService(async (input, init) => {
 					const url = getUrl(input);
 					if (url.endsWith('/copilot_internal/user')) {
-						return userResponse();
+						return userResponse({
+							analytics_tracking_id: 'tracking-1',
+							restricted_telemetry: true,
+							endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example/' },
+						});
 					}
 					if (url.endsWith('/models')) {
 						return modelsResponse([{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }]);
@@ -1333,6 +1337,7 @@ suite('CopilotApiService', () => {
 				const failure = { ...properties, outcome: 'error', requestId: requestIds[1] };
 				const successMeasurements = { isBYOK: -1, httpStatus: 200, promptTokenCount: 12, promptCacheTokenCount: 4, completionTokens: 3, tokenCount: 15, reasoningTokens: 1, timeToComplete: 40 };
 				const failureMeasurements = { isBYOK: -1, httpStatus: 500, timeToComplete: 40 };
+				const context = { trackingId: 'tracking-1', telemetryEndpoint: 'https://telemetry.example/telemetry' };
 				assert.deepStrictEqual({
 					events: telemetry.events.filter(event => event.name === 'agentHost.utilityModelCall'),
 					ghEvents: telemetry.ghEvents,
@@ -1342,13 +1347,43 @@ suite('CopilotApiService', () => {
 						{ name: 'agentHost.utilityModelCall', data: { ...failure, ...failureMeasurements, agentSessionId: 'session-1', model: new TelemetryTrustedValue('gpt-4o-mini-model') } },
 					],
 					ghEvents: [
-						{ name: 'agentHost.utilityModelCall', properties: { ...success, conversationId: 'session-1', model: 'gpt-4o-mini-model', modelInvoked: 'gpt-4o-mini-2024-07-18' }, measurements: successMeasurements },
-						{ name: 'agentHost.utilityModelCall', properties: { ...failure, conversationId: 'session-1', model: 'gpt-4o-mini-model' }, measurements: failureMeasurements },
+						{ context, name: 'agentHost.utilityModelCall', properties: { ...success, conversationId: 'session-1', model: 'gpt-4o-mini-model', modelInvoked: 'gpt-4o-mini-2024-07-18' }, measurements: successMeasurements },
+						{ context, name: 'agentHost.utilityModelCall', properties: { ...failure, conversationId: 'session-1', model: 'gpt-4o-mini-model' }, measurements: failureMeasurements },
 					],
 				});
 			} finally {
 				clock.restore();
 			}
+		});
+
+		test('attributes utility telemetry to the sending account and skips calls that fail before sending', async () => {
+			const telemetry = new UtilityTelemetryService();
+			const service = createService(async (input, init) => {
+				const url = getUrl(input);
+				const token = (init?.headers as Record<string, string> | undefined)?.['Authorization']?.replace('Bearer ', '');
+				if (url.endsWith('/copilot_internal/user')) {
+					return userResponse({
+						analytics_tracking_id: `tracking-${token}`,
+						endpoints: { api: 'https://api.githubcopilot.com', telemetry: 'https://telemetry.example' },
+					});
+				}
+				if (url.endsWith('/models')) {
+					return modelsResponse(token === 'gh-a' ? [{ id: 'gpt-4o-mini-model', capabilities: { family: 'gpt-4o-mini' } }] : []);
+				}
+				return new Response(JSON.stringify({ choices: [{ message: { content: 'Generated title' } }] }), { status: 200 });
+			}, undefined, telemetry);
+			const request = { messages: [{ role: 'user' as const, content: 'Generate a title' }], telemetry: { source: 'title' as const } };
+
+			await service.utilityChatCompletion('gh-a', request);
+			await assert.rejects(() => service.utilityChatCompletion('gh-b', request), /No CAPI model available/);
+
+			assert.deepStrictEqual({
+				events: telemetry.events.filter(event => event.name === 'agentHost.utilityModelCall').map(event => event.data?.outcome),
+				ghEvents: telemetry.ghEvents.map(event => ({ context: event.context, outcome: event.properties?.outcome })),
+			}, {
+				events: ['success'],
+				ghEvents: [{ context: { trackingId: 'tracking-gh-a', telemetryEndpoint: undefined }, outcome: 'success' }],
+			});
 		});
 
 		test('non-streaming sends stream=false in the body', async () => {

@@ -57,6 +57,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps): void {
 		this.githubStandardEvents.push({ eventName, properties });
 	}
+	sendGHTelemetryEventForContext(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 		this.enhancedMeasurements.push(measurements);

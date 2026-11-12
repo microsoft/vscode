@@ -16,7 +16,8 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
-import { getUtilityModelCallFailureOutcome, reportUtilityModelCall, type AgentHostUtilityModelCallOutcome, type IAgentHostUtilityModelCallTelemetryContext } from './utilityModelCallTelemetry.js';
+import type { IAgentHostGitHubTelemetryContext } from '../agentHostRestrictedTelemetry.js';
+import { getUtilityModelCallFailureOutcome, reportUtilityModelCall, toUtilityModelCallGitHubTelemetry, type AgentHostUtilityModelCallOutcome, type IAgentHostUtilityModelCallTelemetryContext } from './utilityModelCallTelemetry.js';
 
 // #region Types
 
@@ -121,7 +122,9 @@ interface ICapiChatCompletionResponse {
 /** What a utility chat completion has reached so far, for its telemetry event. */
 interface IUtilityChatCompletionCall {
 	readonly startTime: number;
+	gitHubTelemetry?: IAgentHostGitHubTelemetryContext;
 	modelId?: string;
+	/** Set just before the request is sent; calls that fail earlier are not reported. */
 	requestId?: string;
 	response?: Response;
 	json?: ICapiChatCompletionResponse;
@@ -758,7 +761,11 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 	): Promise<string> {
 		const call: IUtilityChatCompletionCall = { startTime: Date.now() };
 		try {
-			const capiClient = await this._getClientForToken(githubToken);
+			const entry = await this._getEntryForToken(githubToken);
+			const capiClient = entry.capiClient;
+			// Attribute the call to the account whose credential sends it, even if
+			// the signed-in account changes before the call completes.
+			call.gitHubTelemetry = toUtilityModelCallGitHubTelemetry(entry);
 			const modelId = call.modelId = await this._resolveUtilityModelId(githubToken, UTILITY_DEFAULT_MODEL_FAMILY);
 			const requestId = call.requestId = generateUuid();
 
@@ -805,7 +812,9 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			this._reportUtilityChatCompletion(request.telemetry, 'success', call);
 			return content;
 		} catch (err) {
-			this._reportUtilityChatCompletion(request.telemetry, getUtilityModelCallFailureOutcome(err, options?.signal), call);
+			if (call.requestId !== undefined) {
+				this._reportUtilityChatCompletion(request.telemetry, getUtilityModelCallFailureOutcome(err, options?.signal), call);
+			}
 			throw err;
 		}
 	}
@@ -819,6 +828,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			context,
 			outcome,
 			isBYOK: false,
+			gitHubTelemetry: call.gitHubTelemetry,
 			model: call.modelId,
 			modelInvoked: call.json?.model,
 			finishReason: call.json?.choices?.[0]?.finish_reason,

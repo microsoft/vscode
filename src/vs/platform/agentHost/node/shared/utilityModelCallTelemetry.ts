@@ -6,7 +6,7 @@
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
-import type { IAgentHostRestrictedTelemetry } from '../agentHostRestrictedTelemetry.js';
+import { toRestrictedTelemetryEndpoint, type IAgentHostGitHubTelemetryContext, type IAgentHostRestrictedTelemetry } from '../agentHostRestrictedTelemetry.js';
 
 /**
  * The feature that made a utility model call. Values match the Copilot Chat
@@ -36,6 +36,12 @@ export interface IAgentHostUtilityModelCallReport {
 	readonly context: IAgentHostUtilityModelCallTelemetryContext;
 	readonly outcome: AgentHostUtilityModelCallOutcome;
 	readonly isBYOK: boolean;
+	/**
+	 * The Copilot account the GitHub telemetry event is attributed to, captured
+	 * from the call's credential before the request. Without it, the call is
+	 * reported on the Microsoft telemetry stream only.
+	 */
+	readonly gitHubTelemetry?: IAgentHostGitHubTelemetryContext;
 	/** The Copilot model requested. Ignored for BYOK calls, whose model is redacted. */
 	readonly model?: string;
 	/** The Copilot model the service reported serving. Ignored for BYOK calls. */
@@ -114,9 +120,22 @@ export function getUtilityModelCallFailureOutcome(error: unknown, signal: AbortS
 }
 
 /**
+ * The GitHub telemetry account of a Copilot credential, routed like the agent
+ * host's other GitHub telemetry: to the account's telemetry endpoint when it
+ * enables restricted telemetry, otherwise to the default endpoint.
+ */
+export function toUtilityModelCallGitHubTelemetry(account: { readonly restrictedTelemetryEnabled: boolean; readonly trackingId?: string; readonly telemetryEndpoint?: string }): IAgentHostGitHubTelemetryContext {
+	return {
+		trackingId: account.trackingId,
+		telemetryEndpoint: toRestrictedTelemetryEndpoint(account.restrictedTelemetryEnabled ? account.telemetryEndpoint : undefined),
+	};
+}
+
+/**
  * Reports a utility model call on the Microsoft telemetry stream and, when the
- * agent host telemetry service provides it, the GitHub standard telemetry
- * stream, like the Copilot Chat extension's response events.
+ * report carries the call's Copilot account and the agent host telemetry
+ * service provides it, the GitHub standard telemetry stream, like the Copilot
+ * Chat extension's response events.
  */
 export function reportUtilityModelCall(telemetryService: ITelemetryService, report: IAgentHostUtilityModelCallReport): void {
 	const model = report.isBYOK ? BYOK_MODEL : toTelemetryToken(report.model);
@@ -162,8 +181,8 @@ export function reportUtilityModelCall(telemetryService: ITelemetryService, repo
 	});
 
 	const restricted = telemetryService as Partial<IAgentHostRestrictedTelemetry>;
-	if (typeof restricted.sendGHTelemetryEvent === 'function') {
-		restricted.sendGHTelemetryEvent(EVENT_NAME, {
+	if (report.gitHubTelemetry && typeof restricted.sendGHTelemetryEventForContext === 'function') {
+		restricted.sendGHTelemetryEventForContext(report.gitHubTelemetry, EVENT_NAME, {
 			...properties,
 			...(agentSessionId ? { conversationId: agentSessionId } : {}),
 			...(model ? { model } : {}),
