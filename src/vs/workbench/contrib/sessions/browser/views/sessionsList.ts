@@ -4513,6 +4513,11 @@ interface ISessionsListControlBaseOptions {
 	 * so when it shows no session. The providers scope the sessions themselves.
 	 */
 	readonly scoped?: IObservable<boolean>;
+	/**
+	 * Whether grouping by time lists the sessions without a workspace in the "Chats" section, flat, as the other groupings
+	 * do, rather than among the time sections; it does not by default.
+	 */
+	readonly quickChatsInTimeGrouping?: boolean;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
 
 	/**
@@ -5945,7 +5950,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const environments = grouping === SessionsGrouping.Environment
 			? getSessionEnvironments(this._sessionsProvidersService.getProviders().map(provider => provider.environment))
 			: [];
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session));
+		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions, environments, session => this.getInboxSection(session), session => this.getInboxPriority(session), this.quickChatsInTimeGrouping);
 
 		// When done items are shown, the done chats of a session that is not done
 		// are listed in the Done section as rows of their own instead of under
@@ -5958,8 +5963,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const dateSectionByEntryId = new Map<string, string>();
 		if (grouping === SessionsGrouping.Date) {
 			const entries: SessionSortEntry[] = [
-				...forSections.filter(session => !session.isArchived.get() && !this.isSessionPinned(session) && !(this.groupExternalSessions && session.isExternal?.get())),
-				...topLevelGroups.filter(group => comparisonsByGroupId.has(group.id) && isComparisonInScope(comparisonsByGroupId.get(group.id)!)).map(group => this.getComparisonSortEntry(group.id)),
+				...forSections.filter(session => !session.isArchived.get() && !this.isSessionPinned(session) && !(this.groupExternalSessions && session.isExternal?.get()) && !(this.quickChatsInTimeGrouping && isQuickChatSession(session))),
+				...topLevelGroups.filter(group => comparisonsByGroupId.has(group.id) && isComparisonInScope(comparisonsByGroupId.get(group.id)!) && !(this.quickChatsInTimeGrouping && !comparisonsByGroupId.get(group.id)!.workspace)).map(group => this.getComparisonSortEntry(group.id)),
 			];
 			const key = (entry: SessionSortEntry) => this._sessionsListModelService.getSortKey(entry, sortingToMode(sorting));
 			// A comparison counts as one entry when applying the Recent limit.
@@ -6013,7 +6018,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				const worktree = grouping === SessionsGrouping.Worktree && comparison.workspace && comparisonSessions.length > 0 ? getSessionWorktreeSection(comparisonSessions[0]) : undefined;
 				const sectionId = inbox
 					? sessionInboxSections.find(id => comparisonSessions.some(session => this.getInboxSection(session) === id)) ?? (comparisonSessions.length === 0 ? SessionInboxSection.Working : undefined)
-					: grouping === SessionsGrouping.Date
+					: grouping === SessionsGrouping.Date && !(this.quickChatsInTimeGrouping && !comparison.workspace)
 						? dateSectionByEntryId.get(getSessionGroupSectionId(group.id))
 						: worktree ? worktree.id : environment ? `${ENVIRONMENT_SECTION_PREFIX}${environment.id}` : !comparison.workspace ? QUICK_CHATS_SECTION_ID : repository ? getRepositorySectionId(repository) : `workspace:${workspaceLabel}`;
 				if (!sectionId) {
@@ -6031,7 +6036,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				workspaceGroups.push(group);
 				let workspaceSection = sections.find(section => section.id === sectionId);
 				if (!workspaceSection) {
-					workspaceSection = grouping === SessionsGrouping.Date
+					workspaceSection = grouping === SessionsGrouping.Date && sectionId !== QUICK_CHATS_SECTION_ID
 						? { id: sectionId, label: sectionId === 'recent' ? localize('recent', "Recent") : localize('older', "Older"), sessions: [] }
 						: worktree
 							? { id: sectionId, label: worktree.label, hover: worktree.hover, sessions: [] }
@@ -6135,7 +6140,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// header — leading chat icon, label, and the "+" create action — is always
 		// reachable. Only when the grouping lists quick chats there and a provider
 		// can actually serve quick chats.
-		if (showEmptyDefaultGroups && groupingHasQuickChatsSection(grouping) && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
+		if (showEmptyDefaultGroups && groupingHasQuickChatsSection(grouping, this.quickChatsInTimeGrouping) && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
 			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
 		}
 
@@ -7272,7 +7277,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return [EXTERNAL_SESSIONS_SECTION_ID];
 		}
 		const grouping = this.options.grouping();
-		if (groupingHasQuickChatsSection(grouping) && isQuickChatSession(session)) {
+		if (groupingHasQuickChatsSection(grouping, this.quickChatsInTimeGrouping) && isQuickChatSession(session)) {
 			return [QUICK_CHATS_SECTION_ID];
 		}
 		if (grouping !== SessionsGrouping.Date) {
@@ -9288,6 +9293,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true;
 	}
 
+	private get quickChatsInTimeGrouping(): boolean {
+		return !!this.options.quickChatsInTimeGrouping;
+	}
+
 	private isRenderedInExternalSection(session: ISession): boolean {
 		return this.groupExternalSessions
 			&& session.isExternal?.get() === true
@@ -10171,8 +10180,9 @@ export function isQuickChatSession(session: ISession): boolean {
  * workspace and repository grouping do; other groupings list quick chats with
  * the other sessions.
  */
-function groupingHasQuickChatsSection(grouping: SessionsGrouping): boolean {
-	return grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository || grouping === SessionsGrouping.Worktree;
+function groupingHasQuickChatsSection(grouping: SessionsGrouping, quickChatsInTimeGrouping = false): boolean {
+	return grouping === SessionsGrouping.Workspace || grouping === SessionsGrouping.Repository || grouping === SessionsGrouping.Worktree
+		|| (quickChatsInTimeGrouping && grouping === SessionsGrouping.Date);
 }
 
 /** Whether a session is associated with an automation run. */
@@ -10192,6 +10202,7 @@ export function groupSessionsForList(
 	normalizedEnvironments: readonly ISessionEnvironment[] = getSessionEnvironments([]),
 	getInboxSection: (session: ISession) => SessionInboxSection = getSessionInboxSection,
 	getInboxPriority: (session: ISession) => InboxNotificationPriority = getSessionInboxPriority,
+	quickChatsInTimeGrouping = false,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions, sorting, getSortKey);
 
@@ -10201,7 +10212,7 @@ export function groupSessionsForList(
 	const external: ISession[] = [];
 	const quickChats: ISession[] = [];
 	const regular: ISession[] = [];
-	const hasQuickChatsSection = groupingHasQuickChatsSection(grouping);
+	const hasQuickChatsSection = groupingHasQuickChatsSection(grouping, quickChatsInTimeGrouping);
 	for (const session of sorted) {
 		if (session.isArchived.get()) {
 			archived.push(session);

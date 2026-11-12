@@ -4300,6 +4300,34 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('grouping by time lists the sessions without a workspace flat in the Chats section, newest first, for a list that asks for it; the time sections keep the others', () => {
+			const harness = createListHarness(disposables, [
+				createTestSession('old chat', { isQuickChat: true, createdAt: hoursAgo(24 * 30) }).session,
+				createTestSession('new chat', { isQuickChat: true, createdAt: hoursAgo(1) }).session,
+				createTestSession('new session', { workspaceLabel: 'vscode', createdAt: hoursAgo(2) }).session,
+				createTestSession('old session', { workspaceLabel: 'vscode', createdAt: hoursAgo(24 * 30) }).session,
+			]);
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false, older: false }), StorageScope.PROFILE, StorageTarget.USER);
+			const render = (quickChatsInTimeGrouping: boolean | undefined) => {
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					quickChatsInTimeGrouping,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+					.map(row => row.querySelector('.session-section-label')?.textContent ?? `  ${row.querySelector('.session-title')?.textContent}`);
+			};
+
+			assert.deepStrictEqual({ agentsWindow: render(undefined), editorWindow: render(true) }, {
+				agentsWindow: ['Recent', '  new chat', '  new session', 'Older', '  old chat', '  old session'],
+				editorWindow: ['Chats', '  new chat', '  old chat', 'Recent', '  new session', 'Older', '  old session'],
+			});
+		});
+
 		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository]) {
 			test(`caps the Chats section like a workspace until the user chooses otherwise (${grouping})`, () => {
 				const harness = createListHarness(disposables, Array.from({ length: 8 }, (_, index) =>
