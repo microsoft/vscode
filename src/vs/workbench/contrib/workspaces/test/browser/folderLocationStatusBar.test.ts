@@ -248,30 +248,54 @@ suite('FolderLocationStatusBarContribution', () => {
 
 	suite('switch command', () => {
 
-		async function pickLocation(choose: (items: { label: string; description?: string; iconClasses?: readonly string[] }[]) => number | undefined, switchedWhileOpen?: URI, primaryChangedTo?: URI, atPrimary?: boolean) {
+		async function pickLocation(choose: (items: { label: string; description?: string; iconClass?: string }[]) => number | undefined, switchedWhileOpen?: URI, primaryChangedTo?: URI, atPrimary?: boolean) {
 			const calls: [string, string | undefined, string | undefined][] = [];
-			let shown: { label: string; description?: string; iconClasses?: readonly string[] }[] = [];
+			let shown: { label: string; description?: string; iconClass?: string }[] = [];
 			let activeItem: IQuickPickItem | undefined;
+			let firstShown: { items: readonly { label: string }[]; busy: boolean } | undefined;
 			let workspace = new Workspace('id', [new WorkspaceFolder(atPrimary ? { uri: primary, name: 'project', index: 0 } : { uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false);
 			const accessor = {
 				get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => workspace }
 					: id === IWorkspaceFolderLocationService ? { getLocations: async () => [{ uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.gitBranch }, { uri: URI.file('/work/other'), label: 'Other' }] }
 						: id === IUriIdentityService ? { extUri }
-							: id === IQuickInputService ? { pick: async (items: (IQuickPickItem & { uri: URI })[], options?: { activeItem?: IQuickPickItem }) => { shown = items; activeItem = options?.activeItem; const index = choose(items); if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, primaryUri: primaryChangedTo ?? primary, name: 'project', index: 0 })], false, null, () => false); } return index === undefined ? undefined : items[index]; } }
+							: id === IQuickInputService ? {
+								createQuickPick: () => {
+									const accept = new Emitter<void>();
+									const hide = new Emitter<void>();
+									const pick = {
+										items: [] as (IQuickPickItem & { uri: URI })[], activeItems: [] as IQuickPickItem[], selectedItems: [] as IQuickPickItem[], busy: false, placeholder: '', matchOnDescription: false,
+										onDidAccept: accept.event, onDidHide: hide.event, dispose: () => { },
+										show: () => {
+											firstShown = { items: pick.items, busy: pick.busy };
+											const settle = async () => {
+												await Promise.resolve();
+												await new Promise(r => setTimeout(r, 0));
+												shown = pick.items; activeItem = pick.activeItems[0];
+												const index = choose(pick.items);
+												if (switchedWhileOpen) { workspace = new Workspace('id', [new WorkspaceFolder({ uri: switchedWhileOpen, primaryUri: primaryChangedTo ?? primary, name: 'project', index: 0 })], false, null, () => false); }
+												if (index === undefined) { hide.fire(); } else { pick.selectedItems = [pick.items[index]]; accept.fire(); }
+											};
+											void settle();
+										}
+									};
+									return pick;
+								}
+							}
 								: id === IWorkspaceEditingService ? { setFolderLocation: async (p: URI, l: URI | undefined, o?: { reason?: string }) => { calls.push([p.toString(), l?.toString(), o?.reason]); } } : undefined
 			} as unknown as ServicesAccessor;
 
 			await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor);
-			return { shown, calls, activeItem };
+			return { shown, calls, activeItem, firstShown };
 		}
 
-		test('lists the primary and the locations with icon classes, marking the current one', async () => {
-			const { shown, calls, activeItem } = await pickLocation(() => undefined);
+		test('shows the picker at once in a busy state, then lists the primary and the locations with icons next to their labels, marking the current one', async () => {
+			const { shown, calls, activeItem, firstShown } = await pickLocation(() => undefined);
+			assert.deepStrictEqual({ labels: firstShown!.items.map(item => item.label), busy: firstShown!.busy }, { labels: ['project'], busy: true });
 			assert.deepStrictEqual({ shown: shown.map(item => ({ ...item, uri: (item as unknown as { uri: URI }).uri.toString() })), active: (activeItem as unknown as { uri: URI }).uri.toString(), calls }, {
 				shown: [
-					{ uri: primary.toString(), label: 'project', iconClasses: ['codicon', 'codicon-folder'], description: 'Primary Location' },
-					{ uri: alternate.toString(), label: 'Alternate', iconClasses: ['codicon', 'codicon-git-branch'], description: 'feature/x (Current)' },
-					{ uri: URI.file('/work/other').toString(), label: 'Other', iconClasses: ['codicon', 'codicon-location'], description: undefined }
+					{ uri: primary.toString(), label: 'project', iconClass: 'codicon codicon-folder', description: 'Primary Location' },
+					{ uri: alternate.toString(), label: 'Alternate', iconClass: 'codicon codicon-git-branch', description: 'feature/x (Current)' },
+					{ uri: URI.file('/work/other').toString(), label: 'Other', iconClass: 'codicon codicon-worktree', description: undefined }
 				],
 				active: alternate.toString(),
 				calls: []

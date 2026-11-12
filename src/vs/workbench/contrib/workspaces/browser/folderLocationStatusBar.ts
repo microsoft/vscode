@@ -5,7 +5,7 @@
 
 import { DisposableResizeObserver, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { IntervalTimer } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -141,7 +141,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 		this.primaryName = primaryName;
 		const props = {
 			name: localize('folderLocation', "Folder Location"),
-			text: `$(${location.icon?.id ?? Codicon.location.id}) ${location.label}`,
+			text: `$(${location.icon?.id ?? Codicon.worktreeCompact.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", getFolderLocationText(location)),
 			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", getFolderLocationText(location), primaryName),
 			command: SWITCH_FOLDER_LOCATION_COMMAND_ID,
@@ -243,23 +243,47 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
 
-		const locations = await accessor.get(IWorkspaceFolderLocationService).getLocations(primary, CancellationToken.None);
 		const toItem = (uri: URI, label: string, description: string | undefined, icon: ThemeIcon): ILocationQuickPickItem => {
 			const isCurrent = uriIdentityService.extUri.isEqual(uri, folder.uri);
 			return {
 				uri,
 				label,
-				iconClasses: ThemeIcon.asClassNameArray(icon),
+				iconClass: ThemeIcon.asClassName(icon),
 				description: isCurrent ? (description ? localize('currentLocationWithDescription', "{0} (Current)", description) : localize('currentLocation', "Current")) : description
 			};
 		};
-		const items: ILocationQuickPickItem[] = [
-			toItem(primary, basename(primary), localize('primaryLocation', "Primary Location"), Codicon.folder),
-			...locations.map(location => toItem(location.uri, location.label, location.description, location.icon ?? Codicon.location))
-		];
-		const currentItem = items.find(item => uriIdentityService.extUri.isEqual(item.uri, folder.uri));
+		const primaryItem = toItem(primary, basename(primary), localize('primaryLocation', "Primary Location"), Codicon.folder);
 
-		const picked = await quickInputService.pick(items, { placeHolder: localize('switchFolderLocationPlaceholder', "Select a Location for the Folder"), activeItem: currentItem });
+		// Show the picker right away: resolving the locations can take a while
+		const store = new DisposableStore();
+		const quickPick = store.add(quickInputService.createQuickPick<ILocationQuickPickItem>({ useSeparators: false }));
+		quickPick.placeholder = localize('switchFolderLocationPlaceholder', "Select a Location for the Folder");
+		quickPick.matchOnDescription = true;
+		quickPick.items = [primaryItem];
+		quickPick.busy = true;
+		const cts = store.add(new CancellationTokenSource());
+		const picked = await new Promise<ILocationQuickPickItem | undefined>(resolve => {
+			store.add(quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0])));
+			store.add(quickPick.onDidHide(() => resolve(undefined)));
+			quickPick.show();
+			accessor.get(IWorkspaceFolderLocationService).getLocations(primary, cts.token).then(locations => {
+				if (cts.token.isCancellationRequested) {
+					return;
+				}
+				const items = [primaryItem, ...locations.map(location => toItem(location.uri, location.label, location.description, location.icon ?? Codicon.worktree))];
+				quickPick.items = items;
+				const currentItem = items.find(item => uriIdentityService.extUri.isEqual(item.uri, folder.uri));
+				if (currentItem) {
+					quickPick.activeItems = [currentItem];
+				}
+				quickPick.busy = false;
+			}, () => {
+				quickPick.busy = false;
+			});
+		}).finally(() => {
+			cts.cancel();
+			store.dispose();
+		});
 		if (!picked) {
 			return;
 		}
