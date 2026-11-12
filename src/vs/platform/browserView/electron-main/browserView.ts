@@ -770,7 +770,8 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
-		this._captureGate.applyChange(() => this._setVisible(visible));
+		// Hiding can't wait for a full-page screenshot: the page would cover what the workbench hides it for, like a menu.
+		this._captureGate.applyChange(() => this._setVisible(visible), visible);
 	}
 
 	private _setVisible(visible: boolean): void {
