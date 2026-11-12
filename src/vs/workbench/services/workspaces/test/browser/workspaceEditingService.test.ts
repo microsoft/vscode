@@ -190,7 +190,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
 				undefined, undefined, undefined,
-				{ resolveLocation: () => resolution.p, setCurrentLocation: () => { } }
+				{ resolveLocation: () => resolution.p, setLocation: () => { } }
 			));
 
 			const pending = service.setFolderLocation(alt);
