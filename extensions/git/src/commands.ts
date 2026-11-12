@@ -4734,16 +4734,9 @@ export class CommandCenter {
 			return undefined;
 		}
 
-		// Stash
-		const regex = /^stash@{(\d+)}$/;
-		const match = regex.exec(stashUri.ref);
-		if (!match) {
-			return undefined;
-		}
-
-		const [, index] = match;
+		// Stash (the uri references the stash commit hash since the stash index changes)
 		const stashes = await repository.getStashes();
-		const stash = stashes.find(stash => stash.index === parseInt(index));
+		const stash = stashes.find(stash => stash.hash === stashUri.ref);
 		if (!stash) {
 			return undefined;
 		}
@@ -4771,7 +4764,7 @@ export class CommandCenter {
 		}
 
 		const title = `Git Stash #${stash.index}: ${stash.description}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), stash.hash, { scheme: 'git-stash' });
 
 		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
 		for (const change of stashChanges) {
