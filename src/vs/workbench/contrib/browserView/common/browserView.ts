@@ -290,7 +290,7 @@ export interface IBrowserViewOpenHandler {
 }
 
 /** Resource schemes of HTML files that can be opened in the integrated browser. */
-export const BROWSER_FILE_SCHEMES: readonly string[] = [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME];
+export const BROWSER_FILE_SCHEMES: string[] = [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME];
 
 /** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
