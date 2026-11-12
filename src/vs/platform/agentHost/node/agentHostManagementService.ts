@@ -168,7 +168,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.listPluginInstallations(provider, session, chat);
 	}
 
-	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
 		if (!this._agentService.setPluginEnabled) {
 			throw new Error('Agent Host plugin enablement is unavailable');
 		}

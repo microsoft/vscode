@@ -39,6 +39,7 @@ import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, Too
 import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
+import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -429,6 +430,20 @@ suite('stateToProgressAdapter', () => {
 			value: '{"number":42}',
 			uri: 'https://github.com/owner/repo/pull/42',
 		});
+	});
+
+	test('restores GitHub issue and pull request attachments from what they say', () => {
+		const sent = getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/pull/345729 and https://github.com/microsoft/vscode/issues/347977');
+		const restored = messageAttachmentsToVariableData([
+			...sent.map(attachment => ({ type: MessageAttachmentKind.Simple as const, label: attachment.name, modelRepresentation: String(attachment.value) })),
+			{ type: MessageAttachmentKind.Simple as const, label: 'Notes', modelRepresentation: `${sent[0].value} was merged` },
+		], 'local')?.variables;
+
+		assert.deepStrictEqual(restored?.map(({ kind, id, icon, name, value }) => ({ kind, id: id.startsWith('github-context:') ? id : undefined, icon: icon?.id, name, value })), [
+			{ kind: 'generic', id: 'github-context:https://github.com/microsoft/vscode/pull/345729', icon: 'git-pull-request', name: 'microsoft/vscode#345729', value: 'GitHub context: https://github.com/microsoft/vscode/pull/345729' },
+			{ kind: 'generic', id: 'github-context:https://github.com/microsoft/vscode/issues/347977', icon: 'issues', name: 'microsoft/vscode#347977', value: 'GitHub context: https://github.com/microsoft/vscode/issues/347977' },
+			{ kind: 'generic', id: undefined, icon: undefined, name: 'Notes', value: 'GitHub context: https://github.com/microsoft/vscode/pull/345729 was merged' },
+		]);
 	});
 
 	test('preserves completion and resource mention ranges when restoring attachments', () => {
@@ -2517,6 +2532,22 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual({ live: live.summary, serialized: live.toJSON().summary, restored: restored.summary, mcp: mcp.summary }, {
 				live: expected, serialized: expected, restored: expected, mcp: { kind: 'unknown' },
 			});
+		});
+
+		test('summarizes a view call without a line range by what the host reports its path named', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const fields = { toolName: 'view', toolInput: JSON.stringify({ path: '/workspace/src' }) };
+			const summaries = ['file', 'directory', 'image', undefined].map(viewedResourceType => {
+				const completed = createCompletedToolCall({ ...fields, _meta: { ...nativeToolMeta, 'vscode.viewedResourceType': viewedResourceType } });
+				const live = rawToolCallStateToInvocation(createToolCallState({ ...fields, _meta: nativeToolMeta }), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+				rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+				return { live: live.summary, restored: completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris).summary };
+			});
+			const resources = [{ uri: resourceUris.fromAgentHost(URI.file('/workspace/src')) }];
+			assert.deepStrictEqual(summaries, [
+				{ kind: 'read', resources }, { kind: 'list', resources }, { kind: 'unknown' }, { kind: 'unknown' },
+			].map(summary => ({ live: summary, restored: summary })));
 		});
 
 		test('requires an explicit native input contract and excludes client and MCP implementations', () => {

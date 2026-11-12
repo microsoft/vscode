@@ -30,6 +30,7 @@ import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
+import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { IAgentHostChatRowStore, IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -1748,9 +1749,11 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual({
 				hostInstructions: !URI.isUri(sendContext) ? sendContext?.hostInstructions : undefined,
 				originalMessageText: !URI.isUri(sendContext) ? sendContext?.originalMessageText : undefined,
+				messageProvenance: !URI.isUri(sendContext) ? sendContext?.messageProvenance : undefined,
 			}, {
 				hostInstructions: undefined,
 				originalMessageText: 'hello world',
+				messageProvenance: { kind: 'user' },
 			});
 		});
 
@@ -1770,7 +1773,29 @@ suite('AgentSideEffects', () => {
 			await waitForSendMessageCalls(1);
 
 			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
-			assert.strictEqual(!URI.isUri(sendContext) && sendContext?.agentMergeTurn, true);
+			assert.deepStrictEqual(!URI.isUri(sendContext) && { agentMergeTurn: sendContext?.agentMergeTurn, messageProvenance: sendContext?.messageProvenance }, {
+				agentMergeTurn: true,
+				messageProvenance: { kind: 'automation', id: 'vscode.agentMerge' },
+			});
+		});
+
+		test('tells the provider which agent authored a delegated message', async () => {
+			setupSession();
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-delegated',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: 'review the change',
+					origin: { kind: MessageKind.Agent },
+					_meta: toAgentMessageDelegationMeta({ sourceSession: 'copilot:/coordinator', sourceChat: 'copilot:/coordinator/chat', sourceTurnId: 'turn-1' }),
+				},
+			});
+
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			assert.deepStrictEqual(!URI.isUri(sendContext) && sendContext?.messageProvenance, { kind: 'agent', id: 'copilot:/coordinator/chat' });
 		});
 
 		test('stamps the exhaustive host chat context on the send boundary', async () => {

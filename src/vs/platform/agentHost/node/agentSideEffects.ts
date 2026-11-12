@@ -25,6 +25,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { captureCredentialSource, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { resolveAgentMessageProvenance } from '../common/agentMessageProvenance.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
@@ -1706,6 +1707,8 @@ export class AgentSideEffects extends Disposable {
 			permissionPath: e.permissionPath,
 			permissionResource: e.permissionResource,
 			permissionUrl: e.permissionUrl,
+			mcpServerName: e.mcpServerName,
+			mcpToolName: e.mcpToolName,
 			toolInput: e.shellCommand ?? getInlineToolInput(e.state.toolInput),
 			requestSandboxBypass: e.requestSandboxBypass,
 			shellLanguage: e.shellLanguage,
@@ -2331,6 +2334,7 @@ export class AgentSideEffects extends Disposable {
 			const sendContext = {
 				...clientOperationContext,
 				originalMessageText: message.text,
+				messageProvenance: resolveAgentMessageProvenance(message, this._stateManager.getSessionState(sessionChannel)?.origin),
 				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
 				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
 				...prewarmReporters,

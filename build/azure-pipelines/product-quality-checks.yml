@@ -4,6 +4,11 @@ parameters:
   - name: VSCODE_CHECK_CHANGED_FILES
     type: boolean
     default: false
+  # Whether to include the steps that need a privileged service connection
+  # (source map upload). Only product-build-ci.yml sets this to false.
+  - name: VSCODE_PRIVILEGED_CONNECTIONS
+    type: boolean
+    default: true
 
 jobs:
   - job: Quality
@@ -422,7 +427,7 @@ jobs:
             GITHUB_TOKEN: "$(github-token-code-oss)"
           displayName: Compile & Hygiene
 
-      # Copilot has its own TypeScript projects and ESLint configuration, which the steps above don't check (see
+      # Copilot has its own TypeScript projects and code style, which the steps above don't check (see
       # build/filters.ts). Like the build of the built-in Copilot (see copilot/builtin-steps.yml), the checks run after
       # Copilot's vscode-capi mixin, so that they cover the code that ships. microsoft/vscode-capi is a separate
       # repository that installs with npm.
@@ -432,7 +437,7 @@ jobs:
 
       - script: pnpm run lint
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-        displayName: ESLint (Copilot)
+        displayName: oxlint (Copilot)
 
       # The compile runs script/postinstall.ts, which deletes and recopies node_modules/@github/copilot/sdk, so the type
       # check, which resolves the SDK's declarations there, runs after it. The compile only checks that Copilot builds,
@@ -441,28 +446,29 @@ jobs:
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Compile (Copilot)
 
-      - task: AzureCLI@2
-        displayName: Fetch secrets
-        inputs:
-          azureSubscription: vscode
-          scriptType: pscore
-          scriptLocation: inlineScript
-          addSpnToEnvironment: true
-          inlineScript: |
-            Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
-            Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
-            Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+      - ${{ if eq(parameters.VSCODE_PRIVILEGED_CONNECTIONS, true) }}:
+        - task: AzureCLI@2
+          displayName: Fetch secrets
+          inputs:
+            azureSubscription: vscode
+            scriptType: pscore
+            scriptLocation: inlineScript
+            addSpnToEnvironment: true
+            inlineScript: |
+              Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
+              Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
+              Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
+          condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
-      - script: |
-          set -e
-          AZURE_STORAGE_ACCOUNT="vscodeweb" \
-          AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-          AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-          AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
-            node build/azure-pipelines/upload-sourcemaps.ts
-        displayName: Upload sourcemaps to Azure
-        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+        - script: |
+            set -e
+            AZURE_STORAGE_ACCOUNT="vscodeweb" \
+            AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+            AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+            AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
+              node build/azure-pipelines/upload-sourcemaps.ts
+          displayName: Upload sourcemaps to Azure
+          condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
       # A continued upload failure must not produce an eligible cache tag.
       # Read back the published files for the byte comparison below.

@@ -50,6 +50,14 @@ The main VS Code build pipeline:
 - **Definition ID**: `111`
 - **URL**: https://dev.azure.com/monacotools/Monaco/_build?definitionId=111
 
+## VS Code CI Build
+
+The CI builds of `main` and `release/*` commits run in their own pipeline, `build/azure-pipelines/product-build-ci.yml`. It has the quality checks and the CI test jobs of the product build, and it never signs or publishes:
+- **Definition ID**: `727`
+- **URL**: https://dev.azure.com/monacotools/Monaco/_build?definitionId=727
+
+To investigate a red `main` CI, list the builds of definition `727` (`--definition 727`). Definition `111` keeps the scheduled and manual product builds. While both pipelines run CI builds, a `main` commit can have a CI build in each.
+
 ## VS Code Insider Scheduled Builds
 
 Two Insider builds run automatically on a scheduled basis:
