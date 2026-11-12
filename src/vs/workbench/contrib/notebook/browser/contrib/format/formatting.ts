@@ -78,6 +78,7 @@ registerAction2(class extends Action2 {
 		const disposable = new DisposableStore();
 		try {
 			if (!formatApplied) {
+				let reason: TextModelEditSource|undefined = undefined;
 				const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
 					const ref = await textModelService.createModelReference(cell.uri);
 					disposable.add(ref);
@@ -95,7 +96,8 @@ registerAction2(class extends Action2 {
 					const edits: ResourceTextEdit[] = [];
 
 					if (formatEdits) {
-						for (const edit of formatEdits) {
+						reason ??= formatEdits.reason;
+						for (const edit of formatEdits.edits) {
 							edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
 						}
 
@@ -105,7 +107,7 @@ registerAction2(class extends Action2 {
 					return [];
 				}));
 
-				await bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
+				await bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', reason });
 			}
 		} finally {
 			disposable.dispose();
@@ -161,6 +163,7 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 
 		const disposable = new DisposableStore();
 		try {
+			let reason: TextModelEditSource|undefined = undefined;
 			const allCellEdits = await Promise.all(executions.map(async cellExecution => {
 				const nbModel = this._notebookService.getNotebookTextModel(cellExecution.notebook);
 				if (!nbModel) {
@@ -193,7 +196,8 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 				const edits: ResourceTextEdit[] = [];
 
 				if (formatEdits) {
-					edits.push(...formatEdits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
+					reason ??= formatEdits.reason;
+					edits.push(...formatEdits.edits.map(edit => new ResourceTextEdit(model.uri, edit, model.getVersionId())));
 					return edits;
 				}
 
