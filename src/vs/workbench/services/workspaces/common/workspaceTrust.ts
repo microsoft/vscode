@@ -73,12 +73,11 @@ export class CanonicalWorkspace implements IWorkspace {
 	}
 
 	get uri(): URI | undefined {
-		const uri = this.originalWorkspace.uri;
-		const [folder] = this.originalWorkspace.folders;
-		if (uri && !this.originalWorkspace.configuration && folder && this.canonicalFolderUris.length === 1 && uri.toString() === folder.uri.toString()) {
-			return this.canonicalFolderUris[0]; // at the primary location, the canonical form of the folder
+		// Trust applies to the resource the window is on, so while at an alternate location this is not the primary
+		if (this.configuration) {
+			return this.configuration;
 		}
-		return uri;
+		return this.canonicalFolderUris.length === 1 ? this.canonicalFolderUris[0] : undefined;
 	}
 }
 
