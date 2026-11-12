@@ -27,6 +27,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ToggleStatusbarVisibilityAction } from '../../actions/layoutActions.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
@@ -707,7 +708,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
 		if (statusEntryUnderMouse) {
 			actions.push(new Separator());
-			if (statusEntryUnderMouse.extensionId) {
+			// The Agents window registers the extensions management command only while it manages extensions
+			if (statusEntryUnderMouse.extensionId && CommandsRegistry.getCommand('_extensions.manage')) {
 				actions.push(this.instantiationService.createInstance(ManageExtensionAction, statusEntryUnderMouse.extensionId));
 			}
 			actions.push(new HideStatusbarEntryAction(statusEntryUnderMouse.id, statusEntryUnderMouse.name, this.viewModel));

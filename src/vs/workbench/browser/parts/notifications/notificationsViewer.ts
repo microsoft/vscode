@@ -478,8 +478,8 @@ export class NotificationTemplateRenderer extends Disposable {
 	private renderSecondaryActions(notification: INotificationViewItem, messageOverflows: boolean): void {
 		const actions: IAction[] = [];
 
-		// Secondary Actions
-		if (isNonEmptyArray(notification.actions?.secondary)) {
+		// Secondary Actions (the source filter is offered even without other secondary actions)
+		if (isNonEmptyArray(notification.actions?.secondary) || isNotificationSource({ id: notification.sourceId, label: notification.source })) {
 			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification);
 			actions.push(configureNotificationAction);
 			this.inputDisposables.add(configureNotificationAction);

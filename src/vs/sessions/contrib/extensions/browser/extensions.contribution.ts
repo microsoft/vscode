@@ -19,6 +19,7 @@ import { AICustomizationManagementSection } from '../../../../workbench/contrib/
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
 import { AgentsWindowExtensionAutoEnablementExperiment } from './agentsWindowExtensionAutoEnablementExperiment.js';
 import { AgentsWindowExtensionAutoEnablementTelemetry } from './agentsWindowExtensionAutoEnablementTelemetry.js';
+import { AgentsWindowExtensionManageCommand } from './agentsWindowExtensionManageCommand.js';
 import { AgentsWindowExtensionsAccessibilityHelp } from './agentsWindowExtensionsAccessibilityHelp.js';
 import { AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING, AgentsWindowExtensionSuggestionsService, getExtensionSuggestionsSectionBadge, IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING, AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID, AgentsWindowExtensionPageContext, AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
@@ -85,6 +86,8 @@ registerSingleton(IAgentsWindowExtensionSuggestionsService, AgentsWindowExtensio
 // Requests the experiment values of extensions as early as possible, so that extensions start with their experiment value.
 registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementExperiment.ID, AgentsWindowExtensionAutoEnablementExperiment, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementTelemetry.ID, AgentsWindowExtensionAutoEnablementTelemetry, WorkbenchPhase.AfterRestored);
+// Registered before extensions start, so that their notifications offer Manage Extension.
+registerWorkbenchContribution2(AgentsWindowExtensionManageCommand.ID, AgentsWindowExtensionManageCommand, WorkbenchPhase.BlockRestore);
 
 // Like Go Back, which returns to the previous editor from the Extensions editor in editor windows, with its keybindings. The
 // keybindings run from the page's webviews, which forward their keys to the window, and the section runs them elsewhere on

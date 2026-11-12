@@ -11,7 +11,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { INotificationService, INotificationSource, NotificationPriority } from '../../../platform/notification/common/notification.js';
 import { Event } from '../../../base/common/event.js';
-import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
@@ -82,7 +82,8 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			const secondaryActions: IAction[] = [];
-			if (options.source) {
+			// The Agents window registers the extensions management command only while it manages extensions
+			if (options.source && CommandsRegistry.getCommand('_extensions.manage')) {
 				secondaryActions.push(withNotificationActionTelemetry(toAction({
 					id: options.source.identifier.value,
 					label: nls.localize('manageExtension', "Manage Extension"),

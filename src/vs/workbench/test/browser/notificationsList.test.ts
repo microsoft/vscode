@@ -237,6 +237,32 @@ suite('NotificationRenderer', () => {
 
 		assert.strictEqual(templateDisposables.size, disposableCount);
 	});
+
+	test('offers the configure action for a notification source without secondary actions', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer = instantiationService.createInstance(NotificationRenderer, store.add(new ActionRunner()));
+		const templateData = renderer.renderTemplate(container);
+		store.add(toDisposable(() => renderer.disposeTemplate(templateData)));
+
+		const notification = (source: string | { id: string; label: string }) => {
+			const item = NotificationViewItem.create({ severity: Severity.Error, message: 'Failed', source }, { global: NotificationsFilter.OFF, sources: new Map() })!;
+			store.add(toDisposable(() => item.close()));
+			renderer.renderElement(item, 0, templateData);
+			return !!container.querySelector('.codicon-notifications-configure');
+		};
+
+		assert.deepStrictEqual({
+			extensionSource: notification({ id: 'publisher.extension', label: 'Extension' }),
+			labelOnlySource: notification('Extension')
+		}, {
+			extensionSource: true,
+			labelOnlySource: false
+		});
+	});
 });
 
 suite('NotificationsList AccessibilityProvider', () => {
