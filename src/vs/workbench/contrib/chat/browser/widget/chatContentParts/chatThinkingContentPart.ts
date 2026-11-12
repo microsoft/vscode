@@ -279,7 +279,6 @@ const enum WorkingMessageCategory {
 }
 
 export const defaultThinkingMessages = [
-	localize('chat.thinking.thinking.1', 'Thinking'),
 	localize('chat.thinking.thinking.2', 'Reasoning'),
 	localize('chat.thinking.thinking.3', 'Considering'),
 	localize('chat.thinking.thinking.4', 'Analyzing'),

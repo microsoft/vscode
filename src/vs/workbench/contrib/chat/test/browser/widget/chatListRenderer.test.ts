@@ -93,7 +93,7 @@ import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerial
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
 import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
-import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -7931,6 +7931,105 @@ suite('ChatListRenderer', () => {
 			statuses: ['This is taking a little longer than usual'],
 		});
 	}));
+
+	function createPersistentWorkingPart(fixture: ReturnType<typeof createPersistentProgressRenderer>, working: IChatWorkingProgress): ChatWorkingProgressContentPart {
+		const context = new class extends mock<IChatContentPartRenderContext>() {
+			override readonly element = fixture.response;
+			override readonly content = [working];
+			override readonly contentIndex = 0;
+			override readonly suppressProgressShimmer = true;
+		}();
+		return fixture.disposables.add(fixture.instantiationService.createInstance(ChatWorkingProgressContentPart, working, fixture.instantiationService.get(IMarkdownRendererService), context));
+	}
+
+	test('persistent progress rotates a generic phrase after ten seconds without a new piece', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Reviewing', 'Considering'] });
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', isActive: true, progressStep: 0 });
+		const first = part.workingLabel;
+		const other = first === 'Reviewing' ? 'Considering' : 'Reviewing';
+		await timeout(9999);
+		const beforeRotation = part.workingLabel;
+		await timeout(1);
+		const rotated = part.workingLabel;
+		await timeout(5000);
+		part.updateWorkingContent(undefined, true, false, 1);
+		const newPiece = part.workingLabel;
+		await timeout(9999);
+		const beforeNewPieceRotation = part.workingLabel;
+		await timeout(1);
+		const afterNewPieceRotation = part.workingLabel;
+		// A piece that arrives within the minimum dwell keeps the phrase, and still restarts the ten seconds.
+		await timeout(500);
+		part.updateWorkingContent(undefined, true, false, 2);
+		await timeout(9999);
+		const beforeSamePhraseRotation = part.workingLabel;
+		await timeout(1);
+		const afterSamePhraseRotation = part.workingLabel;
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true, 2);
+		await timeout(30_000);
+		const blocked = part.workingLabel;
+		part.updateWorkingContent(undefined, true, false, 2);
+		const resumed = part.workingLabel;
+		fixture.request.response?.complete();
+		await timeout(30_000);
+
+		assert.deepStrictEqual({
+			beforeRotation, rotated, newPiece, beforeNewPieceRotation, afterNewPieceRotation,
+			beforeSamePhraseRotation, afterSamePhraseRotation, blocked, resumed, afterCompletion: part.workingLabel,
+		}, {
+			beforeRotation: first, rotated: other, newPiece: first, beforeNewPieceRotation: first, afterNewPieceRotation: other,
+			beforeSamePhraseRotation: other, afterSamePhraseRotation: first, blocked: 'Waiting for your response', resumed: first, afterCompletion: first,
+		});
+	}));
+
+	test('persistent progress keeps rotating generic phrases until it reports prolonged inactivity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Reviewing', 'Considering'] });
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', isActive: true, progressStep: 0, showDelayedProgressMessage: true });
+		const first = part.workingLabel;
+		const other = first === 'Reviewing' ? 'Considering' : 'Reviewing';
+		const delayed = 'This is taking a little longer than usual';
+		await timeout(5000);
+		const labelsEveryTenSeconds: string[] = [];
+		for (let index = 0; index < 12; index++) {
+			labelsEveryTenSeconds.push(part.workingLabel);
+			await timeout(10_000);
+		}
+
+		assert.deepStrictEqual(labelsEveryTenSeconds, [first, other, first, other, first, other, first, other, first, delayed, delayed, delayed]);
+	}));
+
+	test('persistent progress wipes to a new label and reports it at once', () => {
+		const fixture = createPersistentProgressRenderer();
+		fixture.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced() { return false; }
+		}());
+		const part = createPersistentWorkingPart(fixture, { kind: 'working', content: new MarkdownString('Working'), isActive: true });
+		fixture.container.appendChild(part.domNode);
+		const getWipe = (label: Element) => label.classList.contains('chat-activity-label-wipe-out') ? 'out' : label.classList.contains('chat-activity-label-wipe-in') ? 'in' : undefined;
+		const state = () => {
+			const label = part.domNode.querySelector('.progress-step');
+			assert.ok(label);
+			return { text: label.textContent?.trim(), wipe: getWipe(label), reported: part.workingLabel };
+		};
+		const endWipe = () => {
+			const label = part.domNode.querySelector('.progress-step');
+			assert.ok(label);
+			label.dispatchEvent(new AnimationEvent(dom.EventType.ANIMATION_END, { animationName: `chat-activity-label-wipe-${getWipe(label)}` }));
+		};
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'));
+		const leaving = state();
+		endWipe();
+		const arriving = state();
+		endWipe();
+
+		assert.deepStrictEqual({ leaving, arriving, settled: state() }, {
+			leaving: { text: 'Working', wipe: 'out', reported: 'Waiting for your response' },
+			arriving: { text: 'Waiting for your response', wipe: 'in', reported: 'Waiting for your response' },
+			settled: { text: 'Waiting for your response', wipe: undefined, reported: 'Waiting for your response' },
+		});
+	});
 
 	for (const incremental of [false, true]) {
 		test(`persistent progress reports provider background shells instead of inactivity (incremental=${incremental})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
