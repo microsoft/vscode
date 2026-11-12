@@ -46,7 +46,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 		this.isHiddenWindowMode = this.environmentService.args['hidden-window'] === true && !!this.environmentService.extensionTestsLocationURI;
 		if (this.isHiddenWindowMode) {
-			enableFallbackActiveWindow(); // hidden windows never get focus
+			this._register(enableFallbackActiveWindow()); // hidden windows never get focus
 		}
 
 		this.onDidChangeFocus = Event.latch(
