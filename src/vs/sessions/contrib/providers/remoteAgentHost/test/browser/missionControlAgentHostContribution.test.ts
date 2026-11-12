@@ -25,6 +25,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IsDevelopmentContext, ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
@@ -198,7 +199,7 @@ suite('Mission Control native provider inventory', () => {
 			upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
 			instantiation.get(IRemoteAgentHostService),
 			upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-			new NullLogService(),
+			upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 		));
 		instantiation.stub(IAgentHostConnectionsService, resolutionService);
 		instantiation.stub(INotificationService, new TestNotificationService());

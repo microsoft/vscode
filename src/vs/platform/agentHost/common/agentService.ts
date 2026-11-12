@@ -1260,6 +1260,8 @@ export interface IAgentService {
 	readonly automationCapabilities: AutomationCapabilities | undefined;
 	/** Whether chats of one session may use different agents (the `multipleChatProviders.enabled` host setting). */
 	readonly multipleChatProvidersEnabled?: boolean;
+	/** Turns the `multipleChatProviders.enabled` host setting on, as a client mirroring it would. */
+	enableMultipleChatProviders?(): void;
 	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
 	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
 	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult>;
