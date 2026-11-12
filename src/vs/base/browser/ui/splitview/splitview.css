@@ -49,7 +49,7 @@
 	height: 100%;
 }
 
-.monaco-split-view2.separator-border > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-split-view2.separator-border > .monaco-scrollable-element > .split-view-container > :where(.split-view-view.visible ~ .split-view-view.visible)::before {
 	content: ' ';
 	position: absolute;
 	top: 0;
@@ -59,12 +59,12 @@
 	background-color: var(--separator-border);
 }
 
-.monaco-split-view2.separator-border.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-split-view2.separator-border.horizontal > .monaco-scrollable-element > .split-view-container > :where(.split-view-view.visible ~ .split-view-view.visible)::before {
 	height: 100%;
 	width: 1px;
 }
 
-.monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+.monaco-split-view2.separator-border.vertical > .monaco-scrollable-element > .split-view-container > :where(.split-view-view.visible ~ .split-view-view.visible)::before {
 	height: 1px;
 	width: 100%;
 }

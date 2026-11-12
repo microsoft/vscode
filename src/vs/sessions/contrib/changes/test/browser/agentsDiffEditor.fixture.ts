@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import '../../browser/media/sessionChangesEditor.css';
+import '../../../../../workbench/contrib/sessionChanges/browser/media/sessionChangesEditor.css';
 import '../../../agentFeedback/browser/media/agentFeedbackEditorInput.css';
 import '../../../../../workbench/browser/media/feedbackInputWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
@@ -38,10 +38,11 @@ import { TestEditorInput } from '../../../../../workbench/test/browser/workbench
 import { AgentFeedbackEditorInputContribution } from '../../../agentFeedback/browser/agentFeedbackEditorInputContribution.js';
 import { AgentFeedbackOverlayController, IAgentFeedbackOverlayEditorGroup } from '../../../agentFeedback/browser/agentFeedbackEditorOverlay.js';
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../../agentFeedback/browser/agentFeedbackEditorActions.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
-import { ICodeReviewService } from '../../../codeReview/browser/codeReviewService.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
+import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
 
 const SESSION_RESOURCE = URI.parse('fixture-session://agents-diff');
@@ -303,7 +304,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 		renderDockedDetailPanel(editorPart);
 		const input = disposableStackStore.add(new TestEditorInput(OVERLAY_RESOURCE, 'fixture.agentsDiff'));
 		const group = new FixtureOverlayEditorGroup(editorPane, input);
-		disposableStackStore.add(instantiationService.createInstance(AgentFeedbackOverlayController, group));
+		disposableStackStore.add(instantiationService.createInstance(AgentFeedbackOverlayController, group, undefined));
 		return;
 	}
 

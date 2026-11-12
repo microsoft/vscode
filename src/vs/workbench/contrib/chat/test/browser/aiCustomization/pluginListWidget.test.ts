@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../../base/browser/dom.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -21,9 +23,89 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationItem } from '../../../common/customizationHarnessService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 
 suite('pluginListWidget', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('renders unavailable plugin enablement as a disabled switch with an accessible explanation', () => {
+		const widget: { renderRemotePluginToggle(item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore): HTMLElement | undefined } = Object.assign(Object.create(PluginListWidget.prototype), {
+			hoverService: new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return toDisposable(() => { }); }
+			}(),
+			notificationService: new TestNotificationService(),
+		});
+		let calls = 0;
+		const reason = 'Plugin enablement is unavailable until this chat\'s session is ready.';
+		const item: ICustomizationItem = {
+			uri: URI.file('/plugins/native'), type: 'plugin', name: 'Native', source: AICustomizationSources.plugin,
+			extensionId: undefined, pluginUri: undefined,
+			actions: [{ id: 'toggle', label: 'Enable Globally', enabled: false, checked: false, tooltip: reason, run: () => { calls++; } }],
+		};
+		const pending = widget.renderRemotePluginToggle(item, $('div'), store.add(new DisposableStore()))!.querySelector('button')!;
+		pending.click();
+		const pendingCalls = calls;
+		const ready = widget.renderRemotePluginToggle({
+			...item, actions: [{ ...item.actions![0], enabled: true, tooltip: undefined }],
+		}, $('div'), store.add(new DisposableStore()))!.querySelector('button')!;
+		ready.click();
+		assert.deepStrictEqual({
+			pending: { disabled: pending.disabled, label: pending.getAttribute('aria-label'), checked: pending.getAttribute('aria-checked'), calls: pendingCalls },
+			ready: { checked: ready.getAttribute('aria-checked'), calls },
+		}, {
+			pending: { disabled: true, label: `Plugin enablement for Native. ${reason}`, checked: 'false', calls: 0 },
+			ready: { checked: 'true', calls: 1 },
+		});
+	});
+
+	test('plugin switches omit routine status but preserve loading and problem icons', () => {
+		const widget: { appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void } = Object.assign(Object.create(PluginListWidget.prototype), {
+			hoverService: new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return toDisposable(() => { }); }
+				override setupManagedHover() {
+					return { show() { }, hide() { }, update() { }, dispose() { } };
+				}
+			}(),
+			notificationService: new TestNotificationService(),
+			cardDisposables: store.add(new DisposableStore()),
+			cardListControllers: new WeakMap(),
+			rememberCardFocusElement: () => { },
+		});
+		const item: ICustomizationItem = {
+			uri: URI.file('/plugins/native'), type: 'plugin', name: 'Native', source: AICustomizationSources.plugin,
+			extensionId: undefined, pluginUri: undefined,
+		};
+		const states: readonly Partial<ICustomizationItem>[] = [
+			{ enabled: true, status: 'loaded' },
+			{ enabled: false, status: 'loaded' },
+			{ status: 'loading' },
+			{ enabled: false, status: 'degraded' },
+			{ enabled: false, status: 'error' },
+			{ enabled: false, status: 'error', statusMessage: 'Plugin could not be loaded' },
+		];
+		assert.deepStrictEqual(states.map(state => {
+			const parent = $('div');
+			widget.appendRemotePluginRow(parent, {
+				...item, ...state,
+				actions: [{ id: 'toggle', label: 'Toggle Globally', checked: state.enabled === true, run: () => { } }],
+			});
+			const status = parent.querySelector<HTMLElement>('.plugin-list-item-status-icon')!;
+			return {
+				label: parent.firstElementChild!.getAttribute('aria-label'),
+				icon: ['loading', 'warning', 'error'].find(kind => status.classList.contains(kind)),
+				hidden: status.style.display === 'none',
+				checked: parent.querySelector('[role="switch"]')!.getAttribute('aria-checked'),
+			};
+		}), [
+			{ label: 'Native. Agent host', icon: undefined, hidden: true, checked: 'true' },
+			{ label: 'Native. Agent host', icon: undefined, hidden: true, checked: 'false' },
+			{ label: 'Native. Agent host. Status: Loading', icon: 'loading', hidden: false, checked: 'false' },
+			{ label: 'Native. Agent host. Status: Warning', icon: 'warning', hidden: false, checked: 'false' },
+			{ label: 'Native. Agent host. Status: Error', icon: 'error', hidden: false, checked: 'false' },
+			{ label: 'Native. Agent host. Status: Plugin could not be loaded', icon: 'error', hidden: false, checked: 'false' },
+		]);
+	});
 
 	test('renders host-published disabled reasons', () => {
 		assert.deepStrictEqual([
@@ -90,7 +172,7 @@ suite('pluginListWidget', () => {
 		});
 	});
 
-	test('renders User before Workspace even when User has no plugins', () => {
+	test('renders Workspace before User even when User has no plugins', () => {
 		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
 			const plugin = new class extends mock<IAgentPlugin>() {
 				override readonly uri = URI.file(`/plugins/${name}`);
@@ -150,9 +232,9 @@ suite('pluginListWidget', () => {
 				pluginUri: undefined,
 			}]),
 		}, {
-			bothGroupsPopulated: ['User', 'Workspace'],
-			userEmpty: ['User', 'Workspace'],
-			hostPlugin: ['User', 'Workspace', 'Session'],
+			bothGroupsPopulated: ['Workspace', 'User'],
+			userEmpty: ['Workspace', 'User'],
+			hostPlugin: ['Workspace', 'User'],
 		});
 	});
 
@@ -169,9 +251,18 @@ suite('pluginListWidget', () => {
 		assert.deepStrictEqual([
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item }),
 			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'loaded' } }),
+			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, status: 'error', statusMessage: 'Invalid plugin manifest' } }),
+			widget.getPluginEntryAriaLabel({ type: 'remote-item', item: { ...item, origin: { kind: 'account', label: 'contoso' } } }),
+			widget.getPluginEntryAriaLabel({
+				type: 'remote-item',
+				item: { ...item, status: 'loading', actions: [{ id: 'toggle', label: 'Enable Globally', checked: false, enabled: false, tooltip: 'Plugin enablement is unavailable until this chat\'s session is ready.', run: () => { } }] },
+			}),
 		], [
 			'host-plugin. Agent host',
 			'host-plugin. Agent host. Status: Loaded',
+			'host-plugin. Agent host. Status: Error: Invalid plugin manifest',
+			'host-plugin. Organization: contoso. Agent host',
+			'host-plugin. Agent host. Status: Loading. Plugin enablement is unavailable until this chat\'s session is ready.',
 		]);
 	});
 
@@ -217,7 +308,7 @@ suite('pluginListWidget', () => {
 
 		(Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void).call(widget);
 
-		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['User', 'First', 'Second']);
+		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['Workspace · First', 'Workspace · Second', 'User']);
 	});
 
 	test('reveals, selects, and focuses an installed plugin by URI', async () => {

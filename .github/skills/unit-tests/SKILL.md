@@ -100,13 +100,13 @@ Override the default Mocha timeout for long-running tests.
 
 #### `--workers <count>` - Run test files in parallel processes
 
-Spreads a run of **all** test files, or of the files of `--runList`, across `<count>` worker processes. The count is required, and capped at one worker per CPU and per 2 GB of memory, because every worker loads all test files of the run. Every worker loads all test files of the run and runs the files it claims, in the usual order. With `--runList`, it starts one worker per 75 of the listed test files that the runner runs, but at least 2, because one slow test file would otherwise hold up all the others, and never more than there are files. It is ignored, and the run uses a single window or process, with `--run`, `--runGlob`, bare file paths, `--grep`, `--coverage` or `--dev`. With `--rerun-failed-files`, the failures of all workers are rerun in a single window or process. When a worker fails, the runner prints the test files it ran, in order, to pass to `--run` to reproduce the failure. `npm run test-node` and `npm run test-browser` accept it as well; the browser runner starts its own browser in every worker, runs the browsers one at a time, and ignores it with `--debug`.
+Spreads a run of **all** test files, or of the files of `--runList`, across `<count>` worker processes. The count is required, and capped at one worker per CPU and per 2 GB of memory, because every worker loads all test files of the run. Every worker loads all test files of the run and runs the files it claims, in the usual order. With `--runList`, it starts one worker per 75 of the listed test files that the runner runs, but at least 2, because one slow test file would otherwise hold up all the others, and never more than there are files. It is ignored, and the run uses a single window or process, with `--run`, `--runGlob`, bare file paths, `--grep`, `--coverage` or `--dev`. With `--rerun-failed-files`, the failures of all workers are rerun in a single window or process. When a worker fails, the runner prints the test files it ran, in order, to pass to `--run` to reproduce the failure. `pnpm run test-node` and `pnpm run test-browser` accept it as well; the browser runner starts its own browser in every worker, runs the browsers one at a time, and ignores it with `--debug`.
 
 ```bash
 ./scripts/test.sh --workers 4
 ./scripts/test.sh --workers 4 --runList .build/affected-tests.txt
-npm run test-node -- --workers 4
-npm run test-browser -- --browser chromium --workers 4
+pnpm run test-node --workers 4
+pnpm run test-browser --browser chromium --workers 4
 ```
 
 ### Integration tests
@@ -115,4 +115,4 @@ Integration tests (files ending in `.integrationTest.ts` or located in `extensio
 
 ### Compilation requirement
 
-Tests run against compiled JavaScript output. Reuse current output from an existing `VS Code - Build` task when available; otherwise refresh client output with `npm run build-fast -- --client-only` before running tests. This supports cold and incremental builds without a persistent watcher or extension builds. Use `npm run build-fast` when extension and Copilot outputs are also needed. Fast builds transpile rather than type-check, so run appropriate explicit type checks when warranted by the change. Do not rebuild between test selections when inputs have not changed. Test failures caused by stale output are a common pitfall.
+Tests run against compiled JavaScript output. Reuse current output from an existing `VS Code - Build` task when available; otherwise refresh client output with `pnpm run build-fast --client-only` before running tests. This supports cold and incremental builds without a persistent watcher or extension builds. Use `pnpm run build-fast` when extension and Copilot outputs are also needed. Fast builds transpile rather than type-check, so run appropriate explicit type checks when warranted by the change. Do not rebuild between test selections when inputs have not changed. Test failures caused by stale output are a common pitfall.

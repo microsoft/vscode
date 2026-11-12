@@ -786,6 +786,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	async whenIdle(session: URI | undefined): Promise<void> {
 		if (session) {
+			// Drain cold-session writes too. Their callers handle failures, including writes refused by deletion.
+			await Promise.allSettled([this._sequencer.peek(this._enter(session))]);
 			const record = this._records.get(session.toString());
 			if (record) {
 				await this._flushRecord(record);

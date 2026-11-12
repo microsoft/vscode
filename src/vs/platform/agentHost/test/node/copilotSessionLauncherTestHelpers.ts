@@ -7,6 +7,7 @@ import { stub } from 'sinon';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
+import type { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { type ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -62,6 +63,8 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		getChatConfigValues: () => undefined,
 		resolveConfigurationOwner: (session: string) => session,
 		getSessionSandboxPolicy: () => undefined,
+		getSessionSandboxPaths: () => undefined,
+		setSessionSandboxPaths: () => { },
 		getSessionSandboxEnabled: () => undefined,
 		getChatSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
@@ -84,5 +87,6 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		}),
 		sessionOpenTelemetry,
 		telemetryService ?? upcastPartial<ITelemetryService>({ telemetryLevel: TelemetryLevel.USAGE }),
+		upcastPartial<ICopilotHomeService>({ home: URI.file('/copilot-home') }),
 	);
 }

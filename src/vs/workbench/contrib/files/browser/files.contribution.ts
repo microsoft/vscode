@@ -384,6 +384,17 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog for opening and saving files and folders. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
 		},
+		'files.simpleDialog.selectInitialPath': {
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'enumDescriptions': [
+				nls.localize('files.simpleDialog.selectInitialPath.auto', "Select the pre-filled path only when a screen reader is detected."),
+				nls.localize('files.simpleDialog.selectInitialPath.on', "Always select the pre-filled path so typing replaces it."),
+				nls.localize('files.simpleDialog.selectInitialPath.off', "Never select the pre-filled path; place the cursor at its end.")
+			],
+			'description': nls.localize('files.simpleDialog.selectInitialPath', "Controls whether the pre-filled path in the simple file dialog is selected when the dialog opens."),
+			'default': 'auto'
+		},
 		'files.participants.timeout': {
 			type: 'number',
 			default: 60000,

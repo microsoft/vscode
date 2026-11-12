@@ -285,6 +285,11 @@ export class ToolBar extends Disposable {
 		return this.actionBar.length();
 	}
 
+	/** Includes primary actions temporarily moved to the responsive overflow menu. */
+	hasPrimaryAction(id: string): boolean {
+		return this.originalPrimaryActions.some(action => action.id === id);
+	}
+
 	hasOverflow(): boolean {
 		return this.actionBar.hasAction(this.toggleMenuAction);
 	}

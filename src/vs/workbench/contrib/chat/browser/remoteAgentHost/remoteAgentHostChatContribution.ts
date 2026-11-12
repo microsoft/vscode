@@ -482,7 +482,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
-			sanitized,
+			connection,
 			(customization, clientId) => {
 				if (clientId !== undefined) {
 					// Customization came from the client; we don't allow actions on these since they're read-only reflections of client state.
@@ -510,6 +510,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			syncProvider,
 			agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
 			modelCatalogueStatus,
+			agentLabel,
 		);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
@@ -554,7 +555,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const vendorDescriptor = { vendor, displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		agentStore.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
+		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, uri => connection.resourceUris.fromAgentHost(uri)));
 		connState.modelProviders.set(agent.provider, modelProvider);
 		agentStore.add(toDisposable(() => connState.modelProviders.delete(agent.provider)));
 		agentStore.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));

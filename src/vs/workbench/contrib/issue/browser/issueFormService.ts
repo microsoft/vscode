@@ -14,6 +14,9 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
+import { RepositoryRef } from '../../../../platform/github/common/client/types.js';
+import { CreateIssueRequest } from '../../../../platform/github/common/core/issues.js';
+import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -138,6 +141,21 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 				this.logService.warn('[IssueFormService] GitHub issue search failed', error);
 			}
 			throw error;
+		} finally {
+			lifetime.dispose();
+		}
+	}
+
+	async createGitHubIssue(authorization: GitHubAuthorizationContext, repository: RepositoryRef, request: CreateIssueRequest, signal: AbortSignal): Promise<string> {
+		signal = AbortSignal.any([signal, this.disposeSignal]);
+		signal.throwIfAborted();
+		const lifetime = new DisposableStore();
+		try {
+			const client = lifetime.add(await this.gitHubService.acquireAccountApiClient(authorization, signal));
+			signal.throwIfAborted();
+			const issue = await client.issues.create(repository, request, signal, { caller: 'issueReporter', priority: 'mutation' });
+			signal.throwIfAborted();
+			return issue.html_url;
 		} finally {
 			lifetime.dispose();
 		}

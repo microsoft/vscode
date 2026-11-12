@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -29,13 +29,14 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionBrowserNetworkContribution } from '../../browser/sessionBrowserNetwork.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('SessionBrowserNetworkContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,7 +52,7 @@ suite('SessionBrowserNetworkContribution', () => {
 
 	function createResolver(services: {
 		readonly sessionsManagement?: Partial<ISessionsManagementService>;
-		readonly sessions?: Partial<ISessionsService>;
+		readonly sessions?: Partial<ITestSessionsService>;
 		readonly providers?: Partial<ISessionsProvidersService>;
 		readonly connections: Partial<IAgentHostConnectionsService>;
 		readonly browserView?: Partial<IBrowserViewWorkbenchService>;
@@ -75,7 +76,8 @@ suite('SessionBrowserNetworkContribution', () => {
 			onDidDiscardNewSession: Event.None,
 			...services.sessionsManagement,
 		}));
-		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({ activeSession: constObservable(undefined), ...services.sessions }));
+		stubFocusedSessionHostFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ ...services.providers }));
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ connections: [], onDidChangeConnections: Event.None, ...services.connections }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ onWillOpenEditor: Event.None, ...services.editor }));
@@ -92,7 +94,7 @@ suite('SessionBrowserNetworkContribution', () => {
 		const local = session('local', 'local-agent-host', '/repo');
 		const draft = session('draft', 'agenthost-wsl', '/repo');
 		const workspaceless = session('quick', 'agenthost-ssh');
-		const activeSession = observableValue<IActiveSession | undefined>('active', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('active', undefined);
 		const newSession = observableValue<ISession | undefined>('draft', draft);
 		const chats = new Map<string, ISession>([['chat:/committed', committed], ['chat:/local', local], ['chat:/quick', workspaceless]]);
 
@@ -131,7 +133,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			workspaceless: resolve({ type: 'agent', sessionId: 'chat:/quick' }),
 			unknownChat: resolve({ type: 'agent', sessionId: 'chat:/gone' }),
 		};
-		activeSession.set(upcastPartial<IActiveSession>(local), undefined);
+		activeSession.set(upcastPartial<ITestSessionWithChat>(local), undefined);
 		const activeLocal = resolve({ type: 'user' });
 
 		const localNetwork = { network: undefined, storageAffinity: undefined };
@@ -260,35 +262,34 @@ suite('SessionBrowserNetworkContribution', () => {
 		onDidReplaceSession.fire({ from: draftB, to: started });
 		await timeout(0);
 
-		try {
-			const moved = [
-				['http://page/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
-				// Global storage never uses a remote network, so the tab is not recreated.
-				['http://global/', { scope: BrowserViewStorageScope.Global }],
-				['http://ephemeral/', { scope: BrowserViewStorageScope.Ephemeral, network: { authority: hostB } }],
-				[file.toString(), { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
-				['http://existing/', undefined],
-			];
-			assert.deepStrictEqual({ afterReplace, fileAssociation, afterStart: tabs.map(tab => [tab.url, tab.session]) }, {
-				afterReplace: moved,
-				// The recreated tab still belongs to its file.
-				fileAssociation: [false, file.toString()],
-				// Starting on the same host and folders changes nothing, and the new draft's tab stays with that draft.
-				afterStart: [...moved, ['http://next/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/other'), network: { authority: hostB } }]],
-			});
-			assert.strictEqual(created.filter(input => !input.isDisposed()).length, tabs.length);
-		} finally {
+		store.add(toDisposable(() => {
 			for (const input of created) {
 				input.dispose(true);
 			}
-		}
+		}));
+		const moved = [
+			['http://page/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
+			// Global storage never uses a remote network, so the tab is not recreated.
+			['http://global/', { scope: BrowserViewStorageScope.Global }],
+			['http://ephemeral/', { scope: BrowserViewStorageScope.Ephemeral, network: { authority: hostB } }],
+			[file.toString(), { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/repo'), network: { authority: hostB } }],
+			['http://existing/', undefined],
+		];
+		assert.deepStrictEqual({ afterReplace, fileAssociation, afterStart: tabs.map(tab => [tab.url, tab.session]) }, {
+			afterReplace: moved,
+			// The recreated tab still belongs to its file.
+			fileAssociation: [false, file.toString()],
+			// Starting on the same host and folders changes nothing, and the new draft's tab stays with that draft.
+			afterStart: [...moved, ['http://next/', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostB, '/other'), network: { authority: hostB } }]],
+		});
+		assert.strictEqual(created.filter(input => !input.isDisposed()).length, tabs.length);
 	});
 
 	test('moves tabs with a draft replaced without an event, and leaves hidden tabs untouched', async () => {
 		const draft = session('draft', 'agenthost-a', '/repo');
 		const quickChat = session('quick', 'agenthost-b');
 		const started = session('started', 'agenthost-b', '/repo');
-		const composer = createComposer(draft);
+		const composer = store.add(createComposer(draft));
 		const shown = composer.open('shown', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
 		const hidden = composer.open('hidden', { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } });
 		// Hidden with its session's other editors, as when the user switches to another session.
@@ -301,15 +302,11 @@ suite('SessionBrowserNetworkContribution', () => {
 		composer.onDidReplaceSession.fire({ from: quickChat, to: started });
 		await timeout(0);
 
-		try {
-			assert.deepStrictEqual({ afterQuickChat, shownReplaced: shown.isDisposed(), hidden: [hidden.isDisposed(), hidden.session] }, {
-				// A workspace-less quick chat has no storage partition.
-				afterQuickChat: [['http://shown/', { scope: BrowserViewStorageScope.Workspace, network: { authority: hostB } }]],
-				shownReplaced: true,
-				hidden: [false, { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } }],
-			});
-		} finally {
-			composer.dispose();
-		}
+		assert.deepStrictEqual({ afterQuickChat, shownReplaced: shown.isDisposed(), hidden: [hidden.isDisposed(), hidden.session] }, {
+			// A workspace-less quick chat has no storage partition.
+			afterQuickChat: [['http://shown/', { scope: BrowserViewStorageScope.Workspace, network: { authority: hostB } }]],
+			shownReplaced: true,
+			hidden: [false, { scope: BrowserViewStorageScope.Workspace, affinity: affinity(hostA, '/repo'), network: { authority: hostA } }],
+		});
 	});
 });

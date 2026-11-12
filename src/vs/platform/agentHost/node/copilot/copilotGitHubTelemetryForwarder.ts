@@ -99,6 +99,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"completionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated completion tokens.", "isMeasurement": true },
 		"reasoningTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated reasoning tokens.", "isMeasurement": true },
 		"tokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total number of tokens used by the response.", "isMeasurement": true },
+		"totalNanoAiu": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "AI credit cost of this model call in nano AI units; absent when unreported. Already included in billedNanoAiu on agentHost.turnCompleted.", "isMeasurement": true },
 		"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tokens used by tool definitions.", "isMeasurement": true },
 		"availableToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tools available to the model.", "isMeasurement": true },
 		"numToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tool calls returned by the model.", "isMeasurement": true },
@@ -236,6 +237,33 @@ type ModelCallTurnCorrelatedClassification = {
 		"result_token_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Local runtime estimate of the tokens in the tool's explicit model-facing text output (o200k_base scaled by a per-model multiplier); not an exact model-tokenizer count or billed usage. Reported only for successful text results up to 20 KiB without binary or structured-reference content; absence does not mean zero.", "isMeasurement": true },
 		"binary_result_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of binary result parts returned by the tool.", "isMeasurement": true },
 		"binary_result_total_bytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total byte size of binary result parts returned by the tool.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/auto_approval_decision": {
+		"owner": "justschen",
+		"comment": "Runtime telemetry forwarded by the SDK for a permission request that Assisted permissions reviewed: the review and the final decision. Plaintext rationale and the user's optional feedback appear on restricted rows only.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"evaluation_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime identifier of the Assisted permissions evaluation." },
+		"reason_code": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded reason for the evaluation outcome." },
+		"judge_status": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the reviewer completed, failed, or was not run." },
+		"evaluation_stage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Stage of the evaluation that decided the outcome." },
+		"judge_attempted": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the reviewer was attempted, encoded as a string boolean." },
+		"permission_mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Permission mode of the session." },
+		"agent_mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent mode of the session." },
+		"recommendation": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reviewer's recommendation." },
+		"kind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Kind of permission request." },
+		"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded outcome of the decision." },
+		"tool_call_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool call that requested the permission." },
+		"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Who decided the request, such as a person or host policy." },
+		"surface": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Surface that answered the request." },
+		"response_capability": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the answering client could ask a person." },
+		"reason_present": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the reviewer gave a rationale, encoded as a string boolean." },
+		"permission_request_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime identifier of the permission request." },
+		"user_decision": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded result of a person's decision." },
+		"rationale": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "The reviewer's rationale; restricted telemetry only." },
+		"user_feedback": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Optional feedback the user wrote with their decision on an Assisted permissions prompt; restricted telemetry only. VS Code offers the feedback field only while restricted telemetry is enabled for the account and never persists or logs it." }
 	}
 */
 
@@ -608,14 +636,12 @@ export function isHydraFusionTelemetryKind(kind: string): boolean {
  * Code's {@link ITelemetryService} so they land in the same first-party
  * Microsoft cluster/database as the rest of the agent host's telemetry.
  *
- * Restricted events (`cli.restricted_telemetry`) are only forwarded when
- * restricted telemetry is enabled for the current Copilot account; standard
- * events always flow through.
+ * Only standard events are forwarded. Restricted events must never enter this
+ * standard telemetry sink; dedicated restricted routing is handled separately.
  */
 export class CopilotGitHubTelemetryForwarder {
 
 	constructor(
-		private readonly _isRestrictedTelemetryEnabled: () => boolean,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
@@ -626,7 +652,7 @@ export class CopilotGitHubTelemetryForwarder {
 	}
 
 	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry, telemetryContext?: IAgentTelemetryContext): void {
-		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
+		if (notification.restricted) {
 			return;
 		}
 
@@ -672,7 +698,7 @@ export class CopilotGitHubTelemetryForwarder {
 	 * turn identity with the Agent Host turn that owned the compaction, as response telemetry does.
 	 */
 	forwardCompaction(notification: GitHubTelemetryNotification, correlation: IForwardedCompactionCorrelation, telemetryContext?: IAgentTelemetryContext): void {
-		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
+		if (notification.restricted) {
 			return;
 		}
 

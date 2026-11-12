@@ -13,38 +13,25 @@ import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { IProviderSessionType, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ConfigureAutomationTool, ConfigureAutomationToolId, DeleteAutomationTool, DeleteAutomationToolId, ListAutomationsTool, ListAutomationsToolId, RunAutomationTool, RunAutomationToolId } from '../../browser/automationTools.js';
+import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 const FOLDER = URI.parse('file:///workspace');
 const SESSION_RESOURCE = URI.parse('agent-session://local/session');
 const CHAT_RESOURCE = URI.parse('agent-chat://local/chat');
 const NOW = '2026-01-01T00:00:00.000Z';
 const progress: ToolProgress = { report: () => { } };
-
-function isTelemetryData(data: unknown): data is Record<string, unknown> {
-	return typeof data === 'object' && data !== null;
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName && isTelemetryData(data)) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
 
 function createConfigureAutomationTool(
 	automationService: IAutomationService,
@@ -816,7 +803,7 @@ suite('AutomationTools', () => {
 			result: JSON.parse(getText(result)),
 		}, {
 			confirmationTitle: 'Delete Automation?',
-			confirmationMessage: 'Delete **Daily review** (`automation-1`)? Its saved configuration and run history will be permanently removed. Runs already in flight will continue.',
+			confirmationMessage: 'Delete **Daily review** (`automation-1`)? This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone. Runs already in flight will continue.',
 			allowAutoConfirm: undefined,
 			options: [
 				{ id: 'delete', label: 'Delete', kind: ConfirmationOptionKind.Approve },
@@ -831,30 +818,63 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	test('deleteAutomation confirms and forwards an explicit keep-history choice', async () => {
-		const automation = createAutomation();
-		const options: (IDeleteAutomationOptions | undefined)[] = [];
+	for (const supportsHistoryChoice of [true, false]) {
+		test(`deleteAutomation always requests history deletion (history capability: ${supportsHistoryChoice})`, async () => {
+			const automation = createAutomation();
+			const options: (IDeleteAutomationOptions | undefined)[] = [];
+			const service = new class extends FakeAutomationService {
+				override supportsDeleteHistoryChoice(): boolean { return supportsHistoryChoice; }
+				override async deleteAutomation(_id: string, guard?: AutomationMutationGuard, value?: IDeleteAutomationOptions): Promise<void> {
+					guard?.();
+					options.push(value);
+				}
+			}([automation]);
+			const tool = new DeleteAutomationTool(service, createConfigurationService());
+			const parameters = { automationId: automation.id };
+			const prepared = await tool.prepareToolInvocation({ parameters, toolCallId: 'delete', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None);
+			await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'cancel');
+			assert.deepStrictEqual(options, []);
+			await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
+			const message = prepared.confirmationMessages?.message;
+			assert.deepStrictEqual({
+				options,
+				confirmation: (typeof message === 'string' ? message : message?.value)?.includes('This cannot be undone'),
+				schema: tool.getToolData().inputSchema,
+			}, {
+				options: [supportsHistoryChoice ? { deleteHistory: true } : undefined],
+				confirmation: true,
+				schema: {
+					type: 'object',
+					additionalProperties: false,
+					properties: { automationId: { type: 'string', description: 'Stable automation ID from listAutomations.' } },
+					required: ['automationId'],
+				},
+			});
+		});
+
+		test(`deleteAutomation rejects the removed history option (history capability: ${supportsHistoryChoice})`, async () => {
+			const automation = createAutomation();
+			const service = new class extends FakeAutomationService {
+				override supportsDeleteHistoryChoice(): boolean { return supportsHistoryChoice; }
+			}([automation]);
+			const tool = new DeleteAutomationTool(service, createConfigurationService());
+			const parameters = { automationId: automation.id, deleteHistory: false };
+			await assert.rejects(tool.prepareToolInvocation({ parameters, toolCallId: 'keep', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None), /unsupported "deleteHistory" property/);
+			const result = await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
+			assert.deepStrictEqual({ deleted: service.deleted, error: result.toolResultError }, {
+				deleted: [],
+				error: 'deleteAutomation input has an unsupported "deleteHistory" property.',
+			});
+		});
+	}
+
+	test('listAutomations does not advertise a history retention choice', async () => {
 		const service = new class extends FakeAutomationService {
 			override supportsDeleteHistoryChoice(): boolean { return true; }
-			override async deleteAutomation(_id: string, _guard?: AutomationMutationGuard, value?: IDeleteAutomationOptions): Promise<void> { options.push(value); }
-		}([automation]);
-		const tool = new DeleteAutomationTool(service, createConfigurationService());
-		const parameters = { automationId: automation.id, deleteHistory: false };
-		const prepared = await tool.prepareToolInvocation({ parameters, toolCallId: 'keep', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None);
-		await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
-		const message = prepared.confirmationMessages?.message;
-		assert.deepStrictEqual({
-			options,
-			confirmation: (typeof message === 'string' ? message : message?.value)?.includes('Run history will be kept.'),
-		}, { options: [{ deleteHistory: false }], confirmation: true });
-	});
-
-	test('deleteAutomation rejects history options on unsupported providers', async () => {
-		const automation = createAutomation();
-		const service = new FakeAutomationService([automation]);
-		const tool = new DeleteAutomationTool(service, createConfigurationService());
-		const result = await invoke(tool, { automationId: automation.id, deleteHistory: false }, SESSION_RESOURCE, CancellationToken.None, 'delete');
-		assert.deepStrictEqual({ deleted: service.deleted, rejected: getText(result).includes('does not support') }, { deleted: [], rejected: true });
+		}([createAutomation()]);
+		const tool = createListAutomationsTool(service, createConfigurationService());
+		const result = await invoke(tool, {});
+		assert.strictEqual(getText(result).includes('supportsDeleteHistoryChoice'), false);
 	});
 
 	test('deleteAutomation rejects stale IDs before confirmation', async () => {
@@ -959,12 +979,13 @@ suite('AutomationTools', () => {
 			new FakeSessionsManagementService(createSession({ workspace: FOLDER })),
 			createConfigurationService(),
 		);
+		const createParameters = {
+			name: 'Morning review',
+			prompt: 'Review open pull requests',
+			schedule: { interval: 'daily' },
+		};
 		const createPrepared = await tool.prepareToolInvocation!({
-			parameters: {
-				name: 'Morning review',
-				prompt: 'Review open pull requests',
-				schedule: { interval: 'daily' },
-			},
+			parameters: createParameters,
 			toolCallId: 'create-call',
 			chatSessionResource: SESSION_RESOURCE,
 		}, CancellationToken.None);
@@ -995,7 +1016,7 @@ suite('AutomationTools', () => {
 			create: {
 				title: 'Create Automation?',
 				message: 'Create the automation **Morning review**?',
-				toolSpecificData: undefined,
+				toolSpecificData: { kind: 'input', rawInput: createParameters, editable: false },
 			},
 			update: {
 				title: 'Update Automation?',
@@ -1307,7 +1328,7 @@ suite('AutomationTools', () => {
 	});
 
 	test('configureAutomation reports persisted, blocked, and failed outcomes without identifiers', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const sessionsManagementService = new FakeSessionsManagementService(createSession({ workspace: FOLDER }));
 		const configurationService = createConfigurationService();
 		await invoke(createConfigureAutomationTool(

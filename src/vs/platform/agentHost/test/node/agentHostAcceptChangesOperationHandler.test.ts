@@ -14,8 +14,9 @@ import { buildSessionChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } 
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { ChangesetOperationTargetKind } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type TextRange } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, FileEditKind, SessionStatus, type TextRange } from '../../common/state/sessionState.js';
 import { AgentHostAcceptChangesOperationHandler } from '../../node/agentHostAcceptChangesOperationHandler.js';
 import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHostAcceptChangesOperationProvider.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -320,7 +321,7 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 		const run = async (name: string, arrange: (context: ReturnType<typeof setup>) => Promise<string | undefined>) => {
 			const context = setup(disposables);
 			await storeEdit(context.db, 't1', 'tc1', FILE, FileEditKind.Edit, 'v0', 'v1');
-			context.stateManager.dispatchServerAction(context.chat, { type: ActionType.ChatTurnStarted, turnId: 't2', startedAt: new Date(1).toISOString(), message: { text: 'Edit', origin: { kind: MessageKind.User } } });
+			context.stateManager.dispatchServerAction(context.chat, chatTurnStarted('t2', 'Edit', new Date(1).toISOString()));
 			const nonce = await arrange(context);
 			const error = await toError(context.invoke(FILE, undefined, undefined, nonce));
 			results[name] = { error, accepted: context.accepted.length, rows: await context.rows() };

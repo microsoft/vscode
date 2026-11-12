@@ -24,6 +24,7 @@ import { createUnknownAgentHostClientTelemetryContext } from '../../common/agent
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
@@ -1506,11 +1507,7 @@ suite('AgentHostAutomationService', () => {
 				void completed.complete();
 			}
 		}));
-		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
-			type: ActionType.ChatTurnComplete,
-			turnId,
-			duration: 10,
-		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete(turnId, 10));
 		await completed.p;
 
 		assert.deepStrictEqual({
@@ -1520,7 +1517,7 @@ suite('AgentHostAutomationService', () => {
 			run: AutomationRunStatus.Completed,
 			summary: AutomationRunStatus.Completed,
 		});
-		stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnComplete, turnId, duration: 10 });
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete(turnId, 10));
 		await service.fetchAutomationRuns({ channel: 'ahp-automations://', automation: params.automation });
 		assert.deepStrictEqual(telemetry.events.filter(event => event.name !== 'automation.created').map(event => ({
 			name: event.name,
@@ -1641,11 +1638,7 @@ suite('AgentHostAutomationService', () => {
 						startedAt: new Date().toISOString(),
 						message,
 					});
-					stateManager.dispatchServerAction(chat, {
-						type: ActionType.ChatTurnComplete,
-						turnId: 'model-configuration-turn',
-						duration: 0,
-					});
+					stateManager.dispatchServerAction(chat, chatTurnComplete('model-configuration-turn', 0));
 				},
 			});
 			const automation = definition();
@@ -1711,11 +1704,7 @@ suite('AgentHostAutomationService', () => {
 							startedAt: new Date().toISOString(),
 							message,
 						});
-						stateManager.dispatchServerAction(chat, {
-							type: ActionType.ChatTurnComplete,
-							turnId: 'agent-selection-turn',
-							duration: 0,
-						});
+						stateManager.dispatchServerAction(chat, chatTurnComplete('agent-selection-turn', 0));
 					},
 				});
 				const automation = definition();
@@ -1910,7 +1899,7 @@ suite('AgentHostAutomationService', () => {
 				},
 				cancelSession: async () => {
 					if (outcome === 'success') {
-						stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+						stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete('turn', 0));
 					} else {
 						stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnCancelled, turnId: 'turn', duration: 0 });
 					}
@@ -2281,7 +2270,7 @@ suite('AgentHostAutomationService', () => {
 				systemWake.setFullyAwake(true);
 				await timeout(60_000);
 				if (then === 'complete') {
-					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 0 });
+					stateManager.dispatchServerAction(chat, chatTurnComplete('turn', 0));
 				} else {
 					failTurn();
 				}
