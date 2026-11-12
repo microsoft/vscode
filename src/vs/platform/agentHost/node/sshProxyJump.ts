@@ -46,6 +46,11 @@ export function rememberSSHProxyJump(config: ISSHResolvedConfig, stdout: string)
 	return config;
 }
 
+/** Whether a configuration resolved inside this node process relays through jump hosts. */
+export function hasSSHProxyJump(config: ISSHResolvedConfig): boolean {
+	return proxyJumps.has(config);
+}
+
 /** Only an object resolved inside this node process can authorize a jump helper. */
 export async function createSSHProxyJump(
 	resolved: ISSHResolvedConfig | undefined,

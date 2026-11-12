@@ -81,7 +81,7 @@ import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
 import { probeSSHServer } from './sshReachability.js';
-import { createSSHProxyJump, rememberSSHProxyJump, SSHProxyJump } from './sshProxyJump.js';
+import { createSSHProxyJump, hasSSHProxyJump, rememberSSHProxyJump, SSHProxyJump } from './sshProxyJump.js';
 
 const SSH_REACHABILITY_TIMEOUT_MS = 5000;
 
@@ -1404,7 +1404,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			return 'unknown';
 		}
 		// A relayed connection's first hop says nothing about the target itself.
-		if (resolved.proxyCommand || resolved.proxyJump || !resolved.hostname) {
+		if (resolved.proxyCommand || hasSSHProxyJump(resolved) || !resolved.hostname) {
 			return 'unknown';
 		}
 		return probeSSHServer(resolved.hostname, port ?? resolved.port, SSH_REACHABILITY_TIMEOUT_MS);

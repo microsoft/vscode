@@ -266,7 +266,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					if (kind === 'ssh') {
 						this.sshConfigAddresses = new Set(targets.map(target => this.getId(target)));
 					}
-					if (kind === 'wsl') {
+					// Discovery is unsupported off Windows, so its empty result says nothing about installed distributions.
+					if (kind === 'wsl' && isWindows) {
 						this.installedDistros = new Set(targets.flatMap(target => target.kind === 'wsl' ? [target.distro] : []));
 						this.runningDistros = new Set(targets.flatMap(target => target.kind === 'wsl' && target.running ? [target.distro] : []));
 						this.runningDistrosVersion++;

@@ -353,8 +353,6 @@ export interface ISSHResolvedConfig {
 	readonly identityAgent: string | undefined;
 	/** Command providing the raw SSH connection over standard input/output. */
 	readonly proxyCommand?: string;
-	/** Jump hosts the connection is relayed through. */
-	readonly proxyJump?: string;
 	readonly forwardAgent: boolean;
 	/**
 	 * `UserKnownHostsFile` paths, in priority order. The node service recovers
