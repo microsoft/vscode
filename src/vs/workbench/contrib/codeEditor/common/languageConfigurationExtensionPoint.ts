@@ -778,7 +778,7 @@ const schema: IJSONSchema = {
 					properties: {
 						start: {
 							type: ['string', 'object'],
-							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.'),
+							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'. A named group \'label\' captures the region\'s name, e.g. in \'<!-- #region Name -->\'; otherwise the name is the text after the match.'),
 							properties: {
 								pattern: {
 									type: 'string',
