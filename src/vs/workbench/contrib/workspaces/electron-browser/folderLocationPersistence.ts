@@ -87,7 +87,12 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		const primary = workspace.identity ?? workspace.folders[0].uri;
 
 		// The location is applied at startup without validation, so a missing one is detected here
-		if (!await this.isDirectory(location)) {
+		const exists = await this.isDirectory(location);
+		if (token.isCancellationRequested || this.folderLocationService.currentLocation || !this.isAtAlternate(location)) {
+			return; // disposed, or switched by someone else in the meantime
+		}
+
+		if (!exists) {
 			await this.returnToPrimary(persisted, primary, location, token);
 			return;
 		}

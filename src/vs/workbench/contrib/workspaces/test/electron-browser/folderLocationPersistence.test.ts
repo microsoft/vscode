@@ -36,6 +36,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		readonly folderUri?: URI;
 		readonly providerAvailable?: boolean;
 		readonly locationMissing?: boolean;
+		readonly stat?: () => Promise<{ isDirectory: boolean }>;
 		readonly resolveLocation?: () => Promise<IResolvedFolderLocation | undefined>;
 		readonly setFolderLocation?: (location: URI, options?: { readonly ifIdle?: boolean }) => Promise<void>;
 	}
@@ -73,7 +74,7 @@ suite('FolderLocationPersistenceContribution', () => {
 			{ folderLocation: options.persisted } as unknown as INativeWorkbenchEnvironmentService,
 			{ notify: (n: { message: string; id?: string }) => { notifications.push(n.message); notificationIds.push(n.id); } } as unknown as INotificationService,
 			{ extUri } as unknown as IUriIdentityService,
-			{ stat: async () => { if (options.locationMissing) { throw new Error('ENOENT'); } return { isDirectory: true }; } } as unknown as IFileService,
+			{ stat: options.stat ?? (async () => { if (options.locationMissing) { throw new Error('ENOENT'); } return { isDirectory: true }; }) } as unknown as IFileService,
 			{ error: (message: string) => { errors.push(message); } } as unknown as ILogService
 		));
 
@@ -120,6 +121,34 @@ suite('FolderLocationPersistenceContribution', () => {
 		assert.deepStrictEqual(
 			{ current: fixture.locationService.currentLocation, persisted: fixture.persistedCalls, notifications: fixture.notifications.length, returns: fixture.returns.map(r => r.toString()) },
 			{ current: undefined, persisted: [undefined], notifications: 1, returns: [primary.toString()] });
+	});
+
+	test('a switch completed while the stat is pending is not overwritten when the stat fails', async () => {
+		let failStat!: () => void;
+		const fixture = createFixture({ persisted, providerAvailable: true, stat: () => new Promise((_, reject) => { failStat = () => reject(new Error('ENOENT')); }) });
+		await settle();
+
+		fixture.locationService.setCurrentLocation({ uri: URI.file('/work/other'), label: 'Other', providerId: 'test', builtIn: true });
+		failStat();
+		await settle();
+
+		assert.deepStrictEqual(
+			{ current: fixture.locationService.currentLocation?.label, notifications: fixture.notifications, returns: fixture.returns },
+			{ current: 'Other', notifications: [], returns: [] });
+	});
+
+	test('disposing while the stat is pending has no side effects once it fails', async () => {
+		let failStat!: () => void;
+		const fixture = createFixture({ persisted, providerAvailable: true, stat: () => new Promise((_, reject) => { failStat = () => reject(new Error('ENOENT')); }) });
+		await settle();
+
+		fixture.contribution.dispose();
+		failStat();
+		await settle();
+
+		assert.deepStrictEqual(
+			{ notifications: fixture.notifications, returns: fixture.returns, persisted: fixture.persistedCalls },
+			{ notifications: [], returns: [], persisted: [] });
 	});
 
 	test('a provider registering late confirms the location', async () => {
