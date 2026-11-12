@@ -27,7 +27,7 @@ import { INewChatComposerInputOptions } from '../../../../../workbench/contrib/s
 import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { WorkspacePicker } from '../../../../../workbench/contrib/sessions/browser/chat/sessionWorkspacePicker.js';
 import { IPreferredSessionType } from '../../../../../workbench/contrib/sessions/browser/chat/sessionTypePicker.js';
-import { ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICreateNewSessionSlotOptions, ISendRequestOptions, ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
@@ -79,6 +79,8 @@ suite('Automation composer', () => {
 		let sendFailure: Error | undefined;
 		let openFailure: Error | undefined;
 		let replacement: ISession | undefined;
+		let failedSession: ISession | undefined;
+		let slotOptions: ICreateNewSessionSlotOptions | undefined;
 		const createDraft = (folder: URI | undefined, providerId = 'host') => {
 			const session = Object.assign(createTestActiveSession(`draft-${drafts.length}`, false), { providerId, sessionType: 'copilotcli' });
 			drafts.push({ folder, session });
@@ -92,24 +94,33 @@ suite('Automation composer', () => {
 			createQuickChat: () => { defaultSlotCalls.push('createQuickChat'); return createDraft(undefined); },
 			createNewSession: folder => { defaultSlotCalls.push('createNewSession'); return createDraft(folder); },
 			discardNewSession: () => { defaultSlotCalls.push('discardNewSession'); },
-			createNewSessionSlot: () => ({
-				id: 'automation',
-				newSession: currentDraft,
-				createQuickChat: options => createDraft(undefined, options?.providerId),
-				createNewSession: (folder, options) => createDraft(folder, options?.providerId),
-				discardNewSession: session => { if (session) { discarded.push(session); } },
-				dispose: () => {
-					const draft = currentDraft.get();
-					if (draft) {
-						discarded.push(draft);
-					}
-				},
-			}),
+			createNewSessionSlot: options => {
+				slotOptions = options;
+				return {
+					id: 'automation',
+					newSession: currentDraft,
+					createQuickChat: options => createDraft(undefined, options?.providerId),
+					createNewSession: (folder, options) => createDraft(folder, options?.providerId),
+					discardNewSession: session => { if (session) { discarded.push(session); } },
+					dispose: () => {
+						const draft = currentDraft.get();
+						if (draft) {
+							discarded.push(draft);
+						}
+					},
+				};
+			},
 			isQuickChatTargetAvailable: () => true,
 			isNewSessionTargetAvailable: () => true,
 			sendNewChatRequest: async (session, options) => {
 				requests.push({ session, options });
 				if (sendFailure) {
+					// Accepted, then failed: the slot lets go of the draft and gets it back only if it opts in.
+					currentDraft.set(undefined, undefined);
+					const failed = failedSession ?? session;
+					if (slotOptions?.readoptOnFailure?.(failed)) {
+						currentDraft.set(failed, undefined);
+					}
 					throw sendFailure;
 				}
 				currentDraft.set(undefined, undefined);
@@ -188,6 +199,7 @@ suite('Automation composer', () => {
 			setSendFailure: (error: Error | undefined) => { sendFailure = error; },
 			setOpenFailure: (error: Error) => { openFailure = error; },
 			replaceStartedSession: (session: ISession) => { replacement = session; },
+			replaceFailedSession: (session: ISession) => { failedSession = session; },
 		};
 	}
 
@@ -295,6 +307,17 @@ suite('Automation composer', () => {
 		});
 	});
 
+	test('a failed send re-adopts the prepared replacement draft for the retry instead of creating another', async () => {
+		const { options, drafts, requests, setSendFailure, replaceFailedSession } = setup();
+		const prepared = Object.assign(createTestActiveSession('prepared', false), { providerId: 'host', sessionType: 'copilotcli' });
+		replaceFailedSession(prepared);
+		setSendFailure(new Error('Provider disconnected'));
+		await options.sendRequest({ query: 'Review changes' });
+		setSendFailure(undefined);
+		const retried = await options.sendRequest({ query: 'Review changes' });
+		assert.deepStrictEqual({ retried, drafts: drafts.length, retrySession: requests[1].session === prepared }, { retried: true, drafts: 1, retrySession: true });
+	});
+
 	test('holds its draft apart from the New Session draft and discards only its own', () => {
 		const { composer, drafts, discarded, defaultSlotCalls } = setup();
 		const draft = drafts.at(-1)!.session;
@@ -302,15 +325,17 @@ suite('Automation composer', () => {
 		assert.deepStrictEqual({ defaultSlotCalls, discarded: discarded.map(session => session === draft) }, { defaultSlotCalls: [], discarded: [true] });
 	});
 
-	test('applies a Dev Container workspace choice to the draft for that folder only', () => {
+	test('applies Dev Container and host choices to the draft, including for the already-selected folder', () => {
 		const { providers, drafts, preferredDevContainers, selectFolder, selectHarness } = setup();
 		providers.set([{ id: LOCAL_AGENT_HOST_PROVIDER_ID, label: 'Local' }], undefined);
 		selectHarness({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' });
+		selectFolder(folder);
 		selectFolder(folder, true);
 		const containerDraft = drafts.at(-1)!.session.sessionId;
+		selectFolder(folder);
 		selectFolder(URI.file('/other'));
 		assert.deepStrictEqual({ preferredDevContainers, drafts: drafts.map(draft => draft.folder?.path) }, {
-			preferredDevContainers: [containerDraft], drafts: [undefined, undefined, '/workspace', '/other'],
+			preferredDevContainers: [containerDraft], drafts: [undefined, undefined, '/workspace', '/workspace', '/workspace', '/other'],
 		});
 	});
 

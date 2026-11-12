@@ -8,7 +8,7 @@ import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
@@ -63,7 +63,7 @@ export class AutomationComposer extends Disposable {
 	private readonly workspacePicker: WorkspacePicker;
 	private readonly session = observableValue<ISession | undefined>(this, undefined);
 	private readonly targetReady = observableValue(this, false);
-	private target: { readonly folder: URI | undefined; readonly pick: IPreferredSessionType } | undefined;
+	private target: { readonly folder: URI | undefined; readonly pick: IPreferredSessionType; readonly devContainer: boolean } | undefined;
 	private readonly message = DOM.$('.automation-authoring-message', { role: 'alert', 'aria-atomic': 'true' });
 	private readonly sending = observableValue(this, false);
 	private submitted = false;
@@ -89,7 +89,8 @@ export class AutomationComposer extends Disposable {
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
-		this.slot = sessionsManagementService.createNewSessionSlot();
+		// A failed send gets its draft back, with its configuration, for the retry.
+		this.slot = sessionsManagementService.createNewSessionSlot({ readoptOnFailure: () => !this.submitted && !this._store.isDisposed });
 		AutomationComposer.instances.set(root, this);
 		this._register(toDisposable(() => AutomationComposer.instances.delete(root)));
 		const enabledChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
@@ -172,16 +173,23 @@ export class AutomationComposer extends Disposable {
 		const pickChanged = observableSignalFromEvent(this, this.input.sessionTypePicker.onDidChangeSelectedPick);
 		const typesChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessionTypes);
 		// This composer has no environment picker, so a Dev Container choice from the workspace picker is applied to its draft directly.
-		let devContainerFolder: URI | undefined;
-		this._register(this.workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
-			devContainerFolder = preferDevContainer ? folderUri : undefined;
+		// A choice for the selected folder changes only its environment, so it reconciles the draft itself; another folder's waits for its selection.
+		let workspaceMode: { readonly folderUri: URI; readonly preferDevContainer: boolean } | undefined;
+		const workspaceModeChanged = observableSignal(this);
+		this._register(this.workspacePicker.onDidSelectWorkspaceMode(mode => {
+			workspaceMode = mode;
+			if (isEqual(mode.folderUri, this.workspacePicker.selectedFolderUri)) {
+				workspaceModeChanged.trigger(undefined);
+			}
 		}));
 		let creatingDraft = false;
 		this._register(autorun(reader => {
 			pickChanged.read(reader);
 			typesChanged.read(reader);
+			workspaceModeChanged.read(reader);
 			const allowed = providers.read(reader);
 			const selectedFolder = folder.read(reader);
+			const devContainer = !!selectedFolder && !!workspaceMode?.preferDevContainer && isEqual(workspaceMode.folderUri, selectedFolder);
 			const pick = this.input.sessionTypePicker.selectedPick;
 			this.element.hidden = !enabled.read(reader);
 			if (!enabled.read(reader) || !pick?.providerId || !allowed.includes(pick.providerId) || this.sending.read(reader) || this.submitted) {
@@ -192,7 +200,14 @@ export class AutomationComposer extends Disposable {
 				return;
 			}
 			if (this.target?.pick.providerId === pick.providerId && this.target.pick.sessionTypeId === pick.sessionTypeId
-				&& isEqual(this.target.folder, selectedFolder) && currentDraft && this.session.read(undefined) === currentDraft) {
+				&& isEqual(this.target.folder, selectedFolder) && this.target.devContainer === devContainer && currentDraft) {
+				// The slot's draft for this target, such as one re-adopted after a failed send, keeps its configuration.
+				if (this.session.read(undefined) !== currentDraft) {
+					transaction(tx => {
+						this.session.set(currentDraft, tx);
+						this.targetReady.set(true, tx);
+					});
+				}
 				return;
 			}
 			this.targetReady.set(false, undefined);
@@ -202,13 +217,13 @@ export class AutomationComposer extends Disposable {
 					const session = selectedFolder
 						? this.slot.createNewSession(selectedFolder, pick)
 						: this.slot.createQuickChat(pick);
-					if (selectedFolder && isEqual(devContainerFolder, selectedFolder)) {
+					if (devContainer) {
 						const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 						if (provider && isAgentHostProvider(provider)) {
 							provider.preferDevContainer?.(session.sessionId);
 						}
 					}
-					this.target = { folder: selectedFolder, pick };
+					this.target = { folder: selectedFolder, pick, devContainer };
 					this.session.set(session, tx);
 					this.targetReady.set(true, tx);
 				});
