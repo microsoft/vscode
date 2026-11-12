@@ -519,7 +519,7 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		this.widget?.resetWidthBasedLayout();
 	}
 
-	/** Creates the mobile-layout internal header toolbars. */
+	/** Creates the toolbars of the header row the editor shows itself: in the mobile layout, and in hosts without a sessions header row, such as editor windows. */
 	private _buildHeaderToolbars(left: HTMLElement, right: HTMLElement, instantiationService: IInstantiationService): IDisposable {
 		const store = new DisposableStore();
 
