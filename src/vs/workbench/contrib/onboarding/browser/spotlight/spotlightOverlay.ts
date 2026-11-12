@@ -560,11 +560,11 @@ export class SpotlightOverlay extends Disposable {
 	private _collectFocusable(): HTMLElement[] {
 		const targetFocusables = (this._options.allowTargetInteraction || this._options.advanceOnTargetClick || this._options.hideNext) && this._target
 			? this._options.focusTarget ? [this._options.focusTarget.element]
-				// eslint-disable-next-line no-restricted-syntax -- querying the spotlight target subtree for focusable controls
+				// eslint-disable-next-line eslint-js/no-restricted-syntax -- querying the spotlight target subtree for focusable controls
 				: [this._target, ...this._target.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')]
 			: [];
 		const descriptionFocusables = Array.from(
-			// eslint-disable-next-line no-restricted-syntax -- querying our own callout description subtree for focusable markdown content (e.g. links)
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- querying our own callout description subtree for focusable markdown content (e.g. links)
 			this._description.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
 		);
 		const buttons = [this._skipButton, this._backButton, this._nextButton]

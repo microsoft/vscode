@@ -25,7 +25,7 @@ const url = require('url');
 const net = require('net');
 const createStatsCollector = require('mocha/lib/stats-collector');
 const { applyReporter, importMochaReporter } = require('../reporter');
-const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, writeWorkerReport } = require('../parallel.ts');
+const { getWorkerCount, getWorkerCountForFiles, removeArgument, runInWorkers, runEachFileAlone, writeWorkerReport } = require('../parallel.ts');
 const { findTestFiles } = require('./testFiles.ts');
 
 const minimist = require('minimist');
@@ -67,12 +67,13 @@ protocol.registerSchemesAsPrivileged([
  * workers: string;
  * worker: string;
  * workerDir: string;
+ * isolate: boolean;
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
 	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit', 'testShard', 'rerun-failed-files', 'workers', 'worker', 'workerDir'],
-	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
+	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage', 'isolate'],
 	alias: {
 		'grep': ['g', 'f'],
 		'runGlob': ['glob', 'runGrep'],
@@ -118,6 +119,7 @@ Options:
 --crash-reporter-directory <path> crash reporter directory
 --rerun-failed-files <count>  rerun failed tests (suites for failed hooks) in a fresh window up to <count> more times; use whole files for many failures
 --workers <count>             run all test files, or those of --runList, in <count> parallel processes, at most one per CPU and per 2 GB of memory; with --runList, one per 75 test files that run, but at least 2 and at most one per file; ignored with --run, --runGlob, --grep, --testSplit, --testShard, --dev, --waitServer or coverage; reruns use one window
+--isolate                     run every test file of the run alone in a fresh window, as many at once as --workers, to find test files that only pass when other test files are loaded too; not with --dev, --waitServer, --testSplit, --testShard or coverage, and without --tfs results
 --tfs <url>                   TFS server URL
 --help, -h                    show the help`);
 	process.exit(0);
@@ -144,9 +146,13 @@ try {
 	console.error(/** @type {Error} */ (error).message);
 	app.exit(1);
 }
-const workersApply = workerCount > 1 && !args.run && !args.runGlob && !args.grep && !args.testSplit && !args.testShard && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
-if (workerCount > 1 && !workersApply) {
+const workersApply = workerCount > 1 && !args.isolate && !args.run && !args.runGlob && !args.grep && !args.testSplit && !args.testShard && !args.dev && !args.waitServer && !args.coverage && !args['per-test-coverage'];
+if (workerCount > 1 && !workersApply && !args.isolate) {
 	console.log('Running in a single window, because --workers only applies when all test files or those of --runList run, without --run, --runGlob, --grep, --testSplit, --testShard, --dev, --waitServer or coverage');
+}
+if (args.isolate && (args.dev || args.waitServer || args.testSplit || args.testShard || args.coverage || args['per-test-coverage'] || args.worker)) {
+	console.error('--isolate cannot be combined with --dev, --waitServer, --testSplit, --testShard or coverage');
+	app.exit(1);
 }
 // The number of workers for --runList depends on the listed files that run, so find them while the app starts
 const listedTestFiles = workersApply && args.runList ? findTestFiles(args, path.join(__dirname, `../../../${args.build ? 'out-build' : 'out'}`)) : undefined;
@@ -267,6 +273,49 @@ async function runFirstAttemptInWorkers(count) {
 }
 
 /**
+ * Runs every test file of the run alone in a fresh window (`--isolate`), each in its own instance of
+ * this script with `--run <file>`, which reruns its own failures with `--rerun-failed-files`. In a run
+ * of several test files, every window loads all of them before running any, so a test file can pass
+ * only because another one registers what it reads, such as a contribution that the other one imports.
+ * @returns {Promise<number>} the exit code of the run
+ */
+async function runEachTestFileAlone() {
+	/** @type {string[]} */
+	let files;
+	if (args.run) {
+		files = Array.isArray(args.run) ? args.run : [args.run];
+	} else {
+		try {
+			const found = await findTestFiles(args, path.join(__dirname, `../../../${args.build ? 'out-build' : 'out'}`));
+			files = found.files.map(file => `src/${file.replace(/\.js$/, '.ts')}`);
+		} catch (error) {
+			console.error(error);
+			return 1;
+		}
+	}
+
+	// Every child selects its test file with --run, and writes no results file that another child would overwrite
+	let childArgs = process.argv.slice(2).filter(arg => arg !== '--isolate' && !arg.startsWith('--isolate=') && !bareFiles.includes(arg));
+	for (const name of ['run', 'runList', 'runGlob', 'glob', 'runGrep', 'excludeRunGlob', 'workers', 'tfs']) {
+		childArgs = removeArgument(childArgs, name);
+	}
+
+	const failed = await runEachFileAlone({ name: 'Electron unit tests', files, count: workerCount, command: process.execPath, args: [__filename, ...childArgs] });
+	if (failed.length === 0) {
+		return 0;
+	}
+
+	console.error(`\n${failed.length} test file(s) failed when they ran alone in a fresh window. If they pass with other test files, they depend on what those load: make each test file import or register what it uses. Reproduce with ./scripts/test.sh --run <file>:`);
+	for (const file of failed) {
+		console.error(`  ${file}`);
+		if (process.env.GITHUB_ACTIONS) {
+			console.log(`::error file=${file},title=Test file fails alone::${file} fails when it runs alone in a fresh window. If it passes with other test files, it depends on what they load: import or register what it uses.`);
+		}
+	}
+	return 1;
+}
+
+/**
  * Relays the mocha events of the test run in one window to the reporters in the
  * main process, and records which tests passed and failed.
  */
@@ -351,6 +400,10 @@ class IPCRunner extends events.EventEmitter {
 }
 
 app.on('ready', async () => {
+	if (args.isolate) {
+		app.exit(await runEachTestFileAlone());
+		return;
+	}
 	session.defaultSession.setSpellCheckerLanguages([]);
 	session.defaultSession.setSpellCheckerEnabled(false);
 	const outDir = args.build ? 'out-build' : 'out';
@@ -411,6 +464,10 @@ app.on('ready', async () => {
 	// A second view lets tests blur the page without stealing desktop focus.
 	/** @type {Map<number, import('electron').WebContentsView>} */
 	const focusTestViews = new Map();
+	// Moves the page's pointer off the window, so `:hover` from a real pointer does not carry over between suites.
+	ipcMain.handle('vscode:test-pointer-leave', event => {
+		event.sender.sendInputEvent({ type: 'mouseLeave', x: -1, y: -1 });
+	});
 	ipcMain.handle('vscode:test-set-web-contents-focus', async (event, focused) => {
 		const window = BrowserWindow.fromWebContents(event.sender);
 		if (!window) {

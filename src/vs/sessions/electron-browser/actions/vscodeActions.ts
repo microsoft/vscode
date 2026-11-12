@@ -14,6 +14,8 @@ import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { ISSHRemoteAgentHostService } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
@@ -32,7 +34,7 @@ import { OpenInVSCodeTitleBarWidget } from '../../browser/widget/openInVSCodeWid
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { getEditorWindowSessionResource, notifyEditorWindowSessionUnsupported, resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
+import { getEditorWindowSessionResource, notifyEditorWindowSessionUnsupported, resolveRemoteAuthority, resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IFolderToOpen, IOpenedMainWindow } from '../../../platform/window/common/window.js';
 import { ILabelService, Verbosity } from '../../../platform/label/common/label.js';
@@ -80,7 +82,8 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 
 	const folders = (chat ?? session?.mainChat.get())?.workspace.get()?.folders;
 	if (!session || !folders?.length) {
-		return nativeHostService.openWindow();
+		const remoteAuthority = session && resolveRemoteAuthority(session.providerId, sessionsProvidersService, remoteAgentHostService);
+		return nativeHostService.openWindow(remoteAuthority ? { remoteAuthority } : undefined);
 	}
 
 	const foldersToOpen: IFolderToOpen[] = [];
@@ -96,7 +99,7 @@ export async function openSessionInVSCode(accessor: ServicesAccessor, session: I
 	}
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session, chat);
-	const editorChatSession = chatSessionToOpen && getEditorWindowSessionResource(chatSessionToOpen, session.providerId, sessionsProvidersService, remoteAgentHostService, agentHostConnectionsService, tunnelAgentHostService);
+	const editorChatSession = chatSessionToOpen && getEditorWindowSessionResource(chatSessionToOpen, session.providerId, sessionsProvidersService, remoteAgentHostService, agentHostConnectionsService, tunnelAgentHostService, accessor.get(ISSHRemoteAgentHostService), accessor.get(IRemoteAgentHostLocationPreferenceService));
 	if (typeof editorChatSession === 'string') {
 		notifyEditorWindowSessionUnsupported(notificationService, editorChatSession);
 	}

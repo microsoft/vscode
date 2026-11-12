@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens } from '../../common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown } from '../../common/htmlContent.js';
+import { marked } from '../../common/marked/marked.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('htmlContent', () => {
@@ -74,6 +75,50 @@ suite('htmlContent', () => {
 			assert.strictEqual(escapeMarkdownSyntaxTokens('  - indented'), '  \\- indented');
 			assert.strictEqual(escapeMarkdownSyntaxTokens('---'), '\\---');
 			assert.strictEqual(escapeMarkdownSyntaxTokens('line one\n- item'), 'line one\n\\- item');
+		});
+	});
+
+	suite('escapeUntrustedMarkdown', () => {
+		function render(markdown: string): { links: string[]; hasImage: boolean; hasThemeIcon: boolean; hasBlock: boolean } {
+			const html = marked.parse(markdown, { async: false });
+			return {
+				links: [...html.matchAll(/<a href="([^"]*)"/g)].map(match => match[1]),
+				hasImage: html.includes('<img'),
+				hasThemeIcon: /(?<!\\)\$\(/.test(html),
+				hasBlock: /<(h\d|ul|ol|blockquote|table|pre|hr)[ >]/.test(html)
+			};
+		}
+
+		test('escaped text renders as text only', () => {
+			const texts = [
+				'Example',
+				'Example [Link](command:workbench.action.files.newUntitledFile)',
+				'Example <command:workbench.action.files.newUntitledFile?%5B%5D>',
+				'Example <https://example.com/x>',
+				'Example https://example.com/x',
+				'Example www.example.com',
+				'Example someone@example.com',
+				'Example ![image](https://example.com/x.png)',
+				'Example **bold** `code` <b>html</b> $(rocket)',
+				'> quote',
+				'# heading',
+				'- item',
+				'1. item',
+				'---',
+				'Example\n- item\n\n# heading'
+			];
+
+			const rendered: Record<string, ReturnType<typeof render>> = {};
+			for (const text of texts) {
+				rendered[text] = render(escapeUntrustedMarkdown(text));
+			}
+
+			const plain = { links: [], hasImage: false, hasThemeIcon: false, hasBlock: false };
+			assert.deepStrictEqual(rendered, Object.fromEntries(texts.map(text => [text, plain])));
+		});
+
+		test('collapses whitespace and keeps ordinary text readable', () => {
+			assert.strictEqual(escapeUntrustedMarkdown('Hello  World\nAgain'), 'Hello World Again');
 		});
 	});
 });

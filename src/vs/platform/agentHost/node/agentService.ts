@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { withMessageReplacedTurn, withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
+import { readRuntimePluginEnablement } from '../common/meta/pluginEnablementMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
@@ -158,7 +159,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService, SESSION_CREDENTIAL_PRINCIPAL_KEY } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -394,12 +395,12 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	outcome: 'migrated' | 'skipped' | 'failed' | 'declined';
 	migrationSessionId: string;
 	stage: 'adoption' | 'eligibility' | 'registration' | 'restore' | 'annotations' | 'complete';
-	diagnosticCategory: 'notApplicable' | 'expectedExclusion' | 'configurationDisabled' | 'needsInvestigation' | 'unknown';
+	diagnosticCategory: 'notApplicable' | 'expectedExclusion' | 'needsInvestigation' | 'unknown';
 	advertisedAsAdoptable: boolean;
 	eligible: boolean | undefined;
-	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | 'notEvaluated' | 'notReported';
-	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'] | 'notEvaluated';
-	diagnosticDetail: 'settingDisabled' | 'invalidSessionId' | 'storageProbeFailed' | 'storageLayoutInvalid' | 'sessionStateRootMissing' | 'sessionDirectoryMissing' | 'markerMissingNonExtensionHostClient' | 'markerMissingWithEvents' | 'markerMissingWithoutEvents' | 'markerMissing' | 'markerReadError' | 'markerInvalid' | 'originUnrecognized' | 'originInvalidType' | 'originMissing' | 'externalOrigin' | 'legacyMarker' | 'legacyEligible' | 'adoptionThrew' | 'providerEvidenceUnavailable';
+	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | 'notReported';
+	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'];
+	diagnosticDetail: 'invalidSessionId' | 'storageProbeFailed' | 'storageLayoutInvalid' | 'sessionStateRootMissing' | 'sessionDirectoryMissing' | 'markerMissingNonExtensionHostClient' | 'markerMissingWithEvents' | 'markerMissingWithoutEvents' | 'markerMissing' | 'markerReadError' | 'markerInvalid' | 'originUnrecognized' | 'originInvalidType' | 'originMissing' | 'externalOrigin' | 'legacyMarker' | 'legacyEligible' | 'adoptionThrew' | 'providerEvidenceUnavailable';
 	markerOrigin: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerOrigin'] | 'notReported';
 	sessionIdStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionIdStatus'] | 'notReported';
 	copilotHomeSource: NonNullable<IAgentChatAdoptionResult['diagnostics']>['copilotHomeSource'] | 'notReported';
@@ -454,7 +455,7 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session ran in a pre-existing git worktree that was bridged during adoption.' };
 	workingDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working directories associated with the migrated session.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider adoption reason (including markerUnavailable), settingDisabled for a frozen-off host, or unknown. This is separate from the stage and exception that may fail after adoption.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider adoption reason (including markerUnavailable), or unknown. This is separate from the stage and exception that may fail after adoption.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How the agent host was launched: vscode_main_process (local desktop host) or vscode_cli (a host spawned by a VS Code server, e.g. for a remote window), so local and remote migration can be compared.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What restored the session: subscribe (a client opened or subscribed to it, including from its agent-host list row, which the client probe event does not see), action (a dispatched action such as rename or archive), or other (an internal restore). The first restore wins when several join.' };
 	owner: 'vijayupadya';
@@ -1133,8 +1134,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _chatMoveSequencer = new Sequencer();
 	/** Sessions a chat move is changing; they stay resident until it ends. */
 	private readonly _chatMoveSessions = new Set<string>();
-	/** Loaded sessions a chat move uses, by the number of moves using them; they stay resident until those end. */
-	private readonly _movePinnedSessions = new Map<string, number>();
+	/** Sessions pinned by ongoing operations, by the number of operations using them. */
+	private readonly _pinnedSessions = new Map<string, number>();
 	private readonly _chatMovability: AgentHostChatMovability;
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _chatHistoryRefreshes = this._register(new ThrottlerByKey<string>());
@@ -1414,7 +1415,7 @@ export class AgentService extends Disposable implements IAgentService {
 			AgentSessionResidency,
 			this._stateManager,
 			{
-				isReleaseBlocked: session => this._restoreSessionInFlight.has(session.toString()) || this._savedChatContinuations.has(session.toString()) || this._chatMoveSessions.has(session.toString()) || this._movePinnedSessions.has(session.toString()),
+				isReleaseBlocked: session => this._restoreSessionInFlight.has(session.toString()) || this._savedChatContinuations.has(session.toString()) || this._chatMoveSessions.has(session.toString()) || this._pinnedSessions.has(session.toString()),
 				whenSessionDataIdle: session => this._whenSessionDataIdle(session),
 				getSessionChats: session => this._getSessionChatsInTeardownOrder(session),
 				createRelease: session => {
@@ -1723,7 +1724,6 @@ export class AgentService extends Disposable implements IAgentService {
 	private _getStartupContext(): IAgentHostStartupMetrics {
 		return {
 			externalSessionsMode: this._getExternalSessionsMode(),
-			migrateLegacyEnabled: this._migrateLegacyEnabledSnapshot,
 			copilotRegistered: this._providerService.getProvider('copilotcli') !== undefined,
 			claudeRegistered: this._providerService.getProvider('claude') !== undefined,
 			codexRegistered: this._providerService.getProvider('codex') !== undefined,
@@ -2122,15 +2122,15 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private _setupChatDiscoveryForProvider(provider: IAgent): void {
-		if (this._migrateLegacyEnabledSnapshot === true && provider.ensureChatAdopted) {
-			this._startChatDiscovery(provider, 'legacy chat migration is enabled');
-		} else {
-			this._runWhenStartupSettled(`external session discovery for ${provider.id}`, () => {
-				if (!this._hidesAllExternalSessions(this._getExternalSessionsMode())) {
-					this._startChatDiscovery(provider, 'Agent Host startup settled with external sessions enabled');
-				}
-			});
-		}
+		// Legacy migration discovers even when external sessions are hidden, but like
+		// external discovery it waits for startup so it never competes with the first list.
+		this._runWhenStartupSettled(`chat discovery for ${provider.id}`, () => {
+			if (provider.ensureChatAdopted) {
+				this._startChatDiscovery(provider, 'Agent Host startup settled for a provider that migrates legacy chats');
+			} else if (!this._hidesAllExternalSessions(this._getExternalSessionsMode())) {
+				this._startChatDiscovery(provider, 'Agent Host startup settled with external sessions enabled');
+			}
+		});
 	}
 
 	private _onDidRegisterProvider(provider: IAgent): void {
@@ -2981,33 +2981,38 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sideEffects.handleAction(chat, action);
 	}
 
-	/**
-	 * Reads a point-in-time snapshot of a session's chat conversation for the
-	 * `get_session_context` server tool. Targets the session's default chat, or a
-	 * specific peer chat when `chatId` is provided. Returns `undefined` when no
-	 * live conversation state exists (e.g. a cold/unsubscribed session).
-	 */
+	/** Restores and reads the requested chat for the `get_session_context` server tool. */
 	private async _getChatContext(session: URI, chatId?: string): Promise<IChatContextSnapshot | undefined> {
-		let chatState: ChatState | undefined;
-		if (chatId) {
-			const chats = (await this._getSessionMetadata(session))?.chats ?? [];
-			const chat = getSessionChatResource({ chats: chats.map(entry => ({ resource: entry.chat.toString() })) }, chatId, this._chatOwnership.getDefaultChat(session.toString()));
-			chatState = chat === undefined ? undefined : await this._stateManager.resolveChatState(chat);
-		} else {
-			chatState = this._stateManager.getDefaultChatState(session.toString());
+		const leases = new DisposableStore();
+		try {
+			leases.add(this._pinSession(session.toString()));
+			await this.restoreSession(session);
+			const state = this._stateManager.getSessionState(session.toString());
+			if (!state) {
+				return undefined;
+			}
+			const defaultChat = this._chatOwnership.getDefaultChat(session.toString());
+			const chat = chatId === undefined ? defaultChat : getSessionChatResource(state, chatId, defaultChat);
+			if (chat === undefined) {
+				return undefined;
+			}
+			this._assertSessionOwnsChat(session, URI.parse(chat), 'Session context');
+			const chatState = await this._stateManager.resolveChatState(chat);
+			if (!chatState) {
+				return undefined;
+			}
+			return {
+				turns: chatState.turns,
+				...(chatState.activeTurn ? { activeTurn: { message: chatState.activeTurn.message, responseParts: chatState.activeTurn.responseParts } } : {}),
+				pendingMessages: [
+					...getPendingSteeringMessages(chatState).map(pending => ({ kind: PendingMessageKind.Steering, pending })),
+					...(chatState.queuedMessages?.filter(pending => pending.kind !== PendingMessageKind.Steering).map(pending => ({ kind: PendingMessageKind.Queued, pending })) ?? []),
+				],
+				hasMoreHistory: !!chatState.turnsNextCursor,
+			};
+		} finally {
+			leases.dispose();
 		}
-		if (!chatState) {
-			return undefined;
-		}
-		return {
-			turns: chatState.turns,
-			...(chatState.activeTurn ? { activeTurn: { message: chatState.activeTurn.message, responseParts: chatState.activeTurn.responseParts } } : {}),
-			pendingMessages: [
-				...getPendingSteeringMessages(chatState).map(pending => ({ kind: PendingMessageKind.Steering, pending })),
-				...(chatState.queuedMessages?.filter(pending => pending.kind !== PendingMessageKind.Steering).map(pending => ({ kind: PendingMessageKind.Queued, pending })) ?? []),
-			],
-			hasMoreHistory: !!chatState.turnsNextCursor,
-		};
 	}
 
 	/**
@@ -5943,7 +5948,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		this._startedChatDiscoveryProviders.add(provider.id);
-		void provider.startChatDiscovery({ migrateLegacyChats: this._isMigrateLegacyEnabled() }).catch(error => {
+		void provider.startChatDiscovery().catch(error => {
 			this._startedChatDiscoveryProviders.delete(provider.id);
 			this._logService.warn(`[AgentService] Chat discovery for provider ${provider.id} failed after ${reason}`, error);
 		});
@@ -6035,13 +6040,12 @@ export class AgentService extends Disposable implements IAgentService {
 		now = Date.now(),
 		recentSessionKeys?: ReadonlySet<string>,
 	): boolean {
-		// An un-adopted adoptable-legacy session is listed (while migration is enabled)
-		// so it stays reachable once the extension-host provider is retired; the
-		// editor window hides the matching legacy row. Opening it adopts it in place.
+		// An un-adopted adoptable-legacy session is listed so it stays reachable after
+		// the extension-host provider was retired. Opening it adopts it in place.
 		// Adoption clears this marker (and sets `ehcliAdopted`), so an adopted session
 		// surfaces normally below.
 		if (readSessionEhcliAdoptable(session._meta)) {
-			return this._isMigrateLegacyEnabled();
+			return true;
 		}
 		if (!readSessionExternal(session._meta)) {
 			return true;
@@ -6104,27 +6108,6 @@ export class AgentService extends Disposable implements IAgentService {
 	private _reconciliationInFlight = false;
 	private _reconciliationDirty = false;
 	private _reconciliationForceCatalogRefresh = false;
-
-	private _migrateLegacyEnabledSnapshot: boolean | undefined;
-
-	/**
-	 * Freezes the migrate-legacy gate at host startup. The host is a shared
-	 * process that survives window reloads, so a setting toggled without a full
-	 * restart is live-propagated into its config; capturing the value once at
-	 * bootstrap (before any such live change can arrive) is what makes the
-	 * "requires a restart" contract hold. Called once from {@link agentHostBootstrap};
-	 * tests never call it and keep the lazy first-read fallback.
-	 */
-	primeMigrateLegacyGate(): void {
-		this._isMigrateLegacyEnabled();
-	}
-
-	private _isMigrateLegacyEnabled(): boolean {
-		// Frozen at host startup (see `primeMigrateLegacyGate`): the gate never
-		// flips mid-process, so there is no live discovery re-run / retract storm
-		// to reconcile.
-		return this._migrateLegacyEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
-	}
 
 	/** Diagnostics-only; an implementation that owns no files reports nothing. */
 	private _storageAccessCounts(): ISessionStorageAccessCounts {
@@ -6879,12 +6862,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.listPluginInstallations(session, chat);
 	}
 
-	async setPluginEnabled(providerId: AgentProvider, plugin: string, enabled: boolean): Promise<void> {
+	async setPluginEnabled(providerId: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.setPluginEnabled) {
 			throw new Error(`Plugin enablement is unavailable for provider '${providerId}'.`);
 		}
-		await provider.setPluginEnabled(plugin, enabled);
+		await provider.setPluginEnabled(plugin, enabled, scope, session, chat);
 	}
 
 	async listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
@@ -8213,7 +8196,7 @@ export class AgentService extends Disposable implements IAgentService {
 			while (true) {
 				const held = this._sessionResidency.isHeldForMove(session);
 				if (!held && this._stateManager.getSessionState(sessionKey)) {
-					leases.add(this._pinForMove(sessionKey));
+					leases.add(this._pinSession(sessionKey));
 					return false;
 				}
 				if (dataOnly && !this._restoreSessionInFlight.has(sessionKey) && (held || await this._canLoadDataForMove(session))) {
@@ -8242,7 +8225,7 @@ export class AgentService extends Disposable implements IAgentService {
 					}
 				}
 				// Pinned before it loads: a restore releases sessions over the residency limit as it ends, which mustn't be this one.
-				leases.add(this._pinForMove(sessionKey));
+				leases.add(this._pinSession(sessionKey));
 				await this.restoreSession(session);
 				return false;
 			}
@@ -8254,15 +8237,15 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** Keeps a loaded session a move uses resident until the move ends: releasing it meanwhile would refuse the move. */
-	private _pinForMove(session: string): IDisposable {
-		this._movePinnedSessions.set(session, (this._movePinnedSessions.get(session) ?? 0) + 1);
+	/** Keeps a session resident until the operation using it ends. */
+	private _pinSession(session: string): IDisposable {
+		this._pinnedSessions.set(session, (this._pinnedSessions.get(session) ?? 0) + 1);
 		return toDisposable(() => {
-			const remaining = (this._movePinnedSessions.get(session) ?? 1) - 1;
+			const remaining = (this._pinnedSessions.get(session) ?? 1) - 1;
 			if (remaining > 0) {
-				this._movePinnedSessions.set(session, remaining);
+				this._pinnedSessions.set(session, remaining);
 			} else {
-				this._movePinnedSessions.delete(session);
+				this._pinnedSessions.delete(session);
 				void this._sessionResidency.reconcile();
 			}
 		});
@@ -12471,7 +12454,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _applyPassiveChatFlags(session: string, chat: string, action: ChatIsReadChangedAction | ChatIsArchivedChangedAction): Promise<'applied' | 'restore' | 'deleting' | 'unmanageable' | 'dropped'> {
 		const summary = this._stateManager.getSurfacedSessionSummary(session);
 		// As for the session read flag: a read toggle must not adopt an un-opened legacy session.
-		if (action.type === ActionType.ChatIsReadChanged && this._isMigrateLegacyEnabled()
+		if (action.type === ActionType.ChatIsReadChanged
 			&& (summary ? readSessionEhcliAdoptable(summary._meta) : await this._isRegisteredAdoptableSession(URI.parse(session)))) {
 			return 'dropped';
 		}
@@ -13930,6 +13913,14 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			resumedTurn = turn;
 		}
+		if (action.type === ActionType.SessionCustomizationToggled) {
+			const customizationId = action.id;
+			const customization = this._stateManager.getSessionState(sessionChannel)?.customizations?.find(item => item.id === customizationId);
+			if (customization && readRuntimePluginEnablement(customization)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Plugin enablement must be changed through its owning runtime.');
+				return;
+			}
+		}
 		// Client replacements must neither overwrite nor drop host-owned authorization state or runtime reports.
 		if (action.type === ActionType.SessionConfigChanged) {
 			const configAction = action as SessionConfigChangedAction;
@@ -14335,7 +14326,7 @@ export class AgentService extends Disposable implements IAgentService {
 		outcome: AgentHostLegacyMigrationEvent['outcome'],
 		startTime: number,
 		stage: AgentHostLegacyMigrationEvent['stage'],
-		extra: { advertisedAsAdoptable: boolean; trigger: AgentHostLegacyMigrationTrigger; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason | 'settingDisabled' },
+		extra: { advertisedAsAdoptable: boolean; trigger: AgentHostLegacyMigrationTrigger; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason },
 	): void {
 		const diagnostics = extra.adoption?.diagnostics;
 		const invalidSessionId = diagnostics?.sessionIdStatus !== undefined && diagnostics.sessionIdStatus !== 'opaque';
@@ -14351,17 +14342,13 @@ export class AgentService extends Disposable implements IAgentService {
 		let diagnosticCategory: AgentHostLegacyMigrationEvent['diagnosticCategory'] = 'unknown';
 		if (outcome === 'migrated') {
 			diagnosticCategory = 'notApplicable';
-		} else if (extra.reason === 'settingDisabled') {
-			diagnosticCategory = 'configurationDisabled';
 		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || invalidSessionId || storageError || storageLayoutInvalid || environmentRootMissing || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
 			diagnosticCategory = 'needsInvestigation';
 		} else if ((diagnostics?.markerStatus === 'valid' && diagnostics.provenance === 'external') || missingSessionStorage || nonExtensionHostClient) {
 			diagnosticCategory = 'expectedExclusion';
 		}
 		let diagnosticDetail: AgentHostLegacyMigrationEvent['diagnosticDetail'];
-		if (extra.reason === 'settingDisabled') {
-			diagnosticDetail = 'settingDisabled';
-		} else if (invalidSessionId) {
+		if (invalidSessionId) {
 			diagnosticDetail = 'invalidSessionId';
 		} else if (storageError) {
 			diagnosticDetail = 'storageProbeFailed';
@@ -14402,8 +14389,8 @@ export class AgentService extends Disposable implements IAgentService {
 			diagnosticCategory,
 			advertisedAsAdoptable: extra.advertisedAsAdoptable,
 			eligible: extra.adoption?.eligible,
-			markerStatus: diagnostics?.markerStatus ?? (extra.reason === 'settingDisabled' ? 'notEvaluated' : 'notReported'),
-			provenance: diagnostics?.provenance ?? (extra.reason === 'settingDisabled' ? 'notEvaluated' : extra.adoption?.eligible ? 'legacy' : 'unknown'),
+			markerStatus: diagnostics?.markerStatus ?? 'notReported',
+			provenance: diagnostics?.provenance ?? (extra.adoption?.eligible ? 'legacy' : 'unknown'),
 			diagnosticDetail,
 			markerOrigin: diagnostics?.markerOrigin ?? 'notReported',
 			sessionIdStatus: diagnostics?.sessionIdStatus ?? 'notReported',
@@ -14490,12 +14477,11 @@ export class AgentService extends Disposable implements IAgentService {
 		let external = registeredSession?.external ?? false;
 		this._logService.trace(`[AgentService] restore: catalog and registry resolved for ${sessionStr} (registered=${!!registeredSession}, external=${external})`);
 
-		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session, strictly gated on the startup-frozen migrate setting (a no-op for native / already-adopted sessions).
-		const migrateLegacyEnabled = this._isMigrateLegacyEnabled();
+		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session (a no-op for native / already-adopted sessions).
 		const migrationStartTime = Date.now();
 		const advertisedAsAdoptable = readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionStr)?._meta);
 		let adoption: IAgentChatAdoptionResult = { adopted: false, eligible: false };
-		if (!external && migrateLegacyEnabled && agent.ensureChatAdopted) {
+		if (!external && agent.ensureChatAdopted) {
 			try {
 				const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionStr]);
 				const defaultChat = URI.parse(this._resolveDefaultChat(session, catalog, undefined));
@@ -14523,11 +14509,8 @@ export class AgentService extends Disposable implements IAgentService {
 		// created, hidden while `showExternalSessions` is `none`) would be
 		// materialized here and thereby claimed away from the extension host's list.
 		// Refuse an unregistered chat that is neither an adoptable legacy chat nor
-		// one that already has Agent Host metadata. This is independent of the
-		// migrate gate: while migration is frozen off, adoption is never attempted
-		// above, so a client that still probes the twin (e.g. the setting was toggled
-		// on without the required window reload) is cleanly declined and opens the
-		// legacy session unmigrated, rather than materializing an unowned session.
+		// one that already has Agent Host metadata, rather than materializing an
+		// unowned session.
 		if (!registeredSession && agent.ensureChatAdopted && !adoption.eligible && !adoption.native) {
 			// The registry was read before the deferred catalog wait, so absence is only authoritative once that catalog is readable (#331721).
 			await awaitCatalogReadable();
@@ -14535,8 +14518,8 @@ export class AgentService extends Disposable implements IAgentService {
 			external = registeredSession?.external ?? external;
 			if (!registeredSession) {
 				this._logService.info(`[AgentService] restore refused for unregistered ${sessionStr}: not an adoptable legacy chat (reason=${adoption.reason ?? 'unknown'})`);
-				const reason = migrateLegacyEnabled ? adoption.reason : 'settingDisabled';
-				this._reportLegacyMigration(session, agent.id, 'declined', migrationStartTime, 'eligibility', { advertisedAsAdoptable, trigger, adoption: migrateLegacyEnabled ? adoption : undefined, reason });
+				const reason = adoption.reason;
+				this._reportLegacyMigration(session, agent.id, 'declined', migrationStartTime, 'eligibility', { advertisedAsAdoptable, trigger, adoption, reason });
 				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat (reason=${reason ?? 'unknown'}): ${sessionStr}`);
 			}
 		}
@@ -16245,8 +16228,13 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._worktreeDiskUsage.measure(root, token, session);
 	}
 
-	sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
+	async sessionWorktreeCleanup(session: URI, retry: boolean, force?: boolean) {
+		await this._sessionStateStore.whenIdle(session);
 		return this._worktreeCleanup.sessionWorktreeCleanup(session, retry, force);
+	}
+
+	prepareSessionWorktreeCleanup(session: URI): Promise<void> {
+		return this._worktreeCleanup.prepareSessionWorktreeCleanup(session);
 	}
 
 	listManagedWorktrees(repositories: readonly URI[]) {

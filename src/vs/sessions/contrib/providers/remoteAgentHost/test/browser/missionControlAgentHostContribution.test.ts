@@ -8,12 +8,12 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -121,11 +121,16 @@ suite('Mission Control native provider inventory', () => {
 		storage?: InMemoryStorageService;
 		connect?: () => Promise<void>;
 		refresh?: () => Promise<void>;
+		discoveredOnlineHostIds?: IObservable<ReadonlySet<string>>;
 		sharedStartupFirst?: boolean;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', []);
 		const ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', undefined);
+		const sharedRemoteEnvironmentIds = observableValue<ReadonlySet<string>>('sharedRemoteEnvironmentIds', new Set());
+		instantiation.stub(IRemoteGitHubEnvironmentSharingService, new class extends mock<IRemoteGitHubEnvironmentSharingService>() {
+			override readonly environmentIds = sharedRemoteEnvironmentIds;
+		}());
 		let account = 'first';
 		const created: { provider: TestProvider; options: IEntryDrivenProviderOptions }[] = [];
 		const actions: string[] = [];
@@ -207,6 +212,8 @@ suite('Mission Control native provider inventory', () => {
 		}());
 		instantiation.stub(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly hosts = hosts;
+			override readonly discoveredOnlineHostIds = options.discoveredOnlineHostIds ?? derived(this, reader =>
+				new Set(hosts.read(reader).filter(host => host.status === 'online').map(host => host.id)));
 			override readonly ownEnvironmentId = ownEnvironmentId;
 			override readonly enabled = true;
 			override get accountKey() { return account; }
@@ -239,7 +246,7 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, ownEnvironmentId, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus,
+			hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus,
 			whenConnected: (id: string) => {
 				const isConnected = () => RemoteAgentHostConnectionStatus.isConnected(connections.get(`cloudsandbox:${id}`)?.status);
 				return isConnected() ? Promise.resolve() : Event.toPromise(Event.filter(connectionsChanged.event, isConnected), connectionListeners);
@@ -299,11 +306,13 @@ suite('Mission Control native provider inventory', () => {
 		});
 	}
 
-	test('marks this computer\'s environment as its local registration and keeps it out of the picker and auto-connect', async () => {
-		const { hosts, ownEnvironmentId, created, actions, rediscover } = fixture('profile', { web: true });
+	test('keeps this computer\'s environment and remotes shared by this client out of the picker and auto-connect', async () => {
+		const { hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, created, actions, rediscover } = fixture('profile', { web: true });
 		ownEnvironmentId.set('own', undefined);
+		sharedRemoteEnvironmentIds.set(new Set(['shared']), undefined);
 		hosts.set([
 			{ id: 'own', name: 'This Machine', kind: 'user-local', status: 'online' },
+			{ id: 'shared', name: 'Shared SSH Host', kind: 'user-local', status: 'online' },
 			{ id: 'other', name: 'Other Machine', kind: 'user-local', status: 'online' },
 		], undefined);
 		await rediscover();
@@ -317,6 +326,7 @@ suite('Mission Control native provider inventory', () => {
 		}, {
 			providers: [
 				{ address: 'cloudsandbox:own', localRegistration: 'githubEnvironment', pickerVisible: false },
+				{ address: 'cloudsandbox:shared', localRegistration: undefined, pickerVisible: false },
 				{ address: 'cloudsandbox:other', localRegistration: undefined, pickerVisible: true },
 			],
 			connects: ['connect:other'],
@@ -452,6 +462,60 @@ suite('Mission Control native provider inventory', () => {
 			connects: ['connect:environment'],
 		});
 	});
+
+	for (const web of [false, true]) {
+		for (const outcome of ['online', 'offline', 'failure'] as const) {
+			test(`cached online hosts wait for fresh ${outcome} discovery on ${web ? 'web' : 'desktop'}`, async () => {
+				const storage = store.add(new InMemoryStorageService());
+				const first = fixture('profile', { storage, autoConnect: false });
+				const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
+				first.hosts.set([host], undefined);
+				await first.created[0].provider.connect();
+				first.contribution.dispose();
+
+				const discovery = new DeferredPromise<void>();
+				const discoveredOnlineHostIds = observableValue<ReadonlySet<string>>('discoveredOnlineHostIds', new Set());
+				const reopened = fixture('profile', {
+					storage, web, discoveredOnlineHostIds,
+					refresh: async () => {
+						await discovery.p;
+						if (outcome === 'failure') {
+							throw new Error('Discovery unavailable');
+						}
+						transaction(tx => {
+							reopened.hosts.set([{ ...host, status: outcome }], tx);
+							discoveredOnlineHostIds.set(new Set(outcome === 'online' ? [host.id] : []), tx);
+						});
+					},
+				});
+				reopened.hosts.set([host], undefined);
+				const beforeDiscovery = {
+					providers: reopened.created.length,
+					connects: reopened.actions.filter(action => action.startsWith('connect:')),
+				};
+				const refresh = reopened.rediscover();
+				await discovery.complete();
+				const refreshed = await refresh;
+				const automaticConnects = reopened.actions.filter(action => action.startsWith('connect:'));
+				if (outcome === 'failure') {
+					await reopened.created[0].provider.connect();
+				}
+				assert.deepStrictEqual({
+					beforeDiscovery, refreshed, automaticConnects,
+					status: reopened.hosts.get()[0].status,
+					connects: reopened.actions.filter(action => action.startsWith('connect:')),
+					disposed: reopened.created[0].provider.disposed,
+				}, {
+					beforeDiscovery: { providers: 1, connects: [] },
+					refreshed: outcome !== 'failure',
+					automaticConnects: outcome === 'online' ? ['connect:environment'] : [],
+					status: outcome === 'offline' ? 'offline' : 'online',
+					connects: outcome === 'offline' ? [] : ['connect:environment'],
+					disposed: false,
+				});
+			});
+		}
+	}
 
 	test('desktop waits for remembered hosts to come online and respects the auto-connect setting', async () => {
 		const storage = store.add(new InMemoryStorageService());

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { AgentChatMoveDestination } from './agentHostChatMove.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from './agentHostWorktreeCleanup.js';
 import type { CancellationToken } from '../../../base/common/cancellation.js';
@@ -28,7 +29,9 @@ import type { IAgentHostTcpConnection } from './agentHostTcpConnection.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
-import type { IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
+import type { IConnectionDiagnosticError } from './connectionDiagnostics.js';
+import type { IAgentHostGitHubEnvironmentRegistration, IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
+import type { IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
@@ -62,7 +65,7 @@ export type {
 } from './agent.js';
 export {
 	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
-	GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn, resolveAgentChatContext,
+	GITHUB_REPO_PROTECTED_RESOURCE, isAgentExtensionEnabledAndSettled, protectedResourcesRequireGitHubCopilotSignIn, resolveAgentChatContext,
 	resolveAgentChatOrigin, resolveSubagentChatParent, resolveAgentHostCustomizations, subagentChatTitle,
 	SubagentChatSignal,
 } from './agent.js';
@@ -88,8 +91,9 @@ export const enum AgentHostIpcChannels {
 	RemoteProxy = 'agentHostProxy',
 }
 
-/** VS Code IPC-only launch options, never forwarded over the Agent Host Protocol. */
+/** VS Code IPC-only connection options, never forwarded over the Agent Host Protocol. */
 export interface IAgentHostIpcConnectionOptions {
+	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
 	readonly env?: Readonly<Record<string, string | null>>;
 	/** Kept separate so the server can apply resolver precedence using its own environment casing. */
 	readonly debugEnv?: Readonly<Record<string, string | null>>;
@@ -149,6 +153,9 @@ export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMc
 
 /** Configuration key offering GitHub's Computer Use plugin to local agent-host Copilot sessions. */
 export const AgentHostComputerUseEnabledSettingId = 'chat.agentHost.computerUse.enabled';
+
+/** Configuration key offering GitHub's Browser Use plugin to local agent-host Copilot sessions. */
+export const AgentHostBrowserUseEnabledSettingId = 'chat.agentHost.browserUse.enabled';
 
 /** Configuration key selecting the automatic session and chat title generation strategy. */
 export const AgentHostTitleGenerationSettingId = 'chat.agentHost.experimental.titleGeneration';
@@ -835,6 +842,9 @@ export interface IAgentHostNetworkFetchResult {
 export interface IConnectionTrackerService {
 	readonly onDidChangeConnectionCount: Event<number>;
 
+	/** Fires when a protocol client registers or unregisters this host as a GitHub environment. */
+	readonly onDidChangeGitHubEnvironmentRegistered: Event<boolean>;
+
 	/** Resolves after the WebSocket listener configured at process startup is bound. */
 	waitForConfiguredWebSocketServer(): Promise<void>;
 
@@ -889,8 +899,8 @@ export interface IMissionControlCredentialSealingRequest {
 
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
-	/** Opt-in Mission Control ingress configured through trusted local IPC. */
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
+	/** Opt-in Mission Control ingress; failures are explicit data so structured causes survive trusted local IPC. */
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void | { readonly error: IConnectionDiagnosticError }>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getMissionControlEnvironmentId(): Promise<string | undefined>;
 	getMissionControlEnvironmentName(): Promise<string | undefined>;
@@ -923,7 +933,7 @@ export interface IAgentHostManagementService {
 	listPluginInstallations(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void>;
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
@@ -1045,7 +1055,7 @@ export interface IAgentService {
 	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void>;
+	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
@@ -1279,6 +1289,7 @@ export interface IAgentService {
 
 	/** Reports background removal state, optionally retrying cleanup of an archived session. */
 	sessionWorktreeCleanup?(session: URI, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	prepareSessionWorktreeCleanup?(session: URI): Promise<void>;
 	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string, force?: boolean): Promise<void>;
 
@@ -1346,6 +1357,9 @@ export type IAgentImportSessionOptions = Pick<IAgentImportChatOptions, 'takeOver
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+	/** Optional provider-owned management APIs; unsupported hosts remain read-only. */
+	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
+	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Opens a private, non-resumable stream in the connected host's network. */
 	openTcpConnection?(target: { host: string; port: number }): Promise<IAgentHostTcpConnection>;
 
@@ -1569,10 +1583,25 @@ export interface IAgentConnection {
 	// ---- Changeset operations -----------------------------------------------
 	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
 
+	// ---- GitHub environment -------------------------------------------------
+	/**
+	 * The host's GitHub environment status, or `undefined` while the host does
+	 * not offer the `vscode.githubEnvironment` capability to this connection.
+	 */
+	readonly gitHubEnvironment?: IObservable<IAgentHostGitHubEnvironmentStatus | undefined>;
+	/**
+	 * Registers the host as a GitHub environment owned by the given GitHub
+	 * account, using that account's credential. Registering again refreshes
+	 * the credential. Requires the `vscode.githubEnvironment` capability.
+	 */
+	registerGitHubEnvironment?(accountId: string, credential: string): Promise<IAgentHostGitHubEnvironmentRegistration>;
+	unregisterGitHubEnvironment?(accountId: string): Promise<void>;
+
 	// ---- Filesystem operations ----------------------------------------------
 	/** Estimates reclaimable allocation on local or remote hosts, optionally cached for an idle session. Unsupported hosts must not fall back to per-file RPCs. */
 	measureWorktreeDiskUsage?(root: URI, token: CancellationToken, session?: URI): Promise<number | undefined>;
 	sessionWorktreeCleanup?(session: URI, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	prepareSessionWorktreeCleanup?(session: URI): Promise<void>;
 	listManagedWorktrees?(repositories: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(repository: URI, worktree: URI, branch: string, force?: boolean): Promise<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
@@ -1641,7 +1670,7 @@ export interface IAgentHostService extends IAgentConnection {
 	/** Uninstall a plugin through its local Agent Host provider. */
 	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean): Promise<void>;
+	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 	/** Install a plugin through its local Agent Host provider. */
 	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Retry the plugins a live chat's managed settings require through its local Agent Host provider. */

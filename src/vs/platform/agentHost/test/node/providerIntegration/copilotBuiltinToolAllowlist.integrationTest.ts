@@ -194,6 +194,7 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 			interactiveUser: true,
 			enableConfigDiscovery: false,
 			enableSkills: true,
+			featureFlags: { MCP_SKILLS: true },
 			enableSessionStore: true,
 			infiniteSessions: { enabled: true },
 			...(availableTools ? { availableTools } : {}),

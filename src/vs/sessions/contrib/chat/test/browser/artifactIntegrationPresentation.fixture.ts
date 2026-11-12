@@ -70,7 +70,7 @@ interface IArtifactFixtureOptions {
 	/** Index of a group artifact pinned into a pill of its own. */
 	readonly pinned?: number;
 	readonly openGroup?: boolean;
-	/** Index of the group row to open details for from the open group dropdown. */
+	/** Index of the group row whose first status section, or Details section, opens its details from the open group dropdown. */
 	readonly openGroupDetails?: number;
 }
 
@@ -611,12 +611,16 @@ async function render(context: ComponentFixtureContext, data: IArtifactFixtureDa
 	row.content.appendChild(widget.element);
 	if (openDetails) {
 		const sectionIndex = data.contribution.view.sections.findIndex(section => section.detailsId === openDetails);
-		const button = openDetails === 'actions' ? widget.element.querySelector<HTMLElement>('.artifact-integration-pill > .chat-pill-button')
-			: widget.element.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[sectionIndex];
-		if (!button) {
+		const main = widget.element.querySelector<HTMLElement>('.artifact-integration-pill > .chat-pill-button');
+		const section = widget.element.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[sectionIndex];
+		if (openDetails === 'actions' && main) {
+			// The whole artifact's details, which its Details section opens while it has no status sections.
+			controller.toggle(presentation, main);
+		} else if (section) {
+			section.click();
+		} else {
 			throw new Error(`Missing artifact details control: ${openDetails}`);
 		}
-		button.click();
 		await Promise.resolve();
 		const detailsId = data.contribution.view.main?.detailsId;
 		const expectedDetails = detailsId ? data.details[detailsId] : undefined;
@@ -702,7 +706,7 @@ async function renderGroup(
 		rows[0]?.classList.add('hovered');
 		return;
 	}
-	rows[options.openGroupDetails]?.querySelector<HTMLElement>('.artifact-group-row-main')?.click();
+	rows[options.openGroupDetails]?.querySelector<HTMLElement>('.artifact-group-row-status')?.click();
 	await waitForFixtureDomCondition(container, () => !!container.querySelector('.artifact-integration-panel h2'), disposableStore);
 }
 

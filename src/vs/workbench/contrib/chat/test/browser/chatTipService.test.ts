@@ -436,6 +436,101 @@ suite('ChatTipService', () => {
 		});
 	});
 
+	test('navigates between a standalone provider tip and catalog tips without losing the selection on rerender', () => {
+		const service = createService();
+		const contextualTip: IChatTip = { id: 'contextual.shortcut', content: new MarkdownString('Enable shortcut') };
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => contextualTip,
+			dismissTip: () => { },
+		}));
+		service.getWelcomeTip(contextKeyService);
+		const enabled = service.hasMultipleTips();
+		const next = service.navigateToNextTip();
+		const rerendered = service.getWelcomeTip(contextKeyService);
+		const previous = service.navigateToPreviousTip();
+		const wrapped = service.navigateToPreviousTip();
+		const wrappedRerender = service.getWelcomeTip(contextKeyService);
+		const returned = service.navigateToNextTip();
+
+		assert.deepStrictEqual({
+			enabled,
+			nextIsCatalog: next?.id.startsWith('tip.'),
+			rerenderKeepsSelection: rerendered?.id === next?.id,
+			previous: previous?.id,
+			wrappedIsCatalog: wrapped?.id.startsWith('tip.'),
+			wrappedRerenderKeepsSelection: wrappedRerender?.id === wrapped?.id,
+			returned: returned?.id,
+		}, {
+			enabled: true,
+			nextIsCatalog: true,
+			rerenderKeepsSelection: true,
+			previous: contextualTip.id,
+			wrappedIsCatalog: true,
+			wrappedRerenderKeepsSelection: true,
+			returned: contextualTip.id,
+		});
+	});
+
+	test('disables navigation when a standalone provider tip is the only eligible tip', () => {
+		const service = createService();
+		const contextualTip: IChatTip = { id: 'contextual.only', content: new MarkdownString('Only tip') };
+		storageService.store('chat.tip.dismissed', JSON.stringify(TIP_CATALOG.map(tip => tip.id)), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: Event.None,
+			provideTip: () => contextualTip,
+			dismissTip: () => { },
+		}));
+		service.getWelcomeTip(contextKeyService);
+
+		assert.deepStrictEqual({
+			enabled: service.hasMultipleTips(),
+			next: service.navigateToNextTip(),
+			previous: service.navigateToPreviousTip(),
+		}, { enabled: false, next: undefined, previous: undefined });
+	});
+
+	test('preserves navigation to a second standalone provider on rerender', () => {
+		const service = createService();
+		for (const id of ['contextual.first', 'contextual.second']) {
+			testDisposables.add(service.registerTipProvider({
+				onDidChange: Event.None,
+				provideTip: () => ({ id, content: new MarkdownString(id) }),
+				dismissTip: () => { },
+			}));
+		}
+		service.getWelcomeTip(contextKeyService);
+
+		assert.deepStrictEqual([
+			service.navigateToNextTip()?.id,
+			service.getWelcomeTip(contextKeyService)?.id,
+			service.navigateToPreviousTip()?.id,
+		], ['contextual.second', 'contextual.second', 'contextual.first']);
+	});
+
+	test('restores contextual tip priority when the provider changes or the session resets', () => {
+		const service = createService();
+		const onDidChange = testDisposables.add(new Emitter<void>());
+		const contextualTip: IChatTip = { id: 'contextual.shortcut', content: new MarkdownString('Enable shortcut') };
+		testDisposables.add(service.registerTipProvider({
+			onDidChange: onDidChange.event,
+			provideTip: () => contextualTip,
+			dismissTip: () => { },
+		}));
+		service.getWelcomeTip(contextKeyService);
+		service.navigateToNextTip();
+		onDidChange.fire();
+		const afterChange = service.getWelcomeTip(contextKeyService);
+		service.navigateToNextTip();
+		service.resetSession();
+		const afterReset = service.getWelcomeTip(contextKeyService);
+
+		assert.deepStrictEqual({ afterChange: afterChange?.id, afterReset: afterReset?.id }, {
+			afterChange: contextualTip.id,
+			afterReset: contextualTip.id,
+		});
+	});
+
 	test('uses descriptive titles for tip command links', () => {
 		for (const tip of TIP_CATALOG) {
 			const markdown = tip.buildMessage({

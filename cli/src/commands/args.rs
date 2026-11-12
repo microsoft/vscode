@@ -305,18 +305,19 @@ pub struct AgentHostArgs {
 		]
 	)]
 	pub tunnel: bool,
-	/// Register this agent host as a GitHub environment. Runs in the foreground.
+	/// Register this agent host as a GitHub environment.
+	/// Runs in the background unless `--foreground` is passed.
 	#[clap(
 		long,
 		group = "remote_host",
 		conflicts_with_all = [
 			"host", "port", "connection_token", "connection_token_file",
-			"without_connection_token", "replace", "new_instance", "foreground", "idle_timeout",
+			"without_connection_token", "replace", "new_instance", "idle_timeout",
 			"random_name", "tunnel_id", "host_token", "cluster", "tunnel_name"
 		]
 	)]
 	pub github_environment: bool,
-	/// Grant access to a project directory. Repeat for multiple projects. Defaults to the current directory.
+	/// Restrict access to a project directory. Repeat for multiple projects. Defaults to all local filesystems.
 	#[clap(long, requires = "github_environment", conflicts_with = "tunnel")]
 	pub github_environment_root: Vec<PathBuf>,
 	/// Sets the machine name for the tunnel or GitHub environment.
@@ -1272,6 +1273,7 @@ mod tests {
 			let mut argv = command;
 			argv.extend([
 				"--github-environment",
+				"--foreground",
 				"--name",
 				"build-machine",
 				"--github-environment-root",
@@ -1288,11 +1290,13 @@ mod tests {
 			assert_eq!(
 				(
 					args.github_environment,
+					args.foreground,
 					args.name.as_deref(),
 					args.github_environment_root,
 					args.accept_server_license_terms
 				),
 				(
+					true,
 					true,
 					Some("build-machine"),
 					vec!["project-a".into(), "project-b".into()],
@@ -1314,7 +1318,6 @@ mod tests {
 				vec!["--without-connection-token"],
 				vec!["--replace"],
 				vec!["--new-instance"],
-				vec!["--foreground"],
 				vec!["--idle-timeout", "300"],
 				vec!["--random-name"],
 				vec!["--tunnel-id", "id"],

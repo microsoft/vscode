@@ -27,6 +27,7 @@ const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-sessi
 const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
+const REMOTES_WIDGET = '.remotes-widget:visible';
 
 // The Agents Window active session input reuses the workbench `ChatInputPart`,
 // so its model picker renders the same `.model-picker-name` / `.model-picker-config`
@@ -222,6 +223,23 @@ export class AgentsWindow {
 		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
 	}
 
+	/**
+	 * Opens the Remote Environments editor, connects the remote `name` unless it is connected, and waits for an enabled
+	 * action of its row labeled `actionLabel`.
+	 */
+	async waitForRemoteAction(name: string, actionLabel: string, timeoutMs: number = 60_000): Promise<void> {
+		await this.quickaccess.runCommand('sessions.openRemotes');
+		const widget = this.code.driver.currentPage.locator(REMOTES_WIDGET);
+		const connect = widget.getByLabel(`Connect to ${name}`, { exact: true });
+		const disconnect = widget.getByLabel(`Disconnect ${name}`, { exact: true });
+		await connect.or(disconnect).first().waitFor({ timeout: 30_000 });
+		if (await connect.isVisible()) {
+			this.code.logger.log(`[agentsWindow] Remote Environments: connecting ${name}`);
+			await connect.click();
+		}
+		await widget.locator('.action-label:not(.disabled)').and(widget.getByLabel(actionLabel, { exact: true })).waitFor({ timeout: timeoutMs });
+	}
+
 	async getRemoteConnectionDiagnostics(): Promise<string> {
 		return JSON.stringify(await this.code.driver.currentPage.evaluate(() => {
 			const activeElement = document.activeElement;
@@ -363,21 +381,38 @@ export class AgentsWindow {
 		throw new Error(`Timed out selecting Dev Container. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
+	/**
+	 * Switches the new-session environment from Cloud to This Computer.
+	 *
+	 * The workspace handoff of a window opened with a folder can switch the
+	 * environment to This Computer on its own after startup. That re-renders the
+	 * composer and closes an open Environment picker, so each attempt is bounded
+	 * and the loop ends as soon as the picker no longer shows Cloud.
+	 */
 	private async selectLocalEnvironment(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const cloudEnvironment = page.locator(ENVIRONMENT_PICKER).filter({ hasText: /^Cloud$/ });
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const cloudEnvironment = environmentPicker.filter({ hasText: /^Cloud$/ });
+		const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
 		const deadline = Date.now() + 60_000;
+		let lastError: unknown;
 		while (await cloudEnvironment.isVisible()) {
-			await cloudEnvironment.click();
-			const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
-			if (await localEnvironment.isVisible()) {
-				await localEnvironment.click();
-				await page.locator(ENVIRONMENT_PICKER).filter({ hasText: 'This Computer' }).waitFor();
-				return;
-			}
-			await page.keyboard.press('Escape');
 			if (Date.now() >= deadline) {
-				throw new Error('Timed out waiting for This Computer in the Environment picker');
+				throw new Error(`Timed out selecting This Computer in the Environment picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+			}
+			try {
+				await cloudEnvironment.click({ timeout: 5_000 });
+				if (await localEnvironment.isVisible()) {
+					await localEnvironment.click({ timeout: 5_000 });
+					await environmentPicker.filter({ hasText: 'This Computer' }).waitFor({ timeout: 15_000 });
+					return;
+				}
+				lastError = new Error('This Computer is not listed in the Environment picker');
+			} catch (error) {
+				lastError = error;
+			}
+			if (await environmentPicker.getAttribute('aria-expanded', { timeout: 5_000 }).catch(() => undefined) === 'true') {
+				await page.keyboard.press('Escape');
 			}
 			await new Promise(resolve => setTimeout(resolve, 500));
 		}

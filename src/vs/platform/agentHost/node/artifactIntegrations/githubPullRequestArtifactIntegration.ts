@@ -27,7 +27,8 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
-import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
+import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
+import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -123,9 +124,20 @@ class GitHubPullRequestArtifactResource extends Disposable {
 			const failure = firstCredentialFailure(snapshot, pullRequestFragments);
 			if (failure) {
 				this.requireAuthentication(failure);
-			} else if (pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' && snapshot[fragment].complete)) {
+			} else if (snapshot.core.status === 'ready' && pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' || snapshot[fragment].status === 'error')) {
+				// Every fragment answered since the refusal and GitHub accepted the credential for the pull request;
+				// a fragment that keeps failing for another reason, such as an overloaded queue, must not hold sign-in.
 				this.authenticationError.set(undefined, undefined);
 				this.requestedAuthentication = false;
+			}
+		}));
+		this._register(this.client.credentials.onDidInvalidate(event => {
+			// A refusal an action received leaves the fragments healthy, so a same-token reauthorization produces no new
+			// observation; read the pull request again to revalidate access instead of replaying the action.
+			if (event.reason === 'reauthorization' && this.authenticationError.get()) {
+				void this.subscription.refresh(undefined, CancellationToken.None, { authoritative: true }).catch(() => {
+					// A renewed refusal reaches the snapshot and requires authentication again.
+				});
 			}
 		}));
 	}
@@ -767,8 +779,13 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		if (snapshot.core.value?.state !== 'open') {
 			return localize('prArtifact.terminal', "This pull request is closed or merged.");
 		}
-		return actionId === 'merge' ? localize('prArtifact.cannotMerge', "GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.")
-			: undefined;
+		if (actionId !== 'merge') {
+			return undefined;
+		}
+		const missing = snapshot.checks.value?.headSha === snapshot.core.value?.headSha ? getPullRequestArtifactMissingRequiredChecks(snapshot) : [];
+		return missing.length
+			? localize('prArtifact.requiredChecksMissing', "GitHub blocks merging until these required checks report on the current revision: {0}. If their workflow has finished, rerun it.", missing.join(', '))
+			: localize('prArtifact.cannotMerge', "GitHub has not confirmed that this pull request can be merged, or it is already queued for merging.");
 	}
 
 	/**
@@ -846,7 +863,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	}
 
 	private promptAction(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', iconId: string, label: string): ArtifactAction {
-		return { id, iconId, label, kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
+		return { id, iconId, label, activityLabel: getPullRequestRepairActivityLabel(id), kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
 	}
 
 	private async preparePrompt(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', context: IArtifactActionContext, token: CancellationToken): Promise<ArtifactPreparation<ArtifactPrompt>> {

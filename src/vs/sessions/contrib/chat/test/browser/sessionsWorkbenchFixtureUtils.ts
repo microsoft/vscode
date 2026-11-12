@@ -126,6 +126,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		}
 		override isEditorPaneVisible() { return sidePaneVisible; }
 		override isModernUICompact() { return options.compactDensity === true; }
+		override getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; }
 		override getPanelAlignment() { return 'justify' as const; }
 		override getContainer() { return container; }
 	}();

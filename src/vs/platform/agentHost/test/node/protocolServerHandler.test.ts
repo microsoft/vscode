@@ -6,11 +6,12 @@
 import { AgentChatMoveRefusal, AgentChatMoveRefusedError, ChatMoveConfigKey, type AgentChatMoveDestination } from '../../common/agentHostChatMove.js';
 import { ChatMoveDestinationKind } from '../../common/state/protocol/channels-chat/commands.js';
 import assert from 'assert';
+import type { ProxyAgentParams } from '@vscode/proxy-agent';
 import { rootCertificates } from 'tls';
 import { AgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { LoadClientCertificatesExtensionMethod } from '../../common/clientCertificatesProtocol.js';
-import { ClientProxyChangedExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod } from '../../common/clientProxyProtocol.js';
+import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod } from '../../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
@@ -54,7 +55,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -76,7 +77,8 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
-import { ProtocolServerHandler, type IProtocolServerConfig, type IProtocolServerExtension } from '../../node/protocolServerHandler.js';
+import { ProtocolServerHandler, type IProtocolServerConfig, type IProtocolServerExtension, type IProtocolServerGitHubEnvironment } from '../../node/protocolServerHandler.js';
+import { getAgentHostGitHubEnvironmentStatus, type IAgentHostGitHubEnvironmentStatus } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
@@ -99,7 +101,8 @@ import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnecti
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
+import { buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
+import { resolveBranchChangesetScopeForSource } from '../../node/agentHostBranchChangesetScope.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { buildPendingEditContentUri } from '../../common/pendingEditContentUri.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
@@ -248,6 +251,7 @@ class TestHandlerChatOwnership extends AgentHostChatOwnershipService {
 class MockAgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 	sessionWorktreeCleanup?: IAgentService['sessionWorktreeCleanup'];
+	prepareSessionWorktreeCleanup?: IAgentService['prepareSessionWorktreeCleanup'];
 	listManagedWorktrees?: IAgentService['listManagedWorktrees'];
 	cleanupManagedWorktree?: IAgentService['cleanupManagedWorktree'];
 	private readonly _worktreeDiskUsage = this._register(new AgentHostWorktreeDiskUsageService(undefined, new class extends mock<IAgentHostDatabase>() { }(), new class extends mock<AgentHostStateManager>() { }()));
@@ -481,7 +485,7 @@ class MockAgentService extends Disposable implements IAgentService {
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
 	}
 	async cancelDebugLogs(_progressToken: string): Promise<void> { }
-	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
+	async authenticate(..._args: Parameters<IAgentService['authenticate']>): Promise<AuthenticateResult> { return { authenticated: true }; }
 	async getModelsForCredentials(_provider: string, _credentials: IAgentHostCredentialSource, _token?: CancellationToken): Promise<readonly IAgentModelInfo[]> { return []; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -981,7 +985,7 @@ suite('ProtocolServerHandler', () => {
 		const unadvertised = connectClient('other-host-client');
 		const malformed = connectClient('malformed-capability', undefined, undefined, { [AgentHostClientProxyCapabilityMetaKey]: 'true' });
 		const wsl = connectClient('wsl', undefined, undefined, { [AgentHostClientProxyCapabilityMetaKey]: true });
-		const respond = async <T>(method: string, start: () => Promise<T>, result: { readonly proxy: string } | { readonly authorization: string }) => {
+		const respond = async <T>(method: string, start: () => Promise<T>, result: { readonly proxy: string } | { readonly authorization: string } | { readonly username: string; readonly password: string }) => {
 			const sent = Event.toPromise(Event.filter(wsl.onDidSend, message => !!findRequest([message], method)));
 			const pending = start();
 			const reverseRequest = findRequest([await sent], method);
@@ -989,21 +993,25 @@ suite('ProtocolServerHandler', () => {
 			wsl.simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result });
 			return { params: reverseRequest.params, result: await pending };
 		};
+		const { lookupProxyAuthorization } = (proxyResolver as unknown as { _getProxyResolver(): { readonly params: ProxyAgentParams } })._getProxyResolver().params;
 
 		const proxy = await respond(ResolveClientProxyExtensionMethod, () => proxyResolver.resolveProxy('https://example.com/path'), { proxy: 'PROXY proxy.example:8080' });
 		const kerberos = await respond(LookupClientProxyKerberosAuthorizationExtensionMethod, () => proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'), { authorization: 'Negotiate ticket' });
+		const basic = await respond(LookupClientProxyBasicAuthorizationExtensionMethod, () => lookupProxyAuthorization!('http://proxy.example:8080', 'Basic realm="Corp"', {}), { username: 'user', password: 'secret' });
 		wsl.simulateClose();
+		const methods = [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod];
 		assert.deepStrictEqual({
-			proxy, kerberos,
+			proxy, kerberos, basic,
 			afterDisconnect: await proxyResolver.lookupClientKerberosAuthorization('http://proxy.example:8080'),
-			unadvertised: [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod].map(method => findRequest(unadvertised.sent, method)),
-			malformed: [ResolveClientProxyExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod].map(method => findRequest(malformed.sent, method)),
+			unadvertised: methods.map(method => findRequest(unadvertised.sent, method)),
+			malformed: methods.map(method => findRequest(malformed.sent, method)),
 		}, {
 			proxy: { params: { url: 'https://example.com/path' }, result: 'http://proxy.example:8080' },
 			kerberos: { params: { proxyUrl: 'http://proxy.example:8080' }, result: 'Negotiate ticket' },
+			basic: { params: { proxyUrl: 'http://proxy.example:8080', realm: 'Corp', attempt: 1 }, result: 'Basic dXNlcjpzZWNyZXQ=' },
 			afterDisconnect: undefined,
-			unadvertised: [undefined, undefined],
-			malformed: [undefined, undefined],
+			unadvertised: [undefined, undefined, undefined],
+			malformed: [undefined, undefined, undefined],
 		});
 	});
 
@@ -1766,6 +1774,90 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 	}
+
+	test('serves GitHub environment registration and its status only to direct clients of a configured host', async () => {
+		const calls: string[] = [];
+		const onDidChangeStatus = disposables.add(new Emitter<IAgentHostGitHubEnvironmentStatus>());
+		let status: IAgentHostGitHubEnvironmentStatus = { instanceId: 'instance' };
+		const setStatus = (next: IAgentHostGitHubEnvironmentStatus) => {
+			status = next;
+			onDidChangeStatus.fire(next);
+		};
+		const githubEnvironment: IProtocolServerGitHubEnvironment = {
+			get status() { return status; },
+			onDidChangeStatus: onDidChangeStatus.event,
+			async register(accountId, credential) {
+				calls.push(`register ${accountId} ${credential}`);
+				setStatus({ instanceId: 'instance', registration: { accountId, environmentId: 'environment', name: 'Remote' } });
+				return { environmentId: 'environment', name: 'Remote' };
+			},
+			async unregister(accountId) {
+				calls.push(`unregister ${accountId}`);
+				setStatus({ instanceId: 'instance' });
+			},
+		};
+		const results = [];
+		for (const connection of ['direct', 'unconfigured', 'relay roots', 'relay transport'] as const) {
+			const connectionServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, connectionServer,
+				{
+					...(connection !== 'unconfigured' ? { githubEnvironment } : {}),
+					...(connection === 'relay roots' ? { relayRoots: ['/workspace'] } : {}),
+				},
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+			));
+			const clientId = `client-github-environment-${connection.replace(' ', '-')}`;
+			const transport = disposables.add(connection === 'relay transport'
+				? new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false)
+				: new MockProtocolTransport());
+			connectionServer.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId }));
+			const initialize = await initialized;
+			assert.ok(hasKey(initialize, { result: true }));
+			const initialStatus = getAgentHostGitHubEnvironmentStatus(initialize.result as InitializeResult);
+			transport.sent.length = 0;
+			const responses = [];
+			for (const message of [
+				request(2, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: '' }),
+				request(3, RegisterGitHubEnvironmentExtensionMethod, { accountId: 'account', credential: 'token' }),
+				request(4, UnregisterGitHubEnvironmentExtensionMethod, { accountId: 'account' }),
+			]) {
+				const response = waitForResponse(transport, responses.length + 2);
+				transport.simulateMessage(message);
+				responses.push(await response);
+			}
+			results.push({
+				connection,
+				status: initialStatus,
+				responses: responses.map(response => hasKey(response, { error: true }) ? response.error.code : hasKey(response, { result: true }) ? response.result : undefined),
+				// The status change precedes the response to the request that caused it.
+				order: transport.sent.flatMap(message => {
+					const notification = message as { method?: string; params?: IAgentHostGitHubEnvironmentStatus };
+					return isJsonRpcResponse(message) ? [`response ${message.id}`]
+						: notification.method === GitHubEnvironmentChangedNotification ? [`changed ${notification.params?.registration?.accountId ?? 'none'}`] : [];
+				}),
+			});
+		}
+		const denied = AhpErrorCodes.PermissionDenied;
+		const notFound = JsonRpcErrorCodes.MethodNotFound;
+		const unserved = { status: undefined, order: ['response 2', 'response 3', 'response 4'] };
+		assert.deepStrictEqual({ results, calls }, {
+			results: [
+				{
+					connection: 'direct', status: { instanceId: 'instance' }, responses: [JsonRpcErrorCodes.InvalidParams, { environmentId: 'environment', name: 'Remote' }, null],
+					order: ['response 2', 'changed account', 'response 3', 'changed none', 'response 4'],
+				},
+				{ connection: 'unconfigured', ...unserved, responses: [denied, denied, denied] },
+				{ connection: 'relay roots', ...unserved, responses: [notFound, notFound, notFound] },
+				{ connection: 'relay transport', ...unserved, responses: [denied, denied, denied] },
+			],
+			calls: ['register account token', 'unregister account'],
+		});
+	});
 
 	test('collects Agent Host debug logs through the extension request', async () => {
 		const transport = connectClient('client-debug-logs');
@@ -2763,6 +2855,22 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(20, 'vscode/sessionWorktreeCleanup', { session: 'opaque-session://host/session', retry: 'true' }));
 			const result = await response;
 			assert.ok(hasKey(result, { error: true }) && result.error?.code === JsonRpcErrorCodes.InvalidParams);
+		});
+
+		test('routes preparation separately from cleanup and rejects malformed preparation', async () => {
+			const calls: string[] = [];
+			agentService.prepareSessionWorktreeCleanup = async session => { calls.push(session.toString()); };
+			agentService.sessionWorktreeCleanup = async () => { throw new Error('Must not schedule removal'); };
+			const transport = connectClient('worktree-preparation');
+			const valid = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/prepareSessionWorktreeCleanup', { session: 'opaque-session://host/session' }));
+			await valid;
+			const invalid = waitForResponse(transport, 21);
+			transport.simulateMessage(request(21, 'vscode/prepareSessionWorktreeCleanup', { session: false }));
+			const response = await invalid;
+			assert.deepStrictEqual({ calls, invalid: hasKey(response, { error: true }) && response.error?.code }, {
+				calls: ['opaque-session://host/session'], invalid: JsonRpcErrorCodes.InvalidParams,
+			});
 		});
 
 		test('routes confirmed force cleanup and rejects malformed force flags', async () => {
@@ -7274,7 +7382,7 @@ suite('ProtocolServerHandler', () => {
 			{ authenticated: false, passive: false, method: 'resources/read', uri: 'ui://github-mcp-server/get-me', error: AHP_AUTH_REQUIRED },
 			{ authenticated: true, passive: true, method: 'resources/read', uri: 'ui://github-mcp-server/get-me', error: JsonRpcErrorCodes.InvalidRequest },
 			...['resourceRead', 'resourceResolve', 'resourceWrite', 'resourceDelete', 'resourceMkdir', 'resourceRequest', 'resourceList', 'createResourceWatch'].map(method =>
-				({ authenticated: true, passive: false, method, uri: 'file:///private/secret', error: AhpErrorCodes.PermissionDenied })),
+			({ authenticated: true, passive: false, method, uri: 'file:///private/secret', error: AhpErrorCodes.PermissionDenied })),
 			{ authenticated: true, passive: false, method: 'resourceRead', uri: 'ui://github-mcp-server/get-me', error: AhpErrorCodes.PermissionDenied },
 		];
 		const errors = [];
@@ -7385,6 +7493,55 @@ suite('ProtocolServerHandler', () => {
 			const response = findResponse(transport.sent, item.id);
 			return !!response && hasKey(response, { result: true });
 		}), [true, false]);
+	});
+
+	test('MC filesystem grants allow Git snapshots of current folder changesets only for reads', async () => {
+		stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [URI.file('/workspace').toString()] });
+		const folderOwner = resolveBranchChangesetScopeForSource(stateManager, defaultChatUri).ownerUri;
+		const gitContent = buildGitBlobUri(folderOwner, 'a'.repeat(40), 'file.txt', '/workspace/file.txt');
+		const reads: string[] = [];
+		agentService.resourceRead = async uri => {
+			reads.push(uri.toString());
+			return { data: 'original content', encoding: ContentEncoding.Utf8 };
+		};
+		const relay = disposables.add(new MockProtocolServer());
+		const scopedHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners), proxyResolver,
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'folder-changes-lane', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'folder-changes-lane', protocolVersions: [PROTOCOL_VERSION] }));
+		const cases = [
+			{ id: 2, method: 'resourceRead', params: { uri: gitContent }, allowed: true },
+			{ id: 3, method: 'resourceRead', params: { uri: buildGitBlobUri(buildFolderChangesetOwnerUri(sessionUri, 'stale'), 'HEAD', 'file.txt', '/workspace/file.txt') }, allowed: false },
+			{ id: 4, method: 'resourceRead', params: { uri: buildGitBlobUri(buildFolderChangesetOwnerUri('copilot:/missing', 'scope'), 'HEAD', 'file.txt', '/workspace/file.txt') }, allowed: false },
+			{ id: 5, method: 'resourceWrite', params: { uri: gitContent, data: 'overwrite', encoding: ContentEncoding.Utf8 }, allowed: false },
+			{ id: 6, method: 'resourceRead', params: { uri: buildGitBlobUri(folderOwner, '--output=private', 'file.txt', '/workspace/file.txt') }, allowed: false },
+		];
+		for (const item of cases) {
+			transport.simulateMessage(request(item.id, item.method, item.params));
+		}
+		await scopedHandler.whenIdle();
+		stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatWorkingDirectorySet, directory: URI.file('/other-workspace').toString() });
+		transport.simulateMessage(request(7, 'resourceRead', { uri: gitContent }));
+		await scopedHandler.whenIdle();
+		const outcome = (id: number) => {
+			const response = findResponse(transport.sent, id);
+			return response && hasKey(response, { error: true }) ? response.error.code
+				: response && hasKey(response, { result: true }) ? response.result : undefined;
+		};
+		assert.deepStrictEqual({
+			results: cases.map(item => outcome(item.id)),
+			retiredScope: outcome(7),
+			reads,
+		}, {
+			results: cases.map(item => item.allowed ? { data: 'original content', encoding: ContentEncoding.Utf8 } : AhpErrorCodes.PermissionDenied),
+			retiredScope: AhpErrorCodes.PermissionDenied,
+			reads: [gitContent],
+		});
 	});
 
 	test('MC filesystem grants cover workspace reads and writes without exposing private host files', async () => {
@@ -10629,10 +10786,11 @@ suite('ProtocolServerHandler', () => {
 			}));
 		}
 
-		assert.deepStrictEqual(tracker.getConnectionCounts('shared-client'), {
+		assert.deepStrictEqual({ ...tracker.getConnectionCounts('shared-client'), hostConnectedClientCount: tracker.getConnectedClientCount() }, {
 			connectedClientCount: 1,
 			connectedTransportCount: 2,
 			clientTransportCount: 2,
+			hostConnectedClientCount: 1,
 		});
 	});
 
@@ -12051,6 +12209,26 @@ suite('ProtocolServerHandler', () => {
 
 		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
 		assert.deepStrictEqual(resp.result, {});
+	});
+
+	test('authenticate still in flight when its transport disconnects is delivered without transport state', async () => {
+		const delivered = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		const authenticate = sinon.stub(agentService, 'authenticate').callsFake(async () => {
+			started.complete();
+			await release.p;
+			delivered.complete();
+			return { authenticated: true };
+		});
+		disposables.add(toDisposable(() => authenticate.restore()));
+		const transport = connectClient('credential-sender');
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'synthetic-credential' }));
+		await started.p;
+		transport.simulateClose();
+		release.complete();
+		await delivered.p;
+		assert.deepStrictEqual(authenticate.firstCall.args, [{ resource: 'https://api.github.com', token: 'synthetic-credential' }]);
 	});
 
 	test('getManagedSettingsDiagnostics returns provider SDK snapshots', async () => {

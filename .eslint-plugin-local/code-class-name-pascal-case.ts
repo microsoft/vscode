@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
 /**
  * Equivalent to `@typescript-eslint/naming-convention` configured with `{ selector: 'class', format: ['PascalCase'] }`,
  * without the cost of running that rule's general selector matching on every file.
  */
-export default new class ClassNamePascalCase implements eslint.Rule.RuleModule {
+export default new class ClassNamePascalCase implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'suggestion',
 		messages: {
 			notPascalCase: 'Class name `{{name}}` must match one of the following formats: PascalCase',
@@ -23,8 +22,8 @@ export default new class ClassNamePascalCase implements eslint.Rule.RuleModule {
 		schema: [],
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const checkClass = (node: ESTree.ClassDeclaration | ESTree.ClassExpression): void => {
+	create(context: Context): Visitor {
+		const checkClass = (node: ESTree.Class): void => {
 			if (node.id && !isPascalCase(node.id.name)) {
 				context.report({
 					node: node.id,

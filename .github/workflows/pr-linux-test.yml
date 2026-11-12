@@ -163,17 +163,15 @@ jobs:
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
-      # A workspace image holds the node_modules of its commit, which the install steps update
-      - name: Restore node_modules cache
-        id: cache-node-modules
+      # A workspace image holds the node_modules of its commit, which the install steps update, and its
+      # pnpm store
+      - name: Restore pnpm store cache
         if: steps.image.outputs.used != 'true'
-        uses: ./.github/actions/restore-node-modules
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-linux
-          key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+          key-prefix: pnpm-store-linux
 
       - name: Install build dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: build
         run: |
           set -e
@@ -192,7 +190,6 @@ jobs:
       # On a workspace image, pnpm installs only what changed since the commit of the image, and
       # setup-env.sh reuses the sysroots and compilers in its .build folder
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
 
@@ -368,7 +365,7 @@ jobs:
         working-directory: test/integration/browser
         run: pnpm run compile
 
-      # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # pr-pnpm-store.yml fills this cache on main, so pull requests don't download the browsers.
       # A workspace image holds them already, and points PLAYWRIGHT_BROWSERS_PATH at them, which this
       # action would point into the workspace.
       - name: Restore Playwright browsers
@@ -423,6 +420,17 @@ jobs:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # The changed unit test files of the plan (see the List changed unit test files step of pr.yml),
+      # each alone in a fresh window: a test file that passes above only because another test file
+      # registers what it reads fails here.
+      - name: 🧪 Run changed unit test files alone (Electron)
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' && hashFiles('.build/test-plan/isolate.txt') != '' }}
+        timeout-minutes: 15
+        run: ./scripts/test.sh --isolate --workers 4 --rerun-failed-files 2 --runList .build/test-plan/isolate.txt
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
+
       - name: 🧪 Run unit tests (node.js)
         if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
@@ -435,8 +443,9 @@ jobs:
         env:
           DEBUG: "*browser*"
 
+      # The node.js integration tests never launch an extension host, so they don't use these extensions
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
+        if: ${{ (env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'node') || env.SMOKE_TESTS == 'true' }}
         run: |
           set -e
           pnpm run gulp \

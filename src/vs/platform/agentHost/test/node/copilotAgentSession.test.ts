@@ -83,6 +83,7 @@ import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCa
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { MCP_SKILLS_METADATA_KEY, type ICachedMcpSkill } from '../../node/shared/mcpSkillCache.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from '../../node/copilot/copilotAgentSession.js';
+import { ISessionPathRoot } from '../../common/sessionPathDisplay.js';
 import { createCopilotSessionPathMapper, createCopilotSdkPathMapper, toCopilotWorkspace, type ICopilotSdkPathMapper } from '../../node/copilot/copilotWorkspace.js';
 import { CopilotVirtualSessionFs } from '../../node/copilot/copilotVirtualSessionFs.js';
 import { CopilotComputerUsePermissionSetup } from '../../node/copilot/copilotComputerUsePermissionSetup.js';
@@ -93,6 +94,7 @@ import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY } from '../../node/copilot/
 import { SessionDataService } from '../../node/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { mapSessionEvents } from '../../node/copilot/mapSessionEvents.js';
+import { readCopilotSessionEvents } from '../../node/copilot/copilotSessionHistory.js';
 import type { ICopilotMcpServerInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { GENERATED_IMAGE_PRESENTATION_CONTEXT } from '../../node/copilot/copilotGeneratedImages.js';
@@ -137,7 +139,10 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import { withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
-import { SAVE_SANDBOX_PATH } from '../../common/sandboxPathGrant.js';
+import { ISessionSandboxPaths, SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, SESSION_SANDBOX_PATHS_KEY } from '../../common/sandboxPathGrant.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { ISessionSandboxPathService, SessionSandboxPathService } from '../../node/sessionSandboxPathService.js';
+import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
@@ -179,6 +184,9 @@ class MockCopilotSession {
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
+	/** Overrides the instance `rpc.canvas.open` returns. */
+	onCanvasOpen: ((params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => Promise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>) | undefined;
+	canvasOpenError: Error | undefined;
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
 	canvasCloseGate: Promise<void> | undefined;
 	canvasCloseError: Error | undefined;
@@ -213,6 +221,10 @@ class MockCopilotSession {
 	/** The agent mode `rpc.mode.get` reports. */
 	currentMode: 'interactive' | 'plan' | 'autopilot' = 'interactive';
 	readonly permissionModeSetCalls: PermissionMode[] = [];
+	/** The permission mode the runtime opened the session in, when the launch asked for one. */
+	launchPermissionMode: PermissionMode | undefined;
+	/** What the runtime reports for the permission mode the session was opened with. */
+	permissionModeResult: CopilotSession['permissionModeResult'];
 	permissionModeSetSuccess = true;
 	/** Per-call `setMode` success results, consumed in order before falling back to {@link permissionModeSetSuccess}. */
 	readonly permissionModeSetResults: boolean[] = [];
@@ -642,6 +654,12 @@ class MockCopilotSession {
 			},
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
 				this.canvasOpenCalls.push(params);
+				if (this.canvasOpenError) {
+					throw this.canvasOpenError;
+				}
+				if (this.onCanvasOpen) {
+					return this.onCanvasOpen(params);
+				}
 				return {
 					instanceId: params.instanceId,
 					extensionId: params.extensionId ?? 'project:preview',
@@ -678,7 +696,7 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
-			getMode: async () => ({ mode: this.permissionModeSetCalls.at(-1) ?? 'manual' as const }),
+			getMode: async () => ({ mode: this.permissionModeSetCalls.at(-1) ?? this.launchPermissionMode ?? 'manual' as const }),
 			setMode: async (params: { mode?: PermissionMode }) => {
 				const mode = params.mode ?? 'manual';
 				this.operationLog.push('permissions.setMode');
@@ -1418,7 +1436,9 @@ function progressUpdatesTriggers(telemetryService: TestExperimentTriggerTelemetr
 
 async function createAgentSession(disposables: DisposableStore, options?: {
 	copilotHome?: string;
+	getSessionPathRoots?: () => readonly ISessionPathRoot[];
 	clientSnapshot?: IActiveClientSnapshot;
+	builtinPluginDirectories?: readonly URI[];
 	activeClientToolSet?: ActiveClientToolSet;
 	connectedClientIds?: ReadonlySet<string>;
 	environmentServiceRegistration?: 'native' | 'none';
@@ -1428,6 +1448,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Coordinates the session's edit tool calls with the host's changes of their files. */
 	fileEditCoordinator?: AgentHostFileEditCoordinator;
 	workingDirectory?: URI;
+	additionalDirectories?: readonly URI[];
+	workspaceless?: boolean;
+	workspaceSandboxPaths?: IWorkspaceSandboxPathService;
 	pathMapper?: ICopilotSdkPathMapper;
 	virtualSessionFs?: CopilotVirtualSessionFs;
 	customizationDirectory?: URI;
@@ -1448,6 +1471,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** The chat's own config values, applied over `configValues` for this session's chat only. */
 	chatConfigValues?: Record<string, unknown>;
 	sessionDatabase?: ISessionDatabase;
+	sandboxPathStateStore?: IAgentHostSessionStateStore;
 	sessionDataService?: ISessionDataService;
 	editServices?: { readonly attribution: IAgentEditAttributionService; readonly survival: IEditSurvivalReporterFactory };
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
@@ -1498,6 +1522,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	managedSettings?: CopilotClient['rpc']['managedSettings'];
 	modelPolicyModels?: CopilotSessionLaunchPlan['modelPolicyModels'];
 	resume?: boolean;
+	/** Whether a resumed session keeps the permission mode the runtime restored. */
+	keepsRestoredPermissionMode?: boolean;
+	/** Whether the session's configuration is absent until the launch returns, as when a restore reads the conversation first. */
+	configLoadsAfterLaunch?: boolean;
 	resolvedAgentName?: string;
 	initializeEnablementSession?: (session: string) => Promise<void>;
 	beforeLaunch?: (rootValues: Record<string, unknown>) => void;
@@ -1522,6 +1550,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	signals?: AgentSignal[];
 	/** Receives the session before it initializes, so tests can dispose a session whose initialization fails. */
 	onSessionCreated?: (session: CopilotAgentSession) => void;
+	/** Called the first time the session starts root work. */
+	onRootWorkStarted?: () => void;
 	/** The shared Computer Use permission setup the agent hands to the session. */
 	computerUsePermissionSetup?: () => CopilotComputerUsePermissionSetup | undefined;
 	/** The client's plugins, as `plugins.list` reports them. */
@@ -1543,6 +1573,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	chatConfigUpdates: ReadonlyArray<{ chat: string; patch: Record<string, unknown> }>;
 	rootConfigUpdates: ReadonlyArray<Record<string, unknown>>;
 	sandboxResults: Array<boolean | string | undefined>;
+	sandboxPathMetadata: ReadonlyMap<string, string>;
 	dispatchSessionAction: (action: StateAction) => void;
 	storageService: IAgentHostStorageService;
 	customizationEnablementService: IAgentHostCustomizationEnablementService;
@@ -1603,6 +1634,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
+		additionalDirectories: options?.additionalDirectories,
+		workspaceless: options?.workspaceless,
 		workspace: options?.workingDirectory && toCopilotWorkspace(options.workingDirectory),
 		virtualSessionFs: options?.virtualSessionFs,
 		resolvedAgentName: options?.resolvedAgentName,
@@ -1621,6 +1654,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			...launchPlanBase,
 			kind: 'resume',
 			workingDirectory: options.workingDirectory ?? URI.file('/workspace'),
+			...(options.keepsRestoredPermissionMode ? { keepsRestoredPermissionMode: true } : {}),
 			fallback: { model },
 		}
 		: {
@@ -1643,7 +1677,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (duringLaunch) {
 				await duringLaunch;
 			}
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, options?.sessionTelemetryEnabled ?? true, rootValues[AgentHostMcpSkillsEnabledConfigKey] === true, logService);
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, options?.sessionTelemetryEnabled ?? true, rootValues[AgentHostMcpSkillsEnabledConfigKey] !== false, logService);
 		},
 		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
 	};
@@ -1657,6 +1691,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(ILogService, logService);
 	const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
 	services.set(IAgentHostStorageService, storageService);
+	services.set(IWorkspaceSandboxPathService, options?.workspaceSandboxPaths ?? new WorkspaceSandboxPathService(storageService));
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
@@ -1732,6 +1767,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sandboxResults: Array<boolean | string | undefined> = [];
 	let sandboxEnabled: boolean | undefined;
 	const configValues = options?.configValues ?? {};
+	let configLoaded = !options?.configLoadsAfterLaunch;
 	const rootValues: Record<string, unknown> = { ...(options?.rootValues ?? {}) };
 	const rootConfigUpdates: Record<string, unknown>[] = [];
 	const rootConfigEmitter = disposables.add(new Emitter<void>());
@@ -1743,8 +1779,10 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		fireSessionConfigChange: (config, session = sessionUri.toString()) => sessionConfigEmitter.fire({ session, config, origin: { clientId: 'test', clientSeq: 1 } }),
 	};
 	const customizationEnablementEmitter = disposables.add(new Emitter<{ sessions: readonly string[] }>());
+	let sessionSandboxPaths: ISessionSandboxPaths | undefined;
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
+		copilotM365EnabledAtStartup: false,
 		onDidRootConfigChange: rootConfigEmitter.event,
 		onDidSessionConfigChange: sessionConfigEmitter.event,
 		// Simple per-key map suffices for tests; the real service walks
@@ -1756,9 +1794,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		getEffectiveValue: ((session: string, _schema: unknown, key: string) => session === sessionUri.toString() ? (configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getEffectiveValue'],
 		// The session's config changes reach the session's chat, as the real service fans them out.
 		onDidChatConfigChange: Event.map(Event.filter(sessionConfigEmitter.event, event => event.session === sessionUri.toString()), event => ({ ...event, chat: chatChannelUri.toString() })),
-		getChatEffectiveValue: ((target: { session: string; chat: string }, _schema: unknown, key: string) => target.session === sessionUri.toString() ? ((target.chat === chatChannelUri.toString() ? options?.chatConfigValues?.[key] : undefined) ?? configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getChatEffectiveValue'],
+		getChatEffectiveValue: ((target: { session: string; chat: string }, _schema: unknown, key: string) => configLoaded && target.session === sessionUri.toString() ? ((target.chat === chatChannelUri.toString() ? options?.chatConfigValues?.[key] : undefined) ?? configValues[key] ?? options?.inheritedConfigValues?.[key]) : undefined) as IAgentConfigurationService['getChatEffectiveValue'],
 		getChatConfigState: () => undefined,
-		getChatConfigValues: target => target.session === sessionUri.toString() ? (target.chat === chatChannelUri.toString() && options?.chatConfigValues ? { ...configValues, ...options.chatConfigValues } : configValues) : undefined,
+		getChatConfigValues: target => configLoaded && target.session === sessionUri.toString() ? (target.chat === chatChannelUri.toString() && options?.chatConfigValues ? { ...configValues, ...options.chatConfigValues } : configValues) : undefined,
 		getChatOwnConfigValues: target => target.chat === chatChannelUri.toString() ? { ...options?.chatConfigValues } : {},
 		updateChatConfig: (target, patch) => { chatConfigUpdates.push({ chat: target.chat, patch }); },
 		seedChatConfig: () => ({ values: {}, dispose: () => { } }),
@@ -1769,9 +1807,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		// Own values only, like the real service; `inheritedConfigValues` is
 		// visible through `getEffectiveValue` alone so tests can prove a
 		// consumer does not fall through to root or parent config.
-		getSessionConfigValues: (session: string) => session === sessionUri.toString() ? configValues : undefined,
+		getSessionConfigValues: (session: string) => configLoaded && session === sessionUri.toString() ? configValues : undefined,
 		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => options?.sandboxPolicy,
+		getSessionSandboxPaths: () => sessionSandboxPaths,
+		setSessionSandboxPaths: (session, paths) => {
+			sessionSandboxPaths = paths;
+			sessionConfigEmitter.fire({ session, config: { [SESSION_SANDBOX_PATHS_CHANGED]: paths }, origin: undefined });
+		},
 		getSessionSandboxEnabled: () => sandboxEnabled,
 		setSessionSandboxPolicy: () => { },
 		getChatSandboxEnabled: () => sandboxEnabled,
@@ -1800,6 +1843,19 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		whenIdle: async () => { /* no-op */ },
 	};
 	services.set(IAgentConfigurationService, fakeConfigurationService);
+	const sandboxPathMetadata = new Map<string, string>();
+	services.set(ISessionSandboxPathService, new SessionSandboxPathService(options?.sandboxPathStateStore ?? new class extends mock<IAgentHostSessionStateStore>() {
+		override async readWithoutImport(): Promise<ReadonlyMap<string, string>> { return sandboxPathMetadata; }
+		override async update(_session: URI, key: string, updater: (previous: string | undefined) => string | null): Promise<number> {
+			const value = updater(sandboxPathMetadata.get(key));
+			if (value === null) {
+				sandboxPathMetadata.delete(key);
+			} else {
+				sandboxPathMetadata.set(key, value);
+			}
+			return 1;
+		}
+	}(), fakeConfigurationService));
 	const stateManager = disposables.add(new class extends AgentHostStateManager {
 		readonly dispatchedActions: StateAction[] = [];
 		override dispatchServerAction(channel: string, action: StateAction): void {
@@ -1914,6 +1970,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			resource: options?.resource,
 			chatChannelUri,
 			rawSessionId: 'test-session-1',
+			getSessionPathRoots: options?.getSessionPathRoots,
 			pathMapper: options?.pathMapper ?? createCopilotSdkPathMapper(toCopilotWorkspace(options?.workingDirectory ?? URI.file(process.cwd()))),
 			onDidSessionProgress: progressEmitter,
 			sessionLauncher,
@@ -1921,6 +1978,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: options?.shellManager,
 			clientSnapshot: options?.clientSnapshot,
+			onRootWorkStarted: options?.onRootWorkStarted,
+			builtinPluginDirectories: options?.builtinPluginDirectories,
 			getUserMcpServers: options?.getUserMcpServers ?? (options?.getUserMcpServerNames ? async () => Object.fromEntries(
 				[...await options.getUserMcpServerNames!()].map(name => [name, { type: 'http' as const, url: 'https://mcp.example.com' }]),
 			) : undefined),
@@ -1951,6 +2010,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	options?.onSessionCreated?.(session);
 
 	await session.initializeSession();
+	configLoaded = true;
 	if (!launchedRuntime) {
 		throw new Error('Expected session runtime');
 	}
@@ -1982,6 +2042,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		chatConfigUpdates,
 		rootConfigUpdates,
 		sandboxResults,
+		sandboxPathMetadata,
 		...configuration,
 		dispatchSessionAction: action => {
 			stateManager.dispatchServerAction(sessionUri.toString(), action);
@@ -2052,6 +2113,7 @@ function createTestShellManager(disposables: DisposableStore, workingDirectory: 
 			setCalls.push(directory);
 		},
 		get workingDirectory() { return setCalls.at(-1) ?? workingDirectory; },
+		setSandboxWorkspaceDirectories: () => { },
 		dispose: () => { },
 	} as unknown as ShellManager;
 	return { shellManager, preflightCalls: () => preflightCalls, setCalls };
@@ -2083,6 +2145,55 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
 		await timeout(0);
 		assert.deepStrictEqual({ before, after: session.isHeldInUse }, { before: false, after: true });
+	});
+
+	suite('reports the first root work, once', () => {
+		const notification = (kind: object, overrides?: { agentId: string }) => (mockSession: MockCopilotSession) =>
+			mockSession.fire('system.notification', { content: '<system_notification>\nDone\n</system_notification>', kind } as SessionEventPayload<'system.notification'>['data'], overrides);
+		const shellCompleted = { type: 'shell_completed', shellId: 'shell-a', exitCode: 0, description: 'sleep 6' };
+
+		const starts: Record<string, (session: CopilotAgentSession, mockSession: MockCopilotSession) => void | Promise<void>> = {
+			'a sent message': session => session.send('hello', undefined, 'turn-1'),
+			'a root message the runtime received on its own': (_session, mockSession) => mockSession.fire('user.message', { content: 'Play one move.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']),
+			'a root message while a host turn is still pending': (session, mockSession) => {
+				session.resetTurnState('turn-pending');
+				mockSession.fire('user.message', { content: 'From an extension.', messageId: 'provider-message', turnId: 'provider-sdk-turn' } as SessionEventPayload<'user.message'>['data']);
+			},
+			'a notification that wakes the root agent': (_session, mockSession) => notification(shellCompleted)(mockSession),
+			'a notification that wakes the root agent while a host turn is still pending': (session, mockSession) => {
+				session.resetTurnState('turn-pending');
+				notification(shellCompleted)(mockSession);
+			},
+			// Covers a request the runtime marks as automation, whose message event is filtered as context.
+			'a root assistant turn': (_session, mockSession) => mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn' } as SessionEventPayload<'assistant.turn_start'>['data']),
+		};
+		for (const [name, start] of Object.entries(starts)) {
+			test(name, async () => {
+				let reports = 0;
+				const { session, mockSession } = await createAgentSession(disposables, { resume: true, onRootWorkStarted: () => reports++ });
+				const before = session.hasStartedRootWork;
+				await start(session, mockSession);
+				// A second start of any kind is not a second report.
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+				assert.deepStrictEqual({ before, after: session.hasStartedRootWork, reports }, { before: false, after: true, reports: 1 });
+			});
+		}
+
+		const notStarts: Record<string, (mockSession: MockCopilotSession) => void> = {
+			'a subagent\'s message': mockSession => mockSession.fire('user.message', { content: 'Sub task.', messageId: 'child-message', turnId: 'child-turn' } as SessionEventPayload<'user.message'>['data'], { agentId: 'subagent' }),
+			'a subagent\'s turn': mockSession => mockSession.fire('assistant.turn_start', { turnId: 'child-turn' } as SessionEventPayload<'assistant.turn_start'>['data'], { agentId: 'subagent' }),
+			'a subagent\'s notification': notification(shellCompleted, { agentId: 'subagent' }),
+			'a notification that does not wake the agent': notification({ type: 'new_inbox_message', entryId: 'entry-a', senderName: 'sidekick', senderType: 'sidekick-agent', summary: 'New message' }),
+			'context injected as a user message': mockSession => mockSession.fire('user.message', { content: 'A skill.', source: 'skill-pdf' } as SessionEventPayload<'user.message'>['data']),
+		};
+		for (const [name, event] of Object.entries(notStarts)) {
+			test(`not for ${name}`, async () => {
+				let reports = 0;
+				const { session, mockSession } = await createAgentSession(disposables, { resume: true, onRootWorkStarted: () => reports++ });
+				event(mockSession);
+				assert.deepStrictEqual({ started: session.hasStartedRootWork, reports }, { started: false, reports: 0 });
+			});
+		}
 	});
 
 	suite('grep search subagent nudge', () => {
@@ -4691,6 +4802,29 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('reports a dormant extension and lists its declared canvases without waiting for it to start', async () => {
+		const { session } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:lazy', name: 'Lazy extension', source: 'user', status: 'dormant' });
+				mock.canvases.push({
+					canvasId: 'lazy',
+					extensionId: 'user:lazy',
+					displayName: 'Lazy',
+					description: 'Declared before the extension starts.',
+				});
+			},
+		});
+
+		assert.deepStrictEqual({
+			extensions: (await session.listExtensions()).map(extension => [extension.id, extension.status]),
+			canvases: (await session.listCanvases())?.map(canvas => [canvas.canvasId, canvas.extensionSource]),
+		}, {
+			extensions: [['user:lazy', 'dormant']],
+			canvases: [['lazy', 'user']],
+		});
+		session.dispose();
+	});
+
 	suite('canvas definition registry stability', () => {
 		test('withholds transient registry listings until extension reload settles', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
@@ -5555,7 +5689,7 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
-		test('reconciles handed-over canvases with the canvases the replacement runtime has open', async () => {
+		test('reconciles handed-over canvases with the canvases the replacement runtime has open or still declares', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/preview' }, { ...chart, url: 'https://example.test/chart' });
 			const replacement = await createAgentSession(disposables, {
 				resume: true,
@@ -5563,6 +5697,8 @@ suite('CopilotAgentSession', () => {
 				configureMockSession: mock => {
 					mock.openCanvases.push({ ...preview });
 					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+					// The chart's provider is gone, so the replacement runtime no longer declares its canvas.
+					mock.canvases.splice(mock.canvases.findIndex(canvas => canvas.canvasId === chart.canvasId), 1);
 				},
 			});
 			const [previewResource, chartResource] = handoff.projections.map(projection => projection.resource.toString());
@@ -5579,6 +5715,168 @@ suite('CopilotAgentSession', () => {
 					{ resource: previewResource, url: 'https://example.test/replacement' },
 				],
 				membership: [[previewResource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('reopens a handed-over canvas the replacement runtime restored without starting its provider', async () => {
+			const input = { path: '/logs/events.jsonl' };
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, input, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					// A lazily activated provider's canvas stays declared, but its restored instance is not open until demanded.
+					mock.onCanvasOpen = async params => ({ ...preview, input: params.input, url: 'https://example.test/reopened' });
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+			const publishedInput = replacement.signals.some(signal => signal.kind === 'canvas' && Object.hasOwn(signal.state, 'input'));
+
+			assert.deepStrictEqual({
+				adopted,
+				openCalls: replacement.mockSession.canvasOpenCalls,
+				...summarizeCanvasSignals(replacement.signals),
+				publishedInput,
+				nextHandoffInput: replacement.session.takeCanvasProjection()?.projections.map(projection => projection.input),
+			}, {
+				adopted: true,
+				openCalls: [{ extensionId: preview.extensionId, canvasId: preview.canvasId, instanceId: preview.instanceId, input }],
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+				membership: [[resource]],
+				publishedInput: false,
+				nextHandoffInput: [input],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps a handed-over canvas unavailable when reopening it fails', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.canvasOpenError = new Error('provider failed to start');
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('reopens a restored canvas without delaying the resume', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			// The session finishes starting while the provider is still starting.
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			const whileReopening = { reopenPending: !reopen.isSettled, ...summarizeCanvasSignals(replacement.signals) };
+			reopen.complete({ ...preview, url: 'https://example.test/reopened' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, whileReopening, states: summarizeCanvasSignals(replacement.signals).states }, {
+				adopted: true,
+				whileReopening: {
+					reopenPending: true,
+					states: [{ resource, url: undefined }],
+					membership: [[resource]],
+				},
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps a slowly reopening canvas without desynchronizing the session', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				controlPlaneRpcTimeoutMs: 1,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(10);
+			const desynchronized = replacement.session.requiresControlPlaneResync;
+			// The runtime still reports the reopen once the provider has started.
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+			reopen.complete({ ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({ desynchronized, ...summarizeCanvasSignals(replacement.signals) }, {
+				desynchronized: false,
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/late' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('ignores a background reopen that finishes after the canvas was closed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+
+			await replacement.session.closeCanvas({ resource });
+			reopen.complete({ ...preview, url: 'https://example.test/stale' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				states: [{ resource: resource.toString(), url: undefined }],
+				membership: [[resource.toString()], []],
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not restore a handed-over canvas closed while it is being reopened', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = async () => {
+						mock.fire('session.canvas.closed', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+						return { ...preview, url: 'https://example.test/stale' };
+					};
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [[]],
 			});
 			replacement.session.dispose();
 		});
@@ -6993,6 +7291,32 @@ suite('CopilotAgentSession', () => {
 			turns: [{ id: 'request', text: 'Question', parts: ['Thinking', 'First', 'Last'] }],
 			opaque: 'opaque',
 		});
+	});
+
+	test('history reads skip unused events and keep every inline binary', async () => {
+		const image = (toolCallId: string, data: string) => ({
+			type: 'tool.execution_complete', data: {
+				toolCallId, success: true,
+				result: { content: toolCallId, binaryResultsForLlm: [{ type: 'image', data, mimeType: 'image/png' }] },
+			},
+		});
+		const events = toSessionEvents([
+			{ type: 'user.message', data: { content: 'Question' } },
+			image('older', 'aaaa'),
+			{ type: 'hook.start', data: { hookInvocationId: 'hook', hookType: 'postToolUse', input: { toolResult: 'aaaa' } } },
+			{ type: 'hook.end', data: { hookInvocationId: 'hook', hookType: 'postToolUse', success: true } },
+			{ type: 'permission.requested', data: { requestId: 'permission', permissionRequest: { kind: 'read', path: '/repo' } } },
+			{ type: 'permission.completed', data: { requestId: 'permission', result: { kind: 'approved' } } },
+			image('newest', 'bbbb'),
+		]);
+		const pages = [events.slice(6), events.slice(0, 6)];
+		const read = await readCopilotSessionEvents(async () => {
+			const page = pages.shift()!;
+			return { events: page, cursor: String(pages.length), hasMore: pages.length > 0, cursorStatus: 'ok' };
+		}, CancellationToken.None);
+		assert.deepStrictEqual(read.map(event => event.type === 'tool.execution_complete'
+			? `${event.data.toolCallId}:${event.data.result?.binaryResultsForLlm?.map(binary => hasKey(binary, { data: true }) ? binary.data : 'ref').join(',')}`
+			: event.type), ['user.message', 'older:aaaa', 'newest:bbbb']);
 	});
 
 	for (const failure of ['expired', 'repeated', 'cyclic', 'empty', 'rpc'] as const) {
@@ -10892,6 +11216,32 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('routes a subagent permission that precedes its tool start to the subagent', async () => {
+		const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+
+		const request = { kind: 'shell', toolCallId: 'tc-inner', fullCommandText: './run.ps1', intention: 'Run fixture' } as const;
+		// The SDK invokes the handler before synchronously dispatching the permission event.
+		const result = runtime.handlePermissionRequest(request);
+		mockSession.fire('permission.requested', {
+			requestId: 'req-1',
+			permissionRequest: request,
+		} as SessionEventPayload<'permission.requested'>['data'], { agentId: 'agent-1' });
+
+		const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+		session.respondToPermissionRequest('tc-inner', false);
+		await result;
+
+		assert.strictEqual(confirmation.kind === 'pending_confirmation' && confirmation.parentToolCallId, 'tc-subagent');
+	});
+
 	for (const executionMode of ['sync', 'background']) {
 		test(`reports a ${executionMode} subagent model before its first usage event`, async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -12901,6 +13251,22 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('auto-approves reads within built-in plugin directories', async () => {
+			const pluginDir = URI.file('/sdk/plugins/browser-use');
+			const { runtime, signals } = await createAgentSession(disposables, {
+				builtinPluginDirectories: [pluginDir],
+				realpath: path => Promise.resolve(path),
+			});
+
+			const result = await runtime.handlePermissionRequest({
+				kind: 'read',
+				path: URI.joinPath(pluginDir, 'README.md').fsPath,
+				toolCallId: 'tc-builtin-plugin-read',
+			});
+
+			assert.deepStrictEqual({ result: result.kind, signalCount: signals.length }, { result: 'approve-once', signalCount: 0 });
+		});
+
 		test('does not auto-approve non-read or elevated access within applied plugin directories', async () => {
 			const pluginDir = URI.file('/plugins/active');
 			const logicallyOutsidePath = URI.file('/outside/mapped-inside.md').fsPath;
@@ -14440,11 +14806,127 @@ suite('CopilotAgentSession', () => {
 			});
 		}
 
+		test('sandbox session path display maps virtual paths without rewriting the grant target', async () => {
+			const home = URI.file('/custom-copilot-home');
+			const workingDirectory = URI.parse('vscode-vfs://github/example/project');
+			const getSessionPathRoots = spy(() => []);
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				copilotHome: home.fsPath, workingDirectory, getSessionPathRoots,
+				pathMapper: createCopilotSessionPathMapper({ kind: 'virtual', root: workingDirectory }, URI.joinPath(home, 'session-state', 'test-session-1')),
+			});
+			const grant = { path: '/session-state/files/notes.txt', access: 'read' as const };
+			const request = { kind: 'shell' as const, command: 'cat notes.txt', toolCallId: 'virtual-grant', requestSandboxBypass: true, sandboxPathGrant: grant };
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'virtual-grant', permissionRequest: toPermissionRequest(request) });
+			const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			assert.ok(signal.kind === 'pending_confirmation');
+			assert.deepStrictEqual({
+				message: typeof signal.state.invocationMessage === 'object' ? signal.state.invocationMessage.markdown.split('\n\n')[0] : signal.state.invocationMessage,
+				grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
+				rootLookups: getSessionPathRoots.callCount,
+			}, {
+				message: 'Allow read access to `files/notes.txt` in this session\'s storage.',
+				grant,
+				rootLookups: 0,
+			});
+			session.respondToPermissionRequest('virtual-grant', false);
+			await pending;
+		});
+
+		test('sandbox session path display checks the current chat before looking up other roots', async () => {
+			const source = URI.parse('copilot:/source');
+			const destination = URI.parse('copilot:/destination');
+			const other = URI.parse('copilot:/other');
+			const owner = disposables.add(new TestChatOwnerRef(source));
+			const home = URI.file('/custom-copilot-home');
+			const currentRoot = URI.joinPath(home, 'session-state', 'test-session-1');
+			const otherRoot = URI.joinPath(home, 'session-state', 'test-session-1-other');
+			const conflictingRoot = URI.joinPath(home, 'session-state', 'conflicting-sdk');
+			const getSessionPathRoots = spy(() => [
+				{ root: currentRoot, session: other, title: 'Other' },
+				{ root: otherRoot, session: other, title: 'Other' },
+				{ root: conflictingRoot, session: source, title: 'Source' },
+				{ root: conflictingRoot, session: other, title: 'Other' },
+			]);
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				copilotHome: home.fsPath, sessionUri: source, owner, getSessionPathRoots,
+			});
+			const cases = [
+				{ path: currentRoot.fsPath, owner: source, message: 'Allow read access to this session\'s storage.', rootLookups: 0 },
+				{ path: `${currentRoot.fsPath}${sep}files${sep}..${sep}notes.txt`, owner: destination, message: 'Allow read access to `notes.txt` in this session\'s storage.', rootLookups: 0 },
+				{ path: URI.joinPath(otherRoot, 'notes.txt').fsPath, owner: destination, message: 'Allow read access to `Session "Other" / notes.txt` and retry inside the sandbox.', rootLookups: 1 },
+				{ path: conflictingRoot.fsPath, owner: destination, message: `Allow read access to \`${conflictingRoot.fsPath}\` and retry inside the sandbox.`, rootLookups: 2 },
+			];
+			const snapshots = [];
+			for (const [index, testCase] of cases.entries()) {
+				owner.set(testCase.owner);
+				const toolCallId = `current-chat-first-${index}`;
+				const grant = { path: testCase.path, access: 'read' as const };
+				const request = { kind: 'shell' as const, command: 'cat notes.txt', toolCallId, requestSandboxBypass: true, sandboxPathGrant: grant };
+				const pending = runtime.handlePermissionRequest(request);
+				mockSession.fire('permission.requested', { requestId: toolCallId, permissionRequest: toPermissionRequest(request) });
+				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === toolCallId);
+				assert.ok(signal.kind === 'pending_confirmation');
+				snapshots.push({
+					message: typeof signal.state.invocationMessage === 'object' ? signal.state.invocationMessage.markdown.split('\n\n')[0] : signal.state.invocationMessage,
+					grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
+					rootLookups: getSessionPathRoots.callCount,
+				});
+				session.respondToPermissionRequest(toolCallId, false);
+				await pending;
+			}
+			assert.deepStrictEqual(snapshots, cases.map(({ path, message, rootLookups }) => ({
+				message, grant: { path, access: 'read' }, rootLookups,
+			})));
+		});
+
+		test('sandbox session path labels follow peer ownership and requester moves without changing grants', async () => {
+			const source = URI.parse('copilot:/source');
+			const destination = URI.parse('copilot:/destination');
+			const owner = disposables.add(new TestChatOwnerRef(source));
+			const home = URI.file('/custom-copilot-home');
+			const peerRoot = URI.joinPath(home, 'session-state', 'peer-sdk');
+			let peerOwner = source;
+			let peerTitle = 'Source';
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				copilotHome: home.fsPath, sessionUri: source, owner,
+				getSessionPathRoots: () => [{ root: peerRoot, session: peerOwner, title: peerTitle }],
+			});
+			const snapshots = [];
+			for (const stage of ['peer', 'target-moved', 'renamed', 'requester-moved'] as const) {
+				if (stage === 'target-moved') {
+					peerOwner = destination;
+					peerTitle = 'Destination';
+				} else if (stage === 'renamed') {
+					peerTitle = 'Renamed destination';
+				} else if (stage === 'requester-moved') {
+					owner.set(destination);
+				}
+				const grant = { path: URI.joinPath(peerRoot, 'notes.txt').fsPath, access: 'read' as const };
+				const request = { kind: 'shell' as const, command: 'cat notes.txt', toolCallId: stage, requestSandboxBypass: true, sandboxPathGrant: grant };
+				const pending = runtime.handlePermissionRequest(request);
+				mockSession.fire('permission.requested', { requestId: stage, permissionRequest: toPermissionRequest(request) });
+				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === stage);
+				assert.ok(signal.kind === 'pending_confirmation');
+				const meta = readToolCallMeta(signal.state);
+				snapshots.push({
+					message: typeof signal.state.invocationMessage === 'object' ? signal.state.invocationMessage.markdown.split('\n\n')[0] : signal.state.invocationMessage,
+					grant: meta['vscode.sandboxPathGrant'],
+				});
+				session.respondToPermissionRequest(stage, false);
+				await pending;
+			}
+			assert.deepStrictEqual(snapshots, ['This session', 'Session "Destination"', 'Session "Renamed destination"', 'This session'].map(label => ({
+				message: label === 'This session' ? 'Allow read access to `notes.txt` in this session\'s storage.' : `Allow read access to \`${label} / notes.txt\` and retry inside the sandbox.`,
+				grant: { path: URI.joinPath(peerRoot, 'notes.txt').fsPath, access: 'read' },
+			})));
+		});
+
 		for (const kind of ['read', 'write', 'shell'] as const) {
 			test(`sandbox path grant selection respects managed approval for ${kind} requests`, async () => {
 				const results = [];
 				for (const managedApprovalRequired of [false, true]) {
-					const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+					const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
 					const grant = { path: '/outside', access: 'readWrite' as const };
 					const request = { kind, toolCallId: 'grant-tool', requestSandboxBypass: true, sandboxPathGrant: grant, managedApprovalRequired };
 					const pending = runtime.handlePermissionRequest(request);
@@ -14454,13 +14936,14 @@ suite('CopilotAgentSession', () => {
 					results.push({
 						grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
 						canSave: signal.state.options?.some(option => option.id === SAVE_SANDBOX_PATH) ?? false,
+						canSaveWorkspace: signal.state.options?.some(option => option.id === SAVE_WORKSPACE_SANDBOX_PATH) ?? false,
 					});
 					session.respondToPermissionRequest('grant-tool', false);
 					await pending;
 				}
 				assert.deepStrictEqual(results, [
-					{ grant: { path: '/outside', access: 'readWrite' }, canSave: true },
-					{ grant: undefined, canSave: false },
+					{ grant: { path: '/outside', access: 'readWrite' }, canSave: true, canSaveWorkspace: true },
+					{ grant: undefined, canSave: false, canSaveWorkspace: false },
 				]);
 			});
 		}
@@ -14478,7 +14961,7 @@ suite('CopilotAgentSession', () => {
 				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
 				assert.strictEqual(signal.kind, 'pending_confirmation');
 				if (signal.kind !== 'pending_confirmation') { throw new Error('Expected confirmation'); }
-				assert.deepStrictEqual(signal.state.options?.map(option => option.id), [SAVE_SANDBOX_PATH, 'skip']);
+				assert.deepStrictEqual(signal.state.options?.map(option => option.id), [SAVE_SESSION_SANDBOX_PATH, SAVE_SANDBOX_PATH, 'skip']);
 
 				setRootValue('sandbox', { ...sandbox, 'fileSystem.userConfiguredPaths': { readonlyPaths: [], readwritePaths: ['/outside'], deniedPaths: ['/secret'] } });
 				fireRootConfigChange();
@@ -14524,6 +15007,620 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({ result: (await pending).kind, errors: sandboxResults, disabled: mockSession.sandboxDisableRequests }, {
 				result: 'reject', errors: ['The path was saved to your sandbox settings, but this request could not be retried. policy changed'], disabled: [],
 			});
+		});
+
+		for (const runtimeFails of [false, true]) {
+			test(`sandbox session path grant persists only after runtime approval (runtime fails: ${runtimeFails})`, async () => {
+				const { session, runtime, mockSession, waitForSignal, sandboxPathMetadata, sandboxResults, rootConfigUpdates, sessionConfigUpdates } = await createAgentSession(disposables, {
+					rootValues: { sandbox: { enabled: 'on', 'fileSystem.userConfiguredPaths': { readonlyPaths: ['/upgrade'], readwritePaths: ['/inherited'] } } },
+				});
+				const request = {
+					kind: 'write' as const, path: '/upgrade/file', toolCallId: 'session-grant', requestSandboxBypass: true,
+					sandboxPathGrant: { path: '/upgrade', access: 'readWrite' as const, removedReadonlyPaths: ['/upgrade'] },
+				};
+				const pending = runtime.handlePermissionRequest(request);
+				mockSession.fire('permission.requested', { requestId: 'sdk-session-grant', permissionRequest: toPermissionRequest(request) });
+				await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				const grant = stub(mockSession.rpc.sandbox, 'grantPathForRequest').callsFake(async () => {
+					assert.strictEqual(sandboxPathMetadata.get(SESSION_SANDBOX_PATHS_KEY), undefined);
+					if (runtimeFails) { throw new Error('policy changed'); }
+					return { success: true };
+				});
+				try {
+					session.respondToPermissionRequest('session-grant', true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+					const result = await pending;
+					await timeout(0);
+					const config = runtime.getLaunchSandboxConfig(false);
+					assert.deepStrictEqual({
+						result: result.kind, calls: grant.callCount,
+						stored: sandboxPathMetadata.get(SESSION_SANDBOX_PATHS_KEY),
+						writable: config?.userPolicy?.filesystem?.readwritePaths,
+						readonlyUpgrade: config?.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade') ?? false,
+						errors: sandboxResults.filter(value => typeof value === 'string'),
+						rootConfigUpdates, sessionConfigUpdates,
+					}, {
+						result: runtimeFails ? 'reject' : 'no-result', calls: 1,
+						stored: runtimeFails ? undefined : JSON.stringify({ readonlyPaths: [], readwritePaths: ['/upgrade'], removedReadonlyPaths: ['/upgrade'] }),
+						writable: runtimeFails ? ['/inherited'] : ['/inherited', '/upgrade'], readonlyUpgrade: runtimeFails,
+						errors: runtimeFails ? ['policy changed'] : [],
+						rootConfigUpdates: [], sessionConfigUpdates: [],
+					});
+				} finally {
+					grant.restore();
+				}
+			});
+		}
+
+		for (const runtimeFails of [false, true]) {
+			test(`sandbox workspace grant saves only after runtime approval (runtime fails: ${runtimeFails})`, async () => {
+				const roots = [URI.file('/workspace')];
+				const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+				const rig = await createAgentSession(disposables, {
+					workingDirectory: roots[0], workspaceSandboxPaths: paths,
+					rootValues: { sandbox: { enabled: 'on', 'fileSystem.userConfiguredPaths': { readonlyPaths: ['/upgrade'], deniedPaths: ['/secret'] } } },
+				});
+				const read = { kind: 'read' as const, path: '/upgrade', toolCallId: 'earlier-session-read', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'read' as const } };
+				const reading = rig.runtime.handlePermissionRequest(read);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-session-read', permissionRequest: toPermissionRequest(read) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === read.toolCallId);
+				rig.session.respondToPermissionRequest(read.toolCallId, true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+				await reading;
+				const request = { kind: 'write' as const, path: '/upgrade', toolCallId: 'workspace-write', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'readWrite' as const, removedReadonlyPaths: ['/upgrade'] } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-workspace-write', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === request.toolCallId);
+				const grant = stub(rig.mockSession.rpc.sandbox, 'grantPathForRequest').callsFake(async () => {
+					assert.strictEqual(paths.getPaths(roots), undefined);
+					return { success: !runtimeFails };
+				});
+				try {
+					rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+					const result = await pending;
+					await rig.session.syncPermissionMode('turn-start');
+					const filesystem = rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem;
+					assert.deepStrictEqual({
+						result: result.kind, stored: paths.getPaths(roots),
+						sessionPaths: JSON.parse(rig.sandboxPathMetadata.get(SESSION_SANDBOX_PATHS_KEY)!),
+						readonly: filesystem?.readonlyPaths?.includes('/upgrade') ?? false,
+						writable: filesystem?.readwritePaths, denied: filesystem?.deniedPaths,
+						rootWrites: rig.rootConfigUpdates,
+					}, {
+						result: runtimeFails ? 'reject' : 'no-result',
+						stored: runtimeFails ? undefined : { readonlyPaths: [], readwritePaths: ['/upgrade'], removedReadonlyPaths: ['/upgrade'] },
+						sessionPaths: { readonlyPaths: runtimeFails ? ['/upgrade'] : [], readwritePaths: [], removedReadonlyPaths: [] },
+						readonly: runtimeFails, writable: runtimeFails ? undefined : ['/upgrade'], denied: ['/secret'], rootWrites: [],
+					});
+				} finally {
+					grant.restore();
+				}
+			});
+		}
+
+		test('sandbox Workspace choice is advertised only for filesystem workspace chats and Session stays default', async () => {
+			const options = [];
+			for (const context of [
+				{ workingDirectory: URI.file('/workspace') },
+				{ workingDirectory: URI.file('/workspace'), additionalDirectories: [URI.file('/second')] },
+				{ workingDirectory: URI.file('/scratch'), workspaceless: true },
+				{ workingDirectory: URI.parse('vscode-vfs://host/workspace') },
+				{},
+			]) {
+				const rig = await createAgentSession(disposables, context);
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'workspace-options', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-workspace-options', permissionRequest: toPermissionRequest(request) });
+				const signal = await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(signal.kind === 'pending_confirmation');
+				options.push(signal.state.options?.map(option => option.id));
+				rig.session.respondToPermissionRequest(request.toolCallId, false);
+				await pending;
+			}
+			const workspace = [SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, SAVE_SANDBOX_PATH, 'skip'];
+			const withoutWorkspace = [SAVE_SESSION_SANDBOX_PATH, SAVE_SANDBOX_PATH, 'skip'];
+			assert.deepStrictEqual(options, [workspace, workspace, withoutWorkspace, withoutWorkspace, withoutWorkspace]);
+		});
+
+		test('sandbox workspace paths restore for exact launch roots, excluding scratch, virtual and different scopes', async () => {
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			const primary = URI.file('/workspace');
+			const secondary = URI.file('/other-root');
+			await paths.grant([primary, secondary], { path: '/workspace-grant', access: 'readWrite' });
+			const results = [];
+			for (const options of [
+				{ workingDirectory: primary, additionalDirectories: [secondary] },
+				{ workingDirectory: secondary, additionalDirectories: [primary, secondary] },
+				{ workingDirectory: primary.with({ path: `${primary.path}/./` }), additionalDirectories: [secondary.with({ path: `${secondary.path}/` })] },
+				{ workingDirectory: primary },
+				{ workingDirectory: URI.file('/Workspace'), additionalDirectories: [secondary] },
+				{ workingDirectory: primary, additionalDirectories: [secondary], workspaceless: true },
+				{ workingDirectory: URI.parse('vscode-vfs://host/workspace'), additionalDirectories: [secondary] },
+			]) {
+				let config: SandboxConfig | undefined;
+				await createAgentSession(disposables, {
+					...options, workspaceSandboxPaths: paths, resume: true,
+					rootValues: { sandbox: { enabled: 'on' } },
+					duringLaunch: runtime => { config = runtime.getLaunchSandboxConfig(true); },
+				});
+				results.push(config?.userPolicy?.filesystem?.readwritePaths?.includes('/workspace-grant') ?? false);
+			}
+			assert.deepStrictEqual(results, [true, true, true, false, false, false, false]);
+		});
+
+		test('sandbox workspace lookup is skipped when disabled and retries when enabled', async () => {
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			const logService = new CapturingLogService();
+			const failure = new Error('workspace storage unavailable');
+			const read = stub(paths, 'getPaths').throws(failure);
+			try {
+				const rig = await createAgentSession(disposables, {
+					workingDirectory: URI.file('/workspace'), workspaceSandboxPaths: paths, logService,
+					rootValues: { sandbox: { enabled: 'on' } },
+					configValues: { [SessionConfigKey.SandboxEnabled]: 'off' },
+				});
+				await rig.session.syncPermissionMode('turn-start');
+				assert.deepStrictEqual({
+					config: rig.runtime.getLaunchSandboxConfig(false),
+					reads: read.callCount, errors: logService.errors,
+					notifications: rig.sandboxResults.filter(value => typeof value === 'string'),
+				}, { config: { enabled: false }, reads: 0, errors: [], notifications: [] });
+
+				rig.setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+				await rig.session.syncPermissionMode('turn-start');
+				const withoutWorkspace = rig.runtime.getLaunchSandboxConfig(false);
+				read.returns({ readonlyPaths: [], readwritePaths: ['/recovered'], removedReadonlyPaths: [] });
+				await rig.session.syncPermissionMode('turn-start');
+				assert.deepStrictEqual({
+					enabledAfterFailure: withoutWorkspace?.enabled,
+					recoveredPaths: rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readwritePaths,
+					errors: logService.errors.map(entry => entry.first),
+					notifications: rig.sandboxResults.filter(value => typeof value === 'string'),
+				}, {
+					enabledAfterFailure: true, recoveredPaths: ['/recovered'], errors: [failure],
+					notifications: ['Workspace-specific sandbox settings are not loaded.'],
+				});
+			} finally {
+				read.restore();
+			}
+		});
+
+		for (const resume of [false, true]) {
+			test(`sandbox workspace load failure does not block launch or weaken managed policy (resume: ${resume})`, async () => {
+				const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+				const logService = new CapturingLogService();
+				const failure = new Error('invalid workspace sandbox paths');
+				const read = stub(paths, 'getPaths').throws(failure);
+				try {
+					let launchConfig: SandboxConfig | undefined;
+					const rig = await createAgentSession(disposables, {
+						resume, workingDirectory: URI.file('/workspace'), workspaceSandboxPaths: paths, logService,
+						rootValues: { sandbox: { enabled: 'off', 'fileSystem.userConfiguredPaths': { readwritePaths: ['/user'], deniedPaths: ['/user-denied'] } } },
+						configValues: { [SessionConfigKey.SandboxEnabled]: 'off' },
+						sandboxPolicy: { enabled: true, allowBypass: false, deniedPaths: ['/managed-denied'] },
+						sandboxPathStateStore: new class extends mock<IAgentHostSessionStateStore>() {
+							override async readWithoutImport(): Promise<ReadonlyMap<string, string>> {
+								return new Map([[SESSION_SANDBOX_PATHS_KEY, JSON.stringify({ readonlyPaths: [], readwritePaths: ['/session'], removedReadonlyPaths: [] })]]);
+							}
+						}(),
+						duringLaunch: runtime => { launchConfig = runtime.getLaunchSandboxConfig(resume); },
+					});
+					await rig.session.syncPermissionMode('turn-start');
+					assert.deepStrictEqual({
+						enabled: launchConfig?.enabled,
+						writable: launchConfig?.userPolicy?.filesystem?.readwritePaths,
+						denied: launchConfig?.userPolicy?.filesystem?.deniedPaths,
+						retried: read.callCount > 1,
+						errors: logService.errors.map(entry => entry.first),
+						notifications: rig.sandboxResults.filter(value => typeof value === 'string'),
+					}, {
+						enabled: true, writable: ['/user', '/session'], denied: ['/user-denied', '/managed-denied'],
+						retried: true, errors: [failure], notifications: ['Workspace-specific sandbox settings are not loaded.'],
+					});
+				} finally {
+					read.restore();
+				}
+			});
+		}
+
+		test('sandbox workspace changes update matching live chats and clearing removes access', async () => {
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			const roots = [URI.file('/workspace'), URI.file('/second')];
+			const rigs = await Promise.all([
+				{ workingDirectory: roots[0], additionalDirectories: [roots[1]] },
+				{ workingDirectory: roots[1].with({ path: `${roots[1].path}/./` }), additionalDirectories: [roots[0].with({ path: `${roots[0].path}/` })] },
+				{ workingDirectory: roots[0] },
+				{ workingDirectory: URI.file('/Workspace'), additionalDirectories: [roots[1]] },
+			].map((options, index) => createAgentSession(disposables, {
+				...options, workspaceSandboxPaths: paths, sessionUri: URI.parse(`copilot:/workspace-peer-${index}`),
+				rootValues: { sandbox: { enabled: 'on' } },
+			})));
+			const updates = rigs.slice(0, 2).map(rig => {
+				const changed = new DeferredPromise<void>();
+				const update = rig.mockSession.rpc.options.update;
+				const listener = stub(rig.mockSession.rpc.options, 'update').callsFake(async params => {
+					const result = await update(params);
+					if (params.sandboxConfig) {
+						changed.complete();
+					}
+					return result;
+				});
+				return { changed, listener };
+			});
+			try {
+				await paths.grant(roots, { path: '/shared', access: 'readWrite' });
+				await Promise.all(updates.map(update => update.changed.p));
+				const afterGrant = rigs.map(rig => (rig.mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readwritePaths?.includes('/shared') ?? false);
+				await paths.clear(roots);
+				await Promise.all(rigs.slice(0, 2).map(rig => rig.session.syncPermissionMode('turn-start')));
+				assert.deepStrictEqual({
+					afterGrant,
+					afterClear: rigs.map(rig => (rig.mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readwritePaths?.includes('/shared') ?? false),
+					unrelatedUpdates: rigs.slice(2).map(rig => rig.mockSession.sandboxConfigUpdates.length),
+				}, { afterGrant: [true, true, false, false], afterClear: [false, false, false, false], unrelatedUpdates: [0, 0] });
+			} finally {
+				updates.forEach(update => update.listener.restore());
+			}
+		});
+
+		test('sandbox workspace save failure keeps live access and reports the persistence failure', async () => {
+			const failed = new DeferredPromise<void>();
+			const logService = new class extends CapturingLogService {
+				override error(message: string | Error, ...args: unknown[]): void {
+					super.error(message, ...args);
+					if (args.some(arg => typeof arg === 'string' && arg.includes('Failed to persist workspace sandbox path access'))) {
+						failed.complete();
+					}
+				}
+			}();
+			const storage = disposables.add(new class extends AgentHostStorageService {
+				override async whenIdle(): Promise<void> { throw new Error('disk full'); }
+			}(undefined, logService));
+			const paths = new WorkspaceSandboxPathService(storage);
+			const roots = [URI.file('/workspace')];
+			const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths, logService, rootValues: { sandbox: { enabled: 'on' } } });
+			const request = { kind: 'read' as const, path: '/outside', toolCallId: 'workspace-save-failure', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+			const pending = rig.runtime.handlePermissionRequest(request);
+			rig.mockSession.fire('permission.requested', { requestId: 'sdk-workspace-save-failure', permissionRequest: toPermissionRequest(request) });
+			await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+			rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+			const result = await pending;
+			await failed.p;
+			assert.deepStrictEqual({
+				result: result.kind, live: paths.getPaths(roots)?.readonlyPaths,
+				configured: rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/outside'),
+				errors: rig.sandboxResults.filter(value => typeof value === 'string'),
+			}, {
+				result: 'no-result', live: ['/outside'], configured: true,
+				errors: ['Sandbox access was granted, but the workspace permission change could not be saved. You may need to approve it again when reopening the workspace. disk full'],
+			});
+		});
+
+		for (const workspaceless of [false, true]) {
+			test(`sandbox workspace approval rejects unavailable roots (scratch: ${workspaceless})`, async () => {
+				const rig = await createAgentSession(disposables, { workingDirectory: workspaceless ? URI.file('/scratch') : undefined, workspaceless });
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'workspace-unavailable', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-workspace-unavailable', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+				assert.deepStrictEqual({ result: (await pending).kind, requests: rig.mockSession.sandboxGrantRequests, errors: rig.sandboxResults.filter(value => typeof value === 'string') }, {
+					result: 'reject', requests: [], errors: ['Workspace sandbox permissions require a chat with filesystem workspace folders.'],
+				});
+			});
+		}
+
+		for (const destination of ['/new-workspace', '/Workspace']) {
+			test(`sandbox workspace approval rejects a working folder change to ${destination} before calling the runtime`, async () => {
+				const roots = [URI.file('/workspace')];
+				const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+				const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths });
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'stale-workspace', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-stale-workspace', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				await rig.session.setWorkingDirectory(URI.file(destination), { prepare: async () => { }, rollback: async () => { }, reconcile: async () => { } });
+				rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+				assert.deepStrictEqual({ result: (await pending).kind, requests: rig.mockSession.sandboxGrantRequests, stored: paths.getPaths(roots), errors: rig.sandboxResults.filter(value => typeof value === 'string') }, {
+					result: 'reject', requests: [], stored: undefined, errors: ['The workspace for this sandbox permission request has changed. Retry the request.'],
+				});
+			});
+		}
+
+		for (const change of ['folder', 'folder-case', 'owner'] as const) {
+			test(`sandbox workspace approval does not persist after ${change} changes during runtime acceptance`, async () => {
+				const roots = [URI.file('/workspace')];
+				const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+				const first = AgentSession.uri('copilot', 'original-owner');
+				const owner = disposables.add(new TestChatOwnerRef(first));
+				const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths, owner, sessionUri: first });
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'changing-workspace', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-changing-workspace', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				const grant = stub(rig.mockSession.rpc.sandbox, 'grantPathForRequest').callsFake(async () => {
+					if (change === 'owner') {
+						owner.set(AgentSession.uri('copilot', 'new-owner'));
+					} else {
+						await rig.session.setWorkingDirectory(URI.file(change === 'folder-case' ? '/Workspace' : '/new-workspace'), { prepare: async () => { }, rollback: async () => { }, reconcile: async () => { } });
+					}
+					return { success: true };
+				});
+				try {
+					rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+					assert.deepStrictEqual({ result: (await pending).kind, stored: paths.getPaths(roots), sessionWrites: rig.sandboxPathMetadata.size }, {
+						result: 'reject', stored: undefined, sessionWrites: 0,
+					});
+				} finally {
+					grant.restore();
+				}
+			});
+		}
+
+		test('sandbox User upgrade removes stale Workspace read-only additions without copying User access', async () => {
+			const roots = [URI.file('/workspace')];
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			await paths.grant(roots, { path: '/upgrade', access: 'read' });
+			await paths.grant(roots, { path: '/keep', access: 'read' });
+			const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths, rootValues: { sandbox: { enabled: 'on' } } });
+			const request = { kind: 'write' as const, path: '/upgrade', toolCallId: 'user-workspace-upgrade', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'readWrite' as const, removedReadonlyPaths: ['/upgrade'] } };
+			const pending = rig.runtime.handlePermissionRequest(request);
+			rig.mockSession.fire('permission.requested', { requestId: 'sdk-user-workspace-upgrade', permissionRequest: toPermissionRequest(request) });
+			await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+			rig.setRootValue('sandbox', { enabled: 'on', 'fileSystem.userConfiguredPaths': { readwritePaths: ['/upgrade'] } });
+			rig.fireRootConfigChange();
+			rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', sandboxPathGrantSaved: true });
+			assert.deepStrictEqual({ result: (await pending).kind, stored: paths.getPaths(roots), readonly: rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade') ?? false }, {
+				result: 'no-result', stored: { readonlyPaths: ['/keep'], readwritePaths: [], removedReadonlyPaths: [] }, readonly: false,
+			});
+		});
+
+		test('sandbox workspace updates defer while a path request is pending and apply after it finishes', async () => {
+			const roots = [URI.file('/workspace')];
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths, rootValues: { sandbox: { enabled: 'on' } } });
+			const request = { kind: 'read' as const, path: '/pending', toolCallId: 'pending-workspace-sync', requestSandboxBypass: true, sandboxPathGrant: { path: '/pending', access: 'read' as const } };
+			const pending = rig.runtime.handlePermissionRequest(request);
+			rig.mockSession.fire('permission.requested', { requestId: 'sdk-pending-workspace-sync', permissionRequest: toPermissionRequest(request) });
+			await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+			await paths.grant(roots, { path: '/shared', access: 'readWrite' });
+			await rig.session.syncPermissionMode('turn-start');
+			const whilePending = rig.mockSession.sandboxConfigUpdates.length;
+			const applied = new DeferredPromise<void>();
+			const update = rig.mockSession.rpc.options.update;
+			const listener = stub(rig.mockSession.rpc.options, 'update').callsFake(async params => {
+				const result = await update(params);
+				if (params.sandboxConfig) {
+					applied.complete();
+				}
+				return result;
+			});
+			try {
+				rig.session.respondToPermissionRequest(request.toolCallId, false);
+				await pending;
+				await applied.p;
+				assert.deepStrictEqual({ whilePending, writable: (rig.mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig)?.userPolicy?.filesystem?.readwritePaths }, {
+					whilePending: 0, writable: ['/shared'],
+				});
+			} finally {
+				listener.restore();
+			}
+		});
+
+		for (const managed of [false, true]) {
+			test(`sandbox Workspace approval requires a human non-managed request (managed: ${managed})`, async () => {
+				const rig = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'invalid-workspace-approval', requestSandboxBypass: true, managedApprovalRequired: managed, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-invalid-workspace-approval', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: managed ? 'human_response' : 'unattended_fallback' });
+				assert.deepStrictEqual({ result: (await pending).kind, requests: rig.mockSession.sandboxGrantRequests }, { result: 'reject', requests: [] });
+			});
+		}
+
+		test('sandbox session path grant save failure logs and notifies without rejecting or reverting live access', async () => {
+			const writing = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const logged = new DeferredPromise<void>();
+			const logService = new class extends CapturingLogService {
+				override error(message: string | Error, ...args: unknown[]): void {
+					super.error(message, ...args);
+					if (args.some(arg => typeof arg === 'string' && arg.includes('Failed to persist session sandbox path access'))) {
+						logged.complete();
+					}
+				}
+			}();
+			const { session, runtime, mockSession, waitForSignal, sandboxResults, fireRootConfigChange } = await createAgentSession(disposables, {
+				logService,
+				rootValues: { sandbox: { enabled: 'on' } },
+				sandboxPathStateStore: new class extends mock<IAgentHostSessionStateStore>() {
+					override async readWithoutImport(): Promise<ReadonlyMap<string, string>> { return new Map(); }
+					override async update(): Promise<number> {
+						writing.complete();
+						await release.p;
+						throw new Error('disk full');
+					}
+				}(),
+			});
+			const request = { kind: 'read' as const, path: '/outside', toolCallId: 'failed-save', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'sdk-failed-save', permissionRequest: toPermissionRequest(request) });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			session.respondToPermissionRequest('failed-save', true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+			try {
+				await writing.p;
+				assert.deepStrictEqual({
+					result: (await pending).kind,
+					grants: mockSession.sandboxGrantRequests.map(grant => grant.requestId),
+					readonly: runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/outside'),
+				}, { result: 'no-result', grants: ['sdk-failed-save'], readonly: true });
+			} finally {
+				release.complete();
+			}
+			await logged.p;
+			fireRootConfigChange();
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual({
+				errors: sandboxResults.filter(value => typeof value === 'string'),
+				logged: logService.errors.filter(entry => entry.first instanceof Error && entry.first.message === 'disk full').length,
+				readonly: runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/outside'),
+				applied: (mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig)?.userPolicy?.filesystem?.readonlyPaths?.includes('/outside'),
+			}, {
+				errors: ['Sandbox access was granted for this session, but could not be saved. You may need to approve it again when resuming the session. disk full'],
+				logged: 1, readonly: true, applied: true,
+			});
+		});
+
+		for (const outcome of ['accepted', 'rejected', 'save-failed'] as const) {
+			test(`sandbox User upgrade cleans an earlier Session read-only grant only after acceptance: ${outcome}`, async () => {
+				const metadata = new Map<string, string>();
+				const firstSave = new DeferredPromise<void>();
+				const cleanupSave = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const logged = new DeferredPromise<void>();
+				let writes = 0;
+				const logService = new class extends CapturingLogService {
+					override error(message: string | Error, ...args: unknown[]): void {
+						super.error(message, ...args);
+						if (message instanceof Error && message.message === 'disk full') {
+							logged.complete();
+						}
+					}
+				}();
+				const stateStore = new class extends mock<IAgentHostSessionStateStore>() {
+					override async readWithoutImport(): Promise<ReadonlyMap<string, string>> { return metadata; }
+					override async update(_session: URI, key: string, updater: (previous: string | undefined) => string | null): Promise<number> {
+						writes++;
+						if (writes === 2) {
+							await release.p;
+							if (outcome === 'save-failed') {
+								throw new Error('disk full');
+							}
+						}
+						const value = updater(metadata.get(key));
+						if (value !== null) {
+							metadata.set(key, value);
+						}
+						(writes === 1 ? firstSave : cleanupSave).complete();
+						return writes;
+					}
+				}();
+				const rig = await createAgentSession(disposables, {
+					logService, sandboxPathStateStore: stateStore,
+					rootValues: { sandbox: { enabled: 'on' } },
+				});
+				const read = { kind: 'read' as const, path: '/upgrade', toolCallId: 'session-read', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'read' as const } };
+				const reading = rig.runtime.handlePermissionRequest(read);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-session-read', permissionRequest: toPermissionRequest(read) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === read.toolCallId);
+				rig.session.respondToPermissionRequest(read.toolCallId, true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+				await reading;
+				await firstSave.p;
+
+				const write = { kind: 'write' as const, path: '/upgrade', toolCallId: 'user-write', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'readWrite' as const, removedReadonlyPaths: ['/upgrade'] } };
+				const writing = rig.runtime.handlePermissionRequest(write);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-user-write', permissionRequest: toPermissionRequest(write) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === write.toolCallId);
+				const userSandbox = { enabled: 'on', 'fileSystem.userConfiguredPaths': { readwritePaths: ['/upgrade'], deniedPaths: ['/secret'] } };
+				rig.setRootValue('sandbox', userSandbox);
+				rig.fireRootConfigChange();
+				const grant = stub(rig.mockSession.rpc.sandbox, 'grantPathForRequest').callsFake(async () => {
+					assert.deepStrictEqual({
+						readonly: rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade'),
+						writes,
+					}, { readonly: true, writes: 1 });
+					return { success: outcome !== 'rejected' };
+				});
+				let result: PermissionRequestResult;
+				try {
+					rig.session.respondToPermissionRequest(write.toolCallId, true, {
+						selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', sandboxPathGrantSaved: true,
+					});
+					result = await writing;
+				} finally {
+					release.complete();
+					grant.restore();
+				}
+				if (outcome === 'accepted') {
+					await cleanupSave.p;
+				} else if (outcome === 'save-failed') {
+					await logged.p;
+				}
+				rig.fireRootConfigChange();
+				await timeout(0);
+				const config = rig.mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
+				let resumedConfig: SandboxConfig | undefined;
+				await createAgentSession(disposables, {
+					resume: true, sandboxPathStateStore: stateStore,
+					rootValues: { sandbox: userSandbox },
+					duringLaunch: runtime => { resumedConfig = runtime.getLaunchSandboxConfig(true); },
+				});
+				assert.deepStrictEqual({
+					result: result.kind, writes,
+					refreshedReadonly: config.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade') ?? false,
+					refreshedReadwrite: config.userPolicy?.filesystem?.readwritePaths,
+					denied: config.userPolicy?.filesystem?.deniedPaths,
+					resumedReadonly: resumedConfig?.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade') ?? false,
+					stored: JSON.parse(metadata.get(SESSION_SANDBOX_PATHS_KEY)!),
+					saveErrors: rig.sandboxResults.filter(value => typeof value === 'string' && value.includes('could not be saved')),
+					loggedSaveErrors: logService.errors.filter(entry => entry.first instanceof Error && entry.first.message === 'disk full').length,
+				}, {
+					result: outcome === 'rejected' ? 'reject' : 'no-result', writes: outcome === 'rejected' ? 1 : 2,
+					refreshedReadonly: outcome === 'rejected', refreshedReadwrite: outcome === 'rejected' ? undefined : ['/upgrade'], denied: ['/secret'],
+					resumedReadonly: outcome !== 'accepted',
+					stored: { readonlyPaths: outcome === 'accepted' ? [] : ['/upgrade'], readwritePaths: [], removedReadonlyPaths: [] },
+					saveErrors: outcome === 'save-failed' ? ['Sandbox access was granted, but the removal of this session\'s previous read-only access could not be saved. You may need to approve it again when resuming the session. disk full'] : [],
+					loggedSaveErrors: outcome === 'save-failed' ? 1 : 0,
+				});
+			});
+		}
+
+		test('sandbox session paths are restored before the launcher reads its config', async () => {
+			let launchConfig: SandboxConfig | undefined;
+			await createAgentSession(disposables, {
+				resume: true,
+				rootValues: { sandbox: { enabled: 'on', 'fileSystem.userConfiguredPaths': { readwritePaths: ['/inherited'] } } },
+				sandboxPathStateStore: new class extends mock<IAgentHostSessionStateStore>() {
+					override async readWithoutImport(): Promise<ReadonlyMap<string, string>> {
+						await timeout(0);
+						return new Map([[SESSION_SANDBOX_PATHS_KEY, JSON.stringify({ readonlyPaths: [], readwritePaths: ['/restored'], removedReadonlyPaths: [] })]]);
+					}
+				}(),
+				duringLaunch: runtime => { launchConfig = runtime.getLaunchSandboxConfig(true); },
+			});
+			assert.deepStrictEqual(launchConfig?.userPolicy?.filesystem?.readwritePaths, ['/inherited', '/restored']);
+		});
+
+		test('sandbox session grant keeps saving after the runtime succeeds and the turn is cancelled', async () => {
+			const writing = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const saved = new DeferredPromise<void>();
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				sandboxPathStateStore: new class extends mock<IAgentHostSessionStateStore>() {
+					override async readWithoutImport(): Promise<ReadonlyMap<string, string>> { return new Map(); }
+					override async update(_session: URI, _key: string, updater: (previous: string | undefined) => string | null): Promise<number> {
+						writing.complete();
+						await release.p;
+						updater(undefined);
+						saved.complete();
+						return 1;
+					}
+				}(),
+			});
+			const request = { kind: 'read' as const, path: '/outside', toolCallId: 'queued-save', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+			const pending = runtime.handlePermissionRequest(request);
+			mockSession.fire('permission.requested', { requestId: 'sdk-queued-save', permissionRequest: toPermissionRequest(request) });
+			await waitForSignal(signal => signal.kind === 'pending_confirmation');
+			session.respondToPermissionRequest('queued-save', true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+			await writing.p;
+			let result: PermissionRequestResult;
+			try {
+				result = await pending;
+				await session.abort();
+			} finally {
+				release.complete();
+			}
+			await saved.p;
+			assert.deepStrictEqual({ result: result.kind, grants: mockSession.sandboxGrantRequests.map(grant => grant.requestId) }, { result: 'no-result', grants: ['sdk-queued-save'] });
 		});
 
 		test('sandbox path grant is not applied after cancellation', async () => {
@@ -15436,6 +16533,79 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
+		});
+
+		for (const { name, result, resume, keepsRestoredPermissionMode, expected } of [
+			{ name: 'an applied mode is not set again by the first turn', result: { success: true, mode: 'assisted' as const }, expected: { requested: 'assisted', firstTurn: [], afterChange: ['allow-all'] } },
+			{ name: 'a resumed session is opened in the configured mode too', result: { success: true, mode: 'assisted' as const }, resume: true, expected: { requested: 'assisted', firstTurn: [], afterChange: ['allow-all'] } },
+			{ name: 'a refused mode is set by the first turn', result: { success: false, mode: 'manual' as const }, expected: { requested: 'assisted', firstTurn: ['assisted'], afterChange: ['assisted', 'allow-all'] } },
+			{ name: 'a runtime that reports no result has the mode set by the first turn', result: undefined, expected: { requested: 'assisted', firstTurn: ['assisted'], afterChange: ['assisted', 'allow-all'] } },
+			{ name: 'an imported session keeps its restored mode until the first turn', result: undefined, resume: true, keepsRestoredPermissionMode: true, expected: { requested: undefined, firstTurn: ['assisted'], afterChange: ['assisted', 'allow-all'] } },
+		]) {
+			test(`opens the session in the configured permission mode: ${name}`, async () => {
+				let requested: PermissionMode | undefined;
+				const { session, mockSession, setConfigValue } = await createAgentSession(disposables, {
+					configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+					resume,
+					keepsRestoredPermissionMode,
+					configureMockSession: mock => { mock.permissionModeResult = result; },
+					duringLaunch: runtime => {
+						runtime.setApprovalPolicy?.({ source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] }, {});
+						requested = runtime.resolveInitialPermissionMode?.();
+					},
+				});
+				await session.syncPermissionMode('turn-start');
+				const firstTurn = [...mockSession.permissionModeSetCalls];
+				setConfigValue(SessionConfigKey.AutoApprove, 'autoApprove');
+				await session.syncPermissionMode('turn-start');
+
+				assert.deepStrictEqual({ requested, firstTurn, afterChange: mockSession.permissionModeSetCalls }, expected);
+			});
+		}
+
+		test('fails the first turn when the runtime keeps refusing the mode it refused to open the session in', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+				configureMockSession: mock => {
+					mock.permissionModeResult = { success: false, mode: 'manual' };
+					mock.permissionModeSetSuccess = false;
+				},
+				duringLaunch: runtime => { runtime.resolveInitialPermissionMode?.(); },
+			});
+			fireManagedSettingsResolved(mockSession);
+
+			await assert.rejects(session.syncPermissionMode('turn-start'), /rejected permission mode 'assisted'/);
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
+		});
+
+		test('a session resumed before its configuration is loaded keeps the mode the runtime restored, which an import then adopts', async () => {
+			let requested: PermissionMode | undefined;
+			let launched: MockCopilotSession | undefined;
+			const { session, mockSession, chatConfigUpdates } = await createAgentSession(disposables, {
+				resume: true,
+				// Restoring a session reads its conversation, which resumes the SDK session, before it loads the saved configuration.
+				configLoadsAfterLaunch: true,
+				// The host's default would be Allow All, which the resume must not impose on the session.
+				rootValues: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true },
+				configValues: { [SessionConfigKey.AutoApprove]: 'default' },
+				configureMockSession: mock => { launched = mock; },
+				duringLaunch: runtime => {
+					runtime.setApprovalPolicy?.({ source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] }, {});
+					requested = runtime.resolveInitialPermissionMode?.();
+					launched!.launchPermissionMode = requested;
+				},
+			});
+			await session.adoptRuntimeModes();
+			const adopted = chatConfigUpdates.map(update => update.patch[SessionConfigKey.AutoApprove]);
+			await session.syncPermissionMode('turn-start');
+
+			assert.deepStrictEqual({ requested, adopted, firstTurn: mockSession.permissionModeSetCalls }, {
+				requested: undefined,
+				// The mode the session ran with elsewhere, not a bypass the chat never chose.
+				adopted: ['default'],
+				// Global auto-approval still applies to the turn, as it did before.
+				firstTurn: ['allow-all'],
+			});
 		});
 
 		test('a peer chat applies its own approvals and mode, reports its effective approval mode to itself, and the session\'s to the session', async () => {
@@ -17120,6 +18290,41 @@ Use the attached image as context.
 		function startedTurns(signals: readonly AgentSignal[]) {
 			return getActions(signals).flatMap(action => action.type === ActionType.ChatTurnStarted ? [{ text: action.message.text, queuedMessageId: action.queuedMessageId }] : []);
 		}
+
+		test('sends each message with the source of whoever authored it and marks the ones no person authored', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			await session.send('from a person', undefined, 'turn-person');
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			await session.send('run the nightly task', undefined, 'turn-automation', undefined, undefined, undefined, undefined, undefined, false, undefined, undefined, 'automation-ahp-automation:/nightly');
+			await session.sendSteering({ id: 'steer-person', message: { text: 'person steers', origin: { kind: MessageKind.User } } }, undefined, { kind: 'user' });
+			await session.sendSteering({ id: 'steer-coordinator', message: { text: 'coordinator steers', origin: { kind: MessageKind.Agent } } }, undefined, { kind: 'agent', id: 'copilot:/coordinator' });
+			await session.sendSteering({ id: 'steer-peer', message: { text: 'peer steers', origin: { kind: MessageKind.Agent } } }, undefined, { kind: 'agent', id: 'copilot:/peer' });
+			await session.sendSteering({ id: 'steer-unattributed', message: { text: 'unattributed', origin: { kind: MessageKind.Agent } } });
+
+			assert.deepStrictEqual(mockSession.sendRequests, [
+				{ prompt: 'from a person', attachments: undefined },
+				{ prompt: 'run the nightly task', attachments: undefined, source: 'automation-ahp-automation:/nightly', clientTurnId: 'turn-automation' },
+				{ prompt: 'person steers', attachments: undefined, mode: 'immediate' },
+				{ prompt: 'coordinator steers', attachments: undefined, mode: 'immediate', source: 'agent-copilot:/coordinator', clientTurnId: 'steer-coordinator' },
+				{ prompt: 'peer steers', attachments: undefined, mode: 'immediate', source: 'agent-copilot:/peer', clientTurnId: 'steer-peer' },
+				{ prompt: 'unattributed', attachments: undefined, mode: 'immediate', source: 'system', clientTurnId: 'steer-unattributed' },
+			]);
+		});
+
+		test('the echo of an agent message the host sent starts its turn, unlike a runtime injection with the same source', async () => {
+			const steer = async (echo: Partial<SessionEventPayload<'user.message'>['data']>) => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-original');
+				await session.sendSteering({ id: 'steer-1', message: { text: 'review this', origin: { kind: MessageKind.Agent } } }, undefined, { kind: 'agent', id: 'copilot:/coordinator' });
+				mockSession.fire('user.message', { content: 'review this', source: 'agent-copilot:/coordinator', ...echo } as SessionEventPayload<'user.message'>['data']);
+				return startedTurns(signals);
+			};
+
+			assert.deepStrictEqual({ hostSent: await steer({ clientTurnId: 'steer-1' }), injected: await steer({}) }, {
+				hostSent: [{ text: 'review this', queuedMessageId: 'steer-1' }],
+				injected: [],
+			});
+		});
 
 		test('a steering message the user removes before the model reads it is withdrawn and never becomes a turn', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -37483,6 +38688,19 @@ Use the attached image as context.
 
 			assert.strictEqual(telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length, 0);
 			assert.strictEqual(mockSession.getInstructionSourcesCallCount, 0, 'should short-circuit before the RPC');
+		});
+
+		test('counts a message the host sent for an automation, unlike a runtime injection with the same source', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { mockSession } = await createAgentSession(disposables, { telemetryService });
+
+			fireUserMessage(mockSession, { source: 'automation-ahp-automation:/nightly' });
+			await timeout(0);
+			const injected = mockSession.getInstructionSourcesCallCount;
+			mockSession.fire('user.message', { content: 'Run the nightly task', source: 'automation-ahp-automation:/nightly', clientTurnId: 'turn-1' } as SessionEventPayload<'user.message'>['data']);
+			await timeout(0);
+
+			assert.deepStrictEqual({ injected, hostSent: telemetryService.events.filter(e => e.eventName === 'agentHost.instructionsCollected').length }, { injected: 0, hostSent: 1 });
 		});
 
 		test('skips subagent user messages', async () => {

@@ -53,6 +53,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IPowerService } from '../../../../../services/power/common/powerService.js';
 import { GitRemote, GitRepositoryState, IGitRepository, IGitService } from '../../../../git/common/gitService.js';
 import { ISCMProvider, ISCMRepository, ISCMService } from '../../../../scm/common/scm.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
@@ -235,6 +236,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly pickRepository?: () => Promise<string | undefined>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IPowerService, new class extends mock<IPowerService>() {
+		override readonly onDidSuspend = Event.None;
+		override readonly onDidResume = Event.None;
+	}());
 	if (options?.sessionFeed) {
 		options.sessionFeed.takePendingTaskIds ??= () => [];
 		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
@@ -974,6 +979,35 @@ suite('Editor cloud sandbox discovery', () => {
 		await listed.p;
 		assert.deepStrictEqual({ before, network: h.networkCalls }, { before: [], network: ['feed', 'list'] });
 	});
+
+	test('feed renewal allows a minute of inactivity for window focus and Chat visibility', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const h = createHarness(store, { sessionFeed: { connected: true, start: async () => { }, dispose: () => { } } });
+		await Promise.all(h.initialRefreshes);
+		const instances = sinon.spy(h.instantiationService, 'createInstance');
+		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, false);
+		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, true);
+		await h.refresh('automatic');
+		const canConnect = instances.getCalls().find(call => call.args[0] === CloudSandboxSessionFeed)?.args[4];
+		assert.ok(typeof canConnect === 'function');
+		const allowed = [canConnect()];
+		h.state.hasFocus = false;
+		h.focusChanged.fire(false);
+		await timeout(59_999);
+		allowed.push(canConnect());
+		await timeout(1);
+		allowed.push(canConnect());
+		h.state.hasFocus = true;
+		h.focusChanged.fire(true);
+		allowed.push(canConnect());
+		await h.setChatVisible(false);
+		await timeout(59_999);
+		allowed.push(canConnect());
+		await timeout(1);
+		allowed.push(canConnect());
+		await h.setChatVisible(true);
+		allowed.push(canConnect());
+		assert.deepStrictEqual(allowed, [true, true, false, true, true, false, true]);
+	}));
 
 	test('resumes a deferred feed before one catch-up even when the old socket remains connected', async () => {
 		let deferred = false;

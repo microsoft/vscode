@@ -20,7 +20,8 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -29,6 +30,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -47,6 +49,7 @@ import { ChangesViewPane } from '../../../../../workbench/contrib/sessionChanges
 import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import '../../../changes/browser/changesActions.js';
+import '../../../changes/browser/changesView.contribution.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -136,9 +139,10 @@ suite('DesktopLayoutController', () => {
 		return editor;
 	}
 
-	function makeCustomEditor(resource: URI = URI.file('/repo/custom.editor')): CustomEditorInput {
+	function makeCustomEditor(resource: URI = URI.file('/repo/custom.editor'), viewType?: string): CustomEditorInput {
 		const editor = Object.create(CustomEditorInput.prototype) as CustomEditorInput;
 		Object.defineProperty(editor, 'resource', { value: resource });
+		Object.defineProperty(editor, 'viewType', { value: viewType });
 		return editor;
 	}
 
@@ -852,6 +856,79 @@ suite('DesktopLayoutController', () => {
 
 		assert.deepStrictEqual(detailsVisibility, [false, false, false]);
 	});
+
+	for (const isCreated of [false, true]) {
+		for (const viewType of ['vscode.markdown.editor', 'vscode.markdown.preview.editor', 'mainThreadWebview-markdown.preview']) {
+			test(`[desktop] floating Files stays available for ${viewType} in a ${isCreated ? 'created' : 'draft'} session`, async () => {
+				createDesktopController({ activateAux: true, floatingDetails: true });
+				await timeout(0);
+				const session = makeSession(URI.parse('session:markdown'), { isCreated, status: isCreated ? SessionStatus.Completed : SessionStatus.Untitled });
+				harness.activeSessionObs.set(session, undefined);
+				harness.visibleSessionsObs.set([session], undefined);
+				await timeout(0);
+				harness.activeEditorInput = makeFileEditor('/repo/README.md');
+				harness.onDidActiveEditorChange.fire();
+				harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				await timeout(0);
+
+				harness.setPartHiddenCalls = [];
+				harness.openedViewContainers = [];
+				harness.activeEditorInput = viewType === 'mainThreadWebview-markdown.preview'
+					? makeWebviewEditor(viewType, 'markdown.preview')
+					: makeCustomEditor(URI.file('/repo/README.md'), viewType);
+				harness.onDidActiveEditorChange.fire();
+				await timeout(0);
+				const floating = {
+					visible: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+					available: harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key),
+					files: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+					hidden: harness.setPartHiddenCalls.some(call => call.part === Parts.AUXILIARYBAR_PART && call.hidden),
+				};
+				harness.layoutService.setAuxiliaryBarFloating(false);
+				await timeout(0);
+				const docked = harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+				harness.layoutService.setAuxiliaryBarFloating(true);
+				await timeout(0);
+				const restored = harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+				harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+				harness.activeEditorInput = makeFileEditor('/repo/package.json');
+				harness.onDidActiveEditorChange.fire();
+				harness.activeEditorInput = makeWebviewEditor(viewType, viewType === 'mainThreadWebview-markdown.preview' ? 'markdown.preview' : undefined);
+				harness.onDidActiveEditorChange.fire();
+				await timeout(0);
+				assert.deepStrictEqual({
+					floating, docked, restored, explicitlyHidden: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+				}, {
+					floating: { visible: true, available: true, files: true, hidden: false },
+					docked: false, restored: true, explicitlyHidden: false,
+				});
+			});
+		}
+
+		test(`[desktop] floating Markdown support does not expose Files for unrelated or external editors in a ${isCreated ? 'created' : 'draft'} session`, async () => {
+			createDesktopController({ activateAux: true, floatingDetails: true });
+			await timeout(0);
+			const session = makeSession(URI.parse('session:unrelated'), { isCreated, status: isCreated ? SessionStatus.Completed : SessionStatus.Untitled });
+			harness.activeSessionObs.set(session, undefined);
+			harness.visibleSessionsObs.set([session], undefined);
+			await timeout(0);
+			const states: boolean[] = [];
+			for (const editor of [
+				makeCustomEditor(URI.file('/repo/custom.editor'), 'example.custom'),
+				makeCustomEditor(URI.file('/outside/README.md'), 'vscode.markdown.editor'),
+				makeWebviewEditor('example.preview'),
+			]) {
+				harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				harness.activeEditorInput = editor;
+				harness.onDidActiveEditorChange.fire();
+				await timeout(0);
+				states.push(harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+			}
+			assert.deepStrictEqual(states, [false, false, false]);
+		});
+	}
 
 	test('[desktop] does not force-reveal the detail on editor activation, during or after a restore', async () => {
 		const controller = createDesktopController({ activateAux: true });
@@ -1849,7 +1926,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] Toggle Details toggles the file list of a multi diff editor instead of the details', () => {
+	test('[desktop] Toggle Details targets the multi diff file list while docked and the widget while floating', () => {
 		createDesktopController();
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		const configurationService = new TestConfigurationService({ [multiDiffEditorExperimentalFileListSetting]: true });
@@ -1886,6 +1963,14 @@ suite('DesktopLayoutController', () => {
 			textEditorActive: { fileListVisible: false, detailsVisible: true },
 			multiDiffEditorGroupToolbar: { fileListVisible: true, detailsVisible: true },
 		});
+		harness.layoutService.setAuxiliaryBarFloating(true);
+		assert.deepStrictEqual({
+			hideWidget: toggle(multiDiffEditorGroup),
+			showWidget: toggle(multiDiffEditorGroup),
+		}, {
+			hideWidget: { fileListVisible: true, detailsVisible: false },
+			showWidget: { fileListVisible: true, detailsVisible: true },
+		});
 	});
 
 	test('[D7 desktop] contributes Toggle Details after Maximize with the editor title layout actions', () => {
@@ -1901,6 +1986,15 @@ suite('DesktopLayoutController', () => {
 		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor header');
 		assert.ok(maximizeItem, 'Maximize item should be registered');
 		const when = items[0].when?.serialize() ?? '';
+		const expression = items[0].when;
+		assert.ok(expression);
+		const values: Record<string, ContextKeyValue> = Object.fromEntries(expression.keys().map(key => [key, true]));
+		values[IsAuxiliaryWindowContext.key] = false;
+		const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
+		const visibleByMode = [false, true].map(floating => {
+			values[`config.${SESSIONS_FLOATING_DETAILS_SETTING}`] = floating;
+			return expression.evaluate(context);
+		});
 		assert.deepStrictEqual({
 			group: items[0].group,
 			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
@@ -1910,6 +2004,8 @@ suite('DesktopLayoutController', () => {
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 			gatedOnMultiDiffEditorFileList: when.includes(MultiDiffEditorFileListAvailableContext.key),
+			visibleByMode,
+			commandAvailable: !!CommandsRegistry.getCommand(TOGGLE_DETAILS_COMMAND_ID),
 		}, {
 			group: 'navigation',
 			icon: Codicon.listSelection.id,
@@ -1919,6 +2015,8 @@ suite('DesktopLayoutController', () => {
 			gatedOnEditorArea: true,
 			gatedOnDockedDetails: true,
 			gatedOnMultiDiffEditorFileList: true,
+			visibleByMode: [true, false],
+			commandAvailable: true,
 		});
 	});
 
