@@ -165,6 +165,9 @@ export class BrowserView extends Disposable {
 		this._updateBackgroundThrottling();
 		this._register(this.onDidChangeAudiences(() => this._updateBackgroundThrottling()));
 		this._register(this.onDidChangeOwner(() => this._updateBackgroundThrottling()));
+		// Electron only keeps a never-shown view rendering if the setting is applied once its frame exists,
+		// so re-apply it whenever a new document is ready (this also covers renderer swaps on navigation).
+		this._view.webContents.on('dom-ready', () => this._updateBackgroundThrottling());
 		if (this.session.network) {
 			this._view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
 		}
