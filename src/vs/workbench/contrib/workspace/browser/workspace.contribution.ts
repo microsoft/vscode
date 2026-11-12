@@ -399,13 +399,13 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			let trustOption: string | undefined;
 			let dontTrustOption: string | undefined;
 			const isAiGeneratedWorkspace = await this.isAiGeneratedWorkspace();
-			if (isAiGeneratedWorkspace && this.productService.aiGeneratedWorkspaceTrust) {
+			if (isAiGeneratedWorkspace && !this.productService.aiGeneratedWorkspaceTrust) {
+				console.warn('AI generated workspace trust dialog contents not available.');
+			} else if (isAiGeneratedWorkspace && this.productService.aiGeneratedWorkspaceTrust) {
 				titleString = this.productService.aiGeneratedWorkspaceTrust.title;
 				learnMoreString = this.productService.aiGeneratedWorkspaceTrust.startupTrustRequestLearnMore;
 				trustOption = this.productService.aiGeneratedWorkspaceTrust.trustOption;
 				dontTrustOption = this.productService.aiGeneratedWorkspaceTrust.dontTrustOption;
-			} else {
-				console.warn('AI generated workspace trust dialog contents not available.');
 			}
 
 			const title = titleString ?? (this.useWorkspaceLanguage ?
@@ -413,7 +413,10 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				localize('folderTrust', "Do you trust the authors of the files in this folder?"));
 
 			let checkboxText: string | undefined;
-			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace());
+			const workspace = this.workspaceContextService.getWorkspace();
+			// Trust targets the folder the window is at now, which differs from workspace.uri while at an alternate location
+			const identifier = toWorkspaceIdentifier(workspace);
+			const workspaceIdentifier = isSingleFolderWorkspaceIdentifier(identifier) && workspace.folders.length === 1 ? { id: identifier.id, uri: workspace.folders[0].uri } : identifier;
 			const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
 			const isEmptyWindow = isEmptyWorkspaceIdentifier(workspaceIdentifier);
 			if (!isAiGeneratedWorkspace && this.workspaceTrustManagementService.canSetParentFolderTrust()) {
