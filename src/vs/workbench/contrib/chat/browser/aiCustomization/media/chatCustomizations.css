@@ -28,6 +28,17 @@
 	padding-top: var(--vscode-spacing-size80);
 }
 
+.chat-customizations-hover .hover-contents p:first-child {
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.chat-customizations-hover .hover-contents p:nth-of-type(2) {
+	margin-top: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	overflow-wrap: anywhere;
+}
+
 .chat-customizations-hover table {
 	width: 100%;
 	border-collapse: collapse;
