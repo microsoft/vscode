@@ -7,9 +7,10 @@ import assert from 'assert';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
+import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -32,6 +33,7 @@ class TestElectronWebviewElement extends ElectronWebviewElement {
 
 suite('ElectronWebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	suiteSetup(() => ipcRenderer.invoke('vscode:test-set-web-contents-focus', true));
 
 	function createWebview(shortcutStates: boolean[] = [], windowId = 42, titleBarStyle = 'native') {
 		const calls: { command: string; args: unknown }[] = [];
@@ -51,7 +53,8 @@ suite('ElectronWebviewElement', () => {
 				call: (command, args) => channel.call(undefined, command, args),
 			}),
 		});
-		instantiationService.stub(INativeHostService, { windowId });
+		const nativeFocus = store.add(new Emitter<number>());
+		instantiationService.stub(INativeHostService, { windowId, onDidFocusMainOrAuxiliaryWindow: nativeFocus.event });
 		instantiationService.stub(IRemoteAuthorityResolverService, {});
 		instantiationService.stub(ITunnelService, {});
 		const themeProvider = upcastPartial<WebviewThemeDataProvider>({
@@ -67,7 +70,7 @@ suite('ElectronWebviewElement', () => {
 		if (webview.element) {
 			mainWindow.document.body.appendChild(webview.element);
 		}
-		return { webview, calls };
+		return { webview, calls, nativeFocus };
 	}
 
 	function focusIframe(webview: TestElectronWebviewElement): void {
@@ -76,12 +79,12 @@ suite('ElectronWebviewElement', () => {
 		assert.strictEqual(webview.element.ownerDocument.activeElement, webview.element);
 	}
 
-	function focusOutsideWebviews(): void {
-		const button = mainWindow.document.createElement('button');
-		mainWindow.document.body.appendChild(button);
+	function focusOutsideWebviews(targetDocument = mainWindow.document): void {
+		const button = targetDocument.createElement('button');
+		targetDocument.body.appendChild(button);
 		store.add(toDisposable(() => button.remove()));
 		button.focus();
-		assert.strictEqual(mainWindow.document.activeElement, button);
+		assert.strictEqual(targetDocument.activeElement, button);
 	}
 
 	function createAuxiliaryDocument() {
@@ -221,6 +224,101 @@ suite('ElectronWebviewElement', () => {
 		focusOutsideWebviews();
 		second.handleFocusChange(false);
 		assert.deepStrictEqual({ statesBeforeBlur, states }, { statesBeforeBlur: [true], states: [true, false] });
+	});
+
+	for (const dispose of [false, true]) {
+		test(`releases an unreported focus owner after the previous view's ${dispose ? 'disposal' : 'blur'}`, async () => {
+			const states: boolean[] = [];
+			const first = createWebview(states).webview;
+			const second = createWebview(states).webview;
+			focusIframe(first);
+			first.handleFocusChange(true);
+			focusIframe(second);
+			if (dispose) {
+				first.dispose();
+			} else {
+				first.handleFocusChange(false);
+			}
+			assert.deepStrictEqual(states, [true]);
+			focusOutsideWebviews();
+			await Promise.resolve();
+			// The second webview's poll samples false both times and emits no notification.
+			assert.deepStrictEqual(states, [true, false]);
+		});
+	}
+
+	test('reacquires shortcuts after native focus returns before the next webview poll', async () => {
+		const states: boolean[] = [];
+		const first = createWebview(states).webview;
+		const { webview: second, nativeFocus } = createWebview(states);
+		focusIframe(first);
+		first.handleFocusChange(true);
+		focusIframe(second);
+		second.handleFocusChange(true);
+		await Promise.resolve();
+		try {
+			await ipcRenderer.invoke('vscode:test-set-web-contents-focus', false);
+			assert.strictEqual(mainWindow.document.hasFocus(), false);
+			first.handleFocusChange(false);
+			assert.deepStrictEqual(states, [true, true, false]);
+		} finally {
+			await ipcRenderer.invoke('vscode:test-set-web-contents-focus', true);
+		}
+		assert.strictEqual(mainWindow.document.hasFocus(), true, 'test renderer regained native focus');
+		focusIframe(second);
+		assert.strictEqual(mainWindow.document.hasFocus(), true, 'test renderer remains focused in iframe');
+		nativeFocus.fire(mainWindow.vscodeWindowId);
+		await Promise.resolve();
+		// The second webview's poll still remembers true, so it does not report focus again.
+		assert.deepStrictEqual(states, [true, true, false, true]);
+		focusOutsideWebviews();
+		await Promise.resolve();
+		assert.deepStrictEqual(states, [true, true, false, true, false]);
+	});
+
+	test('observes focus in the owning window after moving a webview', async () => {
+		const states: boolean[] = [];
+		const webview = createWebview(states).webview;
+		const auxiliaryDocument = createAuxiliaryDocument();
+		const auxiliaryWindow = auxiliaryDocument.defaultView;
+		assert.ok(auxiliaryWindow);
+		ensureCodeWindow(auxiliaryWindow, 42);
+		webview.mountTo(auxiliaryDocument.body, auxiliaryWindow);
+		focusIframe(webview);
+		webview.handleFocusChange(true);
+		focusOutsideWebviews(auxiliaryDocument);
+		await Promise.resolve();
+		assert.deepStrictEqual(states, [true, false]);
+
+		webview.mountTo(mainWindow.document.body, mainWindow);
+		focusIframe(webview);
+		assert.strictEqual(mainWindow.document.hasFocus(), true, 'test renderer remains focused after adoption');
+		await Promise.resolve();
+		assert.deepStrictEqual(states, [true, false, true]);
+		focusOutsideWebviews();
+		await Promise.resolve();
+		assert.deepStrictEqual(states, [true, false, true, false]);
+	});
+
+	test('native activation reconciles the activated window before a stale owner in another document', async () => {
+		const states: boolean[] = [];
+		const first = createWebview(states).webview;
+		const { webview: second, nativeFocus } = createWebview(states);
+		const auxiliaryDocument = createAuxiliaryDocument();
+		const auxiliaryWindow = auxiliaryDocument.defaultView;
+		assert.ok(auxiliaryWindow);
+		ensureCodeWindow(auxiliaryWindow, 42);
+		second.mountTo(auxiliaryDocument.body, auxiliaryWindow);
+		focusIframe(second);
+		second.handleFocusChange(true);
+		await Promise.resolve();
+		first.handleFocusChange(true); // A delayed focus report must not override actual auxiliary focus.
+		nativeFocus.fire(auxiliaryWindow.vscodeWindowId);
+		await Promise.resolve();
+		assert.deepStrictEqual(states, [true, true]);
+		focusOutsideWebviews(auxiliaryDocument);
+		await Promise.resolve();
+		assert.deepStrictEqual(states, [true, true, false]);
 	});
 
 	test('disposing a focused webview restores native shortcuts after its view zone is removed', () => {

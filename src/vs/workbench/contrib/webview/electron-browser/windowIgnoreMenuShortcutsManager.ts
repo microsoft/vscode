@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from '../../../../base/browser/dom.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { addDisposableListener, EventType, getWindow } from '../../../../base/browser/dom.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -19,9 +19,17 @@ export class WindowIgnoreMenuShortcutsManager extends Disposable {
 
 	private static readonly _shortcutOwners = new Map<number, WindowIgnoreMenuShortcutsManager>();
 
+	private static getFocusedWebview(element: HTMLIFrameElement | undefined): WindowIgnoreMenuShortcutsManager | undefined {
+		const targetDocument = element?.ownerDocument;
+		const activeElement = targetDocument?.activeElement;
+		return activeElement && targetDocument?.hasFocus() ? this._webviews.get(activeElement) : undefined;
+	}
+
 	private readonly _isUsingNativeTitleBars: boolean;
 
 	private readonly _webviewMainService: IWebviewManagerService;
+	private readonly _focusListeners = this._register(new DisposableStore());
+	private _focusWindow: Window | undefined;
 
 	constructor(
 		private readonly _webviewElement: HTMLIFrameElement | undefined,
@@ -35,7 +43,27 @@ export class WindowIgnoreMenuShortcutsManager extends Disposable {
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 		if (this._webviewElement && this._shouldToggleMenuShortcutsEnablement) {
 			WindowIgnoreMenuShortcutsManager._webviews.set(this._webviewElement, this);
+			this.setWindow(getWindow(this._webviewElement));
+			this._register(this._nativeHostService.onDidFocusMainOrAuxiliaryWindow(id => {
+				if (this._webviewElement && getWindow(this._webviewElement).vscodeWindowId === id) {
+					queueMicrotask(() => this.updateFocus());
+				}
+			}));
 		}
+	}
+
+	public setWindow(targetWindow: Window): void {
+		if (this._store.isDisposed || !this._shouldToggleMenuShortcutsEnablement || this._focusWindow === targetWindow) {
+			return;
+		}
+		this._focusListeners.clear();
+		this._focusWindow = targetWindow;
+		// A short focus change can happen entirely between the webview's focus polls.
+		// Wait for the DOM focus transition to finish before reconciling the native state.
+		const updateFocus = () => queueMicrotask(() => this.updateFocus());
+		this._focusListeners.add(addDisposableListener(targetWindow, EventType.FOCUS, updateFocus, true));
+		this._focusListeners.add(addDisposableListener(targetWindow, EventType.BLUR, updateFocus, true));
+		updateFocus();
 	}
 
 	public didFocus(): void {
@@ -47,23 +75,22 @@ export class WindowIgnoreMenuShortcutsManager extends Disposable {
 	}
 
 	public didBlur(): void {
+		this.updateFocus();
+	}
+
+	private updateFocus(): void {
 		if (this._store.isDisposed) {
 			return;
 		}
 		const owner = WindowIgnoreMenuShortcutsManager._shortcutOwners.get(this._nativeHostService.windowId);
-		if (!owner) {
-			return;
-		}
-
-		// Programmatic focus and the webview's polling can miss a complete focus round trip.
-		// Reconcile against the active iframe before releasing the window's native state.
-		const targetWindow = owner._webviewElement ? getWindow(owner._webviewElement) : undefined;
-		const activeElement = targetWindow?.document.activeElement;
-		const focusedWebview = activeElement ? WindowIgnoreMenuShortcutsManager._webviews.get(activeElement) : undefined;
-		if (focusedWebview && focusedWebview._nativeHostService.windowId === this._nativeHostService.windowId
-			&& (focusedWebview !== this || targetWindow?.document.hasFocus())) {
+		const focusedWebview = WindowIgnoreMenuShortcutsManager.getFocusedWebview(this._webviewElement)
+			?? WindowIgnoreMenuShortcutsManager.getFocusedWebview(owner?._webviewElement);
+		if (focusedWebview && focusedWebview._nativeHostService.windowId === this._nativeHostService.windowId) {
 			WindowIgnoreMenuShortcutsManager._shortcutOwners.set(this._nativeHostService.windowId, focusedWebview);
-		} else {
+			if (!owner) {
+				focusedWebview.setIgnoreMenuShortcuts(true);
+			}
+		} else if (owner) {
 			WindowIgnoreMenuShortcutsManager._shortcutOwners.delete(this._nativeHostService.windowId);
 			owner.setIgnoreMenuShortcuts(false);
 		}

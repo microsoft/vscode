@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../base/browser/dom.js';
-import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
+import { CodeWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -79,6 +79,11 @@ export class ElectronWebviewElement extends WebviewElement {
 				this._hasFindResult.fire(result.matches > 0);
 			}));
 		}
+	}
+
+	override mountTo(element: HTMLElement, targetWindow: CodeWindow): void {
+		super.mountTo(element, targetWindow);
+		this._webviewKeyboardHandler.setWindow(targetWindow);
 	}
 
 	override dispose(): void {
