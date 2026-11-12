@@ -34,25 +34,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Promises } from '../../../../base/common/async.js';
-import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
-
-/**
- * Runs an operation that re-creates parts of the UI and restores keyboard focus to the element
- * that had it when focus was lost to the document body and that element is still attached.
- */
-export async function preserveFocus<T>(operation: () => Promise<T>): Promise<T> {
-	const previous = getActiveElement();
-	try {
-		return await operation();
-	} finally {
-		if (isHTMLElement(previous) && previous.isConnected && previous.ownerDocument.activeElement !== previous) {
-			const active = getActiveElement();
-			if (!active || active === previous.ownerDocument.body) {
-				previous.focus();
-			}
-		}
-	}
-}
 
 export class DidEnterWorkspaceEvent implements IDidEnterWorkspaceEvent {
 
@@ -204,7 +185,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 		validatePrimary();
 
-		await preserveFocus(() => this.contextService.setFolderLocation(primary, location));
+		await this.contextService.setFolderLocation(primary, location);
 		this.workspaceFolderLocationService.setCurrentLocation(resolved, options?.reason);
 	}
 
