@@ -10991,7 +10991,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('conversation progress collapses reasoning and tool calls into one section with its extracted heading', async () => {
+	test('conversation progress collapses reasoning and tool calls into one section named by its activity, then by what it did', async () => {
 		const clock = sinon.useFakeTimers({ now: 1_000_000, toFake: ['Date'] });
 		store.add(toDisposable(() => clock.restore()));
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Conversation });
@@ -11041,8 +11041,8 @@ suite('ChatListRenderer', () => {
 		}, {
 			thinking: { title: 'Planning the fix', expanded: 'false', order: ['section', 'progress'] },
 			reading: { title: 'Reading renderer.ts', expanded: 'false', order: ['section', 'progress'] },
-			thinkingAgain: { title: 'Thinking', expanded: 'false', order: ['section', 'progress'] },
-			finished: { title: 'Planning the fix', expanded: 'false', order: ['section', 'markdown', 'progress'] },
+			thinkingAgain: { title: 'Thinking: Compare the results.', expanded: 'false', order: ['section', 'progress'] },
+			finished: { title: 'Finished with 1 step', expanded: 'false', order: ['section', 'markdown', 'progress'] },
 			rows: ['reasoning', 'tool', 'reasoning'],
 			toolChains: 0,
 		});
@@ -11126,7 +11126,7 @@ suite('ChatListRenderer', () => {
 			title: sections[0]?.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent?.trim(),
 		}, {
 			sections: 1,
-			title: 'Thinking',
+			title: 'Thinking: the results.',
 		});
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
