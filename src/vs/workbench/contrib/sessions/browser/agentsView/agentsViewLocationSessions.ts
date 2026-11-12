@@ -39,13 +39,15 @@ export class AgentsViewLocationSessions extends Disposable {
 	}
 
 	private async _showLastSession(): Promise<void> {
-		const folder = this._workspaceContextService.getWorkspace().folders[0];
-		const resource = folder && this._agentsViewFolderLocationService.getLastSession(folder.uri);
+		const location = this._workspaceContextService.getWorkspace().folders[0]?.uri;
+		const resource = location && this._agentsViewFolderLocationService.getLastSession(location);
 		// A session that is no longer known, such as one deleted meanwhile, shows nothing
 		const session = resource && this._sessionsManagementService.getSession(resource);
 		if (session) {
 			// The folder stays at the location the user picked, also when the session has come to work elsewhere since
 			await this._agentsChatPartService.openChat(session, undefined, { keepFolder: true });
+			// Not opened through a move of the folder, which is what marks a location as used otherwise
+			this._agentsViewFolderLocationService.touchLocation(location);
 		}
 	}
 }

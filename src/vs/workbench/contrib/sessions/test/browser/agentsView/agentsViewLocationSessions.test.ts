@@ -35,7 +35,7 @@ suite('AgentsViewLocationSessions', () => {
 		const known = new ResourceMap<ISession>(sessions.map((resource): [URI, ISession] => [resource, upcastPartial<ISession>({ resource })]));
 		store.add(new AgentsViewLocationSessions(
 			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeCurrentLocation: onDidChange.event }),
-			upcastPartial<IAgentsViewFolderLocationService>({ getLastSession: location => last.get(location) }),
+			upcastPartial<IAgentsViewFolderLocationService>({ getLastSession: location => last.get(location), touchLocation: () => { } }),
 			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }),
 			upcastPartial<ISessionsManagementService>({ getSession: resource => known.get(resource) }),
 			upcastPartial<IAgentsChatPartService>({
