@@ -216,18 +216,23 @@ suite('Menubar', () => {
 				assert.ok(holder);
 				const rect = holder.getBoundingClientRect();
 				const button = compactContainer.getBoundingClientRect();
+				// Where the menubar placed the holder before alignment. Left-expanding menus use the integer innerWidth, which
+				// at fractional DPRs can already overlap the title by less than a pixel; aligning must not move it further.
+				const unaligned = horizontal === HorizontalDirection.Right
+					? button.left + compactContainer.clientWidth
+					: getWindow(holder).visualViewport!.width - getWindow(holder).innerWidth + button.left;
 				result[name] = {
 					aligned: misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64,
 					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
-					clearOfButton: horizontal === HorizontalDirection.Right ? rect.left >= button.right - 0.01 : rect.right <= button.left + 0.01
+					notMovedTowardTitle: horizontal === HorizontalDirection.Right ? rect.left >= unaligned - 0.01 : rect.right <= unaligned + 0.01
 				};
 				menubar.blur();
 				menubar.dispose();
 			}
 
 			assert.deepStrictEqual(result, {
-				expandsRight: { aligned: true, horizontalInset: 'left', clearOfButton: true },
-				expandsLeft: { aligned: true, horizontalInset: 'right', clearOfButton: true }
+				expandsRight: { aligned: true, horizontalInset: 'left', notMovedTowardTitle: true },
+				expandsLeft: { aligned: true, horizontalInset: 'right', notMovedTowardTitle: true }
 			});
 		});
 	});

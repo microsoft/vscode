@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, getDomNodePagePosition, getWindow, isHTMLElement } from '../../../../browser/dom.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, getFocusedContextView, IContextViewRenderContext, IDelegate, isContextViewFocused } from '../../../../browser/ui/contextview/contextview.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, getDevicePixelRounding, getFocusedContextView, IContextViewRenderContext, IDelegate, isContextViewFocused } from '../../../../browser/ui/contextview/contextview.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
 import { DeferredPromise, timeout } from '../../../../common/async.js';
@@ -339,7 +339,8 @@ suite('ContextView', () => {
 				contextView.show({
 					getAnchor: () => anchor,
 					render: view => {
-						view.style.width = '10px';
+						// Layout resets the view's width, so size it with a minimum to keep it stable across layouts
+						view.style.minWidth = '10px';
 						view.style.height = `${height}px`;
 						return null;
 					}
@@ -369,6 +370,28 @@ suite('ContextView', () => {
 		assert.deepStrictEqual(result, {
 			'absolute below': aligned(), 'absolute above': aligned(), 'absolute pinned': pinned(),
 			'fixed below': aligned(), 'fixed above': aligned(), 'fixed pinned': pinned()
+		});
+	});
+
+	test('device-pixel rounding never moves a view past the viewport (#347796)', () => {
+		// start, size, anchorStart, anchorSize, viewportStart, viewportSize at DPR 1.32
+		const round = (start: number, size: number, anchorStart: number, anchorSize: number) => getDevicePixelRounding(start, size, anchorStart, anchorSize, 0, 1002, 1.32);
+		assert.deepStrictEqual({
+			besideBefore: round(100, 50, 160, 20),
+			besideAfter: round(181, 50, 160, 20),
+			besidePinnedAtStart: round(0.4, 50, 60, 20),
+			alignedInside: round(400, 216, 380, 260),
+			alignedFlushToEnd: round(786, 216, 786, 216),
+			alignedFlushToStart: round(0, 216, 0, 216),
+			alignedFillingViewport: round(0.3, 1001.5, 0, 1002),
+		}, {
+			besideBefore: 'start',
+			besideAfter: 'end',
+			besidePinnedAtStart: 'none',
+			alignedInside: 'nearest',
+			alignedFlushToEnd: 'start',
+			alignedFlushToStart: 'end',
+			alignedFillingViewport: 'none',
 		});
 	});
 

@@ -224,18 +224,26 @@ export interface IContextViewProvider {
 }
 
 /**
- * Rounds a view away from its anchor so that aligning it to device pixels never moves it over the
- * anchor, and leaves it unaligned when it has less than a device pixel of room toward the viewport.
+ * Chooses how to align a view to device pixels on one axis. A view beside its anchor rounds away
+ * from it, so that aligning never moves the view over the anchor; a view that lines up with its
+ * anchor rounds to the nearest device pixel. Either way the view only moves toward a viewport edge
+ * when it has at least a device pixel of room there, and is left unaligned otherwise.
  */
-function getDevicePixelRounding(start: number, size: number, anchorStart: number, anchorSize: number, viewportStart: number, viewportSize: number, devicePixelRatio: number): DOM.DevicePixelRounding {
+export function getDevicePixelRounding(start: number, size: number, anchorStart: number, anchorSize: number, viewportStart: number, viewportSize: number, devicePixelRatio: number): DOM.DevicePixelRounding {
 	const epsilon = 0.01;
+	const devicePixel = 1 / devicePixelRatio;
+	const roomBefore = start - viewportStart;
+	const roomAfter = viewportStart + viewportSize - (start + size);
 	if (start + size <= anchorStart + epsilon) {
-		return start - viewportStart >= 1 / devicePixelRatio ? 'start' : 'none';
+		return roomBefore >= devicePixel ? 'start' : 'none';
 	}
 	if (start + epsilon >= anchorStart + anchorSize) {
-		return viewportStart + viewportSize - (start + size) >= 1 / devicePixelRatio ? 'end' : 'none';
+		return roomAfter >= devicePixel ? 'end' : 'none';
 	}
-	return 'nearest';
+	if (roomAfter < devicePixel) {
+		return roomBefore >= devicePixel ? 'start' : 'none';
+	}
+	return roomBefore < devicePixel ? 'end' : 'nearest';
 }
 
 export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor): IRect {

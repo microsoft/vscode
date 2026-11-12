@@ -772,18 +772,29 @@ suite('dom', () => {
 			return misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64;
 		}
 
-		function createPositioned(parent: HTMLElement, insets: Partial<Record<'left' | 'top' | 'right' | 'bottom', string>>): HTMLElement {
+		function createPositioned(parent: HTMLElement, insets: Partial<Record<'left' | 'top' | 'right' | 'bottom', string>>, zoom = 1): HTMLElement {
 			const element = parent.appendChild($('div'));
 			element.style.position = 'fixed';
 			element.style.width = '50px';
 			element.style.height = '20px';
 			Object.assign(element.style, insets);
+			// Move px insets so the element sits half a device pixel off the grid, clear of the rounding tolerance at any DPR
+			const dpr = getWindow(element).devicePixelRatio;
+			const rect = element.getBoundingClientRect();
+			for (const [start, end, value] of [['left', 'right', rect.left], ['top', 'bottom', rect.top]] as const) {
+				const offset = ((Math.floor(value * dpr) + 0.5) / dpr - value) / zoom;
+				if (element.style[start].endsWith('px')) {
+					element.style[start] = `${parseFloat(element.style[start]) + offset}px`;
+				} else if (element.style[end].endsWith('px')) {
+					element.style[end] = `${parseFloat(element.style[end]) - offset}px`;
+				}
+			}
 			return element;
 		}
 
 		test('moves fractional left/top or right/bottom insets onto whole device pixels without drifting', () => {
-			const leftTop = createPositioned(host, { left: '10.3px', top: '20.7px' });
-			const rightBottom = createPositioned(host, { right: '10.3px', bottom: '20.7px' });
+			const leftTop = createPositioned(host, { left: '10px', top: '20px' });
+			const rightBottom = createPositioned(host, { right: '10px', bottom: '20px' });
 			const percent = createPositioned(host, { left: '10.3%', top: '20.7%' });
 			const results = [leftTop, rightBottom].map(element => {
 				const before = isDeviceAligned(element);
@@ -807,10 +818,10 @@ suite('dom', () => {
 		test('accounts for CSS zoom on ancestors, including shadow hosts', () => {
 			const zoomed = host.appendChild($('div'));
 			zoomed.style.zoom = '2';
-			const element = createPositioned(zoomed, { left: '10.3px', top: '20.7px' });
+			const element = createPositioned(zoomed, { left: '10px', top: '20px' }, 2);
 			const shadowHost = host.appendChild($('div'));
 			shadowHost.style.zoom = '2';
-			const shadowElement = createPositioned(shadowHost.attachShadow({ mode: 'open' }).appendChild($('div')), { left: '10.3px', top: '20.7px' });
+			const shadowElement = createPositioned(shadowHost.attachShadow({ mode: 'open' }).appendChild($('div')), { left: '10px', top: '20px' }, 2);
 			const results = [element, shadowElement].map(element => {
 				const before = isDeviceAligned(element);
 				alignToDevicePixels(element);
@@ -824,17 +835,18 @@ suite('dom', () => {
 			const dpr = getWindow(host).devicePixelRatio;
 			const near = (actual: number, expected: number) => Math.abs(actual - expected) <= dpr / 64;
 			const position = (direction: IDevicePixelAlignment) => {
-				const element = createPositioned(host, { left: '10.3px', top: '20.7px' });
+				const element = createPositioned(host, { left: '10px', top: '20px' });
+				const before = element.getBoundingClientRect();
 				alignToDevicePixels(element, direction);
-				const rect = element.getBoundingClientRect();
-				return [rect.left * dpr, rect.top * dpr];
+				const after = element.getBoundingClientRect();
+				return { before: [before.left * dpr, before.top * dpr], after: [after.left * dpr, after.top * dpr] };
 			};
 			const upLeft = position({ horizontal: 'start', vertical: 'start' });
 			const downRight = position({ horizontal: 'end', vertical: 'end' });
 
 			assert.deepStrictEqual({
-				upLeft: [near(upLeft[0], Math.floor(10.3 * dpr)), near(upLeft[1], Math.floor(20.7 * dpr))],
-				downRight: [near(downRight[0], Math.ceil(10.3 * dpr)), near(downRight[1], Math.ceil(20.7 * dpr))],
+				upLeft: upLeft.after.map((value, i) => near(value, Math.floor(upLeft.before[i]))),
+				downRight: downRight.after.map((value, i) => near(value, Math.ceil(downRight.before[i]))),
 			}, {
 				upLeft: [true, true],
 				downRight: [true, true],
