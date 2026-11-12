@@ -12,22 +12,27 @@ import { localize2 } from '../../../nls.js';
 import { Action2 } from '../../../platform/actions/common/actions.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { ISSHRemoteAgentHostService } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
-import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../common/contextkeys.js';
-import { logSessionsInteraction } from '../../common/sessionsTelemetry.js';
-import { Menus } from '../../browser/menus.js';
-import { resolveSessionCommandTarget } from '../../services/sessions/browser/sessionCommandTarget.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
+import { IsPhoneLayoutContext, SessionsWelcomeVisibleContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
+import { logSessionsInteraction } from '../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
+import { AgentsWindowMenus } from '../agentsWindowMenus.js';
+import { resolveSessionCommandTarget } from '../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IActionViewItemService } from '../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../workbench/common/contributions.js';
-import { resolveRemoteAuthority, resolveRemoteFolderUri } from '../openInVSCodeUtils.js';
+import { getEditorWindowSessionResource, notifyEditorWindowSessionUnsupported, resolveRemoteAuthority, resolveRemoteFolderUri } from '../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
 import { OpenInVSCodeTitleBarWidget } from '../widget/openInVSCodeWidget.js';
-import { IChat, ISession } from '../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../workbench/services/sessions/common/session.js';
 
 export class OpenInVSCodeAction extends Action2 {
 	static readonly ID = 'sessions.openInVSCode';
@@ -39,7 +44,7 @@ export class OpenInVSCodeAction extends Action2 {
 			icon: Codicon.vscodeInsiders,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
-				id: Menus.TitleBarCenterRight,
+				id: AgentsWindowMenus.TitleBarCenterRight,
 				group: 'navigation',
 				order: 7,
 				when: ContextKeyExpr.and(ContextKeyExpr.or(IsAuxiliaryWindowContext.toNegated(), LayoutModeContext)!, SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
@@ -89,7 +94,12 @@ export class OpenInVSCodeAction extends Action2 {
 		const remoteAuthority = resolveRemoteAuthority(
 			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
 
-		params.set('session', (context?.chat.resource ?? activeSession.resource).toString());
+		const chatSession = getEditorWindowSessionResource(context?.chat.resource ?? activeSession.resource, activeSession.providerId, sessionsProvidersService, remoteAgentHostService, accessor.get(IAgentHostConnectionsService), accessor.get(ITunnelAgentHostService), accessor.get(ISSHRemoteAgentHostService), accessor.get(IRemoteAgentHostLocationPreferenceService));
+		if (URI.isUri(chatSession)) {
+			params.set('session', chatSession.toString());
+		} else {
+			notifyEditorWindowSessionUnsupported(accessor.get(INotificationService), chatSession);
+		}
 
 		if (remoteAuthority) {
 			await openerService.open(URI.from({
@@ -119,7 +129,7 @@ export class OpenInVSCodeWidgetContribution extends Disposable implements IWorkb
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.TitleBarCenterRight, OpenInVSCodeAction.ID, (action, options) => {
+		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarCenterRight, OpenInVSCodeAction.ID, (action, options) => {
 			return instantiationService.createInstance(OpenInVSCodeTitleBarWidget, action, options, OpenInVSCodeAction.ID);
 		}, undefined));
 	}

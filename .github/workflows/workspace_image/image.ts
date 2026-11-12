@@ -24,7 +24,7 @@
 //
 // `restore` reads the API with the token in GH_TOKEN, which needs `actions: read`.
 
-import { execFile, spawn, spawnSync, type SpawnSyncOptions } from 'child_process';
+import { execFile, spawn, spawnSync, type ChildProcess, type SpawnSyncOptions } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -61,8 +61,6 @@ export const NATIVE_BUILD_INPUTS: { readonly files: readonly string[]; readonly 
 		'pnpm-workspace.yaml',
 		'build/pnpm-workspace.yaml',
 		'remote/pnpm-workspace.yaml',
-		'remote/web/pnpm-workspace.yaml',
-		'extensions/copilot/pnpm-workspace.yaml',
 	],
 	packageJsonFields: {
 		'package.json': ['nativeBuild', 'packageManager'],
@@ -128,6 +126,38 @@ function run(command: string, args: readonly string[], options: SpawnSyncOptions
 	return typeof result.stdout === 'string' ? result.stdout : '';
 }
 
+/**
+ * The exit code of a child process, once it exited: stopping it emits 'error' before it exits, and
+ * a process that didn't start emits only 'error'.
+ */
+function exitCode(child: ChildProcess): Promise<number | null> {
+	return new Promise(resolve => {
+		child.on('error', () => {
+			if (child.pid === undefined) {
+				resolve(null);
+			}
+		});
+		child.on('exit', code => resolve(code));
+	});
+}
+
+/** Runs a command of `restore` that its deadline stops, unlike `run`, which holds back the timer of the deadline */
+async function runUntilDeadline(command: string, args: readonly string[]): Promise<void> {
+	const child = spawn(command, args, { stdio: 'inherit', signal: downloads.signal });
+	let error: Error | undefined;
+	child.on('error', err => error = err);
+	const code = await exitCode(child);
+	downloads.signal.throwIfAborted();
+	if (code !== 0) {
+		throw error ?? new Error(`${command} ${args.join(' ')} exited with ${code}`);
+	}
+}
+
+/** Whether a volume is mounted at a folder, on Linux and macOS */
+export function isMountPoint(folder: string): boolean {
+	return fs.statSync(folder).dev !== fs.statSync(path.dirname(folder)).dev;
+}
+
 function workspace(): string {
 	const folder = process.env.GITHUB_WORKSPACE;
 	if (!folder) {
@@ -156,6 +186,11 @@ function toolFolders(root: string): Record<string, string> {
 
 /** Aborts the requests of `restore`, the writes of its image and the PowerShell that attaches it, when `restore` runs out of time */
 const downloads = new AbortController();
+
+/** Stops the writes and the commands of a restore that runs out of time, for scripts that mount images themselves */
+export function abortRestore(reason: Error): void {
+	downloads.abort(reason);
+}
 
 function githubHeaders(): Record<string, string> {
 	const token = process.env.GH_TOKEN;
@@ -390,9 +425,16 @@ async function locateZipEntry(url: string, total: number): Promise<Located> {
 }
 
 /** Reads ranges of the file of an artifact, and renews the signed URL when it expires */
-interface Source {
+export interface Source {
 	readonly size: number;
 	read(from: number, length: number): Promise<Buffer>;
+}
+
+/** Reads ranges of a packed image on the disk, such as one that a pipeline cache restored */
+export async function openFileSource(file: string): Promise<Source & { close(): Promise<void> }> {
+	const handle = await fs.promises.open(file, 'r');
+	const { size } = await handle.stat();
+	return { size, read: (from, length) => readAll(handle, length, from), close: () => handle.close() };
 }
 
 async function openArtifact(id: number): Promise<Source> {
@@ -677,124 +719,158 @@ function samePath(a: string, b: string): boolean {
 	return process.platform === 'win32' ? path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase() : path.resolve(a) === path.resolve(b);
 }
 
+/**
+ * Recreates a packed ext4 image in the sparse file `file` and mounts it at `root`, on Linux, and
+ * returns how to unmount it. The loop device attaches the file while the image is written, as
+ * attaching a file waits for the kernel to write its changes to the disk. udev reads the volume when
+ * it appears, before the image is in it, so this drops what udev read before the mount. barrier=0
+ * keeps an fsync in the volume from making the loop device wait for all of the image to reach the
+ * disk, which the kernel writes while the job goes on. noinit_itable leaves the inode tables that
+ * mkfs left to initialize alone, as they are zeros already, instead of writing them during the job.
+ */
+export async function mountLinuxImage(source: Source, file: string, root: string, connections: number): Promise<() => void> {
+	const sized = Promise.withResolvers<void>();
+	const attached = sized.promise.then(async () => {
+		const device = (await promisify(execFile)('sudo', ['losetup', '--find', '--show', file])).stdout.trim();
+		log(`attached the image to ${device}`);
+		return device;
+	});
+	// Awaited once the image is written
+	attached.catch(() => { });
+	let loop: string;
+	try {
+		log(await unpack(source, file, { sparse: true, connections, sized: () => sized.resolve() }));
+		loop = await attached;
+		// Bounded by its own timeout
+		spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
+		await runUntilDeadline('sudo', ['blockdev', '--flushbufs', loop]);
+		await runUntilDeadline('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
+	} catch (err) {
+		sized.reject(err);
+		const device = await attached.catch(() => undefined);
+		if (device) {
+			// The deadline may have stopped sudo after the mount
+			if (isMountPoint(root)) {
+				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
+			}
+			spawnSync('sudo', ['losetup', '--detach', device], { stdio: 'inherit' });
+		}
+		throw err;
+	}
+	return () => {
+		spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
+		spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
+	};
+}
+
+/**
+ * Recreates a packed disk image in the sparse file `file`, on macOS, and runs `attach`, which
+ * mounts its volume at `root`, and returns how to unmount it: `detach`.
+ */
+export async function mountDarwinImage(source: Source, file: string, root: string, connections: number, attach: readonly [string, ...string[]], detach: readonly [string, ...string[]]): Promise<() => void> {
+	const unmount = () => {
+		spawnSync(detach[0], detach.slice(1), { stdio: 'inherit' });
+	};
+	log(await unpack(source, file, { sparse: true, connections }));
+	try {
+		await runUntilDeadline(attach[0], attach.slice(1));
+	} catch (err) {
+		// The deadline may have stopped the attach after the mount
+		if (isMountPoint(root)) {
+			unmount();
+		}
+		throw err;
+	}
+	return unmount;
+}
+
+/**
+ * Recreates a packed VHDX image in the temporary file `file`, attaches it through the file system
+ * cache and mounts its volume at the folder `root`, on Windows, and returns how to unmount it. The
+ * first PowerShell of a job takes seconds to start, so `vhdScript` (vhd.ps1) starts while the image
+ * downloads, compiles the virtual disk API, and attaches the VHDX when it is complete. A volume can
+ * only be mounted at an empty folder, which `vacate` leaves once the image is written. `trust` trusts
+ * the Dev Drive of the image. `released` runs after every release.
+ */
+export async function mountWindowsImage(source: Source, file: string, root: string, connections: number, options: { readonly vhdScript: string; readonly trust: boolean; readonly vacate: () => void; readonly released: () => void }): Promise<() => void> {
+	const ready = `${file}.ready`;
+	fs.rmSync(file, { force: true });
+	fs.rmSync(ready, { force: true });
+	const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', options.vhdScript, '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', ...(options.trust ? ['-Trust'] : [])], { stdio: 'inherit', signal: downloads.signal });
+	const exited = exitCode(attach);
+	// Leaves `root` an empty folder, whatever vhd.ps1 did before it failed or was stopped: it may have
+	// attached the VHDX (for good, beyond its process), and mounted its volume. Deleting the VHDX also
+	// frees the memory that Windows keeps the temporary file in.
+	const release = () => {
+		// Fails when no volume is mounted at the folder
+		if (spawnSync('mountvol', [`${root}\\`, '/D'], { stdio: 'ignore' }).status === 0) {
+			log(`unmounted the image from ${root}`);
+		}
+		fs.rmSync(ready, { force: true });
+		try {
+			fs.rmSync(file, { force: true });
+		} catch {
+			// Windows keeps an attached VHDX open
+			spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'Dismount-DiskImage -ImagePath $env:WORKSPACE_IMAGE_VHDX | Out-Null'], { stdio: 'inherit', timeout: 30_000, env: { ...process.env, WORKSPACE_IMAGE_VHDX: file } });
+			try {
+				fs.rmSync(file, { force: true });
+				log('detached the image');
+			} catch (err) {
+				log(`could not detach the image: ${err}`);
+			}
+		}
+		options.released();
+	};
+	try {
+		log(await unpack(source, file, { sparse: false, temporary: true, connections }));
+		options.vacate();
+		fs.writeFileSync(ready, '');
+		const code = await exited;
+		if (code !== 0) {
+			throw new Error(`vhd.ps1 exited with ${code}`);
+		}
+	} catch (err) {
+		attach.kill();
+		await exited;
+		release();
+		throw err;
+	}
+	return release;
+}
+
 /** Mounts a disk image at the root folder, and returns how to unmount it */
 async function mount(source: Source, root: string, connections: number): Promise<() => void> {
 	const temp = process.env.RUNNER_TEMP ?? os.tmpdir();
 	const ws = workspace();
 	switch (process.platform) {
-		case 'linux': {
-			// An ext4 volume in a sparse file. The loop device attaches the file while the image
-			// downloads, as attaching a file waits for the kernel to write its changes to the disk. udev
-			// reads the volume when it appears, before the image is in it, so the restore drops what udev
-			// read before the mount. barrier=0 keeps an fsync in the volume from making the loop device
-			// wait for all of the image to reach the disk, which the kernel writes while the job goes on.
-			// noinit_itable leaves the inode tables that mkfs left to initialize alone, as they are zeros
-			// already, instead of writing them during the job.
-			const file = path.join(temp, 'workspace-image.ext4');
-			const sized = Promise.withResolvers<void>();
-			const attached = sized.promise.then(async () => {
-				const device = (await promisify(execFile)('sudo', ['losetup', '--find', '--show', file])).stdout.trim();
-				log(`attached the image to ${device}`);
-				return device;
-			});
-			// Awaited once the image is written
-			attached.catch(() => { });
-			let loop: string;
-			try {
-				log(await unpack(source, file, { sparse: true, connections, sized: () => sized.resolve() }));
-				loop = await attached;
-				spawnSync('udevadm', ['settle', '--timeout=5'], { stdio: 'inherit' });
-				run('sudo', ['blockdev', '--flushbufs', loop]);
-				run('sudo', ['mount', '-o', 'noatime,noinit_itable,barrier=0', loop, root]);
-			} catch (err) {
-				sized.reject(err);
-				const device = await attached.catch(() => undefined);
-				if (device) {
-					spawnSync('sudo', ['losetup', '--detach', device], { stdio: 'inherit' });
-				}
-				throw err;
-			}
-			return () => {
-				spawnSync('sudo', ['umount', root], { stdio: 'inherit' });
-				spawnSync('sudo', ['losetup', '--detach', loop], { stdio: 'inherit' });
-			};
-		}
+		case 'linux':
+			// An ext4 volume in a sparse file
+			return mountLinuxImage(source, path.join(temp, 'workspace-image.ext4'), root, connections);
 		case 'darwin': {
 			// An APFS volume in a sparse ASIF image, which hides the empty workspace folder of the runner
 			const file = path.join(temp, 'workspace-image.asif');
-			log(await unpack(source, file, { sparse: true, connections }));
-			run('diskutil', ['image', 'attach', '--nobrowse', '--mountPoint', root, file]);
-			return () => {
-				spawnSync('diskutil', ['unmount', 'force', root], { stdio: 'inherit' });
-			};
+			return mountDarwinImage(source, file, root, connections, ['diskutil', 'image', 'attach', '--nobrowse', '--mountPoint', root, file], ['diskutil', 'unmount', 'force', root]);
 		}
-		case 'win32': {
-			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache. The
-			// first PowerShell of a job takes seconds to start, so one starts while the image downloads,
-			// compiles the virtual disk API, and attaches the VHDX when it is complete.
-			const file = path.join(temp, 'workspace-image.vhdx');
-			const ready = `${file}.ready`;
-			fs.rmSync(file, { force: true });
-			fs.rmSync(ready, { force: true });
-			const attach = spawn('pwsh', ['-NoProfile', '-NonInteractive', '-File', path.join(import.meta.dirname, 'win32', 'vhd.ps1'), '-Path', file, '-WaitFor', ready, '-MountFolder', root, '-CachedIo', '-Trust'], { stdio: 'inherit', signal: downloads.signal });
-			const exited = new Promise<number | null>(resolve => {
-				// Stopping it emits 'error' before it exits: only a process that didn't start ends with 'error' alone
-				attach.on('error', () => {
-					if (attach.pid === undefined) {
-						resolve(null);
-					}
-				});
-				attach.on('exit', code => resolve(code));
-			});
-			// Leaves the workspace an empty folder on drive C, whatever vhd.ps1 did before it failed or
-			// was stopped: it may have attached the VHDX (for good, beyond its process), and mounted its
-			// volume. Deleting the VHDX also frees the memory that Windows keeps the temporary file in.
-			const release = () => {
-				// Fails when no volume is mounted at the folder
-				if (spawnSync('mountvol', [`${root}\\`, '/D'], { stdio: 'ignore' }).status === 0) {
-					log(`unmounted the image from ${root}`);
-				}
-				fs.rmSync(ready, { force: true });
-				try {
-					fs.rmSync(file, { force: true });
-				} catch {
-					// Windows keeps an attached VHDX open
-					spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', 'Dismount-DiskImage -ImagePath $env:WORKSPACE_IMAGE_VHDX | Out-Null'], { stdio: 'inherit', timeout: 30_000, env: { ...process.env, WORKSPACE_IMAGE_VHDX: file } });
-					try {
-						fs.rmSync(file, { force: true });
-						log('detached the image');
-					} catch (err) {
-						log(`could not detach the image: ${err}`);
-					}
-				}
-				fs.mkdirSync(ws, { recursive: true });
-				if (fs.readdirSync(ws).length) {
-					log(`${ws} is not empty`);
-				}
-			};
-			try {
-				log(await unpack(source, file, { sparse: false, temporary: true, connections }));
+		case 'win32':
+			// A Dev Drive in a VHDX, in a temporary file, attached through the file system cache
+			return mountWindowsImage(source, path.join(temp, 'workspace-image.vhdx'), root, connections, {
+				vhdScript: path.join(import.meta.dirname, 'win32', 'vhd.ps1'),
+				trust: true,
 				// A volume can only be mounted at an empty folder
-				fs.rmdirSync(ws);
-				fs.writeFileSync(ready, '');
-				const code = await exited;
-				if (code !== 0) {
-					throw new Error(`vhd.ps1 exited with ${code}`);
-				}
-			} catch (err) {
-				attach.kill();
-				await exited;
-				release();
-				throw err;
-			}
-			return release;
-		}
+				vacate: () => fs.rmdirSync(ws),
+				released: () => {
+					fs.mkdirSync(ws, { recursive: true });
+					if (fs.readdirSync(ws).length) {
+						log(`${ws} is not empty`);
+					}
+				},
+			});
 		default:
 			throw new Error(`No workspace images on ${process.platform}`);
 	}
 }
 
-async function restoreImage(args: Args): Promise<void> {
+async function restoreImage(args: Args, checkDeadline: () => void): Promise<void> {
 	const name = required(args, 'name');
 	const branch = args.get('branch') || 'main';
 	const connections = Number(args.get('connections') ?? '32');
@@ -828,6 +904,7 @@ async function restoreImage(args: Args): Promise<void> {
 		if (!fs.existsSync(path.join(ws, '.git'))) {
 			throw new Error('The image holds no .git');
 		}
+		checkDeadline();
 	} catch (err) {
 		unmount();
 		throw err;
@@ -847,9 +924,17 @@ async function restore(args: Args): Promise<void> {
 	if (!(timeoutSeconds > 0)) {
 		throw new Error('--timeout-seconds must be a positive number');
 	}
-	const deadline = setTimeout(() => downloads.abort(new Error(`The restore took longer than ${timeoutSeconds} s`)), timeoutSeconds * 1000);
+	const timedOut = new Error(`The restore took longer than ${timeoutSeconds} s`);
+	const deadline = performance.now() + timeoutSeconds * 1000;
+	const timer = setTimeout(() => downloads.abort(timedOut), timeoutSeconds * 1000);
 	try {
-		await restoreImage(args);
+		await restoreImage(args, () => {
+			// Synchronous work can hold back the timer past the deadline
+			if (performance.now() >= deadline) {
+				downloads.abort(timedOut);
+			}
+			downloads.signal.throwIfAborted();
+		});
 	} catch (err) {
 		// After the deadline, the errors come from stopping the restore
 		const reason: unknown = downloads.signal.aborted ? downloads.signal.reason : err;
@@ -859,7 +944,7 @@ async function restore(args: Args): Promise<void> {
 		console.log(`::warning title=Workspace image::No workspace image: ${reason instanceof Error ? reason.message : String(reason)}`);
 		setOutput('used', 'false');
 	} finally {
-		clearTimeout(deadline);
+		clearTimeout(timer);
 	}
 }
 

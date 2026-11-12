@@ -26,6 +26,8 @@ import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -43,11 +45,14 @@ import { extractIssueData } from '../../browser/issueFormService.js';
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
 import { IIssueReporterAttachmentImport, IIssueReporterDiagnosticsState, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { RecordingState } from '../../browser/recordingService.js';
-import { ScreenshotAnnotationEditor } from '../../browser/screenshotAnnotation.js';
+import { IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService, TestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 class TestContextViewService implements IContextViewService {
 	declare readonly _serviceBrand: undefined;
@@ -65,6 +70,7 @@ class TestContextViewService implements IContextViewService {
 suite('IssueReporterOverlay', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const screenshot = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
+	const annotatedScreenshot = { dataUrl: 'data:image/png;base64,YW5ub3RhdGVk', width: 24, height: 16 };
 	const attachment: IIssueReporterFileAttachment = { filePath: '/owned/bundle.zip', name: 'bundle.zip', mimeType: 'application/zip' };
 
 	function capturedScreenshot(id: string, image: IScreenshot = screenshot): IssueReporterAttachment<IScreenshot> {
@@ -81,8 +87,12 @@ suite('IssueReporterOverlay', () => {
 	} = {}) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.fontFamily': 'monospace', 'editor.fontSize': 28 }));
+		const screenshotTool = createTestScreenshotToolService(store).service;
+		instantiation.stub(IScreenshotToolService, screenshotTool);
 		instantiation.stub(IClipboardService, { writeText: async () => { } });
 		instantiation.stub(IUserInteractionService, new UserInteractionService());
+		const telemetry = new TestTelemetryService();
+		instantiation.stub(ITelemetryService, telemetry);
 		const hovers = new Map<HTMLElement, string>();
 		instantiation.stub(IHoverService, {
 			...NullHoverService,
@@ -155,7 +165,7 @@ suite('IssueReporterOverlay', () => {
 			menu?.onHide?.(false);
 			await action.run();
 		};
-		return { overlay, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, hovers, imports, completeImport, setSelection, setText, selectRepository, getMenu: () => menu };
+		return { overlay, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, telemetry, hovers, imports, completeImport, setSelection, setText, selectRepository, screenshotTool, getMenu: () => menu };
 	}
 
 	function insertNativeText(editor: HTMLTextAreaElement, text: string): void {
@@ -243,6 +253,7 @@ suite('IssueReporterOverlay', () => {
 		const frame = document.createElement('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		frame.contentDocument!.body.appendChild(container);
 		overlay.reparentFloatingBar();
 		const stayedWithSource = bar.ownerDocument === document && document.body.contains(bar);
@@ -251,7 +262,7 @@ suite('IssueReporterOverlay', () => {
 	});
 
 	test('validates title and description before emitting a submission', () => {
-		const { overlay, container, setText, editor, preview } = createReporter({ issueTitle: '', issueBody: '' });
+		const { overlay, container, setText, editor, preview, telemetry } = createReporter({ issueTitle: '', issueBody: '' });
 		const submitted: string[] = [];
 		store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
 		preview.click();
@@ -261,7 +272,48 @@ suite('IssueReporterOverlay', () => {
 		const focusedDescription = document.activeElement === editor;
 		setText('A description');
 		preview.click();
-		assert.deepStrictEqual({ initialErrors, focusedDescription, submitted }, { initialErrors: 2, focusedDescription: true, submitted: ['A title'] });
+		assert.deepStrictEqual({ initialErrors, focusedDescription, submitted, events: telemetry.events }, {
+			initialErrors: 2,
+			focusedDescription: true,
+			submitted: ['A title'],
+			events: [
+				{ name: 'issueReporter.previewClicked', data: undefined },
+				{ name: 'issueReporter.previewClicked', data: undefined },
+				{ name: 'issueReporter.previewClicked', data: undefined },
+			],
+		});
+	});
+
+	for (const activation of [{ key: 'Enter', keyCode: 13 }, { key: ' ', keyCode: 32 }]) {
+		test(`records one preview activation with keyCode ${activation.keyCode}`, () => {
+			const { preview, telemetry } = createReporter();
+			preview.dispatchEvent(new KeyboardEvent('keydown', { ...activation, bubbles: true, cancelable: true }));
+			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: undefined }]);
+		});
+	}
+
+	test('does not count Markdown preview or disabled preview activations', () => {
+		const { overlay, preview, previewTab, telemetry } = createReporter();
+		previewTab.click();
+		overlay.setUploading(true);
+		preview.click();
+		preview.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		const ignored = telemetry.events.slice();
+		overlay.setUploading(false);
+		preview.click();
+		assert.deepStrictEqual({ ignored, events: telemetry.events }, {
+			ignored: [],
+			events: [{ name: 'issueReporter.previewClicked', data: undefined }],
+		});
+	});
+
+	test('does not count opening an external reporter as a GitHub preview', () => {
+		const { preview, telemetry } = createReporter({ uri: URI.parse('https://example.com/issues/new') });
+		preview.click();
+		assert.deepStrictEqual({ action: preview.textContent, events: telemetry.events }, {
+			action: 'Open External Issue Reporter',
+			events: [],
+		});
 	});
 
 	test('keeps the selected report dirty if it changes while its preview is opening', () => {
@@ -495,6 +547,7 @@ suite('IssueReporterOverlay', () => {
 			instantiation.stub(IEditorService, {});
 			instantiation.stub(ITreeViewsDnDService, {});
 			instantiation.stub(IWorkspaceContextService, {});
+			instantiation.stub(IDialogService, {});
 			store.add(instantiation.createInstance(EditorDropTarget, groupsView, container, { supportsSplitting: false }));
 			const transfer = new DataTransfer();
 			transfer.items.add(images(1)[0]);
@@ -692,7 +745,7 @@ suite('IssueReporterOverlay', () => {
 			for (const name of ['A.png', 'B.png']) {
 				completeImport({ filePath: `/owned/${name}`, name, mimeType: 'image/png' });
 			}
-			store.add(overlay.onDidRequestScreenshot(id => {
+			store.add(overlay.onDidRequestScreenshot(({ id }) => {
 				overlay.addScreenshot(screenshot, id);
 				overlay.completeScreenshotCapture(id);
 			}));
@@ -706,7 +759,7 @@ suite('IssueReporterOverlay', () => {
 		test('keeps request order through mixed pending work, cancellation, removal and restoration', () => {
 			const { overlay, files, imports } = createReporter();
 			let captureId = '';
-			store.add(overlay.onDidRequestScreenshot(id => { captureId = id; }));
+			store.add(overlay.onDidRequestScreenshot(({ id }) => { captureId = id; }));
 			paste(files, [new File(['a'], 'A.png', { type: 'image/png' })]);
 			overlay.triggerCaptureScreenshot();
 			paste(files, [new File(['b'], 'B.zip')]);
@@ -740,7 +793,9 @@ suite('IssueReporterOverlay', () => {
 			mainWindow.document.querySelector<HTMLElement>('.wizard-segmented-dropdown')!.click();
 			await getMenu()!.getActions().find(action => action.id === 'delay-3')!.run();
 			getMenu()!.onHide?.(false);
-			store.add(overlay.onDidRequestScreenshot(id => {
+			const delayedRequests: boolean[] = [];
+			store.add(overlay.onDidRequestScreenshot(({ id, delayed }) => {
+				delayedRequests.push(delayed);
 				overlay.addScreenshot(screenshot, id);
 				overlay.completeScreenshotCapture(id);
 			}));
@@ -748,7 +803,7 @@ suite('IssueReporterOverlay', () => {
 			paste(files, images(1));
 			completeImport(attachment);
 			await timeout(3100);
-			assert.deepStrictEqual(attachmentNames(files), ['screenshot-1.png', 'bundle.zip']);
+			assert.deepStrictEqual({ cards: attachmentNames(files), delayedRequests }, { cards: ['screenshot-1.png', 'bundle.zip'], delayedRequests: [true] });
 		}));
 
 		test('retains visible uploaded badges after completion, rerender, removal and restore', () => {
@@ -901,16 +956,15 @@ suite('IssueReporterOverlay', () => {
 			}), colors);
 		});
 
-		test('invalidates only the edited screenshot upload and ignores its old completion', () => {
-			const { overlay, files, container, data } = createReporter();
+		test('invalidates only the edited screenshot upload and ignores its old completion', async () => {
+			const { overlay, files, data, screenshotTool } = createReporter();
 			const ready = [capturedScreenshot('capture'), attachedFile('file')];
 			overlay.restoreAttachments(ready);
 			const destination = resolveIssueReporterTarget(data, product)!.url;
 			for (const attachment of ready) {
 				overlay.setAttachmentUploadState(attachment, { destination, state: 'done' });
 			}
-			files.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
-			closeAnnotation(container, 'Save');
+			await markUp(screenshotTool, files.querySelector<HTMLElement>('.wizard-screenshot-card')!);
 			overlay.setAttachmentUploadState(ready[0], { destination, state: 'done' });
 			assert.deepStrictEqual({
 				identities: overlay.getAttachments().map(item => item.id),
@@ -1101,43 +1155,44 @@ suite('IssueReporterOverlay', () => {
 		});
 	});
 
-	function closeAnnotation(container: HTMLElement, action: 'Save' | 'Discard'): void {
-		const editor = [...container.querySelectorAll('.issue-reporter-annotation-overlay')].at(-1)!;
-		[...editor.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === action)!.click();
+	/** Marks up the image of a card, which the screenshot tool returns with annotations. */
+	async function markUp(screenshotTool: TestScreenshotToolService, card: HTMLElement): Promise<void> {
+		screenshotTool.editResult = { original: screenshot, annotationState: { actions: [], undoneActions: [], crop: null }, image: annotatedScreenshot, annotated: true };
+		card.click();
+		await timeout(0);
 	}
 
-	for (const action of ['Save', 'Discard'] as const) {
-		test(`releases closed annotation editors after ${action}`, () => {
-			const { overlay, container } = createReporter();
-			const disposed = spy(ScreenshotAnnotationEditor.prototype, 'dispose');
-			store.add(toDisposable(() => disposed.restore()));
-			overlay.addScreenshot({ ...screenshot });
-			closeAnnotation(container, action);
-			disposed.resetHistory();
-			overlay.dispose();
-			assert.strictEqual(disposed.callCount, 0);
+	test('marks up a screenshot from its card and returns focus to its replaced card', async () => {
+		const { overlay, files, screenshotTool } = createReporter();
+		overlay.restoreAttachments([capturedScreenshot('capture')]);
+		const card = files.querySelector<HTMLElement>('.wizard-screenshot-card')!;
+		card.focus();
+		await markUp(screenshotTool, card);
+		const replaced = files.querySelector<HTMLElement>('.wizard-screenshot-card')!;
+		assert.deepStrictEqual({ tool: screenshotTool.requests, annotated: overlay.getScreenshots()[0].annotatedDataUrl, replaced: replaced !== card, focused: mainWindow.document.activeElement === replaced }, {
+			tool: ['edit 48x32'], annotated: annotatedScreenshot.dataUrl, replaced: true, focused: true,
 		});
-	}
+	});
 
-	test('keeps lower annotation editors open until the reporter closes', () => {
+	test('explains that a screenshot can be edited once one is attached', () => {
 		const { overlay, container } = createReporter();
-		overlay.addScreenshot({ ...screenshot });
-		overlay.addScreenshot({ ...screenshot });
-		closeAnnotation(container, 'Discard');
-		const remaining = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
-		overlay.dispose();
-		assert.deepStrictEqual({ remaining, afterClose: container.querySelectorAll('.issue-reporter-annotation-overlay').length }, { remaining: 1, afterClose: 0 });
+		const hint = container.querySelector<HTMLElement>('.wizard-screenshot-edit-hint')!;
+		const empty = hint.hidden;
+		overlay.restoreAttachments([attachedFile('file')]);
+		const withFile = hint.hidden;
+		overlay.restoreAttachments([capturedScreenshot('capture')]);
+		assert.deepStrictEqual({ empty, withFile, withScreenshot: hint.hidden, text: hint.textContent }, { empty: true, withFile: true, withScreenshot: false, text: 'Click a screenshot to edit it.' });
 	});
 
 	test('removes handlers from replaced screenshot cards', () => {
-		const { overlay, files, container } = createReporter();
+		const { overlay, files, screenshotTool } = createReporter();
 		overlay.restoreAttachments([capturedScreenshot('capture')]);
 		const oldCard = files.querySelector<HTMLElement>('.wizard-screenshot-card')!;
 		overlay.restoreAttachments([capturedScreenshot('capture')]);
 		oldCard.click();
-		const old = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
+		const old = screenshotTool.requests.length;
 		files.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
-		assert.deepStrictEqual({ old, current: container.querySelectorAll('.issue-reporter-annotation-overlay').length }, { old: 0, current: 1 });
+		assert.deepStrictEqual({ old, current: screenshotTool.requests.length }, { old: 0, current: 1 });
 	});
 
 	test('stops answering issue-data requests after disposal', async () => {

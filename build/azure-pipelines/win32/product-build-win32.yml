@@ -31,7 +31,7 @@ parameters:
 # CLI job must be part of the same stage. The sign and test jobs run in
 # parallel, but the Publish stage only publishes the x64 product artifacts once
 # all Windows_<arch>_Test_<name> jobs have succeeded (see artifactsByGatingJob
-# in ../common/publish.ts).
+# in ../common/publishGate.ts).
 jobs:
   - job: Windows_${{ parameters.VSCODE_ARCH }}_Compile
     displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Compile
@@ -48,12 +48,20 @@ jobs:
           displayName: Publish compilation artifact
           sbomEnabled: false
           isProduction: false
+          condition: and(succeeded(), ne(variables['COMPILATION_PUBLISHED'], 'true'))
         - output: pipelineArtifact
           targetPath: $(Build.SourcesDirectory)/.build/agent-sdk/tarballs
           artifactName: agent_sdk_win32_$(VSCODE_ARCH)_tarballs
           displayName: Publish agent SDK tarballs
           sbomEnabled: false
-          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'))
+          condition: and(succeededOrFailed(), eq(variables['AGENT_SDK_TARBALLS_PRODUCED'], 'true'), ne(variables['AGENT_SDK_TARBALLS_PUBLISHED'], 'true'))
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/logs/network
+          artifactName: network-diagnostics-windows-$(VSCODE_ARCH)-compile-$(System.JobAttempt)
+          displayName: Publish network failure diagnostics
+          sbomEnabled: false
+          isProduction: false
+          condition: and(failed(), eq(variables['VSCODE_NETWORK_DIAGNOSTICS_CAPTURED'], 'true'))
       sdl:
         suppression:
           suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
@@ -86,6 +94,19 @@ jobs:
             $ErrorActionPreference = "Stop"
             exec { 7z.exe a -mx1 "$(Build.ArtifactStagingDirectory)\compilation\out-build.7z" "out-build" }
           displayName: Archive out-build
+
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before an injected SDL step hung (see ../common/checkForArtifact.ts)
+      - script: >-
+          node build/azure-pipelines/common/checkForArtifact.ts
+          COMPILATION_PUBLISHED compilation_win32_$(VSCODE_ARCH)
+          AGENT_SDK_TARBALLS_PUBLISHED agent_sdk_win32_$(VSCODE_ARCH)_tarballs
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        condition: succeededOrFailed()
+        continueOnError: true
+        displayName: Check for artifacts published by an earlier attempt
 
   # Signing needs the ESRP connection, which the SDK validation pipeline
   # (sdk-validation-build.yml) must not reference.

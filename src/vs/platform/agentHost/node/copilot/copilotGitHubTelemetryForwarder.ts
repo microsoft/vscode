@@ -99,6 +99,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"completionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated completion tokens.", "isMeasurement": true },
 		"reasoningTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated reasoning tokens.", "isMeasurement": true },
 		"tokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total number of tokens used by the response.", "isMeasurement": true },
+		"totalNanoAiu": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "AI credit cost of this model call in nano AI units; absent when unreported. Already included in billedNanoAiu on agentHost.turnCompleted.", "isMeasurement": true },
 		"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tokens used by tool definitions.", "isMeasurement": true },
 		"availableToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tools available to the model.", "isMeasurement": true },
 		"numToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tool calls returned by the model.", "isMeasurement": true },
@@ -635,14 +636,12 @@ export function isHydraFusionTelemetryKind(kind: string): boolean {
  * Code's {@link ITelemetryService} so they land in the same first-party
  * Microsoft cluster/database as the rest of the agent host's telemetry.
  *
- * Restricted events (`cli.restricted_telemetry`) are only forwarded when
- * restricted telemetry is enabled for the current Copilot account; standard
- * events always flow through.
+ * Only standard events are forwarded. Restricted events must never enter this
+ * standard telemetry sink; dedicated restricted routing is handled separately.
  */
 export class CopilotGitHubTelemetryForwarder {
 
 	constructor(
-		private readonly _isRestrictedTelemetryEnabled: () => boolean,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
@@ -653,7 +652,7 @@ export class CopilotGitHubTelemetryForwarder {
 	}
 
 	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry, telemetryContext?: IAgentTelemetryContext): void {
-		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
+		if (notification.restricted) {
 			return;
 		}
 
@@ -699,7 +698,7 @@ export class CopilotGitHubTelemetryForwarder {
 	 * turn identity with the Agent Host turn that owned the compaction, as response telemetry does.
 	 */
 	forwardCompaction(notification: GitHubTelemetryNotification, correlation: IForwardedCompactionCorrelation, telemetryContext?: IAgentTelemetryContext): void {
-		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
+		if (notification.restricted) {
 			return;
 		}
 

@@ -410,7 +410,7 @@ suite('Copilot SDK managed model configuration', function () {
 		});
 	}
 
-	test('bundled SDK regression: unsupported server effort reaches inference even in default-only mode (#26681)', async () => {
+	test('bundled SDK drops unsupported server effort before inference in default-only mode (#26681)', async () => {
 		policy = { model: 'gpt-4o', effortLevel: 'high' };
 		const session = await client.createSession({
 			model: 'gpt-4o', workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
@@ -421,7 +421,7 @@ suite('Copilot SDK managed model configuration', function () {
 			await session.rpc.model.list();
 			const response = await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
 			assert.deepStrictEqual({ response: response?.data.content, completionEfforts, unexpectedRequests }, {
-				response: 'OK', completionEfforts: ['high'], unexpectedRequests: [],
+				response: 'OK', completionEfforts: [undefined], unexpectedRequests: [],
 			});
 		} finally {
 			await session.disconnect();

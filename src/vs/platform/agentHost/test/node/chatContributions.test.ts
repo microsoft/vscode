@@ -182,6 +182,7 @@ class RecordingWorktreeCleanupService implements IAgentHostWorktreeCleanupServic
 	readonly archiveCalls: { handle: string; archived: boolean; strictCleanup: boolean | undefined }[] = [];
 
 	async requestSessionWorktreeRemoval(): Promise<void> { }
+	async prepareSessionWorktreeCleanup(): Promise<void> { }
 	async sessionWorktreeCleanup() { return { state: 'unknown' } as const; }
 	async listManagedWorktrees() { return []; }
 	async cleanupManagedWorktree(): Promise<void> { }
@@ -769,7 +770,7 @@ function createContributions(disposables: ReturnType<typeof ensureNoDisposablesA
 	return service;
 }
 
-function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string, options?: { readonly sourceIsToolChat?: boolean }) {
+function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, inheritedTurnId?: string, selectionText?: string, options?: { readonly sourceIsToolChat?: boolean; readonly database?: TestSessionDatabase }) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const session = 'agent-host-session://side-chat';
@@ -800,12 +801,14 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 		},
 		...(inheritedTurnId !== undefined ? { inheritedTurnId } : {}),
 	});
-	const localTurns = new AgentHostLocalTurns(createTestChatRows(createSessionDataService(new TestSessionDatabase()), disposables), logService);
+	const sessionDataService = createSessionDataService(options?.database ?? new TestSessionDatabase());
+	const localTurns = new AgentHostLocalTurns(createTestChatRows(sessionDataService, disposables), logService);
 	const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[IAgentHostLocalTurns, localTurns],
+		[ISessionDataService, sessionDataService],
 	), /*strict*/ true));
 	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	disposables.add(service.registerContribution(SideChatContribution));
@@ -1922,6 +1925,30 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('queue drain hands steering to the agent with the provenance of its author', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handedToAgent: unknown[] = [];
+		queue.agent.sendSteeringMessage = (_chat, message, _sender, provenance) => {
+			handedToAgent.push([message.id, provenance]);
+			return true;
+		};
+		startTurn(queue, 'active-turn');
+		sendSteering(queue, 'person', 'Also update the docs');
+		const delegated: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'coordinator',
+			message: { text: 'Check the tests', origin: { kind: MessageKind.Agent }, _meta: toAgentMessageDelegationMeta({ sourceSession: 'copilot:/coordinator', sourceChat: 'copilot:/coordinator/chat' }) },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, delegated);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, delegated));
+
+		assert.deepStrictEqual(handedToAgent, [
+			['person', { kind: 'user' }],
+			['coordinator', { kind: 'agent', id: 'copilot:/coordinator/chat' }],
+		]);
+	});
+
 	test('queue drain runs steering the agent hands back unsent as the next turn instead of dropping it', async () => {
 		const queue = createQueueDrainContributions(disposables);
 		const handBack = new DeferredPromise<boolean>();
@@ -2286,6 +2313,51 @@ suite('AgentHostChatContributions', () => {
 			admitted: [],
 			provisionalTitles: ['Suggested title'],
 		});
+	});
+
+	test('does not handle bang commands from non-user messages', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const dispositions = [
+			MessageKind.Agent,
+			MessageKind.Tool,
+			MessageKind.Automation,
+			MessageKind.SystemNotification,
+		].map(origin => contributions.service.incomingRequest({
+			...incomingRequest(contributions.session),
+			message: { text: '!echo hi', origin: { kind: origin } },
+		}).kind);
+
+		assert.deepStrictEqual(dispositions, [
+			'accept',
+			'accept',
+			'accept',
+			'accept',
+		]);
+	});
+
+	test('continues to handle rename commands from agent messages', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const disposition = contributions.service.incomingRequest({
+			...incomingRequest(contributions.session),
+			message: { text: '/rename Agent title', origin: { kind: MessageKind.Agent } },
+		});
+
+		assert.deepStrictEqual(disposition, { kind: 'handled' });
+	});
+
+	test('queue drain forwards agent-originated bang messages', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const action = {
+			...queuedMessage('agent-bang', '!echo hi'),
+			message: { text: '!echo hi', origin: { kind: MessageKind.Agent } },
+		} satisfies PendingMessage & { type: ActionType.ChatPendingMessageSet };
+		queue.stateManager.dispatchServerAction(queue.chat, action);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action));
+
+		assert.deepStrictEqual(queue.admitted.map(({ message }) => message), [{
+			text: '!echo hi',
+			origin: { kind: MessageKind.Agent },
+		}]);
 	});
 
 	test('queue drain reports queued telemetry source', () => {
@@ -3981,6 +4053,37 @@ suite('AgentHostChatContributions', () => {
 		});
 
 		assert.strictEqual(first.message.text, injectSideChatContext('side question', undefined, 'User request:\nsource question'));
+	});
+
+	test('preserves active side-chat context when the source completes during metadata lookup', async () => {
+		const metadataReadStarted = new DeferredPromise<void>();
+		const releaseMetadata = new DeferredPromise<void>();
+		const database = new class extends TestSessionDatabase {
+			override async getMetadata(key: string): Promise<string | undefined> {
+				metadataReadStarted.complete();
+				await releaseMetadata.p;
+				return super.getMetadata(key);
+			}
+		}();
+		const sideChat = createSideChatContributions(disposables, undefined, undefined, { database });
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, chatTurnStarted('source-turn', 'source question'));
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, {
+			type: ActionType.ChatResponsePart,
+			turnId: 'source-turn',
+			part: { kind: ResponsePartKind.Markdown, id: 'partial', content: 'partial answer' },
+		});
+
+		const sending = sideChat.service.outgoingTurn({
+			session: sideChat.session,
+			chat: sideChat.sideChat,
+			message: { text: 'side question', origin: { kind: MessageKind.User } },
+			turnId: 'side-turn',
+		});
+		await metadataReadStarted.p;
+		sideChat.stateManager.dispatchServerAction(sideChat.sourceChat, chatTurnComplete('source-turn', 1));
+		await releaseMetadata.complete();
+
+		assert.strictEqual((await sending).message.text, injectSideChatContext('side question', 'partial answer', 'User request:\nsource question'));
 	});
 
 	test('includes only local context after the active side-chat fork anchor', async () => {

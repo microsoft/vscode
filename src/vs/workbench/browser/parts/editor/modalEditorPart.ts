@@ -59,7 +59,7 @@ const MODAL_SIDEBAR_BORDER_RIGHT = 1; // matches CSS border-right on sidebar con
 const MODAL_FOCUSABLE_SELECTOR = 'a[href], area[href], button, input, select, textarea, iframe, object, embed, [contenteditable="true"], [tabindex]';
 
 function getModalTabbableElements(modalElement: HTMLElement): HTMLElement[] {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const elements = Array.from(modalElement.querySelectorAll<HTMLElement>(MODAL_FOCUSABLE_SELECTOR))
 		.filter(element => {
 			if (element.tabIndex < 0 || element.matches(':disabled') || element.closest('[inert]')) {

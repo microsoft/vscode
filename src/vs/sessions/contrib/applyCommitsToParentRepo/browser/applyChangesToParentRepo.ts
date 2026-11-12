@@ -18,12 +18,12 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { bindHasWorktreeAndRepositoryContextKey, hasWorktreeAndRepositoryContextKey } from '../../../services/sessions/browser/sessionScopedContextKeys.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { bindHasWorktreeAndRepositoryContextKey, hasWorktreeAndRepositoryContextKey } from '../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
-import { SessionIsArchivedContext } from '../../../common/contextkeys.js';
+import { SessionIsArchivedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbenchContribution {
 

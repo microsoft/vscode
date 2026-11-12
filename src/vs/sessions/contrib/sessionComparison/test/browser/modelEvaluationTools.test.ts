@@ -24,12 +24,13 @@ import { getChatMarkdownRenderOptions } from '../../../../../workbench/contrib/c
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, IToolImpl, IToolResult, ToolProgress, ToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService, SessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService, SessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, IStartSessionComparisonOptions, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
 import { ModelEvaluationTool, ModelEvaluationToolContribution } from '../../browser/modelEvaluationTools.js';
 
 const callerResource = URI.parse('test:/parent#evaluator');
@@ -99,7 +100,7 @@ suite('ModelEvaluationTools', () => {
 			getParticipantForChat: (id, resource) => comparisons.get().find(comparison => comparison.id === id)?.participants.find(participant => isEqual(participant.chatResource, resource)),
 			startComparison: async options => {
 				launches.push(options);
-				const created = comparison({ judgeHarness: options.judgeHarness });
+				const created = comparison({ judgeHarness: options.judgeHarness, originatingChatResource: options.originatingChatResource });
 				comparisons.set([...comparisons.get(), created], undefined);
 				return created;
 			},
@@ -184,6 +185,13 @@ suite('ModelEvaluationTools', () => {
 		]);
 	});
 
+	test('keeps comparison IDs available for tools without encouraging them in user-facing replies', () => {
+		const fixture = setup();
+		for (const name of ['createModelComparison', 'listModelComparisons', 'readModelComparison'] as const) {
+			assert.match(fixture.tool(name).getToolData().modelDescription, /Keep comparisonId internal unless the user explicitly requests it; refer to comparisons by title in user-facing replies/, name);
+		}
+	});
+
 	test('disabling evaluator tools rejects all invocations including a previously prepared launch', async () => {
 		const fixture = setup();
 		const tool = fixture.tool('createModelComparison');
@@ -212,14 +220,53 @@ suite('ModelEvaluationTools', () => {
 		assert.deepStrictEqual({
 			waitsForApprovalObserver: tool.getToolData().canRequestPreApproval,
 			confirmed: !!prepared.confirmationMessages,
+			originatingChat: options.originatingChatResource?.toString(),
 			workspace: options.workspace?.toString(), branch: options.branch, prompt: options.prompt,
 			models: options.attempts.map(attempt => [attempt.harness.modelId, attempt.harness.modelConfiguration, attempt.harness.permissionId]),
 			judge: options.judgeHarness?.modelId,
 			nestedSource: fixture.permissionChats.every(resource => isEqual(resource, callerResource)),
 		}, {
-			waitsForApprovalObserver: true, confirmed: true, workspace: project.toString(), branch: 'main', prompt: input.prompt,
+			waitsForApprovalObserver: true, confirmed: true, originatingChat: callerResource.toString(), workspace: project.toString(), branch: 'main', prompt: input.prompt,
 			models: [['model', { thinkingLevel: 'high' }, 'default'], ['model', { thinkingLevel: 'high' }, 'default']],
 			judge: 'model', nestedSource: true,
+		});
+	});
+
+	test('returns a persistent keyboard-operable link to the launched comparison without opening it', async () => {
+		const fixture = setup();
+		const output = await invoke(fixture.tool('createModelComparison'), launchInput(), true);
+		assert.ok(isMarkdownString(output.toolResultMessage));
+		const message: IMarkdownString = JSON.parse(JSON.stringify(output.toolResultMessage));
+		const opened: { command: string; args: string[] }[] = [];
+		const rendered = store.add(renderMarkdown(message, {
+			...getChatMarkdownRenderOptions(),
+			actionHandler: href => {
+				const command = URI.parse(href);
+				opened.push({ command: command.path, args: JSON.parse(decodeURIComponent(command.query)) });
+			},
+		}));
+		mainWindow.document.body.appendChild(rendered.element);
+		store.add(toDisposable(() => rendered.element.remove()));
+		const link = rendered.element.querySelector('a');
+		assert.ok(link);
+		const initiallyOpened = [...opened];
+		link.focus();
+		link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+		link.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+		assert.deepStrictEqual({
+			trusted: message.isTrusted,
+			label: link.textContent,
+			focused: mainWindow.document.activeElement === link,
+			initiallyOpened,
+			opened,
+			comparisonId: JSON.parse(text(output)).comparisonId,
+		}, {
+			trusted: { enabledCommands: [OPEN_SESSION_COMPARISON_COMMAND_ID] },
+			label: 'Open Comparison',
+			focused: true,
+			initiallyOpened: [],
+			opened: Array(2).fill({ command: OPEN_SESSION_COMPARISON_COMMAND_ID, args: ['comparison'] }),
+			comparisonId: 'comparison',
 		});
 	});
 
@@ -417,13 +464,13 @@ suite('ModelEvaluationTools', () => {
 		}, { stale: true, unprepared: true, recursive: true, launches: 0 });
 	});
 
-	test('validates counts, folderless roles, model IDs, and supported model configurations before side effects', async () => {
+	test('validates counts, folderless branches, model IDs, and supported model configurations before side effects', async () => {
 		const fixture = setup();
 		const tool = fixture.tool('createModelComparison');
 		for (const input of [
 			{ ...launchInput(), attempts: [selection] },
 			{ ...launchInput(), attempts: Array.from({ length: 11 }, () => selection) },
-			{ ...launchInput(), workspaceMode: 'folderless' },
+			{ ...launchInput(), workspaceMode: 'folderless', branch: 'main' },
 			{ ...launchInput(), judge: undefined, synthesizer: selection },
 			{ ...launchInput(), attempts: [selection, { ...selection, modelId: 'missing' }] },
 			{ ...launchInput(), attempts: [selection, { ...selection, modelConfiguration: { thinkingLevel: 'max' } }] },
@@ -475,6 +522,40 @@ suite('ModelEvaluationTools', () => {
 		assert.deepStrictEqual(fixture.launches, []);
 	});
 
+	for (const tier of ['balance', 'hydrafusion', 'hydrafusion-max']) {
+		test(`discovers Fusion and launches attempts, Judge, and Synthesizer with its ${tier} tier`, async () => {
+			const fixture = setup();
+			const fusion: ILanguageModelChatMetadataAndIdentifier = {
+				identifier: 'fusion',
+				metadata: {
+					...fixture.model.metadata, id: 'auto', name: 'Copilot Fusion', autoModelFusion: true,
+					configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'] } } },
+				},
+			};
+			const legacyAuto = { ...fusion, identifier: 'legacy-auto', metadata: { ...fusion.metadata, autoModelFusion: false } };
+			const hydraFusion = { ...fixture.model, identifier: 'hydrafusion', metadata: { ...fixture.model.metadata, id: 'hydrafusion', modelGroup: { id: 'copilotcli' } } };
+			fixture.provider.getModelsSnapshotForCreation = (_workspace, _type, desired) => ({
+				models: [fixture.model, fusion, legacyAuto, hydraFusion], modelTarget: 'copilotcli',
+				desiredModelResolution: { kind: 'available', model: desired === fusion.identifier ? fusion : fixture.model },
+			});
+			const output: { harnesses: { models: { modelId: string }[] }[] } = JSON.parse(text(await invoke(fixture.tool('getComparisonModels'), {})));
+			const fusionSelection = { sessionTypeId: 'copilotcli', modelId: fusion.identifier, modelConfiguration: { tier } };
+			await invoke(fixture.tool('createModelComparison'), {
+				...launchInput(), attempts: [selection, fusionSelection], judge: fusionSelection, synthesizer: fusionSelection,
+			}, true);
+			const launched = fixture.launches[0];
+			assert.deepStrictEqual({
+				discovered: output.harnesses[0].models.map(model => model.modelId),
+				participants: [launched.attempts[1].harness, launched.judgeHarness, launched.synthesisHarness].map(harness => ({
+					modelId: harness?.modelId, configuration: harness?.modelConfiguration,
+				})),
+			}, {
+				discovered: ['model', 'fusion'],
+				participants: Array.from({ length: 3 }, () => ({ modelId: 'fusion', configuration: { tier } })),
+			});
+		});
+	}
+
 	test('creates explicit folderless comparisons without a Judge and honors cancellation and feature gates', async () => {
 		const fixture = setup();
 		const tool = fixture.tool('createModelComparison');
@@ -487,6 +568,22 @@ suite('ModelEvaluationTools', () => {
 			workspace: fixture.launches[0].workspace, judge: fixture.launches[0].judgeHarness,
 			cancelled: !!cancelled.toolResultError, disabled: !!disabled.toolResultError, launches: fixture.launches.length,
 		}, { workspace: undefined, judge: undefined, cancelled: true, disabled: true, launches: 1 });
+	});
+
+	test('creates folderless comparisons with the selected Judge and Synthesizer', async () => {
+		const fixture = setup({ quickChat: true });
+		fixture.chatWorkspace.set(undefined, undefined);
+		const result = await invoke(fixture.tool('createModelComparison'), { ...launchInput(), synthesizer: selection }, true);
+		assert.deepStrictEqual({
+			error: result.toolResultError,
+			workspace: fixture.launches[0]?.workspace,
+			branch: fixture.launches[0]?.branch,
+			judge: fixture.launches[0]?.judgeHarness?.modelId,
+			synthesizer: fixture.launches[0]?.synthesisHarness?.modelId,
+			workspaceConfigRequests: fixture.workspaceConfigRequests,
+		}, {
+			error: undefined, workspace: undefined, branch: undefined, judge: 'model', synthesizer: 'model', workspaceConfigRequests: [],
+		});
 	});
 
 	test('returns survivor identities on an insufficient-success launch failure', async () => {
@@ -505,9 +602,9 @@ suite('ModelEvaluationTools', () => {
 		const fixture = setup();
 		fixture.comparisons.set(Array.from({ length: 27 }, (_, index) => comparison({ id: `c${index}`, createdAt: index, archivedAt: index === 26 ? 1 : undefined })), undefined);
 		const tool = fixture.tool('listModelComparisons');
-		const first: { comparisons: { comparisonId: string }[]; nextCursor: string } = JSON.parse(text(await invoke(tool, {})));
-		const second: { comparisons: { comparisonId: string }[] } = JSON.parse(text(await invoke(tool, { cursor: first.nextCursor })));
-		const archived: { comparisons: { comparisonId: string }[] } = JSON.parse(text(await invoke(tool, { comparisonIds: ['c26'], includeArchived: true })));
+		const first: { comparisons: { comparisonId: string }[]; nextCursor: string } = JSON.parse(text(await invoke(tool, { scope: 'window' })));
+		const second: { comparisons: { comparisonId: string }[] } = JSON.parse(text(await invoke(tool, { scope: 'window', cursor: first.nextCursor })));
+		const archived: { comparisons: { comparisonId: string }[] } = JSON.parse(text(await invoke(tool, { scope: 'window', comparisonIds: ['c26'], includeArchived: true })));
 		assert.deepStrictEqual({
 			first: first.comparisons.map(item => item.comparisonId),
 			second: second.comparisons.map(item => item.comparisonId), archived: archived.comparisons.map(item => item.comparisonId),
@@ -516,15 +613,60 @@ suite('ModelEvaluationTools', () => {
 		});
 	});
 
-	test('lists comparisons without a caller or rendering context', async () => {
+	test('requires explicit window scope when listing without a caller or rendering context', async () => {
 		const fixture = setup();
 		fixture.comparisons.set([comparison()], undefined);
-		const output = await fixture.tool('listModelComparisons').invoke({
-			callId: 'call', toolId: 'test', parameters: {}, context: undefined,
+		const tool = fixture.tool('listModelComparisons');
+		const invokeWithoutCaller = (parameters: Record<string, unknown>) => tool.invoke({
+			callId: 'call', toolId: 'test', parameters, context: undefined,
 		}, async () => 0, progress, CancellationToken.None);
-		assert.strictEqual(output.toolResultError, undefined);
-		const page: { comparisons: { comparisonId: string }[] } = JSON.parse(text(output));
-		assert.deepStrictEqual(page.comparisons.map(item => item.comparisonId), ['comparison']);
+		const unscoped = await invokeWithoutCaller({});
+		const window = await invokeWithoutCaller({ scope: 'window' });
+		const page: { comparisons: { comparisonId: string }[] } = JSON.parse(text(window));
+		assert.deepStrictEqual({
+			unscopedError: unscoped.toolResultError,
+			windowError: window.toolResultError,
+			comparisons: page.comparisons.map(item => item.comparisonId),
+		}, {
+			unscopedError: 'The calling chat is unavailable. Use scope "window" to discover comparisons across this Agents window.',
+			windowError: undefined,
+			comparisons: ['comparison'],
+		});
+	});
+
+	test('defaults to the exact initiating chat even when another chat ran the same prompt more recently', async () => {
+		const fixture = setup();
+		const otherChat = callerResource.with({ fragment: 'other' });
+		fixture.comparisons.set([
+			comparison({ id: 'mine', createdAt: 1, originatingChatResource: callerResource }),
+			comparison({ id: 'other', createdAt: 2, originatingChatResource: otherChat }),
+			comparison({ id: 'manual', createdAt: 3 }),
+			comparison({ id: 'archived', createdAt: 4, originatingChatResource: callerResource, archivedAt: 1 }),
+		], undefined);
+		const tool = fixture.tool('listModelComparisons');
+		const list = async (parameters: Record<string, unknown>, originatingChatResource = callerResource) => {
+			const output = await tool.invoke({
+				callId: 'call', toolId: 'test', parameters, originatingChatResource,
+				context: { sessionResource: otherChat },
+			}, async () => 0, progress, CancellationToken.None);
+			const page: { comparisons: { comparisonId: string; originatingChatResource?: string }[] } = JSON.parse(text(output));
+			return page.comparisons.map(item => [item.comparisonId, item.originatingChatResource]);
+		};
+		assert.deepStrictEqual({
+			mine: await list({}),
+			other: await list({}, otherChat),
+			archived: await list({ includeArchived: true }),
+			explicitIds: await list({ comparisonIds: ['other'] }),
+			window: await list({ scope: 'window' }),
+			invalidScope: (await invoke(tool, { scope: 'unknown' })).toolResultError,
+		}, {
+			mine: [['mine', callerResource.toString()]],
+			other: [['other', otherChat.toString()]],
+			archived: [['archived', callerResource.toString()], ['mine', callerResource.toString()]],
+			explicitIds: [],
+			window: [['manual', undefined], ['other', otherChat.toString()], ['mine', callerResource.toString()]],
+			invalidScope: 'Invalid comparison list filters.',
+		});
 	});
 
 	test('discovers and reads comparisons with the authoritative caller independently of rendering context', async () => {

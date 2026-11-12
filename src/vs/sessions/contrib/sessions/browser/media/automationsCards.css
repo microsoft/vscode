@@ -484,6 +484,31 @@
 	margin-top: var(--vscode-spacing-size40);
 }
 
+.automations-cards-partial-state-content {
+	min-width: 0;
+}
+
+.automations-cards-partial-state-message {
+	display: inline;
+}
+
+.automations-cards-partial-state-message:not(:empty) + .automations-manage-remotes {
+	margin-left: var(--vscode-spacing-size80);
+}
+
+.automations-manage-remotes {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-manage-remotes-count {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	white-space: nowrap;
+}
+
 .automations-cards-partial-state {
 	display: flex;
 	align-items: center;

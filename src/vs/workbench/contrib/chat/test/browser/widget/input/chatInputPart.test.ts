@@ -40,7 +40,7 @@ import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesServi
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
-import { IChatSessionFileChange2, IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatMode } from '../../../../common/chatModes.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
@@ -56,6 +56,7 @@ import { ToolDataSource } from '../../../../common/tools/languageModelToolsServi
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import '../../../../browser/widget/media/chat.css';
+import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFileChange.js';
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -86,6 +87,27 @@ suite('ChatInputPart', () => {
 		});
 		input.refreshToolbars();
 		assert.deepStrictEqual(updates, ['input', 'execute', 'secondary', 'layout']);
+	});
+
+	test('announces a model once across metadata refreshes and transient loading states', () => {
+		const announcements: string[] = [];
+		const labels: string[] = [];
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			chatModelIdKey: { set: () => { } },
+			accessibilityService: { alert: (message: string) => announcements.push(message) },
+			_inputEditor: { updateOptions: ({ ariaLabel }: { ariaLabel: string }) => labels.push(ariaLabel) },
+			_getAriaLabel: () => 'Chat input',
+		});
+		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+			identifier, metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
+		});
+		const update = Reflect.get(ChatInputPart.prototype, '_updateSelectedModel') as (this: ChatInputPart, model: ILanguageModelChatMetadataAndIdentifier | undefined) => void;
+		for (const selected of [undefined, model('first'), model('first'), undefined, model('first'), model('second'), model('second')]) {
+			update.call(input, selected);
+		}
+		assert.deepStrictEqual({ announcements, labelUpdates: labels.length }, {
+			announcements: ['first', 'second'], labelUpdates: 7,
+		});
 	});
 
 	for (const placement of ['primary', 'secondary'] as const) {
@@ -379,7 +401,7 @@ suite('ChatInputPart', () => {
 			_modelSessionTypeOverride: observableValue<{ readonly resource: URI; readonly sessionType: string } | undefined>('override', undefined),
 			_modelSelectionController: { revalidateForSessionType: () => revalidations.push(inputPart.modelTargetSessionType) },
 			getAllMergedModels: () => [...models],
-			chatSessionsService: upcastPartial<IChatSessionsService>({ requiresCustomModelsForSessionType: () => true }),
+			chatSessionsService: upcastPartial<IChatSessionsService>({ requiresCustomModelsForSessionType: () => true, getChatSessionContribution: () => undefined }),
 			languageModelsService: upcastPartial<ILanguageModelsService>({ isModelHidden: () => false }),
 		});
 		return { inputPart, revalidations };
@@ -490,6 +512,84 @@ suite('ChatInputPart', () => {
 			onceResolved: { target: 'agent-host-claude', models: [claude.identifier] },
 			// Set ahead for a chat that is not bound yet: the bound chat is not revalidated against it.
 			otherChat: { target: 'agent-host-copilotcli', models: [copilot.identifier], revalidations: [] },
+		});
+	});
+
+	test('catalog conversations select only their acquired environment model pool', () => {
+		const first = targetedModel('remote-first-copilot', 'first-model');
+		const second = targetedModel('remote-second-copilot', 'second-model');
+		const { inputPart } = createModelPoolInput([first, second]);
+		const resource = URI.parse('cloud-sandbox-task:/first');
+		const targets = observableValue<ReadonlyMap<string, string>>('targets', new Map());
+		Object.assign(inputPart, {
+			_inputModelSessionResource: resource,
+			_currentSessionTypeObservable: observableValue('type', resource.scheme),
+			_currentSessionResourceObservable: observableValue('resource', resource),
+			_widget: { viewModel: { model: { sessionResource: resource } } },
+			chatSessionsService: upcastPartial<IChatSessionsService>({
+				requiresCustomModelsForSessionType: () => true,
+				getChatSessionContribution: type => type === resource.scheme ? {
+					type,
+					name: 'Cloud',
+					displayName: 'Cloud',
+					description: '',
+					icon: undefined,
+					modelSessionType: (resource, reader) => targets.read(reader).get(resource.path),
+				} : undefined,
+			}),
+		});
+		const read = () => ({
+			target: inputPart.modelTargetSessionType,
+			models: (inputPart as unknown as { getModels(): ILanguageModelChatMetadataAndIdentifier[] }).getModels().map(model => model.identifier),
+		});
+		const unresolved = read();
+		targets.set(new Map([['/first', 'remote-first-copilot'], ['/second', 'remote-second-copilot']]), undefined);
+		const acquired = read();
+		const nextResource = resource.with({ path: '/second' });
+		Object.assign(inputPart, {
+			_inputModelSessionResource: nextResource,
+			_widget: { viewModel: { model: { sessionResource: nextResource } } },
+		});
+		const switched = read();
+		inputPart.setModelSessionTypeOverride({ sessionType: 'remote-first-copilot' });
+		const respondent = read();
+		inputPart.setModelSessionTypeOverride(undefined);
+		assert.deepStrictEqual({ unresolved, acquired, switched, respondent, restored: read() }, {
+			unresolved: { target: resource.scheme, models: [] },
+			acquired: { target: 'remote-first-copilot', models: [first.identifier] },
+			switched: { target: 'remote-second-copilot', models: [second.identifier] },
+			respondent: { target: 'remote-first-copilot', models: [first.identifier] },
+			restored: { target: 'remote-second-copilot', models: [second.identifier] },
+		});
+	});
+
+	test('catalog model-pool revalidation preserves valid conversation choices instead of restoring profile defaults', () => {
+		const conversation = targetedModel('remote-first-copilot', 'conversation');
+		const profile = targetedModel('remote-first-copilot', 'profile');
+		const other = targetedModel('remote-second-copilot', 'other');
+		const selected = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('selected', conversation);
+		let models = [conversation, profile];
+		let revalidations = 0;
+		const input: { revalidateContributedModelPool(): void } = Object.assign(Object.create(ChatInputPart.prototype), {
+			_currentLanguageModel: selected,
+			getModels: () => models,
+			initSelectedModel: () => selected.set(profile, undefined),
+			_modelSelectionController: {
+				revalidateForSessionType: (initialize: () => void) => {
+					revalidations++;
+					initialize();
+				},
+			},
+		});
+		input.revalidateContributedModelPool();
+		const preserved = { selected: selected.get()?.identifier, revalidations };
+		models = [other];
+		input.revalidateContributedModelPool();
+		selected.set(undefined, undefined);
+		input.revalidateContributedModelPool();
+		assert.deepStrictEqual({ preserved, revalidations }, {
+			preserved: { selected: conversation.identifier, revalidations: 0 },
+			revalidations: 2,
 		});
 	});
 
