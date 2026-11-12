@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/843cd14021feb45069fac66c6e1f98e02a196dea",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/0837e7aab6b7d59b719e4136f97ad4c6fe34ef41",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -44,6 +44,9 @@
 			"include": "#newcommand-macro"
 		},
 		{
+			"include": "#new-document-command-macro"
+		},
+		{
 			"include": "#text-font-macro"
 		},
 		{
@@ -54,6 +57,9 @@
 		},
 		{
 			"include": "#label-macro"
+		},
+		{
+			"include": "#regexp-macro"
 		},
 		{
 			"include": "#verb-macro"
@@ -134,12 +140,11 @@
 							]
 						}
 					},
-					"comment": "These two patterns match the \\begin{document} and \\end{document} commands, so that the environment matching pattern following them will ignore those commands.",
-					"name": "meta.function.begin-document.latex"
+					"comment": "These two patterns match the \\begin{document} and \\end{document} commands, so that the environment matching pattern following them will ignore those commands."
 				},
 				{
-					"match": "(\\s*\\\\end\\{document\\})",
-					"captures": {
+					"begin": "^\\s*(\\\\end{document})",
+					"beginCaptures": {
 						"1": {
 							"patterns": [
 								{
@@ -148,12 +153,13 @@
 							]
 						}
 					},
-					"name": "meta.function.end-document.latex"
+					"end": "(?!)",
+					"contentName": "comment.line.percentage.tex"
 				}
 			]
 		},
 		"input-macro": {
-			"begin": "((\\\\)(?:include|input))(\\{)",
+			"begin": "((\\\\)(?:includeonly|include|input))(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.control.include.latex"
@@ -3875,7 +3881,7 @@
 			]
 		},
 		"newcommand-macro": {
-			"begin": "((\\\\)(?:newcommand|renewcommand|(?:re)?newrobustcmd|DeclareRobustCommand)\\*?)(\\{)?((\\\\)[\\p{Alphabetic}@]+\\*?)(\\})?(?:(\\[)[^\\]]*(\\])){0,2}(\\{)",
+			"begin": "((\\\\)(?:newcommand|renewcommand|providecommand|(?:re)?newrobustcmd|DeclareRobustCommand|newenvironment|renewenvironment)\\*?)(\\{)?((\\\\)?[\\p{Alphabetic}@]+\\*?)(\\})?(?:(\\[)[^\\]]*(\\])){0,2}\\s*(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.type.function.latex"
@@ -3914,58 +3920,71 @@
 			"name": "meta.parameter.newcommand.latex",
 			"patterns": [
 				{
-					"include": "#documentclass-usepackage-macro"
+					"include": "#newcommand-definition-rules"
+				}
+			]
+		},
+		"new-document-command-macro": {
+			"begin": "((\\\\)(?:(?:New|ReNew|Provide|Declare)Document(?:Command|Environment)))(\\{)?((\\\\)?[\\p{Alphabetic}@]+\\*?)(\\})?(\\{)[^}]*(\\})\\s*(\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.function.latex"
 				},
-				{
-					"include": "#unbalanced-env"
+				"2": {
+					"name": "punctuation.definition.function.latex"
 				},
-				{
-					"include": "#input-macro"
+				"3": {
+					"name": "punctuation.definition.begin.latex"
 				},
-				{
-					"include": "#sections-macro"
+				"4": {
+					"name": "support.function.general.latex"
 				},
-				{
-					"include": "#hyperref-macro"
+				"5": {
+					"name": "punctuation.definition.function.latex"
 				},
-				{
-					"include": "#text-font-macro"
+				"6": {
+					"name": "punctuation.definition.end.latex"
 				},
-				{
-					"include": "#citation-macro"
+				"7": {
+					"name": "punctuation.definition.arguments.begin.latex"
 				},
-				{
-					"include": "#references-macro"
+				"8": {
+					"name": "punctuation.definition.arguments.end.latex"
 				},
+				"9": {
+					"name": "punctuation.definition.arguments.begin.latex"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.arguments.end.latex"
+				}
+			},
+			"name": "meta.parameter.newcommand.latex",
+			"patterns": [
 				{
-					"include": "#label-macro"
-				},
+					"include": "#newcommand-definition-rules"
+				}
+			]
+		},
+		"braces-verbatim": {
+			"begin": "(?<!\\\\)\\{",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.group.begin.latex"
+				}
+			},
+			"end": "(?<!\\\\)\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.group.end.latex"
+				}
+			},
+			"name": "meta.group.braces.latex",
+			"patterns": [
 				{
-					"include": "#verb-macro"
-				},
-				{
-					"include": "#inline-code-macro"
-				},
-				{
-					"include": "#macro-with-args-tokenizer"
-				},
-				{
-					"include": "#all-other-macro"
-				},
-				{
-					"include": "#display-math"
-				},
-				{
-					"include": "#inline-math"
-				},
-				{
-					"include": "#column-specials"
-				},
-				{
-					"include": "#braces"
-				},
-				{
-					"include": "text.tex"
+					"include": "#braces-verbatim"
 				}
 			]
 		},
@@ -4041,6 +4060,33 @@
 				{
 					"match": "[\\p{Alphabetic}\\p{Number}\\.,:/*!^_-]+",
 					"name": "variable.parameter.definition.label.latex"
+				}
+			]
+		},
+		"regexp-macro": {
+			"begin": "((\\\\)regexp)(\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.regex.latex"
+				},
+				"2": {
+					"name": "punctuation.definition.keyword.latex"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.latex"
+				}
+			},
+			"end": "(?<!\\\\)\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.arguments.end.latex"
+				}
+			},
+			"contentName": "string.regexp.find.perl",
+			"name": "meta.function.regex.latex",
+			"patterns": [
+				{
+					"include": "#braces-verbatim"
 				}
 			]
 		},
@@ -4305,49 +4351,19 @@
 			"comment": "Do not look for balanced expressions, ie environments, inside a command argument",
 			"patterns": [
 				{
-					"include": "#documentclass-usepackage-macro"
-				},
-				{
-					"include": "#input-macro"
-				},
-				{
-					"include": "#sections-macro"
-				},
-				{
-					"include": "#hyperref-macro"
-				},
-				{
 					"include": "#newcommand-macro"
 				},
 				{
-					"include": "#text-font-macro"
-				},
-				{
-					"include": "#citation-macro"
-				},
-				{
-					"include": "#references-macro"
-				},
-				{
-					"include": "#label-macro"
-				},
-				{
-					"include": "#verb-macro"
+					"include": "#regexp-macro"
 				},
 				{
 					"include": "#inline-code-macro"
 				},
 				{
-					"include": "#all-other-macro"
-				},
-				{
-					"include": "#display-math"
-				},
-				{
-					"include": "#inline-math"
-				},
-				{
 					"include": "#column-specials"
+				},
+				{
+					"include": "#basic-unbalanced-latex-rules"
 				},
 				{
 					"include": "#braces"
@@ -4461,6 +4477,68 @@
 				},
 				{
 					"include": "$self"
+				}
+			]
+		},
+		"newcommand-definition-rules": {
+			"patterns": [
+				{
+					"include": "#regexp-macro"
+				},
+				{
+					"include": "#macro-with-args-tokenizer"
+				},
+				{
+					"include": "#basic-unbalanced-latex-rules"
+				},
+				{
+					"include": "#braces"
+				},
+				{
+					"include": "text.tex"
+				}
+			]
+		},
+		"basic-unbalanced-latex-rules": {
+			"patterns": [
+				{
+					"include": "#documentclass-usepackage-macro"
+				},
+				{
+					"include": "#unbalanced-env"
+				},
+				{
+					"include": "#input-macro"
+				},
+				{
+					"include": "#sections-macro"
+				},
+				{
+					"include": "#hyperref-macro"
+				},
+				{
+					"include": "#text-font-macro"
+				},
+				{
+					"include": "#citation-macro"
+				},
+				{
+					"include": "#references-macro"
+				},
+				{
+					"include": "#label-macro"
+				},
+				{
+					"include": "#verb-macro"
+				},
+				{
+					"include": "#all-other-macro"
+				},
+				{
+					"include": "#display-math"
+				},
+				{
+					"include": "#inline-math"
 				}
 			]
 		}

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/roslyn/commit/79e211a2e4287f9f7508089b81311b2c7fdc169f",
+	"version": "https://github.com/dotnet/roslyn/commit/7a33db14140ee4100f0c9c2c13bb2ff493750155",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"injections": {
@@ -331,10 +331,22 @@
 		"wellformed-html": {
 			"patterns": [
 				{
+					"include": "#html-embedded-content-tag"
+				},
+				{
 					"include": "#void-tag"
 				},
 				{
 					"include": "#non-void-tag"
+				}
+			]
+		},
+		"html-embedded-content-tag": {
+			"begin": "(?i)(?=<(?:script|style)\\b(?!-))",
+			"end": "(?!\\G)",
+			"patterns": [
+				{
+					"include": "text.html.derivative"
 				}
 			]
 		},

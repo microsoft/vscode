@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/ca34cf382a7b250144f2ccb99ff9af96912c79f2",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/24e041c9b0bd625bb5704550f09fc9c1c5830efa",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -325,24 +325,47 @@
 					}
 				},
 				{
-					"comment": "decimal integers and floats",
+					"comment": "decimal floats with exponents",
 					"name": "constant.numeric.decimal.rust",
-					"match": "\\b\\d[\\d_]*(\\.?)[\\d_]*(?:(E|e)([+-]?)([\\d_]+))?(f32|f64|i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)?\\b",
+					"match": "\\b(\\d[\\d_]*(?:(\\.)[\\d_]*)?)(E|e)([+-]?)([\\d_]+)(f16|f32|f64|f128)?\\b",
+					"captures": {
+						"1": {
+							"name": "constant.numeric.decimal.exponent.mantissa.rust"
+						},
+						"2": {
+							"name": "punctuation.separator.dot.decimal.rust"
+						},
+						"3": {
+							"name": "keyword.operator.exponent.rust"
+						},
+						"4": {
+							"name": "keyword.operator.exponent.sign.rust"
+						},
+						"6": {
+							"name": "storage.type.numeric.rust"
+						}
+					}
+				},
+				{
+					"comment": "decimal floats without exponents",
+					"name": "constant.numeric.decimal.rust",
+					"match": "\\b(?=[\\d_]*(?:\\.[\\d_]+|f(?:16|32|64|128)\\b))\\d[\\d_]*(\\.?)[\\d_]*(f16|f32|f64|f128)?\\b",
 					"captures": {
 						"1": {
 							"name": "punctuation.separator.dot.decimal.rust"
 						},
 						"2": {
-							"name": "keyword.operator.exponent.rust"
-						},
-						"3": {
-							"name": "keyword.operator.exponent.sign.rust"
-						},
-						"4": {
-							"name": "constant.numeric.decimal.exponent.mantissa.rust"
-						},
-						"5": {
-							"name": "entity.name.type.numeric.rust"
+							"name": "storage.type.numeric.rust"
+						}
+					}
+				},
+				{
+					"comment": "decimal integers",
+					"name": "constant.numeric.decimal.rust",
+					"match": "\\b\\d[\\d_]*(i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)?\\b",
+					"captures": {
+						"1": {
+							"name": "storage.type.numeric.rust"
 						}
 					}
 				},
@@ -352,7 +375,7 @@
 					"match": "\\b0x[\\da-fA-F_]+(i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)?\\b",
 					"captures": {
 						"1": {
-							"name": "entity.name.type.numeric.rust"
+							"name": "storage.type.numeric.rust"
 						}
 					}
 				},
@@ -362,7 +385,7 @@
 					"match": "\\b0o[0-7_]+(i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)?\\b",
 					"captures": {
 						"1": {
-							"name": "entity.name.type.numeric.rust"
+							"name": "storage.type.numeric.rust"
 						}
 					}
 				},
@@ -372,7 +395,7 @@
 					"match": "\\b0b[01_]+(i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)?\\b",
 					"captures": {
 						"1": {
-							"name": "entity.name.type.numeric.rust"
+							"name": "storage.type.numeric.rust"
 						}
 					}
 				},
@@ -387,6 +410,28 @@
 			"comment": "escapes: ASCII, byte, Unicode, quote, regex",
 			"name": "constant.character.escape.rust",
 			"match": "(\\\\)(?:(?:(x[0-7][\\da-fA-F])|(u(\\{)[\\da-fA-F]{4,6}(\\}))|.))",
+			"captures": {
+				"1": {
+					"name": "constant.character.escape.backslash.rust"
+				},
+				"2": {
+					"name": "constant.character.escape.bit.rust"
+				},
+				"3": {
+					"name": "constant.character.escape.unicode.rust"
+				},
+				"4": {
+					"name": "constant.character.escape.unicode.punctuation.rust"
+				},
+				"5": {
+					"name": "constant.character.escape.unicode.punctuation.rust"
+				}
+			}
+		},
+		"c-string-escapes": {
+			"comment": "C string escapes",
+			"name": "constant.character.escape.rust",
+			"match": "(\\\\)(?:(?:(x[\\da-fA-F]{2})|(u(\\{)(?:[\\da-fA-F]_*){1,6}(\\}))|.))",
 			"captures": {
 				"1": {
 					"name": "constant.character.escape.backslash.rust"
@@ -741,7 +786,12 @@
 				{
 					"comment": "logical operators",
 					"name": "keyword.operator.logical.rust",
-					"match": "(\\^|\\||\\|\\||&&|<<|>>|!)(?!=)"
+					"match": "(\\|\\||&&|!)(?!=)"
+				},
+				{
+					"comment": "bitwise operators",
+					"name": "keyword.operator.bitwise.rust",
+					"match": "(<<|>>|\\^|\\|(?!\\|))(?!=)"
 				},
 				{
 					"comment": "logical AND, borrow references",
@@ -932,10 +982,10 @@
 			"patterns": [
 				{
 					"comment": "numeric types",
-					"match": "(?<![A-Za-z])(f32|f64|i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)\\b",
+					"match": "(?<![A-Za-z])(f16|f32|f64|f128|i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)\\b",
 					"captures": {
 						"1": {
-							"name": "entity.name.type.numeric.rust"
+							"name": "storage.type.numeric.rust"
 						}
 					}
 				},
@@ -973,6 +1023,9 @@
 							"include": "#lifetimes"
 						},
 						{
+							"include": "#namespaces"
+						},
+						{
 							"include": "#punctuation"
 						},
 						{
@@ -985,7 +1038,7 @@
 				},
 				{
 					"comment": "primitive types",
-					"name": "entity.name.type.primitive.rust",
+					"name": "storage.type.primitive.rust",
 					"match": "\\b(bool|char|str)\\b"
 				},
 				{
@@ -1093,6 +1146,55 @@
 		},
 		"strings": {
 			"patterns": [
+				{
+					"comment": "C strings",
+					"name": "string.quoted.double.c.rust",
+					"begin": "(c)(\")",
+					"beginCaptures": {
+						"1": {
+							"name": "string.quoted.c.rust"
+						},
+						"2": {
+							"name": "punctuation.definition.string.rust"
+						}
+					},
+					"end": "\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.rust"
+						}
+					},
+					"patterns": [
+						{
+							"include": "#c-string-escapes"
+						}
+					]
+				},
+				{
+					"comment": "raw C strings",
+					"name": "string.quoted.double.c.raw.rust",
+					"begin": "(cr)(#*)(\")",
+					"beginCaptures": {
+						"1": {
+							"name": "string.quoted.c.raw.rust"
+						},
+						"2": {
+							"name": "punctuation.definition.string.raw.rust"
+						},
+						"3": {
+							"name": "punctuation.definition.string.rust"
+						}
+					},
+					"end": "(\")(\\2)",
+					"endCaptures": {
+						"1": {
+							"name": "punctuation.definition.string.rust"
+						},
+						"2": {
+							"name": "punctuation.definition.string.raw.rust"
+						}
+					}
+				},
 				{
 					"comment": "double-quoted strings and byte strings",
 					"name": "string.quoted.double.rust",
