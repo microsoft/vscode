@@ -587,7 +587,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					}
 					await this._execution.deleteSession(session, provider);
 					deletedSessions.push(entry.session);
-					if (deletedSessions.length === HISTORY_DELETION_CHECKPOINT_SIZE) {
+					if (deletedSessions.length >= HISTORY_DELETION_CHECKPOINT_SIZE) {
 						await this._enqueueMutation(() => this._recordDeletedHistorySessions(resource, deletedSessions));
 						deletedSessions = [];
 					}
