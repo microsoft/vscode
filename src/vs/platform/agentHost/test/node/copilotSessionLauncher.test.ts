@@ -56,6 +56,7 @@ import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgen
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
+import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
 import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
@@ -501,6 +502,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		let attachedSession: CopilotSession | undefined;
 		let sessionClosed = false;
 		const services = new ServiceCollection(
+			[ISessionSandboxPathService, new class extends mock<ISessionSandboxPathService>() { }()],
 			[IAgentConfigurationService, configuration],
 			[IAgentHostStateManager, manager],
 			[ILogService, logService],
@@ -3847,6 +3849,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
 		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
+		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterGuidance' | 'isEphemeral'> = {},
 	): Promise<ResumeSessionConfig> {
 		const plan = {
 			kind: 'resume',
@@ -3860,6 +3863,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			fallback: { model },
+			...planOverrides,
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [], ...runtimeOverrides };
 		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig(plan, runtime, () => { })).config;
@@ -3930,6 +3934,16 @@ suite('CopilotSessionLauncher resume config', () => {
 			[...definitions, { name: 'openBrowserPage' }, { name: 'clickElement' }],
 		];
 		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
+	});
+
+	test('tells the main agent the guidance of the chat\'s model router route, but not an ephemeral session', async () => {
+		const store = disposables.add(new DisposableStore());
+		const modelRouterGuidance = { router: 'Team', route: 'feature', guidance: 'Plan first.' };
+		const content = async (isEphemeral: boolean) => (await buildResumeConfig(createLauncher(store, {}), undefined, undefined, undefined, {}, { modelRouterGuidance, isEphemeral })).systemMessage?.content ?? '';
+		assert.deepStrictEqual({
+			chat: /<model_router_guidance>[^]*"Team" chose its "feature" route[^]*Plan first\.[^]*<\/model_router_guidance>$/.test(await content(false)),
+			ephemeral: (await content(true)).includes('model_router_guidance'),
+		}, { chat: true, ephemeral: false });
 	});
 
 	test('custom-agent tool reference remapping remains launch-only', async () => {

@@ -23,6 +23,7 @@ import { IChatPillEntry, withChatPillHoverLabel } from '../../../../browser/chat
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatInputOwnPillContext } from '../chatInputPills.js';
 import { createChatResourceContent, IChatResourceTarget } from './chatResourceContent.js';
+import { observeChatResourceExists } from './chatResourceExistence.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceAutomaticHeight, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from './chatResourceSizing.js';
 
 /** A file the chat can show above its input, such as one its agent recorded as an artifact. */
@@ -90,7 +91,7 @@ export class ChatResourcesControl extends Disposable {
 		this._chatKey = derived(this, reader => sessionResource.read(reader)?.toString());
 		// A recorded file can be missing: the agent can record it before writing it, or delete it later.
 		const recordedTargets = derived(this, reader => [...new Set(recorded.read(reader).map(resource => resource.resource.toString()))]);
-		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, this._observeExists(URI.parse(target), store)] as const);
+		const recordedExistence = mapObservableArrayCached(this, recordedTargets, (target, store) => [target, /* Resources that no file system provides, such as settings, count as existing: nothing can tell. */ observeChatResourceExists(this._fileService, URI.parse(target), store, true)] as const);
 		this._resources = derived(this, reader => {
 			if (this._chatKey.read(reader) === undefined) {
 				return new Map();
@@ -268,41 +269,6 @@ export class ChatResourcesControl extends Disposable {
 		return contentHeight;
 	}
 
-	/**
-	 * Whether a recorded file exists. Resources no file system provides always do, because nothing can tell whether they
-	 * exist.
-	 */
-	private _observeExists(resource: URI, store: DisposableStore): IObservable<boolean> {
-		const exists = observableValue(this, false);
-		let version = 0;
-		const refresh = async () => {
-			const current = ++version;
-			let result = false;
-			try {
-				await this._fileService.activateProvider(resource.scheme);
-				result = !this._fileService.hasProvider(resource) || await this._fileService.exists(resource);
-			} catch {
-				result = false;
-			}
-			if (current === version && !store.isDisposed) {
-				exists.set(result, undefined);
-			}
-		};
-		store.add(this._fileService.onDidFilesChange(e => {
-			if (e.affects(resource)) {
-				void refresh();
-			}
-		}));
-		store.add(this._fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (e.scheme === resource.scheme) {
-				void refresh();
-			}
-		}));
-		store.add(this._fileService.watch(resource));
-		store.add(toDisposable(() => version++));
-		void refresh();
-		return exists;
-	}
 }
 
 /**
@@ -423,7 +389,7 @@ class ChatShownResourceFrame extends Disposable {
 			handle.classList.add('active');
 			const drag = new DisposableStore();
 			// Like the workbench sash: webview iframes would otherwise swallow the pointer while it passes over them.
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const iframes = [...handle.ownerDocument.getElementsByTagName('iframe')];
 			for (const iframe of iframes) {
 				iframe.classList.add('pointer-events-disabled');

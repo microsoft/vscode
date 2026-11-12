@@ -79,9 +79,10 @@ export interface ISessionsListModelService {
 	 * Whether the session belongs in the sessions list. Every session that is not
 	 * an automation session does. An automation session does when the user showed
 	 * it, or when {@link SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING} lists every
-	 * automation session and the user did not hide it. List filters still apply.
+	 * automation session and the user did not hide it. `showAutomationRuns` is a
+	 * presentation override for a list filter; an explicit hide still wins.
 	 */
-	isSessionListed(session: ISession, reader?: IReader): boolean;
+	isSessionListed(session: ISession, reader?: IReader, showAutomationRuns?: boolean): boolean;
 
 	/** Shows automation sessions in the sessions list too, at the user's request. They remain listed in Automations. */
 	showAutomationSessions(sessions: readonly ISession[]): void;
@@ -141,6 +142,10 @@ export interface ISessionsListModelService {
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
 
+function isUnreadSessionModifiedToday(session: ISession, reader?: IReader): boolean {
+	return !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
+}
+
 type StoredSessionInboxState = SessionInboxState | { readonly kind: 'resumed' };
 
 interface ISessionInboxUndoToken {
@@ -194,6 +199,34 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				this.loadInboxState();
 			}
 		}));
+		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
+		this._hiddenAutomationSessionIds.set(this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY), undefined);
+		this._automationSessionsMode = observableConfigValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.AfterReply, configurationService);
+		this._register(runOnChange(this._automationSessionsMode, (mode, previous) => {
+			if ((mode === AutomationSessionsListMode.Always) !== (previous === AutomationSessionsListMode.Always)) {
+				const shown = this._shownAutomationSessionIds.get();
+				const hidden = this._hiddenAutomationSessionIds.get();
+				this.fireChanges(this.sessionsManagementService.getSessions()
+					.filter(session => session.isAutomation?.get() && !shown.has(session.sessionId) && !hidden.has(session.sessionId))
+					.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })));
+			}
+		}));
+		this._sortOverrides = this.loadSortOverrides();
+		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
+		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
+		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
+		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
+		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
+
+		this.migratePreviousIdentities(this.sessionsManagementService.getSessions());
+		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+			const sessions = this.sessionsManagementService.getSessions();
+			this.migratePreviousIdentities(sessions);
+			this.updateDefaultPlacement(sessions);
+		}));
+		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
+
+		// Migrate identities before admitting completions so inherited triage takes precedence.
 		const catalog = observableFromEvent(this, this.sessionsManagementService.onDidChangeSessions, () => this.sessionsManagementService.getSessions());
 		this._register(autorun(reader => {
 			const sessions = new Map(catalog.read(reader).map(session => [session.sessionId, session]));
@@ -222,36 +255,16 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 					}
 				}
 			}
+			for (const [id, session] of sessions) {
+				if (!next.has(id) && attention.has(id) && !session.isArchived.read(reader)
+					&& session.status.read(reader) === SessionStatus.Completed && !this.getInboxState(session, reader)) {
+					next.set(id, { kind: 'resumed' });
+				}
+			}
 			if ([...next].some(([id, value]) => state.get(id) !== value)) {
 				this.saveInboxState(next);
 			}
 		}));
-		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
-		this._hiddenAutomationSessionIds.set(this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY), undefined);
-		this._automationSessionsMode = observableConfigValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.AfterReply, configurationService);
-		this._register(runOnChange(this._automationSessionsMode, (mode, previous) => {
-			if ((mode === AutomationSessionsListMode.Always) !== (previous === AutomationSessionsListMode.Always)) {
-				const shown = this._shownAutomationSessionIds.get();
-				const hidden = this._hiddenAutomationSessionIds.get();
-				this.fireChanges(this.sessionsManagementService.getSessions()
-					.filter(session => session.isAutomation?.get() && !shown.has(session.sessionId) && !hidden.has(session.sessionId))
-					.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })));
-			}
-		}));
-		this._sortOverrides = this.loadSortOverrides();
-		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
-		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
-		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
-		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
-		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
-
-		this.migratePreviousIdentities(this.sessionsManagementService.getSessions());
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
-			const sessions = this.sessionsManagementService.getSessions();
-			this.migratePreviousIdentities(sessions);
-			this.updateDefaultPlacement(sessions);
-		}));
-		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
 
 		// Only a definitive deletion discards pin, sort, and automation listing
 		// state. A session merely dropping out of the provider's list is an
@@ -267,6 +280,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	private migratePreviousIdentities(sessions: readonly ISession[]): void {
 		let changed = false;
+		let inboxChanged = false;
+		const inbox = new Map(this._inboxState.get());
 		const shown = new Set(this._shownAutomationSessionIds.get());
 		const hidden = new Set(this._hiddenAutomationSessionIds.get());
 		const sets = [this._pinnedSessionIds, this._migratedReadSessionIds, shown, hidden, ...(this._legacyReadSessionIds ? [this._legacyReadSessionIds] : [])];
@@ -293,6 +308,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				move(this._sortOverrides.created, previous.sessionId, session.sessionId);
 				move(this._sortOverrides.updated, previous.sessionId, session.sessionId);
 				move(this._updatedDefaultPlacements, previous.sessionId, session.sessionId);
+				if (inbox.has(previous.sessionId)) {
+					move(inbox, previous.sessionId, session.sessionId);
+					inboxChanged = true;
+				}
 			}
 		}
 		if (changed) {
@@ -306,6 +325,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			this.saveSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY, hidden);
 			this.saveSortOverrides();
 			this.saveUpdatedDefaultPlacements();
+			if (inboxChanged) {
+				this.saveInboxState(inbox);
+			}
 		}
 	}
 
@@ -371,8 +393,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return state.kind !== 'resumed' && isSessionInboxStateCurrent(state, session, Date.now(), reader, attention) ? state : undefined;
 		}
 		if (attention?.isHistoricalCompletion) {
-			const unreadToday = !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
-			if (!unreadToday) {
+			if (!isUnreadSessionModifiedToday(session, reader)) {
 				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
 			}
 		}
@@ -487,12 +508,15 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	// -- Automation sessions --
 
-	isSessionListed(session: ISession, reader?: IReader): boolean {
+	isSessionListed(session: ISession, reader?: IReader, showAutomationRuns = false): boolean {
 		if (!session.isAutomation?.read(reader)) {
 			return true;
 		}
 		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
 			return false;
+		}
+		if (showAutomationRuns) {
+			return true;
 		}
 		return this._shownAutomationSessionIds.read(reader).has(session.sessionId)
 			|| this._automationSessionsMode.read(reader) === AutomationSessionsListMode.Always;
@@ -524,6 +548,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		const wasListed = unique.map(session => this.isSessionListed(session));
 		const previousShown = this._shownAutomationSessionIds.get();
 		const previousHidden = this._hiddenAutomationSessionIds.get();
+		const wasExplicitlyShown = unique.map(session => previousShown.has(session.sessionId));
+		const wasExplicitlyHidden = unique.map(session => previousHidden.has(session.sessionId));
 		const shown = new Set(previousShown);
 		const hidden = new Set(previousHidden);
 		for (const session of unique) {
@@ -540,7 +566,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			}
 		});
 		return unique
-			.filter((session, index) => this.isSessionListed(session) !== wasListed[index])
+			.filter((session, index) =>
+				this.isSessionListed(session) !== wasListed[index]
+				|| shown.has(session.sessionId) !== wasExplicitlyShown[index]
+				|| hidden.has(session.sessionId) !== wasExplicitlyHidden[index])
 			.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing }));
 	}
 

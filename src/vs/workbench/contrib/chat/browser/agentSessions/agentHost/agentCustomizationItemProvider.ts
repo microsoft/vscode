@@ -28,6 +28,8 @@ import { getAgentHostCustomizationSource, getAgentHostCustomizationUri } from '.
 import { readMcpServerDisplayName, readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { readAgentCustomizationMeta } from '../../../../../../platform/agentHost/common/meta/agentCustomizationMeta.js';
 import { readCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { readRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
+import { readCustomizationOrganizationMeta } from '../../../../../../platform/agentHost/common/meta/customizationOrganizationMeta.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { getAgentHookMetadata } from '../../../common/promptSyntax/hookTypes.js';
@@ -122,6 +124,7 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	private toItem(sessionResource: URI, customization: PluginCustomization, source: AICustomizationSource, uri: URI): ICustomizationItem {
 		const clientId = customization.clientId; // set if the configuration came from the client
+		const runtime = readRuntimePluginEnablement(customization);
 		return {
 			itemKey: customizationItemKey(customization, clientId),
 			uri: uri,
@@ -132,9 +135,12 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			scope: AICustomizationScopes.fromSource(getAgentHostCustomizationSource(customization) ?? source),
 			delivery: clientId !== undefined ? SYNCED_FROM_CLIENT : undefined,
 			status: toStatusString(customization.load),
-			statusMessage: toStatusMessage(customization.load),
-			enabled: isCustomizationEnabled(customization),
+			statusMessage: toStatusMessage(customization.load) ?? (runtime && runtime.effectiveEnabled === undefined && customization.load?.kind === CustomizationLoadStatus.Loading
+				? localize('pluginWaitingForSessionStart', "Waiting for Session Start")
+				: undefined),
+			enabled: runtime && runtime.effectiveEnabled === undefined ? undefined : isCustomizationEnabled(customization),
 			disabledReason: getCustomizationDisabledReason(customization),
+			organizationControl: readCustomizationOrganizationMeta(customization),
 			extensionId: undefined,
 			pluginUri: uri,
 			userInvocable: undefined,
@@ -221,6 +227,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 			source,
 			scope,
 			origin: source === AICustomizationSources.builtin ? { kind: 'harness' } : undefined,
+			// Hooks from managed policy can't be disabled by the user.
+			organizationControl: child.type === CustomizationType.Hook && discovery?.source === 'policy' ? (child.enabled === false ? {} : { requiredEnabled: true }) : undefined,
 			delivery: isRemote ? SYNCED_FROM_CLIENT : undefined,
 			groupKey,
 			badge,
@@ -355,7 +363,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		const plugins: PluginMeta[] = [];
 		const expandPromises: Promise<readonly ICustomizationItem[]>[] = [];
 
-		const customizations = this.getCustomizations(sessionResource);
+		const snapshot = this.getCustomizations(sessionResource);
+		const customizations = await this._customAgentsService.resolveRuntimePluginEnablement?.(sessionResource, snapshot) ?? snapshot;
+		if (token.isCancellationRequested) {
+			return [];
+		}
 
 		const directoryCustomizations = [];
 		for (const sessionCustomization of customizations) {

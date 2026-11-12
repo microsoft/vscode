@@ -528,8 +528,7 @@
 /* ---- Part Visibility Transitions ---- */
 
 .agent-sessions-workbench .part.auxiliarybar:not(.docked-auxiliarybar):not(.floating-auxiliarybar),
-.agent-sessions-workbench .part.panel,
-.agent-sessions-workbench .agents-part-card {
+.agent-sessions-workbench .part.panel {
 	transition:
 		opacity 250ms ease-out,
 		margin-top 250ms ease-out,
@@ -546,8 +545,7 @@
 @starting-style {
 
 	.agent-sessions-workbench .part.auxiliarybar:not(.docked-auxiliarybar):not(.floating-auxiliarybar),
-	.agent-sessions-workbench .part.panel,
-	.agent-sessions-workbench .agents-part-card {
+	.agent-sessions-workbench .part.panel {
 		opacity: 0;
 		border-color: transparent;
 		background: color-mix(in srgb, var(--part-background) 60%, var(--vscode-sideBar-background));
@@ -565,17 +563,12 @@
 	.agent-sessions-workbench .part.auxiliarybar:not(.docked-auxiliarybar):not(.floating-auxiliarybar) {
 		margin: 0 16px 0 6px;
 	}
-
-	.agent-sessions-workbench .agents-part-card {
-		margin: 6px 16px 0 16px;
-	}
 }
 
 @media (prefers-reduced-motion: reduce) {
 
 	.agent-sessions-workbench .part.auxiliarybar,
 	.agent-sessions-workbench .part.panel,
-	.agent-sessions-workbench .agents-part-card,
 	.agent-sessions-workbench .part.sidebar > .content {
 		transition: none;
 	}

@@ -936,9 +936,11 @@ export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string,
 		if (routed) {
 			return routed.router === routerName && routed.firstTurnOnly === true;
 		}
-		// A turn since that pick that selected a model by hand, or another router.
+		// A turn since that pick that selected a model by hand, or another router. A restored turn
+		// that asked for a router and got no pick has the model it ran on as its selection, so the
+		// router it asked for is read from its usage, as the host does.
 		const requested = turns[i].message.model?.id;
-		if (requested && modelRouterNameFromModelId(requested) !== routerName) {
+		if (requested && (modelRouterNameFromModelId(requested) ?? readUsageInfoMeta(turns[i].usage).modelRouterUnrouted) !== routerName) {
 			return false;
 		}
 	}
@@ -3283,6 +3285,12 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = isTerminalToolCall(tc, invocation.toolSpecificData?.kind);
 	invocation.summary = getToolSummary(tc, resourceUris);
+
+	// A call that asked for approval is marked to hide once it settles, which suits one the user
+	// declined. One that was approved ran, so it stays in the transcript like any other call.
+	if (isCompleted && invocation.presentation === ToolInvocationPresentation.HiddenAfterComplete) {
+		invocation.presentation = undefined;
+	}
 
 	if (!isTerminal && invocation.toolSpecificData?.kind === 'search' && getToolKind(tc) !== 'search') {
 		invocation.toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);

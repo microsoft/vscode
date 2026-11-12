@@ -1374,6 +1374,43 @@ suite('ModernUIContribution', () => {
 		assert.deepStrictEqual(actual, expected);
 	});
 
+	test('plain floating titles follow the sidebar card frame', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-connected-editor-tabs floating-panels');
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-spacing-size40: 4px; --vscode-spacing-sizeNone: 0px;';
+		store.add(toDisposable(() => root.remove()));
+		const part = appendElement(appendElement(root, 'monaco-grid-view'), 'part pane-composite-part sidebar left');
+		const title = appendElement(part, 'title');
+		const targetWindow = getWindow(root);
+		const capture = (strip: HTMLElement) => {
+			const partStyle = targetWindow.getComputedStyle(part);
+			const stripStyle = targetWindow.getComputedStyle(strip);
+			return {
+				part: [partStyle.borderTopLeftRadius, partStyle.borderTopRightRadius],
+				strip: [stripStyle.borderTopLeftRadius, stripStyle.borderTopRightRadius],
+			};
+		};
+
+		const withActivityBar = capture(title);
+		root.classList.add('noactivitybar');
+		const withoutActivityBar = capture(title);
+		root.classList.add('modern-ui-compact');
+		const compact = capture(title);
+		root.classList.remove('modern-ui-compact');
+		const header = appendElement(part, 'header-or-footer header');
+		part.prepend(header);
+		const withTopHeader = { header: capture(header), title: capture(title) };
+
+		assert.deepStrictEqual({ withActivityBar, withoutActivityBar, compact, withTopHeader }, {
+			withActivityBar: { part: ['0px', '8px'], strip: ['0px', '8px'] },
+			withoutActivityBar: { part: ['8px', '8px'], strip: ['8px', '8px'] },
+			compact: { part: ['0px', '0px'], strip: ['0px', '0px'] },
+			withTopHeader: {
+				header: { part: ['8px', '8px'], strip: ['8px', '8px'] },
+				title: { part: ['8px', '8px'], strip: ['0px', '0px'] },
+			},
+		});
+	});
+
 	test('frame-touching caps follow Activity Bar and native window corners', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels noactivitybar';

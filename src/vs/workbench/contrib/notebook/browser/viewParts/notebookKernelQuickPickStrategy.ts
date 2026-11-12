@@ -540,56 +540,69 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 		const notebook: NotebookTextModel = editor.textModel;
 		const disposables = new DisposableStore();
 		const quickPick = disposables.add(this._quickInputService.createQuickPick<KernelQuickPickItem>({ useSeparators: true }));
-		const quickPickItem = await new Promise<KernelQuickPickItem | IQuickInputButton | undefined>(resolve => {
-			// select from kernel sources
-			quickPick.title = kernelListEmpty ? localize('select', "Select Kernel") : localize('selectAnotherKernel', "Select Another Kernel");
-			quickPick.placeholder = localize('selectKernel.placeholder', "Type to choose a kernel source");
+		const { promise, resolve } = Promise.withResolvers<KernelQuickPickItem | IQuickInputButton | undefined>();
+		let requestId = 0;
+		let isClosed = false;
+		const finish = (item: KernelQuickPickItem | IQuickInputButton | undefined) => {
+			isClosed = true;
+			resolve(item);
+		};
+		const updateItems = async (isInitial = false) => {
+			if (isClosed) {
+				return;
+			}
+			const currentRequest = ++requestId;
 			quickPick.busy = true;
-			quickPick.buttons = [this._quickInputService.backButton];
-			quickPick.show();
-
-			disposables.add(quickPick.onDidTriggerButton(button => {
-				if (button === this._quickInputService.backButton) {
-					resolve(button);
-				}
-			}));
-			disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
-				if (isKernelSourceQuickPickItem(e.item) && e.item.documentation !== undefined) {
-					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand<URI>(e.item.documentation);
-					if (uri) {
-						void this._openerService.open(uri, { openExternal: true });
-					}
-				}
-			}));
-			disposables.add(quickPick.onDidAccept(async () => {
-				resolve(quickPick.selectedItems[0]);
-			}));
-			disposables.add(quickPick.onDidHide(() => {
-				resolve(undefined);
-			}));
-
-			this._calculdateKernelSources(editor).then(quickPickItems => {
-				quickPick.items = quickPickItems;
-				if (quickPick.items.length > 0) {
-					quickPick.busy = false;
-				}
-			});
-
-			disposables.add(Event.debounce<void, void>(
-				Event.any(
-					this._notebookKernelService.onDidChangeSourceActions,
-					this._notebookKernelService.onDidAddKernel,
-					this._notebookKernelService.onDidRemoveKernel
-				),
-				(last, _current) => last,
-				KERNEL_PICKER_UPDATE_DEBOUNCE
-			)(async () => {
-				quickPick.busy = true;
-				const quickPickItems = await this._calculdateKernelSources(editor);
-				quickPick.items = quickPickItems;
+			const items = await this._calculdateKernelSources(editor);
+			if (isClosed || disposables.isDisposed || currentRequest !== requestId) {
+				return;
+			}
+			quickPick.items = items;
+			if (!isInitial || items.length > 0) {
 				quickPick.busy = false;
-			}));
-		});
+			}
+		};
+
+		// select from kernel sources
+		quickPick.title = kernelListEmpty ? localize('select', "Select Kernel") : localize('selectAnotherKernel', "Select Another Kernel");
+		quickPick.placeholder = localize('selectKernel.placeholder', "Type to choose a kernel source");
+		quickPick.busy = true;
+		quickPick.buttons = [this._quickInputService.backButton];
+		quickPick.show();
+
+		disposables.add(quickPick.onDidTriggerButton(button => {
+			if (button === this._quickInputService.backButton) {
+				finish(button);
+			}
+		}));
+		disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
+			if (isKernelSourceQuickPickItem(e.item) && e.item.documentation !== undefined) {
+				const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand<URI>(e.item.documentation);
+				if (uri) {
+					void this._openerService.open(uri, { openExternal: true });
+				}
+			}
+		}));
+		disposables.add(quickPick.onDidAccept(async () => {
+			finish(quickPick.selectedItems[0]);
+		}));
+		disposables.add(quickPick.onDidHide(() => {
+			finish(undefined);
+		}));
+
+		void updateItems(true);
+
+		disposables.add(Event.debounce<void, void>(
+			Event.any(
+				this._notebookKernelService.onDidChangeSourceActions,
+				this._notebookKernelService.onDidAddKernel,
+				this._notebookKernelService.onDidRemoveKernel
+			),
+			(last, _current) => last,
+			KERNEL_PICKER_UPDATE_DEBOUNCE
+		)(() => updateItems()));
+
+		const quickPickItem = await promise;
 
 		quickPick.hide();
 		disposables.dispose();
