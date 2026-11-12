@@ -803,7 +803,7 @@ interface IInstructionColumnTemplateData {
 	disposables: IDisposable[];
 }
 
-class InstructionRenderer extends Disposable implements ITableRenderer<IDisassembledInstructionEntry, IInstructionColumnTemplateData> {
+export class InstructionRenderer extends Disposable implements ITableRenderer<IDisassembledInstructionEntry, IInstructionColumnTemplateData> {
 
 	static readonly TEMPLATE_ID = 'instruction';
 
@@ -860,42 +860,6 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		templateData.sourcecode.innerText = '';
 		const sb = new StringBuilder(1000);
 
-		if (this._disassemblyView.isSourceCodeRender && element.showSourceLocation && instruction.location?.path && instruction.line !== undefined) {
-			const sourceURI = this.getUriFromSource(instruction);
-
-			if (sourceURI) {
-				let textModel: ITextModel | undefined = undefined;
-				const sourceSB = new StringBuilder(10000);
-				const ref = await this.textModelService.createModelReference(sourceURI);
-				if (templateData.currentElement.element !== element) {
-					ref.dispose(); // avoid a leak when element went stale during async, #192831
-					return;
-				}
-				textModel = ref.object.textEditorModel;
-				templateData.cellDisposable.push(ref);
-
-				// templateData could have moved on during async.  Double check if it is still the same source.
-				if (textModel && templateData.currentElement.element === element) {
-					let lineNumber = instruction.line;
-
-					while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
-						const lineContent = textModel.getLineContent(lineNumber);
-						sourceSB.appendString(`  ${lineNumber}: `);
-						sourceSB.appendString(lineContent + '\n');
-
-						if (instruction.endLine && lineNumber < instruction.endLine) {
-							lineNumber++;
-							continue;
-						}
-
-						break;
-					}
-
-					templateData.sourcecode.innerText = sourceSB.build();
-				}
-			}
-		}
-
 		let spacesToAppend = 10;
 
 		if (instruction.address !== '-1') {
@@ -920,9 +884,53 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 		}
 
 		sb.appendString(instruction.instruction);
+		// Render the instruction before loading the source: the table reuses rows while
+		// scrolling, so a failing or slow source load must not leave the address, bytes
+		// or text of a previously rendered instruction behind, #347953.
 		templateData.instruction.innerText = sb.build();
 
 		this.rerenderBackground(templateData.instruction, templateData.sourcecode, element);
+
+		if (this._disassemblyView.isSourceCodeRender && element.showSourceLocation && instruction.location?.path && instruction.line !== undefined) {
+			const sourceURI = this.getUriFromSource(instruction);
+
+			if (sourceURI) {
+				const sourceSB = new StringBuilder(10000);
+				try {
+					const ref = await this.textModelService.createModelReference(sourceURI);
+					if (templateData.currentElement.element !== element) {
+						ref.dispose(); // avoid a leak when element went stale during async, #192831
+						return;
+					}
+					const textModel: ITextModel | undefined = ref.object.textEditorModel;
+					templateData.cellDisposable.push(ref);
+
+					// templateData could have moved on during async.  Double check if it is still the same source.
+					if (textModel && templateData.currentElement.element === element) {
+						let lineNumber = instruction.line;
+
+						while (lineNumber && lineNumber >= 1 && lineNumber <= textModel.getLineCount()) {
+							const lineContent = textModel.getLineContent(lineNumber);
+							sourceSB.appendString(`  ${lineNumber}: `);
+							sourceSB.appendString(lineContent + '\n');
+
+							if (instruction.endLine && lineNumber < instruction.endLine) {
+								lineNumber++;
+								continue;
+							}
+
+							break;
+						}
+
+						templateData.sourcecode.innerText = sourceSB.build();
+					}
+				} catch (e) {
+					// The source is not available (e.g. the file was removed): keep the source
+					// area empty, the instruction above is already up to date.
+					this.logService.warn('Failed to load source of disassembly instruction', sourceURI.toString(), e);
+				}
+			}
+		}
 	}
 
 	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData): void {
