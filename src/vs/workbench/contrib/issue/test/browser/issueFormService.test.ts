@@ -39,6 +39,7 @@ import { IssueWebReporter } from '../../browser/issueReporterService.js';
 import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueReporterScreenshot, IIssueSubmissionHost, IssueReporterAttachment, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { internalIssueReporterUrl, parseGitHubRepository } from '../../common/issueReporterTarget.js';
 import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures, issueReporterWebpFixture } from '../common/issueReporterMediaFixtures.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('IssueFormService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -911,6 +912,7 @@ suite('IssueFormService', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const targetWindow = iframe.contentWindow as CodeWindow;
 		const events: string[] = [];
 		instantiationService.stub(IAuxiliaryWindowService, {
