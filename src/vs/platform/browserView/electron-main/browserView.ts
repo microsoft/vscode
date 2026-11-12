@@ -154,10 +154,7 @@ export class BrowserView extends Disposable {
 			webviewTag: false,
 			session: this.session.electronSession,
 
-			focusOnNavigation: false,
-
-			// Hidden views (e.g. agent-opened background tabs) must keep rendering so rAF-based automation doesn't stall.
-			backgroundThrottling: false
+			focusOnNavigation: false
 		};
 
 		this._view = new WebContentsView({
@@ -165,8 +162,9 @@ export class BrowserView extends Disposable {
 			// Passing an `undefined` webContents triggers an error in Electron.
 			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
-		// Preferences are ignored for pre-existing webContents (popups), so set it explicitly too.
-		this._view.webContents.setBackgroundThrottling(false);
+		this._updateBackgroundThrottling();
+		this._register(this.onDidChangeAudiences(() => this._updateBackgroundThrottling()));
+		this._register(this.onDidChangeOwner(() => this._updateBackgroundThrottling()));
 		if (this.session.network) {
 			this._view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
 		}
@@ -681,6 +679,15 @@ export class BrowserView extends Disposable {
 				this._onDidChangeAudiences.fire([...this._audiences]);
 			}
 		}
+	}
+
+	/**
+	 * Views shared with agents must keep rendering while hidden so that rAF-based
+	 * automation (e.g. Playwright's stability checks) doesn't stall. Other views stay throttled.
+	 */
+	private _updateBackgroundThrottling(): void {
+		const sharedWithAgent = this._owner.type === 'agent' || this._audiences.some(audience => audience.type === 'agent');
+		this._view.webContents.setBackgroundThrottling(!sharedWithAgent);
 	}
 
 	setAudiences(audiences: readonly IBrowserViewAudience[]): void {
