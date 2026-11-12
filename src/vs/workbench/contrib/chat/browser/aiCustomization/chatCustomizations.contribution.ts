@@ -38,6 +38,16 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	),
 });
 
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
+	command: {
+		...command,
+		precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate()),
+	},
+	group: 'navigation',
+	order: 6,
+	when: ChatContextKeys.enabled,
+});
+
 class ChatCustomizationsEntryPointContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatCustomizationsEntryPoint';
 
