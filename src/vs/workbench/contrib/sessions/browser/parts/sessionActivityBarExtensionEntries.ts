@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { compareMenuItems } from '../../../../../platform/actions/common/menuService.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Menus, SessionActivityBarGroup } from '../menus.js';
 
@@ -37,17 +38,7 @@ export class SessionActivityBarExtensionEntries extends Disposable implements IW
 
 	private update(): void {
 		this.entries.clear();
-		const items = MenuRegistry.getMenuItems(MenuId.AgentsSessionActivityBar).filter((item): item is IMenuItem => isIMenuItem(item) && !!item.command.icon).sort(compareEntries);
+		const items = MenuRegistry.getMenuItems(MenuId.AgentsSessionActivityBar).filter((item): item is IMenuItem => isIMenuItem(item) && !!item.command.icon).sort(compareMenuItems);
 		items.forEach((item, index) => this.entries.add(MenuRegistry.appendMenuItem(Menus.SessionActivityBar, { ...item, group: SessionActivityBarGroup.Extensions, order: index })));
 	}
-}
-
-/** Like a menu's own order: the `navigation` group first, then the other groups by name, then by order within a group. */
-function compareEntries(a: IMenuItem, b: IMenuItem): number {
-	const aGroup = a.group ?? '';
-	const bGroup = b.group ?? '';
-	if (aGroup !== bGroup) {
-		return aGroup === 'navigation' ? -1 : bGroup === 'navigation' ? 1 : aGroup.localeCompare(bGroup);
-	}
-	return (a.order ?? 0) - (b.order ?? 0);
 }

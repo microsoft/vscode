@@ -464,6 +464,7 @@ suite('Sessions - Session Activity Bar', () => {
 		store.add(MenuRegistry.onDidChangeMenu(event => stripChanges += event.has(Menus.SessionActivityBar) ? 1 : 0));
 		const contributed = new DisposableStore();
 		try {
+			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.d', title: 'D', icon: Codicon.verified } }));
 			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.b', title: 'B', icon: Codicon.verified }, group: 'z_other', order: 1 }));
 			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.a', title: 'A', icon: Codicon.verified }, group: 'navigation', order: 2, when: ContextKeyExpr.has('test.shown') }));
 			contributed.add(MenuRegistry.appendMenuItem(MenuId.AgentsSessionActivityBar, { command: { id: 'test.extension.c', title: 'C', icon: Codicon.verified }, group: 'navigation', order: 1 }));
@@ -471,7 +472,7 @@ suite('Sessions - Session Activity Bar', () => {
 			// The registry reports changes on the next microtask.
 			await timeout(0);
 
-			assert.deepStrictEqual({ entries: extensionEntries(), stripNotified: stripChanges > 0 }, { entries: [['test.extension.c', undefined], ['test.extension.a', 'test.shown'], ['test.extension.b', undefined]], stripNotified: true });
+			assert.deepStrictEqual({ entries: extensionEntries(), stripNotified: stripChanges > 0 }, { entries: [['test.extension.c', undefined], ['test.extension.a', 'test.shown'], ['test.extension.b', undefined], ['test.extension.d', undefined]], stripNotified: true });
 			assert.ok(Object.values(SessionActivityBarGroup).every(group => group === SessionActivityBarGroup.Extensions || group < SessionActivityBarGroup.Extensions), 'after every built-in group');
 		} finally {
 			contributed.dispose();

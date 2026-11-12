@@ -392,6 +392,14 @@ class MenuInfo extends MenuInfoSnapshot {
 	}
 }
 
+/**
+ * Compares menu items in the order a menu shows them: the `navigation` group first, the other groups by name and
+ * items without a group last, then by order and title.
+ */
+export function compareMenuItems(a: IMenuItem | ISubmenuItem, b: IMenuItem | ISubmenuItem): number {
+	return MenuInfo.compareMenuItems(a, b);
+}
+
 class MenuImpl implements IMenu {
 
 	private readonly _menuInfo: MenuInfo;
