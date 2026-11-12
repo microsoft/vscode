@@ -27,7 +27,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
@@ -52,7 +52,6 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { SessionItemIsMultiSelectionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 /**
  * Per-section context key indicating whether the active harness exposes
@@ -283,18 +282,6 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-
-		this._register(MenuRegistry.appendMenuItem(Menus.SessionItemContextMenu, {
-			command: {
-				id: AICustomizationManagementCommands.OpenEditor,
-				title: localize('openSessionCustomizations', "Open Customizations"),
-				icon: Codicon.extensions,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
-			},
-			group: 'navigation',
-			order: 6,
-			when: ChatContextKeys.enabled,
-		}));
 
 		const location = ChatCustomizationsLocationContext.bindTo(contextKeyService);
 		const updateLocation = () => location.set(resolveChatCustomizationsLocation(

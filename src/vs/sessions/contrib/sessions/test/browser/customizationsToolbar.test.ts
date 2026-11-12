@@ -42,7 +42,7 @@ import { CustomizationMigrationCategoryId } from '../../../../../workbench/contr
 import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { getCopilotCliBuiltinToolSet } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/copilotCliBuiltinToolSet.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
@@ -63,8 +63,6 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
-import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,46 +78,6 @@ suite('Customizations toolbar', () => {
 
 	test('does not include standalone Remotes management in Customizations', () => {
 		assert.ok(CUSTOMIZATION_ITEMS.every(item => item.id !== 'sessions.customization.remotes'));
-	});
-
-	test('offers Open Customizations in the Agents Sessions menu, hides it without AI, and disables multi-selection', () => {
-		disposables.add(new CustomizationsToolbarContribution(
-			new class extends mock<IActionViewItemService>() {
-				override register() { return toDisposable(() => { }); }
-			},
-			new class extends mock<IInstantiationService>() { },
-			new class extends mock<ICustomizationHarnessService>() {
-				override readonly activeHarness = constObservable('vscode');
-				override readonly availableHarnesses = constObservable<readonly IHarnessDescriptor[]>([]);
-				override getActiveDescriptor() { return upcastPartial<IHarnessDescriptor>({ hiddenSections: [] }); }
-			},
-			disposables.add(new MockContextKeyService()),
-			new TestConfigurationService(),
-		));
-		const item = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu).filter(isIMenuItem).find(item => item.command.id === AICustomizationManagementCommands.OpenEditor);
-		assert.ok(item);
-		const evaluate = (enabled: boolean, multipleSelection: boolean) => {
-			const values: Record<string, boolean> = {
-				[ChatContextKeys.enabled.key]: enabled,
-				[SessionItemIsMultiSelectionContext.key]: multipleSelection,
-			};
-			const context: IContext = { getValue: <T>(key: string) => values[key] as T | undefined };
-			return {
-				visible: item.when?.evaluate(context),
-				enabled: item.command.precondition?.evaluate(context),
-			};
-		};
-		assert.deepStrictEqual({
-			group: item.group,
-			single: evaluate(true, false),
-			multiple: evaluate(true, true),
-			aiDisabled: evaluate(false, false),
-		}, {
-			group: 'navigation',
-			single: { visible: true, enabled: true },
-			multiple: { visible: true, enabled: false },
-			aiDisabled: { visible: false, enabled: false },
-		});
 	});
 
 	test('opens the modal with complete new-session target labels', async () => {

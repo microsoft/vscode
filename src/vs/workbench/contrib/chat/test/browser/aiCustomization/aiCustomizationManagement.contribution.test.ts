@@ -38,7 +38,6 @@ import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 
 suite('AI customization management contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,7 +54,7 @@ suite('AI customization management contribution', () => {
 		assert.strictEqual(aiCustomizationManagementSectionRegistry.getDefault(AICustomizationManagementSection.Marketplace), undefined);
 	});
 
-	test('session context menus open the editor with the targeted harness and pinned workspace context', async () => {
+	test('an explicit sessionResource opens the editor with the targeted harness and pinned workspace context', async () => {
 		const resource = URI.parse('agent-host-copilot:/selected-session');
 		const harnessTargets: URI[] = [];
 		const workspaceTargets: (URI | undefined)[] = [];
@@ -84,16 +83,11 @@ suite('AI customization management contribution', () => {
 			},
 		}));
 		const command = CommandsRegistry.getCommand(AICustomizationManagementCommands.OpenEditor)!;
-		for (const target of [
-			[{ resource }],
-			{ $mid: MarshalledId.AgentSessionContext, session: { resource }, sessions: [{ resource }] },
-		]) {
-			await instantiationService.invokeFunction(accessor => command.handler(accessor, target));
-		}
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, { sessionResource: resource }));
 		assert.deepStrictEqual({ harnessTargets, workspaceTargets, opened }, {
-			harnessTargets: [resource, resource],
-			workspaceTargets: [resource, resource],
-			opened: [true, true],
+			harnessTargets: [resource],
+			workspaceTargets: [resource],
+			opened: [true],
 		});
 	});
 
