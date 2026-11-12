@@ -184,6 +184,9 @@ class MockCopilotSession {
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
+	/** Overrides the instance `rpc.canvas.open` returns. */
+	onCanvasOpen: ((params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => Promise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>) | undefined;
+	canvasOpenError: Error | undefined;
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
 	canvasCloseGate: Promise<void> | undefined;
 	canvasCloseError: Error | undefined;
@@ -651,6 +654,12 @@ class MockCopilotSession {
 			},
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
 				this.canvasOpenCalls.push(params);
+				if (this.canvasOpenError) {
+					throw this.canvasOpenError;
+				}
+				if (this.onCanvasOpen) {
+					return this.onCanvasOpen(params);
+				}
 				return {
 					instanceId: params.instanceId,
 					extensionId: params.extensionId ?? 'project:preview',
@@ -5680,7 +5689,7 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
-		test('reconciles handed-over canvases with the canvases the replacement runtime has open', async () => {
+		test('reconciles handed-over canvases with the canvases the replacement runtime has open or still declares', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/preview' }, { ...chart, url: 'https://example.test/chart' });
 			const replacement = await createAgentSession(disposables, {
 				resume: true,
@@ -5688,6 +5697,8 @@ suite('CopilotAgentSession', () => {
 				configureMockSession: mock => {
 					mock.openCanvases.push({ ...preview });
 					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+					// The chart's provider is gone, so the replacement runtime no longer declares its canvas.
+					mock.canvases.splice(mock.canvases.findIndex(canvas => canvas.canvasId === chart.canvasId), 1);
 				},
 			});
 			const [previewResource, chartResource] = handoff.projections.map(projection => projection.resource.toString());
@@ -5704,6 +5715,168 @@ suite('CopilotAgentSession', () => {
 					{ resource: previewResource, url: 'https://example.test/replacement' },
 				],
 				membership: [[previewResource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('reopens a handed-over canvas the replacement runtime restored without starting its provider', async () => {
+			const input = { path: '/logs/events.jsonl' };
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, input, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					// A lazily activated provider's canvas stays declared, but its restored instance is not open until demanded.
+					mock.onCanvasOpen = async params => ({ ...preview, input: params.input, url: 'https://example.test/reopened' });
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+			const publishedInput = replacement.signals.some(signal => signal.kind === 'canvas' && Object.hasOwn(signal.state, 'input'));
+
+			assert.deepStrictEqual({
+				adopted,
+				openCalls: replacement.mockSession.canvasOpenCalls,
+				...summarizeCanvasSignals(replacement.signals),
+				publishedInput,
+				nextHandoffInput: replacement.session.takeCanvasProjection()?.projections.map(projection => projection.input),
+			}, {
+				adopted: true,
+				openCalls: [{ extensionId: preview.extensionId, canvasId: preview.canvasId, instanceId: preview.instanceId, input }],
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+				membership: [[resource]],
+				publishedInput: false,
+				nextHandoffInput: [input],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps a handed-over canvas unavailable when reopening it fails', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.canvasOpenError = new Error('provider failed to start');
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('reopens a restored canvas without delaying the resume', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			// The session finishes starting while the provider is still starting.
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			const whileReopening = { reopenPending: !reopen.isSettled, ...summarizeCanvasSignals(replacement.signals) };
+			reopen.complete({ ...preview, url: 'https://example.test/reopened' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, whileReopening, states: summarizeCanvasSignals(replacement.signals).states }, {
+				adopted: true,
+				whileReopening: {
+					reopenPending: true,
+					states: [{ resource, url: undefined }],
+					membership: [[resource]],
+				},
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps a slowly reopening canvas without desynchronizing the session', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				controlPlaneRpcTimeoutMs: 1,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(10);
+			const desynchronized = replacement.session.requiresControlPlaneResync;
+			// The runtime still reports the reopen once the provider has started.
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+			reopen.complete({ ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({ desynchronized, ...summarizeCanvasSignals(replacement.signals) }, {
+				desynchronized: false,
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/late' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('ignores a background reopen that finishes after the canvas was closed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+
+			await replacement.session.closeCanvas({ resource });
+			reopen.complete({ ...preview, url: 'https://example.test/stale' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				states: [{ resource: resource.toString(), url: undefined }],
+				membership: [[resource.toString()], []],
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not restore a handed-over canvas closed while it is being reopened', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = async () => {
+						mock.fire('session.canvas.closed', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+						return { ...preview, url: 'https://example.test/stale' };
+					};
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [[]],
 			});
 			replacement.session.dispose();
 		});
