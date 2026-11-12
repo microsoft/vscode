@@ -3793,7 +3793,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		const selectedModel = models.find(candidate => candidate.id === model.id);
-		return selectedModel !== undefined && this._byokModels.includes(selectedModel);
+		return selectedModel !== undefined && this._byokModels.some(candidate => candidate.id === selectedModel.id);
 	}
 
 	async authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean> {
