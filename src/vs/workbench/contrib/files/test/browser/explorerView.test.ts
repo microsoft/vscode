@@ -76,6 +76,19 @@ suite('Files - ExplorerView', () => {
 			[['project (Alternate · feature/x)', 'a', 'project'], 'project']);
 	});
 
+	test('explorer root labels and aria labels are the plain folder names at the primary location in single and multi-root workspaces', () => {
+		const folders = [URI.file('/work/project'), URI.file('/work/other')];
+		const renderer = ds.add(new FilesRenderer(
+			dom.$('div'), undefined!, undefined!, () => { },
+			undefined!, configService, undefined!,
+			{ getFolderLocationLabel: () => undefined } as unknown as ILabelService,
+			{ getWorkspace: () => ({ folders: folders.map(uri => ({ uri })) }) } as unknown as IWorkspaceContextService,
+			undefined!));
+		const roots = folders.map((uri, index) => new ExplorerItem(uri, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, `name${index}`, 0, false));
+
+		assert.deepStrictEqual(roots.map(root => renderer.getAriaLabel(root)), ['name0', 'name1']);
+	});
+
 	test('getContext', async function () {
 		const d = new Date().getTime();
 		const s1 = createStat.call(this, '/', '/', true, false, 8096, d);

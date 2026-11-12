@@ -14,7 +14,7 @@ import { TestWorkspace, Workspace } from '../../../../../platform/workspace/test
 import { isWindows } from '../../../../../base/common/platform.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../../common/memento.js';
-import { ResourceLabelFormatter } from '../../../../../platform/label/common/label.js';
+import { ResourceLabelFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
 import { sep } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -962,6 +962,23 @@ suite('workspace label decorator', () => {
 				identifier: 'repo-alt (wt · feature)',
 				location: 'wt · feature'
 			});
+	});
+
+	test('workspace labels of single folder, multi-root and empty workspaces are identical with a decorator that has no location, at every verbosity', () => {
+		const workspaces = {
+			folderUri: folder,
+			folderWorkspace: new Workspace('id', [new WorkspaceFolder({ uri: folder, index: 0, name: 'repo' })]),
+			multiRoot: new Workspace('id', [new WorkspaceFolder({ uri: folder, index: 0, name: 'repo' }), new WorkspaceFolder({ uri: alternate, index: 1, name: 'alt' })], URI.file('/work/my.code-workspace')),
+			empty: new Workspace('id', []),
+		};
+		const verbosities = [undefined, Verbosity.SHORT, Verbosity.MEDIUM, Verbosity.LONG];
+		const render = (withLocation: boolean | undefined) => Object.values(workspaces).map(workspace => verbosities.map(verbose => labelService.getWorkspaceLabel(workspace, { verbose, withLocation })));
+
+		const withoutDecorator = [render(undefined), render(true)];
+		register(new Map(), disposables.add(new Emitter<URI>()));
+		const withDecorator = [render(undefined), render(true)];
+
+		assert.deepStrictEqual(withDecorator, withoutDecorator);
 	});
 
 	test('a decorator change fires the formatters change event', () => {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -14,10 +14,15 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
+import { Workspace as DerivedIdentityWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { defaultWindowTitle, WindowTitle } from '../../../../browser/parts/titlebar/windowTitle.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { TestViewsService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 
 suite('Folder Location in Window Title and Command Center', () => {
 
@@ -93,5 +98,67 @@ suite('Folder Location in Window Title and Command Center', () => {
 		assert.deepStrictEqual(
 			{ label: title.getCommandCenterLabel({ showFileName: false }), custom: title.getWindowTitle() },
 			{ label: 'constant', custom: 'constant' });
+	});
+
+	suite('without a location, titles are identical to a default title without ${folderLocation}', () => {
+
+		const mainDefaultWindowTitle = defaultWindowTitle.replace('${separator}${folderLocation}', '');
+
+		function render(format: string, workspace: Workspace, options?: { dirtyEditor?: boolean; profileName?: string }): { title: string; commandCenter: string[] } {
+			const locationService = new class extends mock<IWorkspaceFolderLocationService>() {
+				override readonly onDidChangeLocation = Event.None;
+				override getLocation() { return undefined; }
+			}();
+			const editor = options?.dirtyEditor ? new class extends mock<EditorInput>() {
+				override get typeId() { return 'test'; }
+				override get resource() { return undefined; }
+				override readonly onDidChangeDirty = Event.None;
+				override readonly onDidChangeLabel = Event.None;
+				override getTitle() { return 'file.ts'; }
+				override isDirty() { return true; }
+				override isSaving() { return false; }
+			}() : undefined;
+			const profileName = options?.profileName;
+			const instantiationService = workbenchInstantiationService({}, disposables);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ window: { title: format, titleSeparator: ' - ' } }));
+			instantiationService.stub(IWorkspaceContextService, new TestContextService(workspace));
+			instantiationService.stub(IWorkspaceFolderLocationService, locationService);
+			instantiationService.stub(IViewsService, new TestViewsService());
+			if (editor) {
+				instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+					override readonly onDidActiveEditorChange = Event.None;
+					override get activeEditor() { return editor; }
+					override get activeTextEditorLanguageId() { return undefined; }
+				}());
+			}
+			if (profileName) {
+				instantiationService.stub(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
+					override readonly onDidChangeCurrentProfile = Event.None;
+					override get currentProfile() { return { isDefault: false, name: profileName } as IUserDataProfile; }
+				}());
+			}
+			const title = disposables.add(instantiationService.createInstance(WindowTitle, mainWindow));
+			return {
+				title: title.getWindowTitle(),
+				commandCenter: [title.getCommandCenterLabel({ showFileName: false }), title.getCommandCenterLabel({ showFileName: true }), title.workspaceName]
+			};
+		}
+
+		const folder = (uri: URI, index: number) => new WorkspaceFolder({ uri, index, name: 'repo' });
+		const workspaces: Record<string, () => Workspace> = {
+			'single folder': () => new DerivedIdentityWorkspace('id', [folder(primary, 0)]),
+			'multi-root': () => new DerivedIdentityWorkspace('id', [folder(primary, 0), folder(alternate, 1)], URI.file('/work/my.code-workspace')),
+			'empty': () => new DerivedIdentityWorkspace('id', []),
+		};
+
+		for (const [name, createWorkspace] of Object.entries(workspaces)) {
+			test(`default window title and command center label are unchanged for ${name} workspace`, () => {
+				const options = [{}, { dirtyEditor: true }, { profileName: 'Work' }, { dirtyEditor: true, profileName: 'Work' }];
+
+				assert.deepStrictEqual(
+					options.map(option => render(defaultWindowTitle, createWorkspace(), option)),
+					options.map(option => render(mainDefaultWindowTitle, createWorkspace(), option)));
+			});
+		}
 	});
 });
