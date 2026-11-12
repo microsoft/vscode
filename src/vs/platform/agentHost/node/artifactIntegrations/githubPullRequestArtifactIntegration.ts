@@ -27,6 +27,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
 import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -862,7 +863,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	}
 
 	private promptAction(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', iconId: string, label: string): ArtifactAction {
-		return { id, iconId, label, kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
+		return { id, iconId, label, activityLabel: getPullRequestRepairActivityLabel(id), kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
 	}
 
 	private async preparePrompt(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', context: IArtifactActionContext, token: CancellationToken): Promise<ArtifactPreparation<ArtifactPrompt>> {

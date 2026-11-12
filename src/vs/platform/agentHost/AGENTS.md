@@ -10,6 +10,8 @@
 
 # Multi-Chat Architecture
 
+> Before adding or changing protocol constructs or `_meta`, follow [AHP interoperability](../../../../.github/instructions/agent-host-interoperability.instructions.md#protocol-constructs-before-_meta): use existing protocol constructs first, raise unmet requirements upstream, and preserve compatibility with alternate hosts and UIs.
+
 > Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md). Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
 
 > **Status: COMPLETE** (2026-07-01) All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and Copilot all use the unified orchestrator path.
@@ -161,6 +163,16 @@ If runtime MCP inventory arrives before SDK plugin discovery, keep the already-p
 Late ownership adoption moves unowned host Global/Workspace decisions through the enablement service before resolving the owned target, preserving existing destination decisions and the retained Session ID. Move only the confirmed session workspace's decision; defer adoption while session initialization or working-directory resolution is pending. Merge pending writes per scope, preserving persisted and queued destination decisions without dropping nonconflicting source writes or full-replacement clears. Match known runtime plugin provenance as well as the server name, retaining the parent plugin name when discovery omits the child's plugin name. When provenance contradicts adopted plugin discovery, clear that discovery's metadata, inherited default, and source location while retaining unrelated metadata.
 
 The SDK hook contract currently supplies an event type, opaque action ID, enabled flag, origin, and human-readable source label, but no structured plugin identity, command body, or guaranteed source URI/range. Publish these actions using non-readable `agent-discovery` URIs and show the source-file limitation; do not parse labels or opaque IDs to fabricate ownership or navigation. Hook-only contributions therefore appear as actions, not invented plugin containers. MCP effective-source metadata is optional; keep opaque source/plugin IDs as metadata and do not infer cache paths when it is absent. Discovery describes the SDK's returned inventory, not all contents of disabled installations and not proof that hooks executed or MCP servers connected.
+
+### Microsoft Copilot account context
+
+Behind the startup-effective M365 gate, authenticating the [Microsoft discovery resource](common/copilotEntraAuthentication.ts) starts runtime discovery, and authenticating a discovered service resource activates that service. [CopilotAccountService](node/copilot/copilotAccountService.ts) owns the tool-less SDK setup session that performs both. Keep these invariants:
+
+- **Account state stays in the host.** Runtime selection handles and [account state](common/copilotAccountContext.ts) never enter protocol metadata or root configuration. Clients use ordinary AHP authentication, including revocation, with no window-specific ownership requirement.
+- **A service is ready only once the runtime confirms it.** A service the runtime activates on its own is accepted only after confirming the active derived account, and an empty selected-account catalog is an error rather than a reason to invent models. Readiness does not prove the account has no other usable service.
+- **Optional credentials never choose the account.** Passive forwarding sends an optional resource only when the primary default sign-in already grants its scopes, including as a broader superset; cached optional credentials do not select another service.
+
+The SDK binds Microsoft authentication to a session, so the catalog comes from the setup session's `rpc.model.list()`, not the global token-based API. The runtime cannot resolve managed settings for a Microsoft account yet, so the host applies none to that account's catalog; do not read policy from the setup session to compensate.
 
 ### Copilot Connector authentication
 
@@ -411,7 +423,7 @@ Behind the root setting `chatMoves.enabled` (host schema default off; VS Code cl
 
 ## 3d. Chats With Their Own Agent
 
-Behind the root setting `multipleChatProviders.enabled` (workbench `chat.agentHost.multipleChatProviders.enabled`, default off and experiment-controlled), a chat of a session may use another agent than its session. The host advertises `InitializeResult.multipleChatProviders` only with the setting on and a negotiated protocol of at least 1.1.0; with the setting off nothing changes and `CreateChatParams.provider` is rejected with `InvalidParams`.
+Behind the root setting `multipleChatProviders.enabled` (workbench `chat.agentHost.multipleChatProviders.enabled`, default off and experiment-controlled), a chat of a session may use another agent than its session. The host advertises `InitializeResult.multipleChatProviders` only with the setting on and a negotiated protocol of at least 1.1.0; with the setting off nothing changes and `CreateChatParams.provider` is rejected with `InvalidParams`. A VS Code client with the workbench setting on sets `_meta['vscode.multipleChatProviders']` in `initialize`, and the host turns its setting on before answering (under the rules of a client `RootConfigChanged`: not for unauthenticated or passive relay lanes, nor while the property is read-only or owned by the extension overlay), so the connection is told at once; only a host that ignores the flag needs the client to re-initialize (a reconnect) once its mirrored setting lands, which an SSH connection without an SSH config host can't survive.
 
 - **Creation.** `createChat` resolves the chat's agent: the requested `provider`, else a fork or side chat's source chat's agent, else the session's. A requested agent must be registered (a policy-disabled agent is not) and advertise `multipleChats`; a fork or side chat must use its source chat's agent (`InvalidParams` otherwise). The agent creates the chat from the exhaustive `IAgentChatContext` like any peer chat: it needs no session of its own, since every harness mints a per-chat backing for a peer chat.
 - **Routing.** The state manager records each chat's agent at registration (subagents take their spawning chat's) and reports `provider` on `ChatState`, `ChatSummary` and `SessionChatSummary` only when it differs from the session's; `session/chatUpdated` never carries it. `IAgentHostProviderService.getProviderForChat(session, chat)` routes every chat-addressed operation (turns, input, steering, aborts, canvases, background work, history watches, release, dispose, telemetry, utility model); session-scoped operations stay on `getProviderForSession`.

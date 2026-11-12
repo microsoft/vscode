@@ -7,7 +7,7 @@ import { RunOnceScheduler, Throttler, timeout } from '../../../../../base/common
 import { equals } from '../../../../../base/common/arrays.js';
 import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -28,8 +28,9 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { getGitHubEnvironmentAuthentication, getGitHubEnvironmentSessions } from './gitHubEnvironmentAccount.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
 const gitDefaultCloneDirectorySetting = 'git.defaultCloneDirectory';
@@ -279,7 +280,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 	}
 
 	private _getScopes(): readonly string[] {
-		return this._product.defaultChatAgent?.providerScopes?.[0] ?? ['read:user', 'user:email', 'repo', 'workflow'];
+		return getGitHubEnvironmentAuthentication(this._product).scopes;
 	}
 
 	private async _getFileSystemRoots(): Promise<URI[]> {
@@ -368,42 +369,12 @@ export class MissionControlSharingService extends Disposable implements IMission
 		if (!this._configured) {
 			this.state.set('connecting', undefined);
 		}
-		const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
-		const scopes = this._getScopes();
 		const defaultAccount = await this._defaultAccountService.getDefaultAccount();
 		if (generation !== this._generation || this._store.isDisposed) {
 			return;
 		}
 		this._defaultAccount = defaultAccount;
-		let account: AuthenticationSessionAccount | undefined;
-		if (defaultAccount) {
-			if (defaultAccount.authenticationProvider.id !== providerId) {
-				throw new Error(localize('missionControlSharing.githubAccountRequired', "GitHub environment sharing requires a GitHub.com Copilot account."));
-			}
-			const allSessions = await this._authentication.getSessions(providerId, undefined, undefined, true);
-			account = allSessions.find(session => session.id === defaultAccount.sessionId)?.account;
-			if (!account) {
-				throw new Error(localize('missionControlSharing.accountUnavailable', "The selected Copilot account is unavailable. Sign in to GitHub again to enable environment sharing."));
-			}
-		}
-		const sessionOptions = account ? { account } : undefined;
-		let sessions = await this._authentication.getSessions(providerId, [...scopes], sessionOptions, true);
-		if (account) {
-			const accountId = account.id;
-			sessions = sessions.filter(session => session.account.id === accountId);
-		}
-		if (!sessions.length && interactive && generation === this._generation && !this._store.isDisposed) {
-			const session = await this._authentication.createSession(providerId, [...scopes], sessionOptions).catch(error => {
-				if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
-					throw new CancellationError();
-				}
-				throw error;
-			});
-			if (account && session.account.id !== account.id) {
-				throw new Error(localize('missionControlSharing.accountMismatch', "Sign in with the selected Copilot account to enable GitHub environment sharing."));
-			}
-			sessions = [session];
-		}
+		const sessions = await getGitHubEnvironmentSessions(this._authentication, this._product, defaultAccount, () => interactive && generation === this._generation && !this._store.isDisposed);
 		if (generation !== this._generation || this._store.isDisposed) {
 			return;
 		}

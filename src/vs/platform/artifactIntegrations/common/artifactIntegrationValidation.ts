@@ -148,6 +148,7 @@ function isAuthority(value: unknown): boolean {
 
 export function isArtifactActionDescriptor(value: unknown): value is ArtifactActionDescriptor {
 	return isRecord(value) && strings(value, 'id', 'iconId', 'label') && (value.kind === 'code' || value.kind === 'prompt')
+		&& (value.activityLabel === undefined || strings(value, 'activityLabel'))
 		&& (value.consentVersion === undefined || typeof value.consentVersion === 'string');
 }
 

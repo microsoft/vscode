@@ -546,6 +546,11 @@ export class ChatInputPills extends Disposable {
 		return this._pills.getPillElements();
 	}
 
+	/** Surfaces for the chat pet: each pill together with any segments joined to it, such as integration status. */
+	getPillItemElements(): readonly HTMLElement[] {
+		return this._pills.getPillItemElements();
+	}
+
 	focusFirst(): boolean {
 		return this._pills.focusFirst();
 	}

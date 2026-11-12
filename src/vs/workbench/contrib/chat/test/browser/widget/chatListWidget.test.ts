@@ -3173,6 +3173,44 @@ suite('ChatListWidget', () => {
 			});
 		});
 
+		test('positions the scroll arrow once per frame while scrolling toggles it', async () => {
+			const { container, widget, sticky } = await createTranscript();
+			const button = widget.scrollDownButtonDomNode;
+			const bottom = widget.scrollTop;
+			// Render and measure the rows at the top first, so that only the toggles below measure.
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			widget.scrollTop = bottom;
+			await waitForStableLayout(widget);
+			const measure = sinon.spy(container, 'getBoundingClientRect');
+			let synchronous: number;
+			try {
+				for (let index = 0; index < 5; index++) {
+					widget.scrollTop = 0;
+					widget.scrollTop = bottom;
+				}
+				widget.scrollTop = 0;
+				synchronous = measure.callCount;
+				await nextFrame();
+			} finally {
+				measure.restore();
+			}
+			await waitForStableLayout(widget);
+			const row = sticky.getBoundingClientRect();
+			const arrow = button.getBoundingClientRect();
+			assert.deepStrictEqual({
+				synchronous,
+				afterFrame: measure.callCount,
+				shown: button.style.display,
+				centered: Math.abs((row.top + row.bottom) / 2 - (arrow.top + arrow.bottom) / 2) < 0.5,
+			}, {
+				synchronous: 0,
+				afterFrame: 1,
+				shown: 'flex',
+				centered: true,
+			});
+		});
+
 		test('follows pills appearing and disappearing without moving the pills or input', async () => {
 			const { widget, progress, sticky, pillRow, input, setPillsVisible } = await createTranscript();
 			widget.scrollTop = 0;
