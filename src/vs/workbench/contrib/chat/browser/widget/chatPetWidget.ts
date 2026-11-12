@@ -145,8 +145,11 @@ const MOUSE_BOUNCE_HORIZONTAL_TRANSFER = 0.35;
 const MOUSE_BOUNCE_EDGE_KICK = 320;
 const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_DISPLAY_SIZE = 48;
+/** Maximum stacking height before mini pets share space. */
 const CHAT_PET_SUBAGENT_MAX_HEIGHT = 96;
+/** Tolerance for fractional pixels when checking mini-pet bounds. */
 const CHAT_PET_SUBAGENT_BOUNDARY_EPSILON = 0.01;
+/** Distance kept between mini pets and the edges of their platform. */
 const CHAT_PET_SUBAGENT_EDGE_INSET = 12;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
@@ -218,16 +221,27 @@ interface ChatPetSpriteElement {
 	redrawFrame?: () => void;
 }
 
+/** Visual state and lifecycle controls for one active subagent pet. */
 interface ChatPetSubagent {
+	/** Container positioned on the chat overlay. */
 	readonly element: HTMLElement;
+	/** Canvas used to draw the pet and its accessory. */
 	readonly canvas: HTMLCanvasElement;
+	/** Image containing the current body sprite. */
 	readonly image: HTMLImageElement;
+	/** Image containing the current accessory, if any. */
 	readonly accessoryImage: HTMLImageElement | undefined;
+	/** Eye elements used for tracking and blinking. */
 	readonly eyes: HTMLElement;
+	/** Resources owned by this pet. */
 	readonly disposables: DisposableStore;
+	/** Updates whether blinking is enabled. */
 	readonly updateBlink: () => void;
+	/** Synchronizes appearance and motion with the main pet. */
 	readonly updateAppearance: (motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean) => void;
+	/** Starts a fall to an overlay-relative position, optionally followed by respawning. */
 	readonly fallTo: (top: number, respawn?: boolean) => void;
+	/** Reports whether a fall-and-respawn sequence is in progress. */
 	readonly isRespawning: () => boolean;
 }
 
@@ -1265,10 +1279,15 @@ export class ChatPetHopController extends Disposable {
 
 export class ChatPetWidget extends Disposable {
 
+	/** Active pets keyed by request and tool call identity. */
 	private readonly _subagentPets = new Map<string, ChatPetSubagent>();
+	/** Chat model currently supplying active subagents. */
 	private _subagentModel: IChatModel | undefined;
+	/** Resources for active pets and their disappearance effects. */
 	private readonly _subagentEffects = this._register(new DisposableStore());
+	/** Coalesces bounds checks while the chat is resizing. */
 	private readonly _subagentResizeScheduler = this._register(new RunOnceScheduler(() => this._reconcileSubagentResize(), 16));
+	/** Overlay layer containing mini pets. */
 	private readonly _subagentLayer: HTMLElement;
 	private parent: HTMLElement;
 	private dragBounds: HTMLElement;
@@ -2957,6 +2976,7 @@ export class ChatPetWidget extends Disposable {
 		return this._button.element.offsetLeft;
 	}
 
+	/** Returns the visible, inset horizontal bounds for mini-pet placement. */
 	private _getSubagentHorizontalBounds(overlay: DOMRect, input: DOMRect, movement: DOMRect, platform: IChatPetPlatform | undefined): { left: number; right: number } {
 		const left = Math.max(0, input.left, movement.left, platform?.left ?? input.left);
 		const right = Math.min(dom.getWindow(this._overlay).innerWidth, input.right, movement.right, platform?.right ?? input.right);
@@ -3010,6 +3030,7 @@ export class ChatPetWidget extends Disposable {
 		return { ...best!, top: Math.max(best!.top, minimumTop) };
 	}
 
+	/** Creates and removes pets to match the active subagent identities. */
 	private _updateSubagentPets(subagents: ReadonlySet<string>): void {
 		let removed = false;
 		let added = false;
@@ -3289,6 +3310,7 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
+	/** Removes an active pet after playing its disappearance effect. */
 	private _despawnSubagentPet(pet: ChatPetSubagent): void {
 		this._subagentEffects.delete(pet.disposables);
 		pet.image.remove();
