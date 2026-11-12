@@ -24,10 +24,8 @@
 	max-width: calc(100vw - 32px);
 }
 
-.chat-customizations-hover .hover-contents p:nth-of-type(2) {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
-	overflow-wrap: anywhere;
+.monaco-hover.workbench-hover.chat-customizations-hover .markdown-hover .hover-contents {
+	padding-top: var(--vscode-spacing-size80);
 }
 
 .chat-customizations-hover table {
@@ -129,7 +127,12 @@
 }
 
 .chat-customizations-hover .hover-contents hr + p > a {
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
+}
+
+.monaco-hover.workbench-hover.chat-customizations-hover .markdown-hover .hover-contents hr + p > a > .codicon {
+	margin-bottom: 0;
 }
 
 .chat-customizations-hover .hover-contents hr + p > a:last-child {

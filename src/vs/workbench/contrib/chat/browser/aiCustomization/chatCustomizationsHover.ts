@@ -169,10 +169,6 @@ export class ChatCustomizationsHover {
 			};
 			const content = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: { enabledCommands: hoverCommands } });
 			content.appendMarkdown(`**${localize('customizationsHover.title', "Session Customizations")}**\n\n`);
-			content.appendText(this.getProjectRoot(sessionResource)
-				? localize('customizationsHover.scopeWithWorkspace', "Available for {0} and current workspace", descriptor.label)
-				: localize('customizationsHover.scope', "Available for {0}", descriptor.label));
-			content.appendMarkdown('\n\n');
 			let hasSections = false;
 			const appendSection = (section: AICustomizationManagementSection & CustomizationsHoverTarget, icon: ThemeIcon, label: string, count: () => number) => {
 				if (!hidden.has(section)) {

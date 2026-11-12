@@ -134,17 +134,16 @@ suite('Chat customizations hover', () => {
 		).filter(target => typeof target === 'object');
 		assert.deepStrictEqual({
 			observed, scoped, disposed: scopeDisposed(),
-			scope: rendered.querySelector('p:nth-of-type(2)')?.textContent?.replace(/\u00a0/g, ' '),
 			counts: [...rendered.querySelectorAll('tbody tr')].map(row => row.querySelector('td:last-child')?.textContent?.trim()),
 			targets: links.map(target => target.sessionResource),
 		}, {
 			observed: [], scoped: [resource.toString()], disposed: true,
-			scope: 'Available for Claude and current workspace', counts: ['2', '1', '1', '1', '1'],
+			counts: ['2', '1', '1', '1', '1'],
 			targets: Array(6).fill(resource.toJSON()),
 		});
 	});
 
-	test('describes the session harness and workspace without including the workspace name', async () => {
+	test('shows the title directly above the inventory with or without a workspace', async () => {
 		const summaries = [];
 		for (const hasWorkspace of [true, false]) {
 			const { hover } = createHover([], Promise.resolve(), [], hasWorkspace);
@@ -152,12 +151,12 @@ suite('Chat customizations hover', () => {
 			const rendered = store.add(renderMarkdown(content)).element;
 			summaries.push({
 				title: rendered.querySelector('strong')?.textContent,
-				description: rendered.querySelector('p:nth-of-type(2)')?.textContent?.replace(/\u00a0/g, ' '),
+				order: [...rendered.children].map(element => element.tagName),
 			});
 		}
 		assert.deepStrictEqual(summaries, [
-			{ title: 'Session Customizations', description: 'Available for Copilot and current workspace' },
-			{ title: 'Session Customizations', description: 'Available for Copilot' },
+			{ title: 'Session Customizations', order: ['P', 'TABLE', 'HR', 'P'] },
+			{ title: 'Session Customizations', order: ['P', 'TABLE', 'HR', 'P'] },
 		]);
 	});
 
@@ -424,7 +423,7 @@ suite('Chat customizations hover', () => {
 			targets,
 			inventoryDetails: rendered.querySelectorAll('td em').length,
 		}, {
-			order: ['P', 'P', 'TABLE', 'P', 'UL', 'HR', 'P'],
+			order: ['P', 'TABLE', 'P', 'UL', 'HR', 'P'],
 			attentionHeading: 'Needs attention',
 			entries: ['3 customizations need migration', '4 MCP servers require sign-in', 'GitHub', 'Figma'],
 			targets: [

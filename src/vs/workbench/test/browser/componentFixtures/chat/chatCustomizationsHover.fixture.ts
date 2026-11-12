@@ -100,8 +100,8 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Default: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: [
-			'A compact Session Customizations hover shows five icon-labelled inventory rows with right-aligned counts, no visible table header, and no Needs attention section.',
-			'The footer shows Browse Additional on the left and a settings gear aligned with the counts on the right.',
+			'A compact Session Customizations hover has breathing room above its title, followed directly by five icon-labelled inventory rows with right-aligned counts, no scope subtitle, no visible table header, and no Needs attention section.',
+			'The footer shows a plus icon vertically centered with Browse Additional on the left and a settings gear aligned with the counts on the right.',
 		],
 		render: context => renderHover(context),
 	}),
