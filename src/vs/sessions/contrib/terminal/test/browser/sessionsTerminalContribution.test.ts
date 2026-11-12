@@ -1093,6 +1093,40 @@ suite('SessionsTerminalContribution', () => {
 		});
 	});
 
+	test('keeps the terminal a chat window shows of a discarded draft the draft\'s, for the window to give back to the panel, rather than to another session', async () => {
+		const cwd = URI.file('/worktree');
+		const draftSession = makeAgentSession({ sessionId: 'test:draft', worktree: cwd, providerType: AgentSessionProviders.Background });
+		const nextSession = makeAgentSession({ sessionId: 'test:next', worktree: cwd, providerType: AgentSessionProviders.Background });
+		const shown = (await contribution.createChatWindowTerminal(draftSession, draftSession.activeChat.get()))!;
+
+		onDidDiscardNewSession.fire(draftSession);
+		const ownerAfterDiscard = contribution.getChatWindowTerminalOwner(shown);
+		const next = await contribution.ensureTerminal(cwd, false, nextSession);
+
+		assert.deepStrictEqual({
+			ownerAfterDiscard,
+			ownerAfterNext: contribution.getChatWindowTerminalOwner(shown),
+			next: next.map(instance => instance.instanceId),
+		}, {
+			ownerAfterDiscard: 'test:draft',
+			ownerAfterNext: 'test:draft',
+			next: [shown.instanceId + 1],
+		});
+	});
+
+	test('forgets the scope of the terminal of a discarded draft as it closes', async () => {
+		const cwd = URI.file('/worktree');
+		const draftSession = makeAgentSession({ sessionId: 'test:draft', worktree: cwd, providerType: AgentSessionProviders.Background });
+		const [terminal] = await contribution.ensureTerminal(cwd, false, draftSession);
+		onDidDiscardNewSession.fire(draftSession);
+
+		(terminal as TestTerminalInstance)._testSetDisposed(true);
+		terminalInstances.delete(terminal.instanceId);
+		onDidDisposeInstance.fire(terminal);
+
+		assert.deepStrictEqual([...(contribution as unknown as { _trackedTerminalScopes: Map<number, unknown> })._trackedTerminalScopes.keys()], []);
+	});
+
 	test('rehomes terminals when replacement drafts use different cwd values', async () => {
 		const firstCwd = URI.file('/worktree-one');
 		const secondCwd = URI.file('/worktree-two');

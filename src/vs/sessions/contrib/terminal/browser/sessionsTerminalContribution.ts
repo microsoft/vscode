@@ -625,10 +625,19 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			pendingOperation.replaced = true;
 		}
 		const terminalIds = this._sessionTerminals.get(session.sessionId);
-		if (terminalIds && terminalIds.size > 0) {
-			this._logService.trace(`[SessionsTerminal] Released ${terminalIds.size} terminal(s) of discarded session ${session.sessionId}`);
+		if (!terminalIds) {
+			return;
 		}
-		this._sessionTerminals.delete(session.sessionId);
+		// Those a chat window shows stay the draft's: as the window moves on to another session, it gives them back to the
+		// panel, rather than taking them for that session, and no other session reuses them meanwhile.
+		const released = [...terminalIds].filter(id => !this._chatWindowTerminalIds.has(id));
+		released.forEach(id => terminalIds.delete(id));
+		if (released.length > 0) {
+			this._logService.trace(`[SessionsTerminal] Released ${released.length} terminal(s) of discarded session ${session.sessionId}`);
+		}
+		if (terminalIds.size === 0) {
+			this._sessionTerminals.delete(session.sessionId);
+		}
 	}
 
 	private _rehomeTerminals(sessionId: string): void {
@@ -706,9 +715,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private _removeTerminalFromTrackedSessions(instanceId: number): void {
+		// Also of a terminal no session tracks any longer, such as one of a discarded draft.
+		this._trackedTerminalScopes.delete(instanceId);
 		for (const [sessionId, terminalIds] of this._sessionTerminals) {
 			terminalIds.delete(instanceId);
-			this._trackedTerminalScopes.delete(instanceId);
 			if (terminalIds.size === 0) {
 				this._sessionTerminals.delete(sessionId);
 			}
