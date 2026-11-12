@@ -223,7 +223,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	private async refreshCatalogueAndHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		await this.accountInitialization;
-		const store = this.requireStore();
+		const store = this.store.get();
+		if (!store) {
+			return;
+		}
 		this.logService.trace('[CloudAutomations] Definition refresh started');
 		try {
 			await store.refresh(options);
