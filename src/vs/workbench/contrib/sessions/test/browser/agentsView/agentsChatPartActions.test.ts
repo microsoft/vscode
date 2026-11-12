@@ -14,7 +14,6 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../services/editor/common/editorGroupsService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { AgentsChatPartChatTabsMenu, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
@@ -114,17 +113,12 @@ suite('Agents chat part actions', () => {
 		});
 	});
 
-	test('the context menu of a session offers its customizations, with AI features enabled, for a single session, opened in the editor area rather than the chat part', async () => {
+	test('the context menu of a session offers its customizations, with AI features enabled, for a single session, which it names', async () => {
 		store.add(registerAgentsViewNewSessionActions());
 		const id = 'workbench.action.agentsView.openSessionCustomizations';
 		const item = MenuRegistry.getMenuItems(SessionItemContextMenuId).filter(isIMenuItem).find(candidate => candidate.command.id === id);
 		const calls: string[] = [];
-		const mainGroup = upcastPartial<IEditorGroup>({ id: 1 });
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
-			mainPart: upcastPartial<IEditorPart>({ activeGroup: mainGroup }),
-			activateGroup: group => { calls.push(`activate ${(group as IEditorGroup).id}`); return group as IEditorGroup; },
-		}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (command: string, arg: { sessionResource: URI }) => { calls.push(`${command} ${arg.sessionResource.toString()}`); } }));
 		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilot:/one') });
 		const handler = CommandsRegistry.getCommand(id)!.handler;
@@ -141,7 +135,7 @@ suite('Agents chat part actions', () => {
 			when: 'chatIsEnabled',
 			precondition: 'chatIsEnabled && !sessionItem.isMultiSelection',
 			agentsWindowAction: false,
-			calls: ['activate 1', 'aiCustomization.openManagementEditor agent-host-copilot:/one'],
+			calls: ['aiCustomization.openManagementEditor agent-host-copilot:/one'],
 			several: 'rejected',
 		});
 	});

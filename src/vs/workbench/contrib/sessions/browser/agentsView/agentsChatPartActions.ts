@@ -23,7 +23,6 @@ import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { getWorktreeSectionFolder, ISessionSection, QUICK_CHATS_SECTION_ID, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationManagementCommands } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -213,8 +212,8 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 		}
 	}));
 
-	// The customizations of a session, as the Agents window offers them from its session list: in the editor area, also while
-	// the chat part, whose editors are the window's chats, was the editor part last active
+	// The customizations of a session, as the Agents window offers them from its session list. Its editor opens as any editor
+	// does: an editor opened while the chat part was the part last active goes to the editor area, as its chats hand it off
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -235,10 +234,6 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			if (sessions.length !== 1) {
 				throw new Error(localize('agentsView.openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
 			}
-			// The command opens its editor in the active group and takes no group to open it in: the editor area's group is made
-			// the active one, which the editor that opens there then focuses anyway
-			const editorGroupsService = accessor.get(IEditorGroupsService);
-			editorGroupsService.activateGroup(editorGroupsService.mainPart.activeGroup);
 			await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
 		}
 	}));
