@@ -10,6 +10,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -34,6 +35,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		readonly persisted?: IWindowFolderLocation;
 		readonly folderUri?: URI;
 		readonly providerAvailable?: boolean;
+		readonly locationMissing?: boolean;
 		readonly resolveLocation?: () => Promise<IResolvedFolderLocation | undefined>;
 		readonly setFolderLocation?: (location: URI, options?: { readonly ifIdle?: boolean }) => Promise<void>;
 	}
@@ -71,6 +73,7 @@ suite('FolderLocationPersistenceContribution', () => {
 			{ folderLocation: options.persisted } as unknown as INativeWorkbenchEnvironmentService,
 			{ notify: (n: { message: string; id?: string }) => { notifications.push(n.message); notificationIds.push(n.id); } } as unknown as INotificationService,
 			{ extUri } as unknown as IUriIdentityService,
+			{ stat: async () => { if (options.locationMissing) { throw new Error('ENOENT'); } return { isDirectory: true }; } } as unknown as IFileService,
 			{ error: (message: string) => { errors.push(message); } } as unknown as ILogService
 		));
 
@@ -108,6 +111,15 @@ suite('FolderLocationPersistenceContribution', () => {
 		assert.deepStrictEqual(
 			{ current: fixture.locationService.currentLocation, persisted: fixture.persistedCalls, notifications: fixture.notifications.length, returns: fixture.returns },
 			{ current: undefined, persisted: [undefined], notifications: 1, returns: [] });
+	});
+
+	test('a location applied at startup that turns out to be missing returns to the primary and notifies', async () => {
+		const fixture = createFixture({ persisted, providerAvailable: true, locationMissing: true });
+		await settle();
+
+		assert.deepStrictEqual(
+			{ current: fixture.locationService.currentLocation, persisted: fixture.persistedCalls, notifications: fixture.notifications.length, returns: fixture.returns.map(r => r.toString()) },
+			{ current: undefined, persisted: [undefined], notifications: 1, returns: [primary.toString()] });
 	});
 
 	test('a provider registering late confirms the location', async () => {
