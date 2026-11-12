@@ -41,6 +41,7 @@ import { KeybindingResolver, ResultKind } from '../../../../../../../../platform
 import { ResolvedKeybindingItem } from '../../../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { registerAction2 } from '../../../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CodeDataTransfers } from '../../../../../../../../platform/dnd/browser/dnd.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../../../../platform/files/common/files.js';
@@ -251,9 +252,12 @@ suite('ChatInlineAttachments', () => {
 	});
 
 	test('Enter in the focused reference hover does not open the active pill or submit the draft', async () => {
-		store.add(registerAction2(ChatSubmitAction));
-		store.add(registerAction2(ChatQueueMessageAction));
-		store.add(registerAction2(ChatSteerWithMessageAction));
+		// Other suites in the same run may have registered these actions already, and the registry rejects duplicates.
+		for (const action of [ChatSubmitAction, ChatQueueMessageAction, ChatSteerWithMessageAction]) {
+			if (!CommandsRegistry.getCommand(action.ID)) {
+				store.add(registerAction2(action));
+			}
+		}
 		const items = KeybindingsRegistry.getDefaultKeybindingsForOS(OS).flatMap(item => {
 			if (!item.keybinding || ![ChatSubmitAction.ID, ChatQueueMessageAction.ID, ChatSteerWithMessageAction.ID, 'workbench.action.chat.openInlineAttachment'].includes(item.command ?? '')) {
 				return [];
