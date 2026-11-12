@@ -586,12 +586,11 @@ interface ICopilotClientProxyState {
 /**
  * The Basic proxy credentials one Copilot runtime was last answered, as proxy origin, user name and password. Each
  * runtime keeps the credentials it was answered until its proxy rejects them, so each tracks its own: those of the
- * `http.proxy` setting it was last answered and the ones its proxy last rejected, and by proxy origin, those of a
+ * `http.proxy` setting it was last answered and whether its proxy rejected them, and by proxy origin, those of a
  * client it was last answered.
  */
 interface IRuntimeProxyCredentials {
-	configuredAnswered?: string;
-	configuredRejected?: string;
+	configured?: { readonly key: string; rejected: boolean };
 	readonly clientAnswered: Map<string, string>;
 }
 
@@ -10603,13 +10602,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const configured = this._readConfiguredProxyCredentials(proxy);
 		const configuredKey = configured && getKey(configured);
 		let clientAnsweredRejected = previousRejected;
-		if (configured && configuredKey !== runtimeCredentials.configuredRejected) {
-			if (!previousRejected || configuredKey !== runtimeCredentials.configuredAnswered) {
-				runtimeCredentials.configuredAnswered = configuredKey;
+		const configuredState = runtimeCredentials.configured;
+		if (configured && configuredKey && (configuredState?.key !== configuredKey || !configuredState.rejected)) {
+			// Only the last answered credentials count as rejected: credentials changed back may be valid again.
+			if (!previousRejected || configuredState?.key !== configuredKey) {
+				runtimeCredentials.configured = { key: configuredKey, rejected: false };
 				this._logService.info(`[Copilot] Answered the Copilot runtime's Basic challenge for the proxy ${originsOnlyForLog(proxy)} with the credentials of the http.proxy setting${previousRejected ? ', which changed since the last answer' : ''}`);
 				return configured;
 			}
-			runtimeCredentials.configuredRejected = configuredKey;
+			configuredState.rejected = true;
 			this._logService.info(`[Copilot] The proxy ${originsOnlyForLog(proxy)} rejected the credentials of the http.proxy setting, asking a client for credentials`);
 			// The proxy rejected the credentials this agent host answered, not ones of a client.
 			clientAnsweredRejected = false;

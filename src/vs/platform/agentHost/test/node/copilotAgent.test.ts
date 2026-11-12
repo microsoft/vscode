@@ -15261,6 +15261,34 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('answers rejected credentials of the http.proxy setting again after the setting changes back to them', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [
+				await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+			];
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:new@proxy.example:3128' });
+			credentials.push(await authenticateBasic?.({ ...request, previousRejected: true }, signal));
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' });
+			credentials.push(await authenticateBasic?.({ ...request, previousRejected: true }, signal));
+
+			assert.deepStrictEqual({ credentials, basicLookups: proxyResolver.basicLookups }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'user', password: 'secret' }, { username: 'alice', password: 'new' }, { username: 'alice', password: 'old' }],
+				basicLookups: [{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 }],
+			});
+		});
+
 		test('answers each Copilot runtime the changed credentials of the http.proxy setting after a rejection', async () => {
 			const proxyResolver = new TestProxyResolver();
 			const { agent, configurationService } = createTestAgentContext(disposables, {
