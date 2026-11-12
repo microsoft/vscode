@@ -144,6 +144,8 @@ const MOUSE_BOUNCE_HORIZONTAL_TRANSFER = 0.35;
 const MOUSE_BOUNCE_EDGE_KICK = 320;
 const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_DISPLAY_SIZE = 48;
+const CHAT_PET_SUBAGENT_MAX_WIDTH = 288;
+const CHAT_PET_SUBAGENT_MAX_HEIGHT = 96;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
@@ -2241,6 +2243,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _handleHostLayoutChange(): void {
+		this._constrainSubagentPets();
 		if (this._jumpGame.value) {
 			this._jumpGame.value.layout();
 			return;
@@ -3014,6 +3017,53 @@ export class ChatPetWidget extends Disposable {
 			};
 			setState('idle');
 			this._subagentPets.set(id, { element, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance });
+		}
+		this._constrainSubagentPets();
+	}
+
+	/** Keep settled mini pets in a bounded area without coupling them to the main pet's movement. */
+	private _constrainSubagentPets(): void {
+		if (!this._subagentPets.size) {
+			return;
+		}
+		const overlay = this._overlay.getBoundingClientRect();
+		const input = this.dragBounds.getBoundingClientRect();
+		const movement = this.movementBounds.getBoundingClientRect();
+		const minimumLeft = Math.max(input.left, movement.left) - overlay.left;
+		const maximumRight = Math.min(input.right, movement.right) - overlay.left;
+		const minimumTop = movement.top - overlay.top;
+		const maximumBottom = movement.bottom - overlay.top;
+		const width = Math.min(CHAT_PET_SUBAGENT_MAX_WIDTH, maximumRight - minimumLeft);
+		const height = Math.min(CHAT_PET_SUBAGENT_MAX_HEIGHT, maximumBottom - minimumTop);
+		if (width <= 0 || height <= 0) {
+			return;
+		}
+		const pets = [...this._subagentPets.values()].map(pet => ({
+			element: pet.element,
+			left: Number.parseFloat(pet.element.style.left),
+			top: Number.parseFloat(pet.element.style.top),
+			size: CHAT_PET_DISPLAY_SIZE * Number.parseFloat(pet.element.style.getPropertyValue('--chat-pet-subagent-scale')),
+		}));
+		const left = Math.min(...pets.map(pet => pet.left));
+		const right = Math.max(...pets.map(pet => pet.left + pet.size));
+		const top = Math.min(...pets.map(pet => pet.top));
+		const bottom = Math.max(...pets.map(pet => pet.top + pet.size));
+		if (left >= minimumLeft && right <= maximumRight && top >= minimumTop && bottom <= maximumBottom && right - left <= width && bottom - top <= height) {
+			return;
+		}
+		const columns = Math.min(pets.length, Math.ceil(Math.sqrt(pets.length * width / height)));
+		const rows = Math.ceil(pets.length / columns);
+		const size = Math.min(Math.max(...pets.map(pet => pet.size)), width / columns, height / rows);
+		const gridLeft = Math.max(minimumLeft, Math.min(left, maximumRight - columns * size));
+		const gridBottom = Math.max(minimumTop + rows * size, Math.min(bottom, maximumBottom));
+		for (const [index, pet] of pets.entries()) {
+			const petTop = gridBottom - (Math.floor(index / columns) + 1) * size;
+			const distance = Math.max(0, overlay.top + petTop + size);
+			pet.element.style.left = `${gridLeft + index % columns * size}px`;
+			pet.element.style.top = `${petTop}px`;
+			pet.element.style.setProperty('--chat-pet-subagent-scale', String(size / CHAT_PET_DISPLAY_SIZE));
+			pet.element.style.setProperty('--chat-pet-subagent-fall-distance', `${distance}px`);
+			pet.element.style.setProperty('--chat-pet-subagent-fall-duration', `${getChatPetFallDuration(distance)}ms`);
 		}
 	}
 
