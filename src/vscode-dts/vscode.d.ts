@@ -1389,7 +1389,11 @@ declare module 'vscode' {
 		/**
 		 * The carriage return line feed `\r\n` sequence.
 		 */
-		CRLF = 2
+		CRLF = 2,
+		/**
+		 * The carriage return `\r` character.
+		 */
+		CR = 3
 	}
 
 	/**
