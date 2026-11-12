@@ -49,6 +49,15 @@ suite('RemoteContentExclusion', () => {
 		});
 	}
 
+	/** Finds each file's repository with `roots`. Like GitServiceImpl, a failed lookup means no repository. */
+	function routeThroughLookup(roots: RepositoryRootLookup, remotesOf: (root: URI) => string[] = root => [remoteFor(root.path)]): void {
+		mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation(async (uri: URI) => {
+			mockGitService.getRepositoryFetchUrlsCallCount++;
+			const root = await roots.get(dirname(uri)).catch(() => undefined);
+			return root ? { rootUri: root, remoteFetchUrls: remotesOf(root) } : undefined;
+		});
+	}
+
 	function respondWithRules(rules: Record<string, MockExclusionRules>): void {
 		const byRepo = new Map(Object.entries(rules).map(([repoRoot, value]) => [remoteFor(repoRoot), value]));
 		mockCAPIClientService.setResponder(repos => rulesResponse(byRepo, repos));
@@ -598,10 +607,7 @@ suite('RemoteContentExclusion', () => {
 			respondWithRules({ [repoRoot]: { paths: ['*'] } });
 			let isRepository = false;
 			const roots = new RepositoryRootLookup(async () => isRepository ? URI.file(repoRoot) : undefined);
-			mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation(async (uri: URI) => {
-				const root = await roots.get(dirname(uri));
-				return root ? { rootUri: root, remoteFetchUrls: [remoteFor(repoRoot)] } : undefined;
-			});
+			routeThroughLookup(roots);
 
 			const beforeInit = await remoteContentExclusion.isIgnored(URI.file('/workspace/my-repo/src/earlier.ts'), CancellationToken.None);
 
@@ -622,10 +628,7 @@ suite('RemoteContentExclusion', () => {
 				await finishLookups.p;
 				return root;
 			});
-			mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation(async (uri: URI) => {
-				const root = await roots.get(dirname(uri));
-				return root ? { rootUri: root, remoteFetchUrls: [remoteFor(repoRoot)] } : undefined;
-			});
+			routeThroughLookup(roots);
 
 			const beforeInit = remoteContentExclusion.isIgnored(URI.file('/workspace/my-repo/src/earlier.ts'), CancellationToken.None);
 
@@ -633,11 +636,12 @@ suite('RemoteContentExclusion', () => {
 			isRepository = true;
 			const afterInit = remoteContentExclusion.isIgnored(file, CancellationToken.None);
 
-			// Both checks asked before the first lookup finished.
-			expect(mockGitService.getRepositoryFetchUrls).toHaveBeenCalledTimes(2);
+			// Both checks ask before the first lookup finishes.
+			const askedBeforeFinish = mockGitService.getRepositoryFetchUrlsCallCount;
 			finishLookups.complete();
 
-			expect({ beforeInit: await beforeInit, afterInit: await afterInit }).toEqual({ beforeInit: false, afterInit: true });
+			expect({ askedBeforeFinish, beforeInit: await beforeInit, afterInit: await afterInit })
+				.toEqual({ askedBeforeFinish: 2, beforeInit: false, afterInit: true });
 		});
 
 		test('applies a repository rule to the other new files in a folder when the lookup they share fails', async () => {
@@ -651,11 +655,7 @@ suite('RemoteContentExclusion', () => {
 				}
 				return URI.file(repoRoot);
 			});
-			mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation(async (uri: URI) => {
-				// Like GitServiceImpl, this treats a failed lookup as no repository.
-				const root = await roots.get(dirname(uri)).catch(() => undefined);
-				return root ? { rootUri: root, remoteFetchUrls: [remoteFor(repoRoot)] } : undefined;
-			});
+			routeThroughLookup(roots);
 			// Every slot is busy, so the files in the folder share a lookup that waits.
 			const others = Array.from({ length: 5 }, (_, i) => roots.get(URI.file(`/busy/folder${i}`)));
 
@@ -672,11 +672,8 @@ suite('RemoteContentExclusion', () => {
 			respondWithRules({ [nestedRoot]: { paths: ['*'] } });
 			let nestedExists = false;
 			const roots = new RepositoryRootLookup(async () => URI.file(nestedExists ? nestedRoot : outerRoot));
-			mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation(async (uri: URI) => {
-				const root = await roots.get(dirname(uri));
-				// The outer repository has no remote, so RemoteContentExclusion does not cache it.
-				return { rootUri: root, remoteFetchUrls: root?.path === nestedRoot ? [remoteFor(nestedRoot)] : [] };
-			});
+			// The outer repository has no remote, so RemoteContentExclusion does not cache it.
+			routeThroughLookup(roots, root => root.path === nestedRoot ? [remoteFor(nestedRoot)] : []);
 
 			const beforeInit = await remoteContentExclusion.isIgnored(URI.file('/workspace/outer/nested/src/earlier.ts'), CancellationToken.None);
 

@@ -18,6 +18,24 @@ suite('RepositoryRootLookup', () => {
 		return folder.path === repoRoot.path || folder.path.startsWith(repoRoot.path + '/') ? repoRoot : undefined;
 	}
 
+	/** Starts a lookup in every slot, so the next lookup has to wait. */
+	function fillSlots(): Promise<(URI | undefined)[]> {
+		return Promise.all(Array.from({ length: 5 }, (_, i) => roots.get(URI.file(`/busy/folder${i}`))));
+	}
+
+	/** Makes each lookup take a moment, and records the most that ran at once. */
+	function trackRunning(answer: (folder: URI, call: number) => URI | undefined = rootOf): { most: number } {
+		const running = { now: 0, most: 0 };
+		findRoot.mockImplementation(async folder => {
+			const call = findRoot.mock.calls.length;
+			running.most = Math.max(running.most, ++running.now);
+			await new Promise(resolve => setTimeout(resolve, 1));
+			running.now--;
+			return answer(folder, call);
+		});
+		return running;
+	}
+
 	beforeEach(() => {
 		findRoot = vi.fn(async (folder: URI) => rootOf(folder));
 		roots = new RepositoryRootLookup(folder => findRoot(folder));
@@ -48,29 +66,23 @@ suite('RepositoryRootLookup', () => {
 
 	test('starts a new lookup for a caller that asks after a waiting lookup started', async () => {
 		const folder = URI.file('/workspace/late');
-		const others = Array.from({ length: 5 }, (_, i) => roots.get(URI.file(`/busy/folder${i}`)));
+		const others = fillSlots();
 		const firstAnswer = new DeferredPromise<URI | undefined>();
 		findRoot.mockReturnValueOnce(firstAnswer.p);
 		const first = roots.get(folder);
-		await Promise.all(others);
-		expect(findRoot).toHaveBeenCalledTimes(6);
+		await others;
+		const started = findRoot.mock.calls.length;
 
 		findRoot.mockResolvedValueOnce(folder);
 		const second = roots.get(folder);
 		firstAnswer.complete(undefined);
 
-		expect({ first: await first, second: (await second)?.toString() }).toEqual({ first: undefined, second: folder.toString() });
+		expect({ started, first: await first, second: (await second)?.toString() })
+			.toEqual({ started: 6, first: undefined, second: folder.toString() });
 	});
 
 	test('gives each caller that joined a failed lookup its own attempt, keeping to the limit', async () => {
-		let running = 0;
-		let mostRunning = 0;
-		findRoot.mockImplementation(async folder => {
-			const call = findRoot.mock.calls.length;
-			running++;
-			mostRunning = Math.max(mostRunning, running);
-			await new Promise(resolve => setTimeout(resolve, 1));
-			running--;
+		const running = trackRunning((folder, call) => {
 			// The first 5 callers each start a lookup, and the other 45 share this one.
 			if (call === 6) {
 				throw new Error('spawn EAGAIN');
@@ -81,21 +93,22 @@ suite('RepositoryRootLookup', () => {
 
 		const results = await Promise.allSettled(Array.from({ length: 50 }, () => roots.get(folder)));
 
-		expect({ calls: findRoot.mock.calls.length, mostRunning, failed: results.filter(result => result.status === 'rejected').length })
+		expect({ calls: findRoot.mock.calls.length, mostRunning: running.most, failed: results.filter(result => result.status === 'rejected').length })
 			.toEqual({ calls: 50, mostRunning: 5, failed: 1 });
 	});
 
 	test('looks a folder up again after a lookup that waited for a free slot', async () => {
 		const folder = URI.file('/workspace/late');
-		const others = Array.from({ length: 5 }, (_, i) => roots.get(URI.file(`/busy/folder${i}`)));
+		const others = fillSlots();
 		const waited = roots.get(folder);
-		expect(findRoot).toHaveBeenCalledTimes(5);
-		await Promise.all(others);
-		expect(await waited).toBeUndefined();
+		const startedWhileWaiting = findRoot.mock.calls.length;
+		await others;
+		const first = await waited;
 
 		findRoot.mockResolvedValueOnce(folder);
 
-		expect((await roots.get(folder))?.toString()).toBe(folder.toString());
+		expect({ startedWhileWaiting, first, second: (await roots.get(folder))?.toString() })
+			.toEqual({ startedWhileWaiting: 5, first: undefined, second: folder.toString() });
 	});
 
 	test('keeps folders apart', async () => {
@@ -107,21 +120,22 @@ suite('RepositoryRootLookup', () => {
 
 	test('looks a folder up again after a "no repository" answer, noticing a new repository', async () => {
 		const folder = URI.file('/workspace/late');
-		expect(await roots.get(folder)).toBeUndefined();
+		const first = await roots.get(folder);
 
 		findRoot.mockResolvedValueOnce(folder);
 
-		expect((await roots.get(folder))?.toString()).toBe(folder.toString());
+		expect({ first, second: (await roots.get(folder))?.toString() }).toEqual({ first: undefined, second: folder.toString() });
 	});
 
 	test('looks a folder up again after finding a root, noticing a nearer repository', async () => {
 		const folder = URI.file('/workspace/repo/nested/src');
 		const nearerRoot = URI.file('/workspace/repo/nested');
-		expect((await roots.get(folder))?.toString()).toBe(repoRoot.toString());
+		const first = await roots.get(folder);
 
 		findRoot.mockResolvedValueOnce(nearerRoot);
 
-		expect((await roots.get(folder))?.toString()).toBe(nearerRoot.toString());
+		expect({ first: first?.toString(), second: (await roots.get(folder))?.toString() })
+			.toEqual({ first: repoRoot.toString(), second: nearerRoot.toString() });
 	});
 
 	test('looks a folder up again after a failed lookup', async () => {
@@ -133,18 +147,10 @@ suite('RepositoryRootLookup', () => {
 	});
 
 	test('limits how many lookups run at once', async () => {
-		let running = 0;
-		let mostRunning = 0;
-		findRoot.mockImplementation(async folder => {
-			running++;
-			mostRunning = Math.max(mostRunning, running);
-			await new Promise(resolve => setTimeout(resolve, 1));
-			running--;
-			return rootOf(folder);
-		});
+		const running = trackRunning();
 
 		await Promise.all(Array.from({ length: 50 }, (_, i) => roots.get(URI.file(`/big/folder${i}`))));
 
-		expect({ calls: findRoot.mock.calls.length, mostRunning }).toEqual({ calls: 50, mostRunning: 5 });
+		expect({ calls: findRoot.mock.calls.length, mostRunning: running.most }).toEqual({ calls: 50, mostRunning: 5 });
 	});
 });
