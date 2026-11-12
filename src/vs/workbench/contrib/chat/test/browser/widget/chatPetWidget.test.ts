@@ -3004,7 +3004,7 @@ suite('ChatPetWidget', () => {
 	});
 
 	for (const reducedMotion of [false, true]) {
-		test(`mini pets resize once and only displaced pets respawn (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
+		test(`mini pets keep their size and only displaced pets respawn (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 			const { widget, firstHost, overlay, firstParent, layout } = createHostTransitionHarness(reducedMotion);
 			const tools = ['stays', 'upper', 'support', 'outside'].map(id => {
 				const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
@@ -3013,6 +3013,7 @@ suite('ChatPetWidget', () => {
 			});
 			widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)) });
 			const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
+			const scales = pets.map(pet => pet.style.getPropertyValue('--chat-pet-subagent-scale'));
 			for (const [index, pet] of pets.entries()) {
 				pet.classList.remove('arriving');
 				pet.style.left = `${[20, 80, 90, 220][index]}px`;
@@ -3030,6 +3031,7 @@ suite('ChatPetWidget', () => {
 				upper: [pets[1].style.left, pets[1].style.top],
 			}, { stays: ['20px', '-24px'], upper: ['80px', '-24px'] });
 			await waitForPetAnimation(() => pets.every(pet => !pet.classList.contains('arriving') && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-') === true));
+			assert.deepStrictEqual(pets.map(pet => pet.style.getPropertyValue('--chat-pet-subagent-scale')), scales);
 			const input = firstParent.getBoundingClientRect();
 			const rects = pets.map(pet => pet.getBoundingClientRect());
 			assert.ok(rects.every(rect => rect.left >= input.left - 0.1 && rect.right <= input.right + 0.1 && rect.bottom <= input.top + 0.1));
@@ -3112,8 +3114,8 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	test('mini pets never shrink below the size of a mini pet at minimum main pet scale', async () => {
-		const { widget, firstHost, overlay, firstParent, root, layout } = createHostTransitionHarness(true, 'teleport', undefined, undefined, undefined, false, service => service.setScale(0.4));
+	test('mini pets keep their initial size when crowded and resized', async () => {
+		const { widget, firstHost, overlay, firstParent, root, layout } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const tools = Array.from({ length: 100 }, (_, index) => {
 			const id = `subagent-${index}`;
@@ -3123,15 +3125,16 @@ suite('ChatPetWidget', () => {
 		});
 		widget.setHost({ ...firstHost, transition: undefined, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 		const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
-		const minimumSize = pets[0].getBoundingClientRect().width;
-		assert.ok(Math.abs(minimumSize - 9.6) < 0.1);
+		const initialSize = pets[0].getBoundingClientRect().width;
+		assert.ok(Math.abs(initialSize - 24) < 0.1);
+		assert.ok(pets.every(pet => Math.abs(pet.getBoundingClientRect().width - initialSize) < 0.1));
 		for (const width of [120, 80, 120]) {
 			firstParent.style.width = `${width}px`;
 			root.style.height = '64px';
 			firstParent.style.top = '32px';
 			layout();
 			await timeout(50);
-			assert.ok(pets.every(pet => pet.getBoundingClientRect().width >= minimumSize - 0.1));
+			assert.ok(pets.every(pet => Math.abs(pet.getBoundingClientRect().width - initialSize) < 0.1));
 		}
 	});
 
@@ -3156,7 +3159,7 @@ suite('ChatPetWidget', () => {
 				const right = Math.max(...rects.map(rect => rect.right));
 				const top = Math.min(...rects.map(rect => rect.top));
 				const bottom = Math.max(...rects.map(rect => rect.bottom));
-				// At the minimum size, this many pets cannot fit in the narrowest area without overlapping.
+				// This many pets cannot fit in the narrowest area without overlapping.
 				assert.deepStrictEqual({
 					count: rects.length,
 					withinChat: left >= input.left - 0.1 && right <= input.right + 0.1 && top >= movement.top - 0.1 && bottom <= Math.min(input.top, movement.bottom) + 0.1,
