@@ -13,7 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -129,8 +129,10 @@ suite('Mission Control native provider inventory', () => {
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', []);
 		const ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', undefined);
 		const sharedRemoteEnvironmentIds = observableValue<ReadonlySet<string>>('sharedRemoteEnvironmentIds', new Set());
+		const shares = observableValue<ReadonlyMap<string, IRemoteGitHubEnvironmentShare>>('shares', new Map());
 		instantiation.stub(IRemoteGitHubEnvironmentSharingService, new class extends mock<IRemoteGitHubEnvironmentSharingService>() {
 			override readonly environmentIds = sharedRemoteEnvironmentIds;
+			override readonly shares = shares;
 		}());
 		let account = 'first';
 		const created: { provider: TestProvider; options: IEntryDrivenProviderOptions }[] = [];
@@ -247,7 +249,7 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus,
+			hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, shares, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus,
 			whenConnected: (id: string) => {
 				const isConnected = () => RemoteAgentHostConnectionStatus.isConnected(connections.get(`cloudsandbox:${id}`)?.status);
 				return isConnected() ? Promise.resolve() : Event.toPromise(Event.filter(connectionsChanged.event, isConnected), connectionListeners);
@@ -308,12 +310,18 @@ suite('Mission Control native provider inventory', () => {
 	}
 
 	test('keeps this computer\'s environment and remotes shared by this client out of the picker and auto-connect', async () => {
-		const { hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, created, actions, rediscover } = fixture('profile', { web: true });
+		const { hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, shares, created, actions, rediscover } = fixture('profile', { web: true });
 		ownEnvironmentId.set('own', undefined);
 		sharedRemoteEnvironmentIds.set(new Set(['shared']), undefined);
+		// A share kept after disconnecting is listed in the picker but not reconnected through the relay
+		shares.set(new Map([
+			['ssh:shared', { state: 'enabled', environmentId: 'shared' }],
+			['ssh:kept', { state: 'enabled', environmentId: 'kept' }],
+		]), undefined);
 		hosts.set([
 			{ id: 'own', name: 'This Machine', kind: 'user-local', status: 'online' },
 			{ id: 'shared', name: 'Shared SSH Host', kind: 'user-local', status: 'online' },
+			{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' },
 			{ id: 'other', name: 'Other Machine', kind: 'user-local', status: 'online' },
 		], undefined);
 		await rediscover();
@@ -328,6 +336,7 @@ suite('Mission Control native provider inventory', () => {
 			providers: [
 				{ address: 'cloudsandbox:own', localRegistration: 'githubEnvironment', pickerVisible: false },
 				{ address: 'cloudsandbox:shared', localRegistration: undefined, pickerVisible: false },
+				{ address: 'cloudsandbox:kept', localRegistration: undefined, pickerVisible: true },
 				{ address: 'cloudsandbox:other', localRegistration: undefined, pickerVisible: true },
 			],
 			connects: ['connect:other'],

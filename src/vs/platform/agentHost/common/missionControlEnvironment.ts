@@ -125,6 +125,11 @@ export interface IRemoteGitHubEnvironmentSharingService {
 	/** GitHub environment IDs of shared remote agent hosts, which are already listed by their direct connections. */
 	readonly environmentIds: IObservable<ReadonlySet<string>>;
 	setShared(address: string, shared: boolean): Promise<void>;
+	/**
+	 * Before the user disconnects from a remote shared as a GitHub environment, asks whether to keep sharing it and stops sharing it if not.
+	 * Resolves to `false` if the user cancels the disconnect.
+	 */
+	confirmDisconnect(address: string, name: string): Promise<boolean>;
 }
 
 export interface IMissionControlHost extends IMissionControlEnvironment {

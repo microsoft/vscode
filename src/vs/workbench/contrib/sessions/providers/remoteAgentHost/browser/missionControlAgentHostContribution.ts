@@ -72,6 +72,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			this._inventory.discoveredOnlineHostIds.read(reader);
 			this._inventory.ownEnvironmentId.read(reader);
 			this._remoteSharing.environmentIds.read(reader);
+			this._remoteSharing.shares.read(reader);
 			this._reconcile();
 			this._requestAutoConnections();
 		}));
@@ -122,7 +123,13 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}
 		const ownEnvironmentId = this._inventory.ownEnvironmentId.get();
 		const discoveredOnlineHostIds = this._inventory.discoveredOnlineHostIds.get();
-		const sharedRemoteEnvironmentIds = this._remoteSharing.environmentIds.get();
+		// Remotes this client shared are reached directly, so don't reconnect through the relay, e.g., after the user kept sharing on disconnect.
+		const sharedRemoteEnvironmentIds = new Set<string>();
+		for (const share of this._remoteSharing.shares.get().values()) {
+			if (share.environmentId) {
+				sharedRemoteEnvironmentIds.add(share.environmentId);
+			}
+		}
 		for (const host of this._inventory.hosts.get()) {
 			const provider = this._providerInstances.get(cloudSandboxAddress(host.id));
 			if (host.id === ownEnvironmentId || sharedRemoteEnvironmentIds.has(host.id) || host.status !== 'online' || !discoveredOnlineHostIds.has(host.id) || !provider

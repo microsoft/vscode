@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler, Sequencer } from '../../../../../base/common/async.js';
+import { raceTimeout, RunOnceScheduler, Sequencer } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
@@ -16,6 +18,7 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHo
 import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -119,6 +122,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 		this._stored.set(this._readStored(), undefined);
@@ -228,6 +232,38 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 
 	setShared(address: string, shared: boolean): Promise<void> {
 		return this._queue.queue(() => shared ? this._share(address) : this._unshare(address));
+	}
+
+	async confirmDisconnect(address: string, name: string): Promise<boolean> {
+		const share = this.shares.get().get(address);
+		if (!share || share.state === 'unavailable') {
+			return true;
+		}
+		const { result } = await this._dialogService.prompt<boolean>({
+			type: 'question',
+			message: localize('remoteGitHubEnvironment.keepSharing', "Keep sharing '{0}' as a GitHub environment?", name),
+			detail: localize('remoteGitHubEnvironment.keepSharingDetail', "If you keep sharing it, its agent host keeps running, and this and other applications that support GitHub environments can still use it. If you stop sharing it, those applications can no longer use it."),
+			buttons: [
+				{ label: localize({ key: 'remoteGitHubEnvironment.keepSharingButton', comment: ['&& denotes a mnemonic'] }, "&&Keep Sharing"), run: () => true },
+				{ label: localize({ key: 'remoteGitHubEnvironment.stopSharingButton', comment: ['&& denotes a mnemonic'] }, "&&Stop Sharing"), run: () => false },
+			],
+			cancelButton: true,
+		});
+		if (result === undefined) {
+			return false;
+		}
+		if (result) {
+			// The environment replaces the remote in the GitHub environment list once the remote is disconnected.
+			void this._environmentService.refresh(CancellationToken.None).catch(error => {
+				if (!isCancellationError(error)) {
+					this._logService.warn('[RemoteGitHubEnvironments] Failed to refresh GitHub environments after keeping a remote shared', error);
+				}
+			});
+			return true;
+		}
+		// Unregistering needs the connection; a slow host must not block the disconnect.
+		await raceTimeout(this.setShared(address, false), 5000);
+		return true;
 	}
 
 	private async _share(address: string): Promise<void> {
