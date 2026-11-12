@@ -46,13 +46,14 @@ import { NullOpenerService } from '../../../../../../platform/opener/test/common
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatAcceptInputOptions, IChatWidget } from '../../../browser/chat.js';
 import { IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
-import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestStorageService, TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import * as dom from '../../../../../../base/browser/dom.js';
@@ -233,6 +234,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override error(message: string | Error): void { logErrors.push(message); }
 		}()));
 		const connection = instantiationService.stub(IAgentHostService, {
+			initializeResult: constObservable(undefined),
 			onAgentHostStart: onAgentHostStart.event,
 			onAgentHostExit: Event.None,
 			getNetworkDiagnosticsInfo: () => {
@@ -293,6 +295,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
+		instantiationService.set(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		const resolvedRefreshes: Record<string, unknown>[] = [];
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => undefined, refreshResolvedConfig: async (_resource, _provider, _directory, values) => { resolvedRefreshes.push(values ?? {}); } });
@@ -419,7 +422,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				rows: ['Agent mode', 'Interactive', 'Plan', 'Autopilot', ActionListItemKind.Separator, 'Permissions', 'Manual permissions', 'Assisted permissions', 'Allow all', ActionListItemKind.Separator, 'Learn more about permissions'],
 				permissions: [
 					{ label: 'Manual permissions', detail: 'Asks when approval settings don\'t apply', icon: 'key', badge: undefined },
-					{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', icon: 'sparkle', badge: 'New' },
+					{ label: 'Assisted permissions', detail: 'Evaluates risk before running tools', icon: 'sparkle', badge: 'Recommended' },
 					{ label: 'Allow all', detail: 'Runs tool calls without asking', icon: 'warning', badge: undefined },
 				],
 			},
@@ -818,6 +821,14 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
+	test('closes the permissions popup when its button moves into overflow', async () => {
+		const { permissionPicker, actionWidget } = setup(false);
+		await permissionPicker['_showPicker'](permissionPicker.triggerElement!);
+		assert.ok(actionWidget.isVisible);
+		permissionPicker.unrender();
+		assert.strictEqual(actionWidget.isVisible, false);
+	});
+
 	test('readonly or nonmutable native approval properties never become runtime writes', async () => {
 		const rig = setup(false);
 		delete rig.config.schema.properties.autoApprove;
@@ -902,6 +913,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 	function createRemoteConnection(getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>) {
 		return new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
 			diagnosticsRequests = 0;
 			readonly writes: { channel: string; action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -1065,9 +1077,13 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const confirmed = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
 		config.values[SessionConfigKey.SandboxEnabled] = 'off';
 		const optimistic = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
+		const placeholderAfterOptOut = permissionPicker.sandboxToggleChecked.get();
 		config.values[SessionConfigKey.SandboxEnabled] = 'on';
 		const restored = permissionPicker['_getSandboxStandaloneToggle']()!.checked;
-		assert.deepStrictEqual({ confirmed, optimistic, restored }, { confirmed: true, optimistic: false, restored: true });
+		const placeholderAfterOptIn = permissionPicker.sandboxToggleChecked.get();
+		assert.deepStrictEqual({ confirmed, optimistic, restored, placeholderAfterOptOut, placeholderAfterOptIn }, {
+			confirmed: true, optimistic: false, restored: true, placeholderAfterOptOut: false, placeholderAfterOptIn: true,
+		});
 	});
 
 	test('remote sandbox policy updates the open picker and does not leak across hosts', async () => {
@@ -1471,7 +1487,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`labels Assisted permissions as new without requiring an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
+		test(`labels Assisted permissions as recommended without requiring an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
 			config.values.autoApprove = 'default';
@@ -1485,7 +1501,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			assert.deepStrictEqual({ levels, beforeSelection, dispatches }, {
 				levels: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: false, badge: 'New' },
+					{ label: 'Assisted permissions', disabled: false, badge: 'Recommended' },
 					{ label: 'Allow all', disabled: false, badge: undefined },
 				],
 				beforeSelection: [],
@@ -2004,6 +2020,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			override viewModel: IChatViewModel | undefined;
 		}();
 		const connection = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -2058,6 +2075,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IContextViewService>() { }(),
 			managedSettingsService,
 			new class extends mock<IChatSessionsService>() { }(),
+			store.add(new TestWorkspaceTrustManagementService()),
 		));
 		widget.viewModel = new class extends mock<IChatViewModel>() {
 			override readonly sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/test-session' });

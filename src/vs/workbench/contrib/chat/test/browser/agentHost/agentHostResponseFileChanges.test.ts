@@ -14,12 +14,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildBranchChangesetUri, buildTurnChangesetUri } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { chatReducer } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/reducer.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnComplete } from '../../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import {
 	buildChatUri,
 	buildDefaultChatUri,
@@ -51,6 +53,10 @@ import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileEdit }
 
 class FakeAgentConnection extends mock<IAgentConnection>() {
 	override readonly clientId = 'test-client';
+
+	constructor(override readonly resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper('authority-1')) {
+		super();
+	}
 
 	private readonly _emitters = new Map<string, Emitter<unknown>>();
 	private readonly _values = new Map<string, unknown>();
@@ -144,7 +150,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 	function createProvider(
 		conn: IAgentConnection,
 		resolveBackendSession: () => URI | undefined = () => backendSession,
-		resolveBackendChat?: (sessionResource: URI) => URI | undefined,
+		resolveBackendChat?: (sessionResource: URI, sessionState?: SessionState) => URI | undefined,
 	): AgentHostResponseFileChangesProvider {
 		return new AgentHostResponseFileChangesProvider(conn, authority, resolveBackendSession, resolveBackendChat, new NullLogService());
 	}
@@ -164,7 +170,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 				before: { uri: 'file:///repo/old.ts', content: { uri: 'opaque-content:/a1' } },
 				after: { uri: 'file:///repo/new.ts', content: { uri: 'opaque-content:/b2' } },
 			},
-		}, authority)!;
+		}, { resourceUris: createAgentHostResourceUriMapper(authority) }, authority)!;
 
 		assert.deepStrictEqual({
 			file: diff.modifiedURI.path,
@@ -232,6 +238,38 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			});
 		});
 	}
+
+	test('a chat resource whose chat is unresolved when asked subscribes only its own chat, not every chat in the catalog', () => {
+		const peers = Array.from({ length: 6 }, (_, index) => URI.parse(buildChatUri(backendSession.toString(), `peer-${index}`)).toString());
+		const subscribedChats = (resolveAtRequest: boolean) => {
+			const conn = new FakeAgentConnection();
+			conn.setState(backendSession.toString(), {
+				defaultChat: defaultChatUri.toString(),
+				// Unopened peers, half of them archived.
+				chats: peers.map((resource, index) => createChatState({
+					resource,
+					title: `Peer ${index}`,
+					status: index % 2 ? SessionStatus.Idle | SessionStatus.IsArchived : SessionStatus.Idle,
+					modifiedAt: new Date(0).toISOString(),
+				})),
+			} as unknown as SessionState);
+			// As after a reconnect, the session handler can resolve the chat only once its session state loads; until
+			// then the provider resolves it from its own session state.
+			const provider = store.add(createProvider(conn, () => backendSession, (_resource, state) => resolveAtRequest || state ? defaultChatUri : undefined));
+			const observed = observe(provider, store.add(new DisposableStore()));
+			conn.setState(defaultChatUri.toString(), { ...chatStateWithTurnSupport(), turns: [{ ...completedTurn('t1'), responseParts: [] }] });
+			conn.setState(turnChangesetUri('t1'), { status: ChangesetStatus.Ready, files: [{ id: 'edited', edit: fileEdit('/repo/a.ts', 3) }] } satisfies ChangesetState);
+			return {
+				chats: [defaultChatUri.toString(), ...peers].filter(chat => conn.getSubscriptionCount(chat) > 0),
+				files: observed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+			};
+		};
+
+		assert.deepStrictEqual({ unresolved: subscribedChats(false), resolved: subscribedChats(true) }, {
+			unresolved: { chats: [defaultChatUri.toString()], files: ['/repo/a.ts'] },
+			resolved: { chats: [defaultChatUri.toString()], files: ['/repo/a.ts'] },
+		});
+	});
 
 	function fileEdit(path: string, added = 1, onRead?: () => void): ISessionFileDiff {
 		const uri = URI.file(path).toString();
@@ -341,6 +379,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			return { resource: key, state, fromSeq: 0 };
 		}, () => { }));
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = createAgentHostResourceUriMapper(authority);
 			override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 				return manager.getSubscription<ComponentToState[T]>(kind, resource, owner);
 			}
@@ -581,7 +620,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 
 			chat = streamText(conn, chat);
 			conn.setState(backendSession.toString(), { ...session, title: 'Renamed session' });
-			conn.setState(chat.resource, chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 }));
+			conn.setState(chat.resource, chatReducer(chat, chatTurnComplete('active', 1)));
 
 			assert.deepStrictEqual({
 				historyVisits,
@@ -866,7 +905,7 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			part: toolCallPart(fileEdit('/repo/a.ts', 3), 'second-tool'),
 		});
 		conn.setState(chat.resource, chat);
-		chat = chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: 't1', duration: 1 });
+		chat = chatReducer(chat, chatTurnComplete('t1', 1));
 		conn.setState(chat.resource, chat);
 
 		assert.deepStrictEqual(observed, [[2], [5]]);
@@ -1424,6 +1463,38 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			outsideOnlyIsAuthoritativeEmpty: true,
 		});
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`maps changed files through the ${kind.name} connection's resource URIs`, () => {
+			const ds = store.add(new DisposableStore());
+			const conn = new FakeAgentConnection(kind.resourceUris);
+			const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
+
+			conn.setState(backendSession.toString(), { defaultChat: defaultChatUri.toString(), workingDirectories: [URI.file('/repo').toString()], chats: [] } as unknown as SessionState);
+			conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Ready, files: [{ id: 'changeset', edit: fileEdit('/repo/changeset.ts') }] } satisfies ChangesetState);
+			conn.setState(turnChangesetUri('t2', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+			conn.setState(defaultChatUri.toString(), {
+				changesets: turnChangesetCatalog(defaultChatUri),
+				turns: [
+					{ id: 't1', responseParts: [] },
+					{ id: 't2', responseParts: [toolCallPart(fileEdit('/repo/app.ts'), 'app'), toolCallPart(fileEdit('/session-state/plan.md'), 'plan')] },
+				],
+			} as unknown as ChatState);
+
+			const summarize = (diffs: readonly IEditSessionEntryDiff[]) => diffs.map(diff => ({
+				file: diff.modifiedURI.toString(),
+				after: diff.modifiedSnapshotURI && fromAgentHostUri(diff.modifiedSnapshotURI).toString(),
+			}));
+			assert.deepStrictEqual({
+				changeset: summarize(observe(provider, ds, 't1').latest()),
+				// Outside-workspace edits are still dropped, by comparing host files with host working directories.
+				response: summarize(observe(provider, ds, 't2').latest()),
+			}, {
+				changeset: [{ file: kind.toClient(URI.file('/repo/changeset.ts')).toString(), after: 'git-blob:/after/repo/changeset.ts' }],
+				response: [{ file: kind.toClient(URI.file('/repo/app.ts')).toString(), after: 'git-blob:/after/repo/app.ts' }],
+			});
+		});
+	}
 
 	for (const { scope, workingDirectories, expected } of [
 		{ scope: 'a subset', workingDirectories: [URI.file('/peer').toString()], expected: ['/peer/app.ts'] },

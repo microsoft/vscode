@@ -36,7 +36,6 @@ import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
 import type { IAction } from '../../../../base/common/actions.js';
 import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
-import type { ToolConfirmationAction } from '../../chat/common/tools/languageModelToolsService.js';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalConfigurationService = createDecorator<ITerminalConfigurationService>('terminalConfigurationService');
@@ -296,20 +295,6 @@ export interface ITerminalChatService {
 	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>>;
 
 	/**
-	 * Generate auto-approve rule actions for a command line that was not evaluated by the
-	 * built-in run in terminal tool, such as terminal confirmations surfaced by agent host
-	 * sessions. The command line is parsed into sub-commands and evaluated against the
-	 * persisted configuration rules only (never workbench session rules, which agent hosts
-	 * do not consume) to produce the same persistent-rule suggestions the built-in tool
-	 * offers.
-	 * @param commandLine The full command line being confirmed
-	 * @param language The language to parse the command line with
-	 * @returns The actions to show in the confirmation dropdown, or undefined if the command
-	 * line could not be analyzed
-	 */
-	getAutoApproveActions(commandLine: string, language: 'shellscript' | 'powershell'): Promise<ToolConfirmationAction[] | undefined>;
-
-	/**
 	 * Signal that a foreground terminal tool invocation should continue in the background.
 	 * This causes the tool to return its current output immediately while the terminal keeps running.
 	 * @param terminalToolSessionId The tool session ID to continue in background
@@ -451,6 +436,8 @@ export interface IDetachedXTermOptions {
 	capabilities?: ITerminalCapabilityStore & IDisposable;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
+	/** Whether to disable shell integration activation timeout reporting. */
+	disableShellIntegrationReporting?: boolean;
 	disableOverviewRuler?: boolean;
 	/** The rows of scrollback to keep, overriding the `terminal.integrated.scrollback` setting. */
 	scrollback?: number;
@@ -1607,6 +1594,9 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 */
 	write(data: string | Uint8Array, callback?: () => void): void;
 
+	/** Registers a handler for an OSC sequence, returning a disposable to remove it. */
+	registerOscHandler(ident: number, callback: (data: string) => boolean | Promise<boolean>): IDisposable;
+
 	/**
 	 * Resizes the terminal.
 	 */
@@ -1651,7 +1641,7 @@ export interface IInternalXtermTerminal {
 	 * **WARNING:** This should never be used outside of the terminal component and only for
 	 * developer purposed inside the terminal component.
 	 */
-	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
+	_writeText(data: string): void; // eslint-disable-line ts-eslint-js/naming-convention
 }
 
 export interface IXtermColorProvider {

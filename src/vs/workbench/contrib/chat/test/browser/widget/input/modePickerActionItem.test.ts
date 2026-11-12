@@ -13,6 +13,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
 import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
@@ -48,7 +49,7 @@ suite('ModePickerActionItem Add Context', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const custom: IChatMode = { ...ChatMode.Agent, id: 'custom-host:/agent', isBuiltin: false, name: constObservable('Custom'), label: constObservable('Custom') };
 
-	function createPicker(enabled: boolean, supportsAttachContext = true) {
+	function createPicker(enabled: boolean, supportsAttachContext = true, customModes: readonly IChatMode[] = [custom]) {
 		const configuration = new TestConfigurationService({ [ChatConfiguration.AgentsPickerInAttachContextMenu]: enabled });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiation = workbenchInstantiationService(undefined, store);
@@ -60,7 +61,7 @@ suite('ModePickerActionItem Add Context', () => {
 		const command = upcastPartial<ICommandService>({});
 		instantiation.stub(ICommandService, command);
 		const mode = observableValue<IChatMode>('mode', ChatMode.Agent);
-		const modes = constObservable(upcastPartial<IChatModes>({ builtin: [ChatMode.Agent, ChatMode.Ask], custom: [custom] }));
+		const modes = constObservable(upcastPartial<IChatModes>({ builtin: [ChatMode.Agent, ChatMode.Ask], custom: customModes }));
 		const telemetry = new TestExperimentTriggerTelemetryService();
 		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(IChatAgentService, upcastPartial<IChatAgentService>({ getDefaultAgent: () => undefined }));
@@ -73,13 +74,15 @@ suite('ModePickerActionItem Add Context', () => {
 		const input = append(root, $('input'));
 		const anchor = append(root, $('button'));
 		let openedAtAnchor = false;
-		let select: ((label: string) => void) | undefined;
+		let select: ((label: string, source?: string) => void) | undefined;
+		let shownItems: Pick<IActionListItem<unknown>, 'label' | 'description' | 'ariaDescription'>[] = [];
 		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			hide: () => { },
 			show: (_id, _preview, items, delegate, element) => {
 				openedAtAnchor = element === anchor;
-				select = label => {
-					const selected = items.find(item => item.label === label);
+				shownItems = items.map(({ label, description, ariaDescription }) => ({ label, description, ariaDescription }));
+				select = (label, source) => {
+					const selected = items.find(item => item.label === label && (source === undefined || item.description === source));
 					assert.ok(selected?.item);
 					delegate.onSelect(selected.item);
 				};
@@ -132,7 +135,7 @@ suite('ModePickerActionItem Add Context', () => {
 				if (action.id !== OpenModePickerAction.ID || !(action instanceof MenuItemAction)) {
 					return undefined;
 				}
-				picker = instantiation.createInstance(ModePickerActionItem, action, { currentMode: mode, currentChatModes: modes, sessionResource: () => undefined }, { compact: compactStates.get(action.id)!, actionContext: { widget } });
+				picker = instantiation.createInstance(ModePickerActionItem, action, { currentMode: mode, currentChatModes: modes, sessionResource: () => undefined, setMode: value => mode.set(value, undefined) }, { compact: compactStates.get(action.id)!, actionContext: { widget } });
 				Object.assign(inputPart, { modeWidget: picker });
 				return picker;
 			},
@@ -151,11 +154,35 @@ suite('ModePickerActionItem Add Context', () => {
 		return {
 			inputPart, input, anchor, mode, configuration, telemetry, placement, toolbar, layout, actionIds, settle,
 			get picker() { return picker; },
+			get items() { return shownItems; },
 			open: () => { inputPart.openModePicker(); return openedAtAnchor; },
-			select: (label: string) => { assert.ok(select); select(label); },
+			select: (label: string, source?: string) => { assert.ok(select); select(label, source); },
 			narrow: () => { root.style.width = '35px'; layout.layout(); },
 		};
 	}
+
+	test('shows visible and accessible source text only for duplicate labels and selects by identity', () => {
+		const modes = ['VS Code', 'Plugin: review-tools', 'VS Code'].map((source, index): IChatMode => ({
+			...custom,
+			id: `client-agent:/${index}`,
+			name: constObservable(index === 2 ? 'Other' : 'Reviewer'),
+			label: constObservable(index === 2 ? 'Other' : 'Reviewer'),
+			description: constObservable('Reviews changes'),
+			source: { storage: PromptsStorage.local, label: source },
+		}));
+		const fixture = createPicker(false, true, modes);
+		fixture.open();
+		const rows = fixture.items.filter(item => item.label === 'Reviewer' || item.label === 'Other');
+		fixture.select('Reviewer', 'Plugin: review-tools');
+		assert.deepStrictEqual({ rows, selected: fixture.mode.get().id }, {
+			rows: [
+				{ label: 'Other', description: undefined, ariaDescription: undefined },
+				{ label: 'Reviewer', description: 'VS Code', ariaDescription: 'VS Code, Reviews changes' },
+				{ label: 'Reviewer', description: 'Plugin: review-tools', ariaDescription: 'Plugin: review-tools, Reviews changes' },
+			],
+			selected: modes[1].id,
+		});
+	});
 
 	for (const enabled of [false, true]) {
 		for (const supported of [false, true]) {

@@ -229,6 +229,16 @@ suite('BreadcrumbsControl', () => {
 		}, { activeGroup: group.id, editorFocusCalls: 0, pickerFocused: true });
 	}
 
+	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+		test(`does not draw a bottom border in ${theme}`, async () => {
+			container.classList.add('monaco-workbench', theme);
+			container.style.setProperty('--vscode-editorWidget-border', 'currentColor');
+			await createControl();
+
+			assert.strictEqual(mainWindow.getComputedStyle(control.domNode).borderBottomWidth, '0px');
+		});
+	}
+
 	for (const input of ['mouse', 'keyboard'] as const) {
 		for (const delivery of ['before', 'after'] as const) {
 			test(`file picker keeps focus with ${input} input and editor focus delivery ${delivery} loading`, async () => {

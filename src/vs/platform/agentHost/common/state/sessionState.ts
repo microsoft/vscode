@@ -261,6 +261,33 @@ export interface ITurnTokenTotal {
 	readonly outputTokens: number;
 }
 
+export interface IModelRoutedInfo {
+	readonly router: string;
+	/** The router's display name, when its file gives one. */
+	readonly routerLabel?: string;
+	/** The chosen route's name, when it has one. A chat stays on a named route by this name. */
+	readonly routeName?: string;
+	readonly chosenModel: string;
+	/** The user's note on the chosen model, when it decided the pick. */
+	readonly preference?: string;
+	/** The thinking effort the router chose for this turn. */
+	readonly effort?: string;
+	/** The context window the router asked for, when its file sets one and the model offers a choice. */
+	readonly contextSize?: 'default' | 'long';
+	/** That context window in tokens. */
+	readonly contextTokens?: number;
+	/** The turn ran on the model's larger context window, whether the router asked for it or the model defaults to it. */
+	readonly longContext?: boolean;
+	/** The model the router moved off on this turn. */
+	readonly switchedFrom?: string;
+	/** The router had no confident pick and used the user's first model. */
+	readonly defaulted?: boolean;
+	/** The chat stayed on the model it was already running. */
+	readonly kept?: boolean;
+	/** The router routes only a chat's first turn, so later turns keep this pick without being routed. */
+	readonly firstTurnOnly?: boolean;
+}
+
 export interface IAutoModeResolvedInfo {
 	readonly chosenModel: string;
 	readonly reasoningBucket?: 'low' | 'medium' | 'high';
@@ -669,6 +696,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		workingDirectories: summary.workingDirectories,
 		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
 		...(summary.movable !== undefined ? { movable: summary.movable } : {}),
+		...(summary.provider !== undefined ? { provider: summary.provider } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -771,6 +799,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
 	if (state.changes !== undefined) { summary.changes = state.changes; }
 	if (state.movable !== undefined) { summary.movable = state.movable; }
+	if (state.provider !== undefined) { summary.provider = state.provider; }
 	return summary;
 }
 
@@ -957,18 +986,35 @@ export function getAgentHostChatId(resource: ResourceURI | string): string {
 	return chatId !== undefined && chatId !== DEFAULT_CHAT_ID ? chatId : resource.toString();
 }
 
-/**
- * Resolves a client chat id (a chat resource fragment) to a chat of the
- * session. {@link DEFAULT_CHAT_ID} addresses `defaultChat`, the session's
- * advertised default chat as the caller resolved it. A full chat URI matches
- * exactly before the short id is tried.
- */
+const sessionChatResourceIndexes = new WeakMap<readonly Pick<ChatSummary, 'resource'>[], {
+	readonly byResource: ReadonlyMap<string, ProtocolURI>;
+	readonly byId: ReadonlyMap<string, ProtocolURI>;
+}>();
+
+/** Resolves a client chat id against the immutable catalog, preferring exact resources over short ids. */
 export function getSessionChatResource(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): ProtocolURI | undefined {
 	if (chatId === DEFAULT_CHAT_ID) {
 		return defaultChat;
 	}
-	return state.chats.find(chat => chat.resource.toString() === chatId)?.resource
-		?? state.chats.find(chat => getAgentHostChatId(chat.resource) === chatId)?.resource;
+	let index = sessionChatResourceIndexes.get(state.chats);
+	if (!index) {
+		const byResource = new Map<string, ProtocolURI>();
+		const byId = new Map<string, ProtocolURI>();
+		for (const chat of state.chats) {
+			const resource = chat.resource;
+			const key = resource.toString();
+			const id = getAgentHostChatId(resource);
+			if (!byResource.has(key)) {
+				byResource.set(key, resource);
+			}
+			if (!byId.has(id)) {
+				byId.set(id, resource);
+			}
+		}
+		index = { byResource, byId };
+		sessionChatResourceIndexes.set(state.chats, index);
+	}
+	return index.byResource.get(chatId) ?? index.byId.get(chatId);
 }
 
 /** Returns `true` when `chatId` addresses the session's advertised `defaultChat` (rule 7 matching, exact URI first). */

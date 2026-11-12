@@ -22,10 +22,12 @@ export interface IChatUtilityModelRequest {
 	readonly model: string;
 	readonly messages: IChatMessage[];
 	readonly options?: ILanguageModelChatRequestOptions;
-	/** Queued behind a concurrency limit; once started it finishes even if all callers cancel, so its result can be cached. */
+	/** Queued behind a concurrency limit; started work finishes for caching unless it is relevance-limited. */
 	readonly background?: boolean;
 	/** Requests with the same key share one pending request. */
 	readonly key?: string;
+	/** Rechecked before sending queued work. Relevance-limited requests are cancelled when no callers remain. */
+	readonly isRelevant?: () => boolean;
 }
 
 /** Sends core utility model requests with shared concurrency, de-duplication, rate-limit backoff, and per-feature logging. */
@@ -46,7 +48,8 @@ interface IPendingRequest {
 	readonly result: DeferredPromise<string | undefined>;
 	readonly cancellation: CancellationTokenSource;
 	readonly callerListeners: DisposableStore;
-	waitingCallers: number;
+	readonly callers: Set<IChatUtilityModelRequest>;
+	cancelWhenUnused: boolean;
 	started: boolean;
 }
 
@@ -68,38 +71,52 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			return Promise.resolve(undefined);
 		}
-		const pending = (request.key !== undefined ? Iterable.find(this._pending, p => p.request.key === request.key) : undefined) ?? this._start(request);
-		pending.waitingCallers++;
-		pending.callerListeners.add(token.onCancellationRequested(() => this._onCallerCancelled(pending)));
+		const existing = request.key !== undefined ? Iterable.find(this._pending, p => p.request.key === request.key) : undefined;
+		const pending = existing ?? this._create(request);
+		const caller = { ...request };
+		pending.callers.add(caller);
+		pending.cancelWhenUnused ||= !!request.isRelevant;
+		pending.callerListeners.add(token.onCancellationRequested(() => this._onCallerCancelled(pending, caller)));
+		if (!existing) {
+			this._start(pending);
+		}
 		return pending.request.background ? pending.result.p : raceCancellation(pending.result.p, token);
 	}
 
-	private _start(request: IChatUtilityModelRequest): IPendingRequest {
-		const pending: IPendingRequest = { request, result: new DeferredPromise(), cancellation: new CancellationTokenSource(), callerListeners: new DisposableStore(), waitingCallers: 0, started: false };
+	private _create(request: IChatUtilityModelRequest): IPendingRequest {
+		const pending: IPendingRequest = { request, result: new DeferredPromise(), cancellation: new CancellationTokenSource(), callerListeners: new DisposableStore(), callers: new Set(), cancelWhenUnused: false, started: false };
 		this._pending.add(pending);
+		return pending;
+	}
+
+	private _start(pending: IPendingRequest): void {
 		const run = () => this._run(pending).then(text => this._settle(pending, text), error => this._settle(pending, undefined, error));
-		if (request.background) {
+		if (pending.request.background) {
 			this._backgroundLimiter.queue(run);
 		} else {
 			run();
 		}
-		return pending;
 	}
 
-	private _onCallerCancelled(pending: IPendingRequest): void {
-		if (--pending.waitingCallers > 0) {
+	private _onCallerCancelled(pending: IPendingRequest, caller: IChatUtilityModelRequest): void {
+		pending.callers.delete(caller);
+		if (pending.callers.size > 0) {
 			return;
 		}
 		if (!pending.started) {
 			this._log(pending.request, 'dropped');
 			this._settle(pending, undefined);
-		} else if (!pending.request.background) {
+		} else if (!pending.request.background || pending.cancelWhenUnused) {
 			pending.cancellation.cancel();
 		}
 	}
 
 	private async _run(pending: IPendingRequest): Promise<string | undefined> {
 		if (pending.result.isSettled) {
+			return undefined;
+		}
+		if (![...pending.callers].some(caller => !caller.isRelevant || caller.isRelevant())) {
+			this._log(pending.request, 'dropped');
 			return undefined;
 		}
 		pending.started = true;
@@ -132,8 +149,12 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 	}
 
 	private _settle(pending: IPendingRequest, text: string | undefined, error?: unknown): void {
+		if (pending.result.isSettled) {
+			return;
+		}
 		this._pending.delete(pending);
 		pending.callerListeners.dispose();
+		pending.callers.clear();
 		pending.cancellation.dispose();
 		if (error) {
 			pending.result.error(error);

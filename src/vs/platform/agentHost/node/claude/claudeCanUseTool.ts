@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
-import type { IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentPermissionKind, type IAgentChatOwnerRef } from '../../common/agent.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -146,7 +146,9 @@ async function dispatchCanUseTool(
 
 	const permissionKind = getClaudePermissionKind(toolName);
 	const displayName = getClaudeToolDisplayName(toolName);
-	const permissionPath = options.blockedPath ?? getClaudeToolPath(toolName, input);
+	const target = getClaudeToolPath(toolName, input);
+	const permissionPath = permissionKind === AgentPermissionKind.Url ? undefined : options.blockedPath ?? target;
+	const permissionUrl = permissionKind === AgentPermissionKind.Url ? target : undefined;
 	const serverDisplay = serverToolName ? serverToolHost?.getConfirmationDisplay(serverToolName, input) ?? getServerToolDisplay(serverToolName, input) : undefined;
 	const toolInputString = serverDisplay?.hideConfirmationInput ? undefined : getClaudeToolInputString(toolName, input);
 	const meta = buildClaudeToolMeta(toolName);
@@ -168,6 +170,8 @@ async function dispatchCanUseTool(
 		state,
 		permissionKind,
 		...(permissionPath !== undefined ? { permissionPath } : {}),
+		...(permissionUrl !== undefined ? { permissionUrl } : {}),
+		...(permissionKind === AgentPermissionKind.Shell ? { shellLanguage: 'bash', shellCommand: typeof input.command === 'string' ? input.command : undefined } : {}),
 		...(parentToolCallId !== undefined ? { parentToolCallId } : {}),
 	});
 	return approved

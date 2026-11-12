@@ -37,6 +37,15 @@ export class MockPromptsService extends Disposable implements IPromptsService {
 	private _hooks: readonly ChatHook[] = [];
 	private _plugins: readonly ChatPlugin[] = [];
 	private _fileContents = new ResourceMap<string>();
+	private _workspaceFolderRoots: readonly URI[] | undefined;
+
+	setWorkspaceFolderRoots(roots: readonly URI[]): void {
+		this._workspaceFolderRoots = roots;
+	}
+
+	getWorkspaceFolderRoots(workspaceFolders: readonly URI[]): Promise<URI[]> {
+		return Promise.resolve([...(this._workspaceFolderRoots ?? workspaceFolders)]);
+	}
 
 	setCustomAgents(agents: readonly ChatCustomAgent[]): void {
 		this._customAgents = agents;

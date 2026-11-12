@@ -28,13 +28,13 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | Concern | Owner |
 |---|---|
 | Shared catalogue and command contract | [`IAutomationStore`](../workbench/contrib/chat/common/automations/automationService.ts) |
-| One provider's Automation interface and observable capabilities | [`ISessionsProviderAutomations`](services/sessions/common/sessionsProvider.ts) |
+| One provider's Automation interface and observable capabilities | [`ISessionsProviderAutomations`](../workbench/contrib/sessions/common/sessionsProvider.ts) |
 | Injected, multi-provider Automation API | [`IAutomationService`](../workbench/contrib/chat/common/automations/automationService.ts) |
 | Unified catalogue and concrete-provider routing | [`ProviderAutomationService`](contrib/automations/browser/providerAutomationService.ts) |
-| Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationStore`](contrib/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
-| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](contrib/providers/copilotChatSessions/browser/githubCloudAutomationStore.ts) |
-| Connection, feature enablement, and negotiated capability | [`ReconnectableAgentHostAutomationStore`](contrib/providers/agentHost/browser/reconnectableAgentHostAutomationStore.ts) |
-| Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](contrib/providers/agentHost/browser/agentHostAutomationStore.ts) |
+| Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationStore`](../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
+| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](../workbench/contrib/sessions/providers/copilotChatSessions/browser/githubCloudAutomationStore.ts) |
+| Connection, feature enablement, and negotiated capability | [`ReconnectableAgentHostAutomationStore`](../workbench/contrib/sessions/providers/agentHost/browser/reconnectableAgentHostAutomationStore.ts) |
+| Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](../workbench/contrib/sessions/providers/agentHost/browser/agentHostAutomationStore.ts) |
 | Manual invocation feedback and observation | [`IAutomationRunner`](../workbench/contrib/chat/common/automations/automationRunner.ts), implemented by [`AutomationRunner`](contrib/automations/browser/automationRunner.ts) |
 | Definitions, schedules, run claims, sessions, lifecycle, history, and recovery | [`IAgentHostAutomationService` / `AgentHostAutomationService`](../platform/agentHost/node/agentHostAutomationService.ts) |
 | Portable blueprint format and validation | Workbench Automation common code |
@@ -60,6 +60,10 @@ Manual invocation also has two result boundaries: `IAutomationRunRequestResult` 
 Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Providers use that purpose to preserve the Automation backend's configuration contract: scheduled Cloud drafts use the scheduled-Cloud model catalogue even when ordinary Cloud sessions use the sandbox experiment.
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
+
+Agent Host Cron schedules use the existing five-field [AHP grammar](../platform/agentHost/common/state/protocol/channels-automation/state.ts): wildcards, lists, ascending ranges, and positive steps on a wildcard or range only. Validation, execution, and human-readable explanations share the host parser and do not accept syntax outside the protocol contract. The month limits both day alternatives; restricted day-of-month and weekday fields match with inclusive OR. Weekdays use 0-7, with both 0 and 7 representing Sunday. The editor defaults to local time and the host evaluates the saved IANA time zone.
+
+The Agent Host adapter persists an explicitly chosen CRON editing form in definition metadata without changing trigger semantics. Definitions without this preference keep their existing preset projection.
 
 Cloud ownership is separate from the execution target and creator: `user` (Only me) or `repository`, defaulting to `user` for legacy responses. Ownership is accepted only on creation, never in updates. The create API is authoritative for repository ownership support, and providers translate its known unsupported-ownership rejection into product-facing feedback. The repository Automation capability must allow management for cloud mutations; every definition returned by the server is available through the UI and agent tools.
 
@@ -196,5 +200,5 @@ Existing AHP definitions and history are not deleted because an obsolete migrati
 
 - [Sessions architecture](SESSIONS.md)
 - [Sessions list](SESSIONS_LIST.md)
-- [Agent Host sessions provider](contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
-- [Remote Agent Host sessions provider](contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Agent Host sessions provider](../workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md)
+- [Remote Agent Host sessions provider](../workbench/contrib/sessions/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md)

@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IModalEditorNavigation, IModalEditorPartOptions } from '../../../../../platform/editor/common/editor.js';
 
@@ -33,11 +32,7 @@ class TestModalEditorNavigationHost {
 
 suite('Modal Editor Navigation', () => {
 
-	const disposables = new DisposableStore();
-
-	teardown(() => disposables.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('updateOptions sets navigation and fires event', () => {
 		const host = new TestModalEditorNavigationHost();

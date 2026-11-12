@@ -16,7 +16,7 @@ When validating an upstream provider/runtime fix, use [ci-artifact-testing](../c
 ## Core invariants
 
 1. **Replay is default and strict.** No env var serves committed fixtures without a token or network. An unrecorded request is a hard cache miss.
-2. **Fixture names derive from test titles.** Renaming a model-backed test orphans `${provider}-${slug}.yaml`; re-record after a rename. Tests explicitly registered with `hostOnlyTest(...)` share `captures/empty.yaml`.
+2. **Fixture names derive from test titles.** Renaming a model-backed test orphans `${provider}-${slug}.yaml`; re-record after a rename. Tests registered with `conformanceTest(...)` or `providerHostOnlyTest(...)` share `captures/empty.yaml`.
 3. **Recording is intentional and credentialed.** `AGENT_HOST_REPLAY_RECORD=1` talks to real CAPI and needs `GITHUB_TOKEN` or `gh auth token`. Keep prompts trivial and read-only in temporary directories.
 4. **Fixtures are generated, never hand-edited.** Fix normalization or redaction and re-record if a capture contains unstable or sensitive data.
 5. **Disabled variants stay accountable.** Record every gate in `e2e/KNOWN_ISSUES.md` with its scope, expected and observed behavior, and focused reproduction command.
@@ -88,5 +88,5 @@ New Agent Host E2E and real-provider integration tests are not ready to merge af
 
 - Run a single provider in replay: `./scripts/test-integration.sh --run <path>` (no env var).
 - Filter to one test: add `--grep "<test title fragment>"`.
-- **On a hang / timeout, read the runtime log first.** For the **Copilot** provider, a failed test tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log` into the test output (`[agent-host-e2e] # …` lines) — the SDK/CLI's own account of startup, auth, the model request, and the turn lifecycle. It runs at `--log trace`. A turn that never produced a model response, a panic, or an out-of-order/protocol error points at the SDK/CLI (re-record if a bump left the fixture stale; otherwise it's a real regression). Claude/Codex use their own runtimes and are not captured here. See the README's "A turn hangs or times out with no OS pattern".
+- **On a hang / timeout, read the runtime log first.** For the **Copilot** provider, a failed test tails the most recent Copilot runtime (`copilot-runtime` from `@github/copilot-sdk-<platform>`) `process-*.log` into the test output (`[agent-host-e2e] # …` lines) — the SDK/CLI's own account of startup, auth, the model request, and the turn lifecycle. It runs at `--log trace`. A turn that never produced a model response, a panic, or an out-of-order/protocol error points at the SDK/CLI (re-record if a bump left the fixture stale; otherwise it's a real regression). Claude/Codex use their own runtimes and are not captured here. See the README's "A turn hangs or times out with no OS pattern".
 - For any failure (`cache miss`, missing fixture, per-OS timeout, leaked PII, subagent staleness, accidental real-CAPI contact), go to the **Troubleshooting** section of the README — it maps each symptom to its cause and fix.

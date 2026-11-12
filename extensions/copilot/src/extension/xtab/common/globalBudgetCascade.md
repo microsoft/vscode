@@ -11,8 +11,7 @@ Types: [`GlobalBudgetOptions`](../../../platform/inlineEdits/common/dataTypes/xt
 By default, each prompt part has its own per-part `maxTokens` cap. Caps are
 configured conservatively to fit a worst-case combined prompt, which means a
 part is capped even when other parts are unused or near-empty. The cascade lets
-unused budget in earlier parts donate to later parts, modeled after the
-`CascadingPromptFactory` design in completions-core.
+unused budget in earlier parts donate to later parts.
 
 The cascade is **opt-in**. When `PromptOptions.globalBudget` is `undefined`,
 `getUserPrompt` takes the legacy path and per-part caps apply.

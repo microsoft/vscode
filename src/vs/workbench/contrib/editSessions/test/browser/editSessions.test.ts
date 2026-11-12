@@ -180,6 +180,7 @@ suite('Edit session sync', () => {
 	});
 
 	suiteTeardown(() => {
+		editSessionsContribution.dispose();
 		disposables.dispose();
 	});
 

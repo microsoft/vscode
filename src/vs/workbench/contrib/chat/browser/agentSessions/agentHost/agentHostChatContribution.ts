@@ -8,13 +8,14 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, registerLocalAgentHostWindowScheme } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -24,7 +25,10 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { getVirtualWorkspaceScheme } from '../../../../../../platform/workspace/common/virtualWorkspace.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { VirtualWorkspaceContext } from '../../../../../common/contextkeys.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -50,6 +54,8 @@ import { IAgentHostCustomizationService } from './agentHostCustomizationService.
 import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 import { AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { readAgentModelCatalogStatus } from '../../../../../../platform/agentHost/common/agentModelCatalogStatus.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { BrowserRemoteProxyEnabledSettingId } from '../../../../browserView/common/browserView.js';
 
 const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 
@@ -133,6 +139,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _isSessionsWindow: boolean;
 	private readonly _isLocalAgentHost: boolean;
+	/** A remote window's canvases load through the remote, so they require remote browser proxying. */
+	private readonly _canvasPresentationAvailable: IObservable<boolean>;
 	private readonly _connectionAuthority: string;
 	private readonly _enableSmokeTestDriver: boolean;
 	private _initialized = false;
@@ -157,11 +165,13 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._isLocalAgentHost = !environmentService.remoteAuthority;
+		this._canvasPresentationAvailable = this._isLocalAgentHost ? constObservable(true) : observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, this._configurationService);
 		this._connectionAuthority = environmentService.remoteAuthority ? agentHostAuthority(`vscode-remote://${environmentService.remoteAuthority}`) : LOCAL_AGENT_HOST_AUTHORITY;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
@@ -195,6 +205,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._initialized = true;
 		this._promptCacheNotification = this._register(this._instantiationService.createInstance(AgentHostPromptCacheNotification));
 		this._register(this._agentHostFileSystemService.registerAuthority(LOCAL_AGENT_HOST_AUTHORITY, this._agentHostService));
+		// Files of an open virtual workspace that local sessions report are this window's own, so it reads them directly.
+		const virtualWorkspaceScheme = this._isLocalAgentHost ? getVirtualWorkspaceScheme(this._workspaceContextService.getWorkspace()) : undefined;
+		if (virtualWorkspaceScheme) {
+			this._register(registerLocalAgentHostWindowScheme(virtualWorkspaceScheme));
+		}
 
 		// React to root state changes (agent discovery / removal)
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {
@@ -323,6 +338,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			name: agentId,
 			displayName: agent.displayName,
 			description: agent.description,
+			when: this._isLocalAgentHost && !this._isSessionsWindow && agent.provider !== 'copilotcli' ? VirtualWorkspaceContext.negate().serialize() : undefined,
 			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,
@@ -343,6 +359,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			supportsDelegation: false,
 			capabilities: {
 				supportsCheckpoints: true,
+				supportsFileAttachments: true,
 				supportsPromptAttachments: true,
 				supportsImageAttachments: true,
 				get terminalCommandPrefix() {
@@ -357,7 +374,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
 		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
 
-		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, 'local', undefined,
+		// Local mode IDs keep the ambient wrapping that predates connection resource mappers.
+		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, { clientId: ahService.clientId, resourceUris: this._isLocalAgentHost ? createAgentHostResourceUriMapper(LOCAL_AGENT_HOST_AUTHORITY) : ahService.resourceUris }, undefined,
 			syncedUri => this._activeClientService.getOrigin(syncedUri)));
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
@@ -418,7 +436,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._agentHostService,
 			connectionAuthority: this._connectionAuthority,
-			supportsCanvasPresentation: this._isLocalAgentHost && agent.provider === 'copilotcli',
+			mirrorsPermissionGrants: this._isLocalAgentHost,
+			supportsCanvasPresentation: !isWeb && agent.provider === 'copilotcli' ? this._canvasPresentationAvailable : undefined,
 			supportsManagedPluginRetry: this._isLocalAgentHost && agent.provider === 'copilotcli' && !!this._agentHostService.retryManagedPlugins,
 			supportsComputerUseSetup: this._isLocalAgentHost && agent.provider === 'copilotcli' && isComputerUseSetupPlatform(),
 			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
@@ -437,7 +456,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
+		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, uri => this._agentHostService.resourceUris.fromAgentHost(uri)));
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));

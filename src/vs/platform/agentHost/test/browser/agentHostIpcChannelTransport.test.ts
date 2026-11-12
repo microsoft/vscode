@@ -10,8 +10,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
-import { FileService } from '../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostIpcChannelTransport } from '../../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
@@ -157,8 +157,7 @@ suite('AgentHostIpcChannelTransport', () => {
 
 	test('logs real frames and redacts authentication tokens', async () => {
 		const channel = ds.add(new FakeChannel());
-		const fileService = ds.add(new FileService(new NullLogService()));
-		ds.add(fileService.registerProvider('file', ds.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(ds, Schemas.file);
 		const logger = ds.add(new AhpJsonlLogger(
 			{ logsHome: URI.file('/logs'), logId: 'local-client', connectionId: 'local-client', transport: 'local' },
 			fileService,

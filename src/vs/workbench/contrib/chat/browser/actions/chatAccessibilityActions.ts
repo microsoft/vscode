@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -70,7 +71,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 			// Reveal the response so its confirmation widget is rendered (the
 			// chat list is virtualized — querying before reveal can miss it).
 			pendingWidget.reveal(lastResponse);
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const confirmationWidgets = pendingWidget.domNode.querySelectorAll<HTMLElement>('.chat-confirmation-widget-container[tabindex]');
 			if (confirmationWidgets.length > 0) {
 				firstConfirmationElement = confirmationWidgets[confirmationWidgets.length - 1];
@@ -125,7 +126,10 @@ class ToggleThinkingContentAccessibleViewAction extends Action2 {
 	}
 }
 
-export function registerChatAccessibilityActions(): void {
-	registerAction2(AnnounceChatConfirmationAction);
-	registerAction2(ToggleThinkingContentAccessibleViewAction);
+export function registerChatAccessibilityActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AnnounceChatConfirmationAction));
+	store.add(registerAction2(ToggleThinkingContentAccessibleViewAction));
+
+	return store;
 }

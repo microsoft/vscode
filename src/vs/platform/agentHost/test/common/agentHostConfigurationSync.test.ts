@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
@@ -43,7 +44,7 @@ function createConfigurationService(values: Record<string, IConfigurationValue<u
 
 suite('AgentHostConfigurationSync', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const node = {
@@ -110,18 +111,20 @@ suite('AgentHostConfigurationSync', () => {
 		assert.strictEqual(getGlobalConfigurationValue(configurationService, ALL_HOSTS_SETTING), false);
 	});
 
-	test('artifact integrations are opt-in and cannot be enabled by a workspace', () => {
-		const configuration = createConfigurationService({
-			[ArtifactIntegrationsSettingId]: { workspaceValue: true, workspaceFolderValue: true },
-			[AgentMergeSettingId.Enabled]: { userValue: true },
+	for (const target of [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.Remote]) {
+		test(`mirrors the quality-based artifact integrations default to host ${target}, ignoring workspace values`, () => {
+			const configuration = createConfigurationService({
+				[ArtifactIntegrationsSettingId]: { workspaceValue: true, workspaceFolderValue: true },
+				[AgentMergeSettingId.Enabled]: { userValue: true },
+			});
+			const patch = resolveAgentHostConfigurationSyncPatch(configuration, target);
+			assert.deepStrictEqual({
+				scope: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId].scope,
+				integrations: patch[AgentHostArtifactIntegrationsConfigKey],
+				agentMerge: patch[AgentMergeConfigKey.Enabled],
+			}, { scope: ConfigurationScope.APPLICATION, integrations: product.quality === 'insider', agentMerge: product.quality !== 'insider' });
 		});
-		const patch = resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Local);
-		assert.deepStrictEqual({
-			scope: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId].scope,
-			integrations: patch[AgentHostArtifactIntegrationsConfigKey],
-			agentMerge: patch[AgentMergeConfigKey.Enabled],
-		}, { scope: ConfigurationScope.APPLICATION, integrations: false, agentMerge: true });
-	});
+	}
 
 	for (const savedAgentMerge of [false, true]) {
 		test(`integration mode suppresses and restores Agent Merge without changing its ${savedAgentMerge} preference`, () => {
@@ -411,19 +414,16 @@ suite('AgentHostConfigurationSync', () => {
 		const configurationService = createConfigurationService({});
 		const first = { overrides: { [HIDDEN_SETTING]: true }, source: 'first' };
 		const second = { overrides: { [HIDDEN_SETTING]: false }, source: 'second' };
-		try {
-			registry.registerDefaultConfigurations([first]);
-			const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
-			registry.registerDefaultConfigurations([second]);
-			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-			registry.deregisterDefaultConfigurations([second]);
-			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-			registry.deregisterDefaultConfigurations([first]);
-			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
-			assert.deepStrictEqual(values, [false, false, false, false]);
-		} finally {
-			registry.deregisterDefaultConfigurations([first, second]);
-		}
+		store.add(toDisposable(() => registry.deregisterDefaultConfigurations([first, second])));
+		registry.registerDefaultConfigurations([first]);
+		const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
+		registry.registerDefaultConfigurations([second]);
+		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+		registry.deregisterDefaultConfigurations([second]);
+		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+		registry.deregisterDefaultConfigurations([first]);
+		values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+		assert.deepStrictEqual(values, [false, false, false, false]);
 	});
 
 	test('deregistering drops mirroring entries, including for hidden settings', () => {

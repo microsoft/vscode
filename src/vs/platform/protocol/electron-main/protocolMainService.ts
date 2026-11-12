@@ -6,12 +6,13 @@
 import { session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
-import { basename, extname, normalize } from '../../../base/common/path.js';
+import { basename, extname, join, normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { isUNCAccessAllowed } from '../../../base/node/unc.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
 import { NodeRemoteResourceResponse } from '../../remote/common/electronRemoteResources.js';
@@ -126,7 +127,9 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// Document-policy header is needed for collecting
 		// JavaScript callstacks via https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
 		// until https://github.com/electron/electron/issues/45356 is resolved.
-		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
+		const isSessionsWorkbench = (pathBasename === 'sessions.html' || pathBasename === 'sessions-dev.html')
+			&& path === normalize(join(this.environmentService.appRoot, 'out/vs/sessions/electron-browser', pathBasename));
+		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html' || isSessionsWorkbench) {
 			headers = {
 				...headers,
 				...DocumentPolicyheaders
@@ -138,8 +141,10 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			return callback({ path, headers });
 		}
 
-		// then check by validExtensions
-		if (this.validExtensions.has(extname(path).toLowerCase())) {
+		// then check by validExtensions, but only for UNC hosts the user allowed:
+		// UNC host restrictions only apply to node.js `fs` and Electron serves
+		// `vscode-file:` without going through it, so check the allowlist here
+		if (this.validExtensions.has(extname(path).toLowerCase()) && isUNCAccessAllowed(path)) {
 			return callback({ path, headers });
 		}
 

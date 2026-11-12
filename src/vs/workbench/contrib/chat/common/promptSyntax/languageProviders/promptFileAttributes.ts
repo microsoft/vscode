@@ -135,6 +135,11 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 			{ name: 'max' },
 		],
 	},
+	[PromptHeaderAttributes.modelPolicy]: {
+		type: 'scalar',
+		description: localize('promptHeader.agent.modelPolicy', 'Controls whether the configured model list is preferred or required.'),
+		enums: [{ name: 'preferred' }, { name: 'required' }],
+	},
 	[PromptHeaderAttributes.tools]: {
 		type: ['scalar', 'sequence'],
 		description: localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.'),

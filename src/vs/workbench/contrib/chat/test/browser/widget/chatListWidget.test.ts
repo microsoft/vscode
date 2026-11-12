@@ -6,17 +6,21 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { OverlayLayoutElement } from '../../../../../../base/browser/overlayLayoutElement.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { ObjectTree } from '../../../../../../base/browser/ui/tree/objectTree.js';
+import { IObjectTreeElement } from '../../../../../../base/browser/ui/tree/tree.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
@@ -24,9 +28,14 @@ import { EditSuggestionId } from '../../../../../../editor/common/textModelEditS
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextMenuMenuDelegate, IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { WorkbenchListSupportsFind } from '../../../../../../platform/list/browser/listService.js';
@@ -36,12 +45,17 @@ import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { TestFileService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { IChatAccessibilityService, IChatWidgetService, isChatContextMenuActionContext } from '../../../browser/chat.js';
+import { IWebviewElement, IWebviewService } from '../../../../webview/browser/webview.js';
 import { IChatOutputRendererService } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
+import { ChatFindWidget, IChatFindHost } from '../../../browser/widget/chatFind/chatFindWidget.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
+import { ChatListItemRenderer } from '../../../browser/widget/chatListRenderer.js';
+import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -57,11 +71,15 @@ import { MockChatSessionsService } from '../../common/mockChatSessionsService.js
 import { MockLanguageModelToolsService } from '../../common/tools/mockLanguageModelToolsService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { IChatLayoutService } from '../../../common/widget/chatLayoutService.js';
+import { ChatLayoutService } from '../../../browser/widget/chatLayoutService.js';
 import { MockChatModelFeedbackSurveyService } from '../feedbackSurvey/mockChatModelFeedbackSurveyService.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../../common/promptTimeline.js';
 import { katexContainerClassName } from '../../../../markdown/common/markedKatexExtension.js';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileConstants.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import '../../../../files/browser/fileActions.contribution.js';
 import '../../../browser/widget/media/chat.css';
 
 class TestChatListWidget extends ChatListWidget {
@@ -241,7 +259,6 @@ suite('ChatListWidget', () => {
 		const fileService = upcastPartial<IFileService>({
 			hasProvider: () => true,
 		});
-
 		assert.deepStrictEqual({
 			file: shouldShowChatLinkOpenWith(URI.file('/workspace/README.md'), fileService, editorResolverService),
 			https: shouldShowChatLinkOpenWith(URI.parse('https://google.com'), fileService, editorResolverService),
@@ -253,6 +270,108 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	for (const isSessionsWindow of [false, true]) {
+		for (const gesture of isMacintosh ? ['contextmenu', 'Shift+F10'] : ['contextmenu', 'ContextMenu', 'Shift+F10']) {
+			for (const { resource, linkType } of [
+				{ resource: URI.file('/workspace/my file.ts').with({ query: 'provider=value' }), linkType: undefined },
+				{ resource: URI.parse('vscode-remote://host/workspace/my%20file.ts?provider=value'), linkType: 'file' },
+				{ resource: toAgentHostUri(URI.file('/workspace/my file.ts').with({ query: 'provider=value' }), 'remote-host'), linkType: 'skill' },
+			]) {
+				test(`composes ${resource.scheme} file and transcript actions via ${gesture} (sessions=${isSessionsWindow})`, async () => {
+					let menuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+					const contextMenuService = upcastPartial<IContextMenuService>({
+						showContextMenu: delegate => { menuDelegate = delegate; },
+					});
+					const editorResolverService = upcastPartial<IEditorResolverService>({
+						getEditors: () => [{ id: 'test.editor', label: 'Test Editor', priority: { editor: RegisteredEditorPriority.option, diff: RegisteredEditorPriority.option, merge: RegisteredEditorPriority.option } }],
+					});
+					const { instantiationService, model, widget, container } = createWidget({}, undefined, isSessionsWindow, contextMenuService, editorResolverService);
+					sinon.stub(instantiationService.get(IFileService), 'hasProvider').callsFake(uri => uri.scheme === resource.scheme);
+					const invocations: { id: string; resource?: string; linkTarget?: string }[] = [];
+					instantiationService.stub(ICommandService, {
+						executeCommand: async (id, arg) => {
+							invocations.push(URI.isUri(arg) ? { id, resource: arg.toString() } : isChatContextMenuActionContext(arg) ? { id, linkTarget: arg.linkTarget } : { id });
+						},
+					});
+					const menuService = store.add(instantiationService.createInstance(MenuService));
+					sinon.stub(instantiationService.get(IMenuService), 'getMenuActions').callsFake((...args) => menuService.getMenuActions(...args));
+					const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+					sinon.stub(instantiationService.get(IContextKeyService), 'createOverlay').callsFake(overlay => contextKeyService.createOverlay(overlay));
+					const target = resource.with({ query: linkType ? `${resource.query}&vscodeLinkType=${linkType}` : resource.query, fragment: 'L42,7' }).toString();
+					const request = model.addRequest({
+						text: 'Show source',
+						parts: [new ChatRequestTextPart(new OffsetRange(0, 11), new Range(1, 1, 1, 12), 'Show source')],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`[Source](<${target}>)`) });
+					request.response?.complete();
+					widget.refresh();
+					widget.layout(300, 500);
+					await waitForStableLayout(widget);
+					const link = Array.from(container.querySelectorAll('a')).find(anchor => anchor.getAttribute('data-href') === target)!;
+					if (gesture === 'contextmenu') {
+						link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+					} else {
+						widget.focusLastItem();
+						link.focus();
+						for (const type of ['keydown', 'keyup']) {
+							link.dispatchEvent(new mainWindow.KeyboardEvent(type, { key: gesture === 'ContextMenu' ? 'ContextMenu' : 'F10', keyCode: gesture === 'ContextMenu' ? 93 : 121, shiftKey: gesture === 'Shift+F10', bubbles: true, cancelable: true }));
+						}
+					}
+					const menu = menuDelegate as IContextMenuMenuDelegate | undefined;
+					assert.ok(menu);
+					const actionContext = menu.getActionsContext?.();
+					const actions = menu.getActions?.() ?? [];
+					const reveal = actions.find(action => action.id === REVEAL_IN_EXPLORER_COMMAND_ID);
+					const copy = actions.find(action => action.id === 'workbench.action.chat.copyLink');
+					assert.ok(reveal && copy);
+					await reveal.run(actionContext);
+					await copy.run(actionContext);
+					assert.deepStrictEqual({
+						actions: actions.filter(action => action === reveal || action === copy).map(action => action.id),
+						invocations,
+						openWith: menu.contextKeyService?.getContextKeyValue(ChatContextKeys.contextMenuHasAvailableEditors.key),
+						text: link.textContent,
+						href: link.getAttribute('data-href'),
+					}, {
+						actions: [REVEAL_IN_EXPLORER_COMMAND_ID, 'workbench.action.chat.copyLink'],
+						invocations: [{ id: REVEAL_IN_EXPLORER_COMMAND_ID, resource: resource.toString() }, { id: 'workbench.action.chat.copyLink', linkTarget: target }],
+						openWith: true,
+						text: 'Source',
+						href: target,
+					});
+				});
+			}
+		}
+	}
+
+	for (const target of ['https://example.com', 'https:////example.com', `${AGENT_HOST_SCHEME}://unavailable/file.ts`]) {
+		test(`keeps the transcript menu without filesystem actions for ${target}`, async () => {
+			let menuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+			const contextMenuService = upcastPartial<IContextMenuService>({
+				showContextMenu: delegate => { menuDelegate = delegate; },
+			});
+			const { instantiationService, model, widget, container } = createWidget({}, undefined, false, contextMenuService);
+			const getMenuActions = sinon.spy(instantiationService.get(IMenuService), 'getMenuActions');
+			const request = model.addRequest({
+				text: 'Show link',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), 'Show link')],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`[Link](<${target}>)`) });
+			request.response?.complete();
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const link = Array.from(container.querySelectorAll('a')).find(anchor => anchor.getAttribute('data-href') === target)!;
+			link.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+			menuDelegate?.getActions?.();
+			const context = menuDelegate?.getActionsContext?.();
+			assert.deepStrictEqual({
+				menus: getMenuActions.args.map(([id]) => id),
+				linkTarget: isChatContextMenuActionContext(context) ? context.linkTarget : undefined,
+			}, { menus: [MenuId.ChatContext], linkTarget: target });
+		});
+	}
+
 	function createWidget(options: IChatListWidgetOptions = {}, configure?: (configurationService: TestConfigurationService) => void, isSessionsWindow = false, contextMenuService?: IContextMenuService, editorResolverService?: IEditorResolverService, sessionResource?: URI) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -262,6 +381,7 @@ suite('ChatListWidget', () => {
 			editor: { fontSize: 13, fontFamily: 'default', fontWeight: 'normal', lineHeight: 0, wordWrap: 'on' },
 		});
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, true);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
@@ -338,7 +458,42 @@ suite('ChatListWidget', () => {
 		}));
 		widget.setViewModel(viewModel);
 		widget.setVisible(true);
-		return { disposables, instantiationService, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
+		return { disposables, instantiationService, configurationService, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
+	}
+
+	for (const complete of [false, true]) {
+		test(`renders a newly opened large response once when measured preceding rows push it out of the initial viewport (complete=${complete})`, async () => {
+			const { instantiationService, model, viewModel, widget, container } = createWidget({ defaultElementHeight: 40 }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+			}, true, undefined, undefined, URI.from({ scheme: SessionType.AgentHostCopilot, path: '/large-response' }));
+			instantiationService.stub(IChatResponseFileChangesService, {
+				getChangesForRequest: () => constObservable([]),
+				getFileEditsForRequest: () => constObservable([]),
+			});
+			const addRequest = (text: string) => model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			const earlier = addRequest('Earlier request');
+			model.acceptResponseProgress(earlier, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 60 }, (_, index) => `- Earlier result ${index}`).join('\n')) });
+			earlier.response!.complete();
+			const latest = addRequest('Latest request');
+			model.acceptResponseProgress(latest, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 100 }, (_, index) => `- Latest result ${index}`).join('\n')) });
+			if (complete) {
+				latest.response!.complete();
+			}
+			const response = viewModel.getItems().find(item => isResponseVM(item) && item.requestId === latest.id);
+			assert.ok(response);
+			const rendered = sinon.spy(ChatListItemRenderer.prototype, 'renderElement');
+			widget.layout(300, 500);
+			widget.refresh();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				renders: rendered.getCalls().filter(call => call.args[0].element === response).length,
+				finalVisible: container.textContent?.includes('Latest result 99'),
+				atBottom: widget.isScrolledToBottom,
+			}, { renders: 1, finalVisible: true, atBottom: true });
+		});
 	}
 
 	test('consumed steering messages have no empty response or checkpoint spacer between them', async () => {
@@ -440,6 +595,213 @@ suite('ChatListWidget', () => {
 		assert.deepStrictEqual(viewModel.getItems().filter(isResponseVM).map(response => response.requestId), [
 			failed.id, cancelled.id, streaming.id, final.id,
 		]);
+	});
+
+	function stubHtmlPreviewWebviews(instantiationService: ReturnType<typeof workbenchInstantiationService>) {
+		const webviews: { marker: HTMLElement; disposed: boolean }[] = [];
+		instantiationService.stub(IChatLayoutService, store.add(instantiationService.createInstance(ChatLayoutService)));
+		const states = new Map<string, IOutputPartState>();
+		instantiationService.stub(IChatOutputPartStateCache, {
+			get: key => states.get(key),
+			set: (key, state) => states.set(key, state),
+		});
+		instantiationService.stub(IChatWidgetService, { getWidgetBySessionResource: () => undefined });
+		instantiationService.stub(IWebviewService, {
+			createWebviewElement: () => {
+				const state = { marker: dom.$('div'), disposed: false };
+				webviews.push(state);
+				return new class extends mock<IWebviewElement>() {
+					override readonly onFatalError = Event.None;
+					override readonly onDidWheel = Event.None;
+					override readonly intrinsicContentSize = constObservable({ width: 500, height: 180 });
+					override setHtml(): void { }
+					override setContextKeyService(): void { }
+					override mountTo(parent: HTMLElement): void {
+						parent.appendChild(state.marker);
+					}
+					override reinitializeAfterDismount(): void { }
+					override dispose(): void {
+						state.disposed = true;
+						state.marker.remove();
+					}
+				}();
+			},
+		});
+		return webviews;
+	}
+
+	test('HTML preview Find reveals matching source and ignores preview controls', async () => {
+		const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({ rendererOptions: { renderHtmlPreviews: true } }, undefined, true);
+		stubHtmlPreviewWebviews(instantiationService);
+		const text = 'Report';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<p>FindNeedle</p>\n```\n\nShow Source refers to the artifact.') });
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const host: IChatFindHost = {
+			transcriptDomNode: widget.domNode,
+			getItems: () => viewModel.getItems(),
+			onDidChangeContent: Event.None,
+			reveal: (item, relativeTop) => widget.reveal(item, relativeTop),
+			getTemplateDataForRequestId: id => widget.getTemplateDataForRequestId(id),
+			onDidRerenderRow: widget.onDidRerender,
+			editorsInUse: () => widget.editorsInUse(),
+			getCodeBlockInfoForEditor: uri => widget.getCodeBlockInfoForEditor(uri),
+			getScrollTop: () => widget.scrollTop,
+			setScrollTop: top => { widget.scrollTop = top; },
+			getRenderHeight: () => widget.renderHeight,
+			getViewportAnchorItemId: () => widget.lastVisibleItem?.id,
+		};
+		const find = disposables.add(instantiationService.createInstance(ChatFindWidget, host));
+		find.show('Show Source');
+		await retry(async () => {
+			const current = mainWindow.CSS.highlights.get('chat-find-current-match');
+			assert.ok(current && current.size > 0);
+		}, 10, 50);
+		const ranges = [...mainWindow.CSS.highlights.get('chat-find-current-match')!];
+		const sourceStillHidden = container.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden;
+		find.show('FindNeedle');
+		await retry(async () => {
+			assert.strictEqual(container.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden, false);
+		}, 10, 50);
+		await waitForStableLayout(widget);
+		const findKeepsFocus = mainWindow.document.activeElement === find.getDomNode().querySelector('input');
+		const sourceVisible = container.querySelector<HTMLElement>('.chat-html-preview-source')!.getBoundingClientRect().height > 0;
+		assert.deepStrictEqual({
+			sourceStillHidden,
+			findKeepsFocus,
+			sourceVisible,
+			matchParents: ranges.map(range => range.startContainer.parentElement?.tagName),
+		}, { sourceStillHidden: true, findKeepsFocus: true, sourceVisible: true, matchParents: ['P'] });
+		find.hide();
+	});
+
+	for (const supportsHtmlPreviews of [false, true]) {
+		test(`updates existing responses when HTML previews are enabled or disabled (supported: ${supportsHtmlPreviews})`, async () => {
+			const { instantiationService, configurationService, model, container, widget } = createWidget(
+				{ rendererOptions: { renderHtmlPreviews: supportsHtmlPreviews } },
+				configuration => configuration.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, false),
+				true,
+			);
+			const webviews = stubHtmlPreviewWebviews(instantiationService);
+			const text = 'Show a report';
+			const request = model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<h1>Report</h1>\n```') });
+			request.response?.complete();
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			const state = () => ({
+				preview: !!container.querySelector('.chat-html-preview'),
+				source: [...container.querySelectorAll('.view-line')].some(line => !line.closest('[hidden]') && line.textContent?.includes('<h1>Report</h1>')),
+				activeWebviews: webviews.filter(webview => !webview.disposed && webview.marker.isConnected).length,
+			});
+			const states = [state()];
+			for (const enabled of [true, false, true]) {
+				await configurationService.setUserConfiguration(ChatConfiguration.HtmlPreviewEnabled, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectedKeys: new Set([ChatConfiguration.HtmlPreviewEnabled]),
+					affectsConfiguration: key => key === ChatConfiguration.HtmlPreviewEnabled,
+				}));
+				await waitForStableLayout(widget);
+				states.push(state());
+			}
+			assert.deepStrictEqual(states, [false, true, false, true].map(enabled => ({
+				preview: supportsHtmlPreviews && enabled,
+				source: !supportsHtmlPreviews || !enabled,
+				activeWebviews: supportsHtmlPreviews && enabled ? 1 : 0,
+			})));
+		});
+	}
+
+	test('recreates detached HTML webviews when scrolling a response back into view', async () => {
+		const { instantiationService, model, viewModel, container, widget } = createWidget({ rendererOptions: { renderHtmlPreviews: true } }, undefined, true);
+		const webviews = stubHtmlPreviewWebviews(instantiationService);
+		const addRequest = (text: string) => model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		const request = addRequest('Show an HTML report');
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```html-preview\n<h1>Report</h1>\n```') });
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const initialWebview = webviews.find(webview => webview.marker.isConnected)!;
+		const parent = container.parentElement!;
+		widget.setVisible(false);
+		const disposedWhenHidden = initialWebview.disposed;
+		container.remove();
+		parent.appendChild(container);
+		widget.setVisible(true);
+		await waitForStableLayout(widget);
+		const retainedViewReplaced = initialWebview.disposed && webviews.find(webview => webview.marker.isConnected) !== initialWebview;
+		const response = viewModel.getItems().find(isResponseVM)!;
+		for (let index = 0; index < 8; index++) {
+			const followup = addRequest(`Follow-up ${index}`);
+			model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString(`Response ${index}.\n\n`.repeat(20)) });
+			followup.response?.complete();
+		}
+		widget.refresh();
+		widget.reveal(response, 0);
+		await waitForStableLayout(widget);
+
+		const returnedPreviews: { replaced: boolean; oldDisposed: boolean; disposedWhileOffscreen: boolean }[] = [];
+		for (let pass = 0; pass < 3; pass++) {
+			const previous = webviews.find(webview => webview.marker.isConnected)!;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.strictEqual(container.querySelector('.chat-html-preview'), null, 'The preview must actually leave the rendered viewport');
+			const disposedWhileOffscreen = previous.disposed;
+			const width = pass % 2 === 0 ? 360 : 500;
+			container.style.width = `${width}px`;
+			widget.layout(300, width);
+			await waitForStableLayout(widget);
+			widget.reveal(response, 0);
+			await waitForStableLayout(widget);
+			const visible = webviews.find(webview => webview.marker.isConnected);
+			assert.ok(visible);
+			returnedPreviews.push({ replaced: visible !== previous, oldDisposed: previous.disposed, disposedWhileOffscreen });
+		}
+		const originalPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
+		let previewMenu: Parameters<IContextMenuService['showContextMenu']>[0] | undefined;
+		const contextMenu = sinon.stub(instantiationService.get(IContextMenuService), 'showContextMenu').callsFake(delegate => { previewMenu = delegate; });
+		originalPreview.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		await previewMenu!.getActions!().find(action => action.id === 'chat.htmlPreview.source')!.run();
+		contextMenu.restore();
+		for (let index = 0; index < 12; index++) {
+			const followup = addRequest(`Short follow-up ${index}`);
+			model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString('Short response.') });
+			followup.response?.complete();
+		}
+		widget.refresh();
+		widget.scrollToEnd();
+		await waitForStableLayout(widget);
+		assert.strictEqual(container.querySelector('.chat-html-preview'), null);
+		widget.reveal(response, 0);
+		await waitForStableLayout(widget);
+		const restoredPreview = container.querySelector<HTMLElement>('.chat-html-preview')!;
+		assert.deepStrictEqual({
+			disposedWhenHidden,
+			retainedViewReplaced,
+			returnedPreviews,
+			recycled: restoredPreview !== originalPreview,
+			sourceHidden: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-source')?.hidden,
+			reservedHeight: restoredPreview.querySelector<HTMLElement>('.chat-html-preview-content')?.style.height,
+		}, {
+			disposedWhenHidden: true,
+			retainedViewReplaced: true,
+			returnedPreviews: Array.from({ length: 3 }, () => ({ replaced: true, oldDisposed: true, disposedWhileOffscreen: true })),
+			recycled: true, sourceHidden: false, reservedHeight: '180px',
+		});
 	});
 
 	suite('generated image preview retention', () => {
@@ -823,6 +1185,170 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	test('restores the row at the top of the viewport after switching to another chat and back', async () => {
+		const { disposables, instantiationService, model, viewModel, widget } = createWidget();
+		const other = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		for (const target of [model, other]) {
+			for (let index = 0; index < 6; index++) {
+				const text = `question ${index}`;
+				const request = target.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+				}, { variables: [] }, 0);
+				target.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 30 }, (_, line) => `answer ${index} line ${line}`).join('\n\n')) });
+				request.response!.complete();
+			}
+		}
+		// Agent host sessions come back with the same request IDs, but new response IDs.
+		const data = model.toJSON();
+		const restoredModel = disposables.add(instantiationService.createInstance(ChatModel, { value: { ...data, requests: data.requests.map(request => ({ ...request, responseId: undefined })) }, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		// Hosts save and restore the view state through ChatWidget, around binding a new view model for each chat.
+		const chatWidget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { listWidget: widget });
+		let bound: ChatViewModel = viewModel;
+		// Like ChatWidget.setModel: the outgoing view model is disposed, which empties the list, then a new one is bound.
+		const switchTo = (target: ChatModel) => {
+			bound.dispose();
+			widget.refresh();
+			bound = disposables.add(instantiationService.createInstance(ChatViewModel, target, undefined));
+			widget.setViewModel(bound);
+			widget.refresh();
+			return bound;
+		};
+		const topOfViewport = (viewModel: ChatViewModel) => {
+			const items = viewModel.getItems();
+			const row = items.findLastIndex(item => widget.getElementTop(item)! <= widget.scrollTop);
+			return { row, offset: widget.scrollTop - widget.getElementTop(items[row])! };
+		};
+
+		widget.layout(300, 500);
+		const first = switchTo(model);
+		await waitForStableLayout(widget);
+		// Read down to the fourth response, which renders and measures every row above it.
+		const items = first.getItems();
+		for (const item of items.slice(0, 8)) {
+			widget.reveal(item, 0);
+			await waitForStableLayout(widget);
+		}
+		widget.scrollTop = widget.getElementTop(items[7])! + 150;
+		const saved = topOfViewport(first);
+		const viewState = chatWidget.getViewState();
+
+		switchTo(other);
+		chatWidget.restoreViewState({ scrollTop: 0, isAtBottom: true });
+		await waitForStableLayout(widget);
+		const restored = switchTo(restoredModel);
+		chatWidget.restoreViewState(viewState);
+		await waitForStableLayout(widget);
+
+		assert.deepStrictEqual({
+			saved,
+			restored: topOfViewport(restored),
+			responseIdsChanged: restored.getItems().filter(isResponseVM).every(response => !items.some(item => item.id === response.id)),
+		}, {
+			saved: { row: 7, offset: 150 },
+			restored: { row: 7, offset: 150 },
+			responseIdsChanged: true,
+		});
+		disposables.dispose();
+	});
+
+	suite('streaming into a long transcript', () => {
+		const message = (text: string) => ({
+			text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		});
+		const countElements = (elements: Iterable<IObjectTreeElement<unknown>> | undefined): number => {
+			let count = 0;
+			for (const element of elements ?? []) {
+				count += 1 + countElements(element.children);
+			}
+			return count;
+		};
+
+		// Wires the widget the way ChatWidget does: one refresh per batch of view model changes.
+		async function createTranscript(priorTurns: number) {
+			const created = createWidget();
+			const { disposables, model, viewModel, widget } = created;
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), events => widget.refresh(events)));
+			for (let index = 0; index < priorTurns; index++) {
+				const request = model.addRequest(message(`Turn ${index}`), { variables: [] }, 0);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`Answer ${index}`) });
+				request.response!.complete();
+			}
+			const request = model.addRequest(message('Stream a reply'), { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Streamed reply.') });
+			widget.layout(300, 500);
+			await timeout(0);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			return { ...created, request, setChildren: sinon.spy(ObjectTree.prototype, 'setChildren') };
+		}
+
+		async function streamParagraphs(priorTurns: number) {
+			const { disposables, model, container, widget, request, setChildren } = await createTranscript(priorTurns);
+			for (let index = 0; index < 5; index++) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\nStreamed paragraph ${index}.`) });
+				await timeout(0);
+			}
+			// Streamed words render progressively, so wait for the last paragraph before checking the scroll position.
+			const lastParagraphVisible = await retry(async () => assert.ok(container.textContent?.includes('Streamed paragraph 4.')), 100, 30).then(() => true, () => false);
+			await waitForStableLayout(widget);
+			const result = {
+				fullRefreshes: setChildren.getCalls().filter(call => call.args[0] === null).length,
+				diffedElements: setChildren.getCalls().reduce((sum, call) => sum + countElements(call.args[1]), 0),
+				lastParagraphVisible,
+				atBottom: widget.isScrolledToBottom,
+			};
+			setChildren.restore();
+			disposables.dispose();
+			return result;
+		}
+
+		test('diffs only the streaming response, however many turns precede it', async () => {
+			const short = await streamParagraphs(5);
+			const long = await streamParagraphs(100);
+			assert.deepStrictEqual({ short, long }, {
+				short: { fullRefreshes: 0, diffedElements: 5, lastParagraphVisible: true, atBottom: true },
+				long: { fullRefreshes: 0, diffedElements: 5, lastParagraphVisible: true, atBottom: true },
+			});
+		});
+
+		test('falls back to a full refresh when the request or the transcript changes', async () => {
+			const { model, viewModel, container, widget, request, setChildren } = await createTranscript(3);
+			const fullRefreshes = () => setChildren.getCalls().filter(call => call.args[0] === null).length;
+			const states: { fullRefreshes: number; requests: string[]; text: boolean }[] = [];
+			const record = async (text: string) => {
+				await timeout(0);
+				await waitForStableLayout(widget);
+				states.push({
+					fullRefreshes: fullRefreshes(),
+					requests: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+					text: !!container.textContent?.includes(text),
+				});
+			};
+
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' More text.') });
+			await record('More text.');
+			// Completing the response changes its request's identity.
+			request.response!.complete();
+			await record('More text.');
+			const next = model.addRequest(message('Follow-up'), { variables: [] }, 0);
+			await record('Follow-up');
+			model.acceptResponseProgress(next, { kind: 'markdownContent', content: new MarkdownString('Follow-up reply.') });
+			await record('Follow-up reply.');
+			// Undo removes the request while its reply streams.
+			model.removeRequest(next.id);
+			await record('More text.');
+
+			assert.deepStrictEqual(states, [
+				{ fullRefreshes: 0, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+				{ fullRefreshes: 1, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+				{ fullRefreshes: 2, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply', 'Follow-up'], text: true },
+				{ fullRefreshes: 2, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply', 'Follow-up'], text: true },
+				{ fullRefreshes: 3, requests: ['Turn 0', 'Turn 1', 'Turn 2', 'Stream a reply'], text: true },
+			]);
+		});
+	});
+
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);
@@ -849,6 +1375,9 @@ suite('ChatListWidget', () => {
 
 		widget.refresh();
 		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		// Rows only measure once they render, so render the first exchange before reading the second request's position.
+		widget.scrollTop = 0;
 		await waitForStableLayout(widget);
 		const secondRequestItem = viewModel.getItems().filter(isRequestVM)[1];
 		const secondRequestTop = widget.getElementTop(secondRequestItem);
@@ -1246,6 +1775,9 @@ suite('ChatListWidget', () => {
 		container.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		container.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgb(1, 2, 3)');
 		container.style.setProperty('--vscode-chat-requestBubbleHoverBackground', 'rgb(4, 5, 6)');
+		// The hover checks dispatch synthetic mouse events. Keep a real pointer that happens to rest over the
+		// test window (Linux Electron) from also matching `:hover` and leaving a bubble in its hover color.
+		container.style.pointerEvents = 'none';
 		const hasStickyShadowRule = Array.from(container.querySelectorAll('style')).some(style =>
 			style.textContent?.includes('.monaco-tree-sticky-container-shadow') && style.textContent.includes('box-shadow'));
 		const firstParagraph = 'question with an attachment '.repeat(20).trim();
@@ -1621,6 +2153,8 @@ suite('ChatListWidget', () => {
 			}, true);
 			const { model, container, widget, viewModel } = context;
 			container.classList.add('interactive-list');
+			// Pin the workbench font size so prompt wrapping doesn't depend on the body font, which the full suite changes to 11px.
+			container.style.fontSize = '13px';
 			container.style.setProperty('--vscode-spacing-size80', '8px');
 			const request = model.addRequest({
 				text,
@@ -1716,7 +2250,7 @@ suite('ChatListWidget', () => {
 		});
 
 		test('clips MCP app overlays below appearing, resized and hidden sticky prompts', async () => {
-			const { container, widget } = await createTranscript('Keep the MCP app visible.');
+			const { container, widget } = await createTranscript('Keep the MCP app visible while scrolling the transcript.');
 			widget.getOverlayClippingContainer();
 			const stickyNode = widget.stickyScrollDomNode;
 			assert.ok(stickyNode);
@@ -2367,6 +2901,574 @@ suite('ChatListWidget', () => {
 			finalText,
 			idleDOMMutations: 0,
 		});
+	});
+
+	suite('sticky progress', () => {
+		async function createTranscript({ pills = false, floating = true, incremental = false, stickyScroll = false, options = {} }: { pills?: boolean; floating?: boolean; incremental?: boolean; stickyScroll?: boolean; options?: IChatListWidgetOptions } = {}) {
+			const result = createWidget({ stickyProgress: true, paddingBottom: 32, ...options }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configuration.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+				configuration.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
+				configuration.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, stickyScroll);
+				configuration.setUserConfiguration(ChatConfiguration.ExperimentalStickyScrollEnabled, stickyScroll);
+			}, true);
+			const { disposables, model, viewModel, container, widget } = result;
+			const session = container.parentElement!;
+			session.style.cssText = 'position: absolute; top: 0; left: 0; width: 500px; height: 400px;';
+			session.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+			session.style.setProperty('--vscode-chat-font-size-body-s', '12px');
+			session.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+			session.style.setProperty('--vscode-strokeThickness', '1px');
+			session.style.setProperty('--vscode-chat-list-background', '#202020');
+			for (const size of [2, 4, 6, 8, 12, 16, 24, 32, 40]) {
+				session.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
+			}
+			session.classList.toggle('chat-floating-persistent-content', floating);
+			container.classList.add('interactive-list');
+			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
+			inputPart.style.cssText = 'position: absolute; top: 300px; width: 500px; margin: 0;';
+			const persistentContent = dom.append(inputPart, dom.$('.chat-input-persistent-content'));
+			const pillRow = dom.append(persistentContent, dom.$('.chat-pills'));
+			pillRow.style.height = '32px';
+			const input = dom.append(inputPart, dom.$('.chat-input-container'));
+			input.style.height = '80px';
+			const setPillsVisible = (visible: boolean) => {
+				pillRow.style.display = visible ? '' : 'none';
+				pillRow.classList.toggle('hidden', !visible);
+				persistentContent.classList.toggle('chat-persistent-content-visible', visible);
+			};
+			setPillsVisible(pills);
+			widget.setStickyProgressContainer(persistentContent);
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => widget.refresh()));
+			const addRequest = () => model.addRequest({
+				text: 'test',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+			}, { variables: [] }, 0);
+			const previous = addRequest();
+			model.acceptResponseProgress(previous, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+			});
+			previous.response?.complete();
+			const request = addRequest();
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting response.') });
+			widget.refresh();
+			widget.layout(300, 500);
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const progress = session.querySelector<HTMLElement>('.chat-working-progress');
+			const sticky = persistentContent.querySelector<HTMLElement>('.chat-sticky-progress');
+			const anchor = container.querySelector<HTMLElement>('.chat-working-progress-anchor');
+			assert.ok(progress && sticky && anchor && widget.scrollTop > 0);
+			return { ...result, session, inputPart, persistentContent, pillRow, input, request, progress, sticky, anchor, setPillsVisible };
+		}
+
+		function addPendingRequests(model: ChatModel, kind = ChatRequestQueueKind.Queued): void {
+			for (let index = 0; index < 10; index++) {
+				const text = `Queued instruction ${index}`;
+				model.addPendingRequest(new ChatRequestModel({
+					session: model,
+					message: {
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					},
+					variableData: { variables: [] },
+					timestamp: 0,
+				}), kind, {});
+			}
+		}
+
+		for (const incremental of [false, true]) {
+			for (const paddingBottom of [0, 32]) {
+				test(`one scroll arrow click reaches the bottom after an offscreen response grows (incremental=${incremental}, padding=${paddingBottom})`, async () => {
+					const { model, request, container, widget, progress, sticky } = await createTranscript({ pills: paddingBottom > 0, incremental, options: { paddingBottom } });
+					widget.setScrollLock(false);
+					widget.scrollTop = 0;
+					await waitForStableLayout(widget);
+					assert.strictEqual(progress.parentElement, sticky);
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString('\n\n' + Array.from({ length: 20 }, (_, index) => `New response paragraph ${index}.`).join('\n\n') + '\n\n'),
+					});
+					widget.refresh();
+					await waitForStableLayout(widget);
+					const beforeClick = widget.scrollTop;
+
+					widget.scrollDownButtonDomNode.click();
+					await retry(async () => assert.ok(container.textContent?.includes('New response paragraph 19.')), 10, 500);
+					await waitForStableLayout(widget);
+					assert.deepStrictEqual({
+						beforeClick,
+						distanceFromBottom: widget.scrollHeight - widget.renderHeight - widget.scrollTop,
+						arrowVisible: widget.scrollDownButtonDomNode.style.display,
+						progressInline: !!progress.closest('.chat-working-progress-anchor'),
+					}, { beforeClick: 0, distanceFromBottom: 0, arrowVisible: 'none', progressInline: true });
+				});
+			}
+
+			for (const layout of ['pills', 'no pills', 'regular input'] as const) {
+				test(`hands off at the composer edge and returns the same component (${layout}, incremental=${incremental})`, async () => {
+					const { session, container, widget, progress, sticky, anchor } = await createTranscript({
+						pills: layout === 'pills', floating: layout !== 'regular input', incremental,
+					});
+					assert.ok(anchor.contains(progress));
+					const initialBottom = progress.getBoundingClientRect().bottom;
+					const boundary = sticky.getBoundingClientRect().bottom;
+					const scrollHeight = widget.scrollHeight;
+					widget.scrollTop -= boundary - initialBottom - 1;
+					await nextFrame();
+					const beforeEdge = anchor.contains(progress);
+					widget.scrollTop -= 2;
+					await nextFrame();
+					const atEdge = {
+						pinned: progress.parentElement === sticky,
+						bottom: progress.getBoundingClientRect().bottom,
+						placeholderHeight: anchor.getBoundingClientRect().height,
+						height: progress.getBoundingClientRect().height,
+						scrollHeight: widget.scrollHeight,
+					};
+					widget.scrollTop = 0;
+					await waitForStableLayout(widget);
+					const offscreen = { anchorMounted: anchor.isConnected, progressMounted: progress.isConnected, pinned: progress.parentElement === sticky };
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					assert.deepStrictEqual({
+						beforeEdge,
+						atEdge,
+						offscreen,
+						restored: !!progress.closest('.chat-working-progress-anchor'),
+						initialPositionRestored: Math.abs(progress.getBoundingClientRect().bottom - initialBottom) < 1,
+						copies: session.querySelectorAll('.chat-working-progress').length,
+						inlineCopies: container.querySelectorAll('.chat-working-progress').length,
+					}, {
+						beforeEdge: true,
+						atEdge: { pinned: true, bottom: boundary - 2, placeholderHeight: atEdge.height, height: atEdge.height, scrollHeight },
+						offscreen: { anchorMounted: false, progressMounted: true, pinned: true },
+						restored: true,
+						initialPositionRestored: true,
+						copies: 1,
+						inlineCopies: 1,
+					});
+				});
+			}
+		}
+
+		for (const layout of ['pills', 'no pills', 'regular input'] as const) {
+			test(`centers the scroll arrow on the padded sticky progress row (${layout})`, async () => {
+				const { model, request, session, inputPart, container, widget, progress, sticky, setPillsVisible } = await createTranscript({
+					pills: layout === 'pills', floating: layout !== 'regular input',
+				});
+				const button = widget.scrollDownButtonDomNode;
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const isCentered = () => {
+					const row = sticky.getBoundingClientRect();
+					const arrow = button.getBoundingClientRect();
+					return Math.abs((row.top + row.bottom) / 2 - (arrow.top + arrow.bottom) / 2) < 0.5;
+				};
+				const arrowBounds = button.getBoundingClientRect();
+				const pointerTarget = dom.getWindow(button).document.elementFromPoint(arrowBounds.left + arrowBounds.width / 2, arrowBounds.top + arrowBounds.height / 2);
+				const pinned = {
+					centered: isCentered(),
+					topPadding: progress.getBoundingClientRect().top - sticky.getBoundingClientRect().top,
+					bottomPadding: sticky.getBoundingClientRect().bottom - progress.getBoundingClientRect().bottom,
+					clickable: !!pointerTarget && button.contains(pointerTarget),
+				};
+
+				setPillsVisible(layout !== 'pills');
+				await waitForStableLayout(widget);
+				const pillsChanged = isCentered();
+				inputPart.style.top = container.style.height = '260px';
+				widget.layout(260, 500);
+				await waitForStableLayout(widget);
+				const resizedInput = isCentered();
+
+				model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Waiting for the remaining workspace operations and their verification to finish.') });
+				session.style.width = inputPart.style.width = container.style.width = '240px';
+				widget.layout(260, 240);
+				await waitForStableLayout(widget);
+				const label = progress.querySelector<HTMLElement>('.progress-step');
+				const wrapped = {
+					centered: isCentered(),
+					multipleLines: progress.getBoundingClientRect().height > 22,
+					textClearOfArrow: !!label && label.getBoundingClientRect().right < button.getBoundingClientRect().left,
+				};
+				request.response?.complete();
+				await waitForStableLayout(widget);
+				assert.deepStrictEqual({
+					pinned,
+					pillsChanged,
+					resizedInput,
+					wrapped,
+					completed: isCentered(),
+				}, {
+					pinned: { centered: true, topPadding: 2, bottomPadding: 2, clickable: true },
+					pillsChanged: true,
+					resizedInput: true,
+					wrapped: { centered: true, multipleLines: true, textClearOfArrow: true },
+					completed: true,
+				});
+			});
+		}
+
+		for (const layout of ['pills', 'no pills', 'regular input'] as const) {
+			test(`keeps the scroll arrow in the progress row after progress ends (${layout})`, async () => {
+				const { request, inputPart, container, pillRow, widget, sticky } = await createTranscript({
+					pills: layout === 'pills', floating: layout !== 'regular input',
+				});
+				const button = widget.scrollDownButtonDomNode;
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const pinnedArrowTop = button.getBoundingClientRect().top;
+				request.response?.complete();
+				await waitForStableLayout(widget);
+				const row = sticky.getBoundingClientRect();
+				const arrow = button.getBoundingClientRect();
+				const target = dom.getWindow(sticky).document.elementFromPoint(row.left + 20, (row.top + row.bottom) / 2);
+				assert.deepStrictEqual({
+					hidden: sticky.classList.contains('hidden'),
+					rowBottom: row.bottom,
+					rowHeight: row.height,
+					centered: Math.abs((row.top + row.bottom) / 2 - (arrow.top + arrow.bottom) / 2) < 0.5,
+					arrowTop: arrow.top,
+					clickThrough: !!target && container.contains(target),
+				}, {
+					hidden: true,
+					rowBottom: (layout === 'pills' ? pillRow : inputPart).getBoundingClientRect().top,
+					rowHeight: 26,
+					centered: true,
+					arrowTop: pinnedArrowTop,
+					clickThrough: true,
+				});
+			});
+		}
+
+		test('clamps the scroll arrow to a short transcript when sticky progress wraps', async () => {
+			const { model, request, session, inputPart, container, widget, progress } = await createTranscript();
+			widget.scrollTop = 0;
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Waiting for background operations and their verification. '.repeat(8)) });
+			session.style.width = inputPart.style.width = container.style.width = '240px';
+			inputPart.style.top = container.style.height = '40px';
+			widget.layout(40, 240);
+			await waitForStableLayout(widget);
+			const button = widget.scrollDownButtonDomNode;
+			const aboveViewport = {
+				wrappedBeyondViewport: progress.getBoundingClientRect().height > widget.renderHeight,
+				arrowTop: button.getBoundingClientRect().top,
+				bottom: Number.parseFloat(button.style.bottom),
+			};
+
+			inputPart.style.top = '400px';
+			widget.layout(40, 240);
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				aboveViewport,
+				belowViewportBottom: button.getBoundingClientRect().bottom,
+				belowViewportOffset: button.style.bottom,
+			}, {
+				aboveViewport: { wrappedBeyondViewport: true, arrowTop: container.getBoundingClientRect().top, bottom: 40 - button.offsetHeight },
+				belowViewportBottom: container.getBoundingClientRect().bottom,
+				belowViewportOffset: '0px',
+			});
+		});
+
+		test('follows pills appearing and disappearing without moving the pills or input', async () => {
+			const { widget, progress, sticky, pillRow, input, setPillsVisible } = await createTranscript();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const inputTop = input.getBoundingClientRect().top;
+			const withoutPills = progress.getBoundingClientRect().bottom;
+			setPillsVisible(true);
+			await waitForStableLayout(widget);
+			const withPills = { bottom: progress.getBoundingClientRect().bottom, pillTop: pillRow.getBoundingClientRect().top };
+			setPillsVisible(false);
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				withPills,
+				restored: progress.getBoundingClientRect().bottom,
+				inputTop: input.getBoundingClientRect().top,
+				pinned: progress.parentElement === sticky,
+			}, {
+				withPills: { bottom: withPills.pillTop - 2, pillTop: withPills.pillTop },
+				restored: withoutPills,
+				inputTop,
+				pinned: true,
+			});
+		});
+
+		test('restores the inline footprint after opening a running conversation above its latest response', async () => {
+			const { viewModel, session, widget, container } = await createTranscript({ pills: true });
+			widget.setViewModel(undefined);
+			widget.refresh();
+			widget.setViewModel(viewModel);
+			widget.refresh();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const progress = session.querySelector<HTMLElement>('.chat-working-progress');
+			assert.ok(progress && progress.parentElement?.classList.contains('chat-sticky-progress'));
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const anchor = container.querySelector<HTMLElement>('.chat-working-progress-anchor');
+			assert.deepStrictEqual({
+				restored: anchor?.contains(progress),
+				reservedHeight: anchor?.getBoundingClientRect().height,
+				progressHeight: progress.getBoundingClientRect().height,
+				atBottom: widget.isScrolledToBottom,
+			}, {
+				restored: true,
+				reservedHeight: progress.getBoundingClientRect().height,
+				progressHeight: progress.getBoundingClientRect().height,
+				atBottom: true,
+			});
+		});
+
+		test('retains its action and keyboard focus through virtualization and return', async () => {
+			let calls = 0;
+			const { widget, progress, sticky } = await createTranscript({
+				options: { rendererOptions: { progressMessageAction: constObservable({ label: 'Show Log', run: () => { calls++; } }) } },
+			});
+			const action = progress.querySelector<HTMLElement>('.chat-progress-action a');
+			assert.ok(action);
+			action.focus();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const pinned = { focused: dom.getActiveElement() === action, scrollTop: widget.scrollTop, hosted: progress.parentElement === sticky };
+			action.click();
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				pinned,
+				focused: dom.getActiveElement() === action,
+				inline: !!progress.closest('.chat-working-progress-anchor'),
+				calls,
+			}, {
+				pinned: { focused: true, scrollTop: 0, hosted: true },
+				focused: true,
+				inline: true,
+				calls: 1,
+			});
+		});
+
+		test('updates provider progress while its response is virtualized and survives a narrower composer', async () => {
+			const { model, request, session, inputPart, container, widget, progress, sticky } = await createTranscript({ pills: true });
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const message = 'Checking the workspace and waiting for the remaining background operations to finish.';
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString(message) });
+			session.style.width = inputPart.style.width = container.style.width = '240px';
+			widget.layout(300, 240);
+			await waitForStableLayout(widget);
+			const bounds = progress.getBoundingClientRect();
+			const backgroundStyle = dom.getWindow(sticky).getComputedStyle(sticky, '::before');
+			assert.deepStrictEqual({
+				text: progress.querySelector('.progress-step')?.textContent,
+				pinned: progress.parentElement === sticky,
+				visible: bounds.height > 0 && bounds.top >= container.getBoundingClientRect().top && bounds.bottom + 2 === sticky.getBoundingClientRect().bottom,
+				contained: bounds.left >= container.getBoundingClientRect().left && bounds.right <= container.getBoundingClientRect().right,
+				background: backgroundStyle.backgroundColor,
+				backgroundVisible: backgroundStyle.content !== 'none' && parseFloat(backgroundStyle.width) > 0 && parseFloat(backgroundStyle.height) > 0,
+				copies: session.querySelectorAll('.chat-working-progress').length,
+			}, {
+				text: message,
+				pinned: true,
+				visible: true,
+				contained: true,
+				background: 'rgb(32, 32, 32)',
+				backgroundVisible: true,
+				copies: 1,
+			});
+		});
+
+		test('switches between sticky progress and the progress border without duplicate indicators', async () => {
+			const { configurationService, session, container, widget, sticky } = await createTranscript();
+			const setProgressBorder = async (enabled: boolean) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.ProgressBorder, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: section => section === ChatConfiguration.ProgressBorder,
+				}));
+				await waitForStableLayout(widget);
+			};
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const initialSticky = sticky.querySelectorAll('.chat-working-progress').length;
+			await setProgressBorder(true);
+			const borderEnabled = sticky.childElementCount;
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const normalInline = container.querySelectorAll('.chat-working-progress').length;
+			const normalAnchors = container.querySelectorAll('.chat-working-progress-anchor').length;
+			await setProgressBorder(false);
+			const restoredInline = container.querySelectorAll('.chat-working-progress-anchor > .chat-working-progress').length;
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				initialSticky, borderEnabled, normalInline, normalAnchors, restoredInline,
+				restoredSticky: sticky.querySelectorAll('.chat-working-progress').length,
+				copies: session.querySelectorAll('.chat-working-progress').length,
+			}, {
+				initialSticky: 1, borderEnabled: 0, normalInline: 1, normalAnchors: 0, restoredInline: 1,
+				restoredSticky: 1, copies: 1,
+			});
+		});
+
+		for (const pills of [false, true]) {
+			test(`keeps editor progress horizontally aligned during the sticky handoff (pills=${pills})`, async () => {
+				const { inputPart, widget, progress, sticky } = await createTranscript({ pills });
+				inputPart.style.margin = '';
+				inputPart.style.width = 'calc(100% - 24px)';
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				const positions = () => [
+					progress.getBoundingClientRect().left,
+					progress.querySelector('.chat-progress-icon')?.getBoundingClientRect().left,
+					progress.querySelector('.progress-step')?.getBoundingClientRect().left,
+				];
+				const inline = positions();
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.strictEqual(progress.parentElement, sticky);
+				const pinned = positions();
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				assert.deepStrictEqual({ pinned, restored: positions() }, { pinned: inline, restored: inline });
+			});
+		}
+
+		test('can be disabled and re-enabled without a duplicate inline indicator', async () => {
+			const { configurationService, session, widget, progress, sticky } = await createTranscript();
+			const setAnimation = async (animation: ChatProgressAnimation) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+					affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
+				}));
+				await waitForStableLayout(widget);
+			};
+			await setAnimation(ChatProgressAnimation.Off);
+			const disabled = { originalConnected: progress.isConnected, copies: session.querySelectorAll('.chat-working-progress').length };
+			await setAnimation(ChatProgressAnimation.Draw);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				disabled,
+				copies: session.querySelectorAll('.chat-working-progress').length,
+				stickyCopies: sticky.querySelectorAll('.chat-working-progress').length,
+			}, {
+				disabled: { originalConnected: false, copies: 0 },
+				copies: 1,
+				stickyCopies: 1,
+			});
+		});
+
+		test('keeps progress visible while preparation makes the transcript read-only', async () => {
+			const { widget, progress, sticky } = await createTranscript();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			widget.updateRendererOptions({ readOnly: true });
+			widget.refresh();
+			await waitForStableLayout(widget);
+			assert.strictEqual(progress.parentElement, sticky);
+		});
+
+		test('stays visible when queued messages push the active response above the viewport', async () => {
+			const { model, viewModel, widget, progress, sticky } = await createTranscript();
+			addPendingRequests(model);
+			widget.refresh();
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const response = viewModel.getItems().findLast(isResponseVM);
+			assert.ok(response);
+			const top = widget.getElementTop(response);
+			assert.deepStrictEqual({
+				responseAboveViewport: top !== undefined && top + (response.currentRenderedHeight ?? 0) <= widget.scrollTop,
+				pinned: progress.parentElement === sticky,
+			}, { responseAboveViewport: true, pinned: true });
+		});
+
+		for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			test(`pins progress while its inline anchor is covered by the sticky prompt (${kind})`, async () => {
+				const { model, viewModel, container, widget, progress, sticky } = await createTranscript({ stickyScroll: true });
+				addPendingRequests(model, kind);
+				widget.refresh();
+				await waitForStableLayout(widget);
+				const response = viewModel.getItems().findLast(isResponseVM);
+				assert.ok(response);
+				widget.reveal(response, 0);
+				await waitForStableLayout(widget);
+				const anchor = container.querySelector<HTMLElement>('.chat-working-progress-anchor');
+				assert.ok(anchor);
+				const viewport = container.getBoundingClientRect();
+				widget.scrollTop += anchor.getBoundingClientRect().top - viewport.top - 1;
+				await waitForStableLayout(widget);
+				const bounds = anchor.getBoundingClientRect();
+				const header = widget.stickyScrollDomNode?.getBoundingClientRect();
+				assert.deepStrictEqual({
+					anchorInViewport: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom,
+					anchorUnderHeader: !!header && header.height > 0 && bounds.top < header.bottom,
+					progressPinned: progress.parentElement === sticky,
+				}, { anchorInViewport: true, anchorUnderHeader: true, progressPinned: true });
+			});
+		}
+
+		test('hides with the view and restores the same progress when shown', async () => {
+			const { widget, progress, sticky } = await createTranscript();
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			widget.setVisible(false);
+			const hidden = progress.isConnected;
+			widget.setVisible(true);
+			assert.deepStrictEqual({ hidden, restored: progress.parentElement === sticky }, { hidden: false, restored: true });
+		});
+
+		test('does not keep a hidden composer in the layout after progress finishes', async () => {
+			const { inputPart, request, widget, sticky } = await createTranscript({ floating: false });
+			inputPart.classList.add('chat-input-hidden');
+			request.response?.complete();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				empty: sticky.childElementCount,
+				hidden: sticky.classList.contains('hidden'),
+				inputDisplay: dom.getWindow(inputPart).getComputedStyle(inputPart).display,
+			}, { empty: 0, hidden: true, inputDisplay: 'none' });
+		});
+
+		test('remounts above a rebuilt composer without losing its action focus', async () => {
+			const { inputPart, persistentContent, widget, progress, sticky } = await createTranscript({
+				options: { rendererOptions: { progressMessageAction: constObservable({ label: 'Show Log', run: () => { } }) } },
+			});
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const action = progress.querySelector<HTMLElement>('.chat-progress-action a');
+			assert.ok(action);
+			action.focus();
+			const replacement = dom.prepend(inputPart, dom.$('.chat-input-persistent-content'));
+			widget.setStickyProgressContainer(replacement);
+			persistentContent.remove();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				hosted: replacement.firstChild === sticky && sticky.contains(progress),
+				focused: dom.getActiveElement() === action,
+			}, { hosted: true, focused: true });
+		});
+
+		for (const stop of ['complete', 'cancel', 'clear', 'minimal', 'dispose'] as const) {
+			test(`removes sticky progress on ${stop}`, async () => {
+				const { disposables, request, widget, sticky, progress } = await createTranscript();
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.strictEqual(progress.parentElement, sticky);
+				switch (stop) {
+					case 'complete': request.response?.complete(); break;
+					case 'cancel': request.response?.cancel(); break;
+					case 'clear': widget.setViewModel(undefined); break;
+					case 'minimal': widget.updateRendererOptions({ renderStyle: 'minimal' }); break;
+					case 'dispose': disposables.dispose(); break;
+				}
+				await timeout(0);
+				assert.deepStrictEqual({ stickyChildren: sticky.childElementCount, oldProgressConnected: progress.isConnected }, { stickyChildren: 0, oldProgressConnected: false });
+			});
+		}
 	});
 
 	suite('persistent progress streaming', () => {

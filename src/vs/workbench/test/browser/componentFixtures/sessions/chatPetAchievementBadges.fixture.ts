@@ -6,7 +6,6 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { chatPetAchievements, ChatPetAchievementIds } from '../../../../contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
-// eslint-disable-next-line local/code-import-patterns
 import { SessionsChatPetAchievementBadges } from '../../../../../sessions/contrib/accountMenu/browser/chatPetAchievementBadges.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { configureChatPetFixtureFileRoot, FixtureChatPetService, IChatPetFixtureOptions, waitForChatPetAchievementPreviews } from '../chat/chatPetFixtureUtils.js';

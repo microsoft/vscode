@@ -10,7 +10,7 @@ import { createCommandUri, IMarkdownString, MarkdownString } from '../../../base
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { hasConfigurationVariable } from '../../configuration/common/configurationVariables.js';
 import { Emitter } from '../../../base/common/event.js';
-import { hasKey, isString } from '../../../base/common/types.js';
+import { hasKey, isString, isStringArray } from '../../../base/common/types.js';
 import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, McpServerAllowResult } from './allowedMcpServers.js';
 import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue, McpServerConfigurationParseResult, RegistryType } from './mcpManagement.js';
 import { McpServerType } from './mcpPlatformTypes.js';
@@ -24,6 +24,11 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 
 	private _onDidChangeAllowedMcpServers = this._register(new Emitter<void>());
 	readonly onDidChangeAllowedMcpServers = this._onDidChangeAllowedMcpServers.event;
+
+	get hasManagedAllowlist(): boolean {
+		return Array.isArray(this.configurationService.inspect(mcpAllowedServersConfig).policyValue)
+			|| this.configurationService.inspect<boolean>(COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG).policyValue === true;
+	}
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -39,6 +44,13 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString {
 		if (hasKey(mcpServer, { config: true })) {
 			const config = mcpServer.config;
+			const valid = config.type === McpServerType.REMOTE
+				? isString(config.url) && !!config.url.trim()
+				: isString(config.command) && !!config.command.trim()
+				&& (config.args === undefined || isStringArray(config.args));
+			if (!valid) {
+				return new MarkdownString(nls.localize('mcp server configuration invalid', "This Model Context Protocol server cannot be installed or run because its configuration is invalid."));
+			}
 			return this.isServerAllowedBeforeResolution(config.type === McpServerType.REMOTE
 				? { name: mcpServer.name, url: config.url }
 				: { name: mcpServer.name, command: [config.command, ...(config.args ?? [])] });

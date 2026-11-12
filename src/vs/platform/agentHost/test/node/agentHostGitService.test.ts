@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { AgentHostGitService, canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseGitWorktrees, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Branch, EMPTY_TREE_OBJECT, getBranchCompletions, GitRefType, IRefQuery, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -18,6 +18,15 @@ import { NullLogService } from '../../../log/common/log.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('parses managed inventory branches and unquoted paths without splitting embedded newlines', () => {
+		const path = '/repo.worktrees/path with\n"quotes"';
+		assert.deepStrictEqual(parseGitWorktrees(`worktree /repo\0HEAD abc\0branch refs/heads/main\0\0worktree ${path}\0HEAD def\0branch refs/heads/agents/recovered\0\0worktree /detached\0HEAD abc\0detached\0\0`), [
+			{ path: URI.file('/repo'), branchName: 'main' },
+			{ path: URI.file(path), branchName: 'agents/recovered' },
+			{ path: URI.file('/detached'), branchName: undefined },
+		]);
+	});
 
 	test('overlapping branch lookups share work only for the same directory and branch', async () => {
 		const reads: { directory: string; pattern: IRefQuery['pattern'] }[] = [];

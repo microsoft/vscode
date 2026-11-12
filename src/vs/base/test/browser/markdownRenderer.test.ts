@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { mainWindow } from '../../browser/window.js';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
-import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import { escapeMarkdownLinkText, IMarkdownString, MarkdownString, removeMarkdownEscapes } from '../../common/htmlContent.js';
 import { toDisposable } from '../../common/lifecycle.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
@@ -419,6 +419,14 @@ suite('MarkdownRenderer', () => {
 			});
 			assert.strictEqual(lang, 'js');
 		});
+
+		test('Code block placeholders keep their class, other HTML does not get it', () => {
+			const markdown = new MarkdownString('```js\n1 + 1;\n```\n\n<div class="code">a</div><div class="monaco-button" data-code="x">b</div>', { supportHtml: true });
+			const result = store.add(renderMarkdown(markdown, {
+				codeBlockRenderer: () => new Promise<HTMLElement>(() => { }),
+			}));
+			assert.deepStrictEqual([...result.element.querySelectorAll('div')].map(div => div.className), ['code', '', '']);
+		});
 	});
 
 	suite('ThemeIcons Support On', () => {
@@ -661,6 +669,99 @@ suite('MarkdownRenderer', () => {
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
 		assert.strictEqual(result.innerHTML, `<p><a href="" title="" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+	});
+
+	test('appendLink: no target or title can change the link structure', () => {
+		// Deterministic fuzzing with the pieces that matter to the Markdown parser.
+		const pieces = [
+			'\\', '\\\\', '(', ')', '[', ']', '<', '>', '"', '\'', '`', '*', '_', '!', '#', '&#41;', '&quot;', '&', ' ', '\t',
+			'\n', '\n\n', '\r\n', '\u00a0', '\u2028', '\u000b', '\u0000', 'a', 'command:foo', '[run](command:foo)', 'https://x.y/',
+		];
+		let state = 0x5eed;
+		const random = (max: number) => { // mulberry32
+			state = (state + 0x6d2b79f5) | 0;
+			let t = Math.imul(state ^ (state >>> 15), 1 | state);
+			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+			return ((t ^ (t >>> 14)) >>> 0) % max;
+		};
+		const generate = () => Array.from({ length: random(8) }, () => pieces[random(pieces.length)]).join('');
+
+		const knownTargets = [
+			'https://safe.example/\\\\)[run](command:foo#\\\\)',
+			'https://safe.example/a\t[run](command:foo',
+			'https://safe.example/a\u00a0[run](command:foo',
+		];
+		const knownTitles = ['C:\\temp\\', 'a\\"b', '"', '\\'];
+		// Text after the link that a title or target could swallow
+		const suffix = ' and foo") and "bar") (suffix)';
+
+		const failures: unknown[] = [];
+		let generatedTargets = 0;
+		let generatedTitles = 0;
+		for (let i = 0; i < 2000; i++) {
+			const path = generate();
+			const target = knownTargets[i] ?? `https://safe.example/${path}`;
+			const title = knownTitles[i] ?? (random(2) ? generate() : undefined);
+			generatedTargets += path ? 1 : 0;
+			generatedTitles += title ? 1 : 0;
+
+			const md = new MarkdownString('', true).appendLink(target, 'label', title).appendMarkdown(suffix);
+			const element = store.add(renderMarkdown(md)).element;
+			const anchors = [...element.querySelectorAll('a')].map(a => ({ text: a.textContent, href: a.dataset.href, title: a.getAttribute('title') }));
+			// The renderer unescapes hrefs once more, and titles lose surrounding whitespace. The
+			// sanitizer removes attributes that look like the end of a comment or CDATA section;
+			// without its href, the link is rendered as plain text.
+			const removedBySanitizer = (value: string) => /((--!?|\])>)|<\/(style|title)/i.test(value);
+			const expectedHref = removeMarkdownEscapes(target.replace(/[\s\x00-\x1f\x7f]/g, ch => encodeURIComponent(ch)));
+			const normalizedTitle = title?.replace(/\r\n|[\r\n]/g, ' ').replace(/\0/g, '\uFFFD').trim();
+			const expectedTitle = normalizedTitle && removedBySanitizer(normalizedTitle) ? null : normalizedTitle;
+			const expected = {
+				text: `label${suffix}`,
+				anchors: removedBySanitizer(expectedHref) ? [] : [{
+					text: 'label',
+					href: expectedHref,
+					title: title ? expectedTitle : anchors[0]?.title,
+				}],
+			};
+			const actual = { text: element.textContent, anchors };
+			if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+				failures.push({ target, title, markdown: md.value, actual, expected });
+			}
+		}
+		assert.deepStrictEqual({ failures: failures.slice(0, 3), failureCount: failures.length, coverage: generatedTargets > 1500 && generatedTitles > 700 }, { failures: [], failureCount: 0, coverage: true });
+	});
+
+	test('escapeMarkdownLinkText: link text renders literally', () => {
+		const pieces = [
+			'\\', '\\\\', '(', ')', '[', ']', '<', '>', '"', '\'', '`', '``', '*', '_', '~~', '!', '#', '&#41;', '&quot;', '&', '-', ' ', '\t',
+			'\n', '\n\n', '\r\n', '\u00a0', '<command:foo>', '<https://x.y>', 'https://x.y', 'www.x.y', 'a@b.cd', '[run](command:foo)', '![i](command:foo)', '$(zap)', 'a',
+		];
+		let state = 0x1abe1;
+		const random = (max: number) => { // mulberry32
+			state = (state + 0x6d2b79f5) | 0;
+			let t = Math.imul(state ^ (state >>> 15), 1 | state);
+			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+			return ((t ^ (t >>> 14)) >>> 0) % max;
+		};
+
+		const failures: unknown[] = [];
+		for (let i = 0; i < 2000; i++) {
+			const text = 'x' + Array.from({ length: random(8) }, () => pieces[random(pieces.length)]).join('') + 'x';
+			const md = new MarkdownString('', true).appendLink('https://safe.example/', escapeMarkdownLinkText(text)).appendMarkdown(' (suffix)');
+			const element = store.add(renderMarkdown(md)).element;
+			const actual = {
+				anchors: [...element.querySelectorAll('a')].map(a => ({ text: a.textContent, href: a.dataset.href })),
+				formatting: element.querySelectorAll('img, code, em, strong, del').length,
+			};
+			const expected = {
+				anchors: [{ text: text.replace(/\r\n|[\r\n]/g, ' '), href: 'https://safe.example/' }],
+				formatting: 0,
+			};
+			if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+				failures.push({ text, markdown: md.value, actual });
+			}
+		}
+		assert.deepStrictEqual({ failures: failures.slice(0, 3), failureCount: failures.length }, { failures: [], failureCount: 0 });
 	});
 
 	test('Should remove relative links if there is no base url', () => {

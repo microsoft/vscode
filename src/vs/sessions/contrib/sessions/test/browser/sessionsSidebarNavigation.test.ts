@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { autorun } from '../../../../../base/common/observable.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { Configuration, ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
@@ -14,8 +15,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common/sessionConfig.js';
-import { getCustomizationsPresentation } from '../../browser/views/sessionsView.js';
+import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { getCustomizationsPresentation } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { sessionsConfiguration } from '../../browser/sessions.contribution.js';
 
 suite('Sessions sidebar separate navigation', () => {
@@ -27,26 +28,25 @@ suite('Sessions sidebar separate navigation', () => {
 		if (!alreadyRegistered) {
 			registry.registerConfiguration(sessionsConfiguration);
 		}
-		try {
-			const property = registry.getConfigurationProperties()[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING];
-			assert.deepStrictEqual({
-				type: property.type,
-				default: property.default,
-				scope: property.scope,
-				experiment: property.experiment,
-				included: property.included,
-			}, {
-				type: 'boolean',
-				default: false,
-				scope: ConfigurationScope.WINDOW,
-				experiment: { mode: 'auto', name: 'sessions.list.rearrage' },
-				included: undefined,
-			});
-		} finally {
+		disposables.add(toDisposable(() => {
 			if (!alreadyRegistered) {
 				registry.deregisterConfigurations([sessionsConfiguration]);
 			}
-		}
+		}));
+		const property = registry.getConfigurationProperties()[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING];
+		assert.deepStrictEqual({
+			type: property.type,
+			default: property.default,
+			scope: property.scope,
+			experiment: property.experiment,
+			included: property.included,
+		}, {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			experiment: { mode: 'auto', name: 'sessions.list.rearrage' },
+			included: undefined,
+		});
 	});
 
 	test('explicit user values override experiment defaults and resetting restores the default', () => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { InitializeResult } from '../../state/protocol/common/commands.js';
-import type { AutomationEntry } from '../../state/protocol/channels-automation/state.js';
+import type { AutomationDefinition, AutomationEntry } from '../../state/protocol/channels-automation/state.js';
 
 /** Initialize presence flag for autonomous execution support, independent of feature enablement and per-definition operations. */
 export const AgentHostAutonomousAutomationsCapabilityMetaKey = 'vscode.autonomousAutomations';
@@ -12,10 +12,28 @@ export const AgentHostAutonomousAutomationsCapabilityMetaKey = 'vscode.autonomou
 /** Initialize presence flag for retaining or deleting an Automation's run history when the Automation is removed. */
 export const AgentHostAutomationHistoryCapabilityMetaKey = 'vscode.automationHistory';
 export const AgentHostAutomationHistoryReceiptsCapabilityMetaKey = 'vscode.automationHistoryReceipts';
+export const AgentHostAutomationHistoryDeletionStateCapabilityMetaKey = 'vscode.automationHistoryDeletionState';
 
 const AgentHostAutomationHistoryStateMetaKey = 'vscode.automationHistoryState';
+const AgentHostAutomationScheduleKindMetaKey = 'vscode.automationScheduleKind';
 
-/** `retained` entries are inert owners of preserved run history; `deleting` entries have an interrupted history deletion pending. */
+/** Reads the explicitly chosen CRON editing form without changing runtime schedule semantics. */
+export function getAgentHostAutomationScheduleKind(definition: AutomationDefinition): 'cron' | undefined {
+	return definition._meta?.[AgentHostAutomationScheduleKindMetaKey] === 'cron' ? 'cron' : undefined;
+}
+
+/** Sets or clears the chosen CRON editing form while preserving unrelated metadata. */
+export function withAgentHostAutomationScheduleKind(meta: Record<string, unknown> | undefined, kind: 'cron' | undefined): Record<string, unknown> {
+	const result = { ...meta };
+	if (kind === undefined) {
+		delete result[AgentHostAutomationScheduleKindMetaKey];
+	} else {
+		result[AgentHostAutomationScheduleKindMetaKey] = kind;
+	}
+	return result;
+}
+
+/** `retained` entries are inert owners of preserved run history; `deleting` entries have a history deletion in progress or pending retry. */
 export type AgentHostAutomationHistoryState = 'retained' | 'deleting';
 
 /** Whether Automation execution is independent of a client activation or migration handshake. */
@@ -31,6 +49,11 @@ export function supportsAgentHostAutomationHistory(result: InitializeResult | un
 /** Whether the host durably receipts history deletion until the client acknowledges it. */
 export function supportsAgentHostAutomationHistoryReceipts(result: InitializeResult | undefined): boolean {
 	return result?._meta?.[AgentHostAutomationHistoryReceiptsCapabilityMetaKey] === true;
+}
+
+/** Whether the host distinguishes active and interrupted history deletion through the Remove operation. */
+export function supportsAgentHostAutomationHistoryDeletionState(result: InitializeResult | undefined): boolean {
+	return result?._meta?.[AgentHostAutomationHistoryDeletionStateCapabilityMetaKey] === true;
 }
 
 /** Reads the namespaced history state of an Automation entry, ignoring unrecognized values. */

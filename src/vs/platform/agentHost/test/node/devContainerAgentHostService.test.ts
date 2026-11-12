@@ -7,7 +7,7 @@ import assert from 'assert';
 import { X509Certificate } from 'crypto';
 import { rootCertificates } from 'tls';
 import { EventEmitter as NodeEventEmitter } from 'events';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -15,7 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { delimiter, join } from '../../../../base/common/path.js';
-import { isLinux } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -26,11 +26,12 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
+import { IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { writeUserDataCertificatesFile } from '../../../request/node/certificates.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
+import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, IDevContainerShellExec, parseDevContainerMounts, parseDevContainerUpResult, RemoteDevContainerAgentHostService, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
@@ -75,15 +76,35 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly devContainerArgs: string[][] = [];
 	readonly devContainerEnvironments: (NodeJS.ProcessEnv | undefined)[] = [];
 	execEnvironment: NodeJS.ProcessEnv | undefined;
+	readonly shellSelectors: (string | readonly string[])[] = [];
+	readonly separateExecs: { readonly selector: string | readonly string[]; readonly command: string }[] = [];
+	shellDisposed = false;
+	unameM = 'x86_64';
+	shellDisposedBeforeRelay: boolean | undefined;
+	relaySelector: string | readonly string[] | undefined;
 	relayEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxEnvironment: NodeJS.ProcessEnv | undefined;
 	sandboxConfigurationOutput: string | undefined;
+	useRealSandboxConfiguration = false;
+	preparedSandboxConfiguration: IDevContainerSandboxConfiguration | undefined;
+	environmentGate: Promise<void> | undefined;
+	readonly environmentEntered = new DeferredPromise<void>();
+	configurationReadError: Error | undefined;
+	configurationReadExitCode = 0;
 	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
 	relayCommand: string | undefined;
 	failDevContainerUp = false;
 	sandboxSupported = false;
 	sandboxConfigurationPrepared = false;
-	endpointSessionId: string | undefined = NullTelemetryService.sessionId;
+	endpoints: readonly IAgentHostEndpointMetadata[] = [{
+		schemaVersion: 2,
+		type: 'standalone',
+		pid: 42,
+		instanceId: 'instance',
+		protocolVersion: '1',
+		connectionToken: 'token',
+		endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
+	}];
 	containerSessionIds: string[] = [NullTelemetryService.sessionId];
 	endpointPollsBeforeAvailable = 0;
 	endpointPolls = 0;
@@ -177,6 +198,14 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return this._resolveDevContainerEnvironment();
 	}
 
+	protected override async _resolveDevContainerEnvironment(): Promise<typeof process.env> {
+		if (this.environmentGate) {
+			this.environmentEntered.complete();
+			await this.environmentGate;
+		}
+		return super._resolveDevContainerEnvironment();
+	}
+
 	getDevContainerSpawnEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 		return this._getDevContainerSpawnEnvironment(environment);
 	}
@@ -203,7 +232,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		this.devContainerArgs.push([...args]);
 		this.devContainerEnvironments.push(environment);
 		if (args[0] === 'read-configuration') {
-			return Promise.resolve({ stdout: this.sandboxConfigurationOutput ?? JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: this.cacheMountConfigured ? [{ target: '/vscode' }] : [] } }), stderr: '', code: 0 });
+			if (this.configurationReadError) {
+				return Promise.reject(this.configurationReadError);
+			}
+			return Promise.resolve({ stdout: this.sandboxConfigurationOutput ?? JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: this.cacheMountConfigured ? [{ target: '/vscode' }] : [] } }), stderr: this.configurationReadExitCode ? 'configuration read failed' : '', code: this.configurationReadExitCode });
 		}
 		if (args[0] === 'exec') {
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
@@ -227,7 +259,10 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return Promise.resolve(this.containerMounts);
 	}
 
-	protected override async _prepareSandboxConfiguration(): Promise<IDevContainerSandboxConfiguration> {
+	protected override async _prepareSandboxConfiguration(configuration: Promise<string>, workspaceFolder: string, directory: string, token: CancellationToken): Promise<IDevContainerSandboxConfiguration> {
+		if (this.useRealSandboxConfiguration) {
+			this.preparedSandboxConfiguration = await super._prepareSandboxConfiguration(configuration, workspaceFolder, directory, token);
+		}
 		this.sandboxConfigurationPrepared = true;
 		return {
 			args: ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'],
@@ -236,7 +271,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	}
 
 	prepareRealSandboxConfiguration(workspaceFolder: string, directory: string): Promise<IDevContainerSandboxConfiguration> {
-		return super._prepareSandboxConfiguration('sandbox', workspaceFolder, directory, CancellationToken.None);
+		assert.ok(this.sandboxConfigurationOutput);
+		return super._prepareSandboxConfiguration(Promise.resolve(this.sandboxConfigurationOutput), workspaceFolder, directory, CancellationToken.None);
 	}
 
 	protected override async _getSandboxSupported(): Promise<boolean> {
@@ -271,7 +307,24 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return super._createExec(connectionId, workspaceFolder, token, environment);
 	}
 
-	protected override _createExec(_connectionId: string, _workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
+	startDevContainerShell(connectionId: string, workspaceFolder: readonly string[], token: CancellationToken): Promise<IDevContainerShellExec> {
+		return super._startShell(connectionId, workspaceFolder, token, process.env);
+	}
+
+	protected override _createExec(_connectionId: string, workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
+		const exec = this._createMockExec(environment);
+		return (command, options) => {
+			this.separateExecs.push({ selector: workspaceFolder, command });
+			return exec(command, options);
+		};
+	}
+
+	protected override async _startShell(_connectionId: string, workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): Promise<IDevContainerShellExec> {
+		this.shellSelectors.push(workspaceFolder);
+		return { exec: this._createMockExec(environment), dispose: () => this.shellDisposed = true };
+	}
+
+	private _createMockExec(environment?: NodeJS.ProcessEnv): ISshExec {
 		this.execEnvironment = environment;
 		return async command => {
 			this.execCommands.push(command);
@@ -303,7 +356,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 				return { stdout: 'Linux\n', stderr: '', code: 0 };
 			}
 			if (command === 'uname -m') {
-				return { stdout: 'x86_64\n', stderr: '', code: 0 };
+				return { stdout: `${this.unameM}\n`, stderr: '', code: 0 };
 			}
 			if (command.includes('/etc/alpine-release')) {
 				return { stdout: this._libc, stderr: '', code: 0 };
@@ -316,20 +369,13 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			}
 			if (command.includes('agent endpoints')) {
 				this.endpointPolls++;
-				const endpoints = [{
-					schemaVersion: 2,
-					type: 'standalone',
-					pid: 42,
-					instanceId: 'instance',
-					protocolVersion: '1',
-					connectionToken: 'token',
-					endpoint: { type: 'tcp', host: '127.0.0.1', port: 1234 },
-				}];
+				const endpoints = [...this.endpoints];
 				if (this._spawnedAgentHost) {
 					endpoints.push({
 						...endpoints[0],
 						pid: 43,
 						instanceId: 'spawned-instance',
+						quality: 'insider',
 						endpoint: { type: 'tcp', host: '127.0.0.1', port: 1235 },
 					});
 				}
@@ -342,12 +388,6 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 					code: 0,
 				};
 			}
-			if (command.includes(`/proc/42/environ`)) {
-				return { stdout: this.endpointSessionId ? `${this.endpointSessionId}\n` : '', stderr: '', code: 0 };
-			}
-			if (command.includes(`/proc/43/environ`)) {
-				return { stdout: `${NullTelemetryService.sessionId}\n`, stderr: '', code: 0 };
-			}
 			if (command.includes(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`)) {
 				this._spawnedAgentHost = true;
 			}
@@ -357,7 +397,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _createRelay(
 		_connectionId: string,
-		_workspaceFolder: string | readonly string[],
+		workspaceFolder: string | readonly string[],
 		command: string,
 		_endpoint: { readonly type: 'tcp'; readonly host: string; readonly port: number } | { readonly type: 'socket'; readonly path: string },
 		_connectionToken: string | undefined,
@@ -365,6 +405,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		environment?: NodeJS.ProcessEnv,
 	): Promise<IDevContainerRelay> {
 		this.relayCommand = command;
+		this.relaySelector = workspaceFolder;
+		this.shellDisposedBeforeRelay = this.shellDisposed;
 		this.relayEnvironment = environment;
 		void this.relayStarted.complete();
 		return this.relayResult ?? Promise.resolve(this.relay);
@@ -378,11 +420,11 @@ suite('Dev Container Agent Host Main Service', () => {
 		test(`reports local certificate eligibility without injecting the AH environment (system certificates: ${enabled})`, async () => {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, enabled, ['LOCAL CA']));
 			service.inheritedEnvironment = {};
-			service.endpointSessionId = undefined;
+			service.endpointPollsBeforeAvailable = 1;
 			const result = await service.connect({ connectionId: 'certificates', workspaceFolder: '/workspace', name: 'Certificates' });
 
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
+				eligible: result.sharesClientNetwork,
 				configuresCertificates: service.execCommands.some(command => command.includes('export NODE_EXTRA_CA_CERTS=')),
 				logsCertificates: service.devContainerArgs.flat().some(argument => argument.includes('LOCAL CA')),
 			}, { eligible: true, configuresCertificates: false, logsCertificates: false });
@@ -399,21 +441,21 @@ suite('Dev Container Agent Host Main Service', () => {
 		{ name: 'remote context overridden by a local host', environment: { DOCKER_CONTEXT: 'remote', DOCKER_HOST: 'unix:///var/run/docker.sock' }, endpoint: 'ssh://remote.example', forwards: true },
 		{ name: 'local context overridden by a remote host', environment: { DOCKER_CONTEXT: 'desktop-linux', DOCKER_HOST: 'ssh://remote.example' }, endpoint: 'unix:///var/run/docker.sock', forwards: false },
 	]) {
-		test(`certificate forwarding with ${name}`, async () => {
+		test(`client network sharing with ${name}`, async () => {
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, true, ['LOCAL CA']));
 			service.inheritedEnvironment = {};
 			service.dockerEndpoint = endpoint;
-			service.endpointSessionId = undefined;
+			service.endpointPollsBeforeAvailable = 1;
 			const result = await service.connect({ connectionId: name, workspaceFolder: '/workspace', name });
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
+				eligible: result.sharesClientNetwork,
 				configuresCertificates: service.execCommands.some(command => command.includes('export NODE_EXTRA_CA_CERTS=')),
 			}, { eligible: forwards ? true : undefined, configuresCertificates: false });
 		});
 	}
 
 	for (const failure of ['exit', 'exception'] as const) {
-		test(`does not forward certificates when Docker locality cannot be determined (${failure})`, async () => {
+		test(`does not share the client network when Docker locality cannot be determined (${failure})`, async () => {
 			const log = new TestLogService();
 			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, true, ['LOCAL CA'], new Set(), '/tmp', log));
 			service.inheritedEnvironment = {};
@@ -422,19 +464,19 @@ suite('Dev Container Agent Host Main Service', () => {
 			} else {
 				service.dockerContextError = new Error('Docker unavailable');
 			}
-			service.endpointSessionId = undefined;
+			service.endpointPollsBeforeAvailable = 1;
 			const result = await service.connect({ connectionId: `unknown-${failure}`, workspaceFolder: '/workspace', name: 'Unknown Docker host' });
 			assert.deepStrictEqual({
-				eligible: result.forwardClientCertificates,
-				warned: log.warnings.some(warning => warning.message.includes('not forwarding certificates')),
+				eligible: result.sharesClientNetwork,
+				warned: log.warnings.some(warning => warning.message.includes('treating it as remote')),
 			}, { eligible: undefined, warned: true });
 		});
 	}
 
-	test('a remote launcher never forwards its host certificates into containers', async () => {
+	test('a remote launcher never shares its host network with containers', async () => {
 		const service = store.add(new class extends RemoteDevContainerAgentHostService {
-			shouldForwardCertificates(): Promise<boolean> {
-				return this._shouldForwardCertificates(CancellationToken.None);
+			sharesClientNetwork(): Promise<boolean> {
+				return this._sharesClientNetwork(CancellationToken.None);
 			}
 		}(
 			new NullLogService(),
@@ -444,7 +486,7 @@ suite('Dev Container Agent Host Main Service', () => {
 			new class extends mock<IRequestService>() { }(),
 			new class extends mock<IGitHubService>() { }(),
 		));
-		assert.strictEqual(await service.shouldForwardCertificates(), false);
+		assert.strictEqual(await service.sharesClientNetwork(), false);
 	});
 
 	test('an Agent Host Dev Container CLI refreshes the shared Copilot certificate bundle before each run', async () => {
@@ -486,43 +528,6 @@ suite('Dev Container Agent Host Main Service', () => {
 		} finally {
 			await rm(userDataPath, { recursive: true, force: true });
 		}
-	});
-
-	test('discovers modern, legacy and volume Dev Containers without starting them', async () => {
-		const service = store.add(new class extends TestDevContainerAgentHostMainService {
-			override async isDockerAvailable() { return true; }
-			protected override async _runDocker(args: readonly string[]) {
-				this.dockerCommands.push([...args]);
-				return {
-					code: 0, stderr: '', stdout: [
-						{ id: 'modern', name: 'project', workspaceFolder: '/work/project', legacyFolder: '', metadata: '{}' },
-						{ id: 'legacy', name: 'old', workspaceFolder: '', legacyFolder: '/work/old', metadata: '' },
-						{ id: 'volume', name: 'volume', workspaceFolder: '', legacyFolder: '', metadata: '{}' },
-						{ id: 'other', name: 'database', workspaceFolder: '', legacyFolder: '', metadata: '' },
-					].map(value => JSON.stringify(value)).join('\n')
-				};
-			}
-		}());
-		assert.deepStrictEqual({
-			containers: await service.listDevContainers(CancellationToken.None),
-			commands: service.dockerCommands.map(args => args.slice(0, 3)),
-			starts: service.devContainerArgs,
-		}, {
-			containers: [
-				{ id: 'modern', name: 'project', workspaceFolder: '/work/project' },
-				{ id: 'legacy', name: 'old', workspaceFolder: '/work/old' },
-				{ id: 'volume', name: 'volume', workspaceFolder: undefined },
-			],
-			commands: [['ps', '--all', '--no-trunc']], starts: [],
-		});
-	});
-
-	test('surfaces Docker discovery failures', async () => {
-		const service = store.add(new class extends TestDevContainerAgentHostMainService {
-			override async isDockerAvailable() { return true; }
-			protected override async _runDocker() { return { code: 1, stdout: '', stderr: 'Docker daemon unavailable' }; }
-		}());
-		await assert.rejects(service.listDevContainers(CancellationToken.None), /Docker daemon unavailable/);
 	});
 
 	test('parses the final Dev Container CLI result', () => {
@@ -763,7 +768,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		assert.deepStrictEqual(service.devContainerArgs, []);
 	});
 
-	test('reuses a standalone endpoint and exposes its relay', async () => {
+	test('reuses an untagged standalone endpoint with a session-tagged relay and disconnects only its relay', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const output: string[] = [];
 		store.add(service.onDidOutput(event => output.push(`${event.connectionId}:${event.data}`)));
@@ -774,11 +779,14 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 		await service.relaySend('connection', '{"jsonrpc":"2.0"}');
 		await service.disconnect('connection');
+		service.dispose();
 
 		assert.deepStrictEqual({
 			result,
 			devContainerArgs: service.devContainerArgs,
 			relayCommand: service.relayCommand,
+			separateExecs: service.separateExecs,
+			dockerOperations: service.dockerCommands.map(command => command[0]),
 			sent: service.relay.sent,
 			disposed: service.relay.disposed,
 			output,
@@ -790,17 +798,49 @@ suite('Dev Container Agent Host Main Service', () => {
 				remoteWorkspaceFolder: '/workspaces/project',
 				hostWorkspaceFolder: '/workspace',
 				sandboxSupported: false,
-				forwardClientCertificates: true,
+				sharesClientNetwork: true,
 			},
 			devContainerArgs: [
 				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
 				['up', '--log-level', 'debug', '--workspace-folder', '/workspace', '--mount', devContainerServerCacheMount],
 			],
-			relayCommand: '~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay \'instance\' --user-data-dir \'/home/vscode/.config/Code\'',
+			relayCommand: `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(NullTelemetryService.sessionId)} ~/.vscode-server-oss/code-insiders --cli-data-dir ~/.vscode-server-oss/cli agent relay 'instance' --user-data-dir '/home/vscode/.config/Code'`,
+			separateExecs: [],
+			dockerOperations: ['context'],
 			sent: ['{"jsonrpc":"2.0"}'],
 			disposed: true,
 			output: ['connection:Starting Dev Container\n', 'connection:Using shared server cache at /vscode/vscode-server-oss/cli/servers/linux-x64\n'],
 		});
+	});
+
+	test('reuses the first compatible standalone endpoint in newest-first registry order', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const endpoint = service.endpoints[0];
+		service.endpoints = [
+			{ ...endpoint, instanceId: 'standalone-b', quality: 'insider' },
+			{ ...endpoint, instanceId: 'different-quality', quality: 'stable' },
+			{ ...endpoint, instanceId: 'editor', type: 'editor' },
+			{ ...endpoint, instanceId: 'standalone-a', quality: 'insider' },
+		];
+
+		await service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project' });
+
+		assert.deepStrictEqual({
+			reusesNewestCompatible: service.relayCommand?.includes(`agent relay ${shellEscape('standalone-b')}`),
+			separateExecs: service.separateExecs,
+		}, { reusesNewestCompatible: true, separateExecs: [] });
+	});
+
+	test('spawns when only a different-quality standalone is live', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpoints = [{ ...service.endpoints[0], quality: 'stable' }];
+
+		await service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project' });
+
+		assert.deepStrictEqual({
+			spawnCount: service.separateExecs.length,
+			relaysToSpawnedHost: service.relayCommand?.includes(`agent relay ${shellEscape('spawned-instance')}`),
+		}, { spawnCount: 1, relaysToSpawnedHost: true });
 	});
 
 	test('uses the sandbox override for startup and reports actual container support', async () => {
@@ -814,6 +854,114 @@ suite('Dev Container Agent Host Main Service', () => {
 			sandboxSupported: true,
 			up: ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', '--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json', '--mount', devContainerServerCacheMount],
 		});
+	});
+
+	test('reads configuration once per sandbox startup for cache mounts and the real override', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-shared-config-'));
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), tmpdir()));
+		try {
+			const configPath = join(directory, 'devcontainer.json');
+			service.useRealSandboxConfiguration = true;
+			for (const cacheMountConfigured of [false, true]) {
+				service.cacheMountConfigured = cacheMountConfigured;
+				const configuration = { image: 'test-image', remoteEnv: { STARTUP: String(cacheMountConfigured) } };
+				await writeFile(configPath, JSON.stringify(configuration));
+				service.sandboxConfigurationOutput = JSON.stringify({
+					configuration: { ...configuration, configFilePath: URI.file(configPath).toJSON() },
+					mergedConfiguration: { mounts: cacheMountConfigured ? [{ target: '/vscode' }] : [] },
+				});
+				await service.connect({ connectionId: 'shared-config', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true });
+				const prepared = service.preparedSandboxConfiguration!;
+				const override = JSON.parse(await readFile(prepared.args[3], 'utf8'));
+				assert.deepStrictEqual(override.remoteEnv, configuration.remoteEnv);
+				assert.ok(override.runArgs.includes('seccomp=unconfined'));
+				await service.disconnect('shared-config');
+			}
+			assert.deepStrictEqual(service.devContainerArgs.filter(args => args[0] === 'read-configuration'), [
+				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
+				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
+			]);
+		} finally {
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('stops sandbox preparation when the connection is cancelled while the launch environment resolves', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-cancelled-prepare-'));
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), directory));
+		try {
+			const configPath = join(directory, 'devcontainer.json');
+			await writeFile(configPath, JSON.stringify({ image: 'test-image' }));
+			service.useRealSandboxConfiguration = true;
+			service.sandboxConfigurationOutput = JSON.stringify({
+				configuration: { image: 'test-image', configFilePath: URI.file(configPath).toJSON() },
+				mergedConfiguration: { mounts: [] },
+			});
+			const gate = new DeferredPromise<void>();
+			service.environmentGate = gate.p;
+			const connecting = service.connect({ connectionId: 'cancelled-prepare', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true });
+			await service.environmentEntered.p;
+			await service.disconnect('cancelled-prepare');
+			gate.complete();
+			await assert.rejects(connecting, CancellationError);
+			const overrides = (await readdir(directory)).filter(name => name.startsWith('vscode-dev-container-sandbox-'));
+			const written = (await Promise.all(overrides.map(name => readdir(join(directory, name)).catch(() => [])))).flat();
+			assert.deepStrictEqual({
+				prepared: service.preparedSandboxConfiguration,
+				written,
+				up: service.devContainerArgs.filter(args => args[0] === 'up').length,
+			}, { prepared: undefined, written: [], up: 0 });
+		} finally {
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	for (const sandboxEnabled of [false, true]) {
+		for (const failure of ['exit', 'throw'] as const) {
+			test(`handles the shared configuration read failure without retrying (sandbox: ${sandboxEnabled}, failure: ${failure})`, async () => {
+				const logService = new TestLogService();
+				const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), tmpdir(), logService));
+				service.useRealSandboxConfiguration = true;
+				service.cacheMountConfigured = true;
+				if (failure === 'exit') {
+					service.configurationReadExitCode = 1;
+				} else {
+					service.configurationReadError = new Error('configuration read failed');
+				}
+				const connecting = service.connect({ connectionId: 'read-failure', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled });
+				if (sandboxEnabled) {
+					await assert.rejects(connecting, /configuration read failed/);
+				} else {
+					await connecting;
+					await service.disconnect('read-failure');
+				}
+				assert.deepStrictEqual({
+					reads: service.devContainerArgs.filter(args => args[0] === 'read-configuration').length,
+					up: service.devContainerArgs.filter(args => args[0] === 'up').length,
+					warnings: logService.warnings.map(warning => warning.message),
+				}, {
+					reads: 1,
+					up: sandboxEnabled ? 0 : 1,
+					warnings: [
+						'[DevContainerAgentHost] Cannot add optional shared server cache mount',
+						...sandboxEnabled ? [] : ['[DevContainerAgentHost] Desktop has no product commit; falling back to non-pinned CLI install at ~/.vscode-server-oss/code-insiders.'],
+					],
+				});
+			});
+		}
+	}
+
+	test('cancels startup when the shared configuration read is cancelled', async () => {
+		const logService = new TestLogService();
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), tmpdir(), logService));
+		service.configurationReadError = new CancellationError();
+		await assert.rejects(service.connect({ connectionId: 'cancelled-read', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true }), CancellationError);
+		assert.deepStrictEqual({
+			commands: service.devContainerArgs.map(args => args[0]),
+			warnings: logService.warnings,
+		}, { commands: ['read-configuration'], warnings: [] });
 	});
 
 	for (const { platform, expectedPath } of [
@@ -847,7 +995,7 @@ suite('Dev Container Agent Host Main Service', () => {
 					environment: { ...resolvedEnvironment, COMPOSE_FILE: [join(directory, 'shell-compose.yml'), join(overrideDirectory, 'compose.json')].join(delimiter) },
 					configuration: { dockerComposeFile: [], service: 'workspace' },
 				});
-				assert.deepStrictEqual(service.devContainerArgs, [['read-configuration', '--log-level', 'debug', '--workspace-folder', directory]]);
+				assert.deepStrictEqual(service.devContainerArgs, []);
 				assert.deepStrictEqual(await service.resolveDevContainerEnvironment(), resolvedEnvironment);
 			} finally {
 				await rm(directory, { recursive: true, force: true });
@@ -865,6 +1013,8 @@ suite('Dev Container Agent Host Main Service', () => {
 			assert.strictEqual(service.devContainerEnvironments[service.devContainerArgs.findIndex(args => args[0] === 'up')], environment);
 			assert.strictEqual(service.execEnvironment, environment);
 			assert.strictEqual(service.relayEnvironment, environment);
+			const sandboxSelector = ['--workspace-folder', '/workspace', '--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json', '--container-id', 'container-id'];
+			assert.deepStrictEqual({ shell: service.shellSelectors, relay: service.relaySelector }, { shell: [sandboxSelector], relay: sandboxSelector });
 
 			await service.createDevContainerExec('sandbox', '/workspace', CancellationToken.None, environment)('printf test');
 			assert.strictEqual(service.devContainerEnvironments.at(-1), environment);
@@ -1096,6 +1246,80 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
+	test('runs startup commands in one shell for the started container and starts the Agent Host separately', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.endpointPollsBeforeAvailable = 1;
+		await service.connect({
+			connectionId: 'connection',
+			workspaceFolder: '/workspace',
+			name: 'Project Dev Container',
+		});
+
+		const selector = ['--workspace-folder', '/workspace', '--container-id', 'container-id'];
+		assert.deepStrictEqual({
+			shellSelectors: service.shellSelectors,
+			separateExecs: service.separateExecs.map(({ selector, command }) => ({ selector, startsAgentHost: command.startsWith(`${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=`) })),
+			relaySelector: service.relaySelector,
+			shellDisposedBeforeRelay: service.shellDisposedBeforeRelay,
+		}, {
+			shellSelectors: [selector],
+			separateExecs: [{ selector, startsAgentHost: true }],
+			relaySelector: selector,
+			shellDisposedBeforeRelay: true,
+		});
+	});
+
+	test('closes the startup shell when startup fails', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.unameM = 'sparc64';
+		await assert.rejects(service.connect({ connectionId: 'connection', workspaceFolder: '/workspace', name: 'Project Dev Container' }), /Unsupported Dev Container platform: Linux sparc64/);
+		assert.deepStrictEqual({ shellDisposed: service.shellDisposed, relayStarted: service.relayCommand !== undefined }, { shellDisposed: true, relayStarted: false });
+	});
+
+	(isWindows ? test.skip : test)('runs commands through one container shell launched for the started container', async () => {
+		const spawned: (readonly string[])[] = [];
+		const children: ChildProcessWithoutNullStreams[] = [];
+		const output: string[] = [];
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override _spawnDevContainer(args: readonly string[]): ChildProcessWithoutNullStreams {
+				spawned.push(args);
+				const child = spawn('/bin/sh', ['-c', 'echo "CLI log" >&2; exec /bin/sh']);
+				children.push(child);
+				return child;
+			}
+		}());
+		store.add(service.onDidOutput(event => output.push(event.data)));
+		const shell = await service.startDevContainerShell('connection', ['--workspace-folder', '/workspace', '--container-id', 'container-id'], CancellationToken.None);
+		try {
+			const results = await Promise.all([
+				shell.exec('printf "%s" "$PPID"'),
+				shell.exec('printf "%s" "$PPID"; echo warning >&2'),
+				shell.exec('exit 4', { ignoreExitCode: true }),
+				shell.exec('cat'),
+			]);
+			await assert.rejects(shell.exec('echo failed >&2; exit 5'), /Dev Container command failed \(exit 5\): echo failed >&2; exit 5\nstderr: failed/);
+			assert.deepStrictEqual({
+				spawned,
+				results,
+				output: output.slice(0, 2),
+			}, {
+				spawned: [['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '--container-id', 'container-id', '/bin/sh']],
+				results: [
+					{ stdout: String(children[0].pid), stderr: '', code: 0 },
+					{ stdout: String(children[0].pid), stderr: 'warning\n', code: 0 },
+					{ stdout: '', stderr: '', code: 4 },
+					{ stdout: '', stderr: '', code: 0 },
+				],
+				output: [
+					'$ devcontainer "exec" "--log-level" "debug" "--workspace-folder" "/workspace" "--container-id" "container-id" "/bin/sh"\n',
+					'CLI log\n',
+				],
+			});
+		} finally {
+			shell.dispose();
+		}
+	});
+
 	test('runs Dev Container exec commands with debug logging', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const exec = service.createDevContainerExec('connection', '/workspace', CancellationToken.None);
@@ -1193,7 +1417,7 @@ suite('Dev Container Agent Host Main Service', () => {
 
 	test('marks a newly spawned Agent Host with the VS Code session ID', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
-		service.endpointSessionId = undefined;
+		service.endpoints = [{ ...service.endpoints[0], quality: 'stable' }];
 
 		await service.connect({
 			connectionId: 'connection',

@@ -12,12 +12,12 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext } from '../../../../common/contextkeys.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
-import { IChangesViewService } from '../../../changes/common/changesViewService.js';
-import { IGitHubService } from '../../../github/browser/githubService.js';
+import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { CHANGES_VIEW_CONTAINER_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
+import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 
 export const enum DetailPanelTarget {
 	Hidden,
@@ -64,7 +64,7 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 	constructor(
 		@IAgentWorkbenchLayoutService private readonly _layoutService: IAgentWorkbenchLayoutService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@IGitHubService private readonly _gitHubService: IGitHubService,
@@ -79,9 +79,10 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 				this._queueTarget(this._target);
 			}
 		}));
+		const mainWindowHost = getMainWindowHost(sessionHostService);
 		this._register(autorun(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			const activeChat = activeSession?.activeChat.read(reader);
+			const activeSession = mainWindowHost.session.read(reader);
+			const activeChat = mainWindowHost.chat.read(reader);
 			if (!activeSession || (!(activeSession.isQuickChat?.read(reader) ?? false) && !activeChat?.workspace.read(reader))) {
 				this.sync(DetailPanelTarget.Preserve);
 			}

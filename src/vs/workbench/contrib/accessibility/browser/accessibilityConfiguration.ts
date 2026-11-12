@@ -88,7 +88,9 @@ export const enum AccessibilityVerbositySettingId {
 	AgentsWindowExtensions = 'accessibility.verbosity.agentsWindowExtensions',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
-	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements'
+	ScreenshotTool = 'accessibility.verbosity.screenshotTool',
+	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
+	ChatPetJumpGame = 'accessibility.verbosity.chatPetJumpGame'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -306,8 +308,16 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.browserElementCommenting', 'Provide information about how to access element commenting accessibility help in the Integrated Browser.'),
 			...baseVerbosityProperty
 		},
+		[AccessibilityVerbositySettingId.ScreenshotTool]: {
+			description: localize('verbosity.screenshotTool', "Provide information about how to access the screenshot tool accessibility help when the screenshot tool opens."),
+			...baseVerbosityProperty
+		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {
 			description: localize('verbosity.chatPetAchievements', 'Provide information about how to access chat pet achievements accessibility help when the Achievements modal is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ChatPetJumpGame]: {
+			description: localize('verbosity.chatPetJumpGame', "Provide information about how to access accessibility help when Blobby's jump game is focused."),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {
