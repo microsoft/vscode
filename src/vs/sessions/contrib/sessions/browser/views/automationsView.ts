@@ -170,6 +170,7 @@ interface IAutomationCardEntry {
 	readonly folderHover: MutableDisposable<IDisposable>;
 	readonly limitEl: HTMLElement;
 	readonly limitHover: MutableDisposable<IDisposable>;
+	readonly limitRefresh: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
 	readonly disposables: DisposableStore;
 }
@@ -793,6 +794,7 @@ class AutomationCardsSection extends Disposable {
 		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));
 		const limitEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-limit'));
 		const limitHover = disposables.add(new MutableDisposable());
+		const limitRefresh = disposables.add(new MutableDisposable());
 		const folderEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-folder'));
 		const folderHover = disposables.add(new MutableDisposable());
 
@@ -874,6 +876,7 @@ class AutomationCardsSection extends Disposable {
 			folderHover,
 			limitEl,
 			limitHover,
+			limitRefresh,
 			promptEl,
 			disposables,
 		};
@@ -945,21 +948,36 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		if (!previous || previous.enabled !== automation.enabled || !equals(previous.disableConditions, automation.disableConditions)) {
-			const limit = automation.enabled ? formatAutomationLimit(automation) : undefined;
-			card.main.classList.toggle('automations-card-has-limit', !!limit);
-			DOM.reset(card.limitEl, ...(limit ? [
-				$('span' + ThemeIcon.asCSSSelector(Codicon.calendar), { 'aria-hidden': 'true' }),
-				$('span.automations-card-meta-label', undefined, limit.label),
-			] : []));
-			DOM.setVisibility(!!limit, card.limitEl);
-			if (limit) {
-				card.main.setAttribute('aria-description', limit.description);
-				card.limitHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.limitEl, limit.description);
-			} else {
-				card.main.removeAttribute('aria-description');
-				card.limitHover.clear();
-			}
+			this.updateCardLimit(card, automation);
 		}
+	}
+
+	private updateCardLimit(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+		const limit = automation.enabled ? formatAutomationLimit(automation) : undefined;
+		card.main.classList.toggle('automations-card-has-limit', !!limit);
+		DOM.reset(card.limitEl, ...(limit ? [
+			$('span' + ThemeIcon.asCSSSelector(Codicon.calendar), { 'aria-hidden': 'true' }),
+			$('span.automations-card-meta-label', undefined, limit.label),
+		] : []));
+		DOM.setVisibility(!!limit, card.limitEl);
+		if (!limit) {
+			card.main.removeAttribute('aria-description');
+			card.limitHover.clear();
+			card.limitRefresh.clear();
+			return;
+		}
+		card.main.setAttribute('aria-description', limit.description);
+		card.limitHover.value = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.limitEl, limit.description);
+		const targetWindow = DOM.getWindow(card.limitEl);
+		const now = new Date();
+		const nextDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+		const handle = targetWindow.setTimeout(() => {
+			const currentAutomation = this.latestAutomations.get(automation.id);
+			if (currentAutomation) {
+				this.updateCardLimit(card, currentAutomation);
+			}
+		}, nextDay.getTime() - now.getTime());
+		card.limitRefresh.value = toDisposable(() => targetWindow.clearTimeout(handle));
 	}
 
 	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {

@@ -2236,6 +2236,28 @@ suite('AutomationsCardsWidget', () => {
 		]);
 	});
 
+	test('end date label refreshes on a local day transition without recreating the card', () => {
+		const clock = useFakeTimersWithRealAnimationFrames();
+		clock.setSystemTime(new Date(2026, 10, 11, 23, 59));
+		const { automationService, widget } = setup();
+		const endDate = new Date(2026, 10, 12, 21, 30);
+		automationService.setAutomations([automation({
+			disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: endDate.toISOString() }],
+		})]);
+		const card = widget.element.querySelector('.automations-card');
+		const before = widget.element.querySelector('.automations-card-limit')?.textContent;
+		clock.tick(2 * 60 * 1000);
+		assert.deepStrictEqual({
+			before,
+			after: widget.element.querySelector('.automations-card-limit')?.textContent,
+			sameCard: widget.element.querySelector('.automations-card') === card,
+		}, {
+			before: `until tomorrow at ${endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			after: `until today at ${endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			sameCard: true,
+		});
+	});
+
 	test('end date hovers update only with conditions and dispose on clearing or removal', () => {
 		const hovers: { content: string; disposed: boolean }[] = [];
 		const hoverService: IHoverService = {

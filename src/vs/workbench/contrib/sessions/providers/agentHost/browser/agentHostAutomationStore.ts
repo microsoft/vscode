@@ -950,7 +950,17 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		mutationGuard?.();
 		const beforeDispatch = this._catalog.value;
-		const result = this._waitForCatalog(catalog => (!waitForCatalogChange || catalog !== beforeDispatch) && predicate(catalog), action);
+		const resourceBeforeDispatch = beforeDispatch && !(beforeDispatch instanceof Error)
+			? beforeDispatch.entries.find(automation => automation.resource === action.resource)
+			: undefined;
+		const resourceStateBeforeDispatch = resourceBeforeDispatch ? stableStringify(resourceBeforeDispatch) : undefined;
+		const result = this._waitForCatalog(
+			catalog => (!waitForCatalogChange || catalog !== beforeDispatch) && predicate(catalog),
+			action,
+			MUTATION_TIMEOUT_MS,
+			Event.None,
+			resourceStateBeforeDispatch,
+		);
 		this._connection.dispatch(AUTOMATION_CATALOG_URI, action);
 		const catalog = await result;
 		const state = catalog.entries.find(automation => automation.resource === action.resource);
@@ -962,6 +972,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		action?: { readonly type: ActionType; readonly resource: string },
 		timeoutMs: number | null = MUTATION_TIMEOUT_MS,
 		onDidChange: Event<void> = Event.None,
+		resourceStateBeforeAction?: string,
 	): Promise<AutomationState> {
 		if (this._store.isDisposed) {
 			return Promise.reject(new CancellationError());
@@ -1011,6 +1022,23 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 						check();
 					}
 				}));
+				if (this._catalog.onDidApplySnapshot) {
+					store.add(this._catalog.onDidApplySnapshot(catalog => {
+						const resource = catalog.entries.find(automation => automation.resource === action.resource);
+						if ((resource ? stableStringify(resource) : undefined) !== resourceStateBeforeAction) {
+							check();
+						}
+					}));
+				}
+				if (this._catalog.onDidCancelSnapshotRefresh) {
+					store.add(this._catalog.onDidCancelSnapshotRefresh(envelopes => {
+						if (envelopes.some(envelope => !envelope.rejectionReason
+							&& envelope.action.type === ActionType.AutomationSet
+							&& envelope.action.automation.resource === action.resource)) {
+							check();
+						}
+					}));
+				}
 			} else {
 				store.add(this._catalog.onDidChange(check));
 			}

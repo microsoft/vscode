@@ -24,7 +24,7 @@ import { nextAutomationCronOccurrence } from '../../../../../../platform/agentHo
 import { withAgentHostAutomationHistoryState } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { isAutomationAfterDateExpired } from '../../../../../../platform/agentHost/common/automationDisableConditions.js';
-import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AutomationCatalogSubscription, type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, StateComponents, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -55,6 +55,7 @@ class TestAutomationConnection {
 	private _catalogError: Error | undefined;
 	private _catalogAvailable: boolean;
 	private _serverSeq = 0;
+	private readonly _realSubscription: AutomationCatalogSubscription | undefined;
 
 	readonly initializeResult;
 	readonly runRequests: string[] = [];
@@ -66,6 +67,7 @@ class TestAutomationConnection {
 	runAdmissionBarrier: Promise<void> | undefined;
 	suppressCreatePublication = false;
 	suppressUpdatePublication = false;
+	publishUpdateThroughSnapshot = false;
 	updateError: Error | undefined;
 	beforeUpdate: (() => void) | undefined;
 	readonly createRequested = new DeferredPromise<void>();
@@ -119,7 +121,7 @@ class TestAutomationConnection {
 		this.historyDeletionAcknowledged.complete();
 	}
 
-	constructor(catalogAvailable = true) {
+	constructor(catalogAvailable = true, useRealSubscription = false) {
 		this._catalogAvailable = catalogAvailable;
 		this.initializeResult = observableValue<InitializeResult | undefined>(this, {
 			protocolVersion: '1',
@@ -128,6 +130,10 @@ class TestAutomationConnection {
 			automations: { create: {}, runCancellation: {} },
 			_meta: getAgentHostExtensionInitializeResultMeta(),
 		});
+		this._realSubscription = useRealSubscription ? new AutomationCatalogSubscription('test-client', () => { }) : undefined;
+		if (catalogAvailable) {
+			this._realSubscription?.handleSnapshot(this._catalog, this._serverSeq);
+		}
 	}
 
 	setFirstAutomationSessionConfig(config: Record<string, unknown>): void {
@@ -154,6 +160,12 @@ class TestAutomationConnection {
 	): IReference<IAgentSubscription<AutomationState>> {
 		assert.strictEqual(kind, StateComponents.AutomationCatalog);
 		this.subscribedChannel = resource.toString();
+		if (this._realSubscription) {
+			return {
+				object: this._realSubscription,
+				dispose: () => { },
+			};
+		}
 		const connection = this;
 		return {
 			object: {
@@ -197,13 +209,18 @@ class TestAutomationConnection {
 				modifiedAt: timestamp,
 			};
 			this._catalog = { entries: [...this._catalog.entries, automation] };
-			this._onDidCatalogChange.fire(this._catalog);
-			this._onDidAction.fire({
+			const envelope: ActionEnvelope = {
 				channel: AUTOMATION_CATALOG_URI,
 				action: { type: ActionType.AutomationSet, automation },
 				serverSeq: ++this._serverSeq,
 				origin: undefined,
-			});
+			};
+			if (this._realSubscription) {
+				this._realSubscription.receiveEnvelope(envelope);
+			} else {
+				this._onDidCatalogChange.fire(this._catalog);
+				this._onDidAction.fire(envelope);
+			}
 		} else if (action.type === ActionType.AutomationUpdateRequested) {
 			this.beforeUpdate?.();
 			void this.updateRequested.complete();
@@ -217,6 +234,7 @@ class TestAutomationConnection {
 			if (!current) {
 				throw new Error(`Missing Automation: ${action.resource}`);
 			}
+			const previousCatalog = this._catalog;
 			const definition = { ...current.definition, ...action.changes };
 			if (isAutomationAfterDateExpired(definition.disableConditions)) {
 				definition.enabled = false;
@@ -231,13 +249,22 @@ class TestAutomationConnection {
 			this._catalog = {
 				entries: this._catalog.entries.map(candidate => candidate.resource === automation.resource ? automation : candidate),
 			};
-			this._onDidCatalogChange.fire(this._catalog);
-			this._onDidAction.fire({
+			const envelope: ActionEnvelope = {
 				channel: AUTOMATION_CATALOG_URI,
 				action: { type: ActionType.AutomationSet, automation },
 				serverSeq: ++this._serverSeq,
 				origin: undefined,
-			});
+			};
+			if (this._realSubscription && this.publishUpdateThroughSnapshot) {
+				this._realSubscription.beginSnapshotRefresh();
+				this._realSubscription.receiveEnvelope(envelope);
+				this._realSubscription.handleSnapshot(previousCatalog, envelope.serverSeq - 1);
+			} else if (this._realSubscription) {
+				this._realSubscription.receiveEnvelope(envelope);
+			} else {
+				this._onDidCatalogChange.fire(this._catalog);
+				this._onDidAction.fire(envelope);
+			}
 		} else if (action.type === ActionType.AutomationRemoved) {
 			this._catalog = {
 				...this._catalog,
@@ -350,6 +377,7 @@ class TestAutomationConnection {
 	}
 
 	dispose(): void {
+		this._realSubscription?.dispose();
 		this._onDidAction.dispose();
 		this._onDidCatalogChange.dispose();
 		this._onDidCatalogError.dispose();
@@ -1043,6 +1071,22 @@ suite('AgentHostAutomationStore', () => {
 		});
 		const updated = await pending;
 		assert.deepStrictEqual([updated.enabled, updated.disableConditions], [false, created.disableConditions]);
+	});
+
+	test('update resolves when a refreshed subscription snapshot replays the accepted result', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection(true, true));
+		store.setConnection(connection);
+		const created = await store.createAutomation(createOptions());
+		connection.publishUpdateThroughSnapshot = true;
+		const updated = await store.updateAutomation(created.id, { name: 'Updated through snapshot' });
+		assert.deepStrictEqual({
+			name: updated.name,
+			publishedActions: connection.dispatched.map(dispatch => dispatch.action.type),
+		}, {
+			name: 'Updated through snapshot',
+			publishedActions: [ActionType.AutomationCreateRequested, ActionType.AutomationUpdateRequested],
+		});
 	});
 
 	for (const withEndDate of [false, true]) {
