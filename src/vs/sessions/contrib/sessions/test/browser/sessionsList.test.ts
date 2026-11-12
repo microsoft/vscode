@@ -10651,6 +10651,21 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('labels the row of a multi-folder session with the folder of its main chat', () => {
+			const folder = (name: string): ISessionFolder => ({ root: URI.file(`/workspace/${name}`), workingDirectory: URI.file(`/workspace/${name}`), name, description: undefined });
+			const engineering = folder('engineering');
+			const tools = folder('tools');
+			const rowLabel = (session: ISession) => renderSessionChatsList(session, undefined, false, false).container.querySelector('.session-item .session-badge')?.textContent;
+
+			assert.deepStrictEqual({
+				mainChatMovedToOtherFolder: rowLabel(createMultiFolderSession([engineering, tools], [[tools], [engineering]])),
+				mainChatInFirstFolder: rowLabel(createMultiFolderSession([engineering, tools], [[engineering], [tools]])),
+			}, {
+				mainChatMovedToOtherFolder: 'tools',
+				mainChatInFirstFolder: 'engineering',
+			});
+		});
+
 		test('shows the own folder of a chat in a quick chat and no folder for its scratch chats', () => {
 			const repo = { root: URI.file('/workspace/repo'), workingDirectory: URI.file('/workspace/repo'), name: 'repo', description: undefined };
 			const base = createTestSession('Quick chat', { isQuickChat: true }).session;
