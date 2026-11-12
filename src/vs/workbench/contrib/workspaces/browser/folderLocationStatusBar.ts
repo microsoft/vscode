@@ -16,11 +16,13 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { getFolderLocationText, IFolderLocation, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { registerOnboardingTargetProvider, resolveOnboardingTarget } from '../../onboarding/browser/spotlight/onboardingTarget.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../onboarding/browser/spotlight/spotlightTypes.js';
@@ -41,6 +43,13 @@ const FOLDER_LOCATION_INTRODUCTION_POLL_INTERVAL = 2000;
 
 /** Just above the SCM entries (left priority 10000) and below the remote indicator (Number.MAX_VALUE). */
 const FOLDER_LOCATION_STATUS_ENTRY_PRIORITY = 10000.1;
+
+interface ILocationEntry {
+	readonly uri: URI;
+	readonly label: string;
+	readonly description?: string;
+	readonly icon: ThemeIcon;
+}
 
 interface ILocationQuickPickItem extends IQuickPickItem {
 	readonly uri: URI;
@@ -145,7 +154,7 @@ export class FolderLocationStatusBarContribution extends Disposable implements I
 			text: `$(${location.icon?.id ?? Codicon.worktree.id}) ${location.label}`,
 			ariaLabel: localize('folderLocationAria', "Folder Location, {0}", getFolderLocationText(location)),
 			tooltip: localize('folderLocationTooltip', "{0} (alternate location of '{1}')", getFolderLocationText(location), primaryName),
-			command: SWITCH_FOLDER_LOCATION_COMMAND_ID,
+			command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: localize('folderLocation', "Folder Location"), arguments: [FOLDER_LOCATION_STATUS_ENTRY_ID] },
 			kind: 'prominent' as const
 		};
 
@@ -232,7 +241,7 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, anchorElementId?: string): Promise<void> {
 		const contextService = accessor.get(IWorkspaceContextService);
 		const folder = contextService.getWorkspace().folders[0];
 		if (!folder) {
@@ -240,62 +249,120 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 		}
 		const primary = folder.primaryUri ?? folder.uri;
 
-		const quickInputService = accessor.get(IQuickInputService);
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
-
-		const toItem = (uri: URI, label: string, description: string | undefined, icon: ThemeIcon): ILocationQuickPickItem => {
-			const isCurrent = uriIdentityService.extUri.isEqual(uri, folder.uri);
-			return {
-				uri,
-				label,
-				iconClass: ThemeIcon.asClassName(icon),
-				description: isCurrent ? (description ? localize('currentLocationWithDescription', "{0} (Current)", description) : localize('currentLocation', "Current")) : description
-			};
-		};
-		const primaryItem = toItem(primary, basename(primary), localize('primaryLocation', "Primary Location"), Codicon.folder);
-
-		// Show the picker right away: resolving the locations can take a while
-		const store = new DisposableStore();
-		const quickPick = store.add(quickInputService.createQuickPick<ILocationQuickPickItem>({ useSeparators: false }));
-		quickPick.placeholder = localize('switchFolderLocationPlaceholder', "Select a Location for the Folder");
-		quickPick.matchOnDescription = true;
-		// Seed the current location so that accepting before the lookup resolves keeps it
 		const folderLocationService = accessor.get(IWorkspaceFolderLocationService);
+
+		// The status bar names each item element after its entry id, but does not expose the element otherwise.
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- see above
+		const anchor = anchorElementId ? mainWindow.document.getElementById(anchorElementId) : null;
+
+		const isCurrentUri = (uri: URI) => uriIdentityService.extUri.isEqual(uri, folder.uri);
 		const currentLocation = folderLocationService.currentLocation;
-		const currentSeed = folder.primaryUri && currentLocation ? toItem(folder.uri, currentLocation.label, currentLocation.description, currentLocation.icon ?? Codicon.worktree) : undefined;
-		const seedItems = currentSeed ? [primaryItem, currentSeed] : [primaryItem];
-		quickPick.items = seedItems;
-		quickPick.activeItems = [currentSeed ?? primaryItem];
-		quickPick.busy = true;
+		const primaryEntry: ILocationEntry = { uri: primary, label: basename(primary), description: localize('primaryLocation', "Primary Location"), icon: Codicon.folder };
+		// Seed the current location so that accepting before the lookup resolves keeps it
+		const currentSeed: ILocationEntry | undefined = folder.primaryUri && currentLocation ? { uri: folder.uri, label: currentLocation.label, description: currentLocation.description, icon: currentLocation.icon ?? Codicon.worktree } : undefined;
+		const seedEntries = currentSeed ? [primaryEntry, currentSeed] : [primaryEntry];
+		const toEntries = (locations: readonly IFolderLocation[]) => [primaryEntry, ...locations.map((location): ILocationEntry => ({ uri: location.uri, label: location.label, description: location.description, icon: location.icon ?? Codicon.worktree }))];
+
+		const store = new DisposableStore();
 		const cts = store.add(new CancellationTokenSource());
-		const picked = await new Promise<ILocationQuickPickItem | undefined>(resolve => {
-			store.add(quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0])));
-			store.add(quickPick.onDidHide(() => resolve(undefined)));
-			quickPick.show();
+		// Show the picker right away: resolving the locations can take a while
+		const loadLocations = (onResolved: (entries: ILocationEntry[]) => void, onDone: () => void) => {
 			folderLocationService.getLocations(primary, cts.token).then(locations => {
-				if (cts.token.isCancellationRequested) {
-					return;
-				}
-				const items = [primaryItem, ...locations.map(location => toItem(location.uri, location.label, location.description, location.icon ?? Codicon.worktree))];
-				quickPick.items = items;
-				const currentItem = items.find(item => uriIdentityService.extUri.isEqual(item.uri, folder.uri));
-				if (currentItem) {
-					quickPick.activeItems = [currentItem];
-				}
-				quickPick.busy = false;
-			}, error => {
 				if (!cts.token.isCancellationRequested) {
-					quickPick.busy = false;
-					if (!isCancellationError(error)) {
-						onUnexpectedError(error);
-					}
+					onResolved(toEntries(locations));
+				}
+			}, error => {
+				if (!cts.token.isCancellationRequested && !isCancellationError(error)) {
+					onUnexpectedError(error);
+				}
+			}).finally(() => {
+				if (!cts.token.isCancellationRequested) {
+					onDone();
 				}
 			});
-		}).finally(() => {
-			cts.cancel();
-			store.dispose();
-		});
+		};
+
+		let picked: ILocationEntry | undefined;
+		if (anchor) {
+			const actionWidgetService = accessor.get(IActionWidgetService);
+			const toActionItems = (entries: readonly ILocationEntry[]): IActionListItem<ILocationEntry>[] => entries.map(entry => ({
+				kind: ActionListItemKind.Action,
+				item: entry,
+				label: entry.label,
+				description: entry.description,
+				labelIcon: entry.icon,
+				group: { title: '', icon: isCurrentUri(entry.uri) ? Codicon.check : Codicon.blank }
+			}));
+			picked = await new Promise<ILocationEntry | undefined>(resolve => {
+				actionWidgetService.show<ILocationEntry>(
+					'folderLocationPicker',
+					false,
+					toActionItems(seedEntries),
+					{
+						onSelect: entry => {
+							actionWidgetService.hide();
+							resolve(entry);
+						},
+						onHide: () => {
+							anchor.focus();
+							resolve(undefined);
+						}
+					},
+					anchor,
+					undefined,
+					[],
+					{
+						getAriaLabel: listItem => {
+							const entry = listItem.item;
+							return entry ? (entry.description ? localize('folderLocationItemAria', "{0}, {1}", entry.label, entry.description) : entry.label) : '';
+						},
+						getWidgetAriaLabel: () => localize('folderLocationPickerAria', "Folder Location")
+					}
+				);
+				const focusId = (currentSeed ?? primaryEntry).uri.toString();
+				actionWidgetService.focusItemById(focusId);
+				loadLocations(entries => actionWidgetService.updateItems(toActionItems(entries), focusId), () => { });
+			}).finally(() => {
+				cts.cancel();
+				store.dispose();
+			});
+		} else {
+			const quickInputService = accessor.get(IQuickInputService);
+			const toItem = (entry: ILocationEntry): ILocationQuickPickItem => ({
+				uri: entry.uri,
+				label: entry.label,
+				iconClass: ThemeIcon.asClassName(entry.icon),
+				description: isCurrentUri(entry.uri) ? (entry.description ? localize('currentLocationWithDescription', "{0} (Current)", entry.description) : localize('currentLocation', "Current")) : entry.description
+			});
+			const quickPick = store.add(quickInputService.createQuickPick<ILocationQuickPickItem>({ useSeparators: false }));
+			quickPick.placeholder = localize('switchFolderLocationPlaceholder', "Select a Location for the Folder");
+			quickPick.matchOnDescription = true;
+			const seedItems = seedEntries.map(toItem);
+			quickPick.items = seedItems;
+			quickPick.activeItems = [seedItems[seedItems.length - 1]];
+			quickPick.busy = true;
+			const pickedItem = await new Promise<ILocationQuickPickItem | undefined>(resolve => {
+				store.add(quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0])));
+				store.add(quickPick.onDidHide(() => resolve(undefined)));
+				quickPick.show();
+				loadLocations(entries => {
+					const items = entries.map(toItem);
+					quickPick.items = items;
+					const currentItem = items.find(item => isCurrentUri(item.uri));
+					if (currentItem) {
+						quickPick.activeItems = [currentItem];
+					}
+				}, () => {
+					quickPick.busy = false;
+				});
+			}).finally(() => {
+				cts.cancel();
+				store.dispose();
+			});
+			picked = pickedItem && { uri: pickedItem.uri, label: pickedItem.label ?? '', icon: Codicon.blank };
+		}
 		if (!picked) {
 			return;
 		}

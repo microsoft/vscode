@@ -10,6 +10,7 @@ import { errorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -97,7 +98,7 @@ suite('FolderLocationStatusBarContribution', () => {
 		fixture.switchTo();
 		assert.deepStrictEqual(
 			{ visible: fixture.isVisible(), text: fixture.entries[0].text, ariaLabel: fixture.entries[0].ariaLabel, command: fixture.entries[0].command, kind: fixture.entries[0].kind, tooltip: fixture.entries[0].tooltip },
-			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate · feature/x', command: SWITCH_FOLDER_LOCATION_COMMAND_ID, kind: 'prominent', tooltip: `Alternate · feature/x (alternate location of 'project')` });
+			{ visible: true, text: '$(git-branch) Alternate', ariaLabel: 'Folder Location, Alternate · feature/x', command: { id: SWITCH_FOLDER_LOCATION_COMMAND_ID, title: 'Folder Location', arguments: ['status.workspace.folderLocation'] }, kind: 'prominent', tooltip: `Alternate · feature/x (alternate location of 'project')` });
 
 		fixture.returnToPrimary();
 		assert.strictEqual(fixture.isVisible(), false);
@@ -327,6 +328,51 @@ suite('FolderLocationStatusBarContribution', () => {
 				assert.deepStrictEqual({ calls: rejected.calls, errors }, { calls: [[primary.toString(), undefined, 'user']], errors: [failure] });
 			} finally {
 				errorHandler.setUnexpectedErrorHandler(previous);
+			}
+		});
+
+		test('invoked from the status entry the list is anchored there, marks the current location and an early select keeps it', async () => {
+			const anchor = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+			anchor.id = 'status.workspace.folderLocation';
+			try {
+				const calls: (string | undefined)[] = [];
+				let shown: { anchor: unknown; items: { label?: string; description?: string; checked: boolean; icon: string | undefined }[] } | undefined;
+				let updated: string[] | undefined;
+				let focused: string | undefined;
+				let release!: () => void;
+				const lookup = new Promise<void>(resolve => release = resolve);
+				const describe = (items: readonly { label?: string; description?: string; labelIcon?: { id: string }; group?: { icon?: { id: string } } }[]) => items.map(item => ({ label: item.label, description: item.description, checked: item.group?.icon?.id === Codicon.check.id, icon: item.labelIcon?.id }));
+				const widget = {
+					show: (_user: string, _preview: boolean, items: readonly never[], delegate: { onSelect(item: unknown): void }, shownAnchor: unknown) => {
+						shown = { anchor: shownAnchor, items: describe(items) };
+						// select the focused current item before the lookup resolves
+						queueMicrotask(() => delegate.onSelect((items[1] as { item: unknown }).item));
+					},
+					focusItemById: (id: string) => { focused = id; },
+					updateItems: (items: readonly { label?: string }[]) => { updated = items.map(item => item.label ?? ''); },
+					hide: () => { }
+				};
+				const accessor = {
+					get: (id: unknown) => id === IWorkspaceContextService ? { getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: alternate, primaryUri: primary, name: 'project', index: 0 })], false, null, () => false) }
+						: id === IWorkspaceFolderLocationService ? { currentLocation: { uri: alternate, label: 'Alternate', description: 'feature/x', icon: Codicon.worktree }, getLocations: async () => { await lookup; return []; } }
+							: id === IUriIdentityService ? { extUri }
+								: id === IActionWidgetService ? widget
+									: id === IWorkspaceEditingService ? { setFolderLocation: async (_p: URI, l: URI | undefined) => { calls.push(l?.toString()); } } : undefined
+				} as unknown as ServicesAccessor;
+				await CommandsRegistry.getCommand(SWITCH_FOLDER_LOCATION_COMMAND_ID)!.handler(accessor, 'status.workspace.folderLocation');
+				release();
+				assert.deepStrictEqual({ anchored: shown?.anchor === anchor, items: shown?.items, focused, calls, updated }, {
+					anchored: true,
+					items: [
+						{ label: 'project', description: 'Primary Location', checked: false, icon: 'folder' },
+						{ label: 'Alternate', description: 'feature/x', checked: true, icon: 'worktree' }
+					],
+					focused: alternate.toString(),
+					calls: [alternate.toString()],
+					updated: undefined
+				});
+			} finally {
+				anchor.remove();
 			}
 		});
 
