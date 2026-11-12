@@ -1460,43 +1460,121 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
-	test('keeps bottommost content inside the connected pane frame stroke', () => {
+	test('repaints the connected pane frame without clipping content overlays', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench modern-ui modern-ui-tabs modern-ui-connected-editor-tabs floating-panels noactivitybar';
-		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --vscode-toolsPanel-cornerRadius: 8px; --modern-ui-floating-card-stroke-width: 1px;';
+		root.style.cssText = 'position: absolute; top: 20px; left: 20px; width: 600px; height: 200px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --vscode-toolsPanel-cornerRadius: 8px; --vscode-primarySideBar-cornerRadius: 8px; --modern-ui-floating-card-stroke-width: 1px; --vscode-modernPanel-border: #778899; --vscode-surface-border: #778899;';
 		document.body.appendChild(root);
 		store.add(toDisposable(() => root.remove()));
 
-		const { actionItem } = createCompositeAction(root, 32, true);
-		const part = actionItem.closest<HTMLElement>('.part')!;
-		part.classList.add('panel');
-		const content = appendElement(part, 'content');
 		const targetWindow = getWindow(root);
-		const contentClip = () => targetWindow.getComputedStyle(content).clipPath;
-
-		const rounded = contentClip();
+		const createPart = (className: string, left: number) => {
+			const part = appendElement(root, `part pane-composite-part ${className}`);
+			part.style.cssText = `position: absolute; top: 0; left: ${left}px; width: 240px; height: 120px; margin: 0;`;
+			const content = appendElement(part, 'content');
+			content.style.cssText = 'position: absolute; top: 32px; left: 1px; width: 238px; height: 87px;';
+			return { part, content };
+		};
+		const panel = createPart('panel', 0);
+		const completion = appendElement(panel.content, 'workbench-suggest-widget');
+		const panelBounds = panel.part.getBoundingClientRect();
+		completion.style.cssText = `display: block; position: fixed; z-index: 40; top: ${panelBounds.top + 8}px; left: ${panelBounds.left + 80}px; width: 60px; height: 12px;`;
+		const sidebar = createPart('sidebar left', 300);
+		const progress = appendElement(sidebar.content, 'monaco-progress-container');
+		const sidebarBounds = sidebar.part.getBoundingClientRect();
+		progress.style.cssText = `position: fixed; z-index: 5; top: ${sidebarBounds.top + 8}px; left: ${sidebarBounds.left + 80}px; width: 60px; height: 12px;`;
+		const frame = () => {
+			const corner = (pseudo: '::before' | '::after') => {
+				const style = targetWindow.getComputedStyle(panel.part, pseudo);
+				return {
+					borderBottomWidth: style.borderBottomWidth,
+					borderBottomLeftRadius: style.borderBottomLeftRadius,
+					borderBottomRightRadius: style.borderBottomRightRadius,
+					height: style.height,
+					width: style.width,
+					zIndex: style.zIndex,
+				};
+			};
+			return {
+				left: corner('::before'),
+				right: corner('::after'),
+			};
+		};
+		const overlays = {
+			completion: targetWindow.document.elementFromPoint(panelBounds.left + 100, panelBounds.top + 14) === completion,
+			progress: targetWindow.document.elementFromPoint(sidebarBounds.left + 100, sidebarBounds.top + 14) === progress,
+			panelContentClip: targetWindow.getComputedStyle(panel.content).clipPath,
+			sidebarContentClip: targetWindow.getComputedStyle(sidebar.content).clipPath,
+		};
+		const rounded = frame();
+		appendElement(panel.part, 'workbench-suggest-widget').style.display = 'none';
+		const withTrailingOverlay = frame();
 		root.style.setProperty('--vscode-toolsPanel-cornerRadius', '2px');
-		const customized = contentClip();
-		const footer = appendElement(part, 'header-or-footer footer');
+		const customized = frame();
+		panel.part.classList.add('has-footer');
+		const footer = appendElement(panel.part, 'header-or-footer footer');
 		const withFooter = {
-			contentClip: contentClip(),
+			frame: frame(),
 			footerRadii: [
 				targetWindow.getComputedStyle(footer).borderBottomLeftRadius,
 				targetWindow.getComputedStyle(footer).borderBottomRightRadius,
 			],
 		};
-		footer.remove();
 		root.classList.add('modern-ui-compact');
-		const compact = contentClip();
+		panel.part.classList.remove('has-footer');
+		const compact = frame();
+		const visibleFrame = (radius: string) => ({
+			left: {
+				borderBottomWidth: '1px',
+				borderBottomLeftRadius: radius,
+				borderBottomRightRadius: '0px',
+				height: radius,
+				width: radius,
+				zIndex: '4',
+			},
+			right: {
+				borderBottomWidth: '1px',
+				borderBottomLeftRadius: '0px',
+				borderBottomRightRadius: radius,
+				height: radius,
+				width: radius,
+				zIndex: '4',
+			},
+		});
+		const hiddenFrame = {
+			left: {
+				borderBottomWidth: '0px',
+				borderBottomLeftRadius: '0px',
+				borderBottomRightRadius: '0px',
+				height: 'auto',
+				width: 'auto',
+				zIndex: 'auto',
+			},
+			right: {
+				borderBottomWidth: '0px',
+				borderBottomLeftRadius: '0px',
+				borderBottomRightRadius: '0px',
+				height: 'auto',
+				width: 'auto',
+				zIndex: 'auto',
+			},
+		};
 
-		assert.deepStrictEqual({ rounded, customized, withFooter, compact }, {
-			rounded: 'inset(0px 0px 1px round 0px 0px 7px 7px)',
-			customized: 'inset(0px 0px 1px round 0px 0px 1px 1px)',
+		assert.deepStrictEqual({ overlays, rounded, withTrailingOverlay, customized, withFooter, compact }, {
+			overlays: {
+				completion: true,
+				progress: true,
+				panelContentClip: 'none',
+				sidebarContentClip: 'none',
+			},
+			rounded: visibleFrame('8px'),
+			withTrailingOverlay: visibleFrame('8px'),
+			customized: visibleFrame('2px'),
 			withFooter: {
-				contentClip: 'none',
+				frame: hiddenFrame,
 				footerRadii: ['2px', '2px'],
 			},
-			compact: 'none',
+			compact: hiddenFrame,
 		});
 	});
 
