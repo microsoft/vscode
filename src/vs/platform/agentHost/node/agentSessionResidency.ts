@@ -124,7 +124,7 @@ export class AgentSessionResidency extends Disposable {
 		return resolveAgentHostSession(
 			resource,
 			chat => this._chatOwnership.getChatOwner(chat),
-			canvas => this._stateManager.getCanvas(canvas)?.chat,
+			canvas => this._stateManager.getCanvas(canvas)?.chat ?? this._stateManager.getCanvasCollection(canvas)?.chat,
 		);
 	}
 

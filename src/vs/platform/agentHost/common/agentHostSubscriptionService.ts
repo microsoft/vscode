@@ -8,7 +8,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { parseAnnotationsUri } from './annotationsUri.js';
 import { changesetSession, parseChangesetUri, parseFolderChangesetOwnerUri } from './changesetUri.js';
 import { parseNonPtyShellTerminalUri } from './nonPtyShellTerminalUri.js';
-import { AHP_CANVAS_SCHEME, parseCanvasChatUri } from './canvasUri.js';
+import { AHP_CANVAS_SCHEME, AHP_CANVASES_SCHEME, parseCanvasChatUri } from './canvasUri.js';
 import { isAhpChatChannel, parseSubagentSessionUri } from './state/sessionState.js';
 
 export const IAgentHostSubscriptionService = createDecorator<IAgentHostSubscriptionService>('agentHostSubscriptionService');
@@ -57,7 +57,7 @@ export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostCh
 			if (sessionString === undefined) {
 				return undefined;
 			}
-		} else if (resource.scheme === AHP_CANVAS_SCHEME) {
+		} else if (resource.scheme === AHP_CANVAS_SCHEME || resource.scheme === AHP_CANVASES_SCHEME) {
 			return undefined;
 		}
 	}
@@ -73,12 +73,12 @@ export function resourceChat(resource: URI, getCanvasChat?: AgentHostCanvasOwner
 	if (terminalChat !== undefined) {
 		return terminalChat;
 	}
-	if (resource.scheme === AHP_CANVAS_SCHEME) {
+	if (resource.scheme === AHP_CANVAS_SCHEME || resource.scheme === AHP_CANVASES_SCHEME) {
 		const recordedChat = getCanvasChat?.(resource.toString());
 		if (recordedChat !== undefined) {
 			return recordedChat;
 		}
-		return parseCanvasChatUri(resource)?.toString();
+		return resource.scheme === AHP_CANVAS_SCHEME ? parseCanvasChatUri(resource)?.toString() : undefined;
 	}
 	const resourceString = resource.toString();
 	return isAhpChatChannel(resourceString) ? resourceString : undefined;

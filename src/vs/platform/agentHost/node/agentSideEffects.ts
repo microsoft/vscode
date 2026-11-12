@@ -16,6 +16,7 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import type { CanvasRegistryState } from '../common/state/protocol/channels-canvases/state.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -291,6 +292,7 @@ export class AgentSideEffects extends Disposable {
 	/** Latest provider-published Canvas states and aggregate actions for chats that have not registered yet. */
 	private readonly _pendingCanvasStates = new Map<ProtocolURI, Map<string, IAgentCanvasSignal>>();
 	private readonly _pendingCanvasActions = new Map<ProtocolURI, Map<ActionType, ChatAction>>();
+	private readonly _pendingCanvasRegistries = new Map<ProtocolURI, CanvasRegistryState>();
 	private readonly _pendingCanvasExpirations = this._register(new DisposableMap<ProtocolURI>());
 	/** Reports where overlapped and sequential provider preparation diverge. */
 	private readonly _overlapExperimentTrigger: AgentHostSettingExperimentTrigger;
@@ -356,7 +358,12 @@ export class AgentSideEffects extends Disposable {
 			}
 			const actions = this._pendingCanvasActions.get(chat);
 			this._pendingCanvasActions.delete(chat);
-			for (const type of [ActionType.ChatCanvasesChanged, ActionType.ChatCanvasRegistryChanged]) {
+			const registry = this._pendingCanvasRegistries.get(chat);
+			this._pendingCanvasRegistries.delete(chat);
+			if (registry) {
+				this._stateManager.setCanvasRegistry(chat, registry);
+			}
+			for (const type of [ActionType.ChatCanvasesChanged]) {
 				const action = actions?.get(type);
 				if (action) {
 					this._stateManager.dispatchServerAction(chat, action);
@@ -367,6 +374,7 @@ export class AgentSideEffects extends Disposable {
 			this._pendingCanvasExpirations.deleteAndDispose(chat);
 			this._pendingCanvasStates.delete(chat);
 			this._pendingCanvasActions.delete(chat);
+			this._pendingCanvasRegistries.delete(chat);
 		}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._register(this._chatContributions.registerHost({
@@ -782,6 +790,16 @@ export class AgentSideEffects extends Disposable {
 	 * once the `subagent_started` arrives.
 	 */
 	private _handleAgentSignal(agent: IAgent, signal: AgentSignal): void {
+		if (signal.kind === 'canvas_registry') {
+			const chat = signal.chat.toString();
+			if (this._stateManager.getChatState(chat)) {
+				this._stateManager.setCanvasRegistry(chat, signal.registry);
+			} else {
+				this._retainPendingCanvasChat(chat);
+				this._pendingCanvasRegistries.set(chat, signal.registry);
+			}
+			return;
+		}
 		if (signal.kind === 'chat_usage') {
 			this._chatContributions.chatUsage(signal);
 			return;
@@ -950,7 +968,7 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 			const state = this._stateManager.getChatState(sessionKey);
-			if ((action.type === ActionType.ChatCanvasesChanged || action.type === ActionType.ChatCanvasRegistryChanged) && !state) {
+			if (action.type === ActionType.ChatCanvasesChanged && !state) {
 				this._retainPendingCanvasChat(sessionKey);
 				let pending = this._pendingCanvasActions.get(sessionKey);
 				if (!pending) {
@@ -981,6 +999,7 @@ export class AgentSideEffects extends Disposable {
 		this._pendingCanvasExpirations.set(chat, disposableTimeout(() => {
 			this._pendingCanvasStates.delete(chat);
 			this._pendingCanvasActions.delete(chat);
+			this._pendingCanvasRegistries.delete(chat);
 			this._pendingCanvasExpirations.deleteAndDispose(chat);
 		}, PENDING_CANVAS_REGISTRATION_TIMEOUT));
 	}

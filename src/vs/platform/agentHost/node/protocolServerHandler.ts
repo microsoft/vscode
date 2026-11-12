@@ -301,7 +301,7 @@ function isDispatchActionParams(value: unknown): value is DispatchActionParams {
 
 function isHandledClientAction(action: DispatchActionParams['action']): action is Parameters<IAgentService['dispatchAction']>[1] {
 	return IS_CLIENT_DISPATCHABLE[action.type] === true
-		&& (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.RootConfigChanged);
+		&& (isSessionAction(action) || isChatAction(action) || isTerminalAction(action) || isChangesetAction(action) || isAnnotationsAction(action) || isAutomationAction(action) || isAutomationRunAction(action) || action.type === ActionType.CanvasesRegistryRequested || action.type === ActionType.RootConfigChanged);
 }
 
 /**
@@ -2601,8 +2601,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return null;
 		},
 		openCanvas: async (client, params) => {
-			if (!this._isChannelVisible(client, params.chat)) {
-				throw new ProtocolError(AhpErrorCodes.PermissionDenied, `Canvas chat is not visible to this client: ${params.chat}`);
+			const collection = this._stateManager.getCanvasCollection(params.canvases);
+			if (!collection || !this._isChannelVisible(client, collection.chat)) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Canvas collection is not visible to this client.');
 			}
 			await this._agentService.openCanvas(params, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
 			return null;
@@ -2632,8 +2633,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!result.snapshot) {
 				return result;
 			}
-			// Refresh before the ordinary response discards the window's queued actions.
-			const snapshot = client.channels.getStateSnapshot(result.snapshot.resource) ?? this._projectRelayRootSnapshot(client, result.snapshot);
+			// Admission may publish state while the new subscription is still inactive.
+			const snapshot = client.channels.getStateSnapshot(result.snapshot.resource)
+				?? this._projectRelayRootSnapshot(client, this._agentService.getSnapshot(result.snapshot.resource) ?? result.snapshot);
 			return { ...result, snapshot: snapshot as SubscribeResult['snapshot'] };
 		},
 	};
@@ -2892,6 +2894,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			rejection = `Action is unavailable in protocol version ${client.protocolVersion}: ${action.type}`;
 		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 			rejection = `Unsupported action: ${action.type}`;
+		} else if (action.type === ActionType.CanvasesRegistryRequested && !this._isChannelVisible(client, params.channel)) {
+			rejection = 'Canvas collection is not visible to this client.';
 		}
 		if (!rejection && client.transport.relayClientId !== undefined && this._config.relayResourceRoots && action.type === ActionType.SessionWorkingDirectorySet) {
 			try {
@@ -4452,6 +4456,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
+		const canvasChat = this._stateManager.getCanvasCollection(channel)?.chat ?? this._stateManager.getCanvas(channel)?.chat;
+		if (canvasChat !== undefined) {
+			return this._isChannelVisible(client, canvasChat);
+		}
 		const owner = isAhpChatChannel(channel) ? this._chatOwnership.getChatOwner(channel) : undefined;
 		if (client.legacyChatUris && isAhpChatChannel(channel) && (!isShapedChatUri(channel) || (owner !== undefined && !this._isChatShownToLegacyClient(channel, owner)))) {
 			return false;
@@ -4506,7 +4514,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			// Older clients learn a moved chat's owner from the sessions' chat lists only.
 			return undefined;
 		}
-		if ((envelope.action.type === ActionType.ChatCanvasRegistryRequested || envelope.action.type === ActionType.ChatCanvasRegistryChanged)
+		if ((envelope.action.type === ActionType.ChatCanvasesUriChanged || envelope.action.type === ActionType.CanvasesRegistryRequested
+			|| envelope.action.type === ActionType.CanvasesRegistryChanged || envelope.action.type === ActionType.CanvasesCanvasSet
+			|| envelope.action.type === ActionType.CanvasesCanvasRemoved)
 			&& !isActionKnownToVersion(envelope.action, client.protocolVersion)) {
 			return envelope.origin?.clientId === client.clientId ? envelope : undefined;
 		}

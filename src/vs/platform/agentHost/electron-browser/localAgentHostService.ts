@@ -456,7 +456,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: Parameters<AgentHostProtocolClient['dispatch']>[1]): void {
 		this._requireClient().dispatch(channel, action);
 	}
 

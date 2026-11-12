@@ -9,7 +9,7 @@ import { constObservable, derived, derivedOpts, IObservable, IReader } from '../
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasOwner, ICanvasReference, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasInput, canvasOwnerKey, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, type ICanvasListOptions, ICanvasOwner, ICanvasReference, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -72,7 +72,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			const canvasDefinitions = supportsCanvases ? chat.canvasDefinitions ?? constObservable(undefined) : constObservable([]);
 			const definitionProvider = supportsCanvasCommands ? {
 				onDidChangeDefinitions: Event.fromObservableLight(canvasDefinitions),
-				listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
+				listCanvases: (options?: ICanvasListOptions) => this.sessionsManagementService.listCanvases(session, chat, options),
 				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId),
 			} : undefined;
 			const closeCanvas = supportsCanvasCommands ? (canvas: ICanvas) => this.sessionsManagementService.closeCanvas(session, chat, canvas) : undefined;

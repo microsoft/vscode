@@ -23,6 +23,7 @@ import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasRegistry, CanvasState } from './state/protocol/channels-canvas/state.js';
+import type { CanvasRegistryState } from './state/protocol/channels-canvases/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
@@ -369,7 +370,7 @@ export interface IAgentCanvasInfo {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
-	readonly requiresInput: boolean;
+	readonly inputSchema?: unknown;
 	readonly actionCount: number;
 }
 
@@ -393,7 +394,7 @@ export function toAgentCanvasRegistry(canvases: readonly IAgentCanvasInfo[]): Ca
 			id: canvas.canvasId,
 			label: canvas.displayName,
 			description: canvas.description,
-			requiresInput: canvas.requiresInput,
+			...(canvas.inputSchema !== undefined ? { inputSchema: canvas.inputSchema } : {}),
 		});
 	}
 	return { extensions: [...extensions.values()] };
@@ -1447,6 +1448,7 @@ export interface IAgentModelInfo {
 export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentCanvasSignal
+	| IAgentCanvasRegistrySignal
 	| IAgentChatUsageSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentModelCallFinishedSignal
@@ -1481,6 +1483,13 @@ export interface IAgentCanvasSignal {
 	/** Exact AHP channel identity, preserved without URI parse/serialize normalization. */
 	readonly resource: string;
 	readonly state: CanvasState;
+}
+
+/** Publishes discovery state without exposing host-owned collection addressing to a provider. */
+export interface IAgentCanvasRegistrySignal {
+	readonly kind: 'canvas_registry';
+	readonly chat: URI;
+	readonly registry: CanvasRegistryState;
 }
 
 /** Publishes a chat's aggregate billing without changing any turn's usage or content. */
@@ -1902,10 +1911,10 @@ export interface IAgent {
 	/** Persists enablement for an installed plugin identified by its marketplace spec or direct source ID. */
 	setPluginEnabled?(plugin: string, enabled: boolean): Promise<void>;
 
-	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
+	/** Lists declarations without starting a runtime. Publish {@link IAgentCanvasRegistrySignal} when an unsettled live registry becomes available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
-	/** Effectfully materialize and publish a canvas registry for an explicit client request, resuming the chat when needed. */
+	/** Resumes existing backing if needed and publishes {@link IAgentCanvasRegistrySignal} for an explicit discovery request. */
 	materializeSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/** Open or focus one canvas instance in an initialized provider chat. */

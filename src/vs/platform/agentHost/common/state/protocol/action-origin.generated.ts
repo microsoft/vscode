@@ -9,7 +9,7 @@
 // Generated from types/actions.ts — do not edit
 // Run `npm run generate` to regenerate.
 
-import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionChatAddedAction, type SessionChatRemovedAction, type SessionChatUpdatedAction, type SessionChatsReorderedAction, type SessionDefaultChatChangedAction, type SessionTitleChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionWorkingDirectorySetAction, type SessionWorkingDirectoryRemovedAction, type SessionWorkingDirectoryReplacedAction, type SessionInputNeededSetAction, type SessionInputNeededRemovedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionCustomizationUpdatedAction, type SessionCustomizationRemovedAction, type SessionMcpServerStateChangedAction, type SessionMcpServerStartRequestedAction, type SessionMcpServerStopRequestedAction, type SessionMcpServerBackgroundRequestedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionChangesetsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type ChatTurnStartedAction, type ChatDeltaAction, type ChatResponsePartAction, type ChatToolCallStartAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallConfirmedAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallContentChangedAction, type ChatToolCallAuthRequiredAction, type ChatToolCallAuthResolvedAction, type ChatTurnCompleteAction, type ChatTurnCancelledAction, type ChatErrorAction, type ChatTurnResumeAction, type ChatActivityChangedAction, type ChatBackgroundWorkSetAction, type ChatBackgroundWorkRemovedAction, type ChatMovableChangedAction, type ChatChangesetsChangedAction, type ChatCanvasesChangedAction, type ChatCanvasRegistryRequestedAction, type ChatCanvasRegistryChangedAction, type CanvasStateChangedAction, type ChatWorkingDirectorySetAction, type ChatWorkingDirectoryRemovedAction, type ChatUsageAction, type ChatReasoningAction, type ChatPendingMessageSetAction, type ChatPendingMessageRemovedAction, type ChatQueuedMessagesReorderedAction, type ChatDraftChangedAction, type ChatIsReadChangedAction, type ChatIsArchivedChangedAction, type ChatConfigChangedAction, type ChatMovedAction, type ChatInputRequestedAction, type ChatInputAnswerChangedAction, type ChatInputCompletedAction, type ChatTruncatedAction, type ChatTurnsLoadedAction, type ChangesetStatusChangedAction, type ChangesetFileSetAction, type ChangesetFileRemovedAction, type ChangesetFilesReviewChangedAction, type ChangesetContentChangedAction, type ChangesetOperationsChangedAction, type ChangesetOperationStatusChangedAction, type ChangesetClearedAction, type AnnotationsSetAction, type AnnotationsUpdatedAction, type AnnotationsRemovedAction, type AnnotationsEntrySetAction, type AnnotationsEntryRemovedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction, type ResourceWatchChangedAction, type AutomationCreateRequestedAction, type AutomationUpdateRequestedAction, type AutomationSetAction, type AutomationRemovedAction, type AutomationRunLifecycleChangedAction, type AutomationRunSessionSetAction, type AutomationRunSessionRemovedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunCancelRequestedAction } from './actions.js';
+import { ActionType, type StateAction, type RootAgentsChangedAction, type RootActiveSessionsChangedAction, type RootTerminalsChangedAction, type RootConfigChangedAction, type SessionReadyAction, type SessionCreationFailedAction, type SessionChatAddedAction, type SessionChatRemovedAction, type SessionChatUpdatedAction, type SessionChatsReorderedAction, type SessionDefaultChatChangedAction, type SessionTitleChangedAction, type SessionServerToolsChangedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionWorkingDirectorySetAction, type SessionWorkingDirectoryRemovedAction, type SessionWorkingDirectoryReplacedAction, type SessionInputNeededSetAction, type SessionInputNeededRemovedAction, type SessionCustomizationsChangedAction, type SessionCustomizationToggledAction, type SessionCustomizationUpdatedAction, type SessionCustomizationRemovedAction, type SessionMcpServerStateChangedAction, type SessionMcpServerStartRequestedAction, type SessionMcpServerStopRequestedAction, type SessionMcpServerBackgroundRequestedAction, type SessionIsReadChangedAction, type SessionIsArchivedChangedAction, type SessionActivityChangedAction, type SessionChangesetsChangedAction, type SessionConfigChangedAction, type SessionMetaChangedAction, type ChatTurnStartedAction, type ChatDeltaAction, type ChatResponsePartAction, type ChatToolCallStartAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallConfirmedAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallContentChangedAction, type ChatToolCallAuthRequiredAction, type ChatToolCallAuthResolvedAction, type ChatTurnCompleteAction, type ChatTurnCancelledAction, type ChatErrorAction, type ChatTurnResumeAction, type ChatActivityChangedAction, type ChatBackgroundWorkSetAction, type ChatBackgroundWorkRemovedAction, type ChatMovableChangedAction, type ChatChangesetsChangedAction, type ChatCanvasesChangedAction, type ChatCanvasesUriChangedAction, type CanvasesRegistryRequestedAction, type CanvasesRegistryChangedAction, type CanvasesCanvasSetAction, type CanvasesCanvasRemovedAction, type CanvasStateChangedAction, type ChatWorkingDirectorySetAction, type ChatWorkingDirectoryRemovedAction, type ChatUsageAction, type ChatReasoningAction, type ChatPendingMessageSetAction, type ChatPendingMessageRemovedAction, type ChatQueuedMessagesReorderedAction, type ChatDraftChangedAction, type ChatIsReadChangedAction, type ChatIsArchivedChangedAction, type ChatConfigChangedAction, type ChatMovedAction, type ChatInputRequestedAction, type ChatInputAnswerChangedAction, type ChatInputCompletedAction, type ChatTruncatedAction, type ChatTurnsLoadedAction, type ChangesetStatusChangedAction, type ChangesetFileSetAction, type ChangesetFileRemovedAction, type ChangesetFilesReviewChangedAction, type ChangesetContentChangedAction, type ChangesetOperationsChangedAction, type ChangesetOperationStatusChangedAction, type ChangesetClearedAction, type AnnotationsSetAction, type AnnotationsUpdatedAction, type AnnotationsRemovedAction, type AnnotationsEntrySetAction, type AnnotationsEntryRemovedAction, type TerminalDataAction, type TerminalInputAction, type TerminalResizedAction, type TerminalClaimedAction, type TerminalTitleChangedAction, type TerminalCwdChangedAction, type TerminalExitedAction, type TerminalClearedAction, type TerminalCommandDetectionAvailableAction, type TerminalCommandExecutedAction, type TerminalCommandFinishedAction, type ResourceWatchChangedAction, type AutomationCreateRequestedAction, type AutomationUpdateRequestedAction, type AutomationSetAction, type AutomationRemovedAction, type AutomationRunLifecycleChangedAction, type AutomationRunSessionSetAction, type AutomationRunSessionRemovedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunCancelRequestedAction } from './actions.js';
 
 
 // ─── Per-channel Action Unions ───────────────────────────────────────────────
@@ -130,8 +130,7 @@ export type ChatAction =
 	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
 	| ChatCanvasesChangedAction
-	| ChatCanvasRegistryRequestedAction
-	| ChatCanvasRegistryChangedAction
+	| ChatCanvasesUriChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
 	| ChatUsageAction
@@ -160,7 +159,6 @@ export type ClientChatAction =
 	| ChatToolCallContentChangedAction
 	| ChatTurnCancelledAction
 	| ChatTurnResumeAction
-	| ChatCanvasRegistryRequestedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
 	| ChatPendingMessageSetAction
@@ -192,7 +190,7 @@ export type ServerChatAction =
 	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
 	| ChatCanvasesChangedAction
-	| ChatCanvasRegistryChangedAction
+	| ChatCanvasesUriChangedAction
 	| ChatUsageAction
 	| ChatReasoningAction
 	| ChatMovedAction
@@ -213,6 +211,26 @@ export type ClientCanvasAction =
 /** Union of canvas actions that only the server may produce. */
 export type ServerCanvasAction =
 	| CanvasStateChangedAction
+	;
+
+/** CanvasesAction for the canvases collection channel. */
+export type CanvasesAction =
+	| CanvasesRegistryRequestedAction
+	| CanvasesRegistryChangedAction
+	| CanvasesCanvasSetAction
+	| CanvasesCanvasRemovedAction
+	;
+
+/** ClientCanvasesAction for the canvases collection channel. */
+export type ClientCanvasesAction =
+	| CanvasesRegistryRequestedAction
+	;
+
+/** ServerCanvasesAction for the canvases collection channel. */
+export type ServerCanvasesAction =
+	| CanvasesRegistryChangedAction
+	| CanvasesCanvasSetAction
+	| CanvasesCanvasRemovedAction
 	;
 
 /** Union of all terminal-scoped actions. */
@@ -420,8 +438,11 @@ export const IS_CLIENT_DISPATCHABLE: { readonly [K in StateAction['type']]: bool
 	[ActionType.ChatMovableChanged]: false,
 	[ActionType.ChatChangesetsChanged]: false,
 	[ActionType.ChatCanvasesChanged]: false,
-	[ActionType.ChatCanvasRegistryRequested]: true,
-	[ActionType.ChatCanvasRegistryChanged]: false,
+	[ActionType.ChatCanvasesUriChanged]: false,
+	[ActionType.CanvasesRegistryRequested]: true,
+	[ActionType.CanvasesRegistryChanged]: false,
+	[ActionType.CanvasesCanvasSet]: false,
+	[ActionType.CanvasesCanvasRemoved]: false,
 	[ActionType.CanvasStateChanged]: false,
 	[ActionType.ChatWorkingDirectorySet]: true,
 	[ActionType.ChatWorkingDirectoryRemoved]: true,

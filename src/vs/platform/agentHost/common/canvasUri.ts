@@ -8,6 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { isAhpChatChannel } from './state/sessionState.js';
 
 export const AHP_CANVAS_SCHEME = 'ahp-canvas';
+export const AHP_CANVASES_SCHEME = 'ahp-canvases';
 
 /** Whether `resource` is a single-segment Canvas channel this host can preserve exactly. */
 export function isCanvasChannel(resource: string): boolean {

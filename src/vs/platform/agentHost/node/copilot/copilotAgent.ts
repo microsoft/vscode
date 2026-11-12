@@ -99,6 +99,7 @@ import { readCustomizationDiscoveryMeta } from '../../common/meta/customizationD
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
+import { CanvasRegistryStatus } from '../../common/state/protocol/channels-canvases/state.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
@@ -3205,17 +3206,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async listSessionCanvases(session: URI, chat: URI, operationContext: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot> {
-		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-		// The chat is not running, so keep its previous inventory instead of starting the runtime just to populate the canvas menu.
-		if (!context.target && context.credentials) {
-			return undefined;
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext, false);
+		if (context.target && !isEqual(context.target.ownerSessionUri, session)) {
+			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
 		}
-		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'listSessionCanvases');
-		return liveSession.listCanvases();
+		return context.target?.listCanvases();
 	}
 
 	async materializeSessionCanvases(session: URI, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
-		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'listSessionCanvases');
+		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'materializeSessionCanvases');
 		await liveSession.materializeCanvasRegistry();
 	}
 
@@ -3233,7 +3232,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas'): Promise<CopilotAgentSession> {
+	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'materializeSessionCanvases' | 'openSessionCanvas'): Promise<CopilotAgentSession> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 		const liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
 			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
@@ -3245,14 +3244,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return liveSession;
 	}
 
-	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext): IResolvedCopilotChatContext {
+	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext, requireInitialized = true): IResolvedCopilotChatContext {
 		const context = this._resolveChatContext(chat, operationContext);
 		const recordedScope = this._chatOwners.get(context.chatKey)?.get();
 		if (!isEqual(context.ownerSession, session) || !recordedScope || !isEqual(recordedScope, session)) {
 			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
 		}
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
-		if (provisional && isEqual(provisional.chat, chat)) {
+		if (requireInitialized && provisional && isEqual(provisional.chat, chat)) {
 			throw new Error('Canvas operation requires an initialized Copilot chat.');
 		}
 		return context;
@@ -7929,7 +7928,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._canvasHandoffs.delete(chat);
 		if (!replacement?.adoptCanvasHandoff(handoff)) {
 			this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } });
-			this._onDidChatProgress.fire({ kind: 'action', resource: chat, action: { type: ActionType.ChatCanvasRegistryChanged, canvasRegistry: undefined } });
+			this._onDidChatProgress.fire({ kind: 'canvas_registry', chat, registry: { status: CanvasRegistryStatus.Uninitialized } });
 		}
 	}
 

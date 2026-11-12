@@ -1887,7 +1887,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
 		// Assisted permissions feedback is restricted telemetry: it goes only to the host, never into this
 		// client's state. A replay after a reconnect resends the optimistic copy, so it drops the feedback.
 		const optimistic = action.type === ActionType.ChatToolCallConfirmed ? withoutAgentPermissionFeedback(action) : action;
@@ -2207,7 +2207,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	private dispatchAction(channel: string, action: Parameters<IAgentConnection['dispatch']>[1], _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
 		if (action.type === ActionType.ChatTurnStarted) {
 			this._onDidConnectionDiagnostic.fire({
@@ -3091,7 +3091,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Inspect an outgoing client-dispatched action and grant implicit reads for
 	 * resources that the host will need to read after receiving the action.
 	 */
-	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	private _grantImplicitReadsForOutgoingAction(action: Parameters<IAgentConnection['dispatch']>[1]): void {
 		switch (action.type) {
 			case ActionType.SessionActiveClientSet:
 				if (action.activeClient.customizations) {

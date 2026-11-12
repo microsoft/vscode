@@ -43,6 +43,7 @@ import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
+import { CanvasRegistryStatus } from '../../common/state/protocol/channels-canvases/state.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
@@ -4218,7 +4219,7 @@ suite('CopilotAgentSession', () => {
 				extensionName: 'Preview extension',
 				displayName: 'Preview',
 				description: 'Preview generated content.',
-				requiresInput: true,
+				inputSchema: { type: 'object', required: ['query'] },
 				actionCount: 1,
 			}, {
 				canvasId: 'optional',
@@ -4227,7 +4228,7 @@ suite('CopilotAgentSession', () => {
 				extensionName: 'Preview extension',
 				displayName: 'Optional Preview',
 				description: 'Preview with optional input.',
-				requiresInput: false,
+				inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 				actionCount: 0,
 			}],
 			openCalls: [{
@@ -4412,22 +4413,95 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('publishes the Canvas registry without changing live membership', async () => {
+	test('publishes the Canvas registry and settles repeated explicit requests without changing live membership', async () => {
 		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 		signals.length = 0;
-		const published = waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasRegistryChanged);
+		const published = waitForSignal(signal => signal.kind === 'canvas_registry');
 
 		mockSession.fire('session.canvas.registry_changed', { canvases: [] });
 		await published;
+		await session.materializeCanvasRegistry();
 
 		assert.deepStrictEqual({
-			registry: getActions(signals).filter(action => action.type === ActionType.ChatCanvasRegistryChanged),
+			registry: signals.filter(signal => signal.kind === 'canvas_registry').map(signal => ({ chat: signal.chat.toString(), registry: signal.registry })),
 			membership: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
 		}, {
-			registry: [{ type: ActionType.ChatCanvasRegistryChanged, canvasRegistry: { extensions: [] } }],
+			registry: [0, 1].map(() => ({ chat: session.chatChannelUri.toString(), registry: { status: CanvasRegistryStatus.Ready, extensions: [] } })),
 			membership: [],
 		});
 		session.dispose();
+	});
+
+	test('does not publish an empty Canvas registry while extensions are starting', async () => {
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+		signals.length = 0;
+		mockSession.extensions.push({ id: 'project:preview', name: 'Preview', source: 'project', status: 'starting' });
+
+		await session.materializeCanvasRegistry();
+		const duringStartup = signals.filter(signal => signal.kind === 'canvas_registry');
+		const published = waitForSignal(signal => signal.kind === 'canvas_registry');
+		mockSession.extensions.length = 0;
+		mockSession.fire('session.extensions_loaded', { extensions: [] });
+		await published;
+
+		assert.deepStrictEqual({
+			duringStartup,
+			settled: signals.filter(signal => signal.kind === 'canvas_registry').map(signal => signal.registry),
+		}, {
+			duringStartup: [],
+			settled: [{ status: CanvasRegistryStatus.Ready, extensions: [] }],
+		});
+		session.dispose();
+	});
+
+	test('publishes and logs background Canvas registry failures, then republishes an unchanged registry on recovery', async () => {
+		const warned = new DeferredPromise<void>();
+		const warnings: string[] = [];
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+			logService: new class extends NullLogService {
+				override warn(message: string): void {
+					warnings.push(message);
+					warned.complete();
+				}
+			},
+		});
+		await session.materializeCanvasRegistry();
+		signals.length = 0;
+		mockSession.canvasListError = new Error('registry unavailable');
+		const failed = waitForSignal(signal => signal.kind === 'canvas_registry' && signal.registry.status === CanvasRegistryStatus.Error);
+
+		session.publishCanvasRegistry();
+		await Promise.all([failed, warned.p]);
+		mockSession.canvasListError = undefined;
+		await session.materializeCanvasRegistry();
+
+		assert.deepStrictEqual({
+			registry: signals.filter(signal => signal.kind === 'canvas_registry').map(signal => signal.registry),
+			loggedFailure: warnings.some(message => message.includes('Failed to publish Canvas registry: registry unavailable')),
+		}, {
+			registry: [
+				{ status: CanvasRegistryStatus.Error, error: { errorType: 'canvasRegistryFailed', message: 'registry unavailable' } },
+				{ status: CanvasRegistryStatus.Ready, extensions: [] },
+			],
+			loggedFailure: true,
+		});
+		session.dispose();
+	});
+
+	test('propagates explicit Canvas registry materialization failures', async () => {
+		for (const failure of ['error', 'timeout']) {
+			const { session, mockSession, signals } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 1 });
+			signals.length = 0;
+			if (failure === 'error') {
+				mockSession.canvasListError = new Error('registry unavailable');
+			} else {
+				mockSession.canvasListGate = new Promise<void>(() => { });
+			}
+
+			await assert.rejects(session.materializeCanvasRegistry(), /registry unavailable|rpc.canvas.list timed out/);
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas_registry').map(signal => signal.registry.status), [CanvasRegistryStatus.Error]);
+			session.dispose();
+		}
 	});
 
 	test('projects live canvas channels after resume and clears unavailable sources', async () => {
@@ -4812,6 +4886,36 @@ suite('CopilotAgentSession', () => {
 	suite('canvas handoff', () => {
 		const preview = { instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview', canvasId: 'preview', title: 'Preview', status: 'ready' };
 		const chart = { instanceId: 'chart', extensionId: 'project:chart', canvasId: 'chart', title: 'Chart' };
+
+		test('publishes Ready after a registry failure when the replacement adopts an unchanged registry', async () => {
+			const previous = await createAgentSession(disposables);
+			await previous.session.materializeCanvasRegistry();
+			previous.mockSession.canvasListError = new Error('registry unavailable');
+			const failed = previous.waitForSignal(signal => signal.kind === 'canvas_registry' && signal.registry.status === CanvasRegistryStatus.Error);
+			previous.session.publishCanvasRegistry();
+			await failed;
+
+			const handoff = previous.session.takeCanvasProjection();
+			assert.ok(handoff);
+			previous.session.dispose();
+			const replacement = await createAgentSession(disposables, { resume: true, canvasHandoff: handoff });
+			const ready = replacement.waitForSignal(signal => signal.kind === 'canvas_registry' && signal.registry.status === CanvasRegistryStatus.Ready);
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await ready;
+
+			assert.deepStrictEqual({
+				adopted,
+				registry: [...previous.signals, ...replacement.signals].filter(signal => signal.kind === 'canvas_registry').map(signal => signal.registry),
+			}, {
+				adopted: true,
+				registry: [
+					{ status: CanvasRegistryStatus.Ready, extensions: [] },
+					{ status: CanvasRegistryStatus.Error, error: { errorType: 'canvasRegistryFailed', message: 'registry unavailable' } },
+					{ status: CanvasRegistryStatus.Ready, extensions: [] },
+				],
+			});
+			replacement.session.dispose();
+		});
 
 		async function takeCanvasesFromPreviousRuntime(...canvases: SessionEventPayload<'session.canvas.opened'>['data'][]) {
 			const previous = await createAgentSession(disposables);

@@ -4221,7 +4221,7 @@ suite('AgentHostProtocolClient', () => {
 		const { client, transport } = createClient();
 		const params = {
 			channel: 'ahp-canvas:/client.example-opaque-preview',
-			chat: 'vendor-chat://opaque.example/threads/chat-1',
+			canvases: 'ahp-canvases://opaque.example/collections/preview',
 			extensionId: 'opaque-provider-id',
 			canvasId: 'preview',
 		};

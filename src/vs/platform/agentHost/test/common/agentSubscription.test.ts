@@ -14,8 +14,9 @@ import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type Clien
 import { chatToolCallStart, chatTurnComplete, chatTurnStarted } from './chatActionBuilders.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, ChatInteractivity, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, CanvasStateSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, CanvasesStateSubscription, CanvasStateSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
+import { CanvasRegistryStatus, type CanvasesState } from '../../common/state/protocol/channels-canvases/state.js';
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
@@ -296,6 +297,65 @@ suite('ChangesetStateSubscription', () => {
 		});
 	});
 
+});
+
+suite('CanvasesStateSubscription', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('replays registry and keyed membership across snapshots without interpreting collection URIs', () => {
+		const resource = 'ahp-canvases://another-host/opaque/collection';
+		const subscription = disposables.add(new CanvasesStateSubscription(resource, 'c1', () => 0, noop));
+		const initial: CanvasesState = { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] };
+		const canvas = { resource: 'ahp-canvas:/opaque-instance' };
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasesRegistryChanged, registry: { status: CanvasRegistryStatus.Loading } }, 2, undefined, undefined, resource));
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasesCanvasSet, canvas }, 3, undefined, undefined, resource));
+		subscription.handleSnapshot(initial, 1);
+		const loading = subscription.value;
+		subscription.beginSnapshotRefresh();
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasesCanvasSet, canvas }, 5, undefined, undefined, resource));
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasesRegistryChanged, registry: { status: CanvasRegistryStatus.Ready, extensions: [] } }, 6, undefined, undefined, resource));
+		subscription.handleSnapshot({ registry: { status: CanvasRegistryStatus.Loading }, canvases: [canvas] }, 4);
+		const ready = subscription.value;
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasesCanvasRemoved, resource: canvas.resource }, 7, undefined, undefined, 'ahp-canvases:/other'));
+		const unrelated = subscription.value;
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasesCanvasRemoved, resource: canvas.resource }, 8, undefined, undefined, resource));
+		assert.deepStrictEqual({ loading, ready, unrelated, removed: subscription.value }, {
+			loading: { registry: { status: CanvasRegistryStatus.Loading }, canvases: [canvas] },
+			ready: { registry: { status: CanvasRegistryStatus.Ready, extensions: [] }, canvases: [canvas] },
+			unrelated: ready,
+			removed: { registry: { status: CanvasRegistryStatus.Ready, extensions: [] }, canvases: [] },
+		});
+	});
+
+	test('retires accepted, rejected and snapshot-covered collection intents without optimistic registry changes', () => {
+		const resource = 'ahp-canvases://another-host/opaque/collection';
+		let seq = 0;
+		const subscription = disposables.add(new CanvasesStateSubscription(resource, 'c1', () => ++seq, noop));
+		const state: CanvasesState = { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] };
+		const action = { type: ActionType.CanvasesRegistryRequested } as const;
+		subscription.handleSnapshot(state, 0);
+		const acceptedSeq = subscription.applyOptimistic(action);
+		const rejectedSeq = subscription.applyOptimistic(action);
+		subscription.receiveEnvelope(makeEnvelope(action, 1, { clientId: 'other-client', clientSeq: acceptedSeq }, undefined, resource));
+		const foreignAcknowledgement = subscription.getPendingActions();
+		subscription.receiveEnvelope(makeEnvelope(action, 2, { clientId: 'c1', clientSeq: acceptedSeq }, undefined, resource));
+		const accepted = subscription.getPendingActions();
+		subscription.receiveEnvelope(makeEnvelope(action, 3, { clientId: 'c1', clientSeq: rejectedSeq }, 'Unavailable', resource));
+		const rejected = subscription.getPendingActions();
+		const snapshotSeq = subscription.applyOptimistic(action);
+		subscription.beginSnapshotRefresh();
+		subscription.receiveEnvelope(makeEnvelope(action, 4, { clientId: 'c1', clientSeq: snapshotSeq }, undefined, resource));
+		subscription.handleSnapshot(state, 4);
+		assert.deepStrictEqual({
+			foreignAcknowledgement, accepted, rejected,
+			pending: subscription.getPendingActions(), hasPendingActions: subscription.hasPendingActions,
+			value: subscription.value, verifiedValue: subscription.verifiedValue,
+		}, {
+			foreignAcknowledgement: [{ channel: resource, clientSeq: acceptedSeq, action }, { channel: resource, clientSeq: rejectedSeq, action }],
+			accepted: [{ channel: resource, clientSeq: rejectedSeq, action }], rejected: [],
+			pending: [], hasPendingActions: false, value: state, verifiedValue: state,
+		});
+	});
 });
 
 suite('CanvasStateSubscription', () => {
@@ -1369,6 +1429,24 @@ suite('AgentSubscriptionManager', () => {
 		ref.dispose();
 	});
 
+	test('shares and releases the exact advertised canvas collection subscription', async () => {
+		const resource = URI.parse('ahp-canvases://another-host/opaque/collection');
+		const collection: CanvasesState = { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] };
+		const mgr = createManager(async uri => {
+			subscribedResources.push(uri.toString());
+			return { resource: uri.toString(), state: collection, fromSeq: 0 };
+		});
+		const first = mgr.getSubscription<CanvasesState>(StateComponents.Canvases, resource, 'first');
+		const second = mgr.getSubscription<CanvasesState>(StateComponents.Canvases, resource, 'second');
+		await Event.toPromise(first.object.onDidChange);
+		first.dispose();
+		const retained = mgr.currentSubscriptionUris().map(uri => uri.toString());
+		second.dispose();
+		assert.deepStrictEqual({ subscribedResources, retained, unsubscribedResources }, {
+			subscribedResources: [resource.toString()], retained: [resource.toString()], unsubscribedResources: [resource.toString()],
+		});
+	});
+
 	test('shares and releases the exact advertised canvas subscription', async () => {
 		const resource = URI.parse('ahp-canvas:/another-host-documents-preview');
 		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview' };
@@ -1624,6 +1702,55 @@ suite('AgentSubscriptionManager', () => {
 	});
 
 	suite('ordinary optimistic reconnect state', () => {
+
+		test('reconnect retains unacknowledged collection intents for replay and retires replay acknowledgements', async () => {
+			const resource = 'ahp-canvases://another-host/opaque/collection';
+			const state: CanvasesState = { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] };
+			const mgr = createManager(async () => ({ resource, state, fromSeq: 0 }));
+			const reference = mgr.getSubscription<CanvasesState>(StateComponents.Canvases, URI.parse(resource), 'test');
+			await Event.toPromise(reference.object.onDidChange);
+			const action = { type: ActionType.CanvasesRegistryRequested } as const;
+			const clientSeq = mgr.dispatchOptimistic(resource, action);
+			const dispatched = { pending: mgr.getPendingActions(), hasPendingActions: reference.object.hasPendingActions, value: reference.object.value };
+			mgr.applyReconnectSnapshot(resource, state, 5);
+			const replay = mgr.getPendingActions();
+			mgr.dropPendingAction(resource, clientSeq);
+			mgr.receiveEnvelope(makeEnvelope(action, 6, { clientId: 'c1', clientSeq }, undefined, resource));
+			assert.deepStrictEqual({
+				dispatched, replay,
+				acknowledged: { pending: mgr.getPendingActions(), hasPendingActions: reference.object.hasPendingActions, value: reference.object.value },
+			}, {
+				dispatched: { pending: [{ channel: resource, clientSeq, action }], hasPendingActions: true, value: state },
+				replay: [{ channel: resource, clientSeq, action }],
+				acknowledged: { pending: [], hasPendingActions: false, value: state },
+			});
+			reference.dispose();
+		});
+
+		test('missing and released collections discard pending intents', async () => {
+			const state: CanvasesState = { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] };
+			const mgr = createManager(async resource => ({ resource: resource.toString(), state, fromSeq: 0 }));
+			const missing = URI.parse('ahp-canvases:/missing');
+			const released = URI.parse('ahp-canvases:/released');
+			const missingReference = mgr.getSubscription<CanvasesState>(StateComponents.Canvases, missing, 'missing');
+			const releasedReference = mgr.getSubscription<CanvasesState>(StateComponents.Canvases, released, 'released');
+			await Promise.all([Event.toPromise(missingReference.object.onDidChange), Event.toPromise(releasedReference.object.onDidChange)]);
+			mgr.dispatchOptimistic(missing.toString(), { type: ActionType.CanvasesRegistryRequested });
+			mgr.dispatchOptimistic(released.toString(), { type: ActionType.CanvasesRegistryRequested });
+			mgr.markSubscriptionsMissing([missing]);
+			const surviving = mgr.getPendingActions().map(pending => pending.channel);
+			releasedReference.dispose();
+			assert.deepStrictEqual({
+				surviving, pending: mgr.getPendingActions(),
+				missingIsError: missingReference.object.value instanceof Error,
+				missingHasPending: missingReference.object.hasPendingActions,
+				releasedHasPending: releasedReference.object.hasPendingActions,
+			}, {
+				surviving: [released.toString()], pending: [],
+				missingIsError: true, missingHasPending: false, releasedHasPending: false,
+			});
+			missingReference.dispose();
+		});
 
 		test('applyReconnectSnapshot clears pending actions and applies the fresh state', async () => {
 			const mgr = createManager();

@@ -26,6 +26,8 @@ export { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js
 export { getInlineToolInput } from '../partialToolInput.js';
 export { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../meta/agentMessageMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
+import type { CanvasesState } from './protocol/channels-canvases/state.js';
+export { CanvasRegistryStatus, type CanvasRegistryState, type CanvasesState } from './protocol/channels-canvases/state.js';
 import {
 	MessageKind,
 	ResponsePartKind,
@@ -836,6 +838,7 @@ export const enum StateComponents {
 	AutomationCatalog,
 	AutomationRun,
 	Canvas,
+	Canvases,
 }
 
 export type ComponentToState = {
@@ -848,6 +851,7 @@ export type ComponentToState = {
 	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
 	[StateComponents.Canvas]: CanvasState;
+	[StateComponents.Canvases]: CanvasesState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------

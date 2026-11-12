@@ -46,7 +46,9 @@ import { readAgentPermissionResponseMeta, withoutAgentPermissionFeedback } from 
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema, SessionConfigSchema } from '../common/state/protocol/commands.js';
-import { AHP_CANVAS_SCHEME, isCanvasChannel } from '../common/canvasUri.js';
+import { AHP_CANVAS_SCHEME, AHP_CANVASES_SCHEME, isCanvasChannel } from '../common/canvasUri.js';
+import { IAgentHostCanvases } from './agentHostCanvases.js';
+import type { ClientCanvasesAction } from '../common/state/protocol/action-origin.generated.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { OpenCanvasParams } from '../common/state/protocol/channels-canvas/commands.js';
@@ -1236,6 +1238,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
+		@IAgentHostCanvases private readonly _canvasService: IAgentHostCanvases,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostChatInputService private readonly _chatInputService: IAgentHostChatInputService,
 		@INetworkDiagnosticsService private readonly _networkDiagnostics: INetworkDiagnosticsService,
@@ -6794,15 +6797,20 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async openCanvas(params: OpenCanvasParams, credentials?: IAgentHostCredentialSource): Promise<void> {
 		const resource = URI.parse(params.channel, true);
-		const chat = URI.parse(params.chat, true);
+		const collection = this._stateManager.getCanvasCollection(params.canvases);
+		if (!collection) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, 'Canvas collection not found.');
+		}
+		const chatId = collection.chat;
+		const chat = URI.parse(chatId, true);
 		if (!isCanvasChannel(params.channel)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Invalid ${AHP_CANVAS_SCHEME} channel.`);
 		}
-		const sessionKey = this._chatOwnership.getChatOwner(params.chat) ?? (await this._chatOwnership.resolveChatOwner(params.chat))?.owner;
+		const sessionKey = this._chatOwnership.getChatOwner(chatId) ?? (await this._chatOwnership.resolveChatOwner(chatId))?.owner;
 		if (!sessionKey) {
-			throw new ProtocolError(AhpErrorCodes.NotFound, `Canvas chat not found: ${params.chat}`);
+			throw new ProtocolError(AhpErrorCodes.NotFound, `Canvas chat not found: ${chatId}`);
 		}
-		this._assertCanvasCommandsSupported(params.chat);
+		this._assertCanvasCommandsSupported(chatId);
 		const existing = this._stateManager.getCanvas(params.channel);
 		let binding = this._canvasBindings.get(params.channel);
 		if (!binding && existing) {
@@ -6813,7 +6821,7 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 			this._canvasBindings.set(params.channel, binding);
 		}
-		if (binding && (binding.chat !== params.chat || binding.extensionId !== params.extensionId || binding.canvasId !== params.canvasId)) {
+		if (binding && (binding.chat !== chatId || binding.extensionId !== params.extensionId || binding.canvasId !== params.canvasId)) {
 			throw new ProtocolError(AhpErrorCodes.Conflict, `Canvas channel is already bound to another chat or declaration: ${params.channel}`);
 		}
 		if (existing?.state.url !== undefined) {
@@ -6823,7 +6831,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return binding.pending;
 		}
 		const created = binding === undefined;
-		binding ??= { chat: params.chat, extensionId: params.extensionId, canvasId: params.canvasId };
+		binding ??= { chat: chatId, extensionId: params.extensionId, canvasId: params.canvasId };
 		this._canvasBindings.set(params.channel, binding);
 		const pending = this.openSessionCanvas(URI.parse(sessionKey), {
 			resource,
@@ -10134,7 +10142,6 @@ export class AgentService extends Disposable implements IAgentService {
 			case ActionType.ChatTurnStarted:
 			case ActionType.ChatTurnResume:
 			case ActionType.ChatTruncated:
-			case ActionType.ChatCanvasRegistryRequested:
 			case ActionType.SessionWorkingDirectorySet:
 			case ActionType.SessionWorkingDirectoryReplaced:
 			case ActionType.ChatWorkingDirectorySet:
@@ -11793,7 +11800,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async subscribe(resource: URI, clientId: string, isActive?: () => boolean, credentials?: IAgentHostCredentialSource, telemetryContext?: IAgentHostSessionSubscribeTelemetryContext): Promise<IStateSnapshot> {
-		if (resource.scheme === AHP_CANVAS_SCHEME) {
+		if (resource.scheme === AHP_CANVAS_SCHEME || resource.scheme === AHP_CANVASES_SCHEME) {
 			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resource.toString()}`);
 			}
@@ -11999,12 +12006,16 @@ export class AgentService extends Disposable implements IAgentService {
 	private _recordSubscriptionOwner(resource: URI): void {
 		const session = this._resolveResourceSession(resource);
 		if (session) {
-			this._subscriptions.setSubscriptionOwner(resource, session.toString(), this._stateManager.getCanvas(resource.toString())?.chat);
+			this._subscriptions.setSubscriptionOwner(resource, session.toString(), this._getCanvasResourceChat(resource.toString()));
 		}
 	}
 
 	private _resolveResourceSession(resource: URI): URI | undefined {
-		return resolveAgentHostSession(resource, this._getChatOwner, canvas => this._stateManager.getCanvas(canvas)?.chat);
+		return resolveAgentHostSession(resource, this._getChatOwner, canvas => this._getCanvasResourceChat(canvas));
+	}
+
+	private _getCanvasResourceChat(resource: string): string | undefined {
+		return this._stateManager.getCanvas(resource)?.chat ?? this._stateManager.getCanvasCollection(resource)?.chat;
 	}
 
 	/** Waits for an armed subagent chat to register (or its wait to time out); returns `undefined` if not armed or never registered. */
@@ -12030,6 +12041,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._recordSubscriptionOwner(resource);
 		if (firstSubscriber) {
 			this._changesetCoordinator.onFirstSubscriber(resource);
+			this._canvasService.observe(resource);
 			this._watchChatUpdates(resource);
 		}
 		this._sessionResidency.touch(resource);
@@ -12744,10 +12756,13 @@ export class AgentService extends Disposable implements IAgentService {
 		return action.type === ActionType.AutomationRunCancelRequested;
 	}
 
-	dispatchAction(channel: string, clientAction: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, credentials?: IAgentHostCredentialSource): void | Promise<void> {
+	dispatchAction(channel: string, clientAction: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction | ClientCanvasesAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown, credentials?: IAgentHostCredentialSource): void | Promise<void> {
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
+		if (clientAction.type === ActionType.CanvasesRegistryRequested) {
+			return this._dispatchCanvasRegistryRequest(channel, clientAction, clientId, clientSeq, clientContext, credentials);
+		}
 		// Assisted permissions feedback is restricted telemetry. It reaches only the provider,
 		// never logs, protocol state, or the envelopes echoed to clients.
 		const permissionFeedback = clientAction.type === ActionType.ChatToolCallConfirmed ? readAgentPermissionResponseMeta(clientAction).userFeedback : undefined;
@@ -12947,6 +12962,48 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		});
 
+		this._clientDispatchQueues.set(clientId, next);
+		return next;
+	}
+
+	private _dispatchCanvasRegistryRequest(channel: string, action: ClientCanvasesAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): Promise<void> {
+		const origin = { clientId, clientSeq };
+		const pending = this._clientDispatchQueues.get(clientId) ?? Promise.resolve();
+		const next = pending.then(async () => {
+			const collection = this._stateManager.getCanvasCollection(channel);
+			const session = collection && this._stateManager.getChatOwner(collection.chat);
+			if (!collection || !session) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'Canvas collection not found.');
+			}
+			this._assertCanvasesEnabled();
+			this._assertCanvasCommandsSupported(collection.chat);
+			if (this._stateManager.isIdleProvisionalSession(session)) {
+				throw new Error('Canvas registry materialization requires an initialized chat.');
+			}
+			credentials = await this._resolveExecutionCredentials(session, credentials);
+			this._checkCredentialPrincipal(session, credentials);
+			const provider = this._providerService.getProviderForChat(session, collection.chat);
+			if (!provider) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'Canvas provider is unavailable.');
+			}
+			if (credentials) {
+				this._requireProviderCredentials(provider, credentials);
+			}
+			if (this._stateManager.getCanvasCollection(channel) !== collection || this._stateManager.getChatOwner(collection.chat) !== session) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'Canvas collection changed during materialization admission.');
+			}
+			this._assertCanvasesEnabled();
+			this._assertCanvasCommandsSupported(collection.chat);
+			this._stateManager.dispatchClientAction(channel, action, origin, clientContext);
+			void this._canvasService.materialize(channel, credentials);
+		}).catch(error => {
+			this._logService.error('[AgentService] Canvas registry request rejected', error);
+			this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
+		}).finally(() => {
+			if (this._clientDispatchQueues.get(clientId) === next) {
+				this._clientDispatchQueues.delete(clientId);
+			}
+		});
 		this._clientDispatchQueues.set(clientId, next);
 		return next;
 	}
@@ -13945,21 +14002,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			try {
 				action = this._prepareWorkingDirectoryAction(sessionChannel, action);
-			} catch (error) {
-				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
-				return;
-			}
-		}
-		if (action.type === ActionType.ChatCanvasRegistryRequested) {
-			try {
-				if (!isAhpChatChannel(channel)) {
-					throw new Error('Canvas registry materialization requires a chat channel.');
-				}
-				this._assertCanvasesEnabled();
-				this._assertCanvasCommandsSupported(channel);
-				if (this._stateManager.isIdleProvisionalSession(sessionChannel)) {
-					throw new Error('Canvas registry materialization requires an initialized chat.');
-				}
 			} catch (error) {
 				this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
 				return;

@@ -287,7 +287,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._protocolClient?.getActiveSubscriptions() ?? [];
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: Parameters<AgentHostProtocolClient['dispatch']>[1]): void {
 		this._protocolClient?.dispatch(channel, action);
 	}
 

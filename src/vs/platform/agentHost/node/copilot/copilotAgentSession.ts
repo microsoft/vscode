@@ -85,6 +85,7 @@ import { ActionType, isChatAction, type ChatAction, type ChatToolCallReadyAction
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import type { CanvasRegistry } from '../../common/state/protocol/channels-canvas/state.js';
+import { CanvasRegistryStatus } from '../../common/state/protocol/channels-canvases/state.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentChatConfigurationChangeEvent, type IAgentChatConfigurationTarget } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
@@ -2033,6 +2034,7 @@ export class CopilotAgentSession extends Disposable {
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private _canvasRegistryGeneration = 0;
 	private _publishedCanvasRegistry: ReturnType<typeof toAgentCanvasRegistry> | undefined;
+	private _canvasRegistryNeedsPublication = false;
 	private _canvasRegistryRequested = false;
 	private readonly _canvasRegistryRefresh = this._register(new Throttler());
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
@@ -4930,23 +4932,39 @@ export class CopilotAgentSession extends Disposable {
 
 	private _publishCanvasRegistry(): Promise<void> {
 		return this._canvasRegistryRefresh.queue(async () => {
-			const canvases = await this.listCanvases();
-			if (canvases !== undefined && !this._store.isDisposed && this._canvasPhase === 'live' && !this._pendingCanvasHandoff) {
-				const canvasRegistry = toAgentCanvasRegistry(canvases);
-				if (equals(this._publishedCanvasRegistry, canvasRegistry)) {
-					return;
+			const generation = this._canvasRegistryGeneration;
+			try {
+				const canvases = await this.listCanvases();
+				if (canvases !== undefined && !this._store.isDisposed && this._canvasPhase === 'live' && !this._pendingCanvasHandoff) {
+					const canvasRegistry = toAgentCanvasRegistry(canvases);
+					if (!this._canvasRegistryNeedsPublication && equals(this._publishedCanvasRegistry, canvasRegistry)) {
+						return;
+					}
+					this._publishedCanvasRegistry = canvasRegistry;
+					this._canvasRegistryNeedsPublication = false;
+					this._emitProgress({
+						kind: 'canvas_registry',
+						chat: this._chatChannelUri,
+						registry: { status: CanvasRegistryStatus.Ready, ...canvasRegistry },
+					});
 				}
-				this._publishedCanvasRegistry = canvasRegistry;
-				this._emitAction({
-					type: ActionType.ChatCanvasRegistryChanged,
-					canvasRegistry,
-				});
+			} catch (error) {
+				if (!isCancellationError(error) && !this._store.isDisposed && this._canvasPhase === 'live' && !this._pendingCanvasHandoff && generation === this._canvasRegistryGeneration) {
+					this._canvasRegistryNeedsPublication = true;
+					this._emitProgress({
+						kind: 'canvas_registry',
+						chat: this._chatChannelUri,
+						registry: { status: CanvasRegistryStatus.Error, error: { errorType: 'canvasRegistryFailed', message: getErrorMessage(error) } },
+					});
+				}
+				throw error;
 			}
 		});
 	}
 
 	async materializeCanvasRegistry(): Promise<void> {
 		this._canvasRegistryRequested = true;
+		this._canvasRegistryNeedsPublication = true;
 		await this._publishCanvasRegistry();
 	}
 
@@ -4985,7 +5003,7 @@ export class CopilotAgentSession extends Disposable {
 			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
 			displayName: canvas.displayName,
 			description: canvas.description,
-			requiresInput: this._canvasRequiresInput(canvas.inputSchema),
+			...(canvas.inputSchema !== undefined ? { inputSchema: canvas.inputSchema } : {}),
 			actionCount: canvas.actions?.length ?? 0,
 		}));
 	}
@@ -5113,6 +5131,7 @@ export class CopilotAgentSession extends Disposable {
 			return false;
 		}
 		this._pendingCanvasHandoff = undefined;
+		this._canvasRegistryNeedsPublication = true;
 		this._publishCanvases();
 		this.publishCanvasRegistry();
 		return true;
@@ -5214,14 +5233,6 @@ export class CopilotAgentSession extends Disposable {
 			default:
 				return 'unknown';
 		}
-	}
-
-	private _canvasRequiresInput(inputSchema: JsonValue | undefined): boolean {
-		if (inputSchema === null || typeof inputSchema !== 'object' || Array.isArray(inputSchema)) {
-			return false;
-		}
-		const required = inputSchema['required'];
-		return Array.isArray(required) && required.some(value => typeof value === 'string' && value.trim().length > 0);
 	}
 
 	private async _waitForCanvasExtensions(wrapper: CopilotSessionWrapper): Promise<void> {

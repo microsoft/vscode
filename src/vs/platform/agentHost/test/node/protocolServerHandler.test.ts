@@ -63,6 +63,7 @@ import type { IClientArtifactIntegrationRegistry, IClientArtifactIntegrations } 
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import type { OpenCanvasParams } from '../../common/state/protocol/channels-canvas/commands.js';
+import { CanvasRegistryStatus } from '../../common/state/protocol/channels-canvases/state.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
@@ -2336,11 +2337,37 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('ordinary Canvas collection subscribe includes discovery completed during admission', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const collection = stateManager.ensureCanvasCollection(defaultChatUri);
+		agentService.subscribe = async resource => {
+			const snapshot = stateManager.getSnapshot(resource.toString());
+			assert.ok(snapshot);
+			stateManager.setCanvasRegistry(defaultChatUri, { status: CanvasRegistryStatus.Ready, extensions: [] });
+			return snapshot;
+		};
+		const transport = connectClient('canvas-fast-subscribe');
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'subscribe', { channel: collection }));
+		assert.deepStrictEqual(await response, {
+			jsonrpc: '2.0',
+			id: 20,
+			result: {
+				snapshot: {
+					resource: collection,
+					fromSeq: stateManager.serverSeq,
+					state: { registry: { status: CanvasRegistryStatus.Ready, extensions: [] }, canvases: [] },
+				},
+			},
+		});
+	});
+
 	test('routes standard Canvas lifecycle commands with opaque resource identities', async () => {
+		stateManager.createSession(makeSessionSummary());
 		const transport = connectClient('client-canvas-lifecycle');
 		const params = {
 			channel: 'ahp-canvas:/client.example-opaque-preview',
-			chat: 'vendor-chat://opaque.example/threads/chat-1',
+			canvases: stateManager.ensureCanvasCollection(defaultChatUri),
 			extensionId: 'opaque-provider-id',
 			canvasId: 'preview',
 		};
@@ -9309,7 +9336,7 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(notification('dispatchAction', {
 				channel: defaultChatUri,
 				clientSeq: 1,
-				action: { type: ActionType.ChatCanvasRegistryRequested },
+				action: { type: ActionType.CanvasesRegistryRequested },
 			}));
 			await handler.whenIdle();
 			const rejected = findNotifications(transport.sent, 'action').at(-1)?.params as ActionEnvelope | undefined;
@@ -9323,8 +9350,8 @@ suite('ProtocolServerHandler', () => {
 					channel: defaultChatUri,
 					serverSeq: stateManager.serverSeq,
 					origin: { clientId: 'canvas-registry-older', clientSeq: 1 },
-					action: { type: ActionType.ChatCanvasRegistryRequested },
-					rejectionReason: `Action is unavailable in protocol version 1.0.0: ${ActionType.ChatCanvasRegistryRequested}`,
+					action: { type: ActionType.CanvasesRegistryRequested },
+					rejectionReason: `Action is unavailable in protocol version 1.0.0: ${ActionType.CanvasesRegistryRequested}`,
 				},
 			});
 		});

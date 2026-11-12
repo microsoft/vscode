@@ -33,6 +33,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
+import type { ClientCanvasesAction } from './state/protocol/action-origin.generated.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from './state/protocol/channels-automation/commands.js';
 import type { OpenCanvasParams } from './state/protocol/channels-canvas/commands.js';
@@ -1270,7 +1271,7 @@ export interface IAgentService {
 	 * like `ahp-root://` survive the wire format without normalization.
 	 * Queued dispatches return a promise that settles after application or rejection.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void | Promise<void>;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction | ClientCanvasesAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void | Promise<void>;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1403,7 +1404,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | ClientCanvasesAction | IRootConfigChangedAction): void;
 
 	/** Wait for the authoritative action echo, including any rejection, or cancellation; the caller must hold the subscription until settlement. */
 	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope>;
@@ -1497,7 +1498,7 @@ export interface IAgentConnection {
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
-	/** Local compatibility path; standard AHP clients observe {@link ChatState.canvasRegistry}. */
+	/** Local compatibility path; standard AHP clients observe the advertised Canvas collection. */
 	listSessionCanvases?(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
 	/** Local compatibility path; standard AHP clients use {@link openCanvas}. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;

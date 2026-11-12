@@ -10,6 +10,7 @@ import { buildOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { isShapedChatUri } from '../../common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 import assert from 'assert';
+import { CanvasRegistryStatus } from '../../common/state/protocol/channels-canvases/state.js';
 import { match, spy, stub } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
@@ -1774,6 +1775,136 @@ suite('AgentService (node dispatcher)', () => {
 			error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
 		service.unsubscribe(resource, 'canvas-viewer');
 		assert.deepStrictEqual(snapshot.state, canvas);
+	});
+
+	test('Canvas collection observation is passive and concurrent activation shares one materialization', async () => {
+		copilotAgent.setCapabilities({ canvases: {} });
+		registerTestAgentProvider(service, copilotAgent);
+		getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const collection = stateManager.ensureCanvasCollection(chat);
+		const listed = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		let materializations = 0;
+		copilotAgent.listSessionCanvases = async () => {
+			listed.complete();
+			return undefined;
+		};
+		copilotAgent.materializeSessionCanvases = async () => {
+			materializations++;
+			started.complete();
+			await gate.p;
+			stateManager.setCanvasRegistry(chat, { status: CanvasRegistryStatus.Ready, extensions: [] });
+		};
+		service.restoreSession = async () => { throw new Error('Collection observation must not restore a runtime'); };
+		const snapshot = await service.subscribe(URI.parse(collection), 'canvas-observer');
+		await listed.p;
+		const before = materializations;
+		await Promise.all([
+			service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-one', 1),
+			service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-two', 1),
+		]);
+		await started.p;
+		const loading = stateManager.getCanvasCollection(collection)?.state.registry;
+		const ready = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			envelope.action.type === ActionType.CanvasesRegistryChanged && envelope.action.registry.status === CanvasRegistryStatus.Ready));
+		gate.complete();
+		await ready;
+		service.unsubscribe(URI.parse(collection), 'canvas-observer');
+		assert.deepStrictEqual({ initial: snapshot.state, before, loading, materializations, registry: stateManager.getCanvasCollection(collection)?.state.registry }, {
+			initial: { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] },
+			before: 0,
+			loading: { status: CanvasRegistryStatus.Loading },
+			materializations: 1,
+			registry: { status: CanvasRegistryStatus.Ready, extensions: [] },
+		});
+	});
+
+	test('Canvas discovery stays coalesced while extensions start and passive observation preserves failures', async () => {
+		copilotAgent.setCapabilities({ canvases: {} });
+		registerTestAgentProvider(service, copilotAgent);
+		getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const collection = stateManager.ensureCanvasCollection(chat);
+		let materializations = 0;
+		let lists = 0;
+		copilotAgent.materializeSessionCanvases = async () => { materializations++; };
+		copilotAgent.listSessionCanvases = async () => { lists++; return []; };
+		await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 1);
+		await timeout(0);
+		await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 2);
+		const loading = stateManager.getCanvasCollection(collection)?.state.registry;
+		const error = { status: CanvasRegistryStatus.Error as const, error: { errorType: 'extensionFailed', message: 'Extension startup failed' } };
+		stateManager.setCanvasRegistry(chat, error);
+		await service.subscribe(URI.parse(collection), 'canvas-observer');
+		service.unsubscribe(URI.parse(collection), 'canvas-observer');
+		assert.deepStrictEqual({ materializations, lists, loading, current: stateManager.getCanvasCollection(collection)?.state.registry }, {
+			materializations: 1, lists: 0, loading: { status: CanvasRegistryStatus.Loading }, current: error,
+		});
+	});
+
+	test('a passive Canvas list cannot overwrite a newer published registry', async () => {
+		copilotAgent.setCapabilities({ canvases: {} });
+		registerTestAgentProvider(service, copilotAgent);
+		getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const collection = stateManager.ensureCanvasCollection(chat);
+		const gate = new DeferredPromise<void>();
+		const listed = new DeferredPromise<void>();
+		copilotAgent.listSessionCanvases = async () => {
+			listed.complete();
+			await gate.p;
+			return [];
+		};
+		await service.subscribe(URI.parse(collection), 'canvas-observer');
+		await listed.p;
+		const latest = {
+			status: CanvasRegistryStatus.Ready as const,
+			extensions: [{ id: 'preview', canvases: [{ id: 'preview', label: 'Preview', description: 'Latest declaration' }] }],
+		};
+		stateManager.setCanvasRegistry(chat, latest);
+		gate.complete();
+		await timeout(0);
+		service.unsubscribe(URI.parse(collection), 'canvas-observer');
+		assert.deepStrictEqual(stateManager.getCanvasCollection(collection)?.state.registry, latest);
+	});
+
+	test('Canvas registry failure is state and a later explicit request retries', async () => {
+		copilotAgent.setCapabilities({ canvases: {} });
+		registerTestAgentProvider(service, copilotAgent);
+		getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const collection = stateManager.ensureCanvasCollection(chat);
+		let attempts = 0;
+		copilotAgent.materializeSessionCanvases = async () => {
+			if (++attempts === 1) {
+				throw new Error('Discovery failed');
+			}
+			stateManager.setCanvasRegistry(chat, { status: CanvasRegistryStatus.Ready, extensions: [] });
+		};
+		const failed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			envelope.action.type === ActionType.CanvasesRegistryChanged && envelope.action.registry.status === CanvasRegistryStatus.Error));
+		await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 1);
+		await failed;
+		const error = stateManager.getCanvasCollection(collection)?.state.registry;
+		const ready = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			envelope.action.type === ActionType.CanvasesRegistryChanged && envelope.action.registry.status === CanvasRegistryStatus.Ready));
+		await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 2);
+		await ready;
+		assert.deepStrictEqual({ error, attempts, registry: stateManager.getCanvasCollection(collection)?.state.registry }, {
+			error: { status: CanvasRegistryStatus.Error, error: { errorType: 'canvasRegistryFailed', message: 'Discovery failed' } },
+			attempts: 2,
+			registry: { status: CanvasRegistryStatus.Ready, extensions: [] },
+		});
 	});
 
 	test('subscribing checks writer ownership and Retry refreshes shared input state without a turn', async () => {
@@ -3905,7 +4036,7 @@ suite('AgentService (node dispatcher)', () => {
 					extensionSource: 'project',
 					displayName: 'Preview',
 					description: 'Preview generated content.',
-					requiresInput: false,
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 					actionCount: 0,
 				}];
 			};
@@ -3950,8 +4081,9 @@ suite('AgentService (node dispatcher)', () => {
 				instanceId: 'project-preview-preview',
 			}, chat);
 			await managementService.closeSessionCanvas(session, { resource: URI.parse('ahp-canvas:/preview') }, chat);
-			await service.dispatchAction(chat.toString(), { type: ActionType.ChatCanvasRegistryRequested }, 'canvas-client', 1);
-			await service.dispatchAction(chat.toString(), { type: ActionType.ChatCanvasRegistryRequested }, 'canvas-client', 2);
+			const collection = stateManager.ensureCanvasCollection(chat.toString());
+			await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 1);
+			await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 2);
 			await timeout(0);
 			assert.strictEqual(listCalls, 2);
 			registryListGate.complete();
@@ -3959,7 +4091,7 @@ suite('AgentService (node dispatcher)', () => {
 			const resource = URI.parse('ahp-canvas:/client.example-preview');
 			await service.openCanvas({
 				channel: resource.toString(),
-				chat: chat.toString(),
+				canvases: collection,
 				extensionId: 'project:preview',
 				canvasId: 'preview',
 			});
@@ -3972,7 +4104,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				canvases,
-				registry: stateManager.getChatState(chat.toString())?.canvasRegistry,
+				registry: stateManager.getCanvasCollection(collection)?.state.registry,
 				standardCalls: calls.slice(-5),
 				calls,
 			}, {
@@ -3982,17 +4114,18 @@ suite('AgentService (node dispatcher)', () => {
 					extensionSource: 'project',
 					displayName: 'Preview',
 					description: 'Preview generated content.',
-					requiresInput: false,
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 					actionCount: 0,
 				}],
 				registry: {
+					status: CanvasRegistryStatus.Ready,
 					extensions: [{
 						id: 'project:preview',
 						canvases: [{
 							id: 'preview',
 							label: 'Preview',
 							description: 'Preview generated content.',
-							requiresInput: false,
+							inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 						}],
 					}],
 				},
@@ -4086,7 +4219,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ legacyChatUris: true, provider: copilotAgent.id });
 			const params = {
 				channel: 'ahp-canvas:/atomic-preview',
-				chat: buildDefaultChatUri(session.toString()),
+				canvases: getStateManager(service).ensureCanvasCollection(buildDefaultChatUri(session.toString())),
 				extensionId: 'project:preview',
 				canvasId: 'preview',
 			};
@@ -4100,14 +4233,14 @@ suite('AgentService (node dispatcher)', () => {
 			await Promise.all([first, joined]);
 			await assert.rejects(service.openCanvas({ ...params, extensionId: 'project:other' }), /already bound to another chat or declaration/);
 			const stateManager = getStateManager(service);
-			stateManager.setCanvasState(params.chat, params.channel, {
+			stateManager.setCanvasState(buildDefaultChatUri(session.toString()), params.channel, {
 				instanceId: 'provider-preview',
 				extensionId: params.extensionId,
 				canvasId: params.canvasId,
 			});
 			await service.openCanvas(params);
 			assert.strictEqual(openCalls, 2);
-			stateManager.setCanvasState(params.chat, params.channel, {
+			stateManager.setCanvasState(buildDefaultChatUri(session.toString()), params.channel, {
 				instanceId: 'provider-preview',
 				extensionId: params.extensionId,
 				canvasId: params.canvasId,

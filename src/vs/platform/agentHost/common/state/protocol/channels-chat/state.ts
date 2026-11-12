@@ -9,7 +9,7 @@
 import type { ModelSelection } from '../channels-root/state.js';
 import type { AgentSelection, ChangesSummary, McpAuthRequirement, SessionConfigSchema, SessionStatus } from '../channels-session/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
-import type { CanvasReference, CanvasRegistry } from '../channels-canvas/state.js';
+import type { CanvasReference } from '../channels-canvas/state.js';
 import type { ContentRef, ErrorInfo, FileEdit, FileEditCollection, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
@@ -113,23 +113,21 @@ export interface ChatState {
 	 */
 	backgroundWork?: BackgroundWork[];
 	/**
-	 * Canvas types currently registered for this exact chat.
+	 * Advertised `ahp-canvases:` collection owned by this exact chat.
 	 *
-	 * Absence means the registry has not been materialized or is not currently
-	 * available. Clients that need it MAY dispatch
-	 * `chat/canvasRegistryRequested`; the host publishes the authoritative
-	 * registry through `chat/canvasRegistryChanged`. An empty
-	 * {@link CanvasRegistry.extensions} array is a loaded registry with no
-	 * available canvas types.
+	 * Clients prefer this collection over legacy `canvases` references, falling
+	 * back to those references when this pointer is absent. Advertising the URI
+	 * does not require materializing backing or starting extensions.
 	 * @stability 1.0
 	 */
-	canvasRegistry?: CanvasRegistry;
+	canvasesUri?: URI;
 	/**
 	 * Live canvases currently exposed by this chat.
 	 *
 	 * Entries intentionally contain only subscribable channel references.
 	 * Clients subscribe to each resource for the experimental presentation
 	 * state, including its current live source URL.
+	 * @deprecated Prefer `canvasesUri`; this is a projection of the same membership.
 	 */
 	canvases?: CanvasReference[];
 	/**

@@ -37,8 +37,11 @@ export interface CanvasType {
 	label: string;
 	/** Description of what the canvas type does. */
 	description: string;
-	/** Whether opening this canvas requires an input flow. */
-	requiresInput: boolean;
+	/**
+	 * Optional JSON Schema for the input accepted when opening this canvas.
+	 * Clients decide whether and how to collect input from this schema.
+	 */
+	inputSchema?: unknown;
 }
 
 /**
@@ -82,11 +85,10 @@ export interface CanvasReference {
  */
 export interface CanvasState {
 	/**
-	 * Provider-facing instance identifier.
+	 * Provider-facing instance identifier used for correlation.
 	 *
-	 * AHP clients address this instance by the subscribed `ahp-canvas:` channel
-	 * URI. They MUST NOT treat this provider identifier as a second resource
-	 * identity.
+	 * AHP commands and subscriptions address this canvas by its channel URI,
+	 * not by this identifier.
 	 */
 	instanceId: string;
 	/** Owning declaration namespace. */
