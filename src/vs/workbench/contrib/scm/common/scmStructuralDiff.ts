@@ -68,10 +68,10 @@ export interface SCMStructuralDiffStatus extends SCMStructuralDiffElementBase {
 export type SCMStructuralDiffElement = SCMStructuralDiffNode | SCMStructuralDiffStatus;
 
 /**
- * A step from a parent to a structural entity: its kind, language kind and name, whether it was added, where it
- * starts in the original document, and its position among siblings that have all of these in common.
+ * A step from a parent to a structural entity: its kind and name, whether it was added, where it starts in the original
+ * document, and its position among siblings that have all of these in common.
  */
-type EntityKey = readonly [kind: SymbolKind, languageKind: string, name: string, added: boolean, line: number, column: number, ordinal: number];
+type EntityKey = readonly [kind: SymbolKind, name: string, added: boolean, line: number, column: number, ordinal: number];
 
 function createElementId(resource: ISCMResource, path: readonly (EntityKey | string)[]): string {
 	const group = resource.resourceGroup;
@@ -444,7 +444,7 @@ export class SCMStructuralDiffModel extends Disposable {
 					// Edits of the working file do not change the original document, so a position in it identifies an entity,
 					// even when siblings with the same name start or stop changing. An added entity is located through the text changes.
 					const start = node.original ? Range.getStartPosition(node.original.range) : startOf(toOriginal.mapPosition(Range.getStartPosition(node.modified!.range)));
-					const identity = [entity.kind, entity.languageKind ?? '', entity.name, !node.original, start.lineNumber, start.column] as const;
+					const identity = [entity.kind, entity.name, !node.original, start.lineNumber, start.column] as const;
 					const key = JSON.stringify(identity);
 					const ordinal = ordinals.get(key) ?? 0;
 					ordinals.set(key, ordinal + 1);
