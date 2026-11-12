@@ -91,7 +91,6 @@ export class CopilotSessionWrapper extends Disposable {
 		/** Whether the SDK session was created with session telemetry, which carries its restricted telemetry. */
 		readonly launchSessionTelemetryEnabled: boolean,
 		readonly launchMcpSkillsEnabled: boolean,
-		readonly usesMicrosoftAuthentication: boolean,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();

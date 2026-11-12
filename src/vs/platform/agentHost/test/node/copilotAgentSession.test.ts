@@ -1519,7 +1519,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryEnabled?: boolean;
 	/** Whether the SDK session was created with session telemetry. Defaults to `true`. */
 	sessionTelemetryEnabled?: boolean;
-	usesMicrosoftAuthentication?: boolean;
 	onTurnEnded?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
@@ -1683,7 +1682,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (duringLaunch) {
 				await duringLaunch;
 			}
-			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, options?.sessionTelemetryEnabled ?? true, rootValues[AgentHostMcpSkillsEnabledConfigKey] !== false, options?.usesMicrosoftAuthentication ?? false, logService);
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, imageGenerationEnabled, imageGenerationWatermark, undefined, options?.sessionTelemetryEnabled ?? true, rootValues[AgentHostMcpSkillsEnabledConfigKey] !== false, logService);
 		},
 		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
 	};
@@ -1788,7 +1787,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	let sessionSandboxPaths: ISessionSandboxPaths | undefined;
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
-		copilotM365EnabledAtStartup: rootValues[CopilotCliConfigKey.M365Enabled] === true,
+		copilotM365EnabledAtStartup: false,
 		onDidRootConfigChange: rootConfigEmitter.event,
 		onDidSessionConfigChange: sessionConfigEmitter.event,
 		// Simple per-key map suffices for tests; the real service walks
@@ -3869,32 +3868,28 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	for (const enabled of [false, true]) {
-		for (const service of ['github', 'ghe', 'microsoft'] as const) {
-			test(`refreshes ${service} policy through the runtime-wide resolver with Microsoft availability ${enabled}`, async () => {
-				const managedSettings = createUnmanagedCopilotSettings();
-				const baseline = await managedSettings.resolve({});
-				const calls: object[] = [];
-				managedSettings.resolve = async request => { calls.push(request); return baseline; };
-				const { session, mockSession, onDidReportModelConfiguration, modelConfigurationReported } = await createAgentSession(disposables, {
-					rootValues: { [CopilotCliConfigKey.M365Enabled]: enabled },
-					usesMicrosoftAuthentication: service === 'microsoft',
-					managedSettings, githubToken: service === 'microsoft' ? undefined : `${service}-token`, workingDirectory: URI.file('/workspace'),
-					trackModelConfigurationUpdates: true,
-					configureMockSession: mock => {
-						mock.rpc.managedSettings.get = async () => { assert.fail('Policy refresh must use the runtime-wide resolver'); };
-					},
-				});
-				await modelConfigurationReported;
-				mockSession.currentModel = { modelId: 'gpt-5', reasoningEffort: 'high' };
-				const reported = Event.toPromise(onDidReportModelConfiguration);
-				session.refreshModelConfiguration();
-				await reported;
-				assert.deepStrictEqual(calls, Array.from({ length: 2 }, () => ({
-					clientName: 'vscode-agent-host', ...(service !== 'microsoft' ? { gitHubToken: `${service}-token` } : {}), workingDirectory: URI.file('/workspace').fsPath,
-				})));
+	for (const githubToken of ['github-token', undefined]) {
+		test(`refreshes policy through the runtime-wide resolver ${githubToken ? 'with the GitHub token' : 'without a GitHub token'}`, async () => {
+			const managedSettings = createUnmanagedCopilotSettings();
+			const baseline = await managedSettings.resolve({});
+			const calls: object[] = [];
+			managedSettings.resolve = async request => { calls.push(request); return baseline; };
+			const { session, mockSession, onDidReportModelConfiguration, modelConfigurationReported } = await createAgentSession(disposables, {
+				managedSettings, githubToken, workingDirectory: URI.file('/workspace'),
+				trackModelConfigurationUpdates: true,
+				configureMockSession: mock => {
+					mock.rpc.managedSettings.get = async () => { assert.fail('Policy refresh must use the runtime-wide resolver'); };
+				},
 			});
-		}
+			await modelConfigurationReported;
+			mockSession.currentModel = { modelId: 'gpt-5', reasoningEffort: 'high' };
+			const reported = Event.toPromise(onDidReportModelConfiguration);
+			session.refreshModelConfiguration();
+			await reported;
+			assert.deepStrictEqual(calls, Array.from({ length: 2 }, () => ({
+				clientName: 'vscode-agent-host', ...(githubToken ? { gitHubToken: githubToken } : {}), workingDirectory: URI.file('/workspace').fsPath,
+			})));
+		});
 	}
 
 	test('model changes do not wait for report-only policy resolution and report refreshes coalesce', async () => {
@@ -6449,7 +6444,7 @@ suite('CopilotAgentSession', () => {
 
 	suite('CopilotSessionWrapper', () => {
 		function createWrapper(mockSession: MockCopilotSession, logService: ILogService = new NullLogService()): CopilotSessionWrapper {
-			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, undefined, true, false, false, logService));
+			return disposables.add(new CopilotSessionWrapper(mockSession as unknown as CopilotSession, true, {}, false, false, undefined, true, false, logService));
 		}
 
 		function lifecycleMessages(entries: CapturingLogService['infos']): string[] {

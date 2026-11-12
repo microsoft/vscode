@@ -11,6 +11,7 @@ import { isDeepStrictEqual } from 'util';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
@@ -424,142 +425,117 @@ suite('CopilotSessionLauncher agent catalog readiness', () => {
 	}
 });
 
-suite('CopilotSessionLauncher Microsoft account readiness', () => {
+suite('CopilotSessionLauncher Microsoft account', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const context: Extract<CopilotAccountContext, { kind: 'ready' }> = {
+		kind: 'ready', entraAccountId: 'identity',
+		choice: { service: 'm365', selectionId: 'selected', host: 'https://m365.example', accountName: 'account', resource: 'https://m365.example' },
+	};
+
+	function setup(workingDirectory = testWorkingDirectory) {
+		const calls: string[] = [];
+		const storage: (boolean | undefined)[] = [];
+		const selected = { account: context as CopilotAccountContext };
+		const workspace = toCopilotWorkspace(workingDirectory);
+		const virtualSessionFs = workspace.kind === 'virtual'
+			? new CopilotVirtualSessionFs(workspace, '/session-state', URI.file('/copilot-home/session-state/account-chat'), () => undefined, upcastPartial<IFileService>({})) : undefined;
+		const session = upcastPartial<CopilotSession>({
+			sessionId: 'account-chat', on: () => () => { },
+			disconnect: async () => { calls.push('disconnect'); },
+			rpc: upcastPartial<CopilotSession['rpc']>({
+				agent: upcastPartial<CopilotSession['rpc']['agent']>({ list: async () => { calls.push('agents'); return { agents: [] }; } }),
+				options: { update: async () => ({ success: true }) },
+				managedSettings: upcastPartial<CopilotSession['rpc']['managedSettings']>({
+					get: async () => { assert.fail('Conversation policy must use the runtime-wide resolver'); },
+				}),
+			}),
+		});
+		const client = returningSession(session);
+		const { createSession, resumeSession } = client;
+		client.createSession = config => { calls.push('create'); storage.push(config?.enableSessionStore); return createSession(config); };
+		client.resumeSession = (id, config) => { calls.push('resume'); storage.push(config?.enableSessionStore); return resumeSession(id, config); };
+		client.deleteSession = async () => { calls.push('delete'); };
+		const { resolve } = client.rpc.managedSettings;
+		client.rpc.managedSettings.resolve = request => {
+			calls.push('policy');
+			assert.deepStrictEqual(request, {
+				clientName: 'vscode-agent-host',
+				...(workspace.kind !== 'virtual' ? { workingDirectory: workingDirectory.fsPath } : {}),
+			});
+			return resolve(request);
+		};
+		const accounts = upcastPartial<ICopilotAccountService>({
+			state: upcastPartial<ICopilotAccountService['state']>({ get: () => selected.account }),
+			authenticateSession: async (authenticated, _client, account) => {
+				calls.push(authenticated === session && account === context ? 'authenticate' : 'authenticate another session or account');
+			},
+		});
+		const launcher = createTestLauncher(undefined, undefined, undefined, undefined, undefined, undefined, undefined, accounts);
+		const base = {
+			client, sessionId: session.sessionId, workingDirectory, workspace, virtualSessionFs, isEphemeral: true, resolvedAgentName: undefined,
+			snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+		};
+		const plan = (kind: 'create' | 'resume', microsoft = true): CopilotSessionLaunchPlan => {
+			const credentials = { ...base, accountContext: microsoft ? context : undefined };
+			return kind === 'create' ? { ...credentials, kind, model: undefined } : { ...credentials, kind, fallback: { model: undefined } };
+		};
+		return { calls, storage, selected, client, accounts, launcher, plan };
+	}
+
+	for (const scenario of ['create', 'resume', 'virtual-create', 'virtual-resume'] as const) {
+		test(`signs a new session in after creating it fully configured and resumes once without signing in: ${scenario}`, async () => {
+			const kind = scenario.endsWith('resume') ? 'resume' : 'create';
+			const f = setup(scenario.startsWith('virtual') ? URI.parse('vscode-vfs://github/microsoft/vscode') : testWorkingDirectory);
+			store.add(await f.launcher.launch(f.plan(kind), testRuntime));
+			assert.deepStrictEqual({ calls: f.calls, storage: f.storage }, {
+				calls: kind === 'create' ? ['policy', 'create', 'authenticate', 'agents'] : ['policy', 'resume', 'agents'], storage: [false],
+			});
+		});
+	}
 
 	for (const kind of ['create', 'resume'] as const) {
-		test(`${kind} does not open a conversation before service authentication`, async () => {
-			const accountService = upcastPartial<ICopilotAccountService>({
-				state: upcastPartial<ICopilotAccountService['state']>({ get: () => ({ kind: 'error', entraAccountId: 'selected', stage: 'discovery' }) }),
-				requireReady: () => { throw new Error('Microsoft setup is not ready'); },
-			});
-			const launcher = createTestLauncher(undefined, undefined, undefined, undefined,
-				upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true }),
-				undefined, undefined, accountService);
-			const base = {
-				client: new class extends mock<CopilotClient>() { }(), sessionId: 'discovery-only',
-				workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
-				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
-				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
-				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
-			};
-			const plan: CopilotSessionLaunchPlan = kind === 'create'
-				? { ...base, kind, model: undefined }
-				: { ...base, kind, fallback: { model: undefined } };
-			await assert.rejects(launcher.launch(plan, testRuntime), /setup is not ready/);
+		test(`${kind} opens no session when conversation policy cannot be resolved`, async () => {
+			const f = setup();
+			f.client.rpc.managedSettings.resolve = async () => { f.calls.push('policy'); throw new Error('Policy unavailable'); };
+			await assert.rejects(f.launcher.launch(f.plan(kind), testRuntime), /Policy unavailable/);
+			assert.deepStrictEqual(f.calls, ['policy']);
 		});
 	}
 
-	for (const scenario of ['create', 'resume', 'virtual-create', 'virtual-resume', 'policy-error', 'resume-policy-error'] as const) {
-		test(`prepares the same Microsoft session for policy and full configuration: ${scenario}`, async () => {
-			const kind = scenario.endsWith('resume') || scenario === 'resume-policy-error' ? 'resume' : 'create';
-			const failPolicy = scenario.includes('policy-error');
-			const calls: string[] = [];
-			const storage: (boolean | undefined)[] = [];
-			const workingDirectory = scenario.startsWith('virtual') ? URI.parse('vscode-vfs://github/microsoft/vscode') : testWorkingDirectory;
-			const workspace = toCopilotWorkspace(workingDirectory);
-			const sessionFs = workspace.kind === 'virtual'
-				? new CopilotVirtualSessionFs(workspace, '/session-state', URI.file('/copilot-home/session-state/account-chat'), () => undefined, upcastPartial<IFileService>({})) : undefined;
-			const context: Extract<CopilotAccountContext, { kind: 'ready' }> = {
-				kind: 'ready', entraAccountId: 'identity',
-				choice: { service: 'm365', selectionId: 'selected', host: 'https://m365.example', accountName: 'account', resource: 'https://m365.example' },
-			};
-			const policy = await createUnmanagedCopilotSettings().resolve({});
-			const session = upcastPartial<CopilotSession>({
-				sessionId: 'account-chat', on: () => () => { },
-				disconnect: async () => { calls.push('disconnect'); },
-				rpc: upcastPartial<CopilotSession['rpc']>({
-					agent: upcastPartial<CopilotSession['rpc']['agent']>({ list: async () => { calls.push('agents'); return { agents: [] }; } }),
-					options: { update: async () => ({ success: true }) },
-					managedSettings: upcastPartial<CopilotSession['rpc']['managedSettings']>({
-						get: async () => { assert.fail('Conversation policy must use the runtime-wide resolver'); },
-					}),
-				}),
-			});
-			const client = returningSession(session, config => { calls.push('configure'); storage.push(config?.enableSessionStore); });
-			client.createSession = async () => { assert.fail('Must configure the authenticated session'); };
-			client.deleteSession = async () => { calls.push('delete'); };
-			client.rpc.managedSettings.resolve = async request => {
-				calls.push('policy');
-				assert.deepStrictEqual(request, {
-					clientName: 'vscode-agent-host',
-					...(workspace.kind !== 'virtual' ? { workingDirectory: workingDirectory.fsPath } : {}),
-				});
-				if (failPolicy) {
-					throw new Error('Policy unavailable');
-				}
-				return policy;
-			};
-			const accounts = upcastPartial<ICopilotAccountService>({
-				state: upcastPartial<ICopilotAccountService['state']>({ get: () => context }),
-				requireReady: () => context,
-				openSession: async (_client, options) => {
-					assert.deepStrictEqual({ kind: options.kind, directory: options.workingDirectory, filesystem: options.sessionFs }, {
-						kind, directory: sessionFs?.pathMapper.rootSdkPath ?? workingDirectory.fsPath, filesystem: sessionFs,
-					});
-					storage.push(options.enableSessionStore);
-					calls.push('authenticate');
-					return { session, context };
-				},
-			});
-			const launcher = createTestLauncher(undefined, undefined, undefined, undefined, undefined, undefined, undefined, accounts);
-			const base = {
-				client, sessionId: session.sessionId, workingDirectory, workspace, virtualSessionFs: sessionFs, isEphemeral: true, resolvedAgentName: undefined,
-				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
-				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
-				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
-			};
-			const plan: CopilotSessionLaunchPlan = kind === 'create' ? { ...base, kind, model: undefined } : { ...base, kind, fallback: { model: undefined } };
-			let microsoft: boolean | undefined;
-			if (failPolicy) {
-				await assert.rejects(launcher.launch(plan, testRuntime), /Policy unavailable/);
-			} else {
-				microsoft = store.add(await launcher.launch(plan, testRuntime)).usesMicrosoftAuthentication;
-			}
-			assert.deepStrictEqual({ calls, storage, microsoft }, failPolicy
-				? { calls: ['authenticate', 'policy', 'disconnect', ...(kind === 'create' ? ['delete'] : [])], storage: [false], microsoft: undefined }
-				: { calls: ['authenticate', 'policy', 'configure', 'agents'], storage: [false, false], microsoft: true });
+	test('the launch plan, not the selected account, decides how a session signs in', async () => {
+		const withoutAccount = setup();
+		store.add(await withoutAccount.launcher.launch(withoutAccount.plan('create', false), testRuntime));
+		const replaced = setup();
+		replaced.selected.account = { ...context };
+		await assert.rejects(replaced.launcher.launch(replaced.plan('create'), testRuntime), isCancellationError);
+		assert.deepStrictEqual({ withoutAccount: withoutAccount.calls, replaced: replaced.calls }, {
+			withoutAccount: ['policy', 'create', 'agents'], replaced: ['policy'],
 		});
-	}
+	});
 
-	for (const phase of ['open', 'configure'] as const) {
-		test(`Microsoft resume does not create or log in after an ${phase} history error`, async () => {
-			const context: Extract<CopilotAccountContext, { kind: 'ready' }> = {
-				kind: 'ready', entraAccountId: 'identity',
-				choice: { service: 'm365', selectionId: 'selected', host: 'https://m365.example', accountName: 'account', resource: 'https://m365.example' },
-			};
-			const calls: string[] = [];
-			const failure = Object.assign(new Error('Session not found'), { code: -32603 });
-			const session = upcastPartial<CopilotSession>({
-				sessionId: 'saved-chat', disconnect: async () => { calls.push('disconnect'); },
-			});
-			const accounts = upcastPartial<ICopilotAccountService>({
-				state: upcastPartial<ICopilotAccountService['state']>({ get: () => context }),
-				requireReady: () => context,
-				openSession: async (_client, options) => {
-					calls.push(options.kind);
-					if (phase === 'open') { throw failure; }
-					return { session, context };
-				},
-			});
-			const client = new class extends mock<CopilotClient>() {
-				override get rpc() {
-					return upcastPartial<CopilotClient['rpc']>({ managedSettings: createUnmanagedCopilotSettings() });
-				}
-				override async createSession(): Promise<CopilotSession> { throw new Error('Resume must not replace history'); }
-				override async resumeSession(): Promise<CopilotSession> { calls.push('configure'); throw failure; }
-				override async deleteSession() { assert.fail('Resume must not delete history'); }
-			}();
-			const launcher = createTestLauncher(undefined, undefined, undefined, undefined, undefined, undefined, undefined, accounts);
-			await assert.rejects(launcher.launch({
-				kind: 'resume', client, sessionId: session.sessionId, workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
-				fallback: { model: undefined }, snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
-				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
-				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
-			}, testRuntime), failure);
-			assert.deepStrictEqual(calls, phase === 'open' ? ['resume'] : ['resume', 'configure', 'disconnect']);
-		});
-	}
+	test('a new session that cannot be signed in is disconnected and deleted', async () => {
+		const f = setup();
+		f.accounts.authenticateSession = async () => { f.calls.push('authenticate'); throw new Error('Login rejected'); };
+		await assert.rejects(f.launcher.launch(f.plan('create'), testRuntime), /Login rejected/);
+		assert.deepStrictEqual(f.calls, ['policy', 'create', 'authenticate', 'disconnect', 'delete']);
+	});
+
+	test('an account change while a signed-in session is finalized disconnects it', async () => {
+		const f = setup();
+		f.accounts.authenticateSession = async () => { f.calls.push('authenticate'); f.selected.account = { kind: 'legacy' }; };
+		await assert.rejects(f.launcher.launch(f.plan('create'), testRuntime), isCancellationError);
+		assert.deepStrictEqual(f.calls, ['policy', 'create', 'authenticate', 'agents', 'disconnect']);
+	});
+
+	test('resume does not create, sign in or delete history after a history error', async () => {
+		const f = setup();
+		const failure = Object.assign(new Error('Session not found'), { code: -32603 });
+		f.client.resumeSession = async () => { f.calls.push('resume'); throw failure; };
+		await assert.rejects(f.launcher.launch(f.plan('resume'), testRuntime), failure);
+		assert.deepStrictEqual(f.calls, ['policy', 'resume']);
+	});
 });
 
 suite('CopilotSessionLauncher sandbox policy', () => {

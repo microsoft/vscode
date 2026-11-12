@@ -7,7 +7,7 @@ import assert from 'assert';
 import { once } from 'events';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, CopilotRequestHandler, RuntimeConnection } from '@github/copilot-sdk';
+import { CopilotClient, CopilotRequestHandler, RuntimeConnection, type CopilotSession } from '@github/copilot-sdk';
 import { join } from '../../../../../base/common/path.js';
 import { isLinux } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -153,14 +153,20 @@ suite('Copilot account context native SDK', () => {
 				client, sessionId: 'account-conversation', workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
 				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
-				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined), accountContext: context,
+			};
+			const activeAccount = async (session: CopilotSession) => {
+				const active = await session.rpc.accounts.get({ query: { kind: 'activeAccount' } });
+				return active.kind === 'activeAccount' ? active.account?.kind : undefined;
 			};
 			const conversation = store.add(await launcher.launch({ ...plan, kind: 'create', model: { id: modelId } }, testRuntime));
 			assert.deepStrictEqual({ requests: policyRequests, completions: policyCompletions }, {
 				requests: [{ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath }], completions: 1,
 			});
+			const conversationAccount = await activeAccount(conversation.session);
 			const conversationModels = toCopilotAccountModelCatalog(await conversation.session.rpc.model.list());
 			const resumed = store.add(await launcher.launch({ ...plan, kind: 'resume', fallback: { model: { id: modelId } } }, testRuntime));
+			const resumedAccount = await activeAccount(resumed.session);
 			const resumedModels = toCopilotAccountModelCatalog(await resumed.session.rpc.model.list());
 			const currentModel = await resumed.session.rpc.model.getCurrent();
 			const tools = await resumed.session.rpc.tools.getBuiltinDescriptors({});
@@ -171,7 +177,7 @@ suite('Copilot account context native SDK', () => {
 				setupModels: catalog.models.map(model => model.id),
 				conversationModels: conversationModels.models.map(model => model.id),
 				resumedModels: resumedModels.models.map(model => model.id),
-				configured: conversation.usesMicrosoftAuthentication && resumed.usesMicrosoftAuthentication,
+				conversationAccount, resumedAccount,
 				selectedModel: currentModel.modelId,
 				readToolAvailable: tools.tools.some(tool => tool.name === 'view'),
 				policyRequests,
@@ -182,7 +188,7 @@ suite('Copilot account context native SDK', () => {
 				authenticatedRequests: requests.every(request => request.authenticated),
 			}, {
 				service: 'm365', setupModels: [modelId], conversationModels: [modelId], resumedModels: [modelId],
-				configured: true,
+				conversationAccount: 'loki', resumedAccount: 'loki',
 				selectedModel: modelId, readToolAvailable: true,
 				policyRequests: Array.from({ length: 2 }, () => ({ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath })),
 				policyCompletions: 2,
