@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { IStateService } from '../../state/node/state.js';
 import { IWindowFolderLocation } from '../../window/common/window.js';
@@ -22,13 +23,13 @@ export class FolderLocationMemory {
 	constructor(private readonly stateService: Pick<IStateService, 'getItem' | 'setItem'>) { }
 
 	get(primary: URI): IWindowFolderLocation | undefined {
-		const candidate = this.read()[primary.toString()];
+		const candidate = this.read()[extUriBiasedIgnorePathCase.getComparisonKey(primary)];
 		return isWindowFolderLocation(candidate) ? candidate : undefined;
 	}
 
 	set(primary: URI, location: IWindowFolderLocation | undefined): void {
 		const entries = this.read();
-		const key = primary.toString();
+		const key = extUriBiasedIgnorePathCase.getComparisonKey(primary);
 		if (!location && entries[key] === undefined) {
 			return;
 		}
