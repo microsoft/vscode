@@ -14,6 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { AgentMessageProvenance } from './agentMessageProvenance.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
@@ -1034,6 +1035,11 @@ export interface IAgentChatContext {
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
+	/**
+	 * Who authored the message of the current send, resolved by the host and supplied only for that send.
+	 * Providers pass it to their runtime instead of presenting every message as the user's.
+	 */
+	readonly messageProvenance?: AgentMessageProvenance;
 	/**
 	 * The VS Code chat surface the owning session was created for, from its surface
 	 * metadata. Supplied at each operation, so a runtime that replaces the chat's
@@ -2167,8 +2173,9 @@ export interface IAgent {
 	 * Hands off one independent submission without replacing the legacy slot; false defers until ready.
 	 * A promise that resolves false hands the message back unsent, for example because the turn it was
 	 * meant to steer ended first. The host then keeps it pending and runs it as the next turn.
+	 * `provenance` is who authored the message, as the host resolved it.
 	 */
-	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean>;
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender, provenance?: AgentMessageProvenance): boolean | void | Promise<boolean>;
 
 	/**
 	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
