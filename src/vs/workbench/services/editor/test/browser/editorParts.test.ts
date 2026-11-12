@@ -441,8 +441,10 @@ suite('Editor Parts', () => {
 			override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 				await super.setInput(input, options, context, token);
 				await timeout(10);
+				this.ready = true;
 			}
-			override focus(): void { this.field?.focus(); }
+			private ready = false;
+			override focus(): void { if (this.ready) { this.field?.focus(); } }
 			layout(): void { }
 		}
 		disposables.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(EditorPaneDescriptor.create(FocusableEditorPane, 'focusableEditorPane', 'Focusable'), [new SyncDescriptor(TestFileEditorInput)]));
