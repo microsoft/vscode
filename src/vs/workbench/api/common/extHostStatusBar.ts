@@ -13,7 +13,6 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { MarkdownString } from './extHostTypeConverters.js';
 import { isNumber } from '../../../base/common/types.js';
 import * as htmlContent from '../../../base/common/htmlContent.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 
 export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
@@ -42,8 +41,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _visible?: boolean;
 
 	private _text: string = '';
-	private _tooltip?: string | vscode.MarkdownString;
-	private _tooltip2?: string | vscode.MarkdownString | undefined | ((token: vscode.CancellationToken) => Promise<string | vscode.MarkdownString | undefined>);
+	private _tooltip?: vscode.StatusBarItem['tooltip'];
 	private _name?: string;
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
@@ -135,16 +133,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		return this._name;
 	}
 
-	public get tooltip(): vscode.MarkdownString | string | undefined {
+	public get tooltip(): vscode.StatusBarItem['tooltip'] {
 		return this._tooltip;
-	}
-
-	public get tooltip2(): vscode.MarkdownString | string | undefined | ((token: vscode.CancellationToken) => Promise<vscode.MarkdownString | string | undefined>) {
-		if (this._extension) {
-			checkProposedApiEnabled(this._extension, 'statusBarItemTooltip');
-		}
-
-		return this._tooltip2;
 	}
 
 	public get color(): string | ThemeColor | undefined {
@@ -173,17 +163,8 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		this.update();
 	}
 
-	public set tooltip(tooltip: vscode.MarkdownString | string | undefined) {
+	public set tooltip(tooltip: vscode.StatusBarItem['tooltip']) {
 		this._tooltip = tooltip;
-		this.update();
-	}
-
-	public set tooltip2(tooltip: vscode.MarkdownString | string | undefined | ((token: vscode.CancellationToken) => Promise<vscode.MarkdownString | string | undefined>)) {
-		if (this._extension) {
-			checkProposedApiEnabled(this._extension, 'statusBarItemTooltip');
-		}
-
-		this._tooltip2 = tooltip;
 		this.update();
 	}
 
@@ -289,11 +270,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 
 			let tooltip: undefined | string | htmlContent.IMarkdownString;
 			let hasTooltipProvider: boolean;
-			if (typeof this._tooltip2 === 'function') {
-				tooltip = MarkdownString.fromStrict(this._tooltip);
+			if (typeof this._tooltip === 'function') {
+				tooltip = undefined;
 				hasTooltipProvider = true;
 			} else {
-				tooltip = MarkdownString.fromStrict(this._tooltip2 ?? this._tooltip);
+				tooltip = MarkdownString.fromStrict(this._tooltip);
 				hasTooltipProvider = false;
 			}
 
@@ -383,7 +364,7 @@ export class ExtHostStatusBar implements ExtHostStatusBarShape {
 			return undefined;
 		}
 
-		const tooltip = typeof entry.tooltip2 === 'function' ? await entry.tooltip2(cancellation) : entry.tooltip2;
+		const tooltip = typeof entry.tooltip === 'function' ? await entry.tooltip(cancellation) : entry.tooltip;
 		return !cancellation.isCancellationRequested ? MarkdownString.fromStrict(tooltip) : undefined;
 	}
 

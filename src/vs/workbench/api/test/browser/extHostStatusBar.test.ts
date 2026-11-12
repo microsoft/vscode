@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
 import { timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -21,11 +22,13 @@ import { ExtHostStatusBarEntry } from '../../common/extHostStatusBar.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
 
-suite('ExtHostStatusBar command lifetime', () => {
+suite('ExtHostStatusBar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let commands: ExtHostCommands;
 	let item: ExtHostStatusBarEntry;
 	let displayedCommand: ICommandDto | undefined;
+	let displayedTooltip: Parameters<MainThreadStatusBarShape['$setEntry']>[5];
+	let hasTooltipProvider: boolean;
 
 	setup(() => {
 		commands = new ExtHostCommands(SingleProxyRPCProtocol(new class extends mock<MainThreadCommandsShape>() {
@@ -34,12 +37,28 @@ suite('ExtHostStatusBar command lifetime', () => {
 			override async $fireCommandActivationEvent(): Promise<void> { }
 		}), new NullLogService(), new class extends mock<IExtHostTelemetry>() { });
 		displayedCommand = undefined;
+		displayedTooltip = undefined;
+		hasTooltipProvider = false;
 		item = disposables.add(new ExtHostStatusBarEntry(new class extends mock<MainThreadStatusBarShape>() {
 			override $setEntry(...args: Parameters<MainThreadStatusBarShape['$setEntry']>): void {
+				displayedTooltip = args[5];
+				hasTooltipProvider = args[6];
 				displayedCommand = args[7];
 			}
 			override $disposeEntry(): void { }
 		}, commands.converter, new Map(), nullExtensionDescription, 'test.status'));
+	});
+
+	test('supports async tooltips through the stable tooltip property', async () => {
+		const provider = sinon.stub().resolves('Tooltip content');
+		item.tooltip = provider;
+		item.show();
+		await timeout(0);
+
+		assert.strictEqual(displayedTooltip, undefined);
+		assert.strictEqual(hasTooltipProvider, true);
+		assert.strictEqual(item.tooltip, provider);
+		assert.strictEqual(await provider(CancellationToken.None), 'Tooltip content');
 	});
 
 	test('replacing commands that were never published releases their arguments', () => {

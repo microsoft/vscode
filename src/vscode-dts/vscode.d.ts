@@ -7599,8 +7599,12 @@ declare module 'vscode' {
 
 		/**
 		 * The tooltip text when you hover over this entry.
+		 *
+		 * Can be a string or {@link MarkdownString}, or a provider function that
+		 * computes the tooltip when it is needed. The provider is called with a
+		 * {@link CancellationToken} and may return a {@link Thenable}.
 		 */
-		tooltip: string | MarkdownString | undefined;
+		tooltip: string | MarkdownString | undefined | ((token: CancellationToken) => ProviderResult<string | MarkdownString | undefined>);
 
 		/**
 		 * The foreground color for this entry.
