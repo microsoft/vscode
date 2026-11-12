@@ -47,7 +47,6 @@ export interface SectionHeader {
 }
 
 const trimDashesRegex = /^-+|-+$/g;
-const regionKeywordRegex = /region\b/i;
 
 const CHUNK_SIZE = 100;
 const MAX_SECTION_LINES = 5;
@@ -75,16 +74,22 @@ export function findSectionHeaders(model: ISectionHeaderFinderTarget, options: F
 function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSectionHeaderOptions): SectionHeader[] {
 	const regionHeaders: SectionHeader[] = [];
 	const endLineNumber = model.getLineCount();
+	const startMarker = options.foldingRules!.markers!.start;
+	// 'd' for the indices of a `label` group, without 'g' or 'y' so that every line is matched from its start
+	const regex = new RegExp(startMarker.source, startMarker.flags.replace(/[dgy]/g, '') + 'd');
 	for (let lineNumber = 1; lineNumber <= endLineNumber; lineNumber++) {
 		const lineContent = model.getLineContent(lineNumber);
-		const match = lineContent.match(options.foldingRules!.markers!.start);
+		const match = regex.exec(lineContent);
 		if (match) {
-			const label = getRegionLabel(lineContent, match[0].length, options.blockCommentEndToken);
-			if (label) {
-				const range = { startLineNumber: lineNumber, startColumn: label.offset + 1, endLineNumber: lineNumber, endColumn: lineContent.length + 1 };
+			// The label is the marker's `label` group if it has one, e.g. in `<!-- #region Label -->`,
+			// otherwise the text after the marker, e.g. in `// #region Label`
+			const labelIndices = match.indices?.groups?.['label'];
+			const [labelStart, labelEnd] = labelIndices ?? [match.index + match[0].length, lineContent.length];
+			const range = { startLineNumber: lineNumber, startColumn: labelStart + 1, endLineNumber: lineNumber, endColumn: labelEnd + 1 };
+			if (range.endColumn > range.startColumn) {
 				const sectionHeader = {
 					range,
-					...getHeaderText(label.text),
+					...getHeaderText(lineContent.substring(labelStart, labelEnd)),
 					shouldBeInComments: false
 				};
 				if (sectionHeader.text || sectionHeader.hasSeparatorLine) {
@@ -94,27 +99,6 @@ function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSe
 		}
 	}
 	return regionHeaders;
-}
-
-/**
- * Finds the label of a region marker. It is usually the text after the marker match, but some
- * markers consume the whole line, e.g. `<!-- #region Label -->` or `/* #region Label *\/`.
- * Then the label is the text after the `region` keyword, without the block comment end token.
- */
-function getRegionLabel(lineContent: string, matchLength: number, blockCommentEndToken: string | undefined): { text: string; offset: number } | undefined {
-	if (lineContent.substring(matchLength).trim()) {
-		return { text: lineContent.substring(matchLength), offset: matchLength };
-	}
-	const keyword = regionKeywordRegex.exec(lineContent.substring(0, matchLength));
-	if (!keyword) {
-		return undefined;
-	}
-	const keywordEnd = keyword.index + keyword[0].length;
-	let text = lineContent.substring(keywordEnd).trimEnd();
-	if (blockCommentEndToken && text.endsWith(blockCommentEndToken)) {
-		text = text.substring(0, text.length - blockCommentEndToken.length);
-	}
-	return text.trim() ? { text, offset: keywordEnd } : undefined;
 }
 
 export function collectMarkHeaders(model: ISectionHeaderFinderTarget, options: FindSectionHeaderOptions): SectionHeader[] {

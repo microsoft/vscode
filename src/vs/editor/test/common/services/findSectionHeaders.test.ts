@@ -548,41 +548,35 @@ suite('FindSectionHeaders', () => {
 		});
 	});
 
-	test('finds region section header labels inside markers that consume the whole line', () => {
-		const findRegionHeaders = (lines: string[], start: string, end: string, blockCommentStartToken?: string, blockCommentEndToken?: string) => findSectionHeaders(new TestSectionHeaderFinderTarget(lines), {
+	test('takes region section header labels from the `label` group of the folding start marker', () => {
+		const findRegionHeaders = (lines: string[], start: string) => findSectionHeaders(new TestSectionHeaderFinderTarget(lines), {
 			findRegionSectionHeaders: true,
 			findMarkSectionHeaders: false,
 			markSectionHeaderRegex: '',
-			foldingRules: { markers: { start: new RegExp(start), end: new RegExp(end) } },
-			blockCommentStartToken,
-			blockCommentEndToken,
-		}).map(h => ({ text: h.text, line: h.range.startLineNumber, startColumn: h.range.startColumn }));
+			foldingRules: { markers: { start: new RegExp(start), end: /^$/ } },
+		}).map(h => ({ text: h.text, line: h.range.startLineNumber, startColumn: h.range.startColumn, endColumn: h.range.endColumn }));
 
 		assert.deepStrictEqual({
 			html: findRegionHeaders([
 				'<!-- #region Html Section -->',
 				'<!-- #region -->',
 				'  <!--#region Indented-->',
-			], '^\\s*<!--\\s*#?region\\b.*-->', '^\\s*<!--\\s*#?endregion\\b.*-->', '<!--', '-->'),
+			], '^\\s*<!--\\s*#?region\\b\\s*(?<label>.*?)\\s*-->'),
 			css: findRegionHeaders([
 				'/* #region Css Section */',
 				'/* #region */',
-			], '^\\s*\\/\\*\\s*#region\\b\\s*(.*?)\\s*\\*\\/', '^\\s*\\/\\*\\s*#endregion\\b.*\\*\\/', '/*', '*/'),
-			shell: findRegionHeaders([
-				'# region Shell Section',
-			], '^\\s*#\\s*#?region\\b.*', '^\\s*#\\s*#?endregion\\b.*', undefined, undefined),
+			], '^\\s*\\/\\*\\s*#region\\b\\s*(?<label>.*?)\\s*\\*\\/'),
 			typescript: findRegionHeaders([
 				'// #region Ts Section',
 				'// #region',
-			], '^\\s*//\\s*#?region\\b', '^\\s*//\\s*#?endregion\\b', '/*', '*/'),
+			], '^\\s*//\\s*#?region\\b'),
 		}, {
 			html: [
-				{ text: 'Html Section', line: 1, startColumn: 13 },
-				{ text: 'Indented', line: 3, startColumn: 14 },
+				{ text: 'Html Section', line: 1, startColumn: 14, endColumn: 26 },
+				{ text: 'Indented', line: 3, startColumn: 15, endColumn: 23 },
 			],
-			css: [{ text: 'Css Section', line: 1, startColumn: 11 }],
-			shell: [{ text: 'Shell Section', line: 1, startColumn: 9 }],
-			typescript: [{ text: 'Ts Section', line: 1, startColumn: 11 }],
+			css: [{ text: 'Css Section', line: 1, startColumn: 12, endColumn: 23 }],
+			typescript: [{ text: 'Ts Section', line: 1, startColumn: 11, endColumn: 22 }],
 		});
 	});
 });
