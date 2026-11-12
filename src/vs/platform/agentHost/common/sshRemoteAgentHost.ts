@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { decodeHex } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -10,6 +11,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { AgentHostEndpointAddress, AgentHostServerType } from './agentHostEndpointRegistry.js';
 import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from './relayTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError } from './state/sessionTransport.js';
 
 export type { IRelayMessage } from './relayTransport.js';
 
@@ -93,6 +95,13 @@ export interface ISSHAgentHostConfig {
 	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
 }
 
+/** Configured hosts resolve their connection settings in the node-side connect attempt. */
+export type SSHAgentHostConnectionRequest = ISSHAgentHostConfig | {
+	readonly sshConfigHost: string;
+	readonly name: string;
+	readonly userInitiated?: boolean;
+};
+
 /**
  * Compute the stable per-host key used to key in-flight SSH connections,
  * the shared endpoint-selection request/candidates, and this host's
@@ -111,6 +120,66 @@ export function computeSSHConnectionKey(config: { sshConfigHost?: string; userna
 	return config.sshConfigHost
 		? `ssh:${config.sshConfigHost}`
 		: `${config.username}@${config.host}:${config.port ?? 22}`;
+}
+
+interface ISSHRemoteAuthority {
+	readonly hostName: string;
+	readonly user?: string;
+	readonly port?: number;
+}
+
+/** Parses the plain or hex-encoded authority used by Remote - SSH. */
+export function parseSSHRemoteAuthority(remoteAuthority: string): ISSHRemoteAuthority | undefined {
+	if (!remoteAuthority.startsWith('ssh-remote+')) {
+		return undefined;
+	}
+	const host = remoteAuthority.slice('ssh-remote+'.length);
+	return host ? readSSHAuthorityObject(host) ?? parseSSHHostString(host) : undefined;
+}
+
+/** The {@link computeSSHConnectionKey} of a Remote - SSH authority, keying the Agents Window's stored settings for that host. */
+export function getSSHRemoteAuthorityConnectionKey(remoteAuthority: string): string | undefined {
+	const ssh = parseSSHRemoteAuthority(remoteAuthority);
+	if (!ssh) {
+		return undefined;
+	}
+	if (ssh.user === undefined && ssh.port === undefined) {
+		return computeSSHConnectionKey({ sshConfigHost: ssh.hostName });
+	}
+	// Without the user, the key depends on SSH config that cannot be resolved here.
+	return ssh.user === undefined ? undefined : computeSSHConnectionKey({ host: ssh.hostName, username: ssh.user, port: ssh.port });
+}
+
+function readSSHAuthorityObject(host: string): ISSHRemoteAuthority | undefined {
+	try {
+		const value: { hostName?: unknown; user?: unknown; port?: unknown } = JSON.parse(decodeHex(host).toString());
+		if (typeof value?.hostName !== 'string' || !value.hostName) {
+			return undefined;
+		}
+		return {
+			hostName: value.hostName,
+			user: typeof value.user === 'string' && value.user ? value.user : undefined,
+			port: typeof value.port === 'number' ? value.port : undefined,
+		};
+	} catch {
+		// Plain host names are not hex-encoded JSON.
+		return undefined;
+	}
+}
+
+/** Mirrors `HostInfo.fromString` of Remote - SSH. An address with more than one colon is an IPv6 address. */
+function parseSSHHostString(host: string): ISSHRemoteAuthority {
+	const { user, address = host } = /^(?:(?<user>.*)@)?(?<address>.+?)$/.exec(host)?.groups ?? {};
+	const toPort = (port: string | undefined) => port ? parseInt(port, 10) : undefined;
+	const bracketed = /^\[(?<hostName>.+?)\](?::(?<port>\d+))?$/.exec(address)?.groups;
+	if (bracketed) {
+		return { hostName: bracketed.hostName, user: user || undefined, port: toPort(bracketed.port) };
+	}
+	if (address.indexOf(':') !== address.lastIndexOf(':')) {
+		return { hostName: address, user: user || undefined };
+	}
+	const withPort = /^(?<hostName>.+?)(?::(?<port>\d+))?$/.exec(address)?.groups;
+	return { hostName: withPort?.hostName ?? address, user: user || undefined, port: toPort(withPort?.port) };
 }
 
 /**
@@ -174,7 +243,7 @@ export interface ISSHRemoteAgentHostService {
 	 *
 	 * Resolves with the connection handle once the agent host is reachable.
 	 */
-	connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection>;
+	connect(config: SSHAgentHostConnectionRequest): Promise<ISSHAgentHostConnection>;
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
@@ -200,7 +269,7 @@ export interface ISSHRemoteAgentHostService {
 	 */
 	listSSHConfigFiles(): Promise<URI[]>;
 
-	/** Resolve full SSH config for a host via `ssh -G`. */
+	/** Resolve current SSH config for a host via a fresh `ssh -G` evaluation. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
 	/**
@@ -405,6 +474,21 @@ export function isSSHHostKeyDeniedError(error: unknown): boolean {
 	return error instanceof Error && error.name === SSH_HOST_KEY_DENIED_ERROR_NAME;
 }
 
+const SSH_AUTHENTICATION_FAILED_ERROR_NAME = 'SSHAuthenticationFailed';
+
+/** Authentication could not complete with the current credentials; retry requires user intervention. */
+export class SSHAuthenticationFailedError extends NonReconnectableTransportError {
+	constructor(message: string) {
+		super(message, AgentHostTransportFailureReason.SSHAuthenticationFailed);
+		this.name = SSH_AUTHENTICATION_FAILED_ERROR_NAME;
+	}
+}
+
+/** Identifies SSH authentication failure after IPC has discarded its prototype and reason. */
+export function isSSHAuthenticationFailedError(error: unknown): boolean {
+	return error instanceof Error && error.name === SSH_AUTHENTICATION_FAILED_ERROR_NAME;
+}
+
 /**
  * Request from the shared process for the renderer to decide whether a
  * server's host key should be trusted. Fired from ssh2's `hostVerifier` during
@@ -599,7 +683,7 @@ export interface ISSHRemoteAgentHostMainService {
 	/** List the known SSH configuration file URIs (user config always included). */
 	listSSHConfigFiles(): Promise<URI[]>;
 
-	/** Resolve full SSH config for a host via `ssh -G`. */
+	/** Resolve current SSH config for a host via a fresh `ssh -G` evaluation. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
 	/**

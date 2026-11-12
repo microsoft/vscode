@@ -12,6 +12,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { type AgentProvider, type IAgentPluginInstallation } from '../../../../platform/agentHost/common/agent.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -186,6 +187,8 @@ export interface IAgentHostMcpServer {
  * Adds remote connection properties and dynamic session configuration.
  */
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
+	readonly setPluginEnabled?: (provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>;
+	readonly listPluginInstallations?: (provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>;
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;

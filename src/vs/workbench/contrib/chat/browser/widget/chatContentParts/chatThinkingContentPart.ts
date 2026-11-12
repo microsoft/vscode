@@ -279,7 +279,6 @@ const enum WorkingMessageCategory {
 }
 
 export const defaultThinkingMessages = [
-	localize('chat.thinking.thinking.1', 'Thinking'),
 	localize('chat.thinking.thinking.2', 'Reasoning'),
 	localize('chat.thinking.thinking.3', 'Considering'),
 	localize('chat.thinking.thinking.4', 'Analyzing'),
@@ -3080,7 +3079,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this._titleDetailRendered.value = result;
 
 		const previousTitleDetail = this.titleDetailContainer;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const hasTitleLinks = result.element.querySelector('a') !== null;
 		// Titles with links sit beside the button so the links stay interactive.
 		this._collapseButton.element.parentElement?.classList.toggle('chat-thinking-title-beside-button', hasTitleLinks);

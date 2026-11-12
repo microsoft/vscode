@@ -24,6 +24,7 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { DockedEditorInput } from '../../../workbench/browser/parts/editor/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
+import { CHANGES_VIEW_CONTAINER_ID } from '../../../workbench/contrib/sessions/common/changes.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { FloatingAuxiliaryBarController } from '../floatingAuxiliaryBarController.js';
@@ -207,6 +208,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				isEnabled: () => layoutService.isAuxiliaryBarFloating(),
 				createController: () => this._instantiationService.createInstance(FloatingAuxiliaryBarController, this.element, this.auxiliaryBar, {
 					getTitle: () => this._getFloatingPanelTitle(),
+					isChangesViewActive: () => this.auxiliaryBar.getActivePaneComposite()?.getId() === CHANGES_VIEW_CONTAINER_ID,
 					getIcon: () => {
 						const composite = this.auxiliaryBar.getActivePaneComposite();
 						const icon = composite instanceof PaneComposite ? composite.getViewPaneContainer()?.viewContainer.icon : undefined;

@@ -34,7 +34,7 @@ import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
 import { ISessionAttentionService } from '../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
-import { SessionAttentionService } from './sessionAttentionService.js';
+import { SessionAttentionService } from '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
 import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);

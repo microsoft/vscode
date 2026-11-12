@@ -73,6 +73,10 @@ export interface ICustomizationItemAction {
 	readonly tooltip?: string;
 	readonly icon?: ThemeIcon;
 	readonly enabled?: boolean;
+	/** Checked state for an action that can also be presented as an inline toggle. */
+	readonly checked?: boolean;
+	/** Scope targeted by an inline enablement toggle or scope-changing action. */
+	readonly scope?: 'global' | 'workspace';
 	run(): void | Promise<void>;
 }
 

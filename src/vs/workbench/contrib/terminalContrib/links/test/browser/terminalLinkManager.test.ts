@@ -120,7 +120,7 @@ suite('TerminalLinkManager', () => {
 		});
 	});
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line ts-eslint-js/naming-convention
 	type TestableLinkManager = { _showHover: (...args: unknown[]) => IDisposable | undefined };
 
 	function overrideXtermEvent<T>(terminal: Terminal, eventName: string, handler: (listener: (e: T) => void) => IDisposable): IDisposable {

@@ -663,6 +663,42 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		});
 	});
 
+	test('overlay picker follows its anchor when the anchor is resized while open', async () => {
+		fixture.style.width = '600px';
+		fixture.style.height = '400px';
+		controller.layout({ width: 600, height: 400 }, 0);
+
+		const anchor = document.createElement('div');
+		anchor.style.position = 'absolute';
+		anchor.style.left = '80px';
+		anchor.style.top = '40px';
+		anchor.style.width = '300px';
+		anchor.style.height = '26px';
+		fixture.appendChild(anchor);
+
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.anchor = anchor;
+		quickpick.anchorPosition = 'overlay';
+		quickpick.show();
+
+		const input = fixture.querySelector<HTMLElement>('.quick-input-filter .monaco-inputbox')!;
+		const initialWidth = input.getBoundingClientRect().width;
+
+		anchor.style.width = '200px';
+		let frame = 0;
+		try {
+			await raceTimeout(new Promise<void>(resolve => {
+				const check = () => input.getBoundingClientRect().width === 200 ? resolve() : frame = mainWindow.requestAnimationFrame(check);
+				check();
+			}), 2000);
+		} finally {
+			mainWindow.cancelAnimationFrame(frame);
+		}
+
+		assert.deepStrictEqual({ initialWidth, resizedWidth: input.getBoundingClientRect().width }, { initialWidth: 300, resizedWidth: 200 });
+		quickpick.hide();
+	});
+
 	test('positions an anchored picker below its anchor when requested', () => {
 		fixture.style.width = '600px';
 		fixture.style.height = '400px';

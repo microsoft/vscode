@@ -12,6 +12,8 @@ export interface IAgentAuthenticationAccount {
 	readonly providerId: string;
 	readonly accountId: string;
 	readonly authorizationServer?: string;
+	/** Optional display metadata; never part of account identity or authorization. */
+	readonly label?: string;
 }
 
 export function readAuthenticationAccount(source: { readonly _meta?: Record<string, unknown> }): IAgentAuthenticationAccount | undefined {
@@ -22,13 +24,15 @@ export function readAuthenticationAccount(source: { readonly _meta?: Record<stri
 	const raw = value as Record<string, unknown>;
 	if (typeof raw.providerId !== 'string' || !raw.providerId
 		|| typeof raw.accountId !== 'string' || !raw.accountId
-		|| (raw.authorizationServer !== undefined && typeof raw.authorizationServer !== 'string')) {
+		|| (raw.authorizationServer !== undefined && typeof raw.authorizationServer !== 'string')
+		|| (raw.label !== undefined && typeof raw.label !== 'string')) {
 		return undefined;
 	}
 	return {
 		providerId: raw.providerId,
 		accountId: raw.accountId,
 		...(typeof raw.authorizationServer === 'string' ? { authorizationServer: raw.authorizationServer } : {}),
+		...(typeof raw.label === 'string' && raw.label.trim() ? { label: raw.label } : {}),
 	};
 }
 

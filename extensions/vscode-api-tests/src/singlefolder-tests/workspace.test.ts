@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { basename, join, posix } from 'path';
 import * as vscode from 'vscode';
 import { TestFS } from '../memfs';
-import { assertNoRpc, closeAllEditors, createRandomFile, delay, deleteFile, disposeAll, Mutable, pathEquals, revertAllDirty, rndName, testFs, withLogDisabled } from '../utils';
+import { assertNoRpc, closeAllEditors, createRandomFile, DeferredPromise, delay, deleteFile, disposeAll, Mutable, pathEquals, poll, revertAllDirty, rndName, testFs, withLogDisabled } from '../utils';
 
 suite('vscode API - workspace', () => {
 
@@ -556,6 +556,55 @@ suite('vscode API - workspace', () => {
 
 			emitter.fire(doc.uri);
 		});
+	});
+
+	test('registerTextDocumentContentProvider, refreshes independent documents concurrently', async function () {
+		const emitter = new vscode.EventEmitter<vscode.Uri>();
+		const firstContent = new DeferredPromise<string>();
+		const slowContent = new DeferredPromise<string>();
+		const slowStarted = new DeferredPromise<void>();
+		let refreshing = false;
+		const registration = vscode.workspace.registerTextDocumentContentProvider('independent-content', {
+			onDidChange: emitter.event,
+			provideTextDocumentContent(uri) {
+				if (!refreshing) {
+					return 'initial';
+				}
+				if (uri.path === '/first') {
+					return firstContent.p;
+				}
+				if (uri.path === '/slow') {
+					slowStarted.complete();
+					return slowContent.p;
+				}
+				return 'updated';
+			}
+		});
+
+		try {
+			const [first, slow, fast] = await Promise.all([
+				vscode.workspace.openTextDocument(vscode.Uri.parse('independent-content:/first')),
+				vscode.workspace.openTextDocument(vscode.Uri.parse('independent-content:/slow')),
+				vscode.workspace.openTextDocument(vscode.Uri.parse('independent-content:/fast'))
+			]);
+			refreshing = true;
+			emitter.fire(first.uri);
+			emitter.fire(slow.uri);
+			emitter.fire(fast.uri);
+			try {
+				await firstContent.complete('updated');
+				await poll(async () => slowStarted.isResolved, started => started, 'Slow refresh did not start', 50, 100);
+				await poll(async () => fast.getText(), text => text === 'updated', 'Independent document is blocked by the slow refresh', 50, 100);
+				assert.deepStrictEqual([slow.getText(), fast.getText(), slowContent.isSettled], ['initial', 'updated', false]);
+			} finally {
+				await firstContent.complete('updated');
+				await slowContent.complete('updated');
+				await poll(async () => [first.getText(), slow.getText(), fast.getText()], texts => texts.every(text => text === 'updated'), 'Pending refreshes did not finish', 50, 100);
+			}
+		} finally {
+			registration.dispose();
+			emitter.dispose();
+		}
 	});
 
 	test('findFiles', () => {

@@ -819,7 +819,7 @@ export class SessionChatInputToolbar extends Disposable {
 	}
 
 	getChatPetPlatformElements(): readonly HTMLElement[] {
-		return this._inputPills.getPillElements();
+		return this._inputPills.getPillItemElements();
 	}
 
 	focusFirst(): boolean {

@@ -37,6 +37,7 @@ import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNotice
 import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostCopilotExtensionsCapabilityMetaKey } from './meta/agentHostCopilotExtensionsMeta.js';
+import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from './meta/agentHostGitHubEnvironmentMeta.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, supportsAgentHostCreateSessionImport };
@@ -87,6 +88,20 @@ export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDisk
 export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString(), session: vOptionalProp(vString()) });
 export const cancelWorktreeDiskUsageParamsValidator = vObj({ requestId: vString() });
 export const ImportSessionExtensionMethod = 'vscode/importSession';
+/**
+ * Registers the host as a live GitHub environment owned by the client's GitHub account, so other GitHub
+ * environment clients can reach it. Gated by `vscode.githubEnvironment`; only direct (non-relayed) clients may call it.
+ */
+export const RegisterGitHubEnvironmentExtensionMethod = 'vscode/registerGitHubEnvironment';
+/** Withdraws a registration made with {@link RegisterGitHubEnvironmentExtensionMethod} for the same account. */
+export const UnregisterGitHubEnvironmentExtensionMethod = 'vscode/unregisterGitHubEnvironment';
+/**
+ * Host → client: the host's GitHub environment status changed, for example because another client registered or
+ * unregistered it. Sent before the response of the request that caused it; params are an `IAgentHostGitHubEnvironmentStatus`.
+ */
+export const GitHubEnvironmentChangedNotification = 'vscode/githubEnvironment/changed';
+export const registerGitHubEnvironmentParamsValidator = vObj({ accountId: vString(), credential: vString() });
+export const unregisterGitHubEnvironmentParamsValidator = vObj({ accountId: vString() });
 /**
  * Moves a single-chat session under another session (Block 4); advertised by `vscode.sessionMove` whether or not moving
  * chats is enabled, which can change after a client connected. A move while it is off is refused with `disabled`.
@@ -145,6 +160,8 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	/** Present when the host serves the client's proxy support and accepts `vscode/clientProxyChanged`. */
 	readonly [AgentHostClientProxyCapabilityMetaKey]?: true;
 	readonly [AgentHostCopilotExtensionsCapabilityMetaKey]?: true;
+	/** Present when this direct client may register the host as a GitHub environment; the host's current status. */
+	readonly [AgentHostGitHubEnvironmentCapabilityMetaKey]?: IAgentHostGitHubEnvironmentStatus;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
 	readonly [AgentHostAutonomousAutomationsCapabilityMetaKey]?: true;
 	/** Present when removing an Automation can keep or delete its run history. */
@@ -285,6 +302,11 @@ export interface IAgentHostAgentExtensionInventoryResult {
 	}[];
 }
 
+export interface IAgentHostGitHubEnvironmentRegistration {
+	readonly environmentId?: string;
+	readonly name: string;
+}
+
 export interface IAgentHostExtensionCommandMap {
 	[ListManagedWorktreesExtensionMethod]: {
 		params: ValidatorType<typeof listManagedWorktreesParamsValidator>;
@@ -309,6 +331,14 @@ export interface IAgentHostExtensionCommandMap {
 	};
 	[CancelWorktreeDiskUsageExtensionMethod]: {
 		params: ValidatorType<typeof cancelWorktreeDiskUsageParamsValidator>;
+		result: void;
+	};
+	[RegisterGitHubEnvironmentExtensionMethod]: {
+		params: ValidatorType<typeof registerGitHubEnvironmentParamsValidator>;
+		result: IAgentHostGitHubEnvironmentRegistration;
+	};
+	[UnregisterGitHubEnvironmentExtensionMethod]: {
+		params: ValidatorType<typeof unregisterGitHubEnvironmentParamsValidator>;
 		result: void;
 	};
 	[InstallSandboxCertificateExtensionMethod]: { params: ValidatorType<typeof sandboxCertificateParamsValidator>; result: void };
@@ -395,6 +425,7 @@ export interface IAgentHostExtensionCommandMap {
 
 export interface IAgentHostExtensionNotificationMap {
 	[ArtifactIntegrationUpdateNotification]: ArtifactIntegrationUpdate;
+	[GitHubEnvironmentChangedNotification]: IAgentHostGitHubEnvironmentStatus;
 	[DevContainerRelayMessageNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
