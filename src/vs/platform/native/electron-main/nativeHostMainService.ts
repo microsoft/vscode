@@ -35,7 +35,7 @@ import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -115,7 +115,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			);
 
 			this.onDidChangeWindowAlwaysOnTop = Event.any(
-				Event.None, // always on top is unsupported in main windows currently
+				Event.map(this.windowsMainService.onDidChangeAlwaysOnTop, e => ({ windowId: e.window.id, alwaysOnTop: e.alwaysOnTop })),
 				Event.map(this.auxiliaryWindowsMainService.onDidChangeAlwaysOnTop, e => ({ windowId: e.window.id, alwaysOnTop: e.alwaysOnTop }))
 			);
 
@@ -419,6 +419,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async maximizeWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // maximize() would reveal the window
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.maximize();
 	}
@@ -434,6 +438,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async moveWindowTop(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // moveTop() would reveal the window
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.moveTop();
 	}
@@ -540,7 +548,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		this.logService.trace(`Setting background throttling for window ${windowId} to '${allowed}'`);
 
-		window?.win?.webContents?.setBackgroundThrottling(allowed);
+		window?.win?.webContents?.setBackgroundThrottling(isBackgroundThrottlingAllowed(this.environmentMainService, allowed));
 	}
 
 	//#endregion
@@ -1289,16 +1297,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private contentTracingWindowId: number | undefined;
 
 	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // undocked DevTools would be shown and activate the application
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.webContents.openDevTools(options?.mode ? { mode: options.mode, activate: options.activate } : undefined);
 	}
 
 	async toggleDevTools(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // undocked DevTools would be shown and activate the application
+		}
+
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.win?.webContents.toggleDevTools();
 	}
 
 	async openDevToolsWindow(windowId: number | undefined, url: string): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
 		const parentWindow = this.codeWindowById(windowId);
 		if (!parentWindow) {
 			return;
@@ -1326,6 +1346,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
 		const parentWindow = this.codeWindowById(windowId);
 		if (!parentWindow) {
 			return;
@@ -1348,6 +1372,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openContentTracingWindow(): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // the window would be shown and focused
+		}
+
 		if (typeof this.contentTracingWindowId !== 'number') {
 			// Disable ready-to-show event with paintWhenInitiallyHidden to
 			// customize content tracing window below.

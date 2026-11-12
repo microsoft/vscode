@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/artifactIntegrations.css';
-import { $, append, isAncestorOfActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { $, append, isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { Action, toAction } from '../../../../../base/common/actions.js';
@@ -53,12 +53,18 @@ export function createArtifactOpenAction(entry: IChatPillEntry): IChatPillAction
 	});
 }
 
+/** The accessible name of an artifact's main part, which opens its resource. */
+export function getArtifactOpenAriaLabel(label: string): string {
+	return localize('artifactOpenMain', "Open {0}", label);
+}
+
 /**
- * The status sections an artifact shows beside its main part: each integration section, a Sign In section while
- * authentication is required, and the number of enabled Autopilot rules. Activating one opens the artifact's
- * details on the matching list, action or Autopilot.
+ * The status sections an artifact shows beside its main part, which opens its resource: each integration section, a
+ * Sign In section while authentication is required, and the number of enabled Autopilot rules. Activating one opens
+ * the artifact's details on the matching list, action or Autopilot. Without any, a Details section toggles the
+ * artifact's details, so they stay reachable.
  */
-export function getArtifactStatusButtons(presentation: ArtifactIntegrationPresentation, snapshot: ArtifactSnapshot, expanded: boolean, open: (target: HTMLElement, selection: ArtifactDetailsSelection) => void): IArtifactButton[] {
+export function getArtifactStatusButtons(presentation: ArtifactIntegrationPresentation, snapshot: ArtifactSnapshot, expanded: boolean, open: (target: HTMLElement, selection: ArtifactDetailsSelection | undefined) => void): IArtifactButton[] {
 	const controls = presentation.detailsHost.id;
 	const buttons: IArtifactButton[] = snapshot.contributions.flatMap(contribution => contribution.view.sections.map(section => ({
 		id: JSON.stringify([contribution.integrationId, section.id]), label: section.label, icon: icon(section.icon),
@@ -86,6 +92,16 @@ export function getArtifactStatusButtons(presentation: ArtifactIntegrationPresen
 			ariaLabel: localize('artifactShowAutomations', "Show Autopilot: {0} enabled", enabledAutomations),
 			expanded, controls,
 			run: target => open(target, 'autopilot'),
+		});
+	}
+	if (buttons.length === 0) {
+		const main = getArtifactMainContribution(snapshot)?.view.main;
+		buttons.push({
+			id: 'artifact-details', label: localize('artifactDetails', "Details"), icon: Codicon.chevronDown, iconOnly: true,
+			description: localize('artifactDetailsDescription', "Show Details"),
+			ariaLabel: localize('artifactShowDetails', "Show artifact details: {0}", main?.description ?? main?.label ?? snapshot.artifact.label),
+			expanded, controls,
+			run: target => open(target, undefined),
 		});
 	}
 	return buttons;
@@ -119,13 +135,7 @@ export class ArtifactIntegrationPresentation extends Disposable {
 				})),
 			};
 		});
-		this.action = this._register(new Action(`artifactIntegration.${model.snapshot.get().artifact.id}`, model.snapshot.get().artifact.label, undefined, true,
-			async target => {
-				if (!isHTMLElement(target)) {
-					throw new Error(localize('artifactDetailsTargetUnavailable', "The artifact details button is no longer available."));
-				}
-				detailsHost.toggle(this, target);
-			}));
+		this.action = this._register(new Action(`artifactIntegration.${model.snapshot.get().artifact.id}`, model.snapshot.get().artifact.label, undefined, true, async () => this.open()));
 		this.inlinePill = this.createPill(constObservable(undefined));
 		this._register(toDisposable(() => detailsHost.release(this)));
 	}
@@ -168,6 +178,22 @@ export class ArtifactIntegrationPresentation extends Disposable {
 
 	get baseEntry(): IChatPillEntry | undefined {
 		return this.entry;
+	}
+
+	/**
+	 * Opens the artifact's resource through its undecorated entry, which records the open; before an entry is known,
+	 * opens the recorded resource directly.
+	 */
+	open(): void {
+		const entry = this.entry;
+		if (entry) {
+			entry.open();
+			return;
+		}
+		const resource = this.model.snapshot.get().artifact.resource;
+		void this.run(async () => {
+			await this.openerService.open(resource, { openExternal: true, allowContributedOpeners: true, fromUserGesture: true });
+		});
 	}
 
 	/** `input` is passed to the action, for example the details item it runs for. */
@@ -243,27 +269,22 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 			const selected = host.selected.read(reader) === this.presentation;
 			this.updateLabel();
 			this.updateAriaLabel();
+			const description = this.mainDescription();
+			if (description !== this.getLabelText()) {
+				this.button!.element.setAttribute('aria-description', description);
+			} else {
+				this.button!.element.removeAttribute('aria-description');
+			}
 			this.element!.classList.toggle('artifact-pill-selected', selected);
-			this.button!.element.setAttribute('aria-haspopup', 'dialog');
-			this.button!.element.setAttribute('aria-expanded', String(selected));
-			this.button!.element.setAttribute('aria-controls', host.id);
-			this.button!.element.dataset.artifactDetailsOwner = host.id;
+			// Autopilot and Details can disappear while the details they opened are shown, so those return focus to the main part.
 			const sections = getArtifactStatusButtons(this.presentation, snapshot, selected, (target, selection) =>
-				host.toggle(this.presentation, selection === 'autopilot' ? this.button!.element : target, selection));
+				host.toggle(this.presentation, selection === 'autopilot' || selection === undefined ? this.button!.element : target, selection));
 			this.sections!.update(sections);
 			this.element!.classList.toggle('chat-pill-segmented', sections.length > 0);
 			// Its own surface's trailing action, else that of the pill showing it as a lone entry, such as a pinned entry's Unpin.
 			const trailing = this.trailingAction.read(reader);
 			this.updatePromotedAction(trailing ?? this.inlineOptions.promotedAction?.read(reader), trailing ? Codicon.unpin : this.inlineOptions.promotedActionIcon, this.hoverService);
 		}));
-	}
-
-	protected override onDidClickButton(): void {
-		void this.actionRunner.run(this._action, this.button!.element);
-	}
-
-	protected override hasOpenDropdown(): boolean {
-		return this.presentation.detailsHost.selected.get() === this.presentation;
 	}
 
 	protected override getLabelText(): string {
@@ -281,7 +302,7 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	}
 
 	protected override getAriaLabel(): string {
-		return localize('artifactShowDetails', "Show artifact details: {0}", this.mainDescription());
+		return getArtifactOpenAriaLabel(this.getLabelText());
 	}
 
 	protected override updateTooltip(): void { }

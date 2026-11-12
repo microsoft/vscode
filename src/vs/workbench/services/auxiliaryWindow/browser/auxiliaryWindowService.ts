@@ -48,6 +48,7 @@ export interface IAuxiliaryWindowOpenOptions {
 
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
+	/** Initial state; native windows inherit the main window's current state when omitted. */
 	readonly alwaysOnTop?: boolean;
 
 	readonly nativeTitlebar?: boolean;
