@@ -29,6 +29,7 @@ import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnv
 import { toCopilotAccountModelCatalog } from '../../../node/copilot/copilotAccountModelCatalog.js';
 import { CopilotGitHubSessionCredentials } from '../../../node/copilot/copilotGitHubCredentials.js';
 import { createTestLauncher, testRuntime } from '../copilotSessionLauncherTestHelpers.js';
+import type { CopilotSessionLaunchPlan } from '../../../node/copilot/copilotSessionLauncher.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
 class LocalAccountRequests extends CopilotRequestHandler {
@@ -149,8 +150,15 @@ suite('Copilot account context native SDK', () => {
 				return result;
 			};
 			const launcher = createTestLauncher(undefined, {}, undefined, undefined, undefined, undefined, undefined, accounts);
+			const opens: string[] = [];
 			const plan = {
-				client, sessionId: 'account-conversation', workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
+				client: {
+					rpc: client.rpc,
+					createSession: config => { opens.push(`create:${config?.sessionId}`); return runtime.createSession(config); },
+					resumeSession: (id, config) => { opens.push(`resume:${id}`); return runtime.resumeSession(id, config); },
+					deleteSession: id => runtime.deleteSession(id),
+				} satisfies CopilotSessionLaunchPlan['client'],
+				sessionId: 'account-conversation', workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
 				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
 				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined), accountContext: context,
@@ -172,7 +180,17 @@ suite('Copilot account context native SDK', () => {
 			const tools = await resumed.session.rpc.tools.getBuiltinDescriptors({});
 			await resumed.session.disconnect();
 			await client.deleteSession('account-conversation');
+			// A conversation closed before its first message has no history, so the runtime rejects its resume and a replacement is created and signed in.
+			const draftPlan = { ...plan, sessionId: 'account-draft' };
+			const draft = store.add(await launcher.launch({ ...draftPlan, kind: 'create', model: { id: modelId } }, testRuntime));
+			await draft.disconnect();
+			const reopened = store.add(await launcher.launch({ ...draftPlan, kind: 'resume', fallback: { model: { id: modelId } } }, testRuntime));
+			const reopenedAccount = await activeAccount(reopened.session);
+			const reopenedModels = toCopilotAccountModelCatalog(await reopened.session.rpc.model.list());
+			await reopened.session.disconnect();
+			await client.deleteSession('account-draft');
 			assert.deepStrictEqual({
+				opens, reopenedAccount, reopenedModels: reopenedModels.models.map(model => model.id),
 				service: context.choice.service,
 				setupModels: catalog.models.map(model => model.id),
 				conversationModels: conversationModels.models.map(model => model.id),
@@ -187,11 +205,13 @@ suite('Copilot account context native SDK', () => {
 				catalogFetched: requests.some(request => request.path === '/models'),
 				authenticatedRequests: requests.every(request => request.authenticated),
 			}, {
+				opens: ['create:account-conversation', 'resume:account-conversation', 'create:account-draft', 'resume:account-draft', 'create:account-draft'],
+				reopenedAccount: 'loki', reopenedModels: [modelId],
 				service: 'm365', setupModels: [modelId], conversationModels: [modelId], resumedModels: [modelId],
 				conversationAccount: 'loki', resumedAccount: 'loki',
 				selectedModel: modelId, readToolAvailable: true,
-				policyRequests: Array.from({ length: 2 }, () => ({ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath })),
-				policyCompletions: 2,
+				policyRequests: Array.from({ length: 4 }, () => ({ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath })),
+				policyCompletions: 4,
 				globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
 			});
 			await accounts.reset();
