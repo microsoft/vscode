@@ -59,7 +59,7 @@ registerWorkbenchContribution2(NamedLayoutParticipantsContribution.ID, NamedLayo
 
 const NamedLayoutsEnabledContext = ContextKeyExpr.equals(`config.${NAMED_LAYOUTS_ENABLED_SETTING}`, true);
 
-const SAVE_LAYOUT_AS_COMMAND_ID = 'workbench.action.saveLayoutAs';
+const NEW_LAYOUT_COMMAND_ID = 'workbench.action.newLayout';
 const SWITCH_LAYOUT_COMMAND_ID = 'workbench.action.switchLayout';
 
 /**
@@ -103,18 +103,26 @@ interface ILayoutSwitcherQuickPickItem extends IQuickPickItem {
 }
 
 function toQuickPickItems(layouts: readonly INamedLayout[], activeLayout: INamedLayout): INamedLayoutQuickPickItem[] {
-	return layouts.map(layout => ({
-		layout,
-		label: layout.name,
-		description: layout.id === activeLayout.id ? localize('activeLayout', "Active") : undefined
-	}));
+	return layouts.map(layout => {
+		const active = layout.id === activeLayout.id;
+		return {
+			layout,
+			label: layout.name,
+			// A check mark marks the active layout, the other layouts keep its space so that the labels align
+			iconClass: ThemeIcon.asClassName(active ? Codicon.check : Codicon.blank),
+			ariaLabel: active ? localize('activeLayoutAriaLabel', "{0} (Active)", layout.name) : undefined
+		};
+	});
 }
 
-registerAction2(class SaveLayoutAsAction extends Action2 {
+registerAction2(class NewLayoutAction extends Action2 {
 	constructor() {
 		super({
-			id: SAVE_LAYOUT_AS_COMMAND_ID,
-			title: localize2('saveLayoutAs', "Save Layout As..."),
+			id: NEW_LAYOUT_COMMAND_ID,
+			title: localize2('newLayout', "New Layout..."),
+			metadata: {
+				description: localize2('newLayout.description', "Creates a named layout from the current layout of the window and makes it the active layout."),
+			},
 			category: Categories.View,
 			precondition: NamedLayoutsEnabledContext,
 			f1: true
@@ -126,15 +134,16 @@ registerAction2(class SaveLayoutAsAction extends Action2 {
 		const namedLayoutsService = accessor.get(INamedLayoutsService);
 
 		const name = await quickInputService.input({
-			title: localize('saveLayoutAs.title', "Save Layout As"),
-			placeHolder: localize('saveLayoutAs.placeholder', "Name of the Layout"),
+			title: localize('newLayout.title', "New Layout"),
+			placeHolder: localize('newLayout.placeholder', "Name of the Layout"),
+			prompt: localize('newLayout.prompt', "The new layout starts as a copy of the current layout. Changes are saved into the active layout."),
 			validateInput: async value => {
 				const layoutName = value.trim();
 				if (!layoutName) {
-					return localize('saveLayoutAs.emptyName', "Please enter a name for the layout.");
+					return localize('newLayout.emptyName', "Please enter a name for the layout.");
 				}
 				if (namedLayoutsService.layouts.some(layout => layout.name.toLowerCase() === layoutName.toLowerCase())) {
-					return localize('saveLayoutAs.duplicateName', "A layout with the name '{0}' already exists.", layoutName);
+					return localize('newLayout.duplicateName', "A layout with the name '{0}' already exists.", layoutName);
 				}
 				return undefined;
 			}
@@ -170,11 +179,11 @@ registerAction2(class SwitchLayoutAction extends Action2 {
 		picker.ariaLabel = localize('switchLayout.ariaLabel', "Select a layout to switch to");
 
 		const deleteButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.trash), tooltip: localize('deleteLayoutButton', "Delete Layout") };
-		const saveLayoutAsItem: ILayoutSwitcherQuickPickItem = { label: localize('saveLayoutAsItem', "Save Layout As...") };
+		const newLayoutItem: ILayoutSwitcherQuickPickItem = { label: localize('newLayoutItem', "New Layout..."), iconClass: ThemeIcon.asClassName(Codicon.blank) };
 		const updateItems = () => {
 			const layoutItems = toQuickPickItems(namedLayoutsService.layouts, namedLayoutsService.activeLayout)
 				.map(item => item.layout.id === DEFAULT_NAMED_LAYOUT_ID ? item : { ...item, buttons: [deleteButton] });
-			picker.items = [...layoutItems, { type: 'separator' }, saveLayoutAsItem];
+			picker.items = [...layoutItems, { type: 'separator' }, newLayoutItem];
 			picker.activeItems = layoutItems.filter(item => item.layout.id === namedLayoutsService.activeLayout.id);
 		};
 		updateItems();
@@ -196,8 +205,8 @@ registerAction2(class SwitchLayoutAction extends Action2 {
 		});
 		disposables.dispose();
 
-		if (pick === saveLayoutAsItem) {
-			await commandService.executeCommand(SAVE_LAYOUT_AS_COMMAND_ID);
+		if (pick === newLayoutItem) {
+			await commandService.executeCommand(NEW_LAYOUT_COMMAND_ID);
 		} else if (pick?.layout) {
 			await namedLayoutsService.switchLayout(pick.layout);
 		}

@@ -94,7 +94,7 @@ export interface INamedLayoutsService {
 	registerParticipant(participant: INamedLayoutParticipant): IDisposable;
 
 	/**
-	 * Saves the current layout of this window as a new named layout and activates it.
+	 * Creates a named layout from the current layout of this window and activates it.
 	 */
 	createLayout(name: string): Promise<INamedLayout>;
 
