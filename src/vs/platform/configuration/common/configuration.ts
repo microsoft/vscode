@@ -46,7 +46,11 @@ export const enum ConfigurationTarget {
 	WORKSPACE,
 	WORKSPACE_FOLDER,
 	DEFAULT,
-	MEMORY
+	MEMORY,
+	/**
+	 * Settings of the named layout that is active in the window.
+	 */
+	LAYOUT
 }
 export function ConfigurationTargetToString(configurationTarget: ConfigurationTarget) {
 	switch (configurationTarget) {
@@ -58,6 +62,7 @@ export function ConfigurationTargetToString(configurationTarget: ConfigurationTa
 		case ConfigurationTarget.WORKSPACE_FOLDER: return 'WORKSPACE_FOLDER';
 		case ConfigurationTarget.DEFAULT: return 'DEFAULT';
 		case ConfigurationTarget.MEMORY: return 'MEMORY';
+		case ConfigurationTarget.LAYOUT: return 'LAYOUT';
 	}
 }
 
@@ -91,6 +96,7 @@ export interface IConfigurationValue<T> {
 	readonly workspaceValue?: T;
 	readonly workspaceFolderValue?: T;
 	readonly memoryValue?: T;
+	readonly layoutValue?: T;
 	readonly policyValue?: T;
 	readonly value?: T;
 
@@ -102,6 +108,7 @@ export interface IConfigurationValue<T> {
 	readonly workspace?: IInspectValue<T>;
 	readonly workspaceFolder?: IInspectValue<T>;
 	readonly memory?: IInspectValue<T>;
+	readonly layout?: IInspectValue<T>;
 	readonly policy?: { value?: T };
 
 	readonly overrideIdentifiers?: string[];
@@ -125,6 +132,8 @@ export function getConfigValueInTarget<T>(configValue: IConfigurationValue<T>, s
 			return configValue.defaultValue;
 		case ConfigurationTarget.MEMORY:
 			return configValue.memoryValue;
+		case ConfigurationTarget.LAYOUT:
+			return configValue.layoutValue;
 		default:
 			assertNever(scope);
 	}
@@ -136,7 +145,8 @@ export function isConfigured<T>(configValue: IConfigurationValue<T>): configValu
 		configValue.userLocalValue !== undefined ||
 		configValue.userRemoteValue !== undefined ||
 		configValue.workspaceValue !== undefined ||
-		configValue.workspaceFolderValue !== undefined;
+		configValue.workspaceFolderValue !== undefined ||
+		configValue.layoutValue !== undefined;
 }
 
 export interface IConfigurationUpdateOptions {
@@ -228,6 +238,10 @@ export interface IConfigurationData {
 	userRemote: IConfigurationModel;
 	workspace: IConfigurationModel;
 	folders: [UriComponents, IConfigurationModel][];
+	/**
+	 * Settings of the named layout that is active in the window.
+	 */
+	layout?: IConfigurationModel;
 }
 
 export interface IConfigurationCompareResult {

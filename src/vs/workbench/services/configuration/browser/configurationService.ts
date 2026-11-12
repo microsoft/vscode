@@ -14,8 +14,8 @@ import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, I
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
-import { Configuration } from '../common/configurationModels.js';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
+import { Configuration, createLayoutConfigurationModel, toLayoutSettings } from '../common/configurationModels.js';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, isLayoutOverridableSetting } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults, getConfigurationExperimentName, getConfigurationKeyExperimentName } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
@@ -358,11 +358,16 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				throw new Error('Configuration Target is required while updating the value for multiple override identifiers');
 			}
 			const inspect = this.inspect(key, { resource: overrides?.resource, overrideIdentifier: overrides?.overrideIdentifiers ? overrides.overrideIdentifiers[0] : undefined });
-			targets.push(...this.deriveConfigurationTargets(key, value, inspect));
+			targets.push(...this.deriveConfigurationTargets(key, value, inspect, !!overrides?.overrideIdentifiers?.length));
 
 			// Remove the setting, if the value is same as default value and is updated only in user target
 			if (equals(value, inspect.defaultValue) && targets.length === 1 && (targets[0] === ConfigurationTarget.USER || targets[0] === ConfigurationTarget.USER_LOCAL)) {
 				value = undefined;
+			}
+
+			// Reset a setting of the named layout to its default value so that the layout continues to define it
+			if (value === undefined && targets.length === 1 && targets[0] === ConfigurationTarget.LAYOUT) {
+				value = inspect.defaultValue;
 			}
 		}
 
@@ -519,6 +524,37 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 		const allProfilesSettings = this.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
 		return Array.isArray(allProfilesSettings) && allProfilesSettings.includes(key);
+	}
+
+	getLayoutConfiguration(): IStringDictionary<unknown> {
+		return toLayoutSettings(this._configuration.layoutConfiguration);
+	}
+
+	setLayoutConfiguration(settings: IStringDictionary<unknown>): void {
+		this.updateLayoutConfiguration(createLayoutConfigurationModel(settings, this.logService));
+	}
+
+	private updateLayoutConfiguration(layoutConfiguration: ConfigurationModel): void {
+		const previous = { data: this._configuration.toData(), workspace: this.workspace };
+		const change = this._configuration.compareAndUpdateLayoutConfiguration(layoutConfiguration);
+		this.triggerConfigurationChange(change, previous, ConfigurationTarget.LAYOUT);
+	}
+
+	private writeLayoutConfigurationValue(key: string, value: unknown, overrides: IConfigurationUpdateOverrides | undefined): void {
+		if (!isLayoutOverridableSetting(key)) {
+			throw new Error(`Unable to write ${key} to the layout target because a named layout cannot define it.`);
+		}
+		if (overrides?.overrideIdentifiers?.length) {
+			throw new Error(`Unable to write language specific value of ${key} to the layout target.`);
+		}
+
+		const layoutConfiguration = this._configuration.layoutConfiguration.merge();
+		if (value === undefined) {
+			layoutConfiguration.removeValue(key);
+		} else {
+			layoutConfiguration.setValue(key, value);
+		}
+		this.updateLayoutConfiguration(layoutConfiguration);
 	}
 
 	private async createWorkspace(arg: IAnyWorkspaceIdentifier): Promise<Workspace> {
@@ -715,6 +751,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		const currentConfiguration = this._configuration;
 		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, applicationConfigurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, ConfigurationModel.createEmptyModel(this.logService), new ResourceMap<ConfigurationModel>(), this.workspace, this.logService);
+		this._configuration.updateLayoutConfiguration(currentConfiguration.layoutConfiguration);
 
 		this.initialized = true;
 
@@ -1029,6 +1066,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			return;
 		}
 
+		if (target === ConfigurationTarget.LAYOUT) {
+			this.writeLayoutConfigurationValue(key, value, overrides);
+			return;
+		}
+
 		const editableConfigurationTarget = this.toEditableConfigurationTarget(target, key);
 		if (!editableConfigurationTarget) {
 			throw new Error('Invalid configuration target');
@@ -1093,13 +1135,19 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			case ConfigurationTarget.USER_REMOTE: return this._configuration.remoteUserConfiguration;
 			case ConfigurationTarget.WORKSPACE: return this._configuration.workspaceConfiguration;
 			case ConfigurationTarget.WORKSPACE_FOLDER: return resource ? this._configuration.folderConfigurations.get(resource) : undefined;
+			case ConfigurationTarget.LAYOUT: return this._configuration.layoutConfiguration;
 			default: return undefined;
 		}
 	}
 
-	private deriveConfigurationTargets(key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
+	private deriveConfigurationTargets(key: string, value: unknown, inspect: IConfigurationValue<unknown>, languageSpecific: boolean): ConfigurationTarget[] {
 		if (equals(value, inspect.value)) {
 			return [];
+		}
+
+		// A setting defined by the active named layout belongs to that layout
+		if (inspect.layoutValue !== undefined && !languageSpecific) {
+			return [ConfigurationTarget.LAYOUT];
 		}
 
 		const definedTargets: ConfigurationTarget[] = [];

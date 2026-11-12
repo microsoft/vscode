@@ -109,6 +109,7 @@ import './services/workingCopy/common/workingCopyEditorService.js';
 import './services/filesConfiguration/common/filesConfigurationService.js';
 import './services/views/browser/viewDescriptorService.js';
 import './services/views/browser/viewsService.js';
+import './services/namedLayouts/common/namedLayoutsService.js';
 import './services/quickinput/browser/quickInputService.js';
 import './services/userDataSync/browser/userDataSyncWorkbenchService.js';
 import './services/authentication/browser/authenticationService.js';
@@ -473,6 +474,9 @@ import './contrib/meteredConnection/browser/meteredConnection.contribution.js';
 
 // Share
 import './contrib/share/browser/share.contribution.js';
+
+// Named Layouts
+import './contrib/namedLayouts/browser/namedLayouts.contribution.js';
 
 // Synchronized Scrolling
 import './contrib/scrollLocking/browser/scrollLocking.contribution.js';

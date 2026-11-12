@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -94,6 +96,35 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 	 * @param setting
 	 */
 	isSettingAppliedForAllProfiles(setting: string): boolean;
+
+	/**
+	 * Returns the settings of the named layout that is active in this window.
+	 * The result is empty if no named layout is active.
+	 */
+	getLayoutConfiguration(): IStringDictionary<unknown>;
+
+	/**
+	 * Replaces the settings of the named layout that is active in this window.
+	 * These settings apply to this window only and take precedence over user and
+	 * workspace settings. Settings that are not layout overridable are ignored.
+	 * Pass an empty object if no named layout is active.
+	 */
+	setLayoutConfiguration(settings: IStringDictionary<unknown>): void;
+}
+
+/**
+ * Returns `true` if a named layout can define the value of the given setting.
+ */
+export function isLayoutOverridableSetting(key: string): boolean {
+	return Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[key]?.layoutOverridable === true;
+}
+
+/**
+ * Returns the keys of all settings a named layout can define.
+ */
+export function getLayoutOverridableSettings(): string[] {
+	const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+	return Object.keys(properties).filter(key => properties[key].layoutOverridable === true);
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';

@@ -47,6 +47,7 @@ import { IExtensionService } from '../services/extensions/common/extensions.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { DeferredPromise, Promises } from '../../base/common/async.js';
 import { IBannerService } from '../services/banner/browser/bannerService.js';
+import { INamedLayoutsService } from '../services/namedLayouts/common/namedLayouts.js';
 import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
 import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
@@ -326,6 +327,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	protected initLayout(accessor: ServicesAccessor): void {
+
+		// Named layouts: restore the settings of the active named layout
+		// before any workbench part is created or reads its settings
+		accessor.get(INamedLayoutsService);
 
 		// Services
 		this.environmentService = accessor.get(IBrowserWorkbenchEnvironmentService);

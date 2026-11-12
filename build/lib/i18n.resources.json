@@ -79,6 +79,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/namedLayouts",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/emmet",
 			"project": "vscode-workbench"
 		},
@@ -480,6 +484,10 @@
 		},
 		{
 			"name": "vs/workbench/services/mcp",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/namedLayouts",
 			"project": "vscode-workbench"
 		},
 		{

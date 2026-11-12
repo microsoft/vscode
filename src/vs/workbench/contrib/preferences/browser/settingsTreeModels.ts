@@ -165,6 +165,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 */
 	isAgentsWindowReadOnly = false;
 
+	/**
+	 * Whether the named layout that is active in the window defines the value of the setting.
+	 */
+	hasLayoutValue = false;
+
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
 	overriddenDefaultsLanguageList: string[] = [];
@@ -357,6 +362,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 		this.overriddenScopeList = overriddenScopeList;
 		this.overriddenDefaultsLanguageList = overriddenDefaultsLanguageList;
+		this.hasLayoutValue = inspected.layoutValue !== undefined;
 
 		// The user might have added, removed, or modified a language filter,
 		// so we reset the default value source to the non-language-specific default value source for now.

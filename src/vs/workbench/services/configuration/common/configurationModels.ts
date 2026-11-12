@@ -14,6 +14,7 @@ import { isBoolean } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { isLayoutOverridableSetting } from './configuration.js';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
@@ -171,4 +172,29 @@ export class Configuration extends BaseConfiguration {
 		return { keys, overrides };
 	}
 
+}
+
+/**
+ * Creates the configuration model for the settings of a named layout.
+ * Settings that are not layout overridable are ignored.
+ */
+export function createLayoutConfigurationModel(settings: IStringDictionary<unknown>, logService: ILogService): ConfigurationModel {
+	const layoutConfiguration = ConfigurationModel.createEmptyModel(logService);
+	for (const [key, value] of Object.entries(settings)) {
+		if (value !== undefined && isLayoutOverridableSetting(key)) {
+			layoutConfiguration.setValue(key, value);
+		}
+	}
+	return layoutConfiguration;
+}
+
+/**
+ * Returns the settings stored in the configuration model of a named layout.
+ */
+export function toLayoutSettings(layoutConfiguration: ConfigurationModel): IStringDictionary<unknown> {
+	const settings: IStringDictionary<unknown> = {};
+	for (const key of layoutConfiguration.keys) {
+		settings[key] = layoutConfiguration.getValue(key);
+	}
+	return settings;
 }

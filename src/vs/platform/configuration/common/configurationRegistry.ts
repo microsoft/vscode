@@ -358,6 +358,14 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 		 */
 		readOnly?: boolean;
 	};
+
+	/**
+	 * When `true`, a named workbench layout can define the value of this setting
+	 * for the window in which the layout is active. Only workbench presentation
+	 * settings that take effect without a reload should opt in. Settings
+	 * contributed by extensions cannot opt in.
+	 */
+	layoutOverridable?: boolean;
 }
 
 export interface IExtensionInfo {

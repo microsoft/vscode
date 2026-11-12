@@ -69,7 +69,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.showTabs.none', "The editor title area is not displayed."),
 				],
 				'description': localize('showEditorTabs', "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown."),
-				'default': 'multiple'
+				'default': 'multiple',
+				layoutOverridable: true
 			},
 			[LayoutSettings.EDITOR_ACTIONS_LOCATION]: {
 				'type': 'string',
@@ -82,6 +83,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'markdownDescription': localize('editorActionsLocation', "Controls where the editor actions are shown."),
 				'default': 'default',
 				agentsWindow: { default: 'default', readOnly: true },
+				layoutOverridable: true
 			},
 			'workbench.editor.alwaysShowEditorActions': {
 				'type': 'boolean',
@@ -588,6 +590,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'left',
 				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench."),
 				agentsWindow: { default: 'left', readOnly: true },
+				layoutOverridable: true
 			},
 			'workbench.panel.showLabels': {
 				'type': 'boolean',
@@ -645,6 +648,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench."),
 				agentsWindow: { default: false, readOnly: true },
+				layoutOverridable: true
 			},
 			[NotificationsSettings.NOTIFICATIONS_POSITION]: {
 				'type': 'string',
@@ -683,6 +687,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bars.")
 				],
 				agentsWindow: { default: 'default', readOnly: true },
+				layoutOverridable: true
 			},
 			[LayoutSettings.ACTIVITY_BAR_AUTO_HIDE]: {
 				'type': 'boolean',

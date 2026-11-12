@@ -1408,6 +1408,28 @@ suite('Configuration', () => {
 
 	});
 
+	test('Test layout configuration takes precedence over user and workspace configuration and survives parsing', () => {
+		const testObject = new TestConfiguration(toConfigurationModel({ 'a': 1, 'b': 1 }), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), toConfigurationModel({ 'a': 2, 'b': 2 }));
+		testObject.updateWorkspaceConfiguration(toConfigurationModel({ 'a': 3 }));
+
+		const change = testObject.compareAndUpdateLayoutConfiguration(toConfigurationModel({ 'a': 4 }));
+		const parsed = Configuration.parse(testObject.toData(), new NullLogService());
+
+		assert.deepStrictEqual({
+			change,
+			a: testObject.getValue('a', {}, undefined),
+			layoutValue: testObject.inspect('a', {}, undefined).layoutValue,
+			b: testObject.getValue('b', {}, undefined),
+			parsedA: parsed.getValue('a', {}, undefined),
+		}, {
+			change: { keys: ['a'], overrides: [] },
+			a: 4,
+			layoutValue: 4,
+			b: 2,
+			parsedA: 4,
+		});
+	});
+
 	function parseConfigurationModel(content: Record<string, unknown>): ConfigurationModel {
 		const parser = new ConfigurationModelParser('test', new NullLogService());
 		parser.parse(JSON.stringify(content));

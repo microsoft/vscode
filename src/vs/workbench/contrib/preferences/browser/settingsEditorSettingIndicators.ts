@@ -381,6 +381,17 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				...this.defaultHoverOptions,
 				content,
 			}, { setupKeyboardEvents: true }));
+		} else if (element.hasLayoutValue) {
+			// The value of the active named layout takes precedence over user and workspace settings
+			this.scopeOverridesIndicator.element.style.display = 'inline';
+			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
+
+			this.scopeOverridesIndicator.label.text = '$(layout) ' + localize('layoutLabelText', "Set by active layout");
+			const content = localize('layoutDescription', "The named layout that is active in this window defines the value of this setting. Values set here apply when no named layout is active.");
+			this.scopeOverridesIndicator.disposables.add(this.hoverService.setupDelayedHover(this.scopeOverridesIndicator.element, {
+				...this.defaultHoverOptions,
+				content,
+			}, { setupKeyboardEvents: true }));
 		} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && this.configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 			this.scopeOverridesIndicator.element.style.display = 'inline';
 			this.scopeOverridesIndicator.element.classList.add('setting-indicator');
@@ -578,6 +589,8 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 		ariaLabelSections.push(element.policyValueDescription ?? localize('policyDescriptionAccessible', "Managed by your organization; setting value not applied"));
 	} else if (element.isAgentsWindowReadOnly) {
 		ariaLabelSections.push(localize('agentsWindowReadOnlyAccessible', "Cannot be changed in Agents window"));
+	} else if (element.hasLayoutValue) {
+		ariaLabelSections.push(localize('layoutDescriptionAccessible', "Set by the active layout; setting value not applied while the layout is active"));
 	} else if (element.settingsTarget === ConfigurationTarget.USER_LOCAL && configurationService.isSettingAppliedForAllProfiles(element.setting.key)) {
 		ariaLabelSections.push(localize('applicationSettingDescriptionAccessible', "Setting value retained when switching profiles"));
 	} else {

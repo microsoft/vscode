@@ -1808,6 +1808,15 @@ suite('WorkspaceConfigurationService - Folder', () => {
 						localization: { description: { key: '', value: '' } }
 					}
 				},
+				'configurationLayoutTest.layoutSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					layoutOverridable: true
+				},
+				'configurationLayoutTest.otherSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				},
 			}
 		});
 
@@ -2544,6 +2553,42 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		disposables.add(testObject.onDidChangeConfiguration(target));
 		return testObject.updateValue('configurationService.folder.testSetting', 'memoryValue', ConfigurationTarget.MEMORY)
 			.then(() => assert.ok(target.called));
+	});
+
+	test('layout configuration takes precedence over user and workspace settings and ignores settings that are not layout overridable', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		await testObject.updateValue('configurationLayoutTest.layoutSetting', 'userValue', ConfigurationTarget.USER);
+		await testObject.updateValue('configurationLayoutTest.layoutSetting', 'workspaceValue', ConfigurationTarget.WORKSPACE);
+		const target = sinon.spy();
+		disposables.add(testObject.onDidChangeConfiguration(target));
+
+		testObject.setLayoutConfiguration({ 'configurationLayoutTest.layoutSetting': 'layoutValue', 'configurationLayoutTest.otherSetting': 'layoutValue' });
+
+		assert.deepStrictEqual({
+			layoutConfiguration: testObject.getLayoutConfiguration(),
+			layoutSetting: testObject.getValue('configurationLayoutTest.layoutSetting'),
+			otherSetting: testObject.getValue('configurationLayoutTest.otherSetting'),
+			changeSource: target.lastCall.args[0].source
+		}, {
+			layoutConfiguration: { 'configurationLayoutTest.layoutSetting': 'layoutValue' },
+			layoutSetting: 'layoutValue',
+			otherSetting: 'isSet',
+			changeSource: ConfigurationTarget.LAYOUT
+		});
+	}));
+
+	test('update without target writes a setting defined by the layout into the layout', async () => {
+		const key = 'configurationLayoutTest.layoutSetting';
+		testObject.setLayoutConfiguration({ [key]: 'layoutValue' });
+
+		await testObject.updateValue(key, 'updatedValue');
+		const afterUpdate = testObject.getLayoutConfiguration();
+		await testObject.updateValue(key, undefined);
+
+		assert.deepStrictEqual({ afterUpdate, afterReset: testObject.getLayoutConfiguration(), userValue: testObject.inspect(key).userValue }, {
+			afterUpdate: { [key]: 'updatedValue' },
+			afterReset: { [key]: 'isSet' },
+			userValue: undefined
+		});
 	});
 
 	test('remove setting from all targets', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
