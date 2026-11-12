@@ -85,3 +85,39 @@
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-strokeThickness);
 }
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .action-item.empty-editor-hint-actions-split {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-split > .watermark-entry {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-dropdown {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size280);
+	height: var(--vscode-spacing-size280);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	opacity: 0.6;
+	transition: opacity 0.1s ease-out;
+	pointer-events: auto;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-split:hover > .empty-editor-hint-actions-dropdown,
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-split:focus-within > .empty-editor-hint-actions-dropdown {
+	opacity: 1;
+}
+
+.monaco-editor .overlayWidgets .empty-editor-hint-actions .empty-editor-hint-actions-dropdown:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}

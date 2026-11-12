@@ -15,6 +15,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IEditorResolverService, RegisteredEditorInfo } from '../../../../services/editor/common/editorResolverService.js';
@@ -28,7 +29,7 @@ suite('EmptyEditorHintActionsWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('lists the available actions and logs the ones that are used', async () => {
+	test('lists the available actions, offers the last chosen editor first and logs the actions that are used', async () => {
 		const events: unknown[] = [];
 		const commands: unknown[][] = [];
 		const callbacks: string[] = [];
@@ -41,7 +42,7 @@ suite('EmptyEditorHintActionsWidget', () => {
 		instantiationService.stub(IUntitledDocumentTelemetryService, upcastPartial<IUntitledDocumentTelemetryService>({ getUntitledDocumentId: () => 'doc-1' }));
 		instantiationService.stub(IChatAgentService, upcastPartial<IChatAgentService>({ getActivatedAgents: () => [], onDidChangeAgents: Event.None }));
 		instantiationService.stub(IEditorResolverService, upcastPartial<IEditorResolverService>({
-			getEditors: () => [upcastPartial<RegisteredEditorInfo>({ id: 'vscode.markdown.editor' })],
+			getEditors: () => [upcastPartial<RegisteredEditorInfo>({ id: 'default', label: 'Text Editor' }), upcastPartial<RegisteredEditorInfo>({ id: 'vscode.markdown.editor', label: 'Markdown Editor' }), upcastPartial<RegisteredEditorInfo>({ id: 'hexEditor.hexedit', label: 'Hex Editor' })],
 			onDidChangeEditorRegistrations: Event.None,
 		}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
@@ -52,6 +53,8 @@ suite('EmptyEditorHintActionsWidget', () => {
 		const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
 		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		// The editor last chosen from the hint is offered first
+		instantiationService.get(IStorageService).store('emptyEditorHint.lastUntitledEditor', 'hexEditor.hexedit', StorageScope.PROFILE, StorageTarget.USER);
 
 		const model = store.add(createTextModel('', undefined, undefined, URI.from({ scheme: 'untitled', path: 'Untitled-1' })));
 		const editor = store.add(createTestCodeEditor(model));
@@ -68,18 +71,21 @@ suite('EmptyEditorHintActionsWidget', () => {
 			rows.find(row => row.textContent === label)!.click();
 			await timeout(0);
 		};
-		await click('Open in Markdown Editor');
-		domNode.querySelector<HTMLElement>('.empty-editor-hint-actions-close .action-label')!.click();
+		await click('Open in Hex Editor');
+		const visibleBeforeClose = contextKeyService.getContextKeyValue('emptyEditorHintActionsVisible');
+		domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 		await timeout(0);
 
-		assert.deepStrictEqual({ rowLabels, commands, callbacks, events }, {
-			rowLabels: ['New Chat Editor', 'Select a Language', '---', 'Open in Markdown Editor', 'Open With Another Editor...'],
-			commands: [['reopenActiveEditorWith', 'vscode.markdown.editor']],
+		assert.deepStrictEqual({ rowLabels, hasDropdown: !!domNode.querySelector('.empty-editor-hint-actions-dropdown'), visibleBeforeClose, commands, callbacks, events }, {
+			rowLabels: ['New Chat Editor', 'Select a Language', '---', 'Open in Hex Editor'],
+			hasDropdown: true,
+			visibleBeforeClose: true,
+			commands: [['reopenActiveEditorWith', 'hexEditor.hexedit']],
 			callbacks: ['close'],
 			events: [
 				{ eventName: 'emptyEditorHint', data: { kind: 'shown', action: undefined, variant: 'actions', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
-				{ eventName: 'emptyEditorHint', data: { kind: 'action', action: 'openMarkdownEditor', variant: 'actions', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
-				{ eventName: 'emptyEditorHint', data: { kind: 'action', action: 'close', variant: 'actions', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
+				{ eventName: 'emptyEditorHint', data: { kind: 'action', action: 'openEditor', variant: 'actions', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
+				{ eventName: 'emptyEditorHint', data: { kind: 'action', action: 'closeEscape', variant: 'actions', scheme: 'untitled', untitledDocumentId: 'doc-1' } },
 			],
 		});
 	});
