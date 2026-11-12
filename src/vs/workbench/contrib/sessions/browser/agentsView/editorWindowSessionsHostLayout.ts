@@ -18,6 +18,9 @@ export class EditorWindowSessionsHostLayout implements ISessionsHostLayoutServic
 
 	readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
 
+	// Its editor groups are those of a plain editor part, without the sessions header row of the Agents window's
+	readonly sessionEditorsShowOwnHeader = true;
+
 	private suppressions = 0;
 
 	constructor(@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService) { }

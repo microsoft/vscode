@@ -227,6 +227,8 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	private _desktop = false;
+	/** Whether the editor shows its header row itself, above its diffs, instead of the editor part hosting it. */
+	private _ownHeader = false;
 	private _scopedInstantiationService: IInstantiationService | undefined;
 
 	/** Session, and chat if it names one, whose changes this editor is currently showing (from its input). */
@@ -377,8 +379,10 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 		// In desktop, the header (Branch Changes dropdown, diff stats and primary
 		// actions) is hosted by the editor part's full-width header instead of inside
 		// this editor, so it spans the editor content and the docked detail panel.
+		// Hosts whose editor groups have no such header, such as editor windows, get the editor's own header instead.
 		this._desktop = this.hostLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop;
-		if (!this._desktop) {
+		this._ownHeader = !this._desktop || this.hostLayoutService.sessionEditorsShowOwnHeader === true;
+		if (this._ownHeader) {
 			const header = append(root, $('.session-changes-editor-header'));
 			const left = append(header, $('.session-changes-editor-header-left'));
 			const right = append(header, $('.session-changes-editor-header-right'));
@@ -841,9 +845,9 @@ export class SessionChangesEditor extends AbstractEditorWithViewState<IMultiDiff
 	}
 
 	override layout(dimension: Dimension): void {
-		// In desktop the header is external (the editor part reserves a top inset),
-		// so the diff fills the full dimension; otherwise reserve the internal header.
-		const bodyHeight = this._desktop ? dimension.height : Math.max(0, dimension.height - HEADER_HEIGHT);
+		// With an external header (the editor part reserves a top inset) the diff
+		// fills the full dimension; otherwise reserve the internal header.
+		const bodyHeight = this._ownHeader ? Math.max(0, dimension.height - HEADER_HEIGHT) : dimension.height;
 		this.fileListWidget?.layout(new Dimension(dimension.width, bodyHeight));
 		this.emptyState?.layout();
 	}
