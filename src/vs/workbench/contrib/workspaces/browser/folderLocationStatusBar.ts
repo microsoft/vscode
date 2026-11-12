@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableResizeObserver, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { DisposableResizeObserver, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -305,8 +305,6 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 					group: { title: '', icon: checked ? Codicon.check : Codicon.blank }
 				};
 			});
-			// Opened by Enter or Space on the status entry, the widget would take the same key press as its own accept
-			await new Promise<void>(resolve => scheduleAtNextAnimationFrame(getWindow(anchor), () => resolve()));
 			picked = await new Promise<ILocationEntry | undefined>(resolve => {
 				actionWidgetService.show<IActionWidgetLocation>(
 					'folderLocationPicker',
