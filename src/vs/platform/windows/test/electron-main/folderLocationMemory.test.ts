@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FolderLocationMemory } from '../../electron-main/folderLocationMemory.js';
@@ -42,8 +43,19 @@ suite('FolderLocationMemory', () => {
 		assert.strictEqual(memory.get(primary), undefined);
 	});
 
+	test('case variants of the primary share one entry on case-insensitive paths', () => {
+		const { memory, items } = create();
+		const variant = URI.file('/Work/Repo');
+		const sameEntry = extUriBiasedIgnorePathCase.getComparisonKey(primary) === extUriBiasedIgnorePathCase.getComparisonKey(variant);
+		memory.set(primary, location);
+		const restored = memory.get(variant);
+		memory.set(variant, undefined);
+
+		assert.deepStrictEqual([restored, memory.get(primary), Object.keys(items.get('folderLocations') as object).length], sameEntry ? [location, undefined, 0] : [undefined, location, 1]);
+	});
+
 	test('malformed entries are ignored', () => {
-		const { memory } = create({ [primary.toString()]: { uri: 1 } });
+		const { memory } = create({ [extUriBiasedIgnorePathCase.getComparisonKey(primary)]: { uri: 1 } });
 
 		assert.strictEqual(memory.get(primary), undefined);
 	});
