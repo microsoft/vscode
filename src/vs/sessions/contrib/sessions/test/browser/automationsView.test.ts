@@ -2175,9 +2175,12 @@ suite('AutomationsCardsWidget', () => {
 	test('card metadata shows the end date without recreating the card', () => {
 		const { automationService, widget } = setup();
 		const dateCondition = { kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T15:00:00Z' };
-		const formattedDate = new Date(dateCondition.date).toLocaleString(undefined, {
+		const endDate = new Date(dateCondition.date);
+		const formattedDate = endDate.toLocaleString(undefined, {
 			year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 		});
+		const formattedLabelDate = endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+		const formattedTime = endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 		const states: Partial<IAutomationDescriptor>[] = [
 			{ disableConditions: [dateCondition] },
 			{ disableConditions: [dateCondition], enabled: false },
@@ -2203,12 +2206,34 @@ suite('AutomationsCardsWidget', () => {
 			};
 		});
 		assert.deepStrictEqual(metadata, [
-			{ limit: `Runs until ${formattedDate}`, description: `Stops scheduling at ${formattedDate}. Manual runs remain available.` },
+			{ limit: `until ${formattedLabelDate} ${formattedTime}`, description: `Stops scheduling at ${formattedDate}.` },
 			{ limit: undefined, description: null, schedule: 'Disabled' },
-			{ limit: `Runs until ${formattedDate}`, description: `Stops scheduling at ${formattedDate}. Manual runs remain available.` },
+			{ limit: `until ${formattedLabelDate} ${formattedTime}`, description: `Stops scheduling at ${formattedDate}.` },
 			{ limit: undefined, description: null },
 			{ limit: undefined, description: null },
 		].map(expected => ({ schedule: 'Hourly', folder: 'workspace', sameCard: true, focusPreserved: true, ...expected })));
+	});
+
+	test('end date labels use today, tomorrow and short future dates', () => {
+		const clock = useFakeTimersWithRealAnimationFrames();
+		clock.setSystemTime(new Date(2026, 10, 11, 12));
+		const { automationService, widget } = setup();
+		const dates = [
+			new Date(2026, 10, 11, 17, 50),
+			new Date(2026, 10, 12, 17, 50),
+			new Date(2026, 10, 13, 21, 30),
+		];
+		const labels = dates.map(date => {
+			automationService.setAutomations([automation({
+				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: date.toISOString() }],
+			})]);
+			return widget.element.querySelector('.automations-card-limit')?.textContent;
+		});
+		assert.deepStrictEqual(labels, [
+			`until today at ${dates[0].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			`until tomorrow at ${dates[1].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+			`until ${dates[2].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${dates[2].toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`,
+		]);
 	});
 
 	test('end date hovers update only with conditions and dispose on clearing or removal', () => {
@@ -2238,7 +2263,7 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setAutomations([]);
 
 		assert.deepStrictEqual(hovers, ['2099-01-01T00:00:00Z', '2099-01-02T00:00:00Z', '2099-01-01T00:00:00Z'].map(date => ({
-			content: `Stops scheduling at ${new Date(date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Manual runs remain available.`,
+			content: `Stops scheduling at ${new Date(date).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
 			disposed: true,
 		})));
 	});

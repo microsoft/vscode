@@ -2462,13 +2462,31 @@ function getAutomationTargetLabel(target: AutomationTarget): string {
 
 function formatAutomationLimit(automation: IAutomationDescriptor): { label: string; description: string } | undefined {
 	const date = getAutomationAfterDate(automation.disableConditions);
-	const formattedDate = date === undefined ? undefined : new Date(date).toLocaleString(undefined, {
+	if (date === undefined) {
+		return undefined;
+	}
+	const endDate = new Date(date);
+	const formattedDate = endDate.toLocaleString(undefined, {
 		year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
 	});
-	return formattedDate === undefined ? undefined : {
-		label: localize('automationCardEndDate', "Runs until {0}", formattedDate),
-		description: localize('automationCardEndDateDescription', "Stops scheduling at {0}. Manual runs remain available.", formattedDate),
+	const time = endDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+	const today = new Date();
+	const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+	const label = isSameLocalDate(endDate, today)
+		? localize('automationCardEndDateToday', "until today at {0}", time)
+		: isSameLocalDate(endDate, tomorrow)
+			? localize('automationCardEndDateTomorrow', "until tomorrow at {0}", time)
+			: localize('automationCardEndDate', "until {0} {1}", endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }), time);
+	return {
+		label,
+		description: localize('automationCardEndDateDescription', "Stops scheduling at {0}.", formattedDate),
 	};
+}
+
+function isSameLocalDate(first: Date, second: Date): boolean {
+	return first.getFullYear() === second.getFullYear()
+		&& first.getMonth() === second.getMonth()
+		&& first.getDate() === second.getDate();
 }
 
 function groupRunsByDate(runs: readonly IAutomationRun[]): { key: string; label: string; runs: IAutomationRun[] }[] {
