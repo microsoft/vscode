@@ -169,6 +169,24 @@ type AudioPushTestService = {
 	_pushAudio: (samples: Float32Array, window: Window & typeof globalThis) => void;
 };
 
+type AudioFailureTestService = {
+	_activeBackend: 'nemo' | 'mai';
+	_state: ChatSpeechToTextState;
+	_startInProgress: number | undefined;
+	_sessionGeneration: number;
+	_startGeneration: number;
+	_sessionErrorCode: string;
+	_transcriptionClient: Pick<IVoiceCodeTranscriptionClient, 'isConnected'>;
+	_logService: { error: (message: string, error: unknown) => void };
+	_logSessionTelemetry: (outcome: string) => void;
+	_cancelBackend: () => void;
+	_teardown: () => void;
+	_setState: (state: ChatSpeechToTextState) => void;
+	_accessibilitySignalService: { playSignal: (signal: unknown) => void };
+	_notificationService: { error: (message: string) => void };
+	_onAudioPushError: (error: unknown) => void;
+};
+
 suite('ChatSpeechToTextService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -649,6 +667,47 @@ suite('ChatSpeechToTextService', () => {
 
 		assert.doesNotThrow(() => service._pushAudio(new Float32Array([0.5]), mainWindow));
 		assert.deepStrictEqual(failures, [error]);
+	});
+
+	function failAudioPush(backend: 'nemo' | 'mai', isConnected: boolean): { errorCode: string; calls: string[] } {
+		const calls: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as AudioFailureTestService;
+		service._activeBackend = backend;
+		service._state = ChatSpeechToTextState.Recording;
+		service._startInProgress = undefined;
+		service._sessionGeneration = 2;
+		service._startGeneration = 4;
+		service._sessionErrorCode = '';
+		service._transcriptionClient = { isConnected };
+		service._logService = { error: () => { } };
+		service._logSessionTelemetry = outcome => calls.push(`telemetry:${outcome}`);
+		service._cancelBackend = () => calls.push('cancel');
+		service._teardown = () => calls.push('teardown');
+		service._setState = state => calls.push(`state:${state}`);
+		service._accessibilitySignalService = { playSignal: signal => calls.push(signal === AccessibilitySignal.dictationDisconnected ? 'signal:dictationDisconnected' : 'signal:unexpected') };
+		service._notificationService = { error: () => calls.push('error') };
+
+		service._onAudioPushError(new Error('audio failed'));
+
+		return { errorCode: service._sessionErrorCode, calls };
+	}
+
+	test('plays the disconnected sound before the notification when cloud audio fails on a closed connection', () => {
+		assert.deepStrictEqual(failAudioPush('mai', false), {
+			errorCode: 'audio',
+			calls: ['signal:dictationDisconnected', 'telemetry:error', 'cancel', 'teardown', `state:${ChatSpeechToTextState.Idle}`, 'error'],
+		});
+	});
+
+	test('does not play the disconnected sound for audio failures on an open cloud connection or on-device', () => {
+		const withoutSignal = ['telemetry:error', 'cancel', 'teardown', `state:${ChatSpeechToTextState.Idle}`, 'error'];
+		assert.deepStrictEqual({
+			openCloudConnection: failAudioPush('mai', true).calls,
+			onDevice: failAudioPush('nemo', false).calls,
+		}, {
+			openCloudConnection: withoutSignal,
+			onDevice: withoutSignal,
+		});
 	});
 
 	test('uses MAI on web and preserves the configured backend on desktop', () => {
