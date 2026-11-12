@@ -166,6 +166,27 @@ suite('AgentsViewFolderLocation', () => {
 		return { service, moves, trusted, notifications, removeSession: (session: ISession) => sessionsChanged.fire({ added: [], removed: [session], changed: [] }), replaceSession: (from: ISession, to: ISession) => sessionReplaced.fire({ from, to }), hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
 	}
 
+	/** The recall of a location's last session over `service`, with a chat part that moves the folder as it opens a session, unless asked to keep it. */
+	function createRecall(service: AgentsViewFolderLocationService, sessions: ISession[]) {
+		const onDidChangeCurrentLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
+		let folder = URI.file('/work/vscode');
+		const opened: string[] = [];
+		disposables.add(new AgentsViewLocationSessions(
+			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeCurrentLocation: onDidChangeCurrentLocation.event }),
+			service,
+			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }),
+			upcastPartial<ISessionsManagementService>({ getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()) }),
+			upcastPartial<IAgentsChatPartService>({ openChat: async (session, _chat, options) => { opened.push(session.resource.toString()); if (!options?.keepFolder) { await service.switchToSession(session); } } }),
+			upcastPartial<IContextKeyService>({ getContextKeyValue: <T>() => true as T }),
+		));
+		const pick = async (path: string) => {
+			folder = URI.file(path);
+			onDidChangeCurrentLocation.fire({ reason: 'user' });
+			await timeout(0);
+		};
+		return { opened, pick };
+	}
+
 	test('a linked checkout shows with the icon of a worktree section of the Sessions list', async () => {
 		const provider = new AgentsViewFolderLocationProvider(fileService);
 
@@ -308,6 +329,26 @@ suite('AgentsViewFolderLocation', () => {
 		}, { folder: atFolder.resource.toString(), oldest: undefined });
 	});
 
+	test('a location the user picks again, which shows its last session, stays the most recent, so it is not the one to go once there are too many', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const atFolder = sessionIn('/work/vscode/src');
+		// The folder's own session is the oldest of a full list
+		const stored = [[URI.file('/work/vscode').toString(), atFolder.resource.toString()], ...Array.from({ length: 19 }, (_, index) => [URI.file(`/work/other${index}`).toString(), `session:/other${index}`])];
+		storage.store('agentsView.folderLocation.lastSessions', JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const { service, moves } = createService({ storage });
+		const { opened, pick } = createRecall(service, [atFolder]);
+
+		await pick('/work/vscode');
+		await service.switchToSession(sessionIn('/work/vscode.worktrees/feature'));
+
+		assert.deepStrictEqual({
+			opened,
+			moves,
+			folder: service.getLastSession(URI.file('/work/vscode'))?.toString(),
+			oldest: service.getLastSession(URI.file('/work/other0'))?.toString(),
+		}, { opened: [atFolder.resource.toString()], moves: ['/work/vscode.worktrees/feature'], folder: atFolder.resource.toString(), oldest: undefined });
+	});
+
 	test('a session that a provider replaces stays the last one of its location; a deleted one does not', async () => {
 		const { service, replaceSession, removeSession } = createService();
 		const atWorktree = sessionIn('/work/vscode.worktrees/feature');
@@ -328,23 +369,7 @@ suite('AgentsViewFolderLocation', () => {
 		const { service, moves } = createService();
 		const atFolder = sessionIn('/work/vscode/src');
 		const inWorktree = { ...atFolder, workspace: sessionIn('/work/vscode.worktrees/feature').workspace };
-		const onDidChangeCurrentLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
-		let folder = URI.file('/work/vscode');
-		const opened: string[] = [];
-		disposables.add(new AgentsViewLocationSessions(
-			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeCurrentLocation: onDidChangeCurrentLocation.event }),
-			service,
-			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }),
-			upcastPartial<ISessionsManagementService>({ getSession: resource => resource.toString() === atFolder.resource.toString() ? inWorktree : undefined }),
-			// As the chat part does: opening a session moves the folder to where it works, unless asked to keep it
-			upcastPartial<IAgentsChatPartService>({ openChat: async (session, _chat, options) => { opened.push(session.resource.toString()); if (!options?.keepFolder) { await service.switchToSession(session); } } }),
-			upcastPartial<IContextKeyService>({ getContextKeyValue: <T>() => true as T }),
-		));
-		const pick = async (path: string) => {
-			folder = URI.file(path);
-			onDidChangeCurrentLocation.fire({ reason: 'user' });
-			await timeout(0);
-		};
+		const { opened, pick } = createRecall(service, [inWorktree]);
 
 		// The session opens at the folder, then its agent moves it into a new worktree, which the folder follows
 		await service.switchToSession(atFolder);
