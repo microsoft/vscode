@@ -6,9 +6,14 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { BaseActionViewItem } from '../../../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ToggleMenuAction, ToolBar } from '../../../../../../../base/browser/ui/toolbar/toolbar.js';
+import { Action } from '../../../../../../../base/common/actions.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { getToolbarPickerResponsiveItems } from '../../../../browser/widget/input/chatInputPart.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { renderChatInputPickerSplit } from '../../../../browser/widget/input/chatInputPickerActionItem.js';
 import '../../../../browser/widget/input/modelPicker/media/modelPicker.css';
@@ -64,6 +69,100 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		}));
 		return { lane, items, layout };
 	}
+
+	test('preserves wrapped picker sizing and presentation across overflow', () => {
+		host.style.width = '200px';
+		const attach = store.add(new Action('attach', 'Attach'));
+		const model = store.add(new Action('model', 'Model'));
+		const compactStates = new Map<string, ISettableObservable<boolean>>();
+		const toolbar: ToolBar = store.add(new ToolBar(host, { showContextMenu: () => { } }, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 2,
+				actionMinWidth: 48,
+				reserveMinWidth: false,
+				getActionMinWidth: action => action === attach || compactStates.get(action.id)?.get() ? 22 : undefined,
+				allowOverflow: () => layout.areAllItemsCompact(),
+				getOverflowAction: action => action,
+			},
+			actionViewItemProvider: action => {
+				if (action === attach) {
+					return new class extends BaseActionViewItem {
+						override render(container: HTMLElement): void {
+							super.render(container);
+							container.style.width = '16px';
+							container.textContent = '+';
+						}
+					}(undefined, action);
+				}
+				if (action !== model) {
+					return undefined;
+				}
+				return new class extends BaseActionViewItem {
+					private compact = false;
+
+					override render(container: HTMLElement): void {
+						super.render(container);
+						container.classList.add('test-model-picker');
+						container.style.overflow = 'hidden';
+						container.textContent = 'Model';
+						this.setCompact(this.compact);
+					}
+
+					isCompact(): boolean {
+						return this.compact;
+					}
+
+					setCompact(compact: boolean): void {
+						this.compact = compact;
+						if (this.element) {
+							this.element.style.width = compact ? '22px' : '80px';
+							this.element.style.minWidth = compact ? '22px' : '48px';
+						}
+					}
+				}(undefined, store.add(new Action('', 'Model')));
+			},
+		}));
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.wrappedPicker', toolbar.getElement(), {
+			getItems: () => getToolbarPickerResponsiveItems(toolbar, compactStates),
+			hasOverflow: () => toolbar.hasOverflow(),
+			relayout: () => toolbar.relayout(),
+		}));
+		toolbar.setActions([attach, model]);
+
+		const snapshots = [200, 56, 24, 56, 200].map(width => {
+			host.style.width = `${width}px`;
+			layout.layout();
+			const actions = Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index));
+			return {
+				width,
+				primary: actions.map(action => action?.id),
+				overflow: actions.flatMap(action => action instanceof ToggleMenuAction ? action.menuActions.map(item => item.id) : []),
+				compact: compactStates.get(model.id)?.get(),
+				pickerRendered: !!toolbar.getItemElement(1)?.classList.contains('test-model-picker'),
+			};
+		});
+
+		assert.deepStrictEqual(snapshots, [
+			{ width: 200, primary: ['attach', ''], overflow: [], compact: false, pickerRendered: true },
+			{ width: 56, primary: ['attach', ''], overflow: [], compact: true, pickerRendered: true },
+			{ width: 24, primary: [ToggleMenuAction.ID], overflow: ['attach', 'model'], compact: true, pickerRendered: false },
+			{ width: 56, primary: ['attach', ''], overflow: [], compact: true, pickerRendered: true },
+			{ width: 200, primary: ['attach', ''], overflow: [], compact: false, pickerRendered: true },
+		]);
+	});
+
+	test('ignores compact states for removed toolbar actions', () => {
+		const toolbar = store.add(new ToolBar(host, { showContextMenu: () => { } }));
+		const model = store.add(new Action('model', 'Model'));
+		const compactStates = new Map([[model.id, observableValue('modelCompact', false)]]);
+		toolbar.setActions([model]);
+		const before = getToolbarPickerResponsiveItems(toolbar, compactStates).length;
+		toolbar.setActions([]);
+
+		assert.deepStrictEqual({ before, after: getToolbarPickerResponsiveItems(toolbar, compactStates).length }, { before: 1, after: 0 });
+	});
 
 	test('intrinsic sizing ignores intermediate reveal widths and restores labels', () => {
 		const { lane, items, layout } = createPickerLane(260, [80, 80, 80], true);

@@ -61,7 +61,7 @@ import { IRequestAddInstanceToGroupEvent, ITerminalConfigurationService, ITermin
 import { TerminalLaunchHelpAction } from './terminalActions.js';
 import { TerminalEditorInput } from './terminalEditorInput.js';
 import { TerminalExtensionsRegistry } from './terminalExtensions.js';
-import { getColorClass, createColorStyleElement, getStandardColors } from './terminalIcon.js';
+import { getColorClass, createColorStyleElement, getStandardColors, getTerminalProgressIcon } from './terminalIcon.js';
 import { TerminalProcessManager } from './terminalProcessManager.js';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from './terminalStatusList.js';
 import { getTerminalResourcesFromDragEvent, getTerminalUri } from './terminalUri.js';
@@ -2889,16 +2889,11 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	private _getProgressStateString(progressState?: IProgressState): string {
-		if (!progressState) {
-			return '';
+		if (progressState?.state === 1) {
+			return `${Math.round(progressState.value)}%`;
 		}
-		switch (progressState.state) {
-			case 0: return '';
-			case 1: return `${Math.round(progressState.value)}%`;
-			case 2: return '$(error)';
-			case 3: return '$(loading~spin)';
-			case 4: return '$(alert)';
-		}
+		const icon = getTerminalProgressIcon(progressState);
+		return icon ? `$(${icon.id})` : '';
 	}
 }
 

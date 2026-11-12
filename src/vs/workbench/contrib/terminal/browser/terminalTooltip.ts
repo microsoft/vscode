@@ -5,15 +5,20 @@
 
 import type { IHoverAction } from '../../../../base/browser/ui/hover/hover.js';
 import { asArray } from '../../../../base/common/arrays.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { basename } from '../../../../base/common/path.js';
+import { escape } from '../../../../base/common/strings.js';
 import { localize } from '../../../../nls.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../../../platform/storage/common/storage.js';
 import type { ITerminalStatusHoverAction } from '../common/terminal.js';
 import { TerminalStorageKeys } from '../common/terminalStorageKeys.js';
 import { ITerminalInstance } from './terminal.js';
 
-export function getInstanceHoverInfo(instance: ITerminalInstance, storageService: IStorageService): { content: MarkdownString; actions: IHoverAction[] } {
+export function getInstanceLabel(instance: ITerminalInstance, separator: string): string {
+	return !instance.description ? instance.title : `${instance.title} ${separator} ${instance.description}`;
+}
+
+export function getInstanceHoverInfo(instance: ITerminalInstance, storageService: IStorageService, separator: string): { content: MarkdownString; actions: IHoverAction[] } {
 	const showDetailed = parseInt(storageService.get(TerminalStorageKeys.TabsShowDetailed, StorageScope.APPLICATION) ?? '0');
 	let statusString = '';
 	const statuses = instance.statusList.statuses;
@@ -41,7 +46,8 @@ export function getInstanceHoverInfo(instance: ITerminalInstance, storageService
 	});
 
 	const shellProcessString = getShellProcessTooltip(instance, !!showDetailed);
-	const content = new MarkdownString(instance.title + shellProcessString + statusString, { supportThemeIcons: true });
+	const label = escapeMarkdownSyntaxTokens(escape(getInstanceLabel(instance, separator)));
+	const content = new MarkdownString(label + shellProcessString + statusString, { supportThemeIcons: true });
 
 	return { content, actions };
 }
@@ -73,4 +79,3 @@ export function getShellProcessTooltip(instance: ITerminalInstance, showDetailed
 
 	return lines.length ? `\n\n---\n\n${lines.join('\n')}` : '';
 }
-

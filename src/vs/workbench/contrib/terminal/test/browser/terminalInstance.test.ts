@@ -947,6 +947,22 @@ suite('Workbench - TerminalInstance', () => {
 			return store.add(instantiationService.createInstance(TerminalLabelComputer));
 		}
 
+		test('preserves progress formatting in titles and descriptions', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { title: '${process} ${progress}', description: '${progress}' } } } });
+			const labels = ([0, 1, 2, 3, 4, 0] as const).map(state => {
+				terminalLabelComputer.refreshLabel(createInstance({ processName: 'shell', progressState: { state, value: 41.6 } }));
+				return { title: terminalLabelComputer.title, description: terminalLabelComputer.description };
+			});
+			deepStrictEqual(labels, [
+				{ title: 'shell', description: '' },
+				{ title: 'shell 42%', description: '42%' },
+				{ title: 'shell $(error)', description: '$(error)' },
+				{ title: 'shell $(loading~spin)', description: '$(loading~spin)' },
+				{ title: 'shell $(alert)', description: '$(alert)' },
+				{ title: 'shell', description: '' }
+			]);
+		});
+
 		test('should resolve to "" when the template variables are empty', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '', description: '' } } } });
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: '' }));

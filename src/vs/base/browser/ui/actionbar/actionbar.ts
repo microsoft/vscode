@@ -18,6 +18,11 @@ import './actionbar.css';
 export interface IActionViewItem extends IDisposable {
 	action: IAction;
 	actionRunner: IActionRunner;
+	/**
+	 * Minimum width in CSS pixels, excluding toolbar spacing. Must remain stable until actions are
+	 * replaced. Toolbars containing such items enable responsive overflow unless explicitly configured.
+	 */
+	readonly minimumWidthForOverflow?: number;
 	setActionContext(context: unknown): void;
 	render(element: HTMLElement): void;
 	isEnabled(): boolean;

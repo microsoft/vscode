@@ -30,17 +30,17 @@ import { ISelectOptionItem, SeparatorSelectOption } from '../../../../base/brows
 import { IActionViewItem } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { TerminalTabbedView } from './terminalTabbedView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getColorForSeverity } from './terminalStatusList.js';
 import { getFlatContextMenuActions, MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { DisposableMap, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isDark } from '../../../../platform/theme/common/theme.js';
-import { getColorClass, getUriClasses } from './terminalIcon.js';
+import { getColorClass, getIconColorStyle, getTerminalProgressIcon, getUriClasses } from './terminalIcon.js';
 import { getTerminalActionBarArgs } from './terminalMenus.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
-import { getInstanceHoverInfo } from './terminalTooltip.js';
+import { getInstanceHoverInfo, getInstanceLabel } from './terminalTooltip.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -92,6 +92,8 @@ export class TerminalViewPane extends ViewPane {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 	) {
 		super(options, keybindingService, contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, hoverService);
+		this.element.classList.add('terminal-view');
+		this.element.classList.toggle('has-single-terminal-tab', this._hasSingleTabAction());
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
 			this._onDidChangeViewWelcomeState.fire();
 		}));
@@ -247,6 +249,16 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView?.layout(width, height);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	protected override updateActions(): void {
+		this.element.classList.toggle('has-single-terminal-tab', this._hasSingleTabAction());
+		super.updateActions();
+	}
+
+	private _hasSingleTabAction(): boolean {
+		return this.menuActions.getPrimaryActions().some(action => action.id === TerminalCommandId.Focus);
+	}
+
 	override createActionViewItem(action: Action, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
 		switch (action.id) {
 			case TerminalCommandId.Split: {
@@ -290,10 +302,12 @@ export class TerminalViewPane extends ViewPane {
 				if (action instanceof MenuItemAction) {
 					this._disposableStore.clear();
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._disposableStore);
-					this._newDropdown.value = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, {
+					// Only opt into responsive overflow alongside the single-tab label.
+					const minimumWidthForOverflow = this._hasSingleTabAction() ? 36 : undefined;
+					this._newDropdown.value = Object.assign(this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, {
 						hoverDelegate: options.hoverDelegate,
 						getKeyBinding: (action: IAction) => this._keybindingService.lookupKeybinding(action.id, this._contextKeyService)
-					});
+					}), { minimumWidthForOverflow });
 					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 					return this._newDropdown.value;
 				}
@@ -403,6 +417,9 @@ function getTerminalSelectOpenItems(terminalService: ITerminalService, terminalG
 }
 
 class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
+	// Reserve the terminal, progress and status icon slots before the indicators appear.
+	readonly minimumWidthForOverflow = 68;
+
 	private _color: string | undefined;
 	private _altCommand: string | undefined;
 	private _class: string | undefined;
@@ -451,6 +468,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 		// Clean up on dispose
 		this._register(toDisposable(() => dispose(this._elementDisposables)));
+	}
+
+	override render(container: HTMLElement): void {
+		container.classList.add('single-terminal-tab-container');
+		super.render(container);
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
@@ -516,7 +538,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			}
 			label.style.color = colorStyle;
 			const primaryActionIcon = this._menuItemAction.item.icon;
-			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(primaryActionIcon) ? primaryActionIcon : undefined)));
+			dom.reset(label, ...this._instantiationService.invokeFunction(renderSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(primaryActionIcon) ? primaryActionIcon : undefined));
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
@@ -565,27 +587,41 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstance | undefined, separator: string, icon?: ThemeIcon) {
+function renderSingleTabLabel(accessor: ServicesAccessor, instance: ITerminalInstance | undefined, separator: string, icon?: ThemeIcon): HTMLElement[] {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
-		return '';
+		return [];
 	}
 	const iconId = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon.id : accessor.get(ITerminalProfileResolverService).getDefaultIcon().id;
-	const label = `$(${icon?.id || iconId}) ${getSingleTabTitle(instance, separator)}`;
+	const content = renderLabelWithIcons(getInstanceLabel(instance, separator));
+	const progressIcon = getTerminalProgressIcon(instance.progressState);
+	let progressElement: HTMLSpanElement | undefined;
+	if (progressIcon) {
+		const classes = ThemeIcon.asClassNameArray(progressIcon);
+		for (let index = content.length - 1; index >= 0; index--) {
+			const part = content[index];
+			if (typeof part !== 'string' && classes.every(className => part.classList.contains(className))) {
+				progressElement = part;
+				content.splice(index, 1);
+				break;
+			}
+		}
+	}
+	const label = [
+		renderIcon(icon ?? { id: iconId }),
+		dom.$('span.single-terminal-tab-label', undefined, ...content)
+	];
+	if (progressElement) {
+		progressElement.classList.add('single-terminal-tab-progress');
+		label.push(progressElement);
+	}
 
 	const primaryStatus = instance.statusList.primary;
-	if (!primaryStatus?.icon) {
-		return label;
+	if (primaryStatus?.icon) {
+		label.push(renderIcon(primaryStatus.icon));
 	}
-	return `${label} $(${primaryStatus.icon.id})`;
-}
-
-function getSingleTabTitle(instance: ITerminalInstance | undefined, separator: string): string {
-	if (!instance) {
-		return '';
-	}
-	return !instance.description ? instance.title : `${instance.title} ${separator} ${instance.description}`;
+	return label;
 }
 
 class TerminalThemeIconStyle extends Themable {
@@ -631,7 +667,7 @@ class TerminalThemeIconStyle extends Themable {
 			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
-					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon` +
+					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) > .codicon:first-child` +
 					`{background-image: ${cssJs.asCSSUrl(uri)};}`
 				);
 			}
@@ -645,11 +681,7 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
-				// exclude status icons (file-icon) and inline action icons (trashcan, horizontalSplit, rerunTask)
-				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon):not(.codicon-rerun-task)` +
-					`{ color: ${color} !important; }`
-				);
+				css += getIconColorStyle(colorClass, color);
 			}
 		}
 
@@ -681,7 +713,7 @@ class SingleTabHoverDelegate implements IHoverDelegate {
 		if (!instance) {
 			return;
 		}
-		const hoverInfo = getInstanceHoverInfo(instance, this._storageService);
+		const hoverInfo = getInstanceHoverInfo(instance, this._storageService, this._configurationService.getValue<string>(TerminalSettingId.TerminalTitleSeparator));
 		return this._hoverService.showInstantHover({
 			...options,
 			content: hoverInfo.content,
