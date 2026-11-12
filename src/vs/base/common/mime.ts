@@ -26,8 +26,15 @@ const mapExtToTextMimes: Record<string, string> = {
 	'.html': 'text/html',
 	'.ics': 'text/calendar',
 	'.js': 'text/javascript',
+	'.json': 'application/json',
+	'.map': 'application/json',
 	'.mjs': 'text/javascript',
+	'.otf': 'font/otf',
+	'.pdf': 'application/pdf',
+	'.ttf': 'font/ttf',
 	'.txt': 'text/plain',
+	'.wasm': 'application/wasm',
+	'.woff2': 'font/woff2',
 	'.xml': 'text/xml'
 };
 
