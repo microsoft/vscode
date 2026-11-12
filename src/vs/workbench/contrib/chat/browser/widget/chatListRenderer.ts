@@ -944,6 +944,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
 	private readonly stickyProgressObservation = this._register(new MutableDisposable<DisposableStore>());
 	private readonly stickyProgressPart = this._register(new MutableDisposable<ChatWorkingProgressContentPart>());
+	private readonly pendingStickyProgressUpdate = this._register(new MutableDisposable());
 	private stickyProgressContainer: HTMLElement | undefined;
 	private stickyProgressResponse: IChatResponseViewModel | undefined;
 	private stickyProgressAnchor: ChatWorkingProgressAnchor | undefined;
@@ -1325,6 +1326,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private clearStickyProgress(): void {
+		this.pendingStickyProgressUpdate.clear();
 		const anchor = this.stickyProgressAnchor?.domNode;
 		const part = this.stickyProgressPart.value;
 		if (anchor?.isConnected && part && anchor.contains(part.domNode)) {
@@ -1407,7 +1409,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Places the working progress once before the next paint. Rendering and scrolling can happen
+	 * many times per frame while a response streams, and each placement reads layout.
+	 */
+	scheduleStickyProgressUpdate(): void {
+		const container = this.stickyProgressContainer;
+		if (this.pendingStickyProgressUpdate.value || !container || !this.stickyProgressPart.value) {
+			return;
+		}
+		this.pendingStickyProgressUpdate.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(container), () => {
+			this.pendingStickyProgressUpdate.clear();
+			this.updateStickyProgress();
+		});
+	}
+
 	updateStickyProgress(): void {
+		this.pendingStickyProgressUpdate.clear();
 		const container = this.stickyProgressContainer;
 		const response = this.stickyProgressResponse;
 		const part = this.stickyProgressPart.value;
@@ -4075,7 +4093,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
 			templateData.wasResponseComplete = element.isComplete;
 		}
-		this.updateStickyProgress();
+		this.scheduleStickyProgressUpdate();
 	}
 
 	private insertRebuiltContentPart(node: HTMLElement, contentIndex: number, templateData: IChatListItemTemplate, retainedProgress?: HTMLElement): void {

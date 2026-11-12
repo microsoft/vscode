@@ -770,7 +770,7 @@ export class ChatListWidget extends Disposable {
 
 		// Handle scroll events (fire public event and manage scroll-down button)
 		this._register(this._tree.onDidScroll((e) => {
-			this._renderer.updateStickyProgress();
+			this._renderer.scheduleStickyProgressUpdate();
 			this._onDidScroll.fire(e);
 			this.updateScrollDownButtonVisibility();
 		}));
