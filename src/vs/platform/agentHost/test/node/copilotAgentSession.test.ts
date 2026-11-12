@@ -139,9 +139,10 @@ import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.
 import { withAgentToolOrigin } from '../../common/meta/agentToolDefinitionMeta.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
-import { ISessionSandboxPaths, SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, SESSION_SANDBOX_PATHS_KEY } from '../../common/sandboxPathGrant.js';
+import { ISessionSandboxPaths, SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, SESSION_SANDBOX_PATHS_CHANGED, SESSION_SANDBOX_PATHS_KEY } from '../../common/sandboxPathGrant.js';
 import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { ISessionSandboxPathService, SessionSandboxPathService } from '../../node/sessionSandboxPathService.js';
+import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
@@ -1434,6 +1435,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Coordinates the session's edit tool calls with the host's changes of their files. */
 	fileEditCoordinator?: AgentHostFileEditCoordinator;
 	workingDirectory?: URI;
+	additionalDirectories?: readonly URI[];
+	workspaceless?: boolean;
+	workspaceSandboxPaths?: IWorkspaceSandboxPathService;
 	pathMapper?: ICopilotSdkPathMapper;
 	virtualSessionFs?: CopilotVirtualSessionFs;
 	customizationDirectory?: URI;
@@ -1613,6 +1617,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
 		workingDirectory: options?.workingDirectory,
+		additionalDirectories: options?.additionalDirectories,
+		workspaceless: options?.workspaceless,
 		workspace: options?.workingDirectory && toCopilotWorkspace(options.workingDirectory),
 		virtualSessionFs: options?.virtualSessionFs,
 		resolvedAgentName: options?.resolvedAgentName,
@@ -1667,6 +1673,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(ILogService, logService);
 	const storageService = disposables.add(new AgentHostStorageService(undefined, logService));
 	services.set(IAgentHostStorageService, storageService);
+	services.set(IWorkspaceSandboxPathService, options?.workspaceSandboxPaths ?? new WorkspaceSandboxPathService(storageService));
 	services.set(ITelemetryService, options?.telemetryService ?? new NullTelemetryServiceShape());
 	services.set(IAgentHostGitService, options?.gitService ?? createNoopGitService());
 	services.set(IAgentHostGitHubEndpointService, options?.gitHubEndpointService ?? createTestGitHubEndpointService());
@@ -2086,6 +2093,7 @@ function createTestShellManager(disposables: DisposableStore, workingDirectory: 
 			setCalls.push(directory);
 		},
 		get workingDirectory() { return setCalls.at(-1) ?? workingDirectory; },
+		setSandboxWorkspaceDirectories: () => { },
 		dispose: () => { },
 	} as unknown as ShellManager;
 	return { shellManager, preflightCalls: () => preflightCalls, setCalls };
@@ -14734,7 +14742,7 @@ suite('CopilotAgentSession', () => {
 			test(`sandbox path grant selection respects managed approval for ${kind} requests`, async () => {
 				const results = [];
 				for (const managedApprovalRequired of [false, true]) {
-					const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+					const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
 					const grant = { path: '/outside', access: 'readWrite' as const };
 					const request = { kind, toolCallId: 'grant-tool', requestSandboxBypass: true, sandboxPathGrant: grant, managedApprovalRequired };
 					const pending = runtime.handlePermissionRequest(request);
@@ -14744,13 +14752,14 @@ suite('CopilotAgentSession', () => {
 					results.push({
 						grant: readToolCallMeta(signal.state)['vscode.sandboxPathGrant'],
 						canSave: signal.state.options?.some(option => option.id === SAVE_SANDBOX_PATH) ?? false,
+						canSaveWorkspace: signal.state.options?.some(option => option.id === SAVE_WORKSPACE_SANDBOX_PATH) ?? false,
 					});
 					session.respondToPermissionRequest('grant-tool', false);
 					await pending;
 				}
 				assert.deepStrictEqual(results, [
-					{ grant: { path: '/outside', access: 'readWrite' }, canSave: true },
-					{ grant: undefined, canSave: false },
+					{ grant: { path: '/outside', access: 'readWrite' }, canSave: true, canSaveWorkspace: true },
+					{ grant: undefined, canSave: false, canSaveWorkspace: false },
 				]);
 			});
 		}
@@ -14855,6 +14864,372 @@ suite('CopilotAgentSession', () => {
 				} finally {
 					grant.restore();
 				}
+			});
+		}
+
+		for (const runtimeFails of [false, true]) {
+			test(`sandbox workspace grant saves only after runtime approval (runtime fails: ${runtimeFails})`, async () => {
+				const roots = [URI.file('/workspace')];
+				const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+				const rig = await createAgentSession(disposables, {
+					workingDirectory: roots[0], workspaceSandboxPaths: paths,
+					rootValues: { sandbox: { enabled: 'on', 'fileSystem.userConfiguredPaths': { readonlyPaths: ['/upgrade'], deniedPaths: ['/secret'] } } },
+				});
+				const read = { kind: 'read' as const, path: '/upgrade', toolCallId: 'earlier-session-read', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'read' as const } };
+				const reading = rig.runtime.handlePermissionRequest(read);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-session-read', permissionRequest: toPermissionRequest(read) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === read.toolCallId);
+				rig.session.respondToPermissionRequest(read.toolCallId, true, { selectedOptionId: SAVE_SESSION_SANDBOX_PATH, decisionSource: 'human_response' });
+				await reading;
+				const request = { kind: 'write' as const, path: '/upgrade', toolCallId: 'workspace-write', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'readWrite' as const, removedReadonlyPaths: ['/upgrade'] } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-workspace-write', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === request.toolCallId);
+				const grant = stub(rig.mockSession.rpc.sandbox, 'grantPathForRequest').callsFake(async () => {
+					assert.strictEqual(paths.getPaths(roots), undefined);
+					return { success: !runtimeFails };
+				});
+				try {
+					rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+					const result = await pending;
+					await rig.session.syncPermissionMode('turn-start');
+					const filesystem = rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem;
+					assert.deepStrictEqual({
+						result: result.kind, stored: paths.getPaths(roots),
+						sessionPaths: JSON.parse(rig.sandboxPathMetadata.get(SESSION_SANDBOX_PATHS_KEY)!),
+						readonly: filesystem?.readonlyPaths?.includes('/upgrade') ?? false,
+						writable: filesystem?.readwritePaths, denied: filesystem?.deniedPaths,
+						rootWrites: rig.rootConfigUpdates,
+					}, {
+						result: runtimeFails ? 'reject' : 'no-result',
+						stored: runtimeFails ? undefined : { readonlyPaths: [], readwritePaths: ['/upgrade'], removedReadonlyPaths: ['/upgrade'] },
+						sessionPaths: { readonlyPaths: runtimeFails ? ['/upgrade'] : [], readwritePaths: [], removedReadonlyPaths: [] },
+						readonly: runtimeFails, writable: runtimeFails ? undefined : ['/upgrade'], denied: ['/secret'], rootWrites: [],
+					});
+				} finally {
+					grant.restore();
+				}
+			});
+		}
+
+		test('sandbox Workspace choice is advertised only for filesystem workspace chats and Session stays default', async () => {
+			const options = [];
+			for (const context of [
+				{ workingDirectory: URI.file('/workspace') },
+				{ workingDirectory: URI.file('/workspace'), additionalDirectories: [URI.file('/second')] },
+				{ workingDirectory: URI.file('/scratch'), workspaceless: true },
+				{ workingDirectory: URI.parse('vscode-vfs://host/workspace') },
+				{},
+			]) {
+				const rig = await createAgentSession(disposables, context);
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'workspace-options', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-workspace-options', permissionRequest: toPermissionRequest(request) });
+				const signal = await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.ok(signal.kind === 'pending_confirmation');
+				options.push(signal.state.options?.map(option => option.id));
+				rig.session.respondToPermissionRequest(request.toolCallId, false);
+				await pending;
+			}
+			const workspace = [SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH, SAVE_SANDBOX_PATH, 'skip'];
+			const withoutWorkspace = [SAVE_SESSION_SANDBOX_PATH, SAVE_SANDBOX_PATH, 'skip'];
+			assert.deepStrictEqual(options, [workspace, workspace, withoutWorkspace, withoutWorkspace, withoutWorkspace]);
+		});
+
+		test('sandbox workspace paths restore for exact launch roots, excluding scratch, virtual and different scopes', async () => {
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			const primary = URI.file('/workspace');
+			const secondary = URI.file('/other-root');
+			await paths.grant([primary, secondary], { path: '/workspace-grant', access: 'readWrite' });
+			const results = [];
+			for (const options of [
+				{ workingDirectory: primary, additionalDirectories: [secondary] },
+				{ workingDirectory: secondary, additionalDirectories: [primary, secondary] },
+				{ workingDirectory: primary.with({ path: `${primary.path}/./` }), additionalDirectories: [secondary.with({ path: `${secondary.path}/` })] },
+				{ workingDirectory: primary },
+				{ workingDirectory: URI.file('/Workspace'), additionalDirectories: [secondary] },
+				{ workingDirectory: primary, additionalDirectories: [secondary], workspaceless: true },
+				{ workingDirectory: URI.parse('vscode-vfs://host/workspace'), additionalDirectories: [secondary] },
+			]) {
+				let config: SandboxConfig | undefined;
+				await createAgentSession(disposables, {
+					...options, workspaceSandboxPaths: paths, resume: true,
+					rootValues: { sandbox: { enabled: 'on' } },
+					duringLaunch: runtime => { config = runtime.getLaunchSandboxConfig(true); },
+				});
+				results.push(config?.userPolicy?.filesystem?.readwritePaths?.includes('/workspace-grant') ?? false);
+			}
+			assert.deepStrictEqual(results, [true, true, true, false, false, false, false]);
+		});
+
+		test('sandbox workspace lookup is skipped when disabled and retries when enabled', async () => {
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			const logService = new CapturingLogService();
+			const failure = new Error('workspace storage unavailable');
+			const read = stub(paths, 'getPaths').throws(failure);
+			try {
+				const rig = await createAgentSession(disposables, {
+					workingDirectory: URI.file('/workspace'), workspaceSandboxPaths: paths, logService,
+					rootValues: { sandbox: { enabled: 'on' } },
+					configValues: { [SessionConfigKey.SandboxEnabled]: 'off' },
+				});
+				await rig.session.syncPermissionMode('turn-start');
+				assert.deepStrictEqual({
+					config: rig.runtime.getLaunchSandboxConfig(false),
+					reads: read.callCount, errors: logService.errors,
+					notifications: rig.sandboxResults.filter(value => typeof value === 'string'),
+				}, { config: { enabled: false }, reads: 0, errors: [], notifications: [] });
+
+				rig.setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
+				await rig.session.syncPermissionMode('turn-start');
+				const withoutWorkspace = rig.runtime.getLaunchSandboxConfig(false);
+				read.returns({ readonlyPaths: [], readwritePaths: ['/recovered'], removedReadonlyPaths: [] });
+				await rig.session.syncPermissionMode('turn-start');
+				assert.deepStrictEqual({
+					enabledAfterFailure: withoutWorkspace?.enabled,
+					recoveredPaths: rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readwritePaths,
+					errors: logService.errors.map(entry => entry.first),
+					notifications: rig.sandboxResults.filter(value => typeof value === 'string'),
+				}, {
+					enabledAfterFailure: true, recoveredPaths: ['/recovered'], errors: [failure],
+					notifications: ['Workspace-specific sandbox settings are not loaded.'],
+				});
+			} finally {
+				read.restore();
+			}
+		});
+
+		for (const resume of [false, true]) {
+			test(`sandbox workspace load failure does not block launch or weaken managed policy (resume: ${resume})`, async () => {
+				const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+				const logService = new CapturingLogService();
+				const failure = new Error('invalid workspace sandbox paths');
+				const read = stub(paths, 'getPaths').throws(failure);
+				try {
+					let launchConfig: SandboxConfig | undefined;
+					const rig = await createAgentSession(disposables, {
+						resume, workingDirectory: URI.file('/workspace'), workspaceSandboxPaths: paths, logService,
+						rootValues: { sandbox: { enabled: 'off', 'fileSystem.userConfiguredPaths': { readwritePaths: ['/user'], deniedPaths: ['/user-denied'] } } },
+						configValues: { [SessionConfigKey.SandboxEnabled]: 'off' },
+						sandboxPolicy: { enabled: true, allowBypass: false, deniedPaths: ['/managed-denied'] },
+						sandboxPathStateStore: new class extends mock<IAgentHostSessionStateStore>() {
+							override async readWithoutImport(): Promise<ReadonlyMap<string, string>> {
+								return new Map([[SESSION_SANDBOX_PATHS_KEY, JSON.stringify({ readonlyPaths: [], readwritePaths: ['/session'], removedReadonlyPaths: [] })]]);
+							}
+						}(),
+						duringLaunch: runtime => { launchConfig = runtime.getLaunchSandboxConfig(resume); },
+					});
+					await rig.session.syncPermissionMode('turn-start');
+					assert.deepStrictEqual({
+						enabled: launchConfig?.enabled,
+						writable: launchConfig?.userPolicy?.filesystem?.readwritePaths,
+						denied: launchConfig?.userPolicy?.filesystem?.deniedPaths,
+						retried: read.callCount > 1,
+						errors: logService.errors.map(entry => entry.first),
+						notifications: rig.sandboxResults.filter(value => typeof value === 'string'),
+					}, {
+						enabled: true, writable: ['/user', '/session'], denied: ['/user-denied', '/managed-denied'],
+						retried: true, errors: [failure], notifications: ['Workspace-specific sandbox settings are not loaded.'],
+					});
+				} finally {
+					read.restore();
+				}
+			});
+		}
+
+		test('sandbox workspace changes update matching live chats and clearing removes access', async () => {
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			const roots = [URI.file('/workspace'), URI.file('/second')];
+			const rigs = await Promise.all([
+				{ workingDirectory: roots[0], additionalDirectories: [roots[1]] },
+				{ workingDirectory: roots[1].with({ path: `${roots[1].path}/./` }), additionalDirectories: [roots[0].with({ path: `${roots[0].path}/` })] },
+				{ workingDirectory: roots[0] },
+				{ workingDirectory: URI.file('/Workspace'), additionalDirectories: [roots[1]] },
+			].map((options, index) => createAgentSession(disposables, {
+				...options, workspaceSandboxPaths: paths, sessionUri: URI.parse(`copilot:/workspace-peer-${index}`),
+				rootValues: { sandbox: { enabled: 'on' } },
+			})));
+			const updates = rigs.slice(0, 2).map(rig => {
+				const changed = new DeferredPromise<void>();
+				const update = rig.mockSession.rpc.options.update;
+				const listener = stub(rig.mockSession.rpc.options, 'update').callsFake(async params => {
+					const result = await update(params);
+					if (params.sandboxConfig) {
+						changed.complete();
+					}
+					return result;
+				});
+				return { changed, listener };
+			});
+			try {
+				await paths.grant(roots, { path: '/shared', access: 'readWrite' });
+				await Promise.all(updates.map(update => update.changed.p));
+				const afterGrant = rigs.map(rig => (rig.mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readwritePaths?.includes('/shared') ?? false);
+				await paths.clear(roots);
+				await Promise.all(rigs.slice(0, 2).map(rig => rig.session.syncPermissionMode('turn-start')));
+				assert.deepStrictEqual({
+					afterGrant,
+					afterClear: rigs.map(rig => (rig.mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig | undefined)?.userPolicy?.filesystem?.readwritePaths?.includes('/shared') ?? false),
+					unrelatedUpdates: rigs.slice(2).map(rig => rig.mockSession.sandboxConfigUpdates.length),
+				}, { afterGrant: [true, true, false, false], afterClear: [false, false, false, false], unrelatedUpdates: [0, 0] });
+			} finally {
+				updates.forEach(update => update.listener.restore());
+			}
+		});
+
+		test('sandbox workspace save failure keeps live access and reports the persistence failure', async () => {
+			const failed = new DeferredPromise<void>();
+			const logService = new class extends CapturingLogService {
+				override error(message: string | Error, ...args: unknown[]): void {
+					super.error(message, ...args);
+					if (args.some(arg => typeof arg === 'string' && arg.includes('Failed to persist workspace sandbox path access'))) {
+						failed.complete();
+					}
+				}
+			}();
+			const storage = disposables.add(new class extends AgentHostStorageService {
+				override async whenIdle(): Promise<void> { throw new Error('disk full'); }
+			}(undefined, logService));
+			const paths = new WorkspaceSandboxPathService(storage);
+			const roots = [URI.file('/workspace')];
+			const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths, logService, rootValues: { sandbox: { enabled: 'on' } } });
+			const request = { kind: 'read' as const, path: '/outside', toolCallId: 'workspace-save-failure', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+			const pending = rig.runtime.handlePermissionRequest(request);
+			rig.mockSession.fire('permission.requested', { requestId: 'sdk-workspace-save-failure', permissionRequest: toPermissionRequest(request) });
+			await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+			rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+			const result = await pending;
+			await failed.p;
+			assert.deepStrictEqual({
+				result: result.kind, live: paths.getPaths(roots)?.readonlyPaths,
+				configured: rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/outside'),
+				errors: rig.sandboxResults.filter(value => typeof value === 'string'),
+			}, {
+				result: 'no-result', live: ['/outside'], configured: true,
+				errors: ['Sandbox access was granted, but the workspace permission change could not be saved. You may need to approve it again when reopening the workspace. disk full'],
+			});
+		});
+
+		for (const workspaceless of [false, true]) {
+			test(`sandbox workspace approval rejects unavailable roots (scratch: ${workspaceless})`, async () => {
+				const rig = await createAgentSession(disposables, { workingDirectory: workspaceless ? URI.file('/scratch') : undefined, workspaceless });
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'workspace-unavailable', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-workspace-unavailable', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+				assert.deepStrictEqual({ result: (await pending).kind, requests: rig.mockSession.sandboxGrantRequests, errors: rig.sandboxResults.filter(value => typeof value === 'string') }, {
+					result: 'reject', requests: [], errors: ['Workspace sandbox permissions require a chat with filesystem workspace folders.'],
+				});
+			});
+		}
+
+		for (const destination of ['/new-workspace', '/Workspace']) {
+			test(`sandbox workspace approval rejects a working folder change to ${destination} before calling the runtime`, async () => {
+				const roots = [URI.file('/workspace')];
+				const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+				const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths });
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'stale-workspace', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-stale-workspace', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				await rig.session.setWorkingDirectory(URI.file(destination), { prepare: async () => { }, rollback: async () => { }, reconcile: async () => { } });
+				rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+				assert.deepStrictEqual({ result: (await pending).kind, requests: rig.mockSession.sandboxGrantRequests, stored: paths.getPaths(roots), errors: rig.sandboxResults.filter(value => typeof value === 'string') }, {
+					result: 'reject', requests: [], stored: undefined, errors: ['The workspace for this sandbox permission request has changed. Retry the request.'],
+				});
+			});
+		}
+
+		for (const change of ['folder', 'folder-case', 'owner'] as const) {
+			test(`sandbox workspace approval does not persist after ${change} changes during runtime acceptance`, async () => {
+				const roots = [URI.file('/workspace')];
+				const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+				const first = AgentSession.uri('copilot', 'original-owner');
+				const owner = disposables.add(new TestChatOwnerRef(first));
+				const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths, owner, sessionUri: first });
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'changing-workspace', requestSandboxBypass: true, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-changing-workspace', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				const grant = stub(rig.mockSession.rpc.sandbox, 'grantPathForRequest').callsFake(async () => {
+					if (change === 'owner') {
+						owner.set(AgentSession.uri('copilot', 'new-owner'));
+					} else {
+						await rig.session.setWorkingDirectory(URI.file(change === 'folder-case' ? '/Workspace' : '/new-workspace'), { prepare: async () => { }, rollback: async () => { }, reconcile: async () => { } });
+					}
+					return { success: true };
+				});
+				try {
+					rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: 'human_response' });
+					assert.deepStrictEqual({ result: (await pending).kind, stored: paths.getPaths(roots), sessionWrites: rig.sandboxPathMetadata.size }, {
+						result: 'reject', stored: undefined, sessionWrites: 0,
+					});
+				} finally {
+					grant.restore();
+				}
+			});
+		}
+
+		test('sandbox User upgrade removes stale Workspace read-only additions without copying User access', async () => {
+			const roots = [URI.file('/workspace')];
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			await paths.grant(roots, { path: '/upgrade', access: 'read' });
+			await paths.grant(roots, { path: '/keep', access: 'read' });
+			const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths, rootValues: { sandbox: { enabled: 'on' } } });
+			const request = { kind: 'write' as const, path: '/upgrade', toolCallId: 'user-workspace-upgrade', requestSandboxBypass: true, sandboxPathGrant: { path: '/upgrade', access: 'readWrite' as const, removedReadonlyPaths: ['/upgrade'] } };
+			const pending = rig.runtime.handlePermissionRequest(request);
+			rig.mockSession.fire('permission.requested', { requestId: 'sdk-user-workspace-upgrade', permissionRequest: toPermissionRequest(request) });
+			await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+			rig.setRootValue('sandbox', { enabled: 'on', 'fileSystem.userConfiguredPaths': { readwritePaths: ['/upgrade'] } });
+			rig.fireRootConfigChange();
+			rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_SANDBOX_PATH, decisionSource: 'human_response', sandboxPathGrantSaved: true });
+			assert.deepStrictEqual({ result: (await pending).kind, stored: paths.getPaths(roots), readonly: rig.runtime.getLaunchSandboxConfig(false)?.userPolicy?.filesystem?.readonlyPaths?.includes('/upgrade') ?? false }, {
+				result: 'no-result', stored: { readonlyPaths: ['/keep'], readwritePaths: [], removedReadonlyPaths: [] }, readonly: false,
+			});
+		});
+
+		test('sandbox workspace updates defer while a path request is pending and apply after it finishes', async () => {
+			const roots = [URI.file('/workspace')];
+			const paths = new WorkspaceSandboxPathService(disposables.add(new AgentHostStorageService(undefined, new NullLogService())));
+			const rig = await createAgentSession(disposables, { workingDirectory: roots[0], workspaceSandboxPaths: paths, rootValues: { sandbox: { enabled: 'on' } } });
+			const request = { kind: 'read' as const, path: '/pending', toolCallId: 'pending-workspace-sync', requestSandboxBypass: true, sandboxPathGrant: { path: '/pending', access: 'read' as const } };
+			const pending = rig.runtime.handlePermissionRequest(request);
+			rig.mockSession.fire('permission.requested', { requestId: 'sdk-pending-workspace-sync', permissionRequest: toPermissionRequest(request) });
+			await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+			await paths.grant(roots, { path: '/shared', access: 'readWrite' });
+			await rig.session.syncPermissionMode('turn-start');
+			const whilePending = rig.mockSession.sandboxConfigUpdates.length;
+			const applied = new DeferredPromise<void>();
+			const update = rig.mockSession.rpc.options.update;
+			const listener = stub(rig.mockSession.rpc.options, 'update').callsFake(async params => {
+				const result = await update(params);
+				if (params.sandboxConfig) {
+					applied.complete();
+				}
+				return result;
+			});
+			try {
+				rig.session.respondToPermissionRequest(request.toolCallId, false);
+				await pending;
+				await applied.p;
+				assert.deepStrictEqual({ whilePending, writable: (rig.mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig)?.userPolicy?.filesystem?.readwritePaths }, {
+					whilePending: 0, writable: ['/shared'],
+				});
+			} finally {
+				listener.restore();
+			}
+		});
+
+		for (const managed of [false, true]) {
+			test(`sandbox Workspace approval requires a human non-managed request (managed: ${managed})`, async () => {
+				const rig = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
+				const request = { kind: 'read' as const, path: '/outside', toolCallId: 'invalid-workspace-approval', requestSandboxBypass: true, managedApprovalRequired: managed, sandboxPathGrant: { path: '/outside', access: 'read' as const } };
+				const pending = rig.runtime.handlePermissionRequest(request);
+				rig.mockSession.fire('permission.requested', { requestId: 'sdk-invalid-workspace-approval', permissionRequest: toPermissionRequest(request) });
+				await rig.waitForSignal(signal => signal.kind === 'pending_confirmation');
+				rig.session.respondToPermissionRequest(request.toolCallId, true, { selectedOptionId: SAVE_WORKSPACE_SANDBOX_PATH, decisionSource: managed ? 'human_response' : 'unattended_fallback' });
+				assert.deepStrictEqual({ result: (await pending).kind, requests: rig.mockSession.sandboxGrantRequests }, { result: 'reject', requests: [] });
 			});
 		}
 

@@ -130,6 +130,25 @@ suite('Session sandbox configuration', () => {
 		});
 	});
 
+	test('workspace paths compose before Session upgrades and managed filesystem lists', () => {
+		const { configuration, create } = setupSession();
+		const owner = create('workspace-layers');
+		const target = { session: owner, chat: buildDefaultChatUri(owner) };
+		const workspace = { readonlyPaths: ['/workspace-read'], readwritePaths: ['/workspace-write'], removedReadonlyPaths: ['/user-read'] };
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', [AgentHostSandboxKey.UserConfiguredPaths]: { readonlyPaths: ['/user-read'], readwritePaths: ['/user-write'], deniedPaths: ['/secret'] } } });
+		configuration.setSessionSandboxPaths(owner, { readonlyPaths: ['/session-read'], readwritePaths: ['/workspace-read'], removedReadonlyPaths: ['/workspace-read'] });
+		const resolve = () => getSessionSandboxConfig(configuration, target, 'linux', workspace)[AgentHostSandboxKey.UserConfiguredPaths];
+		const personal = resolve();
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, readonlyPaths: ['/managed-read'], readwritePaths: [], deniedPaths: ['/managed-secret'] });
+		const managed = resolve();
+		configuration.setSessionSandboxPolicy(owner, { enabled: false });
+		assert.deepStrictEqual({ personal, managed, restored: resolve() }, {
+			personal: { readonlyPaths: ['/session-read'], readwritePaths: ['/user-write', '/workspace-write', '/workspace-read'], deniedPaths: ['/secret'] },
+			managed: { readonlyPaths: ['/managed-read'], readwritePaths: [], deniedPaths: ['/secret', '/managed-secret'] },
+			restored: personal,
+		});
+	});
+
 	test('restored sandbox paths can precede session publication and are evicted with the session', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = 'copilot:/restore-before-publish';
@@ -1509,10 +1528,10 @@ suite('Session sandbox configuration', () => {
 			state: {
 				status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'read', displayName: 'Read',
 				_meta: { 'vscode.sandboxPathGrant': grant },
-				...getSandboxPathGrantConfirmation(grant),
+				...getSandboxPathGrantConfirmation(grant, undefined, true),
 			},
 		}, owner, 'turn').options?.map(option => option.id));
-		assert.deepStrictEqual(options, [['save-session-sandbox-path', 'save-sandbox-path', 'skip'], ['allow-once', 'skip']]);
+		assert.deepStrictEqual(options, [['save-session-sandbox-path', 'save-workspace-sandbox-path', 'save-sandbox-path', 'skip'], ['allow-once', 'skip']]);
 	});
 
 	test('managed sandbox confirmations keep only the one-time and deny actions', () => {
