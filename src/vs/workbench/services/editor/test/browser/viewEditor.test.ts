@@ -758,7 +758,7 @@ suite('View Editors', () => {
 		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
 		const handle = views[0].dragHandle!;
 
-		const veto = (e: Event) => e.preventDefault();
+		const veto = (e: globalThis.Event) => e.preventDefault();
 		handle.addEventListener('dragstart', veto, true);
 		dispatch(handle, 'dragstart');
 		const transferWhenCancelled = editorTransfer.hasData(DraggedEditorIdentifier.prototype);
