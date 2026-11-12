@@ -122,6 +122,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	];
 	containerMountsError: Error | undefined;
 	existingContainerIds: readonly string[] = [];
+	/** Docker volumes and their labels. */
+	readonly volumes = new Map<string, Record<string, string>>();
 	volumeCreateExitCode = 0;
 	linkStateResult: { stdout: string; stderr?: string; code: number } = { stdout: '', code: 0 };
 	userCommandsExitCode = 0;
@@ -201,8 +203,18 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		if (args[0] === 'ps') {
 			return Promise.resolve({ stdout: this.existingContainerIds.map(id => `${id}\n`).join(''), stderr: '', code: 0 });
 		}
+		if (args[0] === 'volume' && args[1] === 'ls') {
+			return Promise.resolve({ stdout: [...this.volumes.keys()].map(name => `${name}\n`).join(''), stderr: '', code: 0 });
+		}
+		if (args[0] === 'volume' && args[1] === 'inspect') {
+			return Promise.resolve({ stdout: `${JSON.stringify(this.volumes.get(args.at(-1)!) ?? null)}\n`, stderr: '', code: 0 });
+		}
 		if (args[0] === 'volume' && args[1] === 'create' && this.volumeCreateExitCode) {
 			return Promise.resolve({ stdout: '', stderr: 'volume create failed', code: this.volumeCreateExitCode });
+		}
+		if (args[0] === 'volume' && args[1] === 'create') {
+			const labels = args.flatMap((arg, i) => args[i - 1] === '--label' ? [arg] : []);
+			this.volumes.set(args.at(-1)!, Object.fromEntries(labels.map(label => [label.substring(0, label.indexOf('=')), label.substring(label.indexOf('=') + 1)])));
 		}
 		return Promise.resolve({ stdout: `${args.at(-1)}\n`, stderr: '', code: 0 });
 	}
@@ -1121,7 +1133,7 @@ suite('Dev Container Agent Host Main Service', () => {
 	test('keeps user state on its volume and runs lifecycle commands after linking it', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
-		const stateVolume = `vscode-state-${'0'.repeat(52)}`;
+		const stateVolume = `vscode-state-project-${'0'.repeat(12)}`;
 		service.containerMounts = [...service.containerMounts, { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: stateVolume }];
 		service.linkStateResult = { stdout: 'vscode-state:step:folders\nvscode-state:folder:moved\nvscode-state:skip:mounted\n', code: 0 };
 		const reports: IDevContainerAgentHostUserStateReport[] = [];
@@ -1132,7 +1144,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		const link = service.localCommands.find(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
 		assert.deepStrictEqual({
 			mountFlag, rest,
-			mount: /^type=volume,source=(vscode-state-[0-9a-v]{52}),target=\/workspaces,external=true$/.exec(mount ?? '')?.[1] === createdVolume,
+			mount: /^type=volume,source=(vscode-state-workspace-[0-9a-v]{12}),target=\/workspaces,external=true$/.exec(mount ?? '')?.[1] === createdVolume,
 			link: link && [link.args.slice(0, 4), link.args.at(-1)?.includes(`home='/home/node'`), link.args.at(-1)?.includes(`volume='/workspaces'`)],
 			linkedBeforeLifecycle: service.linkedBeforeLifecycle,
 			lifecycle: service.devContainerArgs.filter(args => args[0] === 'run-user-commands'),
@@ -1158,7 +1170,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		const run = async (remoteEnv: object | undefined) => {
 			const service = store.add(new TestDevContainerAgentHostMainService());
 			service.sandboxConfigurationOutput = JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: [], remoteEnv } });
-			service.containerMounts = [...service.containerMounts, { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-${'0'.repeat(52)}` }];
+			service.containerMounts = [...service.containerMounts, { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` }];
 			service.linkStateResult = { stdout: 'vscode-state:step:folders\n', code: 0 };
 			await service.connect({ connectionId: 'home', workspaceFolder: '/workspace', name: 'Project', persistUserState: true });
 			const link = service.localCommands.find(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
@@ -1188,9 +1200,40 @@ suite('Dev Container Agent Host Main Service', () => {
 		}, { upArgs: ['--skip-post-create'], volumeCreated: false, reports: ['mount:existingContainer', 'up:succeeded', 'link:noMount', 'userCommands:succeeded'] });
 	});
 
+	test('reuses its state volume and rejects a volume of another dev container with the same name', async () => {
+		const configuration = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
+		const run = async (volumes: Map<string, Record<string, string>>) => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			service.sandboxConfigurationOutput = configuration;
+			volumes.forEach((labels, name) => service.volumes.set(name, labels));
+			const reports: Omit<IDevContainerAgentHostUserStateReport, 'connectionId'>[] = [];
+			store.add(service.onDidReportUserState(({ connectionId: _, ...report }) => reports.push(report)));
+			await service.connect({ connectionId: 'state', workspaceFolder: '/workspace', name: 'Project', persistUserState: true });
+			return { service, created: service.dockerCommands.some(args => args[0] === 'volume' && args[1] === 'create'), mount: service.userStateUpArgs?.[1], report: reports[0] };
+		};
+		const first = await run(new Map());
+		const [[name, labels]] = first.service.volumes;
+		const localFolder = labels['vscode.dev-container-state.label.devcontainer.local_folder'];
+		const reused = await run(new Map([[name, labels]]));
+		const other = await run(new Map([[name, { ...labels, 'vscode.dev-container-state.id': 'other' }]]));
+		assert.deepStrictEqual({
+			name: /^vscode-state-workspace-[0-9a-v]{12}$/.test(name),
+			labels: Object.keys(labels),
+			localFolder: /[\\/]workspace$/.test(localFolder),
+			reused: { created: reused.created, mount: reused.mount === first.mount, report: reused.report },
+			other: { created: other.created, mount: other.mount, report: other.report },
+		}, {
+			name: true,
+			labels: ['vscode.dev-container-state.id', 'vscode.dev-container-state.label.devcontainer.local_folder', 'vscode.dev-container-state.label.devcontainer.config_file'],
+			localFolder: true,
+			reused: { created: false, mount: true, report: { stage: 'mount', outcome: 'added', target: 'workspaces' } },
+			other: { created: false, mount: undefined, report: { stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces', errorMessage: 'Docker volume vscode-state-<name> is not the state volume of this dev container' } },
+		});
+	});
+
 	test('reports user state failures for telemetry', async () => {
 		const configuration = JSON.stringify({ configuration: { configFilePath: { scheme: 'file', path: '/workspace/.devcontainer/devcontainer.json' } }, mergedConfiguration: { mounts: [] } });
-		const stateMount = { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-${'0'.repeat(52)}` };
+		const stateMount = { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` };
 		const scenarios: { name: string; setup: (service: TestDevContainerAgentHostMainService) => void }[] = [
 			{ name: 'volume', setup: service => service.volumeCreateExitCode = 1 },
 			{ name: 'upRun', setup: service => service.failDevContainerUp = true },
@@ -1220,7 +1263,7 @@ suite('Dev Container Agent Host Main Service', () => {
 		const up = { stage: 'up', outcome: 'succeeded' } as const;
 		const succeeded = { stage: 'userCommands', outcome: 'succeeded' } as const;
 		assert.deepStrictEqual(results, {
-			volume: { connected: true, reports: [{ stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces', errorMessage: 'Cannot create Docker volume vscode-state-<id> (exit 1): volume create failed' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
+			volume: { connected: true, reports: [{ stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces', errorMessage: 'Cannot create Docker volume vscode-state-<name> (exit 1): volume create failed' }, up, { stage: 'link', outcome: 'noMount' }, succeeded] },
 			upRun: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'run', errorMessage: 'devcontainer up failed' }] },
 			upExitCode: { connected: false, reports: [added, { stage: 'up', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'An error occurred setting up the container.\nCommand failed: docker run <args>\nError response from daemon: invalid mount config.' }] },
 			inspect: { connected: true, reports: [added, up, { stage: 'link', outcome: 'failed', reason: 'inspect', step: undefined, exitCode: undefined, target: undefined, errorMessage: 'inspect failed' }, succeeded] },
@@ -1231,7 +1274,7 @@ suite('Dev Container Agent Host Main Service', () => {
 	});
 
 	test('links user state of a container with a state volume when the setting is off', async () => {
-		const stateMount = { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-${'0'.repeat(52)}` };
+		const stateMount = { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-project-${'0'.repeat(12)}` };
 		const scenarios: { name: string; setup: (service: TestDevContainerAgentHostMainService) => void }[] = [
 			{ name: 'stateMount', setup: service => { service.containerMounts = [...service.containerMounts, stateMount]; service.linkStateResult = { stdout: 'vscode-state:step:folders\nvscode-state:folder:moved\n', code: 0 }; } },
 			{ name: 'noMount', setup: () => { } },

@@ -56,7 +56,7 @@ import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevC
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 import { DevContainerShell, IDevContainerShellResult } from './devContainerShell.js';
-import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
+import { buildLinkDevContainerStateCommand, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerStateMount, getDevContainerStateMountTarget, getDevContainerStateTargetKind, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateErrorValues, IDevContainerStateLinkProgress, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from './devContainerState.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -619,11 +619,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'existingContainer', target });
 				return [];
 			}
-			const devContainerId = getDevContainerId(idLabels);
 			reason = 'volume';
-			await this._ensureUserStateVolume(devContainerId, token);
+			await this._ensureUserStateVolume(idLabels, token);
 			this._onDidReportUserState.fire({ connectionId, stage: 'mount', outcome: 'added', target });
-			return ['--mount', getDevContainerStateMount(devContainerId, mountTarget)];
+			return ['--mount', getDevContainerStateMount(idLabels, mountTarget)];
 		} catch (error) {
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw error;
@@ -635,16 +634,23 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	private async _ensureUserStateVolume(devContainerId: string, token: CancellationToken): Promise<void> {
-		const name = getDevContainerStateVolumeName(devContainerId);
+	private async _ensureUserStateVolume(idLabels: readonly string[], token: CancellationToken): Promise<void> {
+		const name = getDevContainerStateVolumeName(idLabels);
 		const volumes = await this._runDocker(['volume', 'ls', '--format', '{{.Name}}'], token);
 		if (volumes.code !== 0) {
 			throw new Error(`Cannot list Docker volumes (exit ${volumes.code}): ${volumes.stderr}`);
 		}
 		if (volumes.stdout.split(/\r?\n/).includes(name)) {
+			const inspected = await this._runDocker(['volume', 'inspect', '--format', '{{json .Labels}}', name], token);
+			if (inspected.code !== 0) {
+				throw new Error(`Cannot inspect Docker volume ${name} (exit ${inspected.code}): ${inspected.stderr}`);
+			}
+			if (!isDevContainerStateVolumeFor(JSON.parse(inspected.stdout), idLabels)) {
+				throw new Error(`Docker volume ${name} is not the state volume of this dev container`);
+			}
 			return;
 		}
-		const created = await this._runDocker(['volume', 'create', ...getDevContainerStateVolumeLabels(devContainerId).flatMap(label => ['--label', label]), name], token);
+		const created = await this._runDocker(['volume', 'create', ...getDevContainerStateVolumeLabels(idLabels).flatMap(label => ['--label', label]), name], token);
 		if (created.code !== 0) {
 			throw new Error(`Cannot create Docker volume ${name} (exit ${created.code}): ${created.stderr}`);
 		}

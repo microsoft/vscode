@@ -24,6 +24,7 @@ import { devContainerSamples, devContainerSampleUri, findDevContainerSample, get
 import { DevContainerAgentHostMainService } from '../../node/devContainerAgentHostService.js';
 import { getDevContainerSampleLabels, getDevContainerSampleVolumeName, parseDevContainerSampleConfiguration, prepareDevContainerSample } from '../../node/devContainerSamples.js';
 import { devContainerSandboxRunArgs } from '../../node/devContainerSandbox.js';
+import { getDevContainerStateVolumeLabels, getDevContainerStateVolumeName } from '../../node/devContainerState.js';
 
 suite('Dev Container samples', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -232,7 +233,7 @@ suite('Dev Container samples', () => {
 				return devcontainer(args);
 			}
 			protected override async _getContainerMounts() {
-				return [{ Type: 'volume', Source: '/volumes/state', Destination: '/.vscode-volume', Name: `vscode-state-${'0'.repeat(52)}` }];
+				return [{ Type: 'volume', Source: '/volumes/state', Destination: '/.vscode-volume', Name: `vscode-state-${folder}-${'0'.repeat(12)}` }];
 			}
 			protected override async _resolveShellEnvironment() {
 				return {};
@@ -343,7 +344,7 @@ suite('Dev Container samples', () => {
 				return;
 			}
 			const stateVolume = calls[0]?.substring('create '.length);
-			assert.match(stateVolume, /^vscode-state-[0-9a-v]{52}$/);
+			assert.match(stateVolume, /^vscode-state-vscode-remote-try-node-[0-9a-v]{12}$/);
 			assert.deepStrictEqual({ calls, mount: upArgs.slice(-2) }, {
 				calls: [`create ${stateVolume}`, 'mount added', 'link container vscode', 'clone'],
 				mount: ['--mount', `type=volume,source=${stateVolume},target=/.vscode-volume,external=true`],
@@ -365,6 +366,49 @@ suite('Dev Container samples', () => {
 			reportUserStateMount: error => reports.push(error instanceof Error && /docker volume create failed/.test(error.message)),
 		}, false, true), /docker volume create failed/);
 		assert.deepStrictEqual(reports, [true]);
+	});
+
+	test('reuses the sample state volume only when its labels show it belongs to the sample', async () => {
+		const volumeName = getDevContainerSampleVolumeName(sample, []);
+		const idLabels = getDevContainerSampleLabels({ repositoryPath, volumeName, folder });
+		const stateVolume = getDevContainerStateVolumeName(idLabels);
+		const stateLabels = Object.fromEntries(getDevContainerStateVolumeLabels(idLabels).map(label => [label.substring(0, label.indexOf('=')), label.substring(label.indexOf('=') + 1)]));
+		const run = async (labels: Record<string, string>) => {
+			const calls: string[] = [];
+			await prepareDevContainerSample(sample, cacheDirectory, {
+				onContainerStarted: () => { },
+				readSource: async () => ({ commitSha: commit, content: JSON.stringify({ image: 'sample-image' }) }),
+				docker: async args => {
+					if (args[0] === 'volume' && args[1] === 'create') {
+						calls.push(`create ${args.at(-1)}`);
+					}
+					return {
+						stdout: args[0] === 'volume'
+							? args[1] === 'ls' ? `${volumeName}\n${stateVolume}\n` : JSON.stringify(args.at(-1) === stateVolume ? labels : { 'vsch.local.repository': repositoryPath })
+							: args.includes('cat') ? JSON.stringify({ image: 'sample-image' }) : '',
+						stderr: '', code: 0,
+					};
+				},
+				devcontainer: async args => {
+					if (args[0] === 'up') {
+						calls.push(`up ${args.at(-1)}`);
+					}
+					return sampleUpResult;
+				},
+				reportUserStateMount: error => calls.push(error instanceof Error ? `mount failed: ${error.message}` : 'mount added'),
+			}, false, true).catch(error => calls.push(`rejected: ${error.message}`));
+			return calls;
+		};
+		const conflict = `The Docker volume '${stateVolume}' is not the state volume of this sample.`;
+		assert.deepStrictEqual({
+			stateLabels: Object.keys(stateLabels),
+			own: await run(stateLabels),
+			other: await run({ ...stateLabels, 'vscode.dev-container-state.id': 'other' }),
+		}, {
+			stateLabels: ['vscode.dev-container-state.id', ...idLabels.map(label => `vscode.dev-container-state.label.${label.substring(0, label.indexOf('='))}`)],
+			own: ['mount added', `up type=volume,source=${stateVolume},target=/.vscode-volume,external=true`],
+			other: [`mount failed: ${conflict}`, `rejected: ${conflict}`],
+		});
 	});
 
 	test('unsupported configuration fails before creating a volume or container', async () => {

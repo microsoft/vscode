@@ -17,8 +17,14 @@ export const devContainerStatePath = '/vscode-state';
 export const devContainerStateWorkspacesTarget = '/workspaces';
 export const devContainerStateFallbackTarget = '/.vscode-volume';
 export const devContainerStateIdLabel = 'vscode.dev-container-state.id';
+/** Prefixes the dev container's id labels on its state volume, so tools that find containers or repository volumes by them ignore it. */
+export const devContainerStateLabelPrefix = 'vscode.dev-container-state.label.';
 
-const stateVolumePattern = /^vscode-state-[0-9a-v]{52}$/;
+const stateVolumePattern = /^vscode-state-(?:[a-z0-9][a-z0-9_.-]*-)?[0-9a-v]{12}$/;
+const stateVolumeIdLength = 12;
+const stateVolumeFolderNameLength = 32;
+/** Id labels naming the dev container's folder or repository, in order of preference. */
+const folderIdLabels = ['vsch.local.repository.folder', 'vsch.local.repository', 'devcontainer.local_folder', 'vsch.local.folder', 'vsch.local.volume'];
 const stateFolderName = '.vscode-state';
 const stateLayoutVersion = '1';
 const knownServerDataFolderNames = ['.vscode-server', '.vscode-server-insiders'];
@@ -30,15 +36,19 @@ const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home'
 
 /** Computes the Dev Containers CLI's `${devcontainerId}` for the container's id labels. */
 export function getDevContainerId(idLabels: readonly string[]): string {
-	const labels = idLabels.reduce<Record<string, string>>((obj, pair) => {
+	const labels = parseIdLabels(idLabels);
+	const hash = createHash('sha256').update(JSON.stringify(labels, Object.keys(labels).sort()), 'utf8').digest('hex');
+	return BigInt(`0x${hash}`).toString(32).padStart(52, '0');
+}
+
+function parseIdLabels(idLabels: readonly string[]): Record<string, string> {
+	return idLabels.reduce<Record<string, string>>((obj, pair) => {
 		const i = pair.indexOf('=');
 		if (i !== -1) {
 			obj[pair.substring(0, i)] = pair.substring(i + 1);
 		}
 		return obj;
 	}, {});
-	const hash = createHash('sha256').update(JSON.stringify(labels, Object.keys(labels).sort()), 'utf8').digest('hex');
-	return BigInt(`0x${hash}`).toString(32).padStart(52, '0');
 }
 
 /** The id labels the Dev Containers CLI gives a new container when no `--id-label` is passed. */
@@ -58,16 +68,28 @@ function normalizeLabelPath(platform: string, value: string): string {
 	return normalized.length >= 2 && normalized[1] === ':' ? normalized[0].toLowerCase() + normalized.slice(1) : normalized;
 }
 
-export function getDevContainerStateVolumeName(devContainerId: string): string {
-	return `vscode-state-${devContainerId}`;
+/** Names the state volume after the dev container's folder or repository and the end of its `${devcontainerId}`. */
+export function getDevContainerStateVolumeName(idLabels: readonly string[]): string {
+	const labels = parseIdLabels(idLabels);
+	const value = folderIdLabels.map(key => labels[key]).find(value => !!value);
+	const baseName = value?.replace(/[\\/]+$/, '').split(/[\\/]/).pop()?.replace(/\.git$/i, '');
+	// Volume names may only contain [a-zA-Z0-9_.-] and start with a letter or digit. Letters keep their base letter without accents.
+	const folder = baseName?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9_.-]+/g, '-').substring(0, stateVolumeFolderNameLength).replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
+	return `vscode-state-${folder ? `${folder}-` : ''}${getDevContainerId(idLabels).slice(-stateVolumeIdLength)}`;
 }
 
-export function getDevContainerStateVolumeLabels(devContainerId: string): string[] {
-	return [`${devContainerStateIdLabel}=${devContainerId}`];
+/** Identifies the dev container a state volume belongs to. */
+export function getDevContainerStateVolumeLabels(idLabels: readonly string[]): string[] {
+	return [`${devContainerStateIdLabel}=${getDevContainerId(idLabels)}`, ...idLabels.filter(label => label.includes('=')).map(label => `${devContainerStateLabelPrefix}${label}`)];
 }
 
-export function getDevContainerStateMount(devContainerId: string, target: string): string {
-	return `type=volume,source=${getDevContainerStateVolumeName(devContainerId)},target=${target},external=true`;
+/** Whether an existing volume's labels show it is the dev container's state volume, as its name is not unique. */
+export function isDevContainerStateVolumeFor(volumeLabels: unknown, idLabels: readonly string[]): boolean {
+	return typeof volumeLabels === 'object' && volumeLabels !== null && (volumeLabels as Record<string, unknown>)[devContainerStateIdLabel] === getDevContainerId(idLabels);
+}
+
+export function getDevContainerStateMount(idLabels: readonly string[], target: string): string {
+	return `type=volume,source=${getDevContainerStateVolumeName(idLabels)},target=${target},external=true`;
 }
 
 export function findDevContainerStateMount<T extends { readonly Type: string; readonly Name?: string; readonly Destination: string }>(mounts: readonly T[]): T | undefined {
@@ -343,7 +365,8 @@ const errorMessageSubcommands = ['build', 'buildx', 'compose', 'container', 'cp'
  */
 export function sanitizeDevContainerStateErrorMessage(parts: readonly (string | undefined)[], values: IDevContainerStateErrorValues = {}): string | undefined {
 	const replacements: [RegExp, string][] = [
-		[/vscode-state-[0-9a-v]{52}/g, 'vscode-state-<id>'],
+		// State volume names include the folder name.
+		[/vscode-state-[a-z0-9_.-]*[a-z0-9]/g, 'vscode-state-<name>'],
 		[/\b(?:[0-9a-f]{64}|[0-9a-f]{12})\b/g, '<id>'],
 	];
 	const homeFolder = values.homeFolder?.replace(/\/+$/, '');

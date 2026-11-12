@@ -14,7 +14,7 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from './devContainerServerCache.js';
 import { devContainerSandboxRunArgs } from './devContainerSandbox.js';
-import { devContainerStateFallbackTarget, getDevContainerId, getDevContainerStateMount, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName } from './devContainerState.js';
+import { devContainerStateFallbackTarget, getDevContainerStateMount, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerStateVolumeFor } from './devContainerState.js';
 
 interface ICommandResult {
 	readonly stdout: string;
@@ -152,21 +152,23 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	const cliArgs = ['--override-config', configPath, ...getDevContainerSampleLabels(repository).flatMap(label => ['--id-label', label])];
 	const userStateMountArgs: string[] = [];
 	if (persistUserState) {
-		const devContainerId = getDevContainerId(getDevContainerSampleLabels(repository));
-		const stateVolumeName = getDevContainerStateVolumeName(devContainerId);
-		if (!existingVolumes.includes(stateVolumeName)) {
-			try {
-				checked(await commands.docker(['volume', 'create', ...getDevContainerStateVolumeLabels(devContainerId).flatMap(label => ['--label', label]), stateVolumeName]), 'docker volume create');
-			} catch (error) {
-				if (!isCancellationError(error)) {
-					commands.reportUserStateMount?.(error);
-				}
-				throw error;
+		const idLabels = getDevContainerSampleLabels(repository);
+		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
+		try {
+			if (!existingVolumes.includes(stateVolumeName)) {
+				checked(await commands.docker(['volume', 'create', ...getDevContainerStateVolumeLabels(idLabels).flatMap(label => ['--label', label]), stateVolumeName]), 'docker volume create');
+			} else if (!isDevContainerStateVolumeFor(JSON.parse(checked(await commands.docker(['volume', 'inspect', '--format', '{{json .Labels}}', stateVolumeName]), 'docker volume inspect')), idLabels)) {
+				throw new Error(localize('devContainerSample.stateVolumeConflict', "The Docker volume '{0}' is not the state volume of this sample.", stateVolumeName));
 			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				commands.reportUserStateMount?.(error);
+			}
+			throw error;
 		}
 		commands.reportUserStateMount?.();
 		// The repository volume is mounted at /workspaces.
-		userStateMountArgs.push('--mount', getDevContainerStateMount(devContainerId, devContainerStateFallbackTarget));
+		userStateMountArgs.push('--mount', getDevContainerStateMount(idLabels, devContainerStateFallbackTarget));
 	}
 	const up = await commands.devcontainer(['up', '--log-level', 'debug', ...cliArgs, '--skip-post-create', '--mount', devContainerServerCacheMount, ...userStateMountArgs]);
 	const errors: ParseError[] = [];

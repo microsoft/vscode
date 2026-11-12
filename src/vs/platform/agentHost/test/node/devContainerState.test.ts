@@ -7,7 +7,7 @@ import assert from 'assert';
 import { spawnSync } from 'child_process';
 import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMountTarget, IDevContainerStateLinkOptions, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
+import { buildLinkDevContainerStateCommand, devContainerStateFallbackTarget, devContainerStateWorkspacesTarget, findDevContainerStateMount, getDefaultDevContainerIdLabels, getDevContainerId, getDevContainerStateMountTarget, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, IDevContainerStateLinkOptions, isDevContainerStateVolumeFor, parseLinkDevContainerStateOutput, sanitizeDevContainerStateErrorMessage } from '../../node/devContainerState.js';
 
 suite('DevContainerState', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -77,8 +77,55 @@ suite('DevContainerState', () => {
 		]);
 	});
 
+	test('names state volumes after the folder and labels them with the prefixed id labels', () => {
+		const projectLabels = ['devcontainer.config_file=/home/user/project/.devcontainer/devcontainer.json', 'devcontainer.local_folder=/home/user/project'];
+		const names = [
+			projectLabels,
+			['vsch.local.repository=https://github.com/a/b=c'],
+			['devcontainer.local_folder=/home/user/My Project/'],
+			['devcontainer.local_folder=c:\\Users\\me\\Übung', 'devcontainer.config_file=c:\\Users\\me\\Übung\\.devcontainer\\devcontainer.json'],
+			['vsch.local.repository=https://github.com/microsoft/vscode.git', 'vsch.local.repository.folder=vscode-remote-try-node'],
+			['vsch.local.repository=https://github.com/microsoft/vscode.git'],
+			[`devcontainer.local_folder=/src/..${'a'.repeat(40)}`],
+			['devcontainer.local_folder=/src/日本'],
+			['devcontainer.config_file=/project/.devcontainer/devcontainer.json'],
+		].map(getDevContainerStateVolumeName);
+		const labels = getDevContainerStateVolumeLabels(projectLabels);
+		const volumeLabels = Object.fromEntries(labels.map(label => [label.substring(0, label.indexOf('=')), label.substring(label.indexOf('=') + 1)]));
+		assert.deepStrictEqual({
+			names: names.map((name, i) => i < 2 ? name : name.replace(/-[0-9a-v]{12}$/, '-<id>')),
+			found: names.every(name => !!findDevContainerStateMount([{ Type: 'volume', Name: name, Destination: '/workspaces' }])),
+			labels,
+			owner: [
+				isDevContainerStateVolumeFor(volumeLabels, projectLabels),
+				isDevContainerStateVolumeFor(volumeLabels, ['devcontainer.local_folder=/home/user/project']),
+				isDevContainerStateVolumeFor({ ...volumeLabels, 'vscode.dev-container-state.id': 'other' }, projectLabels),
+				isDevContainerStateVolumeFor(null, projectLabels),
+			],
+		}, {
+			names: [
+				'vscode-state-project-h49700ucligl',
+				'vscode-state-b-c-mc70cmut8n8a',
+				'vscode-state-my-project-<id>',
+				'vscode-state-ubung-<id>',
+				'vscode-state-vscode-remote-try-node-<id>',
+				'vscode-state-vscode-<id>',
+				`vscode-state-${'a'.repeat(30)}-<id>`,
+				'vscode-state-<id>',
+				'vscode-state-<id>',
+			],
+			found: true,
+			labels: [
+				'vscode.dev-container-state.id=0ns9efvs2cg80a2avksvk7nqv06jrab7n2918j79h49700ucligl',
+				'vscode.dev-container-state.label.devcontainer.config_file=/home/user/project/.devcontainer/devcontainer.json',
+				'vscode.dev-container-state.label.devcontainer.local_folder=/home/user/project',
+			],
+			owner: [true, false, false, false],
+		});
+	});
+
 	test('finds only state volume mounts', () => {
-		const name = `vscode-state-${'0'.repeat(52)}`;
+		const name = `vscode-state-project-${'0'.repeat(12)}`;
 		assert.deepStrictEqual([
 			findDevContainerStateMount([
 				{ Type: 'volume', Name: 'vscode', Destination: '/workspaces' },
@@ -141,7 +188,7 @@ suite('DevContainerState', () => {
 	});
 
 	test('removes command lines, CLI logs, ids and the container user from error messages', () => {
-		const stateVolume = `vscode-state-${'v'.repeat(52)}`;
+		const stateVolume = `vscode-state-my-project-${'v'.repeat(12)}`;
 		const containerId = 'a'.repeat(64);
 		assert.deepStrictEqual([
 			sanitizeDevContainerStateErrorMessage([
@@ -158,7 +205,7 @@ suite('DevContainerState', () => {
 			sanitizeDevContainerStateErrorMessage(['Command failed: test customer-secret-value = expected', 'Command failed: C:\\docker\\docker.exe exec abc', 'Command failed: docker secret-value']),
 		], [
 			`Command in container failed: set <args>\nmkdir: cannot create directory '~/.cache': Permission denied\nunable to find user <user>: no matching entries in passwd file\nnodes and Node.js\nCannot link user state (exit 1):`,
-			`Error: Command failed: docker volume <args>\nError response from daemon: container <id> not found in vscode-state-<id>`,
+			`Error: Command failed: docker volume <args>\nError response from daemon: container <id> not found in vscode-state-<name>`,
 			'Cannot read the Dev Container user (exit 1): unable to find user root in ~/.profile',
 			undefined,
 			'Command failed: test <args>\nCommand failed: docker.exe exec <args>\nCommand failed: docker <args>',
