@@ -276,10 +276,11 @@ suite('FolderLocationStatusBarContribution', () => {
 			});
 		});
 
-		test('picking a location switches to it as a user choice, the primary returns, the current one does nothing', async () => {
+		test('picking a location switches to it as a user choice, the primary returns, the current one is submitted', async () => {
 			assert.deepStrictEqual((await pickLocation(() => 2)).calls, [[primary.toString(), URI.file('/work/other').toString(), 'user']]);
 			assert.deepStrictEqual((await pickLocation(() => 0)).calls, [[primary.toString(), undefined, 'user']]);
-			assert.deepStrictEqual((await pickLocation(() => 1)).calls, []);
+			// the current location is submitted too, so that it supersedes a different switch that is still pending
+			assert.deepStrictEqual((await pickLocation(() => 1)).calls, [[primary.toString(), alternate.toString(), 'user']]);
 		});
 
 		test('at the primary location the picker lists the locations, marks the primary and switches as a user choice', async () => {
@@ -291,8 +292,8 @@ suite('FolderLocationStatusBarContribution', () => {
 			const other = URI.file('/work/other');
 			// current location (alternate) is picked after another switch moved the folder to `other`
 			assert.deepStrictEqual((await pickLocation(() => 1, other)).calls, [[primary.toString(), alternate.toString(), 'user']]);
-			// picking the location the folder moved to is a no-op
-			assert.deepStrictEqual((await pickLocation(() => 2, other)).calls, []);
+			// picking the location the folder moved to is submitted as well
+			assert.deepStrictEqual((await pickLocation(() => 2, other)).calls, [[primary.toString(), other.toString(), 'user']]);
 			// a picker opened for a primary that has since changed is stale
 			assert.deepStrictEqual((await pickLocation(() => 1, other, URI.file('/work/changed'))).calls, []);
 		});

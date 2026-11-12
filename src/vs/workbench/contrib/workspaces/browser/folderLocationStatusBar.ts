@@ -259,9 +259,9 @@ registerAction2(class SwitchFolderLocationAction extends Action2 {
 			return;
 		}
 
-		// The folder may have been switched while the picker was open
+		// Re-submitting the current location is deliberate: it supersedes a different switch that is still pending
 		const current = contextService.getWorkspace().folders[0];
-		if (!current || !uriIdentityService.extUri.isEqual(current.primaryUri ?? current.uri, primary) || uriIdentityService.extUri.isEqual(picked.uri, current.uri)) {
+		if (!current || !uriIdentityService.extUri.isEqual(current.primaryUri ?? current.uri, primary)) {
 			return;
 		}
 
