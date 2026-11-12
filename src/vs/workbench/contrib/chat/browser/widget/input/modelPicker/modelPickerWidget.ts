@@ -906,7 +906,9 @@ export class ModelPickerWidget extends Disposable {
 		const displayName = shownModel && !pendingAutoModel ? getLanguageModelDisplayNameWithSubscriptionSource(shownModel) : undefined;
 		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
 		// A HydraFusion model shown as one of Fusion's tiers is named by that tier, even where the label shows only Fusion.
-		this._fusionDisplayName = !comparisonSummary && routingTier && shownModel?.metadata.autoModelFusion ? localize('chat.modelPicker.fusionTier', "Copilot Fusion {0}", routingTier.label) : undefined;
+		this._fusionDisplayName = !comparisonSummary && routingTier && shownModel?.metadata.autoModelFusion
+			? localize('chat.modelPicker.fusionTier', "Copilot Fusion {0}", routingTier.label)
+			: !comparisonSummary && pendingAutoModel ? (this._getFusionAutoName(models) ?? localize('chat.modelPicker.fusion', "Copilot Fusion")) : undefined;
 		// A directly selected on-device model reads "<model> · On-device", like the Copilot CLI and app.
 		const name = comparisonSummary ?? (shownModel && displayName !== undefined && isLocalModelDirectRow(shownModel) ? formatLocalModelOnDeviceName(displayName) : displayName);
 
