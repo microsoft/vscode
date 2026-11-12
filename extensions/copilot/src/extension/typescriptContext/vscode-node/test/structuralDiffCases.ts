@@ -15,7 +15,7 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
  */
 export const fixtureDirectory = path.join(__dirname, '../ts7/fixtures/structuralDiff/source');
 
-export type ComputeStructuralDiff = (originalText: string, modifiedText: string, changes?: readonly vscode.StructuralDiffTextChange[], fileUri?: vscode.Uri, languageId?: string, originalUri?: vscode.Uri) => Promise<vscode.StructuralDiff>;
+export type ComputeStructuralDiff = (originalText: string, modifiedText: string, changes?: readonly vscode.DiffTextChange[], fileUri?: vscode.Uri, languageId?: string, originalUri?: vscode.Uri) => Promise<vscode.StructuralDiff>;
 
 /**
  * Returns a function that diffs two texts with the provider and checks the result against the provider

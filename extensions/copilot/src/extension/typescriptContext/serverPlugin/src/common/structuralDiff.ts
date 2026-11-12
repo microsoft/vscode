@@ -6,7 +6,7 @@ import type tt from 'typescript/lib/tsserverlibrary';
 import TS from './typescript';
 const ts = TS();
 
-import { StructuralDiffClassification, StructuralDiffSymbolKind, StructuralDiffTag, type StructuralDiffItem, type StructuralDiffNode, type StructuralDiffRequestArgs, type StructuralDiffResult, type StructuralDiffTextChange } from './protocol';
+import { StructuralDiffClassification, StructuralDiffSymbolKind, StructuralDiffTag, type DiffTextChange, type StructuralDiffItem, type StructuralDiffNode, type StructuralDiffRequestArgs, type StructuralDiffResult } from './protocol';
 import tss from './typescripts';
 
 interface Span {
@@ -326,7 +326,7 @@ function groupEntities(entities: readonly Entity[], keyOf: (entity: Entity) => s
 	return groups;
 }
 
-function matchSiblings(original: readonly Entity[], modified: readonly Entity[], originalFile: tt.SourceFile, modifiedFile: tt.SourceFile, changes: readonly StructuralDiffTextChange[], checkCancellation: () => void): Map<Entity, Entity> {
+function matchSiblings(original: readonly Entity[], modified: readonly Entity[], originalFile: tt.SourceFile, modifiedFile: tt.SourceFile, changes: readonly DiffTextChange[], checkCancellation: () => void): Map<Entity, Entity> {
 	const originalByKey = groupEntities(original);
 	const modifiedByKey = groupEntities(modified);
 	const matches = new Map<Entity, Entity>();
