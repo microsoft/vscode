@@ -321,10 +321,16 @@ export class FoldingController extends Disposable implements IEditorContribution
 						let scrollState: StableEditorScrollState | undefined;
 
 						if (this._foldingImportsByDefault && !this._currentModelHasFoldedImports) {
-							const hasChanges = foldingRanges.setCollapsedAllOfType(FoldingRangeKind.Imports.value, true);
-							if (hasChanges) {
-								scrollState = StableEditorScrollState.capture(this.editor);
-								this._currentModelHasFoldedImports = hasChanges;
+							// Check if current selection intersects with any import ranges
+							const selections = this.editor.getSelections();
+							const shouldSkipImportFolding = this._shouldSkipImportFolding(foldingRanges, selections);
+
+							if (!shouldSkipImportFolding) {
+								const hasChanges = foldingRanges.setCollapsedAllOfType(FoldingRangeKind.Imports.value, true);
+								if (hasChanges) {
+									scrollState = StableEditorScrollState.capture(this.editor);
+									this._currentModelHasFoldedImports = hasChanges;
+								}
 							}
 						}
 
@@ -359,6 +365,37 @@ export class FoldingController extends Disposable implements IEditorContribution
 			}
 		}
 		this.editor.setHiddenAreas(hiddenRanges, this);
+	}
+
+	/**
+	 * Determines if import folding should be skipped because the current selection
+	 * intersects with import ranges, indicating the user is navigating to an error
+	 * or other content within the imports section.
+	 */
+	private _shouldSkipImportFolding(foldingRanges: FoldingRegions, selections: Selection[] | null): boolean {
+		if (!selections || selections.length === 0) {
+			return false;
+		}
+
+		// Check if any selection intersects with import ranges
+		for (const selection of selections) {
+			const selectionStartLine = selection.startLineNumber;
+			const selectionEndLine = selection.endLineNumber;
+
+			for (let i = 0; i < foldingRanges.length; i++) {
+				const rangeType = foldingRanges.getType(i);
+				if (rangeType === FoldingRangeKind.Imports.value) {
+					const rangeStartLine = foldingRanges.getStartLineNumber(i);
+					const rangeEndLine = foldingRanges.getEndLineNumber(i);
+
+					if (selectionStartLine <= rangeEndLine && selectionEndLine >= rangeStartLine) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	private onCursorPositionChanged() {
