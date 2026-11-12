@@ -192,7 +192,8 @@ suite('Menubar', () => {
 			const style = compactContainer.appendChild($('style'));
 			style.textContent = '.compact-container .menubar-menu-items-holder { position: fixed; }';
 			compactContainer.style.position = 'fixed';
-			compactContainer.style.left = '10.3px';
+			// x.2 rounds toward the menu button when rounded to the nearest device pixel at DPR 1 or 2
+			compactContainer.style.left = '10.2px';
 			compactContainer.style.top = '20.7px';
 			const dpr = getWindow(compactContainer).devicePixelRatio;
 			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
@@ -214,17 +215,19 @@ suite('Menubar', () => {
 				const holder = overflowButton.querySelector<HTMLElement>('.menubar-menu-items-holder');
 				assert.ok(holder);
 				const rect = holder.getBoundingClientRect();
+				const button = compactContainer.getBoundingClientRect();
 				result[name] = {
-					aligned: misalignment(rect.left) <= 0.02 && misalignment(rect.top) <= 0.02,
-					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right'
+					aligned: misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64,
+					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
+					clearOfButton: horizontal === HorizontalDirection.Right ? rect.left >= button.right - 0.01 : rect.right <= button.left + 0.01
 				};
 				menubar.blur();
 				menubar.dispose();
 			}
 
 			assert.deepStrictEqual(result, {
-				expandsRight: { aligned: true, horizontalInset: 'left' },
-				expandsLeft: { aligned: true, horizontalInset: 'right' }
+				expandsRight: { aligned: true, horizontalInset: 'left', clearOfButton: true },
+				expandsLeft: { aligned: true, horizontalInset: 'right', clearOfButton: true }
 			});
 		});
 	});

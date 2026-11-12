@@ -223,6 +223,21 @@ export interface IContextViewProvider {
 	layout(): void;
 }
 
+/**
+ * Rounds a view away from its anchor so that aligning it to device pixels never moves it over the
+ * anchor, and leaves it unaligned when it has less than a device pixel of room toward the viewport.
+ */
+function getDevicePixelRounding(start: number, size: number, anchorStart: number, anchorSize: number, viewportStart: number, viewportSize: number, devicePixelRatio: number): DOM.DevicePixelRounding {
+	const epsilon = 0.01;
+	if (start + size <= anchorStart + epsilon) {
+		return start - viewportStart >= 1 / devicePixelRatio ? 'start' : 'none';
+	}
+	if (start + epsilon >= anchorStart + anchorSize) {
+		return viewportStart + viewportSize - (start + size) >= 1 / devicePixelRatio ? 'end' : 'none';
+	}
+	return 'nearest';
+}
+
 export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor): IRect {
 	// Get the element's position and size (to anchor the view)
 	if (DOM.isHTMLElement(anchor)) {
@@ -633,7 +648,10 @@ export class ContextView extends Disposable {
 		this.view.style.top = `${top - positioningOrigin.top}px`;
 		this.view.style.left = `${left - positioningOrigin.left}px`;
 		this.view.style.width = 'initial';
-		DOM.alignToDevicePixels(this.view);
+		DOM.alignToDevicePixels(this.view, {
+			horizontal: getDevicePixelRounding(left, view.width, anchor.left, anchor.width, viewport.left, viewport.width, containerWindow.devicePixelRatio),
+			vertical: getDevicePixelRounding(top, view.height, anchor.top, anchor.height, viewport.top, viewport.height, containerWindow.devicePixelRatio)
+		});
 	}
 
 	hide(data?: unknown, skipAnimation = false): void {

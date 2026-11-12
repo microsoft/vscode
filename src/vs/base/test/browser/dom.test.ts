@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, alignToDevicePixels } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, alignToDevicePixels, IDevicePixelAlignment } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -764,12 +764,12 @@ suite('dom', () => {
 			host.remove();
 		});
 
-		/** Whether the element starts on a whole device pixel, within Blink's 1/64 CSS px layout precision. */
+		/** Whether the element starts on a whole device pixel, within Chromium's layout precision (positions are floored to 1/64 CSS px). */
 		function isDeviceAligned(element: HTMLElement): boolean {
 			const rect = element.getBoundingClientRect();
 			const dpr = getWindow(element).devicePixelRatio;
 			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
-			return misalignment(rect.left) <= 0.02 && misalignment(rect.top) <= 0.02;
+			return misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64;
 		}
 
 		function createPositioned(parent: HTMLElement, insets: Partial<Record<'left' | 'top' | 'right' | 'bottom', string>>): HTMLElement {
@@ -804,14 +804,41 @@ suite('dom', () => {
 			});
 		});
 
-		test('accounts for CSS zoom on ancestors', () => {
+		test('accounts for CSS zoom on ancestors, including shadow hosts', () => {
 			const zoomed = host.appendChild($('div'));
 			zoomed.style.zoom = '2';
 			const element = createPositioned(zoomed, { left: '10.3px', top: '20.7px' });
-			const before = isDeviceAligned(element);
-			alignToDevicePixels(element);
+			const shadowHost = host.appendChild($('div'));
+			shadowHost.style.zoom = '2';
+			const shadowElement = createPositioned(shadowHost.attachShadow({ mode: 'open' }).appendChild($('div')), { left: '10.3px', top: '20.7px' });
+			const results = [element, shadowElement].map(element => {
+				const before = isDeviceAligned(element);
+				alignToDevicePixels(element);
+				return { before, after: isDeviceAligned(element) };
+			});
 
-			assert.deepStrictEqual({ before, after: isDeviceAligned(element) }, { before: false, after: true });
+			assert.deepStrictEqual(results, [{ before: false, after: true }, { before: false, after: true }]);
+		});
+
+		test('rounds in the requested direction', () => {
+			const dpr = getWindow(host).devicePixelRatio;
+			const near = (actual: number, expected: number) => Math.abs(actual - expected) <= dpr / 64;
+			const position = (direction: IDevicePixelAlignment) => {
+				const element = createPositioned(host, { left: '10.3px', top: '20.7px' });
+				alignToDevicePixels(element, direction);
+				const rect = element.getBoundingClientRect();
+				return [rect.left * dpr, rect.top * dpr];
+			};
+			const upLeft = position({ horizontal: 'start', vertical: 'start' });
+			const downRight = position({ horizontal: 'end', vertical: 'end' });
+
+			assert.deepStrictEqual({
+				upLeft: [near(upLeft[0], Math.floor(10.3 * dpr)), near(upLeft[1], Math.floor(20.7 * dpr))],
+				downRight: [near(downRight[0], Math.ceil(10.3 * dpr)), near(downRight[1], Math.ceil(20.7 * dpr))],
+			}, {
+				upLeft: [true, true],
+				downRight: [true, true],
+			});
 		});
 	});
 

@@ -318,40 +318,57 @@ suite('ContextView', () => {
 		container.remove();
 	});
 
-	test('places views at fractional anchors on whole device pixels (#347796)', () => {
+	test('places views at fractional anchors on whole device pixels without covering the anchor (#347796)', () => {
 		const dpr = getWindow(document.body).devicePixelRatio;
+		// Chromium floors positions to 1/64 CSS px
+		const precision = dpr / 64;
 		const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
-		const anchor = { x: 100.3, y: 50.6, width: 1, height: 0.7 };
+		const innerHeight = mainWindow.innerHeight;
+		// View edges at x.2 below and y.8 above the anchor: rounding them to the nearest device pixel at DPR 1 or 2 would move them over the anchor
+		const cases = {
+			below: { anchor: { x: 100.3, y: 50, width: 1, height: 0.2 }, height: 10 },
+			above: { anchor: { x: 100.3, y: innerHeight - 5.2, width: 1, height: 0.7 }, height: 10 },
+			// Fills the space below the anchor exactly, so any move away from the anchor would leave the viewport
+			pinned: { anchor: { x: 100.3, y: 20.3, width: 1, height: 0.4 }, height: innerHeight - 20.7 },
+		};
 		const result: Record<string, unknown> = {};
 		for (const [name, domPosition] of [['absolute', ContextViewDOMPosition.ABSOLUTE], ['fixed', ContextViewDOMPosition.FIXED]] as const) {
-			const container = document.body.appendChild($('.container'));
-			const contextView = new ContextView(container, domPosition);
-			contextView.show({
-				getAnchor: () => anchor,
-				render: view => {
-					view.style.width = '10px';
-					view.style.height = '10px';
-					return null;
-				}
-			});
-			const view = contextView.getViewElement();
-			const read = () => [view.style.left, view.style.top].join();
-			const first = read();
-			contextView.layout();
-			contextView.layout();
-			const rect = view.getBoundingClientRect();
-			result[name] = {
-				aligned: misalignment(rect.left) <= 0.02 && misalignment(rect.top) <= 0.02,
-				nearAnchor: Math.abs(rect.left - anchor.x) * dpr <= 0.52 && Math.abs(rect.top - (anchor.y + anchor.height)) * dpr <= 0.52,
-				stableAcrossLayouts: read() === first
-			};
-			contextView.dispose();
-			container.remove();
+			for (const [placement, { anchor, height }] of Object.entries(cases)) {
+				const container = document.body.appendChild($('.container'));
+				const contextView = new ContextView(container, domPosition);
+				contextView.show({
+					getAnchor: () => anchor,
+					render: view => {
+						view.style.width = '10px';
+						view.style.height = `${height}px`;
+						return null;
+					}
+				});
+				const view = contextView.getViewElement();
+				const read = () => [view.style.left, view.style.top].join();
+				const first = read();
+				contextView.layout();
+				contextView.layout();
+				const rect = view.getBoundingClientRect();
+				const gap = placement === 'above' ? anchor.y - rect.bottom : rect.top - (anchor.y + anchor.height);
+				result[`${name} ${placement}`] = {
+					alignedHorizontally: misalignment(rect.left) <= precision,
+					alignedVertically: misalignment(rect.top) <= precision,
+					clearOfAnchor: gap * dpr >= -precision,
+					withinOneDevicePixel: gap * dpr < 1 + precision && Math.abs(rect.left - anchor.x) * dpr <= 0.5 + precision,
+					insideViewport: rect.top >= -0.01 && rect.bottom <= innerHeight + 0.01,
+					stableAcrossLayouts: read() === first
+				};
+				contextView.dispose();
+				container.remove();
+			}
 		}
 
+		const aligned = () => ({ alignedHorizontally: true, alignedVertically: true, clearOfAnchor: true, withinOneDevicePixel: true, insideViewport: true, stableAcrossLayouts: true });
+		const pinned = () => ({ ...aligned(), alignedVertically: false });
 		assert.deepStrictEqual(result, {
-			absolute: { aligned: true, nearAnchor: true, stableAcrossLayouts: true },
-			fixed: { aligned: true, nearAnchor: true, stableAcrossLayouts: true }
+			'absolute below': aligned(), 'absolute above': aligned(), 'absolute pinned': pinned(),
+			'fixed below': aligned(), 'fixed above': aligned(), 'fixed pinned': pinned()
 		});
 	});
 

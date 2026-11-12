@@ -874,25 +874,63 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 }
 
 /**
+ * How {@link alignToDevicePixels} rounds each axis: `'start'` rounds up or to the left, `'end'` down
+ * or to the right, `'nearest'` (the default) to the nearest device pixel, and `'none'` leaves the
+ * axis unchanged.
+ */
+export type DevicePixelRounding = 'start' | 'end' | 'nearest' | 'none';
+
+export interface IDevicePixelAlignment {
+	readonly horizontal?: DevicePixelRounding;
+	readonly vertical?: DevicePixelRounding;
+}
+
+/**
  * Moves an element positioned with inline pixel insets so that its border box starts on a whole
  * device pixel. Chromium paints a transformed (e.g. scaling) element from a pixel-snapped offset,
  * but its untransformed content at the exact fractional offset, so content that animates a scale
- * at a fractional device position jumps by a device pixel when the animation ends.
+ * at a fractional device position can jump by a device pixel when the animation ends.
  *
  * Horizontally, `left` is adjusted when it is a pixel value, otherwise `right` when that is;
- * vertically the same applies to `top` and `bottom`. Other insets are left unchanged.
+ * vertically the same applies to `top` and `bottom`. Other insets are left unchanged. Offsets
+ * within Chromium's layout precision (positions are floored to 1/64 CSS pixel) are ignored, so
+ * repeated calls are stable.
  */
-export function alignToDevicePixels(element: HTMLElement): void {
-	const devicePixelRatio = getWindow(element).devicePixelRatio;
-	const zoom = getDomNodeZoomLevel(element);
+export function alignToDevicePixels(element: HTMLElement, direction: IDevicePixelAlignment = {}): void {
+	const targetWindow = getWindow(element);
+	const devicePixelRatio = targetWindow.devicePixelRatio;
+	// Chromium floors positions to 1/64 CSS pixel, so a whole device pixel can only be reached to within that
+	const tolerance = devicePixelRatio / 64 * 1.05;
+	const zoom = getEffectiveZoom(element, targetWindow);
 	const rect = element.getBoundingClientRect();
-	const offset = (value: number) => (Math.round(value * devicePixelRatio) / devicePixelRatio - value) / zoom;
-	alignInset(element, 'left', 'right', offset(rect.left));
-	alignInset(element, 'top', 'bottom', offset(rect.top));
+	const offset = (value: number, rounding: DevicePixelRounding = 'nearest') => {
+		if (rounding === 'none') {
+			return 0;
+		}
+		const device = value * devicePixelRatio;
+		const target = rounding === 'start' ? Math.floor(device + tolerance) : rounding === 'end' ? Math.ceil(device - tolerance) : Math.round(device);
+		return Math.abs(target - device) <= tolerance ? 0 : (target - device) / devicePixelRatio / zoom;
+	};
+	alignInset(element, 'left', 'right', offset(rect.left, direction.horizontal));
+	alignInset(element, 'top', 'bottom', offset(rect.top, direction.vertical));
+}
+
+/** The CSS zoom applied to an element, including ancestors outside its shadow roots (unlike {@link getDomNodeZoomLevel}). */
+function getEffectiveZoom(element: HTMLElement, targetWindow: Window): number {
+	let zoom = 1;
+	for (let current: Element | null = element; current;) {
+		const value = parseFloat(targetWindow.getComputedStyle(current).zoom);
+		if (value > 0) {
+			zoom *= value;
+		}
+		const root = current.getRootNode();
+		current = current.parentElement ?? (isShadowRoot(root) ? root.host : null);
+	}
+	return zoom;
 }
 
 function alignInset(element: HTMLElement, start: 'left' | 'top', end: 'right' | 'bottom', offset: number): void {
-	if (Math.abs(offset) < 0.001) {
+	if (offset === 0) {
 		return;
 	}
 	const startValue = element.style[start];

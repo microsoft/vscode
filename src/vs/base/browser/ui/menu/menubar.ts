@@ -1056,7 +1056,12 @@ export class MenuBar extends Disposable {
 		};
 
 		const menuWidget = this.menuDisposables.add(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
-		DOM.alignToDevicePixels(menuHolder);
+		// Round away from the title so that aligning never moves the menu over it
+		const compactMode = this.options.compactMode;
+		DOM.alignToDevicePixels(menuHolder, {
+			horizontal: compactMode?.horizontal === HorizontalDirection.Right ? 'end' : compactMode?.horizontal === HorizontalDirection.Left ? 'start' : 'nearest',
+			vertical: compactMode ? 'nearest' : 'end'
+		});
 		this.menuDisposables.add(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
 		}));
