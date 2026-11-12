@@ -7,22 +7,26 @@ import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
-import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { hasVisibleByokModelsTargetingSessionType } from '../sessionTypeAvailability.js';
+import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { ChatSetupDialogVisibleContext } from '../../chatSetup/chatSetup.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationCommandAction, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ILanguageModelsConfigurationService } from '../../../common/languageModelsConfiguration.js';
+import { getAgentHostSignInOptions, resolveProtectedResourceAuthenticationState } from './agentHostAuth.js';
+import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourcesService.js';
 
 const SIGNED_OUT_MODELS_NOTIFICATION_ID = 'agentHost.signedOutModels.copilot';
-const SIGN_IN_COMMAND_ID = 'workbench.action.chat.triggerSetup';
 const COPILOT_AGENT_HOST_PROVIDER_ID = 'copilotcli';
 const NOTIFICATION_CONTEXT_KEYS = new Set([
 	ChatEntitlementContextKeys.clientByokEnabled.key,
@@ -39,26 +43,32 @@ export const enum SignedOutModelsNotificationState {
 	Hidden,
 	Waiting,
 	Visible,
+	VisibleMissingPermissions,
 }
 
+/** Chooses sign-in guidance only once account and model availability are known. */
 export function getSignedOutModelsNotificationState(options: {
 	readonly accountResolved: boolean;
 	readonly entitlementResolved: boolean;
 	readonly signedIn: boolean;
+	readonly copilotAuthentication?: 'resolved' | 'signedOut' | 'unavailable';
 	readonly hasCopilotHarness: boolean;
 	readonly hasModels: boolean;
 	readonly localModelsLoaded: boolean;
 	readonly gracePeriodElapsed: boolean;
 	readonly setupDialogVisible: boolean;
 }): SignedOutModelsNotificationState {
-	if (options.setupDialogVisible || !options.accountResolved || !options.entitlementResolved || options.signedIn || !options.hasCopilotHarness || options.hasModels) {
+	if (options.setupDialogVisible || !options.accountResolved || !options.entitlementResolved || !options.hasCopilotHarness || options.hasModels) {
+		return SignedOutModelsNotificationState.Hidden;
+	}
+	if (options.signedIn && options.copilotAuthentication !== 'signedOut') {
 		return SignedOutModelsNotificationState.Hidden;
 	}
 	// Readiness is the fast path; the grace period bounds it because a vendor named
 	// in the user's config may never resolve — no provider registers for it (an
 	// uninstalled or inactive extension), or the provider's model lookup hangs.
 	return options.localModelsLoaded || options.gracePeriodElapsed
-		? SignedOutModelsNotificationState.Visible
+		? (options.signedIn ? SignedOutModelsNotificationState.VisibleMissingPermissions : SignedOutModelsNotificationState.Visible)
 		: SignedOutModelsNotificationState.Waiting;
 }
 
@@ -67,13 +77,16 @@ export function areLocalModelsLoaded(extensionsRegistered: boolean, configuratio
 }
 
 /**
- * Shows harness-scoped guidance when signed out and the selected harness has no usable models.
+ * Shows harness-scoped guidance when GitHub Copilot authentication is missing and no usable models are available.
  */
 export class AgentHostSignedOutModelsNotificationContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.agentHostSignedOutModelsNotification';
 
-	private _notificationShown = false;
+	private _notificationKey: string | undefined;
+	private _authenticationSequence = 0;
+	private _copilotAuthentication: Awaited<ReturnType<typeof resolveProtectedResourceAuthenticationState>> | undefined;
+	private _copilotSignInScopes: readonly string[] = [];
 	/** Startup readiness prevents transient empty catalogs from producing false notifications. */
 	private _accountResolved = false;
 	private _extensionsRegistered = false;
@@ -90,20 +103,29 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IAgentHostProtectedResourcesService private readonly _protectedResourcesService: IAgentHostProtectedResourcesService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
 		// Reconcile whenever auth, model registration/visibility, configuration, or host state can change the answer.
 		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => {
 			this._accountResolved = true;
-			this._update();
+			void this._updateAuthentication();
 		}));
 		this._defaultAccountService.getDefaultAccount().then(() => {
 			if (!this._store.isDisposed) {
 				this._accountResolved = true;
-				this._update();
+				void this._updateAuthentication();
 			}
 		});
+		this._register(Event.any(
+			Event.signal(authenticationService.onDidChangeSessions),
+			Event.signal(authenticationService.onDidRegisterAuthenticationProvider),
+			Event.signal(authenticationService.onDidUnregisterAuthenticationProvider),
+			Event.signal(Event.filter(this._protectedResourcesService.onDidChange, provider => provider === COPILOT_AGENT_HOST_PROVIDER_ID)),
+		)(() => { void this._updateAuthentication(); }));
 		this._register(Event.any(
 			this._chatEntitlementService.onDidChangeEntitlement,
 			this._languageModelsService.onDidChangeLanguageModels,
@@ -130,10 +152,31 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			if (this._agentHostService.rootState.onDidError) {
 				rootStateListeners.add(this._agentHostService.rootState.onDidError(() => this._update()));
 			}
-			this._update();
+			void this._updateAuthentication();
 		};
 		bindRootState();
 		this._register(this._agentHostService.onAgentHostStart(bindRootState));
+	}
+
+	private async _updateAuthentication(): Promise<void> {
+		const sequence = ++this._authenticationSequence;
+		const resources = this._protectedResourcesService.getProtectedResources(COPILOT_AGENT_HOST_PROVIDER_ID);
+		const resource = resources?.find(resource => protectedResourcesRequireGitHubCopilotSignIn([resource]));
+		let authentication: typeof this._copilotAuthentication;
+		this._update();
+		if (this._defaultAccountService.currentDefaultAccount && resource) {
+			try {
+				authentication = await this._instantiationService.invokeFunction(resolveProtectedResourceAuthenticationState, resource, '[AgentHostSignedOutModelsNotification]');
+			} catch {
+				authentication = undefined;
+			}
+		}
+		if (this._store.isDisposed || sequence !== this._authenticationSequence) {
+			return;
+		}
+		this._copilotAuthentication = authentication;
+		this._copilotSignInScopes = resource?.scopes_supported ?? [];
+		this._update();
 	}
 
 	private _update(): void {
@@ -161,6 +204,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			accountResolved: this._accountResolved,
 			entitlementResolved,
 			signedIn,
+			copilotAuthentication: this._defaultAccountService.currentDefaultAccount ? this._copilotAuthentication : undefined,
 			hasCopilotHarness,
 			hasModels,
 			localModelsLoaded,
@@ -168,7 +212,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			setupDialogVisible: this._contextKeyService.getContextKeyValue<boolean>(ChatSetupDialogVisibleContext.key) === true,
 		});
 		this._updateGracePeriod(state);
-		this._setNotification(state === SignedOutModelsNotificationState.Visible);
+		this._setNotification(state);
 	}
 
 	private _updateGracePeriod(state: SignedOutModelsNotificationState): void {
@@ -177,7 +221,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			this._gracePeriodElapsed = false;
 			return;
 		}
-		if (state === SignedOutModelsNotificationState.Visible) {
+		if (state === SignedOutModelsNotificationState.Visible || state === SignedOutModelsNotificationState.VisibleMissingPermissions) {
 			// Readiness may have settled before the timer fired. Drop it so a later
 			// wait starts a full budget instead of inheriting the remainder, but keep
 			// an already elapsed flag: clearing it here would flip straight back to
@@ -193,37 +237,48 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		}
 	}
 
-	private _setNotification(show: boolean): void {
-		if (show === this._notificationShown) {
+	private _setNotification(state: SignedOutModelsNotificationState): void {
+		const missingPermissions = state === SignedOutModelsNotificationState.VisibleMissingPermissions;
+		const key = state === SignedOutModelsNotificationState.Visible || missingPermissions
+			? JSON.stringify([state, missingPermissions ? this._copilotSignInScopes : []])
+			: undefined;
+		if (key === this._notificationKey) {
 			return;
 		}
-		this._notificationShown = show;
-		if (!show) {
+		this._notificationKey = key;
+		if (key === undefined) {
 			this._chatInputNotificationService.deleteNotification(SIGNED_OUT_MODELS_NOTIFICATION_ID);
 			return;
 		}
-		this._chatInputNotificationService.setNotification(this._createNotification());
+		this._chatInputNotificationService.setNotification(this._createNotification(missingPermissions));
 	}
 
-	private _createNotification(): IChatInputNotification {
+	private _createNotification(missingPermissions: boolean): IChatInputNotification {
+		const signInAction: IChatInputNotificationCommandAction = {
+			kind: ChatInputNotificationActionKind.Command,
+			label: localize('agentHost.signedOutModels.signIn', "Sign In"),
+			commandId: CHAT_SETUP_ACTION_ID,
+			commandArgs: missingPermissions ? [undefined, getAgentHostSignInOptions(this._copilotSignInScopes)] : undefined,
+			primary: missingPermissions ? true : undefined,
+			keepOpen: true,
+		};
 		return {
 			id: SIGNED_OUT_MODELS_NOTIFICATION_ID,
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('agentHost.signedOutModels.message', "Choose how you want to use Copilot."),
-			description: localize('agentHost.signedOutModels.description', "Sign in to use GitHub Copilot models, or add a model with your own API key."),
-			actions: [
+			message: missingPermissions
+				? localize('agentHost.missingPermissions.message', "GitHub Copilot needs additional permissions.")
+				: localize('agentHost.signedOutModels.message', "Choose how you want to use Copilot."),
+			description: missingPermissions
+				? localize('agentHost.missingPermissions.description', "Your GitHub sign-in doesn't grant the access Copilot requires. Sign in again to continue.")
+				: localize('agentHost.signedOutModels.description', "Sign in to use GitHub Copilot models, or add a model with your own API key."),
+			actions: missingPermissions ? [signInAction] : [
 				{
 					kind: ChatInputNotificationActionKind.Command,
 					label: localize('agentHost.signedOutModels.addModels', "Add Models"),
 					commandId: MANAGE_CHAT_COMMAND_ID,
 					keepOpen: true,
 				},
-				{
-					kind: ChatInputNotificationActionKind.Command,
-					label: localize('agentHost.signedOutModels.signIn', "Sign In"),
-					commandId: SIGN_IN_COMMAND_ID,
-					keepOpen: true,
-				}
+				signInAction,
 			],
 			dismissible: false,
 			autoDismissOnMessage: false,

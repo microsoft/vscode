@@ -41,7 +41,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { AuthenticationSession, getDynamicAuthenticationProviderId, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
-import { IChatSetupResult } from '../../chatSetup/chatSetup.js';
+import { ChatSetupSource, IChatSetupCommandOptions, IChatSetupResult } from '../../chatSetup/chatSetup.js';
 import { reportAgentHostAuthRecovery, reportAgentHostAuthSignInResult, type AgentHostAuthSignInData, type AgentHostAuthTrigger } from './agentHostAuthTelemetry.js';
 
 /**
@@ -773,10 +773,7 @@ export async function resolveProtectedResourceAuthentication(
 	logPrefix: string,
 ): Promise<IAgentHostAuthenticateRequest | undefined> {
 	const logService = accessor.get(ILogService);
-	const resolution = await resolveSessionForProtectedResource(accessor.get(IAuthenticationService), accessor.get(IDefaultAccountService), logService, resource, {
-		logPrefix,
-		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
-	});
+	const resolution = await resolveExistingProtectedResourceSession(accessor, resource, logPrefix);
 	if (resolution.kind === 'unavailable') {
 		if (resolution.reason === 'provider') {
 			throw new AgentHostAuthenticationPendingError(resource.resource);
@@ -789,6 +786,18 @@ export async function resolveProtectedResourceAuthentication(
 		return undefined;
 	}
 	return toAuthenticateRequest(resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId, resolution.entitlement);
+}
+
+/** Resolves existing authentication state without treating unavailable providers or session lookups as signed out. */
+export async function resolveProtectedResourceAuthenticationState(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, logPrefix: string): Promise<AuthenticationSessionResolution['kind']> {
+	return (await resolveExistingProtectedResourceSession(accessor, resource, logPrefix)).kind;
+}
+
+function resolveExistingProtectedResourceSession(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, logPrefix: string): Promise<AuthenticationSessionResolution> {
+	return resolveSessionForProtectedResource(accessor.get(IAuthenticationService), accessor.get(IDefaultAccountService), accessor.get(ILogService), resource, {
+		logPrefix,
+		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
+	});
 }
 
 function throwIfAuthenticationStale(options: Pick<IAgentHostAuthenticationOptions, 'isCurrent'>): void {
@@ -1142,6 +1151,18 @@ export async function resolveAuthenticationInteractively(
 	return false;
 }
 
+/** Builds the shared setup options for granting an agent host's required GitHub Copilot scopes. */
+export function getAgentHostSignInOptions(scopes: readonly string[]): IChatSetupCommandOptions {
+	return {
+		telemetrySource: ChatSetupSource.AgentHost,
+		forceSignInDialog: true,
+		additionalScopes: scopes,
+		dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
+		disableChatViewReveal: true,
+		returnResult: true,
+	};
+}
+
 async function forceAuthenticationInteractively(
 	authenticationService: IAuthenticationService,
 	defaultAccountService: IDefaultAccountService,
@@ -1159,14 +1180,7 @@ async function forceAuthenticationInteractively(
 	const data: AgentHostAuthSignInData = { trigger, result: 'failed', credentialChanged: undefined, sessionMatch: undefined };
 	try {
 		const scopes = resource.scopes_supported ?? [];
-		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, {
-			telemetrySource: 'agentHost',
-			forceSignInDialog: true,
-			additionalScopes: scopes,
-			dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
-			disableChatViewReveal: true,
-			returnResult: true,
-		});
+		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, getAgentHostSignInOptions(scopes));
 		throwIfAuthenticationStale(options);
 		// Signing in replaces the default session, so only a sign-out or provider change is stale here.
 		if (defaultAccount && defaultAccountService.currentDefaultAccount?.authenticationProvider.id !== defaultAccount.authenticationProvider.id) {
