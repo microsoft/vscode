@@ -43,6 +43,8 @@ import { readSideChatWithoutContext } from '../common/meta/agentHostSideChatMeta
 import { withoutAgentPermissionFeedback } from '../common/meta/agentPermissionResponseMeta.js';
 import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS, readCreateSessionImportMeta, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, withoutCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
+import { requestsAgentHostMultipleChatProviders } from '../common/meta/agentHostMultipleChatProvidersMeta.js';
+import { ChatProvidersConfigKey } from '../common/agentHostChatProviders.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentModelInfo, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -1043,6 +1045,25 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			&& compareProtocolVersions(protocolVersion, MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION) >= 0;
 	}
 
+	/**
+	 * Whether this connection's `initialize` may turn the host's `multipleChatProviders.enabled` on: under the same
+	 * rules as a client `RootConfigChanged` setting it (an authenticated, non-passive relay client, and only while
+	 * the property isn't read-only or owned by the extension's root config overlay).
+	 */
+	private _mayClientEnableMultipleChatProviders(transport: IProtocolTransport): boolean {
+		if (this._config.relayRoots || transport.relayPassive || transport.relayAuthentication?.authenticated === false) {
+			return false;
+		}
+		if (this._config.extension && Object.hasOwn(this._config.extension.rootConfig.values, ChatProvidersConfigKey.Enabled)) {
+			return false;
+		}
+		if (transport.relayClientId !== undefined) {
+			return transport.relayAuthentication?.authenticated === true
+				&& this._stateManager.rootState.config?.schema.properties[ChatProvidersConfigKey.Enabled]?.readOnly !== true;
+		}
+		return true;
+	}
+
 	private _servesGitHubEnvironment(transport: IProtocolTransport): boolean {
 		return !!this._config.githubEnvironment && this._config.allowExtensionMethods !== false
 			&& !this._config.relayRoots && !this._config.relayRootMeta
@@ -1093,6 +1114,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${PROTOCOL_VERSION} (server accepts ${supportedVersions.join(', ')}).`,
 				data,
 			);
+		}
+
+		// Turning the gate on before answering spares a client with the setting on a re-initialize after mirroring it.
+		if (requestsAgentHostMultipleChatProviders(params) && this._mayClientEnableMultipleChatProviders(transport)) {
+			this._agentService.enableMultipleChatProviders?.();
 		}
 
 		const previousRecord = this._clients.get(params.clientId);

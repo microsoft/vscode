@@ -39,6 +39,7 @@ import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificate
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { AgentHostMultipleChatProvidersMetaKey } from '../common/meta/agentHostMultipleChatProvidersMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import type { Credentials } from '../../request/common/request.js';
@@ -1624,6 +1625,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return {
 			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 			...(this._clientProxy?.isEnabled() ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
+			...(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true ? { [AgentHostMultipleChatProvidersMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
