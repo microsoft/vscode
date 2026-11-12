@@ -94,6 +94,8 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 			[TerminalBuiltinLinkType.Url, 'x = "https://en.wikipedia.org/wiki/Zürich";', [{ range: [[6, 1], [41, 1]], uri: URI.parse('https://en.wikipedia.org/wiki/Zürich') }]],
 			[TerminalBuiltinLinkType.Url, '請參閱 http://go.microsoft.com/fwlink/?LinkId=761051。', [{ range: [[8, 1], [53, 1]], uri: URI.parse('http://go.microsoft.com/fwlink/?LinkId=761051') }]],
 			[TerminalBuiltinLinkType.Url, '（請參閱 http://go.microsoft.com/fwlink/?LinkId=761051）', [{ range: [[10, 1], [55, 1]], uri: URI.parse('http://go.microsoft.com/fwlink/?LinkId=761051') }]],
+			[TerminalBuiltinLinkType.Url, '請訪問 https://github.com/lobehub/lobehub/pull/13120！', [{ range: [[8, 1], [53, 1]], uri: URI.parse('https://github.com/lobehub/lobehub/pull/13120') }]],
+			[TerminalBuiltinLinkType.Url, '請訪問 https://github.com/lobehub/lobehub/pull/13120？', [{ range: [[8, 1], [53, 1]], uri: URI.parse('https://github.com/lobehub/lobehub/pull/13120') }]],
 			[TerminalBuiltinLinkType.LocalFile, 'x = "file:///foo.bar";', [{ range: [[6, 1], [20, 1]], uri: URI.parse('file:///foo.bar') }], URI.parse('file:///foo.bar')],
 			[TerminalBuiltinLinkType.LocalFile, 'x = "file://c:/foo.bar";', [{ range: [[6, 1], [22, 1]], uri: URI.parse('file://c:/foo.bar') }], URI.parse('file://c:/foo.bar')],
 			[TerminalBuiltinLinkType.LocalFile, 'x = "file://shares/foo.bar";', [{ range: [[6, 1], [26, 1]], uri: URI.parse('file://shares/foo.bar') }], URI.parse('file://shares/foo.bar')],
