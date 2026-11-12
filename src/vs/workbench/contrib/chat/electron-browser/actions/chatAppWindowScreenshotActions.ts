@@ -21,7 +21,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -38,7 +37,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IKeybindingEditingService } from '../../../../services/keybinding/common/keybindingEditing.js';
 import { selectSystemWideKeybindings } from '../../../keybindings/electron-browser/systemWideKeybindings.js';
 import { getScreenshotToolImageData, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolOutcome } from '../../../screenshotTool/browser/screenshotTool.js';
-import { AppWindowScreenshotResult, getAppWindowLabel, IAppWindowScreenshotService } from '../../../screenshotTool/electron-browser/appWindowScreenshot.js';
+import { AppWindowScreenshotPermission, AppWindowScreenshotResult, getAppWindowLabel, IAppWindowScreenshotService } from '../../../screenshotTool/electron-browser/appWindowScreenshot.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../browser/attachments/chatContextPickService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
@@ -46,6 +45,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { isAutoLanguageModel } from '../../common/languageModels.js';
+import { AppWindowScreenshotSetupDialog } from './chatAppWindowScreenshotSetup.js';
 
 const ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.attachAppWindowScreenshot';
 const PICK_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.pickAppWindowScreenshot';
@@ -84,6 +84,7 @@ type AppWindowScreenshotEvent = {
 	source: AppWindowScreenshotSource;
 	target: string;
 	result: string;
+	permission: string;
 	inBackground: boolean;
 };
 
@@ -91,8 +92,9 @@ type AppWindowScreenshotClassification = {
 	owner: 'Giuspepe';
 	comment: 'Reports how attaching a screenshot of the window of another app to chat ended, to learn how the window is found and why captures fail.';
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What started the capture: a command, such as from its keybinding, or the Add Context item.' };
-	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the window was found: the frontmost window of another app, picked by the user in a list or in the system picker, or none before the first-use dialog was accepted.' };
-	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How it ended: captured, cancelled, declined in the first-use dialog, no window of another app, missing Screen Recording permission, or failed.' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the window was found: the frontmost window of another app, picked by the user in a list or in the system picker, or none when the setup was closed.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How it ended: captured, cancelled, declined in the setup, no window of another app, missing Screen Recording permission, or failed.' };
+	permission: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether capturing had the permission that it needs when it started: granted, not granted or restricted on macOS, or not required on other platforms.' };
 	inBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether VS Code was in the background when the capture started, as with a system-wide keybinding.' };
 };
 
@@ -105,8 +107,8 @@ interface IAppWindowScreenshotRequest {
 }
 
 /**
- * Captures the window of another app for chat, after explaining what this does the first time, and returns it as an
- * image attachment that the user can mark up. Explains why a capture failed.
+ * Captures the window of another app for chat, after the setup when it is needed, and returns it as an image attachment
+ * that the user can mark up. Explains why a capture failed.
  */
 async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: IAppWindowScreenshotRequest): Promise<IChatRequestVariableEntry | undefined> {
 	const appWindowScreenshotService = accessor.get(IAppWindowScreenshotService);
@@ -115,17 +117,19 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 	const notificationService = accessor.get(INotificationService);
 	const commandService = accessor.get(ICommandService);
 	const telemetryService = accessor.get(ITelemetryService);
+	const productService = accessor.get(IProductService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const stopWatch = StopWatch.create(false);
 	// A system-wide keybinding runs the command while another app is in front.
 	const inBackground = !hostService.hasFocus;
+	const permission = await appWindowScreenshotService.getPermission();
 	const log = (target: string, result: string, outcome: ScreenshotToolOutcome) => {
 		screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.ChatAppWindow, outcome, mode: outcome === 'attached' ? 'appWindow' : 'none', durationMs: stopWatch.elapsed() });
-		telemetryService.publicLog2<AppWindowScreenshotEvent, AppWindowScreenshotClassification>('screenshotTool.appWindow', { source: request.source, target, result, inBackground });
+		telemetryService.publicLog2<AppWindowScreenshotEvent, AppWindowScreenshotClassification>('screenshotTool.appWindow', { source: request.source, target, result, permission, inBackground });
 	};
 
-	if (!await instantiationService.invokeFunction(confirmFirstUse, inBackground)) {
+	if (!await instantiationService.invokeFunction(setUpAppWindowScreenshots, permission, inBackground)) {
 		log('none', 'declined', 'cancelled');
 		return undefined;
 	}
@@ -149,6 +153,16 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 
 	if (result.kind === 'noWindow') {
 		notificationService.info(localize('appWindowScreenshot.noWindow', "No other app shows a window to capture. Open the app, then try again."));
+	} else if (result.kind === 'permissionRequired') {
+		// macOS revoked the permission after the setup checked it.
+		notificationService.prompt(
+			Severity.Warning,
+			localize('appWindowScreenshot.permission', "{0} needs the Screen Recording permission to capture the windows of other apps.", productService.nameShort),
+			[{
+				label: localize('appWindowScreenshot.allowInSettings', "Allow in Settings"),
+				run: () => { void appWindowScreenshotService.requestPermission(); },
+			}],
+		);
 	} else if (result.kind === 'failed') {
 		notificationService.prompt(
 			Severity.Error,
@@ -166,43 +180,39 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 }
 
 /**
- * Explains, once, that the screenshot captures another app and what to check before sending it, and offers to make the
- * keybinding work while another app is in front. Returns whether the user agreed.
+ * Shows the setup the first time, and whenever macOS doesn't allow Screen Recording: it explains what a capture takes,
+ * lets the user allow Screen Recording, and offers to make the keybinding work while another app is in front. Returns
+ * whether the capture can go ahead.
  */
-async function confirmFirstUse(accessor: ServicesAccessor, inBackground: boolean): Promise<boolean> {
+async function setUpAppWindowScreenshots(accessor: ServicesAccessor, permission: AppWindowScreenshotPermission, inBackground: boolean): Promise<boolean> {
 	const storageService = accessor.get(IStorageService);
-	const dialogService = accessor.get(IDialogService);
 	const hostService = accessor.get(IHostService);
-	const productService = accessor.get(IProductService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const instantiationService = accessor.get(IInstantiationService);
 
-	if (storageService.getBoolean(FIRST_USE_ACCEPTED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
+	const ready = permission === 'granted' || permission === 'notRequired';
+	if (ready && storageService.getBoolean(FIRST_USE_ACCEPTED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
 		return true;
 	}
 	if (inBackground) {
-		// The dialog shows in VS Code, which a system-wide keybinding leaves in the background.
+		// The setup shows in VS Code, which a system-wide keybinding leaves in the background.
 		await hostService.focus(mainWindow, { mode: FocusMode.Force });
 	}
 
 	const keybinding = getKeybinding(keybindingService);
-	const { confirmed, checkboxChecked } = await dialogService.confirm({
-		type: 'info',
-		message: localize('appWindowScreenshot.firstUse.message', "Attach screenshots of other apps to chat?"),
-		detail: localize('appWindowScreenshot.firstUse.detail', "{0} captures a window of another app, such as the app that you are building: the window that you are using or just left, or one that you pick. It never captures its own windows. The screenshot stays in the chat input until you send your message, so you can mark it up or remove it first. Screenshots can show private information or text that influences the agent, so check them before you send them.", productService.nameShort),
-		primaryButton: localize({ key: 'appWindowScreenshot.firstUse.attach', comment: ['&& denotes a mnemonic'] }, "&&Attach Screenshot"),
-		checkbox: keybinding.systemWide ? undefined : {
-			label: localize('appWindowScreenshot.firstUse.systemWide', "Also use {0} while another app is in front", keybinding.label),
-			checked: false,
-		},
-	});
-	if (!confirmed) {
-		return false;
+	const dialog = instantiationService.createInstance(AppWindowScreenshotSetupDialog, permission, keybinding.accelerator ? {
+		label: keybinding.label,
+		enabled: keybinding.systemWide,
+		enable: () => instantiationService.invokeFunction(enableSystemWideKeybinding, false),
+	} : undefined);
+	try {
+		if (!await dialog.show()) {
+			return false;
+		}
+	} finally {
+		dialog.dispose();
 	}
 	storageService.store(FIRST_USE_ACCEPTED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-	if (checkboxChecked) {
-		await instantiationService.invokeFunction(enableSystemWideKeybinding);
-	}
 	return true;
 }
 
@@ -218,8 +228,11 @@ function getKeybinding(keybindingService: IKeybindingService): { readonly key: s
 	};
 }
 
-/** Adds the keybinding to the user's keybindings as a system-wide one, which works while another app is in front. */
-async function enableSystemWideKeybinding(accessor: ServicesAccessor): Promise<void> {
+/**
+ * Adds the keybinding to the user's keybindings as a system-wide one, which works while another app is in front, and
+ * resolves whether it works that way. With `confirm`, a notification also says so.
+ */
+async function enableSystemWideKeybinding(accessor: ServicesAccessor, confirm: boolean): Promise<boolean> {
 	const keybindingService = accessor.get(IKeybindingService);
 	const keybindingEditingService = accessor.get(IKeybindingEditingService);
 	const notificationService = accessor.get(INotificationService);
@@ -227,25 +240,30 @@ async function enableSystemWideKeybinding(accessor: ServicesAccessor): Promise<v
 
 	const keybinding = getKeybinding(keybindingService);
 	if (keybinding.systemWide) {
-		notificationService.info(localize('appWindowScreenshot.systemWide.alreadyEnabled', "{0} already attaches a screenshot of the app in front, while VS Code is in the background.", keybinding.label));
-		return;
+		if (confirm) {
+			notificationService.info(localize('appWindowScreenshot.systemWide.alreadyEnabled', "{0} already attaches a screenshot of the app in front, while VS Code is in the background.", keybinding.label));
+		}
+		return true;
 	}
 	if (!keybinding.accelerator) {
 		notificationService.error(localize('appWindowScreenshot.systemWide.unsupported', "{0} cannot work while another app is in front. Give Attach Screenshot of App Window a single key combination first.", keybinding.label));
-		return;
+		return false;
 	}
 	if (selectSystemWideKeybindings(keybindingService.getKeybindings()).candidates.some(candidate => candidate.accelerator === keybinding.accelerator)) {
 		notificationService.error(localize('appWindowScreenshot.systemWide.conflict', "{0} cannot work while another app is in front, because another system-wide keybinding uses it.", keybinding.label));
-		return;
+		return false;
 	}
 	try {
 		await keybindingEditingService.addKeybinding(new ResolvedKeybindingItem(undefined, ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, undefined, undefined, false, null, false, true), keybinding.key, undefined);
 	} catch (error) {
 		logService.error('[AppWindowScreenshot] Adding the system-wide keybinding failed:', error);
 		notificationService.error(localize('appWindowScreenshot.systemWide.error', "Unable to make {0} work while another app is in front: {1}", keybinding.label, getErrorMessage(error)));
-		return;
+		return false;
 	}
-	notificationService.info(localize('appWindowScreenshot.systemWide.enabled', "Press {0} while another app is in front to attach a screenshot of its window to chat.", keybinding.label));
+	if (confirm) {
+		notificationService.info(localize('appWindowScreenshot.systemWide.enabled', "Press {0} while another app is in front to attach a screenshot of its window to chat.", keybinding.label));
+	}
+	return true;
 }
 
 /** Captures the window of another app and attaches it to the chat input, which comes to the front. */
@@ -337,8 +355,8 @@ class EnableAppWindowScreenshotSystemWideKeybindingAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> {
-		return enableSystemWideKeybinding(accessor);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await enableSystemWideKeybinding(accessor, true);
 	}
 }
 

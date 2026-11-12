@@ -5,13 +5,12 @@
 
 import { $ } from '../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../base/common/async.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeAppWindow, INativeAppWindows, INativeHostService } from '../../../../platform/native/common/native.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IScreenshotToolImage } from '../browser/screenshotTool.js';
 
@@ -26,7 +25,7 @@ export type AppWindowScreenshotResult =
 	| { readonly kind: 'cancelled'; readonly target: AppWindowScreenshotTarget }
 	/** No other app shows a window. */
 	| { readonly kind: 'noWindow'; readonly target: AppWindowScreenshotTarget }
-	/** macOS needs the Screen Recording permission, which a notification explains how to grant. */
+	/** macOS needs the Screen Recording permission, see {@link IAppWindowScreenshotService.requestPermission}. */
 	| { readonly kind: 'permissionRequired'; readonly target: AppWindowScreenshotTarget }
 	| { readonly kind: 'failed'; readonly target: AppWindowScreenshotTarget; readonly window: INativeAppWindow | undefined };
 
@@ -36,6 +35,16 @@ export interface IAppWindowScreenshotOptions {
 	/** The window to capture, such as the frontmost window that a menu named before the user chose it. */
 	readonly window?: INativeAppWindow;
 }
+
+/** Whether capturing the windows of other apps has the permission that it needs. */
+export type AppWindowScreenshotPermission =
+	| 'granted'
+	/** macOS needs the Screen Recording permission, which the user can turn on in System Settings. */
+	| 'notGranted'
+	/** The Screen Recording permission is restricted, such as by the organization that manages the Mac. */
+	| 'restricted'
+	/** The platform needs no permission. */
+	| 'notRequired';
 
 /**
  * Captures the windows of other apps, such as a browser or a simulator that runs the app that the user builds.
@@ -49,6 +58,15 @@ export interface IAppWindowScreenshotService {
 	 * needs a permission or the system's window picker.
 	 */
 	getFrontmostWindow(): Promise<INativeAppWindow | undefined>;
+
+	/** Returns whether capturing has the permission that it needs, without asking for it. */
+	getPermission(): Promise<AppWindowScreenshotPermission>;
+
+	/**
+	 * Asks for the Screen Recording permission on macOS, which lists VS Code under Screen Recording in System Settings,
+	 * and opens System Settings there, where the user turns it on. macOS also prompts the first time.
+	 */
+	requestPermission(): Promise<void>;
 
 	/**
 	 * Captures the window of another app as it is shown. Only call it when the user asked for it, as it asks for the
@@ -91,8 +109,6 @@ export class AppWindowScreenshotService implements IAppWindowScreenshotService {
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
 	) { }
 
@@ -104,6 +120,30 @@ export class AppWindowScreenshotService implements IAppWindowScreenshotService {
 			this.logService.error('[AppWindowScreenshot] Listing the windows of other apps failed:', error);
 			return undefined;
 		}
+	}
+
+	async getPermission(): Promise<AppWindowScreenshotPermission> {
+		if (!isMacintosh) {
+			return 'notRequired';
+		}
+		switch (await this.nativeHostService.getMediaAccessStatus('screen')) {
+			case 'granted': return 'granted';
+			case 'restricted': return 'restricted';
+			default: return 'notGranted';
+		}
+	}
+
+	async requestPermission(): Promise<void> {
+		if (!isMacintosh) {
+			return;
+		}
+		try {
+			await this.nativeHostService.requestScreenCaptureAccess();
+		} catch (error) {
+			// Without the permission, the request rejects after macOS listed VS Code, and prompted the first time.
+			this.logService.trace('[AppWindowScreenshot] The Screen Recording request was rejected:', error);
+		}
+		await this.nativeHostService.openExternal(MAC_SCREEN_RECORDING_SETTINGS_URL);
 	}
 
 	async capture(options: IAppWindowScreenshotOptions = {}): Promise<AppWindowScreenshotResult> {
@@ -124,7 +164,6 @@ export class AppWindowScreenshotService implements IAppWindowScreenshotService {
 				return { kind: 'failed', target, window: undefined };
 			}
 			if (windows.kind === 'permissionRequired') {
-				this.showPermissionNotification();
 				return { kind: 'permissionRequired', target };
 			}
 			if (windows.kind !== 'windows') {
@@ -203,16 +242,5 @@ export class AppWindowScreenshotService implements IAppWindowScreenshotService {
 				track.stop();
 			}
 		}
-	}
-
-	private showPermissionNotification(): void {
-		this.notificationService.prompt(
-			Severity.Warning,
-			localize('appWindowScreenshot.permission', "{0} needs the Screen Recording permission to capture the windows of other apps. Allow it in System Settings, then quit and reopen {0}.", this.productService.nameShort),
-			[{
-				label: localize('appWindowScreenshot.openSystemSettings', "Open System Settings"),
-				run: () => { void this.nativeHostService.openExternal(MAC_SCREEN_RECORDING_SETTINGS_URL); },
-			}],
-		);
 	}
 }
