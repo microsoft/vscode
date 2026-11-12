@@ -7432,7 +7432,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const movedIds = new Set(moved.map(entry => entry.sessionId));
 		const entries: SessionSortEntry[] = [
 			...(this.getDateSections() ?? []).flatMap(section => section.sessions).filter(session => !this.isActiveComparisonSession(session)),
-			...this._sessionGroupsService.getGroups().filter(group => group.parentId === undefined && this.isComparisonGroup(group.id)).map(group => this.getComparisonSortEntry(group.id)),
+			...this._sessionGroupsService.getGroups().filter(group => group.parentId === undefined && this.isComparisonGroup(group.id) && !this.isComparisonInChatsSection(group.id)).map(group => this.getComparisonSortEntry(group.id)),
 		].filter(entry => !movedIds.has(entry.sessionId)).concat(moved);
 		const [recent, older] = partitionByDate(entries.sort((a, b) => getSortKey(b) - getSortKey(a)), sorting, getSortKey, entry => entry.updatedAt.get().getTime());
 		const target = sectionId === 'recent' ? recent : older;
@@ -7881,7 +7881,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private getComparisonReorderScope(group: ISessionGroup): string | undefined {
 		return group.parentId !== undefined ? getSessionGroupSectionId(group.parentId)
-			: this.options.grouping() === SessionsGrouping.Date ? DATE_SECTION_IDS[0] : this.comparisonSectionIds.get(group.id);
+			: this.options.grouping() === SessionsGrouping.Date && !this.isComparisonInChatsSection(group.id) ? DATE_SECTION_IDS[0] : this.comparisonSectionIds.get(group.id);
+	}
+
+	/** Whether a comparison lists in the "Chats" section, such as one without a workspace under date grouping that keeps it, rather than in a date section. */
+	private isComparisonInChatsSection(groupId: string): boolean {
+		return this.comparisonSectionIds.get(groupId) === QUICK_CHATS_SECTION_ID;
 	}
 
 	private getListSortEntry(element: ISession | ISessionGroupItem): SessionSortEntry {
@@ -7918,7 +7923,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (!this.canNestGroup(group.group.id, parent.group.id)) {
 				return undefined;
 			}
-		} else if (!DATE_SECTION_IDS.includes(parent.id) && parent.id !== this.comparisonSectionIds.get(group.group.id)) {
+		} else if (parent.id !== this.comparisonSectionIds.get(group.group.id) && !(DATE_SECTION_IDS.includes(parent.id) && !this.isComparisonInChatsSection(group.group.id))) {
 			return undefined;
 		}
 		const sectionParentId = isSessionSection(parent) ? this.getSectionParentId(parent.id) : undefined;
