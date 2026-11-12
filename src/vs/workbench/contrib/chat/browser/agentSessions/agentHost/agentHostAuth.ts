@@ -1159,7 +1159,6 @@ export function getAgentHostSignInOptions(scopes: readonly string[]): IChatSetup
 		additionalScopes: scopes,
 		dialogTitle: localize('agentHost.signInDialogTitle', "Sign in to use GitHub Copilot"),
 		disableChatViewReveal: true,
-		returnResult: true,
 	};
 }
 
@@ -1180,7 +1179,7 @@ async function forceAuthenticationInteractively(
 	const data: AgentHostAuthSignInData = { trigger, result: 'failed', credentialChanged: undefined, sessionMatch: undefined };
 	try {
 		const scopes = resource.scopes_supported ?? [];
-		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, getAgentHostSignInOptions(scopes));
+		const setupResult = await commandService.executeCommand<IChatSetupResult>(CHAT_SETUP_ACTION_ID, undefined, { ...getAgentHostSignInOptions(scopes), returnResult: true });
 		throwIfAuthenticationStale(options);
 		// Signing in replaces the default session, so only a sign-out or provider change is stale here.
 		if (defaultAccount && defaultAccountService.currentDefaultAccount?.authenticationProvider.id !== defaultAccount.authenticationProvider.id) {

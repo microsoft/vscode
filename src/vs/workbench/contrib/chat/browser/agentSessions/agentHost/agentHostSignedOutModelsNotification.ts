@@ -8,6 +8,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../../.
 import { Event } from '../../../../../../base/common/event.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -28,6 +29,7 @@ import { IAgentHostProtectedResourcesService } from './agentHostProtectedResourc
 
 const SIGNED_OUT_MODELS_NOTIFICATION_ID = 'agentHost.signedOutModels.copilot';
 const COPILOT_AGENT_HOST_PROVIDER_ID = 'copilotcli';
+type CopilotAuthenticationState = Awaited<ReturnType<typeof resolveProtectedResourceAuthenticationState>>;
 const NOTIFICATION_CONTEXT_KEYS = new Set([
 	ChatEntitlementContextKeys.clientByokEnabled.key,
 	ChatSetupDialogVisibleContext.key,
@@ -85,8 +87,9 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 
 	private _notificationKey: string | undefined;
 	private _authenticationSequence = 0;
-	private _copilotAuthentication: Awaited<ReturnType<typeof resolveProtectedResourceAuthenticationState>> | undefined;
-	private _copilotSignInScopes: readonly string[] = [];
+	private _pendingAuthenticationKey: string | undefined;
+	/** The last lookup result, keyed by the account and resource it was computed for. */
+	private _copilotAuthentication: { readonly key: string; readonly state: CopilotAuthenticationState | undefined; readonly scopes: readonly string[] } | undefined;
 	/** Startup readiness prevents transient empty catalogs from producing false notifications. */
 	private _accountResolved = false;
 	private _extensionsRegistered = false;
@@ -148,7 +151,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		const rootStateListeners = this._register(new DisposableStore());
 		const bindRootState = () => {
 			rootStateListeners.clear();
-			rootStateListeners.add(this._agentHostService.rootState.onDidChange(() => this._update()));
+			rootStateListeners.add(this._agentHostService.rootState.onDidChange(() => this._updateAuthenticationIfStale()));
 			if (this._agentHostService.rootState.onDidError) {
 				rootStateListeners.add(this._agentHostService.rootState.onDidError(() => this._update()));
 			}
@@ -158,24 +161,44 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 		this._register(this._agentHostService.onAgentHostStart(bindRootState));
 	}
 
+	private _getCopilotAuthenticationTarget(): { readonly key: string; readonly resource: ProtectedResourceMetadata } | undefined {
+		const account = this._defaultAccountService.currentDefaultAccount;
+		const resource = this._protectedResourcesService.getProtectedResources(COPILOT_AGENT_HOST_PROVIDER_ID)
+			?.find(resource => protectedResourcesRequireGitHubCopilotSignIn([resource]));
+		return account && resource
+			? { key: JSON.stringify([account.authenticationProvider.id, account.sessionId, resource]), resource }
+			: undefined;
+	}
+
+	/** Looks up the session again only when the account or resource metadata changed. */
+	private _updateAuthenticationIfStale(): void {
+		const key = this._getCopilotAuthenticationTarget()?.key;
+		if (key !== undefined && key !== this._copilotAuthentication?.key && key !== this._pendingAuthenticationKey) {
+			void this._updateAuthentication();
+		} else {
+			this._update();
+		}
+	}
+
 	private async _updateAuthentication(): Promise<void> {
 		const sequence = ++this._authenticationSequence;
-		const resources = this._protectedResourcesService.getProtectedResources(COPILOT_AGENT_HOST_PROVIDER_ID);
-		const resource = resources?.find(resource => protectedResourcesRequireGitHubCopilotSignIn([resource]));
-		let authentication: typeof this._copilotAuthentication;
+		const target = this._getCopilotAuthenticationTarget();
+		this._pendingAuthenticationKey = target?.key;
 		this._update();
-		if (this._defaultAccountService.currentDefaultAccount && resource) {
-			try {
-				authentication = await this._instantiationService.invokeFunction(resolveProtectedResourceAuthenticationState, resource, '[AgentHostSignedOutModelsNotification]');
-			} catch {
-				authentication = undefined;
-			}
+		if (!target) {
+			return;
+		}
+		let state: CopilotAuthenticationState | undefined;
+		try {
+			state = await this._instantiationService.invokeFunction(resolveProtectedResourceAuthenticationState, target.resource, '[AgentHostSignedOutModelsNotification]');
+		} catch {
+			state = undefined;
 		}
 		if (this._store.isDisposed || sequence !== this._authenticationSequence) {
 			return;
 		}
-		this._copilotAuthentication = authentication;
-		this._copilotSignInScopes = resource?.scopes_supported ?? [];
+		this._pendingAuthenticationKey = undefined;
+		this._copilotAuthentication = { key: target.key, state, scopes: target.resource.scopes_supported ?? [] };
 		this._update();
 	}
 
@@ -200,11 +223,13 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			&& rootState.agents.some(agent => agent.provider === COPILOT_AGENT_HOST_PROVIDER_ID);
 		const hasModels = this._chatEntitlementService.clientByokEnabled
 			&& hasVisibleByokModelsTargetingSessionType(this._languageModelsService, SessionType.AgentHostCopilot);
+		// A result computed for another account or resource is unknown until the current lookup finishes.
+		const authenticationKey = this._getCopilotAuthenticationTarget()?.key;
 		const state = getSignedOutModelsNotificationState({
 			accountResolved: this._accountResolved,
 			entitlementResolved,
 			signedIn,
-			copilotAuthentication: this._defaultAccountService.currentDefaultAccount ? this._copilotAuthentication : undefined,
+			copilotAuthentication: authenticationKey !== undefined && this._copilotAuthentication?.key === authenticationKey ? this._copilotAuthentication.state : undefined,
 			hasCopilotHarness,
 			hasModels,
 			localModelsLoaded,
@@ -240,7 +265,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 	private _setNotification(state: SignedOutModelsNotificationState): void {
 		const missingPermissions = state === SignedOutModelsNotificationState.VisibleMissingPermissions;
 		const key = state === SignedOutModelsNotificationState.Visible || missingPermissions
-			? JSON.stringify([state, missingPermissions ? this._copilotSignInScopes : []])
+			? JSON.stringify([state, missingPermissions ? this._copilotAuthentication?.scopes ?? [] : []])
 			: undefined;
 		if (key === this._notificationKey) {
 			return;
@@ -258,7 +283,7 @@ export class AgentHostSignedOutModelsNotificationContribution extends Disposable
 			kind: ChatInputNotificationActionKind.Command,
 			label: localize('agentHost.signedOutModels.signIn', "Sign In"),
 			commandId: CHAT_SETUP_ACTION_ID,
-			commandArgs: missingPermissions ? [undefined, getAgentHostSignInOptions(this._copilotSignInScopes)] : undefined,
+			commandArgs: missingPermissions ? [undefined, getAgentHostSignInOptions(this._copilotAuthentication?.scopes ?? [])] : undefined,
 			primary: missingPermissions ? true : undefined,
 			keepOpen: true,
 		};
