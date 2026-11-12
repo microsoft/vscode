@@ -318,6 +318,14 @@ suite('Scheduled chat handoffs', () => {
 		}, { conversation, template: undefined, request: { text: input.inputText, origin: { kind: 'user' } } });
 	});
 
+	test('a released new-session source can schedule an identical new composition', async () => {
+		const fixture = create();
+		await fixture.service.schedule(input, target, session, 'first');
+		fixture.service.releaseSource('first');
+		await fixture.service.schedule(input, target, session, 'second');
+		assert.strictEqual(fixture.requests.length, 2);
+	});
+
 	test('identical input in another conversation does not reconcile the wrong handoff', async () => {
 		const fixture = create();
 		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/first') };

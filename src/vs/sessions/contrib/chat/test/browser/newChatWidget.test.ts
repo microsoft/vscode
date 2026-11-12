@@ -77,6 +77,7 @@ import { SessionConfigSchema } from '../../../../../platform/agentHost/common/st
 import { ISessionHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISavedSessionDraft, ISavedSessionDraftTarget } from '../../../../../workbench/contrib/sessions/common/savedSessionDrafts.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -574,6 +575,89 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('saved draft restoration', () => {
+		function createHarness(session: ISession) {
+			let input: IChatDraft = { inputText: 'previous input', attachments: [] };
+			const configured: ISession[] = [];
+			const harness = {
+				_store: disposables.add(new DisposableStore()),
+				_restoringSavedDraft: observableValue('restoring', false),
+				_savedDraftTargetUnavailable: observableValue('unavailable', false),
+				_pendingPreferredUpgrade: disposables.add(new MutableDisposable<IDisposable>()),
+				_newSessionCreation: disposables.add(new MutableDisposable<IDisposable>()),
+				_pendingWorkspaceCreation: Promise.resolve(),
+				_savedDraftComposer: { id: 'previous', target: {} as ISavedSessionDraftTarget },
+				_newChatInput: {
+					setInputEnabled: () => { },
+					setDraft: (draft: IChatDraft) => { input = draft; },
+					focus: () => { },
+				},
+				storageService: disposables.add(new InMemoryStorageService()),
+				sessionsProvidersService: { getProvider: () => ({ sessionTypes: [{ id: 'agent' }] }) },
+				_environments: constObservable<readonly ISessionCreationEnvironment[]>([]),
+				_pickedEnvironment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
+				_workspacePicker: { ...workspaceIdentity(), setSelectedWorkspace: () => { } },
+				sessionsService: {
+					openNewSession: async () => ({ session }),
+					openQuickChat: () => session,
+				},
+				sessionsManagementService: { configureNewSessionDraft: async (value: ISession) => { configured.push(value); } },
+			};
+			const restore = Reflect.get(NewChatWidget.prototype, '_restoreSavedDraft') as (this: typeof harness, draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>;
+			return { harness, configured, input: () => input, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => restore.call(harness, draft, token) };
+		}
+
+		const requested = URI.file('/requested');
+		const draft: ISavedSessionDraft = {
+			id: 'requested', revision: 'revision', createdAt: 1, updatedAt: 1,
+			input: { inputText: 'saved input', attachments: [] },
+			target: { providerId: 'provider', sessionTypeId: 'agent', folderUri: requested },
+		};
+
+		for (const matches of [false, true]) {
+			for (const quickChat of [false, true]) {
+				test(`validates the restored target before enabling Send (quick chat: ${quickChat}, matches: ${matches})`, async () => {
+					const session = upcastPartial<ISession>({
+						providerId: 'provider', sessionType: 'agent',
+						isQuickChat: constObservable(quickChat && matches),
+						workspace: constObservable(upcastPartial<ISessionWorkspace>({
+							folders: [{ root: matches ? requested : URI.file('/previous'), workingDirectory: requested, name: 'workspace', description: undefined }],
+						})),
+					});
+					const fixture = createHarness(session);
+					const restoring = fixture.restore({ ...draft, target: { ...draft.target, folderUri: quickChat ? undefined : requested } });
+					if (matches) {
+						await restoring;
+					} else {
+						await assert.rejects(restoring, /workspace is unavailable/);
+					}
+					assert.deepStrictEqual({
+						configured: fixture.configured.length,
+						unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+						input: fixture.input(),
+					}, { configured: matches ? 1 : 0, unavailable: !matches, input: draft.input });
+				});
+			}
+		}
+
+		test('cancelling before target restoration preserves the previous input and Send availability', async () => {
+			const fixture = createHarness(upcastPartial<ISession>({}));
+			const pending = new DeferredPromise<void>();
+			fixture.harness._pendingWorkspaceCreation = pending.p;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const restoring = fixture.restore(draft, cancellation.token);
+			cancellation.cancel();
+			pending.complete();
+			await restoring;
+			assert.deepStrictEqual({
+				id: fixture.harness._savedDraftComposer.id,
+				input: fixture.input().inputText,
+				unavailable: fixture.harness._savedDraftTargetUnavailable.get(),
+				restoring: fixture.harness._restoringSavedDraft.get(),
+			}, { id: 'previous', input: 'previous input', unavailable: false, restoring: false });
+		});
+	});
 
 	test('builds customization target labels from the selected environment, workspace, and harness', () => {
 		const root = URI.file('/workspace');

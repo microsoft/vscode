@@ -7175,6 +7175,25 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(createCount, 0);
 	});
 
+	test('ordinary draft configuration does not require Automation support', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const draftConfiguration = { sessionTemplate: { modelId: 'model', config: { providerChoice: true } } };
+		let captured: ISessionsProviderCreateSessionOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return { uri: URI.parse('test:///folder'), label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override getDraftSessionConfiguration() { return draftConfiguration; }
+			override createNewSession(_folder: URI, _type: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				captured = options;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		service.createNewSession(URI.parse('test:///folder'), { draftConfiguration });
+		assert.deepStrictEqual(captured, { metadata: undefined, draftConfiguration });
+	});
+
 	test('createAndSendNewChatRequest prepares request options while configuring the provisional session', async () => {
 		const session = stubSession({
 			sessionId: 's1',

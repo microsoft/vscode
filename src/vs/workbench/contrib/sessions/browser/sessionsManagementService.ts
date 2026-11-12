@@ -825,6 +825,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (sessionTemplate && provider.supportsAutomationSessionConfiguration !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support Automation session templates.`);
 		}
+		if (options?.draftConfiguration && !provider.getDraftSessionConfiguration) {
+			throw new Error(`Sessions provider '${provider.id}' does not support saved draft configuration.`);
+		}
 		if (options?.modelConfiguration && !options.modelId) {
 			throw new Error('Session model configuration requires a model identifier.');
 		}
@@ -848,6 +851,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			...(options?.modeId ? { modeId: options.modeId } : {}),
 			...(options?.pullRequestUrl ? { pullRequestUrl: options.pullRequestUrl } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
+			...(options?.draftConfiguration ? { draftConfiguration: options.draftConfiguration } : {}),
 		};
 	}
 

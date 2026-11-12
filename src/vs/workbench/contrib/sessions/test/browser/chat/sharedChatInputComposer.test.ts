@@ -78,6 +78,7 @@ suite('SharedChatInputComposer', () => {
 		const attachmentModel = {
 			get attachments() { return attachments; },
 			addContext: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
+			clearAndSetContext: (...entries: IChatRequestVariableEntry[]) => { attachments = entries; },
 		};
 		const widget: { input: object | undefined;[key: string]: unknown } = {
 			domNode: dom.$('div'),
@@ -111,6 +112,7 @@ suite('SharedChatInputComposer', () => {
 			},
 		};
 		const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_store: store.add(new DisposableStore()),
 			_widget: widget,
 			_sending: observableValue('sending', false),
 			_confirmingSend: observableValue('confirmingSend', false),
@@ -150,11 +152,35 @@ suite('SharedChatInputComposer', () => {
 	test('scheduling supplies the send controls as the picker anchor and keeps input on cancel', async () => {
 		let anchor: HTMLElement | undefined;
 		const { composer, executeToolbarElement, state } = createComposer({
-			scheduleRequest: async element => { anchor = element; return false; },
+			scheduleRequest: async element => { anchor = element; return undefined; },
 		});
 		await composer.schedule();
 		assert.deepStrictEqual({ anchor, input: state().input }, {
 			anchor: executeToolbarElement, input: { text: 'Build it', attachments: [context.id], enabled: true },
+		});
+	});
+
+	test('scheduling releases the captured source only after clearing its input', async () => {
+		const released: string[] = [];
+		const { composer, state } = createComposer({
+			scheduleRequest: async () => () => { released.push(state().input.text); },
+		});
+		await composer.schedule();
+		assert.deepStrictEqual({ released, input: state().input }, {
+			released: [''], input: { text: '', attachments: [], enabled: true },
+		});
+	});
+
+	test('late scheduling acceptance does not clear a replacement composition', async () => {
+		const accepted = new DeferredPromise<(() => void) | undefined>();
+		let released = false;
+		const { composer, state } = createComposer({ scheduleRequest: () => accepted.p });
+		const scheduling = composer.schedule();
+		composer.setDraft({ inputText: 'replacement', attachments: [] });
+		accepted.complete(() => { released = true; });
+		await scheduling;
+		assert.deepStrictEqual({ released, input: state().input }, {
+			released: false, input: { text: 'replacement', attachments: [], enabled: true },
 		});
 	});
 

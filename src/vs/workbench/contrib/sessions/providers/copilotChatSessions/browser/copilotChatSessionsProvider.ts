@@ -1516,7 +1516,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (workspaceUri && !workspace) {
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
-		const automationConfiguration = options?.automationConfiguration;
+		const automationConfiguration = options?.draftConfiguration ?? options?.automationConfiguration;
 		assertAutomationSessionTemplate(automationConfiguration?.sessionTemplate);
 
 		if (this.providerMode !== 'sandbox' && sessionTypeId !== CopilotCloudSessionType.id) {

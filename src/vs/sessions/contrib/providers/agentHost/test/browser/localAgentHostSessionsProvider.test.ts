@@ -9884,6 +9884,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
+	for (const quickChat of [false, true]) {
+		test(`restores ordinary draft configuration before resolving the provider (quick chat: ${quickChat})`, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const sessionTemplate = {
+				modelId: 'agent-host-copilotcli:auto',
+				modelConfiguration: { thinkingLevel: 'low' },
+				config: { mode: 'plan', autoApprove: 'assisted' },
+			};
+			const options = { draftConfiguration: { sessionTemplate } };
+			const session = quickChat
+				? provider.createQuickChat(provider.sessionTypes[0].id, options)
+				: provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, options);
+			const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+			assert.deepStrictEqual({
+				modelId: captured?.sessionTemplate?.modelId,
+				modelConfiguration: captured?.sessionTemplate?.modelConfiguration,
+				mode: captured?.mode,
+				permissionLevel: captured?.permissionLevel,
+			}, { modelId: sessionTemplate.modelId, modelConfiguration: sessionTemplate.modelConfiguration, mode: 'plan', permissionLevel: 'assisted' });
+		});
+	}
+
 	test('createNewSession restores and captures an Automation session template', async () => {
 		const sessionTemplate = {
 			modelId: 'agent-host-copilotcli:auto',

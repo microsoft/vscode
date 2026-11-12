@@ -1277,24 +1277,28 @@ export class NewChatWidget extends Disposable {
 		});
 	}
 
-	private async _scheduleRequest(anchor: HTMLElement | undefined): Promise<boolean> {
+	private async _scheduleRequest(anchor: HTMLElement | undefined): Promise<(() => void) | undefined> {
 		const composer = this._savedDraftComposer;
 		const session = this._session.get();
 		if (!composer || !session || this._comparisonSelection.enabled.get() || this._feedbackItems.get().length) {
 			throw new Error(localize('sendLater.compositionUnsupported', "Send Later is available for a single new-session request without pending review feedback."));
 		}
 		this._captureSavedDraftTarget();
+		const compositionId = composer.id;
 		const revision = this.sessionDraftsService.getDraftRevision(composer);
 		const input = this._newChatInput.getDraft();
 		composer.isScheduling = true;
 		try {
-			const accepted = await this.scheduledChatsService.schedule(input, composer.target, session, composer.id, undefined, anchor);
+			const accepted = await this.scheduledChatsService.schedule(input, composer.target, session, compositionId, undefined, anchor);
 			if (accepted) {
-				this.sessionDraftsService.finishScheduledComposer(composer, revision);
+				return () => {
+					this.sessionDraftsService.finishScheduledComposer(composer, revision);
+					this.scheduledChatsService.releaseSource(compositionId);
+				};
 			}
-			return accepted;
+			return undefined;
 		} finally {
-			composer.isScheduling = this.scheduledChatsService.hasPendingHandoff(composer.id, input);
+			composer.isScheduling = this.scheduledChatsService.hasPendingHandoff(compositionId, input);
 		}
 	}
 
@@ -1323,7 +1327,6 @@ export class NewChatWidget extends Disposable {
 
 	private async _restoreSavedDraft(draft: ISavedSessionDraft, token: CancellationToken = CancellationToken.None): Promise<void> {
 		this._restoringSavedDraft.set(true, undefined);
-		this._savedDraftTargetUnavailable.set(true, undefined);
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
 		// Defer until construction and any cancelled workspace selection have finished.
@@ -1333,6 +1336,7 @@ export class NewChatWidget extends Disposable {
 			if (token.isCancellationRequested || this._store.isDisposed) {
 				return;
 			}
+			this._savedDraftTargetUnavailable.set(true, undefined);
 			this._newChatInput.setInputEnabled(false);
 			this._newChatInput.setDraft(draft.input);
 			writeNewChatDraftState(this.storageService, draft.input);
@@ -1352,9 +1356,9 @@ export class NewChatWidget extends Disposable {
 			const options: ICreateNewSessionOptions = {
 				providerId: target.providerId,
 				sessionTypeId: target.sessionTypeId,
-				automationConfiguration: target.configuration,
+				draftConfiguration: target.configuration,
 				modelId: target.configuration?.modelId ?? target.modelId,
-				modeId: target.configuration?.mode,
+				modeId: target.configuration?.mode ?? target.modeId,
 				permissionLevel: target.configuration?.permissionLevel,
 				isolationMode: target.configuration?.isolationMode,
 				branch: target.configuration?.branch,
@@ -1367,6 +1371,12 @@ export class NewChatWidget extends Disposable {
 			}
 			if (!session || (target.providerId && session.providerId !== target.providerId) || (target.sessionTypeId && session.sessionType !== target.sessionTypeId)) {
 				throw new Error(localize('draft.targetUnavailable', "The saved draft's workspace or agent is unavailable. Its content has been kept."));
+			}
+			const workspace = session.workspace.get();
+			if (target.folderUri
+				? !workspace || !this._workspacePicker.isWorkspaceOfFolder(workspace, target.folderUri)
+				: !session.isQuickChat?.get()) {
+				throw new Error(localize('draft.workspaceUnavailable', "The saved draft's workspace is unavailable. Its content has been kept."));
 			}
 			await this.sessionsManagementService.configureNewSessionDraft(session, options, token);
 			if (token.isCancellationRequested || this._store.isDisposed) {

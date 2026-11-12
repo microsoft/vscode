@@ -12,6 +12,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -851,10 +852,13 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 		this._sending.set(true, undefined);
 		this.setInputEnabled(false);
+		const input = this.getDraft();
 		try {
-			if (await this.options.scheduleRequest(this._widget?.input.executeToolbarElement)) {
+			const onDidClearInput = await this.options.scheduleRequest(this._widget?.input.executeToolbarElement);
+			if (onDidClearInput && !this._store.isDisposed && equals(input, this.getDraft())) {
 				this.setDraft(undefined);
 				this.saveState();
+				onDidClearInput();
 			}
 		} finally {
 			this._sending.set(false, undefined);

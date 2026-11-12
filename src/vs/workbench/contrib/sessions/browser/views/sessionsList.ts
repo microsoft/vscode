@@ -5526,7 +5526,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (isPendingSessionItem(element)) {
-				await element.open();
+				try {
+					await element.open();
+				} catch (error) {
+					this.notificationService.error(error);
+				}
 				return;
 			}
 			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {

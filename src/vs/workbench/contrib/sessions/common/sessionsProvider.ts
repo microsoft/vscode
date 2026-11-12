@@ -229,6 +229,8 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly pullRequestUrl?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
+	/** Ordinary saved-draft choices, independent of Automation availability. */
+	readonly draftConfiguration?: ISessionDraftConfiguration;
 }
 
 /** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
@@ -600,6 +602,7 @@ export interface ISessionsProvider {
 	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
 	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
 
+	/** Capture ordinary draft choices and support restoring them through `draftConfiguration` at creation. */
 	getDraftSessionConfiguration?(sessionId: string): ISessionDraftConfiguration | undefined;
 
 	/** Model preferences scoped to a session rather than the ordinary New Session defaults. */

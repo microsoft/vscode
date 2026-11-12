@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -14,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { SessionDraftsService } from '../../browser/sessionDraftsService.js';
@@ -28,15 +29,16 @@ import { SESSIONS_DRAFTS_ENABLED_SETTING } from '../../common/sessionConfig.js';
 suite('Saved session draft lifecycle', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function create(enabled = true) {
-		const storage = disposables.add(new InMemoryStorageService());
+	function create(enabled = true, storage = disposables.add(new InMemoryStorageService())) {
 		const config = new TestConfigurationService({ [SESSIONS_DRAFTS_ENABLED_SETTING]: enabled });
 		const sent = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const navigation: (string | undefined)[] = [];
+		const notifications: string[] = [];
+		let openSavedDraft: ((id: string, token: CancellationToken) => Promise<boolean>) | undefined;
 		const view = new class extends mock<ISessionsService>() {
-			override registerSavedDraftOpener() { return Disposable.None; }
+			override registerSavedDraftOpener(opener: (id: string, token: CancellationToken) => Promise<boolean>) { openSavedDraft = opener; return Disposable.None; }
 			override setCurrentDraftId(id: string | undefined) { navigation.push(id); }
-			override async openNewSession() { return { session: undefined, trustDeclined: false }; }
+			override async openNewSession(_options?: Parameters<ISessionsService['openNewSession']>[0]) { return { session: undefined, trustDeclined: false }; }
 		};
 		const management = new class extends mock<ISessionsManagementService>() {
 			override readonly onDidSendRequest = sent.event;
@@ -52,8 +54,10 @@ suite('Saved session draft lifecycle', () => {
 			override readonly onDidChangeSentiment = Event.None;
 		};
 		const service = disposables.add(new SessionDraftsService(storage, config, view, management,
-			new TestDialogService({ confirmed: true }), new class extends mock<INotificationService>() { }, new NullLogService(), groups, entitlement));
-		return { service, storage, config, sent, navigation, view };
+			new TestDialogService({ confirmed: true }), new class extends mock<INotificationService>() {
+				override error(message: Parameters<INotificationService['error']>[0]) { notifications.push(String(message)); }
+			}, new NullLogService(), groups, entitlement));
+		return { service, storage, config, sent, navigation, view, notifications, openSavedDraft: (id: string, token: CancellationToken) => openSavedDraft!(id, token) };
 	}
 
 	test('default-off preserves the singleton behavior without creating a collection or draft history', () => {
@@ -245,7 +249,13 @@ suite('Saved session draft lifecycle', () => {
 	});
 
 	test('restoring input does not record an intermediate empty composer in navigation', async () => {
-		const { service, navigation } = create();
+		const { service, navigation, view } = create();
+		view.openNewSession = async options => {
+			if (!options?.preserveNavigation) {
+				navigation.push('intermediate composer');
+			}
+			return { session: undefined, trustDeclined: false };
+		};
 		const draft = service.save({ inputText: 'saved', attachments: [] }, {});
 		const composer = service.createComposer();
 		disposables.add(service.registerComposer(composer, async value => {
@@ -288,13 +298,85 @@ suite('Saved session draft lifecycle', () => {
 	test('deleting the active draft cannot recreate its input during subsequent disposal', async () => {
 		const { service } = create();
 		const composer = service.createComposer();
-		let restored: ISavedSessionDraft | undefined;
-		const registration = disposables.add(service.registerComposer(composer, async draft => { restored = draft; }, () => { }));
+		let restored = false;
+		let cleared = false;
+		const registration = disposables.add(service.registerComposer(composer, async () => { restored = true; }, () => { cleared = true; }));
 		composer.updateInput({ inputText: 'delete me', attachments: [] });
 		service.stow(composer);
 		await service.sections.get()[0].items[0].actions.find(action => action.id === 'sessions.drafts.delete')!.run();
 		registration.dispose();
-		assert.deepStrictEqual({ input: restored?.input, sections: service.sections.get() }, { input: { inputText: '', attachments: [] }, sections: [] });
+		assert.deepStrictEqual({ restored, cleared, input: composer.input, sections: service.sections.get() }, { restored: false, cleared: true, input: { inputText: '', attachments: [] }, sections: [] });
+	});
+
+	test('a draft cannot replace a composition while its scheduling acknowledgment is pending', async () => {
+		const { service } = create();
+		const next = service.save({ inputText: 'next', attachments: [] }, {});
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async () => assert.fail('Must not replace input'), () => { }));
+		composer.updateInput({ inputText: 'scheduling', attachments: [] });
+		composer.isScheduling = true;
+		await assert.rejects(service.open(next.id), /finish scheduling/);
+		assert.strictEqual(composer.input.inputText, 'scheduling');
+	});
+
+	test('a removed active draft does not reuse its scheduling identity on reload', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		storage.store('sessions.savedDrafts.active', 'scheduled-composition', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const { service } = create(true, storage);
+		assert.notStrictEqual(service.createComposer().id, 'scheduled-composition');
+	});
+
+	test('unreadable draft storage reports the snapshot failure without blocking a send', () => {
+		const { service, storage, notifications } = create();
+		const raw = '{"version":99,"drafts":[]}';
+		storage.store('sessions.savedDrafts', raw, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const composer = service.createComposer();
+		composer.willSend({ inputText: 'send this', attachments: [] });
+		assert.deepStrictEqual({
+			sending: composer.isSending, input: composer.input.inputText,
+			stored: storage.get('sessions.savedDrafts', StorageScope.PROFILE),
+			notified: notifications.some(message => message.includes('Could not save this draft')),
+		}, { sending: true, input: 'send this', stored: raw, notified: true });
+		composer.didSend(false);
+	});
+
+	test('comparison acceptance removes its captured revision, while failure preserves it', () => {
+		const results = [true, false].map(accepted => {
+			const { service } = create();
+			const composer = service.createComposer();
+			composer.willSend({ inputText: 'compare this', attachments: [] });
+			composer.didSend(accepted);
+			return service.sections.get().flatMap(section => section.items.map(item => item.title));
+		});
+		assert.deepStrictEqual(results, [[], ['compare this']]);
+	});
+
+	test('cancelling and disposing during restore cannot persist old input under the requested identity', async () => {
+		const { service, openSavedDraft } = create();
+		const requested = service.save({ inputText: 'requested', attachments: [] }, {});
+		const composer = service.createComposer();
+		const previousId = composer.id;
+		const started = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		const registration = disposables.add(service.registerComposer(composer, async (draft, token) => {
+			started.complete();
+			await resume.p;
+			if (!token?.isCancellationRequested) {
+				composer.updateInput(draft.input);
+			}
+		}, () => { }));
+		composer.updateInput({ inputText: 'previous', attachments: [] });
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const opening = openSavedDraft(requested.id, cancellation.token);
+		await started.p;
+		cancellation.cancel();
+		registration.dispose();
+		resume.complete();
+		await opening;
+		assert.deepStrictEqual({
+			id: composer.id, input: composer.input.inputText,
+			drafts: service.sections.get()[0].items.map(item => item.title).sort(),
+		}, { id: previousId, input: 'previous', drafts: ['previous', 'requested'] });
 	});
 
 	test('failed send after navigation retains the original prompt', () => {

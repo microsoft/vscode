@@ -5783,7 +5783,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					turnId: options.createdBySession.turnId,
 				})
 				: options?.metadata,
-			options?.automationConfiguration,
+			options?.draftConfiguration ?? options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
 			options?.permissionId,
@@ -5823,7 +5823,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					turnId: options.createdBySession.turnId,
 				})
 				: options?.metadata,
-			options?.automationConfiguration,
+			options?.draftConfiguration ?? options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
 			options?.permissionId,

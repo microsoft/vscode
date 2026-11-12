@@ -38,12 +38,14 @@ export interface ISavedSessionDraft {
 }
 
 const storageKey = 'sessions.savedDrafts';
+const revisionPrefix = `${storageKey}.revision.`;
+const removedPrefix = `${storageKey}.removed.`;
 
 export function hasSessionDraftContent(input: IChatDraft): boolean {
 	return input.inputText.trim().length > 0 || input.attachments.length > 0;
 }
 
-/** Machine-local saved compositions. Writes merge by ID so another window's drafts are retained. */
+/** Immutable revision keys keep independently cached windows from overwriting one another's compositions. */
 export class SavedSessionDrafts extends Disposable {
 	readonly drafts = observableValue<readonly ISavedSessionDraft[]>(this, []);
 	readonly error = observableValue<Error | undefined>(this, undefined);
@@ -51,11 +53,27 @@ export class SavedSessionDrafts extends Disposable {
 	constructor(private readonly storageService: IStorageService) {
 		super();
 		this.refresh();
-		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, storageKey, this._store)(() => this.refresh()));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(event => {
+			if (event.key === storageKey || event.key.startsWith(revisionPrefix) || event.key.startsWith(removedPrefix)) {
+				this.refresh();
+			}
+		}));
 	}
 
 	private read(): ISavedSessionDraft[] {
-		const raw = this.storageService.get(storageKey, StorageScope.PROFILE);
+		const revisions = new Map<string, ISavedSessionDraft>();
+		for (const key of [storageKey, ...this.storageService.keys(StorageScope.PROFILE).filter(key => key.startsWith(revisionPrefix))]) {
+			for (const draft of this.readKey(key)) {
+				if (!this.storageService.getBoolean(`${removedPrefix}${draft.revision}`, StorageScope.PROFILE)) {
+					revisions.set(draft.revision, draft);
+				}
+			}
+		}
+		return [...revisions.values()].sort((a, b) => b.updatedAt - a.updatedAt || a.revision.localeCompare(b.revision));
+	}
+
+	private readKey(key: string): ISavedSessionDraft[] {
+		const raw = this.storageService.get(key, StorageScope.PROFILE);
 		if (!raw) {
 			return [];
 		}
@@ -76,19 +94,39 @@ export class SavedSessionDrafts extends Disposable {
 
 	private refresh(): void {
 		try {
-			this.drafts.set(this.read().sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id)), undefined);
+			const latest = new Map<string, ISavedSessionDraft>();
+			for (const draft of this.read()) {
+				if (!latest.has(draft.id)) {
+					latest.set(draft.id, draft);
+				}
+			}
+			this.drafts.set([...latest.values()], undefined);
 			this.error.set(undefined, undefined);
 		} catch (error) {
 			this.error.set(error instanceof Error ? error : new Error(toErrorMessage(error)), undefined);
 		}
 	}
 
-	private write(drafts: readonly ISavedSessionDraft[]): void {
-		this.storageService.store(storageKey, stringify({
+	private write(draft: ISavedSessionDraft): void {
+		this.storageService.store(`${revisionPrefix}${draft.revision}`, stringify({
 			version: 1,
-			drafts: drafts.map(draft => ({ ...draft, input: toStoredChatDraft(draft.input) })),
+			drafts: [{ ...draft, input: toStoredChatDraft(draft.input) }],
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
-		this.refresh();
+	}
+
+	private migrate(): void {
+		for (const draft of this.readKey(storageKey)) {
+			if (!this.storageService.getBoolean(`${removedPrefix}${draft.revision}`, StorageScope.PROFILE)) {
+				this.write(draft);
+			}
+		}
+		this.storageService.remove(storageKey, StorageScope.PROFILE);
+	}
+
+	private removeRevision(draft: ISavedSessionDraft): void {
+		// A stale window may still migrate this revision from the legacy collection.
+		this.storageService.store(`${removedPrefix}${draft.revision}`, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.remove(`${revisionPrefix}${draft.revision}`, StorageScope.PROFILE);
 	}
 
 	save(input: IChatDraft, target: ISavedSessionDraftTarget, id = generateUuid()): ISavedSessionDraft {
@@ -100,11 +138,21 @@ export class SavedSessionDrafts extends Disposable {
 			input: fromStoredChatDraft(parse(stringify(toStoredChatDraft(input)))),
 			target: parse(stringify(target)),
 		};
-		this.write([...drafts.filter(candidate => candidate.id !== id), draft]);
+		this.migrate();
+		this.write(draft);
+		for (const previous of drafts.filter(candidate => candidate.id === id)) {
+			this.removeRevision(previous);
+		}
+		this.refresh();
 		return draft;
 	}
 
 	remove(id: string, revision?: string): void {
-		this.write(this.read().filter(draft => draft.id !== id || (revision !== undefined && draft.revision !== revision)));
+		const drafts = this.read();
+		this.migrate();
+		for (const draft of drafts.filter(draft => draft.id === id && (revision === undefined || draft.revision === revision))) {
+			this.removeRevision(draft);
+		}
+		this.refresh();
 	}
 }

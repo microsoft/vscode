@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget, TARGET_KEY } from '../../../../../platform/storage/common/storage.js';
 import { ComposerInputSnapshot, readNewChatDraftState, writeNewChatDraftState } from '../../common/newChatDraftState.js';
 import { SavedSessionDrafts, hasSessionDraftContent } from '../../common/savedSessionDrafts.js';
 
@@ -68,6 +69,68 @@ suite('New chat draft state', () => {
 			error: drafts.error.get()?.message,
 			stored: storage.get('sessions.savedDrafts', StorageScope.PROFILE),
 		}, { error: 'Unsupported saved session draft storage.', stored: raw });
+	});
+
+	test('legacy drafts migrate without resurrecting a revision deleted by another window', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const legacy = JSON.stringify({
+			version: 1, drafts: [{
+				id: 'legacy', revision: 'original', createdAt: 1, updatedAt: 1,
+				input: { inputText: 'legacy input', attachments: [] }, target: {},
+			}]
+		});
+		storage.store('sessions.savedDrafts', legacy, StorageScope.PROFILE, StorageTarget.MACHINE);
+		const drafts = store.add(new SavedSessionDrafts(storage));
+		drafts.save({ inputText: 'new input', attachments: [] }, {});
+		drafts.remove('legacy', 'original');
+		storage.store('sessions.savedDrafts', legacy, StorageScope.PROFILE, StorageTarget.MACHINE);
+		drafts.save({ inputText: 'another window', attachments: [] }, {});
+		const reloaded = store.add(new SavedSessionDrafts(storage));
+		assert.deepStrictEqual({
+			legacy: storage.get('sessions.savedDrafts', StorageScope.PROFILE),
+			inputs: reloaded.drafts.get().map(draft => draft.input.inputText).sort(),
+		}, { legacy: undefined, inputs: ['another window', 'new input'] });
+	});
+
+	test('independent window caches retain other drafts and newer revisions after delayed storage propagation', () => {
+		const database = store.add(new InMemoryStorageService());
+		const windows = [store.add(new InMemoryStorageService()), store.add(new InMemoryStorageService())];
+		const writes: { key: string; value: string | undefined }[] = [];
+		const listeners = store.add(new DisposableStore());
+		let propagating = false;
+		for (const storage of windows) {
+			listeners.add(storage.onDidChangeValue(StorageScope.PROFILE, undefined, listeners)(event => {
+				if (!propagating) {
+					writes.push({ key: event.key, value: storage.get(event.key, StorageScope.PROFILE) });
+				}
+			}));
+		}
+		const flush = () => {
+			propagating = true;
+			for (const { key, value } of writes.splice(0)) {
+				database.store(key, value, StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+			for (const storage of windows) {
+				for (const key of new Set([...storage.keys(StorageScope.PROFILE), ...database.keys(StorageScope.PROFILE)])) {
+					if (key !== TARGET_KEY) {
+						storage.store(key, database.get(key, StorageScope.PROFILE), StorageScope.PROFILE, StorageTarget.MACHINE);
+					}
+				}
+			}
+			propagating = false;
+		};
+		const first = store.add(new SavedSessionDrafts(windows[0]));
+		const second = store.add(new SavedSessionDrafts(windows[1]));
+		const sent = first.save({ inputText: 'submitted', attachments: [] }, {});
+		flush();
+		first.save({ inputText: 'newer edit', attachments: [] }, {}, sent.id);
+		second.save({ inputText: 'other window', attachments: [] }, {});
+		second.remove(sent.id, sent.revision);
+		flush();
+		const reloaded = store.add(new SavedSessionDrafts(database));
+		assert.deepStrictEqual([first, second, reloaded].map(model => model.drafts.get().map(draft => draft.input.inputText).sort()), [
+			['newer edit', 'other window'], ['newer edit', 'other window'], ['newer edit', 'other window'],
+		]);
 	});
 
 	test('keeps the references that bind mentions to attachments, and reads drafts saved without them', () => {

@@ -56,7 +56,9 @@ export class SessionDraftComposer implements IDisposable {
 	sending: ISavedSessionDraft | undefined;
 	isSending = false;
 	isScheduling = false;
+	isRestoring = false;
 	disposed = false;
+	private sendTracked = false;
 
 	constructor(private readonly service: SessionDraftsService, id?: string) {
 		this.id = id ?? generateUuid();
@@ -69,19 +71,28 @@ export class SessionDraftComposer implements IDisposable {
 
 	willSend(input: IChatDraft): void {
 		this.input = input;
-		this.sending = this.service.stow(this);
+		this.sendTracked = false;
+		try {
+			this.sending = this.service.stow(this);
+		} catch (error) {
+			this.service.reportSaveError(error);
+		}
 		this.isSending = true;
 	}
 
 	trackSend(options: ISendRequestOptions, sessionId: string): void {
 		if (this.sending) {
 			this.service.trackSend(options, this.sending, sessionId);
+			this.sendTracked = true;
 		}
 	}
 
 	didSend(accepted: boolean): void {
 		this.isSending = false;
 		if (accepted) {
+			if (this.sending && !this.sendTracked) {
+				this.service.acceptSend(this.sending);
+			}
 			this.id = generateUuid();
 		} else if (this.disposed && this.sending) {
 			// A failed request's snapshot remains available even when navigation destroyed its editor.
@@ -143,7 +154,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			if (!this.enabled.get() || !this.model.drafts.get().some(draft => draft.id === id) || token.isCancellationRequested) {
 				return false;
 			}
-			return this.openDraft(id, true, token);
+			return this.openDraft(id, token);
 		}));
 		this._register(autorun(reader => {
 			this.enabled.read(reader);
@@ -210,7 +221,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	createComposer(): SessionDraftComposer {
-		const id = this.enabled.get() ? this.initialDraftId : undefined;
+		const id = this.enabled.get() && this.model.drafts.get().some(draft => draft.id === this.initialDraftId) ? this.initialDraftId : undefined;
 		this.initialDraftId = undefined;
 		const composer = new SessionDraftComposer(this, id);
 		composer.target = { groupId: this.groupsService.getPendingNewSessionGroup() };
@@ -218,12 +229,24 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	registerComposer(composer: SessionDraftComposer, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>, clear: () => void): IDisposable {
-		this.current = { composer, restore, clear };
+		const restoreComposer = async (draft: ISavedSessionDraft, token?: CancellationToken) => {
+			composer.isRestoring = true;
+			try {
+				await restore(draft, token);
+				if (!token?.isCancellationRequested && !composer.disposed) {
+					composer.id = draft.id;
+					composer.target = draft.target;
+				}
+			} finally {
+				composer.isRestoring = false;
+			}
+		};
+		this.current = { composer, restore: restoreComposer, clear };
 		this.updateNavigation(composer);
 		const saved = this.enabled.get() && this.model.drafts.get().find(draft => draft.id === composer.id);
 		// An explicit open already restores its requested draft after the composer registers.
 		if (saved && !this.opening) {
-			void this.queueRestore(() => restore(saved)).catch(error => {
+			void this.queueRestore(() => restoreComposer(saved)).catch(error => {
 				this.logService.error('[SessionDrafts] Restore failed', error);
 				this.notificationService.error(localize('draft.restoreFailed', "Could not restore the draft. It is still available in Drafts: {0}", String(error)));
 			});
@@ -257,7 +280,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	stow(composer: SessionDraftComposer): ISavedSessionDraft | undefined {
-		if (!this.enabled.get() || composer.isScheduling) {
+		if (!this.enabled.get() || composer.isScheduling || composer.isRestoring) {
 			return undefined;
 		}
 		if (!hasSessionDraftContent(composer.input)) {
@@ -326,12 +349,16 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		this.sends.set(options, { draft, sessionId });
 	}
 
-	async open(id: string): Promise<void> {
-		await this.openDraft(id, false, CancellationToken.None);
+	acceptSend(draft: ISavedSessionDraft): void {
+		this.model.remove(draft.id, draft.revision);
 	}
 
-	private openDraft(id: string, fromHistory: boolean, token: CancellationToken): Promise<boolean> {
-		return this.queueRestore(() => this.doOpenDraft(id, fromHistory, token));
+	async open(id: string): Promise<void> {
+		await this.openDraft(id, CancellationToken.None);
+	}
+
+	private openDraft(id: string, token: CancellationToken): Promise<boolean> {
+		return this.queueRestore(() => this.doOpenDraft(id, token));
 	}
 
 	private queueRestore<T>(restore: () => Promise<T>): Promise<T> {
@@ -348,7 +375,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		});
 	}
 
-	private async doOpenDraft(id: string, fromHistory: boolean, token: CancellationToken): Promise<boolean> {
+	private async doOpenDraft(id: string, token: CancellationToken): Promise<boolean> {
 		if (token.isCancellationRequested) {
 			return false;
 		}
@@ -359,8 +386,8 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		if (!draft) {
 			return false;
 		}
-		if (this.current?.composer.isSending) {
-			throw new Error(localize('draft.busy', "Wait for the current request to start before opening a draft."));
+		if (this.current?.composer.isSending || this.current?.composer.isScheduling) {
+			throw new Error(localize('draft.busy', "Wait for the current request to start or finish scheduling before opening a draft."));
 		}
 		if (this.current) {
 			const currentDraft = this.stow(this.current.composer);
@@ -368,7 +395,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 				draft = currentDraft;
 			}
 		}
-		await this.sessionsService.openNewSession({ preserveNavigation: fromHistory }, token);
+		await this.sessionsService.openNewSession({ preserveNavigation: true }, token);
 		if (token.isCancellationRequested) {
 			return false;
 		}
@@ -376,13 +403,11 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		if (!current) {
 			throw new Error(localize('draft.noComposer', "Could not open the new-session composer."));
 		}
-		current.composer.id = draft.id;
-		current.composer.target = draft.target;
-		this.groupsService.setPendingNewSessionGroup(draft.target.groupId);
 		await current.restore(draft, token);
 		if (token.isCancellationRequested) {
 			return false;
 		}
+		this.groupsService.setPendingNewSessionGroup(draft.target.groupId);
 		this.updateNavigation(current.composer);
 		this.storageService.store(activeDraftKey, draft.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		return true;
@@ -396,10 +421,9 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			this.model.remove(id);
 			if (this.current?.composer.id === id) {
 				const composer = this.current.composer;
-				const now = Date.now();
 				composer.id = generateUuid();
 				composer.updateInput({ inputText: '', attachments: [] });
-				await this.current.restore({ id: composer.id, revision: generateUuid(), createdAt: now, updatedAt: now, input: composer.input, target: composer.target });
+				this.current.clear();
 			}
 			if (this.storageService.get(activeDraftKey, StorageScope.WORKSPACE) === id) {
 				this.storageService.remove(activeDraftKey, StorageScope.WORKSPACE);

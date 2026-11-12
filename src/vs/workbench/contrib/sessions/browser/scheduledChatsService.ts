@@ -78,6 +78,7 @@ export interface IScheduledChatsService {
 	readonly availableProviders: IAutomationService['availableProviders'];
 	schedule(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession, compositionId: string, conversation?: IAutomationDescriptor['conversation'], anchor?: HTMLElement): Promise<boolean>;
 	hasPendingHandoff(compositionId: string, input: IChatDraft): boolean;
+	releaseSource(compositionId: string): void;
 	assertUnscheduled(compositionId: string, input: IChatDraft): void;
 	registerChatInput(widget: IChatWidget, session: IObservable<ISession | undefined>, chatResource: IObservable<URI | undefined>, canSend: IObservable<boolean>): IDisposable;
 	scheduleChatInput(widget: IChatWidget): Promise<void>;
@@ -356,6 +357,14 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 	assertUnscheduled(compositionId: string, input: IChatDraft): void {
 		if (this.hasPendingHandoff(compositionId, input) || this.readHandoffs().some(handoff => handoff.compositionId === compositionId)) {
 			throw new Error(localize('sendLater.alreadyHandedOff', "This request has a scheduling handoff. Reconcile or cancel it in the sessions list or Automations before sending it again."));
+		}
+	}
+
+	releaseSource(compositionId: string): void {
+		for (const handoff of this.readHandoffs()) {
+			if (handoff.compositionId === compositionId && handoff.automationId && !handoff.sourceReleased) {
+				this.writeHandoff({ ...handoff, sourceReleased: true });
+			}
 		}
 	}
 
