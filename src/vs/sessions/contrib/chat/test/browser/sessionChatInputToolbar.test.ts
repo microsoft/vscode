@@ -2847,7 +2847,7 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
-	test('decorates a promoted PR as a details disclosure and leaves reference links plain', async () => {
+	test('decorates a promoted PR with an integration pill whose main part opens the pull request, and leaves reference links plain', async () => {
 		const { instantiationService } = createServices(true);
 		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
@@ -2903,11 +2903,12 @@ suite('SessionChatInputToolbar', () => {
 		const contribution = snapshot.get().contributions[0];
 		snapshot.set({ ...snapshot.get(), contributions: [{ ...contribution, view: { ...contribution.view, sections: [contribution.view.sections[0]] } }] }, undefined);
 		toolbar.element.querySelector<HTMLElement>('.artifact-integration-pill .chat-dropdown-pill-button')!.click();
+		const openedByPill = opened;
 		await toolbar.activityBarActions.get()[0].run();
 		assert.deepStrictEqual({
-			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, opened,
+			initial, updated: labels(), integratedPills: toolbar.element.querySelectorAll('.artifact-integration-pill').length, openedByPill, opened,
 			referencesPresent: !!toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label="Show 1 reference"]'),
-		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, opened: 1, referencesPresent: true });
+		}, { initial: ['#42', '3/5', '2'], updated: ['#42', '3/5'], integratedPills: 1, openedByPill: 1, opened: 2, referencesPresent: true });
 	});
 
 	test('offers the chat pet the whole integrated artifact pill, including its status sections', async () => {
@@ -3026,7 +3027,7 @@ suite('SessionChatInputToolbar', () => {
 			// The closed pull request is filtered out of the row, but the reference to it stays with the other references.
 			filtered: ['Show 2 references'],
 			dropdown: ['#42', 'Plain'],
-			pinned: ['Show artifact details: #42', 'Open Plain'],
+			pinned: ['Open #42', 'Open Plain'],
 			unpinLabel: 'Unpin #42',
 			unpinned: ['Show 2 references'],
 		});
