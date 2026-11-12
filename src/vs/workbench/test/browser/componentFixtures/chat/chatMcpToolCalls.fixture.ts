@@ -5,7 +5,7 @@
 
 import { ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallRunningState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { completedToolCallToSerialized, toolCallStateToInvocation, toolCallStateToStreamingInvocation } from '../../../../contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
-import { ChatProgressAnimation, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
+import { ChatProgressAnimation } from '../../../../contrib/chat/common/constants.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { renderChatWidget } from './chatWidget.fixture.js';
 
@@ -60,7 +60,6 @@ function render(context: ComponentFixtureContext, calls: typeof mixedCalls, prog
 		agentHostSession: true,
 		collapseCompletedResponses: false,
 		persistentProgress: progress ? ChatProgressAnimation.Draw : undefined,
-		thinkingStyle: ThinkingDisplayMode.Collapsed,
 		messages: [{ user: 'Investigate the issue and check the related tools and documentation.', responseComplete: false }],
 		onRendered: ({ model }) => {
 			const request = model.getRequests()[0];

@@ -8,15 +8,12 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContentMarkdownRenderer } from '../../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
 import { DiffEditorPool, EditorPool } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentCodePools.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { ChatThinkingContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatThinkingPart } from '../../../../contrib/chat/common/chatService/chatService.js';
-import { ChatConfiguration, ThinkingDisplayMode } from '../../../../contrib/chat/common/constants.js';
 import { IChatResponseViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from './chatFixtureUtils.js';
@@ -35,8 +32,6 @@ function renderUsedContextLabel(context: ComponentFixtureContext, hovered: boole
 			}());
 		},
 	});
-	const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-	configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, ThinkingDisplayMode.Collapsed);
 
 	const element = new class extends mock<IChatResponseViewModel>() {
 		override readonly isComplete = true;

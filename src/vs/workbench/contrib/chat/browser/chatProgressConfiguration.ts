@@ -61,36 +61,10 @@ export const chatProgressConfigurationProperties = {
 const legacyThinkingDeprecationMessage = localize('chat.agent.thinking.deprecation', "This setting will be deprecated in a future release. Use {0} and {1} to control thinking and progress presentation instead.", `\`#${ChatConfiguration.PersistentProgress}#\``, `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``);
 
 export const legacyChatThinkingConfigurationProperties = {
-	[ChatConfiguration.ThinkingStyle]: {
-		type: 'string',
-		default: 'fixedScrolling',
-		enum: ['collapsed', 'collapsedPreview', 'fixedScrolling'],
-		enumDescriptions: [
-			localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
-			localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
-			localize('chat.agent.thinkingMode.fixedScrolling', "Show thinking in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
-		],
-		description: localize('chat.agent.thinkingStyle', "Controls how thinking is rendered. Read-only chats always use the collapsed preview style."),
-		markdownDeprecationMessage: legacyThinkingDeprecationMessage,
-		tags: ['experimental'],
-	},
 	[ChatConfiguration.ThinkingGenerateTitles]: {
 		type: 'boolean',
 		default: true,
 		description: localize('chat.agent.thinking.generateTitles', "Generate a summary only when a live thinking section finishes with its header in view. A single extracted reasoning heading is used directly without a model request; multiple headings are used as summary input. Opening a chat, returning to it, scrolling or expanding existing sections never generates titles. Sections that finish off-screen or in background chats keep their existing title or Finished thinking."),
-		tags: ['experimental'],
-	},
-	'chat.agent.thinking.collapsedTools': {
-		type: 'string',
-		default: 'always',
-		enum: ['off', 'withThinking', 'always'],
-		enumDescriptions: [
-			localize('chat.agent.thinking.collapsedTools.off', "Tool calls are shown separately, not collapsed into thinking."),
-			localize('chat.agent.thinking.collapsedTools.withThinking', "Tool calls are collapsed into thinking sections when thinking is present."),
-			localize('chat.agent.thinking.collapsedTools.always', "Tool calls are always collapsed, even without thinking."),
-		],
-		markdownDescription: localize('chat.agent.thinking.collapsedTools', "Controls how tool calls are displayed in relation to thinking sections."),
-		markdownDeprecationMessage: legacyThinkingDeprecationMessage,
 		tags: ['experimental'],
 	},
 	[ChatConfiguration.TerminalToolsInThinking]: {

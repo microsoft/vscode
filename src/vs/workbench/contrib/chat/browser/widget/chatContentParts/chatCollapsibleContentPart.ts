@@ -14,7 +14,6 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -218,7 +217,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		type ChatCollapsibleToggleEvent = {
 			kind: string;
 			previousExpanded: boolean;
-			thinkingStyle: string;
 			inThinking: boolean;
 		};
 		type ChatCollapsibleToggleClassification = {
@@ -226,36 +224,30 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			comment: 'Track when a user expands or collapses a chat collapsible block.';
 			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which collapsible chat block was toggled.' };
 			previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the block was expanded before the toggle.' };
-			thinkingStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured thinking display mode when the block was toggled.' };
 			inThinking: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the block is rendered inside a thinking container.' };
 		};
 		const previousExpanded = this.isExpanded();
-		const thinkingStyle = this._collapsibleConfigurationService.getValue<string>(ChatConfiguration.ThinkingStyle) ?? 'unknown';
 		const kind = this.collapsibleKind;
 		const inThinking = this.collapsibleInThinking;
 		this.telemetryService.publicLog2<ChatCollapsibleToggleEvent, ChatCollapsibleToggleClassification>('chat.collapsibleToggle', {
 			kind,
 			previousExpanded,
-			thinkingStyle,
 			inThinking,
 		});
 		if (kind === 'terminal') {
 			type ChatTerminalThinkingBlockToggleEvent = {
 				previousExpanded: boolean;
 				inThinking: boolean;
-				thinkingStyle: string;
 			};
 			type ChatTerminalThinkingBlockToggleClassification = {
 				owner: 'anthonykim1';
 				comment: 'Track when a user expands or collapses a terminal command block in chat thinking.';
 				previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal block was expanded before the toggle.' };
 				inThinking: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal block is rendered inside a thinking container.' };
-				thinkingStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configured thinking display mode when the block was toggled.' };
 			};
 			this.telemetryService.publicLog2<ChatTerminalThinkingBlockToggleEvent, ChatTerminalThinkingBlockToggleClassification>('terminal/chatThinkingBlockToggle', {
 				previousExpanded,
 				inThinking,
-				thinkingStyle,
 			});
 		}
 	}

@@ -673,9 +673,8 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			readOnlyPreview: help.includes('In read-only chats, thinking details preview while streaming and collapse when finished'),
-			settingOverride: help.includes('regardless of your thinking-style setting'),
 			keyboardExpansion: help.includes('Focus a thinking header and press Enter or Space to expand or collapse its details'),
-		}, { readOnlyPreview: true, settingOverride: true, keyboardExpansion: true });
+		}, { readOnlyPreview: true, keyboardExpansion: true });
 	});
 
 	test('describes visible-only generated thinking titles without hiding reasoning details', () => {
@@ -684,13 +683,13 @@ suite('Chat Accessibility Help', () => {
 			fallback: help.includes('Completed thinking headers show Finished thinking until a summary is available'),
 			singleHeader: help.includes('A single extracted reasoning heading is used directly without a model request'),
 			multipleHeaders: help.includes('Multiple headings remain in the details and are used as the input for a generated summary'),
-			allStyles: help.includes('in every thinking style and progress layout'),
+			allLayouts: help.includes('in every progress layout'),
 			visibleOnly: help.includes('only when a live section finishes with its header in view'),
 			background: help.includes('Sections that finish off-screen or in background chats do not request titles'),
 			noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
 			details: help.includes('All reasoning headings and content remain available in the expandable details'),
 			setting: help.includes('chat.agent.thinking.generateTitles'),
-		}, { fallback: true, singleHeader: true, multipleHeaders: true, allStyles: true, visibleOnly: true, background: true, noBackfill: true, details: true, setting: true });
+		}, { fallback: true, singleHeader: true, multipleHeaders: true, allLayouts: true, visibleOnly: true, background: true, noBackfill: true, details: true, setting: true });
 	});
 
 	test('uses the configured Mark as Done wording for nudge help', () => {

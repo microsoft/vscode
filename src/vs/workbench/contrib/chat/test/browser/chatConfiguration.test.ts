@@ -299,23 +299,27 @@ suite('Chat configuration', () => {
 		]);
 	});
 
-	test('marks legacy thinking controls for future deprecation without removing their behavior', () => {
-		assert.deepStrictEqual(([
-			ChatConfiguration.ThinkingStyle,
-			'chat.agent.thinking.collapsedTools',
-			ChatConfiguration.TerminalToolsInThinking,
-			ChatConfiguration.ThinkingPhrases,
-		] as const).map(key => {
-			const setting = legacyChatThinkingConfigurationProperties[key];
-			return {
-				default: setting.default,
-				futureDeprecation: setting.markdownDeprecationMessage?.includes('will be deprecated in a future release'),
-				progress: setting.markdownDeprecationMessage?.includes('`#chat.persistentProgress#`'),
-				verbosity: setting.markdownDeprecationMessage?.includes('`#chat.persistentProgressVerbosity#`'),
-			};
-		}), ['fixedScrolling', 'always', true, { mode: 'append', phrases: [] }].map(value => ({
-			default: value, futureDeprecation: true, progress: true, verbosity: true,
-		})));
+	test('keeps only the legacy thinking controls that persistent progress still reads', () => {
+		assert.deepStrictEqual({
+			settings: Object.keys(legacyChatThinkingConfigurationProperties),
+			deprecated: ([
+				ChatConfiguration.TerminalToolsInThinking,
+				ChatConfiguration.ThinkingPhrases,
+			] as const).map(key => {
+				const setting = legacyChatThinkingConfigurationProperties[key];
+				return {
+					default: setting.default,
+					futureDeprecation: setting.markdownDeprecationMessage?.includes('will be deprecated in a future release'),
+					progress: setting.markdownDeprecationMessage?.includes('`#chat.persistentProgress#`'),
+					verbosity: setting.markdownDeprecationMessage?.includes('`#chat.persistentProgressVerbosity#`'),
+				};
+			}),
+		}, {
+			settings: ['chat.agent.thinking.generateTitles', 'chat.agent.thinking.terminalTools', 'chat.agent.thinking.phrases'],
+			deprecated: [true, { mode: 'append', phrases: [] }].map(value => ({
+				default: value, futureDeprecation: true, progress: true, verbosity: true,
+			})),
+		});
 	});
 
 	test('enables generated thinking titles only for visible headers by default', () => {
