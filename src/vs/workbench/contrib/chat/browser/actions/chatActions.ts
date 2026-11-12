@@ -38,19 +38,22 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import product from '../../../../../platform/product/common/product.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ActiveEditorContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriFields } from '../../../scm/browser/scmHistoryChatContext.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../common/automations/automationsEnabled.js';
 import { IChatInputNoticeHubService } from '../widget/input/chatInputNoticeHub.js';
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
@@ -1599,16 +1602,19 @@ export function registerChatActions() {
 				shortTitle: localize2('insertAutomateSlashCommand.short', "Insert /automate"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				precondition: ChatContextKeys.enabled
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, ChatAutomationsEnabledContext)
 			});
 		}
 
 		async run(accessor: ServicesAccessor): Promise<void> {
-			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('workbench.action.chat.open', {
-				query: '/automate ',
-				isPartialQuery: true,
-			});
+			// This tip only shows in the Agents window, whose new-session composer and
+			// existing-session chats are both reached through the session view, not
+			// through `workbench.action.chat.open`'s `revealWidget()` (which cannot
+			// reveal the new-session composer's `SharedChatInputComposer`).
+			const sessionsPartService = accessor.get(ISessionsPartService);
+			const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
+			const sessionView = sessionsPartService.getSessionView(mainWindowHost.session.get()?.sessionId);
+			sessionView?.prefillInput('/automate ');
 		}
 	});
 

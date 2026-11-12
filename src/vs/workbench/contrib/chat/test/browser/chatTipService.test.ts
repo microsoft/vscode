@@ -654,8 +654,11 @@ suite('ChatTipService', () => {
 		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 		isSessionsWindow.set(false);
 		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isSessionsWindow.set(true);
+		isChatEnabled.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
 
-		assert.deepStrictEqual(eligibility, [false, false, false, true, false]);
+		assert.deepStrictEqual(eligibility, [false, false, false, true, false, false]);
 		assert.strictEqual(
 			tip.buildMessage({
 				keybindingService: { lookupKeybinding: () => undefined } as Partial<IKeybindingService> as IKeybindingService,
@@ -672,6 +675,10 @@ suite('ChatTipService', () => {
 		contextKeyService.createKey('chatAutomationsEnabled', true);
 		const service = createService();
 		assert.ok(findTipById(service, 'tip.automate'));
+		// Hide the tip first so firing the command below cannot also trigger the
+		// generic "tip command link clicked" session-wide dismissal, isolating the
+		// tip's own `excludeWhenCommandsExecuted` tracking as the cause.
+		service.hideTip();
 		commandExecutedEmitter.fire({ commandId: INSERT_AUTOMATE_COMMAND_ID, args: [] });
 		assertTipNeverShown(service, 'tip.automate');
 	});
