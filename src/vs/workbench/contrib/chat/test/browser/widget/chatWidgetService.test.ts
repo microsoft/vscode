@@ -16,12 +16,13 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IChatWidget, IQuickChatService } from '../../../browser/chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetViewContext, IQuickChatService } from '../../../browser/chat.js';
 import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { ChatVariablesService } from '../../../browser/attachments/chatVariables.js';
 import { ChatWidgetService } from '../../../browser/widget/chatWidgetService.js';
 import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 
@@ -89,5 +90,63 @@ suite('ChatWidgetService', () => {
 			afterClosingSession: service.getWidgetBySessionResource(resource, { preferInputRequests: true }) === inbox,
 			unrelatedSession: service.getWidgetBySessionResource(URI.parse('test:/other')),
 		}, { ordinaryRouting: { default: true, inputRequests: true }, inboxOnly: true, withFullSession: true, submittingWidget: true, dynamicVariables: references, selectedTools: true, afterClosingSession: true, unrelatedSession: undefined });
+	});
+
+	test('revealWidget reuses a visible chat widget hosted outside of the chat view, such as the Agents window session chat', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const openedViews: string[] = [];
+		instantiationService.stub(IEditorGroupsService, { groups: [] });
+		instantiationService.stub(IViewsService, {
+			getViewWithId: () => null,
+			openView: async (id: string) => { openedViews.push(id); return null; },
+		});
+		instantiationService.stub(IQuickChatService, { sessionResource: undefined });
+		instantiationService.stub(ILayoutService, {});
+		instantiationService.stub(IEditorService, {});
+		instantiationService.stub(IChatService, {});
+		instantiationService.stub(ILogService, new NullLogService());
+		const service = store.add(instantiationService.createInstance(ChatWidgetService));
+		const createWidget = (visible: boolean, viewContext: IChatWidgetViewContext) => {
+			const focusInput = stub();
+			const widget = upcastPartial<IChatWidget>({
+				visible,
+				viewContext,
+				location: ChatAgentLocation.Chat,
+				viewModel: upcastPartial<IChatViewModel>({ sessionResource: URI.parse('test:/session') }),
+				focusInput,
+				onDidFocus: Event.None,
+				onDidShow: Event.None,
+				onDidHide: Event.None,
+				onDidChangeViewModel: Event.None,
+			});
+			return { widget, focusInput };
+		};
+		const revealLastFocused = async (visible: boolean, viewContext: IChatWidgetViewContext, preserveFocus?: boolean) => {
+			const { widget, focusInput } = createWidget(visible, viewContext);
+			const registration = service.register(widget);
+			try {
+				const revealed = await service.revealWidget(preserveFocus);
+				return { revealed: revealed === widget, focusInput: focusInput.callCount };
+			} finally {
+				registration.dispose();
+			}
+		};
+
+		const result = {
+			visible: await revealLastFocused(true, {}),
+			visiblePreserveFocus: await revealLastFocused(true, {}, true),
+			hidden: await revealLastFocused(false, {}),
+			quickChat: await revealLastFocused(true, { isQuickChat: true }),
+			inlineChat: await revealLastFocused(true, { isInlineChat: true }),
+			openedViews,
+		};
+		assert.deepStrictEqual(result, {
+			visible: { revealed: true, focusInput: 1 },
+			visiblePreserveFocus: { revealed: true, focusInput: 0 },
+			hidden: { revealed: false, focusInput: 0 },
+			quickChat: { revealed: false, focusInput: 0 },
+			inlineChat: { revealed: false, focusInput: 0 },
+			openedViews: [ChatViewId, ChatViewId, ChatViewId],
+		});
 	});
 });

@@ -27,6 +27,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
+import { marked } from '../../../../../base/common/marked/marked.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -293,20 +294,48 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 		return undefined;
 	}
 
-	let canCrossTool = allowSingleToolGap;
-	while (index > 0) {
-		const previous = content[index - 1];
-		if (previous.kind === 'markdownContent') {
-			index--;
-		} else if (canCrossTool && (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') && content[index - 2]?.kind === 'markdownContent') {
-			// A final tool can separate a detailed answer from its closing summary.
-			index -= 2;
-			canCrossTool = false;
-		} else {
+	index = getMarkdownRunStartIndex(content, index);
+	if (!allowSingleToolGap) {
+		return index;
+	}
+
+	// A final tool call, and the reasoning around it, can separate a detailed answer from its closing summary.
+	let gapStartIndex = index;
+	let toolCount = 0;
+	while (gapStartIndex > 0) {
+		const previous = content[gapStartIndex - 1];
+		if (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') {
+			toolCount++;
+		} else if (previous.kind !== 'thinking') {
 			break;
 		}
+		gapStartIndex--;
+	}
+	if (toolCount !== 1) {
+		return index;
+	}
+	const answerStartIndex = getMarkdownRunStartIndex(content, gapStartIndex);
+	// Edit code blocks render as pills among the tool calls, so on their own they are work rather than an answer.
+	return content.slice(answerStartIndex, gapStartIndex).some(part => !isEditOnlyMarkdown(part)) ? answerStartIndex : index;
+}
+
+function getMarkdownRunStartIndex(content: ReadonlyArray<IChatRendererContent>, index: number): number {
+	while (index > 0 && content[index - 1].kind === 'markdownContent') {
+		index--;
 	}
 	return index;
+}
+
+/** Whether the Markdown holds edit code blocks and no other content. */
+function isEditOnlyMarkdown(part: IChatRendererContent): boolean {
+	if (part.kind !== 'markdownContent') {
+		return false;
+	}
+	if (part.codeblockUri?.isEdit) {
+		return true;
+	}
+	return hasEditCodeblockUriTag(part.content.value)
+		&& marked.lexer(part.content.value).every(token => token.type === 'space' || (token.type === 'code' && hasEditCodeblockUriTag(token.text)));
 }
 
 function isKeptVisiblePart(part: IChatContentPart | undefined): boolean {
@@ -944,6 +973,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
 	private readonly stickyProgressObservation = this._register(new MutableDisposable<DisposableStore>());
 	private readonly stickyProgressPart = this._register(new MutableDisposable<ChatWorkingProgressContentPart>());
+	private readonly pendingStickyProgressUpdate = this._register(new MutableDisposable());
 	private stickyProgressContainer: HTMLElement | undefined;
 	private stickyProgressResponse: IChatResponseViewModel | undefined;
 	private stickyProgressAnchor: ChatWorkingProgressAnchor | undefined;
@@ -1325,6 +1355,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private clearStickyProgress(): void {
+		this.pendingStickyProgressUpdate.clear();
 		const anchor = this.stickyProgressAnchor?.domNode;
 		const part = this.stickyProgressPart.value;
 		if (anchor?.isConnected && part && anchor.contains(part.domNode)) {
@@ -1407,7 +1438,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Places the working progress once before the next paint. Rendering and scrolling can happen
+	 * many times per frame while a response streams, and each placement reads layout.
+	 */
+	scheduleStickyProgressUpdate(): void {
+		const container = this.stickyProgressContainer;
+		if (this.pendingStickyProgressUpdate.value || !container || !this.stickyProgressPart.value) {
+			return;
+		}
+		this.pendingStickyProgressUpdate.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(container), () => {
+			this.pendingStickyProgressUpdate.clear();
+			this.updateStickyProgress();
+		});
+	}
+
 	updateStickyProgress(): void {
+		this.pendingStickyProgressUpdate.clear();
 		const container = this.stickyProgressContainer;
 		const response = this.stickyProgressResponse;
 		const part = this.stickyProgressPart.value;
@@ -4075,7 +4122,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
 			templateData.wasResponseComplete = element.isComplete;
 		}
-		this.updateStickyProgress();
+		this.scheduleStickyProgressUpdate();
 	}
 
 	private insertRebuiltContentPart(node: HTMLElement, contentIndex: number, templateData: IChatListItemTemplate, retainedProgress?: HTMLElement): void {
@@ -4111,10 +4158,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 		const finalResponsePart = templateData.renderedParts?.[finalResponseStartIndex];
-		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || !finalResponsePart.isRenderComplete) {
+		// The preserved response can span several markdown parts, so wait for whichever is still revealing its text.
+		const revealingPart = templateData.renderedParts?.slice(finalResponseStartIndex)
+			.find((part): part is ChatMarkdownContentPart => part instanceof ChatMarkdownContentPart && !part.isRenderComplete);
+		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || revealingPart) {
 			this.removeCompletedResponseDisclosure(templateData);
-			if (finalResponsePart instanceof ChatMarkdownContentPart) {
-				templateData.completedResponseDisclosureDisposables.add(Event.once(finalResponsePart.onDidFinishRendering)(() => {
+			if (revealingPart) {
+				templateData.completedResponseDisclosureDisposables.add(Event.once(revealingPart.onDidFinishRendering)(() => {
 					this.updateCompletedResponseDisclosure(element, content, templateData, false);
 				}));
 			}

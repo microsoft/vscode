@@ -1440,6 +1440,13 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return 'Negotiate ticket';
 	}
 
+	readonly basicLookups: { readonly proxyUrl: string; readonly realm: string | undefined; readonly attempt: number }[] = [];
+	basicCredentials = (attempt: number): { username: string; password: string } | undefined => attempt === 1 ? { username: 'user', password: 'secret' } : undefined;
+	async lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<{ username: string; password: string } | undefined> {
+		this.basicLookups.push({ proxyUrl, realm, attempt });
+		return this.basicCredentials(attempt);
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
@@ -14778,7 +14785,7 @@ suite('CopilotAgent', () => {
 				copilotClient: new TestCopilotClient([]),
 				proxyResolver: new TestProxyResolver(),
 				rootConfig: {
-					[AgentHostProxyConfigKey.Proxy]: 'http://configured-proxy.example:8080',
+					[AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@configured-proxy.example:8080',
 					[AgentHostProxyConfigKey.NoProxy]: ['localhost'],
 				},
 			});
@@ -14790,11 +14797,13 @@ suite('CopilotAgent', () => {
 				scope: options?.network?.scope,
 				resolveProxy: typeof options?.network?.resolveProxy,
 				authenticateNegotiate: typeof options?.network?.authenticateNegotiate,
+				authenticateBasic: typeof options?.network?.authenticateBasic,
 				proxyEnvironment: Object.fromEntries(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy'].map(key => [key, options?.env?.[key]])),
 			}, {
 				scope: 'runtime',
 				resolveProxy: 'function',
 				authenticateNegotiate: 'function',
+				authenticateBasic: 'function',
 				proxyEnvironment: {
 					HTTPS_PROXY: 'http://ambient-proxy.example:8080',
 					https_proxy: undefined,
@@ -14803,37 +14812,6 @@ suite('CopilotAgent', () => {
 					NO_PROXY: 'intranet.example',
 					no_proxy: undefined,
 				},
-			});
-		});
-		test('restarts the Copilot runtime with an http.proxy setting with credentials, which its callbacks cannot carry, in its environment', async () => {
-			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
-			process.env['NO_PROXY'] = 'intranet.example';
-			const client = new TestCopilotClient([]);
-			const proxyResolver = new TestProxyResolver();
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				proxyResolver,
-				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://configured-proxy.example:8080' },
-			});
-			afterTest(() => disposeAgent(agent));
-			await agent.listChatsToMigrate();
-			const credentialedProxy = 'http://alice:s%40cret@configured-proxy.example:8080';
-			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: credentialedProxy, [AgentHostProxyConfigKey.NoProxy]: ['localhost', '.corp.example'] });
-			proxyResolver.fireConfigurationChange();
-			await proxyRefresh(agent);
-			await agent.listChatsToMigrate();
-
-			assert.deepStrictEqual({
-				startCallCount: client.startCallCount,
-				stopCallCount: client.stopCallCount,
-				proxyEnvironments: getCreatedClientOptions(agent).map(options => Object.fromEntries(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy'].map(key => [key, options.env?.[key]]))),
-			}, {
-				startCallCount: 2,
-				stopCallCount: 1,
-				proxyEnvironments: [
-					{ HTTPS_PROXY: 'http://ambient-proxy.example:8080', https_proxy: undefined, HTTP_PROXY: undefined, http_proxy: undefined, NO_PROXY: 'intranet.example', no_proxy: undefined },
-					{ HTTPS_PROXY: credentialedProxy, https_proxy: undefined, HTTP_PROXY: credentialedProxy, http_proxy: undefined, NO_PROXY: 'localhost,.corp.example', no_proxy: undefined },
-				],
 			});
 		});
 		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
@@ -15130,7 +15108,7 @@ suite('CopilotAgent', () => {
 					clientNone: undefined,
 					noClient: undefined,
 					setting: 'HTTPS secure-proxy.example:443',
-					settingWithCredentials: undefined,
+					settingWithCredentials: 'HTTPS secure-proxy.example:443',
 					noProxySetting: 'DIRECT',
 				},
 				systemProxyDisabled: {
@@ -15172,7 +15150,178 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('answers the Copilot runtime\'s Basic proxy challenges with the credentials of the http.proxy setting or a client', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+
+			assert.deepStrictEqual({
+				credentials: [
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: false }, signal),
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: true }, signal),
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: true }, signal),
+					await authenticateBasic?.({ proxy: 'https://proxy.example:8443', previousRejected: false }, signal),
+				],
+				basicLookups: proxyResolver.basicLookups,
+			}, {
+				credentials: [{ username: 'alice', password: 's@cret' }, { username: 'user', password: 'secret' }, undefined, { username: 'user', password: 'secret' }],
+				basicLookups: [
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 2 },
+					{ proxyUrl: 'https://proxy.example:8443', realm: undefined, attempt: 1 },
+				],
+			});
+		});
+
+		test('answers a Copilot runtime the credentials a client was asked for after the proxy rejected another runtime\'s', async () => {
+			const proxyResolver = new TestProxyResolver();
+			let sessionCredentials = { username: 'alice', password: 'old' };
+			// Like Electron's login: the first attempt answers the session credentials, a later one asks for others.
+			proxyResolver.basicCredentials = attempt => attempt === 1 ? sessionCredentials : sessionCredentials = { username: 'alice', password: 'new' };
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			afterTest(() => disposeAgent(agent));
+			const internal = agent as unknown as { _startClientWithConfigRetry(scope: { kind: 'storage' }): Promise<CopilotClient> };
+			await (await internal._startClientWithConfigRetry({ kind: 'storage' })).stop();
+			await agent.listChatsToMigrate();
+			const [first, second] = getCreatedClientOptions(agent).map(options => options.network?.authenticateBasic);
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [
+				await first?.({ ...request, previousRejected: false }, signal),
+				await second?.({ ...request, previousRejected: false }, signal),
+				await first?.({ ...request, previousRejected: true }, signal),
+				await second?.({ ...request, previousRejected: true }, signal),
+			];
+
+			assert.deepStrictEqual({ credentials, attempts: proxyResolver.basicLookups.map(lookup => lookup.attempt) }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'old' }, { username: 'alice', password: 'new' }, { username: 'alice', password: 'new' }],
+				attempts: [1, 1, 1, 2, 1],
+			});
+		});
+
+		test('asks a client again when it answers the rejected credentials of the http.proxy setting', async () => {
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.basicCredentials = attempt => attempt === 1 ? { username: 'alice', password: 'old' } : { username: 'alice', password: 'stored' };
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			assert.deepStrictEqual({
+				credentials: [
+					await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+					await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+					await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+				],
+				attempts: proxyResolver.basicLookups.map(lookup => lookup.attempt),
+			}, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'stored' }, { username: 'alice', password: 'stored' }],
+				attempts: [1, 2, 1, 2],
+			});
+		});
+
+		test('answers a rejection with the credentials of the http.proxy setting once after they change', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [await authenticateBasic?.({ ...request, previousRejected: false }, signal)];
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:new@proxy.example:3128' });
+			credentials.push(
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+			);
+
+			assert.deepStrictEqual({ credentials, basicLookups: proxyResolver.basicLookups }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'new' }, { username: 'user', password: 'secret' }],
+				basicLookups: [{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 }],
+			});
+		});
+
+		test('answers rejected credentials of the http.proxy setting again after the setting changes back to them', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [
+				await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+			];
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:new@proxy.example:3128' });
+			credentials.push(await authenticateBasic?.({ ...request, previousRejected: true }, signal));
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' });
+			credentials.push(await authenticateBasic?.({ ...request, previousRejected: true }, signal));
+
+			assert.deepStrictEqual({ credentials, basicLookups: proxyResolver.basicLookups }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'user', password: 'secret' }, { username: 'alice', password: 'new' }, { username: 'alice', password: 'old' }],
+				basicLookups: [{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 }],
+			});
+		});
+
+		test('answers each Copilot runtime the changed credentials of the http.proxy setting after a rejection', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			const internal = agent as unknown as { _startClientWithConfigRetry(scope: { kind: 'storage' }): Promise<CopilotClient> };
+			await (await internal._startClientWithConfigRetry({ kind: 'storage' })).stop();
+			await agent.listChatsToMigrate();
+			const [first, second] = getCreatedClientOptions(agent).map(options => options.network?.authenticateBasic);
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [
+				await first?.({ ...request, previousRejected: false }, signal),
+				await second?.({ ...request, previousRejected: false }, signal),
+			];
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:new@proxy.example:3128' });
+			credentials.push(
+				await first?.({ ...request, previousRejected: true }, signal),
+				await second?.({ ...request, previousRejected: true }, signal),
+			);
+
+			assert.deepStrictEqual({ credentials, basicLookups: proxyResolver.basicLookups }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'old' }, { username: 'alice', password: 'new' }, { username: 'alice', password: 'new' }],
+				basicLookups: [],
+			});
+		});
+
 		test('does not restart the Copilot runtime when clients come and go or proxy settings change', async () => {
+			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
@@ -15189,14 +15338,22 @@ suite('CopilotAgent', () => {
 				lookupAuthorization: async () => undefined,
 			});
 			await settle();
-			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080', [AgentHostProxyConfigKey.NoProxy]: ['intranet.example'] });
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@proxy.example:8080', [AgentHostProxyConfigKey.NoProxy]: ['intranet.example'] });
 			proxyResolver.fireConfigurationChange();
 			await settle();
 			sharedNetworkClient.dispose();
 			renderer.dispose();
 			await settle();
 
-			assert.deepStrictEqual({ startCallCount: client.startCallCount, stopCallCount: client.stopCallCount }, { startCallCount: 1, stopCallCount: 0 });
+			assert.deepStrictEqual({
+				startCallCount: client.startCallCount,
+				stopCallCount: client.stopCallCount,
+				proxyEnvironment: Object.fromEntries(['HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY'].map(key => [key, getCreatedClientOptions(agent).at(-1)?.env?.[key]])),
+			}, {
+				startCallCount: 1,
+				stopCallCount: 0,
+				proxyEnvironment: { HTTPS_PROXY: 'http://ambient-proxy.example:8080', HTTP_PROXY: undefined, NO_PROXY: undefined },
+			});
 		});
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {
 			const client = new TestCopilotClient([]);
@@ -17636,6 +17793,7 @@ suite('CopilotAgent', () => {
 		const connection: IByokLmBridgeConnection = {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		};
 		disposables.add(byokBridgeRegistry.register('renderer', connection));
 
@@ -17692,6 +17850,7 @@ suite('CopilotAgent', () => {
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		}));
 
 		afterTest(() => disposeAgent(agent));
@@ -17720,6 +17879,7 @@ suite('CopilotAgent', () => {
 		const connection: IByokLmBridgeConnection = {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		};
 		disposables.add(byokBridgeRegistry.register('renderer', connection));
 		const copilotRequired = () => agent.getProtectedResources()
@@ -17772,6 +17932,7 @@ suite('CopilotAgent', () => {
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		}));
 		const publishedModels = () => agent.models.get().map(model => model.id);
 
@@ -17826,6 +17987,7 @@ suite('CopilotAgent', () => {
 		const connection: IByokLmBridgeConnection = {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		};
 		disposables.add(byokBridgeRegistry.register('renderer', connection));
 
@@ -17859,6 +18021,7 @@ suite('CopilotAgent', () => {
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		}));
 		const sessionId = 'byok-early-restore';
 		const session = AgentSession.uri('copilotcli', sessionId);

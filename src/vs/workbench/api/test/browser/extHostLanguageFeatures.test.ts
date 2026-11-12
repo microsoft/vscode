@@ -73,6 +73,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
 	let instantiationService: TestInstantiationService;
+	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
 
 	setup(() => {
 
@@ -107,7 +108,7 @@ suite('ExtHostLanguageFeatures', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
+		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -338,6 +339,100 @@ suite('ExtHostLanguageFeatures', function () {
 
 		assert.strictEqual(value.length, 6);
 		assert.deepStrictEqual(value.map(s => s.name), ['containers', 'container 0', 'name', 'ports', 'ports 0', 'containerPort']);
+	});
+
+	suite('Structural diff', () => {
+		const extension = { ...defaultExtension, enabledApiProposals: ['structuralDiff'] };
+		let originalModel: ITextModel;
+		const context: languages.StructuralDiffContext = {
+			changes: [{
+				originalRange: new EditorRange(1, 1, 1, 5),
+				modifiedRange: new EditorRange(1, 1, 1, 5),
+			}],
+		};
+
+		setup(() => {
+			originalModel = disposables.add(createTextModel(model.getValue(), undefined, undefined, URI.parse('far://testing/original.a')));
+			extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
+				addedDocuments: [{
+					isDirty: false,
+					versionId: originalModel.getVersionId(),
+					languageId: originalModel.getLanguageId(),
+					uri: originalModel.uri,
+					lines: originalModel.getLinesContent(),
+					EOL: originalModel.getEOL(),
+					encoding: 'utf8',
+				}],
+			});
+		});
+
+		function createResult(): vscode.StructuralDiff {
+			const fullRange = new types.Range(0, 0, model.getLineCount() - 1, model.getLineMaxColumn(model.getLineCount()) - 1);
+			return {
+				root: {
+					id: 'file',
+					originalItem: { name: 'original.a', kind: types.SymbolKind.File, range: fullRange },
+					modifiedItem: { name: 'file.a', kind: types.SymbolKind.File, range: fullRange },
+					originalChanges: [],
+					modifiedChanges: [],
+					children: [],
+				},
+				isIncomplete: true,
+			};
+		}
+
+		function provide(): Promise<languages.StructuralDiff | null | undefined> {
+			const provider = languageFeaturesService.structuralDiffProvider.ordered(model)[0];
+			return Promise.resolve(provider.provideStructuralDiff(originalModel, model, context, CancellationToken.None));
+		}
+
+		test('registers and unregisters providers', async () => {
+			const registration = disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
+				provideStructuralDiff: () => undefined,
+			}));
+			await rpcProtocol.sync();
+			const before = languageFeaturesService.structuralDiffProvider.all(model).length;
+			registration.dispose();
+			await rpcProtocol.sync();
+			assert.deepStrictEqual([before, languageFeaturesService.structuralDiffProvider.all(model).length], [1, 0]);
+		});
+
+		test('forwards both documents and the text changes and returns the converted result', async () => {
+			let received: { uris: string[]; contents: string[]; versions: number[]; context: vscode.StructuralDiffContext } | undefined;
+			const fullRange = { ...model.getFullModelRange() };
+			disposables.add(extHost.registerStructuralDiffProvider(extension, defaultSelector, {
+				provideStructuralDiff: (originalDocument, modifiedDocument, value) => {
+					received = {
+						uris: [originalDocument.uri.toString(), modifiedDocument.uri.toString()],
+						contents: [originalDocument.getText(), modifiedDocument.getText()],
+						versions: [originalDocument.version, modifiedDocument.version],
+						context: value,
+					};
+					return createResult();
+				},
+			}));
+			await rpcProtocol.sync();
+			const result = await provide();
+			assert.deepStrictEqual({ received, result }, {
+				received: {
+					uris: [originalModel.uri.toString(), model.uri.toString()],
+					contents: [originalModel.getValue(), model.getValue()],
+					versions: [originalModel.getVersionId(), model.getVersionId()],
+					context: { changes: [{ originalRange: new types.Range(0, 0, 0, 4), modifiedRange: new types.Range(0, 0, 0, 4) }] },
+				},
+				result: {
+					root: {
+						id: 'file',
+						originalItem: { name: 'original.a', kind: languages.SymbolKind.File, range: fullRange },
+						modifiedItem: { name: 'file.a', kind: languages.SymbolKind.File, range: fullRange },
+						originalChanges: [],
+						modifiedChanges: [],
+						children: [],
+					},
+					isIncomplete: true,
+				},
+			});
+		});
 	});
 
 	// --- code lens

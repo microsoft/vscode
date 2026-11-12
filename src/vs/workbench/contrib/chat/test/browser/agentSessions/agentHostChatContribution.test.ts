@@ -985,7 +985,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		agentHostService,
 		new NullRemoteAgentHostService(),
 		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-		new NullLogService(),
+		upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 	)));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
@@ -1282,7 +1282,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService), { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
 	instantiationService.stub(IAgentHostNewSessionFolderService, newSessionFolderService);
 	const customizationsByScope = new Map<string, { readonly customizations: IObservable<readonly ClientPluginCustomization[]>; readonly customAgents: IObservable<readonly AgentCustomization[]>; readonly tools: IObservable<readonly ToolDefinition[]>; readonly isResolved: IObservable<boolean>; readonly whenResolved: Promise<void> }>();
-	const scopeKey = (sessionType: string, roots: readonly URI[]) => `${sessionType}\n${roots.map(root => root.toString()).sort().join('\n')}`;
+	const scopeKey = (sessionType: string, roots: readonly URI[] | undefined) => `${sessionType}\n${(roots ?? []).map(root => root.toString()).sort().join('\n')}`;
 	const seedActiveClient = (sessionType: string, entry: { customizations: IObservable<readonly ClientPluginCustomization[]>; customAgents?: IObservable<readonly AgentCustomization[]>; tools?: IObservable<readonly ToolDefinition[]>; isResolved?: IObservable<boolean>; whenResolved?: Promise<void> }, roots: readonly URI[] = []): IDisposable => {
 		const key = scopeKey(sessionType, roots);
 		const scopeEntry = {
@@ -1299,7 +1299,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			}
 		});
 	};
-	const acquireScope = (sessionType: string, roots: readonly URI[]) => {
+	const acquireScope = (sessionType: string, roots: readonly URI[] | undefined) => {
 		const entry = customizationsByScope.get(scopeKey(sessionType, roots)) ?? {
 			customizations: constObservable<readonly ClientPluginCustomization[]>([]),
 			customAgents: constObservable<readonly AgentCustomization[]>([]),
@@ -8954,7 +8954,7 @@ suite('AgentHostChatContribution', () => {
 			const captured: string[][] = [];
 			const original = activeClientService.acquireScope;
 			activeClientService.acquireScope = (sessionType, roots) => {
-				captured.push(roots.map(root => root.toString()));
+				captured.push((roots ?? []).map(root => root.toString()));
 				return original(sessionType, roots);
 			};
 			return captured;

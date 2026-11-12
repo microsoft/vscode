@@ -42,6 +42,8 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { NewTabButtonEntryAction, NewTabButtonHidden } from '../../../../browser/parts/editor/newTabButton.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -803,7 +805,7 @@ export function registerChatActions() {
 				}, {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
 					order: 1
 				}],
 			});
@@ -813,6 +815,24 @@ export function registerChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
 			await widgetService.openSession(input.resource, ACTIVE_GROUP, input.options);
+		}
+	});
+
+	registerAction2(class NewChatEditorFromNewTabButtonAction extends NewTabButtonEntryAction {
+		constructor() {
+			super({
+				id: ACTION_ID_OPEN_CHAT + '.fromNewTabButton',
+				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.commentDiscussion,
+				order: 3,
+				when: ChatContextKeys.enabled
+			});
+		}
+
+		protected override openTab(accessor: ServicesAccessor, group: IEditorGroup): Promise<unknown> {
+			const widgetService = accessor.get(IChatWidgetService);
+			const input = getNewChatEditorInput(accessor);
+			return widgetService.openSession(input.resource, group, input.options);
 		}
 	});
 
@@ -828,7 +848,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('copilot')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('copilot')),
 					order: 1
 				}],
 			});
@@ -853,7 +873,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
 					order: 1
 				}],
 			});
@@ -878,7 +898,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
 					order: 1
 				}],
 			});

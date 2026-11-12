@@ -10,6 +10,8 @@
 
 # Multi-Chat Architecture
 
+> Before adding or changing protocol constructs or `_meta`, follow [AHP interoperability](../../../../.github/instructions/agent-host-interoperability.instructions.md#protocol-constructs-before-_meta): use existing protocol constructs first, raise unmet requirements upstream, and preserve compatibility with alternate hosts and UIs.
+
 > Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md). Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
 
 > **Status: COMPLETE** (2026-07-01) All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and Copilot all use the unified orchestrator path.
@@ -421,7 +423,7 @@ Behind the root setting `chatMoves.enabled` (host schema default off; VS Code cl
 
 ## 3d. Chats With Their Own Agent
 
-Behind the root setting `multipleChatProviders.enabled` (workbench `chat.agentHost.multipleChatProviders.enabled`, default off and experiment-controlled), a chat of a session may use another agent than its session. The host advertises `InitializeResult.multipleChatProviders` only with the setting on and a negotiated protocol of at least 1.1.0; with the setting off nothing changes and `CreateChatParams.provider` is rejected with `InvalidParams`.
+Behind the root setting `multipleChatProviders.enabled` (workbench `chat.agentHost.multipleChatProviders.enabled`, default off and experiment-controlled), a chat of a session may use another agent than its session. The host advertises `InitializeResult.multipleChatProviders` only with the setting on and a negotiated protocol of at least 1.1.0; with the setting off nothing changes and `CreateChatParams.provider` is rejected with `InvalidParams`. A VS Code client with the workbench setting on sets `_meta['vscode.multipleChatProviders']` in `initialize`, and the host turns its setting on before answering (under the rules of a client `RootConfigChanged`: not for unauthenticated or passive relay lanes, nor while the property is read-only or owned by the extension overlay), so the connection is told at once; only a host that ignores the flag needs the client to re-initialize (a reconnect) once its mirrored setting lands, which an SSH connection without an SSH config host can't survive.
 
 - **Creation.** `createChat` resolves the chat's agent: the requested `provider`, else a fork or side chat's source chat's agent, else the session's. A requested agent must be registered (a policy-disabled agent is not) and advertise `multipleChats`; a fork or side chat must use its source chat's agent (`InvalidParams` otherwise). The agent creates the chat from the exhaustive `IAgentChatContext` like any peer chat: it needs no session of its own, since every harness mints a per-chat backing for a peer chat.
 - **Routing.** The state manager records each chat's agent at registration (subagents take their spawning chat's) and reports `provider` on `ChatState`, `ChatSummary` and `SessionChatSummary` only when it differs from the session's; `session/chatUpdated` never carries it. `IAgentHostProviderService.getProviderForChat(session, chat)` routes every chat-addressed operation (turns, input, steering, aborts, canvases, background work, history watches, release, dispose, telemetry, utility model); session-scoped operations stay on `getProviderForSession`.

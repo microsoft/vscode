@@ -1974,6 +1974,8 @@ interface MockLlmServerHandle {
 	port: number;
 	url: string;
 	close(): Promise<void>;
+	/** Close every open connection, so that clients have to connect again, through their proxy if they use one. */
+	closeConnections(): void;
 	/** Return total request count. */
 	requestCount(): number;
 	/** Wait until at least `n` requests have been received. */
@@ -2096,6 +2098,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 					}
 					server.close(err => err ? reject(err) : resolve(undefined));
 				}),
+				closeConnections: () => server.closeAllConnections(),
 				requestCount: () => reqCount,
 				waitForRequests: (n: number, timeoutMs: number) => new Promise<void>((resolve, reject) => {
 					if (reqCount >= n) { resolve(); return; }
