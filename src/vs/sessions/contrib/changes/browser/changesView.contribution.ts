@@ -13,7 +13,7 @@ import { ISessionHost } from '../../../../workbench/services/sessions/browser/se
 import { IChangesEditorScope, IChangesViewService, getActiveSessionChanges } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { VERSIONS_PICKER_ACTION_ID, createChangesSessionScope, CHANGES_HEADER_ACTIONS_ID, ChangesActionsBarActionViewItem, createChangesPickerLabelObservable, ChangesPickerSummary, ChangesPickerActionItem, SetChangesListViewModeAction, SetChangesTreeViewModeAction, VersionsPickerAction, ChangesDiffStatsAction, RevealCIChecksAction } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { VERSIONS_PICKER_ACTION_ID, createChangesSessionScope, CHANGES_HEADER_ACTIONS_ID, ChangesActionsBarActionViewItem, createChangesPickerLabelObservable, ChangesPickerSummary, ChangesPickerActionItem, createScopedChangesPickerActionItem, SetChangesListViewModeAction, SetChangesTreeViewModeAction, VersionsPickerAction, ChangesDiffStatsAction, RevealCIChecksAction } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { localize2 } from '../../../../nls.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { EmptyFileEditorInput } from '../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
@@ -46,10 +46,7 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 			if (scope.isMainWindow) {
 				return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs, undefined);
 			}
-			const summary = instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs);
-			const item = instantiationService.createInstance(ChangesPickerActionItem, action, summary, createChangesPickerLabelObservable(summary, scope.changes), scope);
-			item.own(summary);
-			return item;
+			return createScopedChangesPickerActionItem(instantiationService, action, scope);
 		}, onDidRegister.event));
 
 		this._register(actionViewItemService.register(AgentsWindowMenus.TitleBarSessionMenu, CHANGES_HEADER_ACTIONS_ID, (action, options, instantiationService) => {
