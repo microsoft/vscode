@@ -8,6 +8,26 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatQuestion, IChatQuestionAnswers, IChatQuestionCarousel } from '../../chatService/chatService.js';
 import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 
+/** What a carousel stores and shows in place of the answer to an {@link IChatQuestion.password} question. */
+export const CHAT_QUESTION_PASSWORD_MASK = '••••••••';
+
+/**
+ * Returns `answers` with the answers to {@link IChatQuestion.password} questions replaced by
+ * {@link CHAT_QUESTION_PASSWORD_MASK}, for storing, showing, or passing on.
+ */
+export function maskPasswordAnswers(questions: readonly IChatQuestion[], answers: IChatQuestionAnswers | undefined): IChatQuestionAnswers | undefined {
+	if (!answers || !questions.some(question => question.password && answers[question.id] !== undefined)) {
+		return answers;
+	}
+	const masked = { ...answers };
+	for (const question of questions) {
+		if (question.password && masked[question.id] !== undefined) {
+			masked[question.id] = CHAT_QUESTION_PASSWORD_MASK;
+		}
+	}
+	return masked;
+}
+
 /**
  * Runtime representation of a question carousel with a {@link DeferredPromise}
  * that is resolved when the user submits answers. {@link toJSON} strips the
@@ -41,13 +61,14 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 
 	/**
 	 * Marks the carousel as dismissed with the given answers and clears draft
-	 * state. Safe to call multiple times — subsequent calls are no-ops.
+	 * state. Safe to call multiple times — subsequent calls are no-ops. Only the
+	 * completion receives password answers; {@link data} keeps them masked.
 	 */
 	dismiss(answers: IChatQuestionAnswers | undefined): void {
 		if (this.isUsed) {
 			return;
 		}
-		this.data = answers ?? {};
+		this.data = maskPasswordAnswers(this.questions, answers) ?? {};
 		this.isUsed = true;
 		this.draftAnswers = undefined;
 		this.draftCurrentIndex = undefined;

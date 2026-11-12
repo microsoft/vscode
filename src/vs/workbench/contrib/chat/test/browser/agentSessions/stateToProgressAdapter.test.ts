@@ -30,6 +30,7 @@ import { createTestArtifactRequestPresentation } from '../../../../../../platfor
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
@@ -808,6 +809,22 @@ suite('stateToProgressAdapter', () => {
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+			]);
+		});
+
+		test('restores a shell authentication prompt as a settled password question that says only whether it was answered', () => {
+			const prompt = (id: string, response: ChatInputResponseKind) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: createShellAuthenticationRequest(id, { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command: 'sudo -A true' }),
+				response,
+			} as const);
+			const turn = createTurn({ responseParts: [prompt('answered', ChatInputResponseKind.Accept), prompt('cancelled', ChatInputResponseKind.Cancel)] });
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			assert.deepStrictEqual(parts.map(part => part.kind === 'questionCarousel'
+				? { resolveId: part.resolveId, isUsed: part.isUsed, answeredExternally: part.answeredExternally, data: part.data, questions: part.questions.map(question => ({ type: question.type, password: question.password, title: question.title })) }
+				: { kind: part.kind }), [
+				{ resolveId: 'answered', isUsed: true, answeredExternally: true, data: {}, questions: [{ type: 'text', password: true, title: 'sudo needs a password' }] },
+				{ resolveId: 'cancelled', isUsed: true, answeredExternally: false, data: {}, questions: [{ type: 'text', password: true, title: 'sudo needs a password' }] },
 			]);
 		});
 

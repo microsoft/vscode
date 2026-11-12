@@ -2654,6 +2654,16 @@ export class AgentService extends Disposable implements IAgentService {
 		return await this._providerService.getProviderForChat(URI.parse(owner), chat)?.stopBackgroundWork?.(chat, id) ?? false;
 	}
 
+	async answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		// A chat with a pending prompt is live, so there is nothing to restore first.
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
+		if (owner === undefined) {
+			this._logService.trace(`[AgentService] answerShellAuthentication ignored for unregistered chat: ${chat.toString()}`);
+			return false;
+		}
+		return await this._providerService.getProviderForChat(URI.parse(owner), chat)?.answerShellAuthentication?.(chat, requestId, answer) ?? false;
+	}
+
 	private _isArtifactToolsEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey) === true;
 	}

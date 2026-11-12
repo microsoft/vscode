@@ -602,6 +602,10 @@ export class VoiceToolDispatchService implements IVoiceToolDispatchService {
 		if (carousel.isUsed || carousel.answeredExternally) {
 			return { ok: false, reason: 'stale_pending' };
 		}
+		// A password must never be spoken, so only the chat UI answers these.
+		if (carousel.questions.some(question => question.password)) {
+			return { ok: false, reason: 'unsupported' };
+		}
 		if (skip && !carousel.allowSkip) {
 			return { ok: false, reason: 'stale_pending' };
 		}

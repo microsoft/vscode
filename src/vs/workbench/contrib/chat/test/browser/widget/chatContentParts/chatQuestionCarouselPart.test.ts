@@ -714,6 +714,24 @@ suite('ChatQuestionCarouselPart', () => {
 			});
 		});
 
+		test('password questions use a masked input whose answer only submitting passes on', () => {
+			const carousel = new ChatQuestionCarouselData([{ id: 'secret', type: 'text', title: 'Password', required: true, password: true, defaultValue: 'prefilled' }], true);
+			createWidget(carousel);
+			const input = widget.domNode.querySelector<HTMLInputElement>('.chat-question-answers input')!;
+			const rendered = { type: input.type, value: input.value, autocomplete: input.autocomplete, answerEditors: getAnswerEditors().length };
+			input.value = 'private-password';
+			input.dispatchEvent(new Event('input'));
+			const drafts = carousel.draftAnswers;
+			getFooterButtons()[0].click();
+
+			assert.deepStrictEqual({ rendered, drafts, submitted: submittedAnswers?.get('secret'), shown: widget.domNode.textContent?.includes('private-password') }, {
+				rendered: { type: 'password', value: '', autocomplete: 'off', answerEditors: 0 },
+				drafts: {},
+				submitted: 'private-password',
+				shown: false,
+			});
+		});
+
 		test('boolean custom answers use the single-select freeform input and normal primary button', () => {
 			createWidget(createMockCarousel([{ id: 'q1', type: 'singleSelect', title: 'Proceed?', options: booleanOptions, allowFreeformInput: true }]));
 			setAnswer('Only on staging');

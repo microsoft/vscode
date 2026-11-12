@@ -189,6 +189,10 @@ type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputInvocation = Parameters<UserInputHandler>[1];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
+type ShellAuthenticationHandler = NonNullable<SessionConfig['onShellAuthenticationRequest']>;
+type ShellAuthenticationRequest = Parameters<ShellAuthenticationHandler>[0];
+type ShellAuthenticationInvocation = Parameters<ShellAuthenticationHandler>[1];
+type ShellAuthenticationResponse = Awaited<ReturnType<ShellAuthenticationHandler>>;
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthContext = Parameters<McpAuthHandler>[1];
@@ -383,6 +387,8 @@ export interface ICopilotSessionRuntime {
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationHandlerResult>;
+	/** Asks the user for a password or another answer that a program run by an agent shell command needs. */
+	handleShellAuthenticationRequest(request: ShellAuthenticationRequest, invocation: ShellAuthenticationInvocation): Promise<ShellAuthenticationResponse>;
 	/**
 	 * Takes over the launch-time Connector reconciliation, which settles after the launch returns. The promise does
 	 * not reject; it resolves to the session's Connector-owned servers, or `undefined` when they are unavailable.
@@ -1758,6 +1764,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			askUserVariant: 'elicitation',
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			onShellAuthenticationRequest: (request, invocation) => runtime.handleShellAuthenticationRequest(request, invocation),
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),

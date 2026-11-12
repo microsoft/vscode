@@ -7,7 +7,7 @@ import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, re
 import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IAgentChatUsage } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
@@ -21,6 +21,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
+import { getShellAuthenticationTitle, readShellAuthentication, type IShellAuthenticationPrompt } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -52,7 +53,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatSingleSelectAnswer, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -66,7 +67,7 @@ import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvoc
 import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
-import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
+import { hasKey, isDefined, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
@@ -315,6 +316,57 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	return carousel;
 }
 
+/** The id of the one question a shell authentication carousel asks. */
+export const SHELL_AUTHENTICATION_QUESTION_ID = 'answer';
+const SHELL_AUTHENTICATION_CONFIRM_YES = 'yes';
+const SHELL_AUTHENTICATION_CONFIRM_NO = 'no';
+
+/**
+ * A carousel for a shell authentication prompt, built from the request's `_meta`: the request's own question only lets
+ * other clients cancel the prompt. A secret is asked for with a masked input that the carousel never stores. The
+ * program's prompt is shown as plain text, and the command as code with theme icons escaped.
+ */
+export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt): ChatQuestionCarouselData {
+	const details = [
+		prompt.command ? localize('agentHost.shellAuthentication.command', "Command: {0}", appendEscapedMarkdownInlineCode(escapeIcons(prompt.command))) : undefined,
+		`$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0}. It isn't sent to the model or saved in the chat.", appendEscapedMarkdownInlineCode(escapeIcons(prompt.program)))}`,
+	].filter(isDefined).join('\n\n');
+	const base = {
+		id: SHELL_AUTHENTICATION_QUESTION_ID,
+		title: getShellAuthenticationTitle(prompt),
+		description: prompt.prompt.trim() || undefined,
+		detailedMessage: new MarkdownString(details, { supportThemeIcons: true }),
+		required: true,
+	};
+	const question: IChatQuestion = prompt.inputKind === 'confirm'
+		? {
+			...base,
+			type: 'singleSelect',
+			allowFreeformInput: false,
+			options: [
+				{ id: SHELL_AUTHENTICATION_CONFIRM_YES, label: localize('agentHost.shellAuthentication.yes', "Yes"), value: SHELL_AUTHENTICATION_CONFIRM_YES },
+				{ id: SHELL_AUTHENTICATION_CONFIRM_NO, label: localize('agentHost.shellAuthentication.no', "No"), value: SHELL_AUTHENTICATION_CONFIRM_NO },
+			],
+		}
+		: { ...base, type: 'text', password: prompt.inputKind === 'secret' };
+	const carousel = new ChatQuestionCarouselData([question], true, requestId);
+	carousel.answerPresentation = 'conversation';
+	return carousel;
+}
+
+/**
+ * The answer that a shell authentication carousel's answers give the program that asked, or `undefined` to cancel the
+ * prompt. A `confirm` prompt is accepted with `yes` and declined by cancelling it.
+ */
+export function getShellAuthenticationAnswer(prompt: IShellAuthenticationPrompt, answers: IChatQuestionAnswers | undefined): string | undefined {
+	const answer = answers?.[SHELL_AUTHENTICATION_QUESTION_ID];
+	if (prompt.inputKind === 'confirm') {
+		const selected = typeof answer === 'object' ? (answer as IChatSingleSelectAnswer).selectedValue : answer;
+		return selected === SHELL_AUTHENTICATION_CONFIRM_YES ? 'yes' : undefined;
+	}
+	return typeof answer === 'string' ? answer : undefined;
+}
+
 export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentPlanReview['review'], resourceUris: IAgentHostResourceUriMapper, connectionAuthority: string): ChatPlanReviewData {
 	return new ChatPlanReviewData(
 		planReview.title,
@@ -394,6 +446,16 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
 			isHidden: false,
 		};
+	}
+
+	const shellAuthentication = readShellAuthentication(inputReq);
+	if (shellAuthentication) {
+		// Chat state never holds the answer, so the record only says whether the prompt was answered.
+		const carousel = createShellAuthenticationCarousel(inputReq.id, shellAuthentication);
+		carousel.data = {};
+		carousel.isUsed = true;
+		carousel.answeredExternally = part.response === ChatInputResponseKind.Accept;
+		return carousel;
 	}
 
 	if (readComputerUseSetupCard(inputReq)) {

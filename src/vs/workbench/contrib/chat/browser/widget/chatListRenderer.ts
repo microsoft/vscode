@@ -61,7 +61,7 @@ import { chatSubcommandLeader, IParsedChatRequest } from '../../common/requestPa
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
-import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatQuestionCarouselData, maskPasswordAnswers } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -5764,9 +5764,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// notify the extension twice.
 				return;
 			}
-			// Mark the carousel as used and store the answers
+			// Mark the carousel as used and store the answers; only the completion receives password answers.
 			const answersRecord: IChatQuestionAnswers | undefined = answers ? Object.fromEntries(answers) : undefined;
-			carousel.data = answersRecord ?? {};
+			const storedAnswers = maskPasswordAnswers(carousel.questions, answersRecord);
+			carousel.data = storedAnswers ?? {};
 			carousel.isUsed = true;
 			if (carousel instanceof ChatQuestionCarouselData) {
 				carousel.draftAnswers = undefined;
@@ -5777,7 +5778,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// Notify the extension about the carousel answers to resolve the deferred promise
 			if (isResponseVM(context.element) && carousel.resolveId) {
-				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, answersRecord);
+				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, storedAnswers);
 			}
 
 			// Remove from pending carousels

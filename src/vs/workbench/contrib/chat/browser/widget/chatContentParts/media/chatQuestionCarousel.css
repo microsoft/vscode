@@ -413,6 +413,8 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 /* validation error message below input area */

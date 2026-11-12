@@ -16,6 +16,11 @@ export const enum ChatInputRequestPurpose {
 	AskUser = 'askUser',
 	Elicitation = 'elicitation',
 	PlanReview = 'planReview',
+	/**
+	 * A program run by an agent shell command (`sudo -A`, `ssh`, or `git`) asks for a password or another answer that
+	 * goes only to that program.
+	 */
+	ShellAuthentication = 'shellAuthentication',
 }
 
 /**
@@ -30,7 +35,8 @@ const PURPOSE_META_KEY = 'purpose';
 function isChatInputRequestPurpose(value: unknown): value is ChatInputRequestPurpose {
 	return value === ChatInputRequestPurpose.AskUser
 		|| value === ChatInputRequestPurpose.Elicitation
-		|| value === ChatInputRequestPurpose.PlanReview;
+		|| value === ChatInputRequestPurpose.PlanReview
+		|| value === ChatInputRequestPurpose.ShellAuthentication;
 }
 
 /** Reads the purpose an input request was created with, if it was classified. */

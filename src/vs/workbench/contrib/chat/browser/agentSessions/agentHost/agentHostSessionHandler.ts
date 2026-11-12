@@ -73,6 +73,7 @@ import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
+import { readShellAuthentication, type IShellAuthenticationPrompt } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import type { IComputerUseActivationCard } from '../../../../../../platform/agentHost/common/computerUse.js';
 import { getComputerUseActivationAnswers, isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -176,7 +177,7 @@ import { ICopilotHomeService } from '../../../../../services/environment/common/
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isModelRouterPickSettled, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, chatUsageToSessionCost, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, createInputRequestCarousel, createShellAuthenticationCarousel, getShellAuthenticationAnswer, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getElicitationInputRequestPresentation, getTerminalContent, isEmptyFormInputRequest, isModelRouterPickSettled, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, reasoningPartToThinking, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getFusionAutoModeTierLabel } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { getFusionTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
@@ -5634,6 +5635,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
+		const shellAuthentication = readShellAuthentication(inputReq);
+		if (shellAuthentication) {
+			this._setupShellAuthenticationInputRequest(part$, shellAuthentication, store, opts);
+			return;
+		}
+
 		const computerUseSetup = this._config.supportsComputerUseSetup ? readComputerUseSetupCard(inputReq) : undefined;
 		if (computerUseSetup) {
 			this._setupComputerUseSetupCard(part$, computerUseSetup.setupId, store, opts);
@@ -5712,6 +5719,77 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			carousel.completion.complete({ answers: undefined });
 			this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, inputReq.id);
 		}));
+	}
+
+	/**
+	 * Shows a shell authentication prompt as a question carousel built from the request's `_meta`. The answer goes to the
+	 * host with `vscode/answerShellAuthentication`, never into chat state; cancelling completes the request instead.
+	 */
+	private _setupShellAuthenticationInputRequest(
+		part$: IObservable<InputRequestResponsePart>,
+		prompt: IShellAuthenticationPrompt,
+		store: DisposableStore,
+		opts: IObserveTurnOptions,
+	): void {
+		const requestId = part$.get().request.id;
+		const carousel = createShellAuthenticationCarousel(requestId, prompt);
+		opts.sink([carousel]);
+
+		const clearCarousel = () => this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, requestId);
+		const close = (answeredExternally: boolean) => {
+			if (carousel.isUsed) {
+				return;
+			}
+			carousel.data = {};
+			carousel.isUsed = true;
+			carousel.answeredExternally = answeredExternally;
+			carousel.draftAnswers = undefined;
+			carousel.draftCurrentIndex = undefined;
+			carousel.draftCollapsed = undefined;
+			carousel.completion.complete({ answers: undefined });
+			clearCarousel();
+		};
+
+		// The host completes the request once it has the answer, or when the prompt is cancelled or ends.
+		let completedFromServer = false;
+		store.add(autorun(reader => {
+			const part = part$.read(reader);
+			if (part.response !== undefined) {
+				completedFromServer = true;
+				close(part.response === ChatInputResponseKind.Accept);
+			}
+		}));
+
+		const cancel = () => this._config.connection.dispatch(opts.chatURI, {
+			type: ActionType.ChatInputCompleted,
+			requestId,
+			response: ChatInputResponseKind.Cancel,
+		});
+		carousel.completion.p.then(async result => {
+			if (store.isDisposed || completedFromServer) {
+				return;
+			}
+			const answer = getShellAuthenticationAnswer(prompt, result.answers);
+			const connection = this._config.connection;
+			if (answer === undefined || !connection.answerShellAuthentication) {
+				cancel();
+				return;
+			}
+			try {
+				await connection.answerShellAuthentication(URI.parse(opts.chatURI), requestId, answer);
+			} catch (error) {
+				this._logService.warn(`[AgentHost] Failed to answer shell authentication request ${requestId}: ${error instanceof Error ? error.message : String(error)}`);
+				cancel();
+			}
+		});
+
+		if (opts.cancellationToken.isCancellationRequested) {
+			carousel.completion.complete({ answers: undefined });
+		} else {
+			const tokenListener = opts.cancellationToken.onCancellationRequested(() => carousel.completion.complete({ answers: undefined }));
+			carousel.completion.p.finally(() => tokenListener.dispose());
+		}
+		store.add(toDisposable(() => close(false)));
 	}
 
 	private _setupPlanReviewInputRequest(

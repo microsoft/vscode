@@ -2202,6 +2202,11 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/**
+	 * Answers a pending shell authentication prompt of the chat outside chat state; `undefined` cancels it. Resolves
+	 * false when the prompt is no longer pending.
+	 */
+	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
 	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
