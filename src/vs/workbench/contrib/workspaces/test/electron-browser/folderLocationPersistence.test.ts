@@ -50,7 +50,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		let providerAvailable = !!options.providerAvailable;
 		let folderUri = options.folderUri ?? alternate;
 
-		const getWorkspace = () => new Workspace('id', [new WorkspaceFolder({ uri: folderUri, primaryUri: extUri.isEqual(folderUri, primary) ? undefined : primary, name: 'project', index: 0 })], false, null, () => false);
+		const getWorkspace = () => new Workspace('id', [new WorkspaceFolder({ uri: folderUri, identity: primary, name: 'project', index: 0 })], false, null, () => false);
 
 		const locationService = {
 			onDidChangeProviders: onDidChangeProviders.event,
