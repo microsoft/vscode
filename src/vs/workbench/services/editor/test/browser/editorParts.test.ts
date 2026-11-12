@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -422,6 +423,36 @@ suite('Editor Parts', () => {
 		await applied;
 
 		assert.strictEqual(mainPart.getContainer()!.contains(mainWindow.document.activeElement), true);
+	});
+
+	test('applying a working set with preserved focus recovers focus that is lost shortly after the apply, and leaves focus that moved elsewhere', async () => {
+		const { parts } = await createServices();
+		const mainPart = parts.testMainPart;
+		const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('input'));
+		disposables.add({ dispose: () => outside.remove() });
+
+		const first = disposables.add(new TestFileEditorInput(URI.file('/first.txt'), 'testTypeId'));
+		await mainPart.activeGroup.openEditor(first, { pinned: true });
+
+		const lateLoss = async (moveTo?: HTMLElement) => {
+			await parts.applyWorkingSet('empty', { preserveFocus: true });
+			const late = focusIn(mainPart.getContainer()!); // like the quick input restoring focus after the apply
+			if (moveTo) {
+				moveTo.focus();
+			} else {
+				late.blur();
+				late.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); // the test window may not have focus, which leaves out focus events
+			}
+			await timeout(20);
+			return { inEditorPart: mainPart.getContainer()!.contains(mainWindow.document.activeElement), onOutside: mainWindow.document.activeElement === outside };
+		};
+
+		const lost = await lateLoss();
+		const moved = await lateLoss(outside);
+		assert.deepStrictEqual({ lost, moved }, {
+			lost: { inEditorPart: true, onOutside: false },
+			moved: { inEditorPart: false, onOutside: true }
+		});
 	});
 
 	async function moveGroupAcrossParts(inputs: (instantiationService: IInstantiationService) => EditorInput[]) {
