@@ -1162,23 +1162,6 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const focusProperty = this._property ?? property;
 		this._propertyTriggers.get(focusProperty)?.focus();
 		const inputDisposables = new DisposableStore();
-		const trackInputFocus = () => {
-			const input = this._quickInputService.currentQuickInput;
-			const trigger = this._propertyTriggers.get(focusProperty);
-			if (!input || !trigger) {
-				return;
-			}
-			inputDisposables.add(input.onWillHide(({ reason }) => {
-				if (reason !== QuickInputHideReason.Blur && !trigger.isConnected && dom.getActiveElement()?.closest('.quick-input-widget')) {
-					// Quick Input cannot restore a replaced trigger; focus its replacement after hiding.
-					queueMicrotask(() => {
-						if (!this._quickInputService.currentQuickInput && this._isCurrentSession(provider, sessionId)) {
-							this._propertyTriggers.get(focusProperty)?.focus();
-						}
-					});
-				}
-			}));
-		};
 		try {
 			const cancellation = inputDisposables.add(new CancellationTokenSource());
 			const loading = inputDisposables.add(this._quickInputService.createInputBox());
@@ -1191,7 +1174,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			loading.ignoreFocusOut = !from;
 			inputDisposables.add(loading.onDidHide(() => cancellation.cancel()));
 			loading.show();
-			trackInputFocus();
+			this._trackCreateBranchInputFocus(provider, sessionId, focusProperty, inputDisposables);
 			const [branches, sourceDetails] = await raceCancellationError(Promise.all([
 				provider.getSessionConfigCompletions(sessionId, property),
 				provider.getBranchCreationSources?.(sessionId),
@@ -1216,7 +1199,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					matchOnDetail: true,
 					sortByLabel: false,
 				});
-				trackInputFocus();
+				this._trackCreateBranchInputFocus(provider, sessionId, focusProperty, inputDisposables);
 				const source = await sourcePromise;
 				if (!source || !this._isCurrentSession(provider, sessionId)) {
 					return;
@@ -1234,7 +1217,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				ignoreFocusLost: true,
 				validateInput: async name => validateCreateBranchName(name, branches),
 			});
-			trackInputFocus();
+			this._trackCreateBranchInputFocus(provider, sessionId, focusProperty, inputDisposables);
 			const branchName = await branchNamePromise;
 			if (branchName === undefined || !this._isCurrentSession(provider, sessionId)) {
 				return;
@@ -1250,6 +1233,25 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		} finally {
 			inputDisposables.dispose();
 		}
+	}
+
+	/** Restores focus to the branch picker if a Quick Input outlives its trigger element. */
+	private _trackCreateBranchInputFocus(provider: IAgentHostSessionsProvider, sessionId: string, focusProperty: string, inputDisposables: DisposableStore): void {
+		const input = this._quickInputService.currentQuickInput;
+		const trigger = this._propertyTriggers.get(focusProperty);
+		if (!input || !trigger) {
+			return;
+		}
+		inputDisposables.add(input.onWillHide(({ reason }) => {
+			if (reason !== QuickInputHideReason.Blur && !trigger.isConnected && dom.getActiveElement()?.closest('.quick-input-widget')) {
+				// Quick Input cannot restore a replaced trigger; focus its replacement after hiding.
+				queueMicrotask(() => {
+					if (!this._quickInputService.currentQuickInput && this._isCurrentSession(provider, sessionId)) {
+						this._propertyTriggers.get(focusProperty)?.focus();
+					}
+				});
+			}
+		}));
 	}
 
 	/**
