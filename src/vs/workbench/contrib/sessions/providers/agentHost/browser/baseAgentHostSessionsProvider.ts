@@ -25,7 +25,7 @@ import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type AgentProvider, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentPluginInstallation, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -977,6 +977,7 @@ function toSessionRemoteConnectionStatus(owner: object, connectionStatus: IObser
 			case 'disconnected':
 				switch (status.reason) {
 					case AgentHostTransportFailureReason.Unknown:
+					case AgentHostTransportFailureReason.AuthenticationFailed:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.Unknown };
 					case AgentHostTransportFailureReason.HostNotRunning:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.HostNotRunning };
@@ -1049,6 +1050,8 @@ interface IChatOutputObs {
 	readonly customizations: IObservable<readonly ISessionChatCustomization[]>;
 	readonly canvases: IObservable<readonly ISessionCanvas[] | undefined>;
 	readonly observeCanvases: () => IDisposable;
+	/** Keeps the chat's changesets observed while no window shows its session. */
+	readonly observeChanges: () => IDisposable;
 	/** Resolves the GitHub info each folder of the chat's workspace reports. */
 	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
 	/** Resolves the Git state persisted for the chat's working-directory scope. */
@@ -1199,6 +1202,7 @@ class AdditionalChat extends Disposable {
 			customizations: output?.customizations,
 			canvases: output?.canvases,
 			observeCanvases: output?.observeCanvases,
+			observeChanges: output?.observeChanges,
 			backgroundShells,
 			checkpoints: observableValue(this, undefined),
 			modelId: this._withDetails(this._modelId),
@@ -1809,9 +1813,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				false,
 			);
 		});
+		const defaultChatChangesGate = this._createObservedSubscriptionGate();
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			this._options,
-			this.isActiveSessionObs,
+			defaultChatChangesGate.subscribed,
 			StateComponents.Session,
 			constObservable(this.backendUri),
 		);
@@ -1824,7 +1829,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this.backendUri,
 			defaultChatUriObs,
 			this._options,
-			this.isActiveSessionObs,
+			defaultChatChangesGate.subscribed,
 			this._createChatCurrentTurnChangesObservable(defaultChatUriObs),
 		);
 		const defaultChatChanges = createChangesObservable(defaultChatChangesets);
@@ -1852,6 +1857,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				return chatUri ? sessionOutput.getChatCustomizations(chatUri).read(reader) : [];
 			}),
 			...this._createChatCanvases(),
+			observeChanges: defaultChatChangesGate.observe,
 			backgroundShells: this._createChatBackgroundShellsObservable(defaultChatUriObs),
 			checkpoints: observableValue(this, undefined),
 			modelId: this.modelId,
@@ -2280,10 +2286,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _createAdditionalChat(chatId: string, summary: AgentHostChatSummary): AdditionalChat {
 		const resource = this.resource.with({ fragment: chatId });
 		const backendUri = URI.parse(summary.resource);
+		const changesGate = this._createObservedSubscriptionGate();
 		const output: IChatOutputObs = {
 			lastTurnChanges: this._sessionOutput.getLastTurnChanges(backendUri),
 			customizations: this._sessionOutput.getChatCustomizations(backendUri),
 			...this._createChatCanvases(backendUri),
+			observeChanges: changesGate.observe,
 			getFolderGitHubInfo: reader => this._getFolderGitHubInfoResolver(reader),
 			getScopeGitState: (reader, workingDirectories) => this._getChatScopeGitState(reader, workingDirectories),
 			scratchFolders: this._scratchFolders,
@@ -2295,7 +2303,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			summary,
 			this.createdAt,
 			// Nested chats default to their own Session Changes; the main chat keeps the provider default.
-			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, this.isActiveSessionObs, this._createChatCurrentTurnChangesObservable(constObservable(backendUri)), ChangesetKind.Session),
+			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, changesGate.subscribed, this._createChatCurrentTurnChangesObservable(constObservable(backendUri)), ChangesetKind.Session),
 			this._createChatBackgroundShellsObservable(constObservable(backendUri)),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
@@ -3192,6 +3200,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: undefined;
 	}
 
+	/** Subscribed while a window shows this session, or while an external presentation observes it, until it disposes the observation. */
+	private _createObservedSubscriptionGate(): { readonly subscribed: IObservable<boolean>; observe(): IDisposable } {
+		const externalObservers = observableValue(this, 0);
+		return {
+			subscribed: derived(this, reader => this.isActiveSessionObs.read(reader) || externalObservers.read(reader) > 0),
+			observe: () => {
+				externalObservers.set(externalObservers.get() + 1, undefined);
+				return toDisposable(() => externalObservers.set(externalObservers.get() - 1, undefined));
+			},
+		};
+	}
+
+	/** Live while a window shows this session, as are the turn changes it reads; otherwise the changesets' own files apply. */
 	private _createChatCurrentTurnChangesObservable(chatUriObs: IObservable<URI | undefined>): IObservable<IAgentHostCurrentTurnChanges | undefined> {
 		const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 			this._options,
@@ -3228,8 +3249,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	private _createChatCanvases(chatUri?: URI): Required<Pick<IChat, 'canvases' | 'observeCanvases'>> {
-		const externalObservers = observableValue(this, 0);
-		const subscribed = derived(this, reader => this.isActiveSessionObs.read(reader) || externalObservers.read(reader) > 0);
+		const { subscribed, observe } = this._createObservedSubscriptionGate();
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
 			this._options, subscribed, StateComponents.Session, constObservable(this.backendUri),
 		);
@@ -3266,10 +3286,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				}
 				return canvasStates.read(reader).map(canvas => canvas.read(reader));
 			}),
-			observeCanvases: () => {
-				externalObservers.set(externalObservers.get() + 1, undefined);
-				return toDisposable(() => externalObservers.set(externalObservers.get() - 1, undefined));
-			},
+			observeCanvases: observe,
 		};
 	}
 
@@ -5034,6 +5051,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Current connection (always present for local; may be undefined while disconnected for remote). */
 	protected abstract get connection(): IAgentConnection | undefined;
+	get setPluginEnabled(): ((provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>) | undefined {
+		const connection = this.connection;
+		return connection?.setPluginEnabled
+			? (provider, plugin, enabled, scope, session, chat) => connection.setPluginEnabled!(provider, plugin, enabled, scope, session, chat)
+			: undefined;
+	}
+
+	get listPluginInstallations(): ((provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>) | undefined {
+		const connection = this.connection;
+		return connection?.listPluginInstallations
+			? (provider, session, chat) => connection.listPluginInstallations!(provider, session, chat)
+			: undefined;
+	}
 
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
@@ -7795,7 +7825,23 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Session actions ------------------------------------------------------
 
 	async archiveSession(sessionId: string): Promise<void> {
-		this._setSessionArchived(sessionId, true);
+		this._assertSessionAvailable(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection) {
+			throw new Error(localize('sessionArchiveUnavailable', "Connect to this session's host to mark it as done."));
+		}
+		const subscription = connection.getSubscription(StateComponents.Session, cached.backendUri, 'archiveSession');
+		try {
+			const result = await connection.dispatchConfirmed(cached.backendUri.toString(), subscription.object, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, CancellationToken.None);
+			if (result.rejectionReason) {
+				throw new Error(result.rejectionReason);
+			}
+			this._setSessionArchivedLocally(sessionId, true);
+		} finally {
+			subscription.dispose();
+		}
 	}
 
 	async importSession(sessionId: string): Promise<void> {
@@ -8014,6 +8060,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	get supportsForceWorktreeCleanup(): boolean {
 		return supportsForceWorktreeCleanup(this.connection?.initializeResult.get());
+	}
+
+	async prepareSessionWorktreeCleanup(sessionId: string): Promise<void> {
+		this._assertSessionAvailable(sessionId);
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!session || !connection?.prepareSessionWorktreeCleanup) {
+			throw new Error(localize('worktreeCleanupPreparationUnavailable', "Connect to an updated session host to prepare worktree cleanup."));
+		}
+		await connection.prepareSessionWorktreeCleanup(session.backendUri);
 	}
 
 	async sessionWorktreeCleanup(sessionId: string, retry: boolean, force?: boolean) {
@@ -8740,7 +8797,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return chat;
 	}
 
-	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
+	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext = true): Promise<IChat> {
 		this._assertSessionAvailable(sessionId);
 		const connection = this.connection;
 		if (!connection) {
@@ -8778,6 +8835,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				source: sourceBackendUri,
 				turnId,
 				...(selection ? { selection } : {}),
+				...(!includeSourceContext ? { includeSourceContext: false } : {}),
 			},
 		});
 
@@ -8850,11 +8908,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 		this._assertSessionAvailable(chatId);
+		this._assertSendConnectionAvailable(options);
 		const newSession = this._getNewSession(chatId);
 		if (newSession) {
 			return this._sendNewSessionRequest(newSession, chatId, chatResource, options);
 		}
 		return this._sendCommittedChatRequest(chatId, chatResource, options);
+	}
+
+	private _assertSendConnectionAvailable(options: ISendRequestOptions): void {
+		if (options.requireConnected && (!this.connection || this.connection.connectionAvailable?.get() === false)) {
+			throw new Error(localize('agentHost.sendUnavailable', "The agent host is unavailable. Reconnect and try again."));
+		}
 	}
 
 	/** Send the first request for an already-committed peer chat, then clear its `new` flag. */
@@ -8917,6 +8982,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		try {
+			this._assertSendConnectionAvailable(options);
 			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { modelConfiguration: selectedModelConfiguration });
 
 			const result = await this._chatService.sendRequest(chatResource, query, sendOptions);

@@ -152,10 +152,16 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 			const session = host?.session.get();
 			if (!host || !session || !isEqual(session.resource, sessionResource)) {
 				this.logService.trace('[SessionChangesService] cannot select a changeset, the session is not shown', sessionResource.toString());
-			} else if (options.changesetSelection.kind === 'transient') {
-				this.changesViewService.showChangeset(options.changesetSelection.changeset, session, host.chat.get());
 			} else {
-				this.changesViewService.setChangesetId(options.changesetSelection.id, session, host.chat.get());
+				const hostChat = host.chat.get();
+				const chat = !options.chatResource || isEqual(hostChat?.resource, options.chatResource)
+					? hostChat
+					: session.chats.get().find(candidate => isEqual(candidate.resource, options.chatResource));
+				if (options.changesetSelection.kind === 'transient') {
+					this.changesViewService.showChangeset(options.changesetSelection.changeset, session, chat);
+				} else {
+					this.changesViewService.setChangesetId(options.changesetSelection.id, session, chat);
+				}
 			}
 		}
 		let editorOptions: IMultiDiffEditorOptions | undefined;

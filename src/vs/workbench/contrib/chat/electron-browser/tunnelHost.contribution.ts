@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -47,7 +47,9 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				logService.error('Failed to toggle GitHub environment sharing', error);
-				notificationService.error(error);
+				notificationService.error(enabled
+					? localize('tunnelHost.disableSharingFailed', "Failed to disable GitHub environment sharing: {0}", getErrorMessage(error))
+					: localize('tunnelHost.enableSharingFailed', "Failed to enable GitHub environment sharing: {0}", getErrorMessage(error)));
 				return 'failed';
 			}
 		}
@@ -115,7 +117,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		const viewItemFactory: IActionViewItemFactory = (action, _options, instantiationService) => {
 			return instantiationService.createInstance(RemoteConnectionsActionViewItem, action, true, {});
 		};
-		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory, this.remoteTunnelService.onDidChangeTunnelStatus));
+		this._register(actionViewItemService.register(MenuId.ChatInputSecondary, TOGGLE_SHARING_ID, viewItemFactory));
 		void this._loadState();
 	}
 

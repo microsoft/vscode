@@ -793,10 +793,6 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/inboxOne",
-			"project": "vscode-sessions"
-		},
-		{
 			"name": "vs/sessions/contrib/layout",
 			"project": "vscode-sessions"
 		},

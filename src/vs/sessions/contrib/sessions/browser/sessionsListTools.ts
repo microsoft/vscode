@@ -363,7 +363,6 @@ Placement follows the list's precedence: archived > pinned > custom group > ungr
 		const resetFilters = optionalBoolean(operation, 'resetFilters');
 		const filters = this.readFilters(operation, list);
 
-		// Validate before changing anything, so a rejected operation changes nothing.
 		if (resetFilters) {
 			view.resetFilters();
 		}
@@ -500,7 +499,7 @@ const organizeInputSchema: IJSONSchema & { type: 'object' } = {
 					after: { type: 'string', description: 'Position after this session ID (moveSessions) or sibling header ID (moveHeader).' },
 					position: { type: 'string', enum: ['top', 'bottom'], description: 'Position first or last in the destination (moveSessions).' },
 					collapsed: { type: 'boolean', description: 'Whether to collapse (setCollapsed).' },
-					grouping: { type: 'string', enum: Object.values(SessionsGrouping), description: 'Section the list by workspace, repository, environment, or date (setView).' },
+					grouping: { type: 'string', enum: Object.values(SessionsGrouping), description: 'Section the list by workspace, repository, environment, or date, or use inbox triage categories (setView). Inbox mode preserves custom organization and presents attention-state categories as collapsible groups, with pinned sessions always visible.' },
 					sorting: { type: 'string', enum: Object.values(SessionsSorting), description: 'Sort sessions by creation or last update time (setView).' },
 					filters: {
 						type: 'array',

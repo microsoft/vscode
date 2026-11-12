@@ -21,7 +21,10 @@ import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contri
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { SharedChatInputComposer } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SessionsGrouping } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SendInBackgroundAction } from '../../browser/sharedChatInputComposer.contribution.js';
 
 suite('Send in Background', () => {
@@ -41,39 +44,45 @@ suite('Send in Background', () => {
 		});
 	});
 
-	test('Alt+Enter applies only to a sendable background-capable composer input in the Agents window', () => {
-		const keybinding = decodeKeybinding(KeyMod.Alt | KeyCode.Enter, OS)!;
-		const rule = KeybindingsRegistry.getDefaultKeybindings().find(item =>
-			item.command === SEND_IN_BACKGROUND_COMMAND_ID && item.keybinding?.getHashCode() === keybinding.getHashCode());
-		const when = rule?.when;
-		assert.ok(when);
-		const values: Record<string, boolean> = {
-			[IsSessionsWindowContext.key]: true,
-			[ChatContextKeys.enabled.key]: true,
-			[ChatContextKeys.inChatInput.key]: true,
-			[ChatInputSupportsBackgroundContext.key]: true,
-			[ChatContextKeys.inputHasSendableContent.key]: true,
-			[ChatContextKeys.inputBlocked.key]: false,
-			[ChatContextKeys.chatSessionOptionsValid.key]: true,
-		};
-		const matches = (overrides: Record<string, boolean> = {}) => {
-			const context: IContext = { getValue: <T>(key: string) => ({ ...values, ...overrides })[key] as T | undefined };
-			return when.evaluate(context);
-		};
-		assert.deepStrictEqual({
-			composer: matches(),
-			regularWindow: matches({ [IsSessionsWindowContext.key]: false }),
-			aiDisabled: matches({ [ChatContextKeys.enabled.key]: false }),
-			toolbar: matches({ [ChatContextKeys.inChatInput.key]: false }),
-			existingChat: matches({ [ChatInputSupportsBackgroundContext.key]: false }),
-			empty: matches({ [ChatContextKeys.inputHasSendableContent.key]: false }),
-			blocked: matches({ [ChatContextKeys.inputBlocked.key]: true }),
-			invalidOptions: matches({ [ChatContextKeys.chatSessionOptionsValid.key]: false }),
-		}, {
-			composer: true, regularWindow: false, aiDisabled: false, toolbar: false,
-			existingChat: false, empty: false, blocked: false, invalidOptions: false,
+	for (const { label, modifier } of [{ label: 'Alt', modifier: KeyMod.Alt }, { label: 'Cmd/Ctrl', modifier: KeyMod.CtrlCmd }]) {
+		test(`${label}+Enter applies only to a sendable background-capable composer input in the Agents window`, () => {
+			const keybinding = decodeKeybinding(modifier | KeyCode.Enter, OS)!;
+			const rule = KeybindingsRegistry.getDefaultKeybindings().find(item =>
+				item.command === SEND_IN_BACKGROUND_COMMAND_ID && item.keybinding?.getHashCode() === keybinding.getHashCode());
+			const when = rule?.when;
+			assert.ok(when);
+			const values: Record<string, boolean | string> = {
+				[IsSessionsWindowContext.key]: true,
+				[ChatContextKeys.enabled.key]: true,
+				[ChatContextKeys.inChatInput.key]: true,
+				[ChatInputSupportsBackgroundContext.key]: true,
+				[ChatContextKeys.inputHasSendableContent.key]: true,
+				[ChatContextKeys.inputBlocked.key]: false,
+				[ChatContextKeys.chatSessionOptionsValid.key]: true,
+				[SessionsViewGroupingContext.key]: SessionsGrouping.Inbox,
+				[`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`]: false,
+			};
+			const matches = (overrides: Record<string, boolean | string> = {}) => {
+				const context: IContext = { getValue: <T>(key: string) => ({ ...values, ...overrides })[key] as T | undefined };
+				return when.evaluate(context);
+			};
+			assert.deepStrictEqual({
+				composer: matches(),
+				regularWindow: matches({ [IsSessionsWindowContext.key]: false }),
+				aiDisabled: matches({ [ChatContextKeys.enabled.key]: false }),
+				toolbar: matches({ [ChatContextKeys.inChatInput.key]: false }),
+				existingChat: matches({ [ChatInputSupportsBackgroundContext.key]: false }),
+				empty: matches({ [ChatContextKeys.inputHasSendableContent.key]: false }),
+				blocked: matches({ [ChatContextKeys.inputBlocked.key]: true }),
+				invalidOptions: matches({ [ChatContextKeys.chatSessionOptionsValid.key]: false }),
+				workspaceGrouping: matches({ [SessionsViewGroupingContext.key]: SessionsGrouping.Workspace, [`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`]: true }),
+			}, {
+				composer: true, regularWindow: false, aiDisabled: false, toolbar: false,
+				existingChat: false, empty: false, blocked: false, invalidOptions: false,
+				workspaceGrouping: modifier === KeyMod.Alt,
+			});
 		});
-	});
+	}
 
 	test('routes to the originating composer or the last-focused widget, and ignores ordinary chat widgets', async () => {
 		const instantiation = store.add(new TestInstantiationService());

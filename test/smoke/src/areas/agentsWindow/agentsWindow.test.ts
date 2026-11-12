@@ -11,7 +11,7 @@ import * as path from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, latestUserInputCarriesTag, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
-import { createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
+import { createRemoteDevContainerFixture, CREDENTIALED_PROXY_FORWARDED_LOG, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -176,6 +176,13 @@ export function setup(logger: Logger, quality: Quality) {
 						cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: app.workspacePathOrFolder, encoding: 'utf8' }),
 						worktreesBefore,
 						'Expected authenticated prompt validation without creating a worktree'
+					);
+				}
+				if (process.env.VSCODE_SMOKE_TEST_HTTP_PROXY) {
+					const agentHostLogPath = path.join(agentHost.logsPath, 'agenthost.log');
+					assert.ok(
+						(await waitForLogContent(() => readFileIfExists(agentHostLogPath), CREDENTIALED_PROXY_FORWARDED_LOG)).includes(CREDENTIALED_PROXY_FORWARDED_LOG),
+						`Expected the Agent Host to forward the http.proxy setting with credentials to the Copilot runtime in ${agentHostLogPath}`
 					);
 				}
 				await app.workbench.agentsWindow.startNewSession();
@@ -468,41 +475,18 @@ export function setup(logger: Logger, quality: Quality) {
 
 	// The same environment, with an editor window connected to a VS Code server in WSL, which spawns the Agent Host.
 	(wslKerberosProxyScheme ? describe : describe.skip)('Editor Window (WSL remote AgentHost, Kerberos proxy)', () => {
-		const scenario = 'smoke-wsl-remote-kerberos-proxy-agent-host';
-		const reply = 'WSL_REMOTE_KERBEROS_PROXY_RESPONSE';
-		const context = setupAgentHostSuite(logger, {
-			serverLabel: 'WSL remote Kerberos proxy AgentHost',
-			mockServerHost: '0.0.0.0',
-			remoteTransport: 'wsl',
-			wslClientProxy: 'server',
-			registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
-			settings: {},
-		});
+		setupWslRemoteEditorProxySuite(logger, 'Kerberos', 'Uses the Windows proxy, Kerberos ticket and certificates from the AgentHost of a WSL remote');
+	});
 
-		it('Uses the Windows proxy, Kerberos ticket and certificates from the AgentHost of a WSL remote', async function () {
-			this.timeout(10 * 60 * 1000);
-			const app = this.app as Application;
-			const fixture = context.remoteFixture;
-			assert.ok(fixture, 'Expected the WSL server fixture');
-			const requestTag = `[proxy-request:${randomUUID()}]`;
-			try {
-				await openAgentHostChatEditor(app, 3 * 60 * 1000);
-				const requestsBefore = context.mockServer.getRequests().length;
-				await app.workbench.chat.sendEditorMessage(`hello through the Windows proxy [scenario:${scenario}] ${requestTag}`);
-				await app.workbench.chat.waitForEditorResponseText(reply, 2 * 60 * 1000);
-				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
-				await fixture.verifyMockServerRouting?.();
-			} catch (error) {
-				logger.log(`Editor Window (WSL remote Kerberos proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
-				try {
-					await fixture.dumpConnectionDiagnostics?.('remote editor window');
-				} catch (diagnosticError) {
-					logger.log(`Editor Window (WSL remote Kerberos proxy) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
-				}
-				await dumpFailureDiagnostics(app, logger, 'Editor Window (WSL remote Kerberos proxy)');
-				throw error;
-			}
-		});
+	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic, which provisions a WSL proxy
+	// with Basic authentication and the Windows CA, and passes the proxy URL, credentials included, for the http.proxy
+	// setting.
+	const wslBasicProxy = process.platform === 'win32' && process.env.VSCODE_SMOKE_TEST_WSL_BASIC_PROXY === '1' && !!process.env.VSCODE_SMOKE_TEST_HTTP_PROXY;
+	if (!wslBasicProxy) {
+		logger.log('Skipping the WSL remote AgentHost Basic proxy suite: run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic on Windows');
+	}
+	(wslBasicProxy ? describe : describe.skip)('Editor Window (WSL remote AgentHost, Basic proxy)', () => {
+		setupWslRemoteEditorProxySuite(logger, 'Basic', 'Uses the http.proxy setting with its credentials, and the Windows certificates, from the AgentHost of a WSL remote');
 	});
 
 	describe('Agents Window (local AgentHost, SDK sandbox)', () => {
@@ -696,17 +680,29 @@ export function setup(logger: Logger, quality: Quality) {
 			// fail fast here (from source) instead of timing out at spawn time.
 			if (process.env.VSCODE_DEV === '1') {
 				const repoRoot = path.resolve(process.cwd(), '..', '..');
-				const platformPkgDir = path.join(repoRoot, 'node_modules', `@openai/codex-${process.platform}-${process.arch}`);
-				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
-				let codexBinaryFound = false;
+				// A flat node_modules has the platform package next to `@openai/codex`. pnpm's
+				// isolated layout only has it next to the real folder of `@openai/codex`, where
+				// the agent host also looks (see resolveCodexBinaryPath).
+				const scopeDir = path.join(repoRoot, 'node_modules', '@openai');
+				const scopeDirs = [scopeDir];
 				try {
-					const vendorDir = path.join(platformPkgDir, 'vendor');
-					codexBinaryFound = fs.readdirSync(vendorDir).some(triple => fs.existsSync(path.join(vendorDir, triple, 'bin', binaryName)));
+					scopeDirs.push(path.dirname(fs.realpathSync(path.join(scopeDir, 'codex'))));
 				} catch {
-					// vendor dir (or the whole platform package) is missing → treated as not found
+					// `@openai/codex` is missing → only the flat location is checked
 				}
+				const platformPkgDirs = [...new Set(scopeDirs)].map(dir => path.join(dir, `codex-${process.platform}-${process.arch}`));
+				const binaryName = process.platform === 'win32' ? 'codex.exe' : 'codex';
+				const codexBinaryFound = platformPkgDirs.some(platformPkgDir => {
+					try {
+						const vendorDir = path.join(platformPkgDir, 'vendor');
+						return fs.readdirSync(vendorDir).some(triple => fs.existsSync(path.join(vendorDir, triple, 'bin', binaryName)));
+					} catch {
+						// vendor dir (or the whole platform package) is missing → treated as not found
+						return false;
+					}
+				});
 				if (!codexBinaryFound) {
-					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDir}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
+					throw new Error(`[Agents Window/Codex] Codex native binary missing at ${platformPkgDirs.join(' and ')}. We depend on \`@openai/codex\`, which is only a thin launcher shim; the actual native binaries ship as its per-platform optional dependencies (\`@openai/codex-<platform>-<arch>\`). \`npm install\` does not fail when an optional dependency can't be installed, so node_modules can end up with the shim but no binary — Codex then reports as "available" but has nothing to spawn. Try bumping build/.cachesalt to force a fresh \`npm ci\` that reinstalls the binary.`);
 				}
 			}
 
@@ -932,11 +928,17 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// scratch, so set the production default explicitly rather than
 				// relying on configuration registration timing.
 				'http.proxySupport': 'override',
+				// A proxy with credentials, which the Agent Host forwards to the Copilot runtime in its environment.
+				...(process.env.VSCODE_SMOKE_TEST_HTTP_PROXY ? {
+					'http.proxy': process.env.VSCODE_SMOKE_TEST_HTTP_PROXY,
+				} : {}),
 				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? {
 					'sessions.useWorktree': false,
 				} : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
+				// The extension-host Copilot CLI provider is being retired; run as after its removal.
+				'github.copilot.chat.cli.legacyProvider.enabled': false,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
 				'chat.agentHost.unsafeTestToken': 'smoketest-fake-agent-host-token',
 				// Verbose Copilot runtime logging for capturable failure diagnostics.
@@ -1006,6 +1008,50 @@ function setupAgentHostSuite(logger: Logger, config: {
 		get logsPath() { return logsPath; },
 		get remoteFixture() { return remoteFixture; },
 	};
+}
+
+/**
+ * Registers the test of an editor window connected to a VS Code server in WSL, whose Agent Host reaches the mock server
+ * only through the Windows client's proxy, authenticated with `auth`. With `Basic`, the credentials come from the
+ * http.proxy setting, which the Agent Host forwards to the Copilot runtime.
+ */
+function setupWslRemoteEditorProxySuite(logger: Logger, auth: 'Kerberos' | 'Basic', title: string): void {
+	const scenario = `smoke-wsl-remote-${auth.toLowerCase()}-proxy-agent-host`;
+	const reply = `WSL_REMOTE_${auth.toUpperCase()}_PROXY_RESPONSE`;
+	const label = `Editor Window (WSL remote ${auth} proxy)`;
+	const context = setupAgentHostSuite(logger, {
+		serverLabel: `WSL remote ${auth} proxy AgentHost`,
+		mockServerHost: '0.0.0.0',
+		remoteTransport: 'wsl',
+		wslClientProxy: 'server',
+		registerScenarios: ({ ScenarioBuilder, registerScenario }) => registerScenario(scenario, new ScenarioBuilder().emit(reply).build()),
+		settings: {},
+	});
+
+	it(title, async function () {
+		this.timeout(10 * 60 * 1000);
+		const app = this.app as Application;
+		const fixture = context.remoteFixture;
+		assert.ok(fixture, 'Expected the WSL server fixture');
+		const requestTag = `[proxy-request:${randomUUID()}]`;
+		try {
+			await openAgentHostChatEditor(app, 3 * 60 * 1000);
+			const requestsBefore = context.mockServer.getRequests().length;
+			await app.workbench.chat.sendEditorMessage(`hello through the ${auth} proxy [scenario:${scenario}] ${requestTag}`);
+			await app.workbench.chat.waitForEditorResponseText(reply, 2 * 60 * 1000);
+			await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+			await fixture.verifyMockServerRouting?.({ credentialedProxy: auth === 'Basic' });
+		} catch (error) {
+			logger.log(`${label} FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+			try {
+				await fixture.dumpConnectionDiagnostics?.('remote editor window');
+			} catch (diagnosticError) {
+				logger.log(`${label} connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`);
+			}
+			await dumpFailureDiagnostics(app, logger, label);
+			throw error;
+		}
+	});
 }
 
 /**

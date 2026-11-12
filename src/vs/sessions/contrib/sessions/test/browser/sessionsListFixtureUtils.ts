@@ -16,6 +16,7 @@ import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contex
 import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -55,12 +56,18 @@ import { defaultMenuStyles } from '../../../../../platform/theme/browser/default
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionItemArchiveState } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { IMcpService } from '../../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -89,10 +96,11 @@ import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../..
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { IInboxNotificationsService, InboxNotificationsSortMode } from '../../../../../workbench/contrib/sessions/common/inboxNotificationsService.js';
+import { ISessionAttentionService, IInboxSessionAttention } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
+import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ISessionsHeaderElements, renderSessionsHeader } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionsHeaderElements, renderSessionsHeader, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
@@ -115,6 +123,8 @@ export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly chats?: readonly ISessionsListFixtureChat[];
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
+	readonly inboxState?: SessionInboxAction;
+	readonly inboxAttention?: Pick<IInboxSessionAttention, 'tab' | 'priority'>;
 	/** The session's view is pinned in the sessions grid. */
 	readonly sticky?: boolean;
 	readonly hasFailingCI?: boolean;
@@ -127,6 +137,7 @@ export interface ISessionsListFixtureGroup {
 	/** Fixture-local id used by row references. */
 	readonly id: string;
 	readonly name: string;
+	readonly color?: string;
 	/** Ids of the member sessions. */
 	readonly sessions?: readonly string[];
 	/** Fixture id of the group this group is nested in, listed before it. */
@@ -198,12 +209,13 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	/** Shows New Session, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
+	readonly automationsEnabled?: boolean;
 	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
-	/** Shows the Customizations navigation row's badge for extensions that can be enabled in the Agents window. */
-	readonly customizationExtensionSuggestionsAvailable?: boolean;
+	/** Describes the Customizations navigation row's badge, which shows none unless given. */
+	readonly customizationsBadge?: string;
 }
 
 /** Everything a sessions list fixture renders. */
@@ -384,7 +396,7 @@ class SessionsListFixtureMenuService extends MenuService {
 
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		if (id === Menus.SidebarSessionsHeader) {
-			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
+			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session', icon: Codicon.add }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
 			return {
 				onDidChange: Event.None,
 				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newSession]]],
@@ -464,6 +476,8 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	override readonly onDidReplaceSession = Event.None;
 	override readonly onDidDiscardNewSession = Event.None;
 	override readonly onDidReplaceNewDraftSession = Event.None;
+	override readonly onDidAcceptNewSessionRequest = Event.None;
+	override readonly onDidEndNewSessionRequest = Event.None;
 	override readonly onDidMoveChat = Event.None;
 
 	constructor(private readonly sessions: ReadonlyMap<string, ITestSession>) {
@@ -704,6 +718,15 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override createPullRequestCIModelReference(_owner: string, _repo: string, number: number) { return new ImmortalReference(ciModels.get(number)!); }
 			}());
 			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() { }());
+			reg.defineInstance(IAICustomizationItemsModel, new class extends mock<IAICustomizationItemsModel>() { }());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeSessionResource = constObservable(URI.parse('copilot:/fixture'));
+				override getActiveDescriptor() { return { id: 'copilot', label: 'Copilot', icon: Codicon.copilot }; }
+			}());
+			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() { }());
+			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() { }());
+			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() { }());
+			reg.defineInstance(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() { }());
 			reg.defineInstance(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 				override readonly onDidChangeFeedback = Event.None;
 				override getFeedbackObservable(resource: URI) { return feedback.map(items => items.filter(item => isEqual(item.sessionResource, resource))); }
@@ -748,6 +771,8 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() { }());
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
 				override readonly chatModels: IObservable<Iterable<IChatModel>> = constObservable([]);
+				override readonly onDidAcceptRequest = Event.None;
+				override readonly onDidPerformUserAction = Event.None;
 			}());
 			reg.defineInstance(IFixtureAgentSessionsService, {
 				model: { observeSession: () => constObservable(undefined) },
@@ -796,12 +821,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override readonly activeCustomView = constObservable(undefined);
 				override hideCustomView(): void { }
 			}());
-			reg.defineInstance(IInboxNotificationsService, new class extends mock<IInboxNotificationsService>() {
-				override readonly notifications = constObservable([]);
-				override readonly attentionCount = constObservable(0);
-				override readonly isLoading = constObservable(false);
-				override readonly sortMode = constObservable(InboxNotificationsSortMode.Priority);
-				override setSortMode(): void { }
+			reg.defineInstance(ISessionAttentionService, new class extends mock<ISessionAttentionService>() {
+				override readonly sessionAttention = constObservable(new Map(state.sessions.flatMap(spec => spec.inboxAttention ? [[spec.id, { ...spec.inboxAttention, notificationIds: [], isHistoricalCompletion: false }] as const] : [])));
+				override acquireSessionAttention() { return Disposable.None; }
 			}());
 		},
 	});
@@ -824,12 +846,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+	SessionsViewGroupingContext.bindTo(contextKeyService).set(view.grouping ?? SessionsGrouping.Workspace);
 	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
 	if (view.phone) {
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
 	}
-	if (header?.navigationShortcuts) {
+	if (header?.navigationShortcuts || header?.automationsEnabled) {
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 	}
 
@@ -896,7 +919,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
-		renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
+		renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore, undefined, () => view.grouping ?? SessionsGrouping.Workspace);
 		renderedHeader.toolbar?.refresh();
 		findWidgetContainer = DOM.append(renderedHeader.row, DOM.$('.agent-sessions-find-widget-container'));
 		findWidgetContainer.style.display = 'none';
@@ -916,7 +939,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
-		customizationExtensionSuggestionsAvailable: constObservable(header?.customizationExtensionSuggestionsAvailable ?? false),
+		customizationsBadge: constObservable(header?.customizationsBadge),
 		navigationContainer,
 		findWidgetContainer,
 		onSessionOpen: () => { },
@@ -935,6 +958,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		list.setExcludeArchived(false);
 	}
 	list.layout(height, width);
+	if (view.grouping === SessionsGrouping.Inbox && renderedHeader) {
+		list.layout(Math.max(0, height - renderedHeader.row.offsetHeight - (navigationContainer?.offsetHeight ?? 0)), width);
+	}
 	if (view.collapsed === 'all') {
 		list.collapseAllSections();
 	} else {
@@ -967,6 +993,9 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 		if (spec.pinned) {
 			listModelService.pinSession(getSession(spec.id).session);
 		}
+		if (spec.inboxState !== undefined) {
+			listModelService.setInboxState([getSession(spec.id).session], spec.inboxState);
+		}
 	}
 
 	const groupsService = instantiationService.get(ISessionGroupsService);
@@ -980,6 +1009,9 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 			throw new Error(`Fixture group '${group.id}' must be listed after its parent '${group.parent}'.`);
 		}
 		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId), parentId);
+		if (group.color !== undefined) {
+			groupsService.setGroupColor(created.id, group.color);
+		}
 		groupIds.set(group.id, created.id);
 		if (parentId === undefined) {
 			topLevelIds.push(getSessionGroupSectionId(created.id));
@@ -1014,7 +1046,7 @@ async function renderHeaderState(container: HTMLElement, instantiationService: T
 			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
 		});
 	}
-	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button');
+	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button, .agent-sessions-header-row.inbox-layout .action-label.codicon-add');
 	if (header.navigationShortcuts && newSessionButton) {
 		throw new Error('Expected the experimental navigation to replace the Sessions header New Session action.');
 	}

@@ -132,6 +132,16 @@ export function isSessionCreated(session: Pick<ISession, 'status'> | undefined, 
 	return !!session && (reader ? session.status.read(reader) : session.status.get()) !== SessionStatus.Untitled;
 }
 
+/**
+ * Whether `chat` of `session` is a workspace-less quick chat, or, without a chat, whether `session` is a quick chat. A chat
+ * of a quick chat that works in a folder of its own is not: the UI of the conversation that shows it treats it as a chat of
+ * a workspace session.
+ */
+export function isWorkspacelessQuickChat(session: Pick<ISession, 'isQuickChat'>, chat: Pick<IChat, 'workspace'> | undefined, reader?: IReader): boolean {
+	const isQuickChat = session.isQuickChat ? (reader ? session.isQuickChat.read(reader) : session.isQuickChat.get()) : false;
+	return isQuickChat && !(chat && (reader ? chat.workspace.read(reader) : chat.workspace.get()));
+}
+
 export function getSessionStatusMessage(status: SessionStatus, description: IMarkdownString | undefined): IMarkdownString | string | undefined {
 	switch (status) {
 		case SessionStatus.InProgress:
@@ -863,6 +873,8 @@ export interface IChat {
 	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
 	/** Keep canvas channels observed while this chat's session is inactive. Dispose when the external presentation closes. */
 	observeCanvases?(): IDisposable;
+	/** Keep {@link changesets} and their changes observed while no window shows this chat's session. Dispose when the external presentation, such as a Changes editor of the chat, closes. */
+	observeChanges?(): IDisposable;
 	/** Active background shells, including commands started in earlier turns. */
 	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */

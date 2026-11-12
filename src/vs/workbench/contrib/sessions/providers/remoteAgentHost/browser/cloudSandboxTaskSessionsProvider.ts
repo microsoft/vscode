@@ -103,6 +103,12 @@ export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 				reader.store.add(disposable);
 			}
 		}),
+		observeChanges: () => autorun(reader => {
+			const disposable = runtime.read(reader)?.mainChat.read(reader).observeChanges?.();
+			if (disposable) {
+				reader.store.add(disposable);
+			}
+		}),
 	};
 	const session: ISession = {
 		sessionId: `${CLOUD_SANDBOX_TASK_PROVIDER_ID}:${resource.toString()}`,

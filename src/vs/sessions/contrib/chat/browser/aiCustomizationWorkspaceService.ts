@@ -7,7 +7,7 @@ import { derived, IObservable, observableValue, ISettableObservable } from '../.
 import { relativePath, basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IAICustomizationTargetLabels } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -20,6 +20,15 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { getHarnessPresentationOrDefault } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { INewSessionComposerService, INewSessionTargetLabels } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getChatHarness, IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
+
+type ActiveCustomizationTarget =
+	| { readonly kind: 'chat'; readonly session: ISession; readonly chat: IChat }
+	| { readonly kind: 'composer'; readonly labels: INewSessionTargetLabels };
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -36,6 +45,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 	readonly activeProjectLabel: IObservable<string | undefined>;
+	readonly activeTargetLabels: IObservable<IAICustomizationTargetLabels>;
 	readonly hasOverrideProjectRoot: IObservable<boolean>;
 
 	/**
@@ -43,6 +53,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * returns this value instead of the session-derived root.
 	 */
 	private readonly _overrideRoot: ISettableObservable<URI | undefined>;
+	private readonly _activeSessionResource: ISettableObservable<URI | undefined>;
+	private readonly _activeTarget: IObservable<ActiveCustomizationTarget | undefined>;
 
 	constructor(
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
@@ -53,29 +65,78 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		this._overrideRoot = observableValue(this, undefined);
+		this._activeSessionResource = observableValue(this, undefined);
 
-		this.activeProjectRoot = derived(reader => {
+		this._activeTarget = derived(this, reader => {
+			const explicitResource = this._activeSessionResource.read(reader);
+			if (explicitResource) {
+				const ownedChat = this.sessionsManagementService.getSessionForChatResource(explicitResource);
+				if (ownedChat) {
+					return { kind: 'chat', ...ownedChat };
+				}
+				const explicitSession = this.sessionsManagementService.getSession(explicitResource);
+				if (explicitSession) {
+					return { kind: 'chat', session: explicitSession, chat: explicitSession.mainChat.read(reader) };
+				}
+			}
+
+			const host = this._focusedSessionHostService.focusedHost.read(reader);
+			const focusedSession = host.session.read(reader);
+			if (focusedSession) {
+				return { kind: 'chat', session: focusedSession, chat: host.chat.read(reader) ?? focusedSession.mainChat.read(reader) };
+			}
+			const labels = this.newSessionComposerService.getComposer(host, reader)?.targetLabels?.read(reader);
+			return labels ? { kind: 'composer', labels } : undefined;
+		});
+
+		this.activeProjectRoot = derived(this, reader => {
 			const override = this._overrideRoot.read(reader);
 			if (override) {
 				return override;
 			}
-			const folder = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.workspace.read(reader)?.folders[0];
-			const root = folder?.workingDirectory;
+			const target = this._activeTarget.read(reader);
+			if (!target) {
+				return undefined;
+			}
+			const root = target.kind === 'composer' ? target.labels.projectRoot : target.chat.workspace.read(reader)?.folders[0]?.workingDirectory;
 			if (root?.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
 			}
 			return root;
 		});
 
-		this.activeProjectLabel = derived(reader => {
+		this.activeProjectLabel = derived(this, reader => {
 			const override = this._overrideRoot.read(reader);
 			if (override) {
 				return this.labelService.getUriBasenameLabel(override);
 			}
-			const workspace = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.workspace.read(reader);
-			return workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name;
+			const target = this._activeTarget.read(reader);
+			if (!target) {
+				return undefined;
+			}
+			return target.kind === 'composer' ? target.labels.workspace : this.getWorkspaceLabel(target.chat.workspace.read(reader));
+		});
+
+		this.activeTargetLabels = derived(this, reader => {
+			const target = this._activeTarget.read(reader);
+			if (!target) {
+				return {};
+			}
+			if (target.kind === 'composer') {
+				const { harness, workspace, environment } = target.labels;
+				return { harness, workspace, environment };
+			}
+			const provider = this.sessionsProvidersService.getProvider(target.session.providerId, target.session.sessionId);
+			return {
+				harness: getHarnessPresentationOrDefault(provider, getChatHarness(target.session, target.chat), reader).label,
+				workspace: this.getWorkspaceLabel(target.chat.workspace.read(reader)),
+				environment: provider?.environment.label ?? target.session.environment,
+			};
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -84,16 +145,11 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	}
 
 	getActiveProjectRoot(): URI | undefined {
-		const override = this._overrideRoot.get();
-		if (override) {
-			return override;
-		}
-		const folder = this._focusedSessionHostService.focusedHost.get().chat.get()?.workspace.get()?.folders[0];
-		const root = folder?.workingDirectory;
-		if (root?.scheme === AGENT_HOST_SCHEME) {
-			return undefined;
-		}
-		return root;
+		return this.activeProjectRoot.get();
+	}
+
+	setActiveSessionResource(resource: URI | undefined): void {
+		this._activeSessionResource.set(resource, undefined);
 	}
 
 	setOverrideProjectRoot(root: URI): void {
@@ -102,6 +158,24 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	clearOverrideProjectRoot(): void {
 		this._overrideRoot.set(undefined, undefined);
+	}
+
+	private getWorkspaceLabel(workspace: ISessionWorkspace | undefined): string | undefined {
+		return workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name;
+	}
+
+	private getActiveFolder(): Pick<ISessionFolder, 'root' | 'workingDirectory'> | undefined {
+		const target = this._activeTarget.get();
+		if (!target) {
+			return undefined;
+		}
+		if (target.kind === 'chat') {
+			return target.chat.workspace.get()?.folders[0];
+		}
+		return target.labels.repositoryRoot ? {
+			root: target.labels.repositoryRoot,
+			workingDirectory: target.labels.projectRoot ?? target.labels.repositoryRoot,
+		} : undefined;
 	}
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
@@ -129,15 +203,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * so the change persists across worktrees. When a worktree is active
 	 * the file is also committed there so the session sees it immediately.
 	 */
-	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<boolean> {
-		const folder = this._focusedSessionHostService.focusedHost.get().chat.get()?.workspace.get()?.folders[0];
-		if (!folder?.root) {
-			return true;
-		}
-
+	async commitFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean> {
+		const folder = this.getActiveFolder();
+		const repositoryRoot = folder?.root ?? projectRoot;
+		const workingDirectory = folder?.workingDirectory ?? projectRoot;
 		let succeeded = true;
 		for (const fileUri of fileUris) {
-			succeeded = await this.commitFileToRepos(fileUri, folder.root, folder.workingDirectory) && succeeded;
+			succeeded = await this.commitFileToRepos(fileUri, repositoryRoot, workingDirectory) && succeeded;
 		}
 		return succeeded;
 	}
@@ -147,15 +219,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * Always stages + commits the removal in the main repository, and also
 	 * in the worktree if one is active.
 	 */
-	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<boolean> {
-		const folder = this._focusedSessionHostService.focusedHost.get().chat.get()?.workspace.get()?.folders[0];
-		if (!folder?.root) {
-			return true;
-		}
-
+	async deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean> {
+		const folder = this.getActiveFolder();
+		const repositoryRoot = folder?.root ?? projectRoot;
+		const workingDirectory = folder?.workingDirectory ?? projectRoot;
 		let succeeded = true;
 		for (const fileUri of fileUris) {
-			succeeded = await this.commitDeletionToRepos(fileUri, folder.root, folder.workingDirectory) && succeeded;
+			succeeded = await this.commitDeletionToRepos(fileUri, repositoryRoot, workingDirectory) && succeeded;
 		}
 		return succeeded;
 	}

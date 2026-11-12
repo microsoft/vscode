@@ -10,7 +10,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { MenuItemAction, registerAction2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
-import { IChangesViewService, getActiveSessionChanges } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { IChangesEditorScope, IChangesViewService, getActiveSessionChanges } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { VERSIONS_PICKER_ACTION_ID, createChangesSessionScope, CHANGES_HEADER_ACTIONS_ID, ChangesActionsBarActionViewItem, createChangesPickerLabelObservable, ChangesPickerSummary, ChangesPickerActionItem, SetChangesListViewModeAction, SetChangesTreeViewModeAction, VersionsPickerAction, ChangesDiffStatsAction, RevealCIChecksAction } from '../../../../workbench/contrib/sessionChanges/browser/changesView.js';
@@ -42,7 +42,7 @@ class ChangesActionViewItemsContribution extends Disposable implements IWorkbenc
 				return undefined;
 			}
 			// The shared summary and label follow the active session; other sessions get their own.
-			const scope = instantiationService.invokeFunction(accessor => createChangesSessionScope(changesViewService, accessor.get(ISessionHost)));
+			const scope = instantiationService.invokeFunction(accessor => accessor.get(IChangesEditorScope).scope ?? createChangesSessionScope(changesViewService, accessor.get(ISessionHost)));
 			if (scope.isMainWindow) {
 				return instantiationService.createInstance(ChangesPickerActionItem, action, headerSummary, headerLabelObs, undefined);
 			}

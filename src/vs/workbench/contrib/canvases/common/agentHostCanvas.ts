@@ -14,7 +14,7 @@ import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChatState, ResponsePartKind, StateComponents, ToolCallStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ActiveTurn, ChatState, ResponsePartKind, StateComponents, ToolCallStatus, Turn } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest } from './canvas.js';
 import { ICanvas, ICanvasOwner } from '../../../common/canvasReference.js';
@@ -115,32 +115,58 @@ export function getAgentHostCanvasDefinitionsChangedEvent(subscription: IAgentSu
 	);
 }
 
+/**
+ * Latest `open_canvas` request per instance for a completed history. The reducer never mutates a `turns` array or a completed turn in place
+ * (every change allocates a new array), so the result is keyed by array identity. The backward scan is resumable and stops once the requested instances are resolved.
+ */
+const completedOpenRequests = new WeakMap<readonly Turn[], { readonly requests: Map<string, ICanvasOpenRequest>; nextTurnIndex: number }>();
+
+function collectOpenRequests(turn: Turn | ActiveTurn, requests: Map<string, ICanvasOpenRequest>, instances: ReadonlySet<string> | undefined): void {
+	const parts = turn.responseParts;
+	for (let partIndex = parts.length - 1; partIndex >= 0; partIndex--) {
+		const part = parts[partIndex];
+		if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.toolName !== 'open_canvas') {
+			continue;
+		}
+		const call = part.toolCall;
+		if (call.status !== ToolCallStatus.Running && call.status !== ToolCallStatus.Completed && call.status !== ToolCallStatus.Cancelled) {
+			continue;
+		}
+		const input = getInlineToolInput(call.toolInput);
+		const instanceId = input ? parsePartialToolInput(input)?.instanceId : undefined;
+		if (typeof instanceId === 'string' && (!instances || instances.has(instanceId)) && !requests.has(instanceId)) {
+			requests.set(instanceId, {
+				id: `${turn.id}\u0000${call.toolCallId}`,
+				succeeded: call.status === ToolCallStatus.Completed && call.success,
+				...(call.status === ToolCallStatus.Running ? { pending: true } : {}),
+			});
+		}
+	}
+}
+
 function getOpenRequests(chat: ChatState | undefined, canvases: readonly ICanvas[] | undefined): ReadonlyMap<string, ICanvasOpenRequest> {
 	const requests = new Map<string, ICanvasOpenRequest>();
 	const instances = new Set(canvases?.flatMap(canvas => canvas.instanceId ? [canvas.instanceId] : []) ?? []);
 	if (!chat || instances.size === 0) {
 		return requests;
 	}
-	const turns = chat.activeTurn ? [...chat.turns, chat.activeTurn] : chat.turns;
-	for (let turnIndex = turns.length - 1; turnIndex >= 0 && requests.size < instances.size; turnIndex--) {
-		const turn = turns[turnIndex];
-		for (let partIndex = turn.responseParts.length - 1; partIndex >= 0; partIndex--) {
-			const part = turn.responseParts[partIndex];
-			if (part.kind !== ResponsePartKind.ToolCall || part.toolCall.toolName !== 'open_canvas') {
-				continue;
-			}
-			const call = part.toolCall;
-			if (call.status !== ToolCallStatus.Running && call.status !== ToolCallStatus.Completed && call.status !== ToolCallStatus.Cancelled) {
-				continue;
-			}
-			const input = getInlineToolInput(call.toolInput);
-			const instanceId = input ? parsePartialToolInput(input)?.instanceId : undefined;
-			if (typeof instanceId === 'string' && instances.has(instanceId) && !requests.has(instanceId)) {
-				requests.set(instanceId, {
-					id: `${turn.id}\u0000${call.toolCallId}`,
-					succeeded: call.status === ToolCallStatus.Completed && call.success,
-					...(call.status === ToolCallStatus.Running ? { pending: true } : {}),
-				});
+	if (chat.activeTurn) {
+		collectOpenRequests(chat.activeTurn, requests, instances);
+	}
+	if (requests.size < instances.size) {
+		let completed = completedOpenRequests.get(chat.turns);
+		if (!completed) {
+			completedOpenRequests.set(chat.turns, completed = { requests: new Map(), nextTurnIndex: chat.turns.length - 1 });
+		}
+		// Resume the backward scan only as far as needed to resolve the current instances.
+		const isResolved = (instanceId: string) => requests.has(instanceId) || completed.requests.has(instanceId);
+		while (completed.nextTurnIndex >= 0 && !Array.from(instances).every(isResolved)) {
+			collectOpenRequests(chat.turns[completed.nextTurnIndex--], completed.requests, undefined);
+		}
+		for (const instanceId of instances) {
+			const request = completed.requests.get(instanceId);
+			if (request && !requests.has(instanceId)) {
+				requests.set(instanceId, request);
 			}
 		}
 	}

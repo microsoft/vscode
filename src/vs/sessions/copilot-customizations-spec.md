@@ -325,7 +325,7 @@ The response also reports the effective mode:
 
 Client-level `extensions.enable` and `extensions.disable` persist IDs for future sessions. `session.extensions.reconcile` refreshes authoritative membership for an exact live chat after plugin or preference changes without creating a second session-owned preference.
 
-The session-level `session.extensions.list` RPC returns the effective user, project, and plugin extensions for one initialized chat with status `running`, `disabled`, `failed`, or `starting`. VS Code exposes this inventory only as supporting state for the Canvases section; Project extensions are read-only, and there is no separate Copilot Extensions management destination.
+The session-level `session.extensions.list` RPC returns the effective user, project, and plugin extensions for one initialized chat with status `running`, `dormant`, `disabled`, `failed`, or `starting`. `dormant` means the extension declared its tools or canvases in an `extension.json` sidecar with `"initialization": "module"` and has not been requested yet; the runtime starts it on first tool execution or canvas demand. VS Code treats `dormant` like `running`: the extension is enabled and settled, and its declared canvases are authoritative and ready to open. VS Code exposes this inventory only as supporting state for the Canvases section; Project extensions are read-only, and there is no separate Copilot Extensions management destination.
 
 ### 8.2 Ownership
 

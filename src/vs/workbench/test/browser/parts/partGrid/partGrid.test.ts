@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
-import { $, addDisposableListener, append, registerWindow } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, registerWindow, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
@@ -38,6 +38,7 @@ import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/br
 import { GroupDirection, IContentPart, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorInput, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import '../../../../contrib/modernUI/browser/media/tabs.css';
 
 suite('Part Grid', () => {
 
@@ -330,16 +331,35 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ title: rect('title'), bottom: rect('bottom') }, { title: { left: 4, right: 4 }, bottom: { left: 4, right: 4 } });
 	});
 
-	test('the gripper on a gap sash draws its outer dots the grid gap apart', () => {
-		const container = createContainer();
-		container.style.setProperty('--part-grid-gap', '6px');
-		const sash = container.appendChild(mainWindow.document.createElement('div'));
-		sash.classList.add('monaco-sash', 'vertical', GRID_GAP_SASH_CLASS);
-
-		const style = mainWindow.getComputedStyle(sash, '::after');
-
-		assert.deepStrictEqual({ content: style.content, shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim() }, { content: '""', shadow: '0px -6px 0px 0px, 0px 6px 0px 0px' });
-	});
+	for (const direction of [Direction.Right, Direction.Down]) {
+		test(`gripper dot size and spacing stay fixed as the ${direction === Direction.Right ? 'vertical' : 'horizontal'} panel gap changes`, () => {
+			const container = createContainer();
+			container.style.cssText = 'width: 1000px; height: 800px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-sash-size: 4px;';
+			const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
+			grid.addView('first', createView());
+			grid.addView('second', createView(), { reference: 'first', direction });
+			const vertical = direction === Direction.Right;
+			const snapshots = [];
+			for (const gap of [0, 1, 4, 8, 16]) {
+				grid.setGap(gap);
+				grid.layout(1000, 800);
+				const sash = container.querySelector<HTMLElement>(`.monaco-sash.${GRID_GAP_SASH_CLASS}`)!;
+				const style = mainWindow.getComputedStyle(sash, '::after');
+				const first = container.querySelector<HTMLElement>('[data-part-grid-cell="first"] > .part-grid-card')!.getBoundingClientRect();
+				const second = container.querySelector<HTMLElement>('[data-part-grid-cell="second"] > .part-grid-card')!.getBoundingClientRect();
+				snapshots.push({
+					gap: vertical ? second.left - first.right : second.top - first.bottom,
+					size: [style.width, style.height],
+					shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim(),
+					thickness: vertical ? sash.getBoundingClientRect().width : sash.getBoundingClientRect().height,
+				});
+			}
+			assert.deepStrictEqual(snapshots, [0, 1, 4, 8, 16].map(gap => ({
+				gap, size: ['2px', '2px'], thickness: 4,
+				shadow: vertical ? '0px -4px 0px 0px, 0px 4px 0px 0px' : '-4px 0px 0px 0px, 4px 0px 0px 0px',
+			})));
+		});
+	}
 
 	test('with no gap between the cards, the grabber of the lower part takes the pointer over the sash on its edge within its span; the sash keeps the rest of the edge', async () => {
 		const parts = await createParts();
@@ -636,12 +656,27 @@ suite('Part Grid', () => {
 		const stillThere = showing();
 		pointerInWebview = false;
 		await timeout(300);
+		const leftTheWindow = showing();
 
-		assert.deepStrictEqual({ atOnce, once, stillThere, leftTheWindow: showing() }, {
+		// From the tabs of the main part into its own webview, again without an event of the window
+		const marksOfMain = () => ['top-strip', 'grabber'].filter(mark => cardOf('main').classList.contains(`part-grid-pointer-over-${mark}`));
+		const mainTab = cardOf('main').querySelector('.tabs-and-actions-container .tab')!;
+		mainTab.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+		mainTab.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+		const overMainTabs = { showing: showing(), marks: marksOfMain() };
+		pointerInWebview = true;
+		await timeout(150);
+		const inMainWebview = { showing: showing(), marks: marksOfMain() };
+		pointerInWebview = false;
+		await timeout(300);
+
+		assert.deepStrictEqual({ atOnce, once, stillThere, leftTheWindow, overMainTabs, inMainWebview }, {
 			atOnce: ['chat'],
 			once: ['main'],
 			stillThere: ['main'],
-			leftTheWindow: []
+			leftTheWindow: [],
+			overMainTabs: { showing: ['main'], marks: ['top-strip'] },
+			inMainWebview: { showing: ['main'], marks: [] },
 		});
 	});
 
@@ -680,6 +715,71 @@ suite('Part Grid', () => {
 		});
 	});
 
+	test('the grabber and the top tab scrollbar of a card make way for each other: the card is marked while the pointer is over its tabs or its grabber, which hides the other, without moving anything', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 600, 400);
+		container.classList.add('monaco-workbench', 'modern-ui-tabs', 'disable-animations');
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [main, chat] = [createPart(parts), createPart(parts)];
+		for (let i = 0; i < 8; i++) {
+			await openEditor(main, `/a-long-editor-name-to-overflow-the-tabs-${i}.txt`);
+		}
+		await openEditor(chat, '/chat.txt');
+		grid.addPart('main', main);
+		grid.addPart('chat', chat, { reference: 'main', direction: Direction.Right });
+		grid.layout(600, 400);
+		for (let frame = 0; frame < 2; frame++) {
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		}
+
+		const cardOf = (id: string) => container.querySelector<HTMLElement>(`[data-part-grid-cell="${id}"] > .part-grid-card`)!;
+		const grabber = cardOf('main').querySelector<HTMLElement>(':scope > .part-grid-drag-handle')!;
+		const scrollable = cardOf('main').querySelector<HTMLElement>('.tabs-and-actions-container > .monaco-scrollable-element')!;
+		const scrollbar = scrollable.querySelector<HTMLElement>(':scope > .scrollbar.horizontal')!;
+		const body = cardOf('main').querySelector<HTMLElement>('.editor-container')!;
+		const geometry = () => JSON.stringify([cardOf('main'), grabber, scrollable, scrollbar, body].map(element => element.getBoundingClientRect()));
+		const state = () => ({
+			marks: Object.fromEntries(['main', 'chat'].map(id => [id, ['top-strip', 'grabber'].filter(mark => cardOf(id).classList.contains(`part-grid-pointer-over-${mark}`))])),
+			grabberOpacity: mainWindow.getComputedStyle(grabber).opacity,
+			scrollbarOpacity: mainWindow.getComputedStyle(scrollbar).opacity,
+		});
+		const over = (target: Element) => {
+			target.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+			return state();
+		};
+		const initialGeometry = geometry();
+
+		// Over the tabs, which reveals their scrollbar at the top edge of the card
+		scrollable.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+		const overTabs = over(scrollable.querySelector('.tab')!);
+		const tabsGeometry = geometry();
+		const overGrabber = over(grabber);
+		const grabberGeometry = geometry();
+		const overBody = over(body);
+		const overOtherTabs = over(cardOf('chat').querySelector('.tabs-and-actions-container .tab')!);
+		cardOf('chat').dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: null, clientX: -10, clientY: -10 }));
+		const leftTheWindow = state().marks;
+
+		// With animations, the scrollbar fades out as the pointer leaves the tabs, but not over the grabber, which it hides at once
+		container.classList.remove('disable-animations');
+		scrollable.dispatchEvent(new MouseEvent('mouseleave'));
+		over(body);
+		const fadeOverBody = mainWindow.getComputedStyle(scrollbar).transitionDuration;
+		over(grabber);
+		const fadeOverGrabber = mainWindow.getComputedStyle(scrollbar).transitionDuration;
+
+		assert.deepStrictEqual({ overTabs, overGrabber, overBody, overOtherTabs, leftTheWindow, geometryUnchanged: [tabsGeometry, grabberGeometry].every(g => g === initialGeometry), fadeOverBody, fadeOverGrabber }, {
+			overTabs: { marks: { main: ['top-strip'], chat: [] }, grabberOpacity: '0', scrollbarOpacity: '1' },
+			overGrabber: { marks: { main: ['grabber'], chat: [] }, grabberOpacity: '1', scrollbarOpacity: '0' },
+			overBody: { marks: { main: [], chat: [] }, grabberOpacity: '1', scrollbarOpacity: '1' },
+			overOtherTabs: { marks: { main: [], chat: ['top-strip'] }, grabberOpacity: '0', scrollbarOpacity: '1' },
+			leftTheWindow: { main: [], chat: [] },
+			geometryUnchanged: true,
+			fadeOverBody: '0.8s',
+			fadeOverGrabber: '0s',
+		});
+	});
+
 	async function createVideoLayout() {
 		const parts = await createParts();
 		const container = boxAt(0, 0, 1000, 800);
@@ -702,34 +802,90 @@ suite('Part Grid', () => {
 
 	const round = (rects: ReadonlyMap<string, IPartGridRect> | undefined) => Object.fromEntries(Array.from(rects ?? [], ([id, { left, top, width, height }]) => [id, [left, top, width, height].map(Math.round)]));
 
-	test('a part dropped beside a part at an edge of the window goes where a drop at that edge puts it, with the same size: an even share of where it goes; and the drop ends where its preview showed', async () => {
+	test('a part dropped at an edge of the window goes there, with an even share of where it goes; and the drop ends where its preview showed', async () => {
 		const { container, grid, cards } = await createVideoLayout();
 
-		const besideChat = round(grid.previewArrangement('terminals', { location: { reference: 'chat', direction: Direction.Right } }));
 		const atRightEdge = round(grid.previewArrangement('terminals', { location: { edge: Direction.Right } }));
 		// Dropped there by its card, without motion: at once
 		const handle = container.querySelector<HTMLElement>('[data-part-grid-cell="terminals"] .part-grid-drag-handle')!.getBoundingClientRect();
 		dragCard(container, 'terminals', [[handle.left + handle.width / 2, 300], [996, 300]]);
 
-		assert.deepStrictEqual({ besideChat, dropped: { shape: grid.describe(), cards: round(cards()) } }, {
-			besideChat: atRightEdge,
-			dropped: { shape: 'row(main, chat, terminals)', cards: atRightEdge }
-		});
+		assert.deepStrictEqual({ shape: grid.describe(), cards: round(cards()) }, { shape: 'row(main, chat, terminals)', cards: atRightEdge });
 		// An even share: a third of the window, the others making room in proportion to their 580 and 420
 		assert.deepStrictEqual(atRightEdge.terminals[2], 333);
 	});
 
-	test('editors dropped into a new part at an edge of the window or on the rim of the part at that edge give the same part, with an even share of where it goes, as its preview showed', async () => {
+	test('a part dropped on the bottom of a part at the bottom of the window splits that part\'s cell, as its preview showed; dropped at the bottom edge of the window, it goes across the window again', async () => {
+		const { container, grid, cards } = await createVideoLayout();
+		const rectOf = (id: string) => container.querySelector(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.getBoundingClientRect();
+		// Without motion, where the pointer is says where the card goes beside a part
+		const dropOnBottomOf = (target: string) => {
+			const over = rectOf(target);
+			dragCard(container, 'terminals', [[over.left + over.width / 2, over.top + over.height * 0.9]]);
+			return { shape: grid.describe(), cards: round(cards()) };
+		};
+		const dropAtBottomEdge = () => {
+			dragCard(container, 'terminals', [[300, 796]]);
+			return grid.describe();
+		};
+
+		const underMainPreview = round(grid.previewArrangement('terminals', { location: { reference: 'main', direction: Direction.Down } }));
+		const underMain = dropOnBottomOf('main');
+		const backAcross = dropAtBottomEdge();
+		const underChatPreview = round(grid.previewArrangement('terminals', { location: { reference: 'chat', direction: Direction.Down } }));
+		const underChat = dropOnBottomOf('chat');
+
+		assert.deepStrictEqual({ underMain, backAcross, underChat }, {
+			underMain: { shape: 'row(column(main, terminals), chat)', cards: underMainPreview },
+			backAcross: 'column(row(main, chat), terminals)',
+			underChat: { shape: 'row(main, column(chat, terminals))', cards: underChatPreview },
+		});
+	});
+
+	test('editors dropped into a new part on the rim of a part at an edge of the window split that part\'s cell, not the window, with an even share of where it goes, as its preview showed', async () => {
 		const { parts, grid, main, file, cards } = await createVideoLayout();
 		disposables.add(grid.setPartFactory({ createPart: () => ({ id: 'new', part: createPart(parts) }) }));
 
-		const atEdge = round(grid.previewNewPart('new', { edge: Direction.Right }, 'main', false, true));
 		const onRim = round(grid.previewNewPart('new', { reference: 'chat', direction: Direction.Right }, 'main', false, true));
 		grid.moveEditorsIntoNewPart([{ editor: file, groupId: main.activeGroup.id }], { reference: 'chat', direction: Direction.Right }, { dropped: true });
 
-		assert.deepStrictEqual({ onRim, dropped: { shape: grid.describe(), cards: round(cards()) } }, {
-			onRim: atEdge,
-			dropped: { shape: 'row(column(row(main, chat), terminals), new)', cards: atEdge }
+		// An even share: a third of the row of the main part and the chat, above the terminals
+		assert.deepStrictEqual({ dropped: { shape: grid.describe(), cards: round(cards()) }, share: onRim.new[2] }, {
+			dropped: { shape: 'column(row(main, chat, new), terminals)', cards: onRim },
+			share: 333
+		});
+	});
+
+	test('a part that keeps its size, dropped below a part, keeps its height in the column it joins, as its preview showed; dropped beside a part, it takes an even share of the row', async () => {
+		const parts = await createParts();
+		const container = boxAt(0, 0, 1000, 800);
+		const grid = disposables.add(new PartGrid(container, parts));
+		const [main, chat, terminals] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(main, '/main.txt'), openEditor(chat, '/chat.txt'), openEditor(terminals, '/terminals.txt')]);
+		grid.addPart('main', main);
+		grid.addPart('chat', chat, { reference: 'main', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down }, undefined, { keepsSize: true });
+		grid.layout(1000, 800);
+		grid.resizeCell('terminals', { height: 200 });
+		const across = grid.getCellSize('terminals').height;
+		const cards = () => round(new Map(['main', 'chat', 'terminals'].map(id => {
+			const { left, top, width, height } = container.querySelector(`[data-part-grid-cell="${id}"] > .part-grid-card`)!.getBoundingClientRect();
+			return [id, { left, top, width, height }];
+		})));
+
+		const underMainPreview = round(grid.previewArrangement('terminals', { location: { reference: 'main', direction: Direction.Down } }));
+		const mainRect = container.querySelector('[data-part-grid-cell="main"] > .part-grid-card')!.getBoundingClientRect();
+		dragCard(container, 'terminals', [[mainRect.left + mainRect.width / 2, mainRect.top + mainRect.height * 0.9]]);
+		const underMain = { shape: grid.describe(), height: grid.getCellSize('terminals').height, asPreviewed: JSON.stringify(cards()) === JSON.stringify(underMainPreview) };
+		const chatRect = container.querySelector('[data-part-grid-cell="chat"] > .part-grid-card')!.getBoundingClientRect();
+		dragCard(container, 'terminals', [[chatRect.left + chatRect.width * 0.1, chatRect.top + chatRect.height / 2]]);
+		const besideChat = { shape: grid.describe(), width: grid.getCellSize('terminals').width };
+
+		assert.deepStrictEqual({ across, underMain, besideChat }, {
+			across: 200,
+			// Its height, not an even share of the column (400)
+			underMain: { shape: 'row(column(main, terminals), chat)', height: 200, asPreviewed: true },
+			besideChat: { shape: 'row(main, terminals, chat)', width: 333 },
 		});
 	});
 
@@ -1239,6 +1395,27 @@ suite('Part Grid', () => {
 			movedDown: { shape: 'column(title, main, terminals, chat)', chat: 385, terminals: 385 },
 			up: true,
 			movedUp: { shape: 'column(title, main, chat, terminals)', chat: 385, terminals: 385 }
+		});
+	});
+
+	test('Move Part gives a part that keeps its size an even share of the column it joins too: only a drop keeps its size', async () => {
+		const parts = await createParts();
+		const grid = createGrid();
+		const [chat, main, terminals] = [createPart(parts), createPart(parts), createPart(parts)];
+		await Promise.all([openEditor(chat, '/chat.txt'), openEditor(main, '/main.txt'), openEditor(terminals, '/terminals.txt')]);
+		grid.addPart('chat', chat);
+		grid.addPart('main', main, { reference: 'chat', direction: Direction.Right });
+		grid.addPart('terminals', terminals, { edge: Direction.Down }, undefined, { keepsSize: true });
+		grid.resizeCell('terminals', { height: 200 });
+		const heights = () => ({ shape: grid.describe(), chat: grid.getCellSize('chat').height, terminals: grid.getCellSize('terminals').height });
+		const before = heights();
+
+		const up = grid.moveCellInDirection('terminals', Direction.Up);
+
+		assert.deepStrictEqual({ before, up, movedUp: heights() }, {
+			before: { shape: 'column(row(chat, main), terminals)', chat: 600, terminals: 200 },
+			up: true,
+			movedUp: { shape: 'row(column(terminals, chat), main)', chat: 400, terminals: 400 }
 		});
 	});
 

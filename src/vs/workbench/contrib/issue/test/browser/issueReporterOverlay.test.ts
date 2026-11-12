@@ -51,6 +51,7 @@ import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../comm
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 class TestContextViewService implements IContextViewService {
 	declare readonly _serviceBrand: undefined;
@@ -248,6 +249,7 @@ suite('IssueReporterOverlay', () => {
 		const frame = document.createElement('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		frame.contentDocument!.body.appendChild(container);
 		overlay.reparentFloatingBar();
 		const stayedWithSource = bar.ownerDocument === document && document.body.contains(bar);

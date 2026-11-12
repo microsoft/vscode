@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -13,11 +13,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IChat, ISession, ISessionFileChange } from '../../../../services/sessions/common/session.js';
-import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver, getChangesEditorChanges, observeChangesEditorChat } from '../../browser/changesMultiDiffSourceResolver.js';
 import { ChangesViewMode } from '../../../sessions/common/changes.js';
 import { ISessionChangesService } from '../../../../services/sessions/common/sessionChangesService.js';
 import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { IChangesSessionObservables, IChangesViewService } from '../../../sessions/common/changesViewService.js';
 import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../sessions/test/browser/sessionHostTestUtils.js';
 
@@ -387,6 +387,83 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			})));
 		});
 	}
+
+	test('keeps the chat a Changes editor names observed, once its session is known, until disposed, without observing other chats or churning as the chats change', () => {
+		const sessionResource = URI.parse('agent-host:test-session');
+		const live = new Map<string, number>();
+		let observeCalls = 0;
+		const chat = (name: string, observable = true) => upcastPartial<IChat>({
+			resource: URI.parse(`agent-host-chat:/test-session/${name}`),
+			observeChanges: observable ? () => {
+				observeCalls++;
+				live.set(name, (live.get(name) ?? 0) + 1);
+				return toDisposable(() => live.set(name, live.get(name)! - 1));
+			} : undefined,
+		});
+		const chatX = chat('x');
+		const chatY = chat('y');
+		const chatZ = chat('z', false);
+		const chats = observableValue<readonly IChat[]>('chats', [chatX, chatY, chatZ]);
+		const session = upcastPartial<ISession>({ sessionId: 'test-session', resource: sessionResource, chats });
+		let known = false;
+		const onDidChangeSessions = disposables.add(new Emitter<ISessionsChangeEvent>());
+		const management = new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override getSession(resource: URI): ISession | undefined { return known && resource.toString() === sessionResource.toString() ? session : undefined; }
+		}();
+		const state = () => ({ x: live.get('x') ?? 0, y: live.get('y') ?? 0, observeCalls });
+
+		const x = observeChangesEditorChat(management, sessionResource, chatX.resource);
+		const z = observeChangesEditorChat(management, sessionResource, chatZ.resource);
+		const unknownSession = state();
+		known = true;
+		onDidChangeSessions.fire(upcastPartial<ISessionsChangeEvent>({}));
+		const observed = state();
+		chats.set([chatY, chatX, chatZ], undefined);
+		const reordered = state();
+		x.dispose();
+		z.dispose();
+
+		assert.deepStrictEqual({ unknownSession, observed, reordered, released: state() }, {
+			unknownSession: { x: 0, y: 0, observeCalls: 0 },
+			observed: { x: 1, y: 0, observeCalls: 1 },
+			reordered: { x: 1, y: 0, observeCalls: 1 },
+			released: { x: 0, y: 0, observeCalls: 1 },
+		});
+	});
+
+	test('a Changes editor of a chat reports its changes loading only while that chat\'s are, and one of a session never does', () => {
+		const chatX = upcastPartial<IChat>({ resource: URI.parse('agent-host-chat:/test-session/x') });
+		const sessionResource = URI.parse('agent-host:test-session');
+		const changesetLoading = observableValue('changesetLoading', true);
+		const chats = observableValue<readonly IChat[]>('chats', [chatX]);
+		const session = upcastPartial<ISession>({ sessionId: 'test-session', resource: sessionResource, chats });
+		const management = new class extends mock<ISessionsManagementService>() {
+			override readonly onDidChangeSessions = Event.None;
+			override getSession(): ISession | undefined { return session; }
+		}();
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override getSessionChanges(): IChangesSessionObservables {
+				return upcastPartial<IChangesSessionObservables>({ changesObs: constObservable([]), changesetLoadingObs: changesetLoading });
+			}
+		}();
+		const owner = {};
+		const ofChat = getChangesEditorChanges(owner, changesViewService, sessionHostServiceOf(disposables, noSessions()), management, sessionResource, chatX.resource);
+		const ofSession = getChangesEditorChanges(owner, changesViewService, sessionHostServiceOf(disposables, noSessions()), management, sessionResource, undefined);
+		const loading = () => ({ chat: ofChat.loading.get(), session: ofSession.loading.get() });
+		const whileLoading = loading();
+		changesetLoading.set(false, undefined);
+		const loaded = loading();
+		changesetLoading.set(true, undefined);
+		chats.set([], undefined);
+		const chatGone = loading();
+
+		assert.deepStrictEqual({ whileLoading, loaded, chatGone }, {
+			whileLoading: { chat: true, session: false },
+			loaded: { chat: false, session: false },
+			chatGone: { chat: false, session: false },
+		});
+	});
 });
 
 function createChange(path: string): ISessionFileChange {

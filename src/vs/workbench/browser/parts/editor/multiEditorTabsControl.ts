@@ -36,6 +36,7 @@ import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/com
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement, getTotalWidth, getContentWidth } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
+import { PART_GRID_TOP_STRIP_CLASS } from './partGridClass.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -259,7 +260,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
-		this.tabsAndActionsContainer = $('.tabs-and-actions-container');
+		this.tabsAndActionsContainer = $(`.tabs-and-actions-container.${PART_GRID_TOP_STRIP_CLASS}`);
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
 
 		this.stickyTabsBackground = $('.sticky-tabs-background', { 'aria-hidden': true });
@@ -584,7 +585,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Figure out scrolling direction but ignore it if too subtle
 			let tabSwitchDirection: number;
-			if (e.deltaX + e.deltaY < - MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+			if (e.deltaX + e.deltaY < -MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = -1;
 			} else if (e.deltaX + e.deltaY > MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = 1;
@@ -2207,11 +2208,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-fit-padding')) || 28;
 		const currentActionPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingLeft : style.paddingRight);
 		const intrinsicWidth = hasPersistentAction ? width + Math.max(0, actionPadding - currentActionPadding) : width;
-		/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
+		/* eslint-disable eslint-js/no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
 		const label = tab.querySelector<HTMLElement>('.tab-label');
 		const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
 		const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
-		/* eslint-enable no-restricted-syntax */
+		/* eslint-enable eslint-js/no-restricted-syntax */
 		const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
 		const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
 		const borderWidth = Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth);

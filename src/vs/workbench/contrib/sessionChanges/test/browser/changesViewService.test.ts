@@ -19,7 +19,10 @@ import { IAgentFeedbackService } from '../../../sessions/browser/agentFeedback.j
 import { AgentFeedbackState, IAgentFeedback } from '../../../sessions/browser/agentFeedbackModel.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../sessions/browser/codeReviewService.js';
 import { ChangesetReviewedFilesContext, ChangesViewService } from '../../browser/changesViewService.js';
-import { getChangesOfSession } from '../../../sessions/common/changesViewService.js';
+import { createChangesEditorScope } from '../../browser/changesView.js';
+import { getChangesOfSession, IChangesSessionScope } from '../../../sessions/common/changesViewService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { ChangesViewMode } from '../../../sessions/common/changes.js';
 import { ITestSessionWithChat, sessionHostServiceOf, withCreatedStatus } from '../../../sessions/test/browser/sessionHostTestUtils.js';
 import { IChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
@@ -309,6 +312,63 @@ suite('ChangesViewService', () => {
 		}, {
 			detailsViewState,
 			draftDetailsViewState: undefined,
+		});
+	});
+
+	test('a Changes editor of a chat in a chat window keeps the scope of that chat, and selects its changesets, while the window shows another chat; one of the session follows the window, and the main window\'s is unchanged', () => {
+		const createChat = (id: string) => upcastPartial<IChat>({
+			resource: URI.from({ scheme: 'test-chat', path: `/${id}` }),
+			changes: constObservable([]),
+			workspace: constObservable(undefined),
+			changesets: constObservable([
+				createChangeset([]),
+				upcastPartial<ISessionChangeset>({ ...createChangeset([]), id: SESSION_CHANGES_CHANGESET_ID, label: 'Session Changes', isDefault: constObservable(false) }),
+			]),
+		});
+		const chatA = createChat('a');
+		const chatB = createChat('b');
+		const session = createSession('s', { chats: constObservable([chatA, chatB]), activeChat: constObservable(chatA), mainChat: constObservable(chatA) });
+		const { service } = createHarness(session);
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None, getSession: resource => resource.toString() === session.resource.toString() ? session : undefined });
+		const contextKeyService = upcastPartial<IContextKeyService>({});
+		const windowChat = observableValue<IChat | undefined>('windowChat', chatB);
+		const chatWindowHost = new SessionHost({ kind: SessionHostKind.ChatWindow, parent: undefined, session: constObservable<ITestSessionWithChat | undefined>(session), chat: windowChat, contextKeyService });
+		const mainWindowHost = new SessionHost({ kind: SessionHostKind.MainWindow, parent: undefined, session: constObservable<ITestSessionWithChat | undefined>(session), chat: constObservable(chatA), contextKeyService });
+		const naming = (chat: IChat | undefined) => constObservable({ session: session.resource, chat: chat?.resource });
+		const ofNestedChat = createChangesEditorScope(service, sessionsManagementService, chatWindowHost, naming(chatB));
+		const ofWindowChat = createChangesEditorScope(service, sessionsManagementService, chatWindowHost, naming(chatA));
+		const ofSession = createChangesEditorScope(service, sessionsManagementService, chatWindowHost, naming(undefined));
+		const ofMainWindow = createChangesEditorScope(service, sessionsManagementService, mainWindowHost, naming(chatB));
+		const describe = (scope: IChangesSessionScope) => ({ chat: scope.chat.get()?.resource.path, changeset: scope.changes.changesetObs.get()?.id, isMainWindow: scope.isMainWindow });
+		const describeAll = () => ({ ofNestedChat: describe(ofNestedChat), ofWindowChat: describe(ofWindowChat), ofSession: describe(ofSession), ofMainWindow: describe(ofMainWindow) });
+
+		const nestedChatShown = describeAll();
+		windowChat.set(chatA, undefined);
+		// As the changeset picker of the editor of the nested chat selects one.
+		service.setChangesetId(SESSION_CHANGES_CHANGESET_ID, ofNestedChat.session.get(), ofNestedChat.chat.get());
+		const windowChatShown = describeAll();
+		windowChat.set(chatB, undefined);
+		const nestedChatShownAgain = describeAll();
+
+		assert.deepStrictEqual({ nestedChatShown, windowChatShown, nestedChatShownAgain }, {
+			nestedChatShown: {
+				ofNestedChat: { chat: '/b', changeset: 'branch', isMainWindow: false },
+				ofWindowChat: { chat: '/a', changeset: 'branch', isMainWindow: false },
+				ofSession: { chat: '/b', changeset: 'branch', isMainWindow: false },
+				ofMainWindow: { chat: '/a', changeset: 'branch', isMainWindow: true },
+			},
+			windowChatShown: {
+				ofNestedChat: { chat: '/b', changeset: SESSION_CHANGES_CHANGESET_ID, isMainWindow: false },
+				ofWindowChat: { chat: '/a', changeset: 'branch', isMainWindow: false },
+				ofSession: { chat: '/a', changeset: 'branch', isMainWindow: false },
+				ofMainWindow: { chat: '/a', changeset: 'branch', isMainWindow: true },
+			},
+			nestedChatShownAgain: {
+				ofNestedChat: { chat: '/b', changeset: SESSION_CHANGES_CHANGESET_ID, isMainWindow: false },
+				ofWindowChat: { chat: '/a', changeset: 'branch', isMainWindow: false },
+				ofSession: { chat: '/b', changeset: SESSION_CHANGES_CHANGESET_ID, isMainWindow: false },
+				ofMainWindow: { chat: '/a', changeset: 'branch', isMainWindow: true },
+			},
 		});
 	});
 

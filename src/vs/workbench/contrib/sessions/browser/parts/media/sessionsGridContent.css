@@ -9,6 +9,10 @@
 	z-index: 2;
 }
 
+.session-grid.single-chat :is(.session-header-bar[draggable="true"], .chat-composite-bar-toolbar-floating) {
+	cursor: default;
+}
+
 .monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor,
 .monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor .margin,
 .monaco-workbench :is(.part.sessionspart, .sessions-chat-surface) > .content .monaco-editor .monaco-editor-background {

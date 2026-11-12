@@ -126,6 +126,13 @@ export class QuickInputController extends Disposable {
 		this._container = options.container;
 		this.styles = options.styles;
 		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window: mainWindow, disposables: this._store }));
+		// It is created as it is first used: windows registered before then, such as an auxiliary window opened earlier, need
+		// their modifier keys tracked too, else accepting there never sees them (Alt+Enter to the side accepts as Enter).
+		for (const { window, disposables } of dom.getWindows()) {
+			if (window !== mainWindow) {
+				this.registerKeyModsListeners(window, disposables);
+			}
+		}
 		this._register(dom.onWillUnregisterWindow(window => {
 			if (this.ui && dom.getWindow(this.ui.container) === window) {
 				// The window this quick input is contained in is about to

@@ -632,6 +632,8 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			override readonly onDidReplaceSession = Event.None;
 			override readonly onDidStartSession = Event.None;
 			override readonly onDidDiscardNewSession = Event.None;
+			override readonly onDidAcceptNewSessionRequest = Event.None;
+			override readonly onDidEndNewSessionRequest = Event.None;
 			override getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 			override canMoveChat(session: ISession, chat: IChat): boolean { return chat !== session.mainChat.get() && !options?.fixed?.includes(chat.title.get()); }
 			override canMoveSessionUnder(session: ISession): boolean { return session.chats.get().length <= 1; }
