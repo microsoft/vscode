@@ -1008,6 +1008,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 
 			const disconnectReason = err instanceof NonReconnectableTransportError ? err.reason : AgentHostTransportFailureReason.Unknown;
+			const terminalConnectError = isTerminalConnectError(err);
+			if (terminalConnectError) {
+				this._cancelReconnect(address);
+			}
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
 			if (disconnectReason !== AgentHostTransportFailureReason.AuthenticationFailed) {
 				entry.lastConnectionError = attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined;
@@ -1018,7 +1022,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._rejectPendingConnectionWait(address, err);
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
-			if (disconnectReason === AgentHostTransportFailureReason.AuthenticationFailed || createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
+			if (terminalConnectError || createdConnection.reconnectManagedByClient || !this._scheduleReconnect(address, entryToCreate.connectionToken)) {
 				observer?.('failed');
 			}
 		}

@@ -644,6 +644,40 @@ suite('RemoteAgentHostService', () => {
 		});
 	});
 
+	test('does not retry a non-reconnectable transport rejection', () => runWithFakedTimers({}, async () => {
+		const results: { name: string; attempts: number; status: RemoteAgentHostConnectionStatus | undefined }[] = [];
+		for (const { name, error, closeFirst } of [
+			{ name: 'rejected', error: new NonReconnectableTransportError('Secure transport required'), closeFirst: false },
+			{ name: 'closed', error: new NonReconnectableTransportError('Secure transport required'), closeFirst: true },
+			{ name: 'transient', error: new Error('Connection refused'), closeFirst: false },
+		]) {
+			const address = `${name}.example:8081`;
+			const previousCount = createdClients.length;
+			configService.setEntries([{ name, connection: { type: RemoteAgentHostEntryType.WebSocket, address } }]);
+			await waitForCreatedClients(previousCount + 1);
+			const rejection = assert.rejects(service.waitForConnection(address), { message: error.message });
+			const client = createdClients[previousCount];
+			if (closeFirst) {
+				client.fireClose();
+			}
+			await client.connectDeferred.error(error);
+			await rejection;
+			await timeout(60_000);
+			results.push({
+				name,
+				attempts: createdClients.filter(client => client.mockAddress === address).length,
+				status: service.connections.find(connection => connection.address === address)?.status,
+			});
+			configService.setEntries([]);
+		}
+
+		assert.deepStrictEqual(results, [
+			{ name: 'rejected', attempts: 1, status: RemoteAgentHostConnectionStatus.disconnected },
+			{ name: 'closed', attempts: 1, status: RemoteAgentHostConnectionStatus.disconnected },
+			{ name: 'transient', attempts: 2, status: RemoteAgentHostConnectionStatus.connecting },
+		]);
+	}));
+
 	test('manages multiple connections independently', async () => {
 		configService.setEntries([
 			{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } },

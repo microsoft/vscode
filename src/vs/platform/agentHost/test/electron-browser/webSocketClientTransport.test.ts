@@ -7,7 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { WebSocketClientTransport } from '../../browser/webSocketClientTransport.js';
-import { getProtocolMessageSize, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
+import { parseRemoteAgentHostInput } from '../../common/remoteAgentHostService.js';
+import { getProtocolMessageSize, NonReconnectableTransportError, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 
 class TestWebSocket extends EventTarget implements WebSocket {
 	readonly CONNECTING = 0;
@@ -17,7 +18,7 @@ class TestWebSocket extends EventTarget implements WebSocket {
 	readonly bufferedAmount = 0;
 	readonly extensions = '';
 	readonly protocol = '';
-	readonly url = 'ws://test';
+	readonly url = 'wss://test';
 	readyState: WebSocket['readyState'] = 0;
 	binaryType: BinaryType = 'blob';
 	onopen: WebSocket['onopen'] = null;
@@ -32,12 +33,96 @@ class TestWebSocket extends EventTarget implements WebSocket {
 suite('WebSocketClientTransport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	async function connect(address: string, connectionToken: string | undefined) {
+		const socket = new TestWebSocket();
+		const urls: string[] = [];
+		const instantiation = store.add(new TestInstantiationService());
+		const transport = store.add(new class extends WebSocketClientTransport {
+			protected override createWebSocket(url: string): WebSocket {
+				urls.push(url);
+				return socket;
+			}
+		}(address, connectionToken, undefined, instantiation));
+		const connecting = transport.connect();
+		socket.readyState = socket.OPEN;
+		socket.dispatchEvent(new Event('open'));
+		const error = await connecting.then(() => undefined, error => {
+			if (!(error instanceof NonReconnectableTransportError)) {
+				throw error;
+			}
+			return error.message;
+		});
+		return { urls, error };
+	}
+
+	test('requires TLS for direct non-loopback connections before opening a socket', async () => {
+		const blocked = [
+			'my-server.example:8081',
+			'ws://my-server.example:8081',
+			'ws://192.0.2.1:8081',
+			'ws://[2001:db8::1]:8081',
+			'ws://localhost.example:8081',
+			'ws://127.0.0.1.example:8081',
+			'ws://localhost@my-server.example:8081',
+			'ws://my-server.example:8081/?next=ws://127.0.0.1',
+			'ws://0.0.0.0:8081',
+			'ws://[::]:8081',
+		];
+		const allowed = [
+			{ address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/?tkn=test-token' },
+			{ address: 'ws://127.0.0.1:9981', url: 'ws://127.0.0.1:9981/?tkn=test-token' },
+			{ address: 'ws://localhost:8081/agent?mode=local', url: 'ws://localhost:8081/agent?mode=local&tkn=test-token' },
+			{ address: 'ws://127.0.0.2:8081', url: 'ws://127.0.0.2:8081/?tkn=test-token' },
+			{ address: 'ws://127.1:8081', url: 'ws://127.0.0.1:8081/?tkn=test-token' },
+			{ address: 'ws://[::1]:8081', url: 'ws://[::1]:8081/?tkn=test-token' },
+			{ address: 'ws://[0:0:0:0:0:0:0:1]:8081', url: 'ws://[::1]:8081/?tkn=test-token' },
+			{ address: 'wss://my-server.example:8081/agent?mode=remote', url: 'wss://my-server.example:8081/agent?mode=remote&tkn=test-token' },
+		];
+		const results = await Promise.all([...blocked, ...allowed.map(value => value.address)].map(async address => ({
+			address,
+			...await connect(address, 'test-token'),
+		})));
+
+		assert.deepStrictEqual(results, [
+			...blocked.map(address => ({
+				address,
+				urls: [],
+				error: 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
+			})),
+			...allowed.map(({ address, url }) => ({ address, urls: [url], error: undefined })),
+		]);
+	});
+
+	test('enforces transport security after parsing remote host input', async () => {
+		const cases = [
+			{ input: 'my-server.example:8081', address: 'my-server.example:8081', url: undefined },
+			{ input: 'ws://my-server.example:8081', address: 'my-server.example:8081', url: undefined },
+			{ input: 'http://my-server.example:8081', address: 'my-server.example:8081', url: undefined },
+			{ input: '127.0.0.1:9981', address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/' },
+			{ input: 'ws://127.0.0.1:9981', address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/' },
+			{ input: 'http://127.0.0.1:9981', address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/' },
+			{ input: 'https://my-server.example:8081/agent?tkn=test%2Btoken&mode=remote', address: 'wss://my-server.example:8081/agent?mode=remote', url: 'wss://my-server.example:8081/agent?mode=remote&tkn=test%2Btoken' },
+		];
+		const results = await Promise.all(cases.map(async ({ input }) => {
+			const { parsed } = parseRemoteAgentHostInput(input);
+			assert.ok(parsed);
+			return { input, address: parsed.address, ...await connect(parsed.address, parsed.connectionToken) };
+		}));
+
+		assert.deepStrictEqual(results, cases.map(({ input, address, url }) => ({
+			input,
+			address,
+			urls: url ? [url] : [],
+			error: url ? undefined : 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
+		})));
+	});
+
 	test('sends only AHP messages without Web PubSub capability controls', async () => {
 		const socket = new TestWebSocket();
 		const instantiation = store.add(new TestInstantiationService());
 		const transport = store.add(new class extends WebSocketClientTransport {
 			protected override createWebSocket(): WebSocket { return socket; }
-		}('ws://test', undefined, undefined, instantiation));
+		}('wss://test', undefined, undefined, instantiation));
 		const received: object[] = [];
 		store.add(transport.onMessage(message => received.push(message)));
 		const connecting = transport.connect();
@@ -59,7 +144,7 @@ suite('WebSocketClientTransport', () => {
 			const instantiation = store.add(new TestInstantiationService());
 			const transport = store.add(new class extends WebSocketClientTransport {
 				protected override createWebSocket(): WebSocket { return socket; }
-			}('ws://test', undefined, undefined, instantiation));
+			}('wss://test', undefined, undefined, instantiation));
 			let closeCount = 0;
 			const details: ITransportCloseDetails[] = [];
 			store.add(transport.onClose(() => closeCount++));

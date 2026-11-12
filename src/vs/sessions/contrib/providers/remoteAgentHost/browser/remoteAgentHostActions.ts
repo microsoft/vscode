@@ -75,8 +75,8 @@ registerAction2(class extends Action2 {
 		// Prompt for address
 		const address = await quickInputService.input({
 			title: localize('addRemoteTitle', "Add Remote Agent Host"),
-			prompt: localize('addRemotePrompt', "Paste a host, host:port, or WebSocket URL. Example: {0}", 'ws://127.0.0.1:8089'),
-			placeHolder: 'ws://127.0.0.1:8080?tkn=abc-123',
+			prompt: localize('addRemotePrompt', "Paste a secure WebSocket URL, or a loopback host or host:port. Example: {0}", 'wss://host.example:8089'),
+			placeHolder: 'wss://host.example:8080?tkn=abc-123',
 			ignoreFocusLost: true,
 			validateInput: async value => {
 				const result = parseRemoteAgentHostInput(value);
