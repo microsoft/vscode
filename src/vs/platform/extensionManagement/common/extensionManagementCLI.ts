@@ -149,6 +149,7 @@ export class ExtensionManagementCLI {
 		const availableVersions = await this.extensionGalleryService.getExtensions(installedExtensionsQuery, { compatible: true }, CancellationToken.None);
 
 		const extensionsToUpdate: InstallExtensionInfo[] = [];
+		const previousVersionsByExtension = new Map<string, string>();
 		for (const newVersion of availableVersions) {
 			for (const oldVersion of installedExtensions) {
 				if (areSameExtensions(oldVersion.identifier, newVersion.identifier) && gt(newVersion.version, oldVersion.manifest.version)) {
@@ -156,6 +157,7 @@ export class ExtensionManagementCLI {
 						extension: newVersion,
 						options: { operation: InstallOperation.Update, installPreReleaseVersion: oldVersion.preRelease, profileLocation, isApplicationScoped: oldVersion.isApplicationScoped }
 					});
+					previousVersionsByExtension.set(newVersion.identifier.id.toLowerCase(), oldVersion.manifest.version);
 				}
 			}
 		}
@@ -172,7 +174,13 @@ export class ExtensionManagementCLI {
 			if (extensionResult.error) {
 				this.logger.error(localize('errorUpdatingExtension', "Error while updating extension {0}: {1}", extensionResult.identifier.id, getErrorMessage(extensionResult.error)));
 			} else {
-				this.logger.info(localize('successUpdate', "Extension '{0}' v{1} was successfully updated.", extensionResult.identifier.id, extensionResult.local?.manifest.version));
+				const previousVersion = previousVersionsByExtension.get(extensionResult.identifier.id.toLowerCase());
+				const updatedVersion = extensionResult.local?.manifest.version;
+				if (previousVersion && updatedVersion) {
+					this.logger.info(localize('successUpdateWithVersions', "Extension '{0}' was successfully updated from v{1} to v{2}.", extensionResult.identifier.id, previousVersion, updatedVersion));
+				} else {
+					this.logger.info(localize('successUpdate', "Extension '{0}' v{1} was successfully updated.", extensionResult.identifier.id, updatedVersion));
+				}
 			}
 		}
 	}
