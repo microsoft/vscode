@@ -7,6 +7,8 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import type { IManagedHoverContentOrFactory } from '../../../../../../base/browser/ui/hover/hover.js';
+import type { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Action, IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, raceTimeout, retry, timeout } from '../../../../../../base/common/async.js';
@@ -3045,11 +3047,11 @@ suite('ChatListRenderer', () => {
 						return true;
 					},
 				}));
-				const previews = new Map<HTMLElement, IManagedHoverContentOrFactory>();
+				const previews = new Map<HTMLElement, { readonly delegate: IHoverDelegate; readonly content: IManagedHoverContentOrFactory }>();
 				instantiationService.stub(IHoverService, {
 					...NullHoverService,
 					setupManagedHover: (delegate, target, content) => {
-						previews.set(target, content);
+						previews.set(target, { delegate, content });
 						return NullHoverService.setupManagedHover(delegate, target, content);
 					},
 				});
@@ -3063,15 +3065,15 @@ suite('ChatListRenderer', () => {
 				disposables.add(renderer.onDidClickRequest(() => editRequests++));
 				request.response?.complete();
 				const link = `https://github.com/microsoft/vscode/${path}/346788`;
-				const text = `Investigate ${link}`;
-				model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] }, { variables: [...getGitHubIssueOrPullRequestAttachments(link)] }, 0);
+				const text = `Investigate ${link} and https://github.com/microsoft/vscode/${path}/346789`;
+				model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] }, { variables: [...getGitHubIssueOrPullRequestAttachments(text)] }, 0);
 				renderer.renderElement({ ...node, element: viewModel.getItems().filter(isRequestVM)[1] }, 2, template);
-				const pill = template.value.querySelector<HTMLElement>('.chat-attached-context-attachment');
-				assert.ok(pill);
+				const [pill, otherPill] = template.value.querySelectorAll<HTMLElement>('.chat-attached-context-attachment');
+				assert.ok(pill && otherPill);
 
 				const preview = previews.get(pill);
-				if (typeof preview === 'function') {
-					preview();
+				if (typeof preview?.content === 'function') {
+					preview.content();
 				}
 				pill.click();
 				pill.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
@@ -3080,11 +3082,14 @@ suite('ChatListRenderer', () => {
 				assert.deepStrictEqual({
 					inline: !!pill.closest('.rendered-markdown .chat-request-inline-attachment'),
 					preview: { kind: reference?.kind, target: reference?.target },
+					// Moving between the pills of a request shows the next preview without waiting again.
+					sharesInstantHover: !!preview && preview.delegate === previews.get(otherPill)?.delegate && preview.delegate !== getDefaultHoverDelegate('element'),
 					opened,
 					editRequests,
 				}, {
 					inline,
 					preview: { kind, target: { owner: 'microsoft', repo: 'vscode', number: 346788 } },
+					sharesInstantHover: true,
 					opened: [link, link],
 					editRequests: 0,
 				});
