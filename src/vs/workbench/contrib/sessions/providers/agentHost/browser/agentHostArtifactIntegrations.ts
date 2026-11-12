@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, observableValueOpts } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, observableValueOpts } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -43,15 +43,18 @@ export type ArtifactWorkspaceConfigurationSynchronizer = (
 	artifactId: string,
 	workspace: IObservable<IArtifactWorkspaceConfigurationContext | undefined>,
 	snapshot: IObservable<ArtifactSnapshot | undefined>,
-) => void;
+) => IObservable<boolean>;
 
 interface IArtifactWorkspaceConfigurationSource {
 	readonly workspace: IObservable<IArtifactWorkspaceConfigurationContext | undefined>;
-	readonly snapshot: IObservable<ArtifactSnapshot>;
+	readonly snapshot: IObservable<ArtifactSnapshot | undefined>;
 }
 
 interface IArtifactWorkspaceConfigurationWriter {
 	readonly sources: ISettableObservable<readonly IArtifactWorkspaceConfigurationSource[]>;
+	/** Whether a changed value is waiting to settle before it is published. */
+	readonly pending: IObservable<boolean>;
+	readonly release: MutableDisposable<IDisposable>;
 	readonly store: DisposableStore;
 }
 
@@ -354,21 +357,40 @@ export class AgentHostArtifactIntegrations extends Disposable {
 			const sources = observableValue<readonly IArtifactWorkspaceConfigurationSource[]>(this, []);
 			const current = derived(reader => sources.read(reader).at(-1));
 			const store = new DisposableStore();
-			synchronize(store, this.connection, () => this.selected === 'host', session, artifactId,
+			const pending = synchronize(store, this.connection, () => this.selected === 'host', session, artifactId,
 				derived(reader => current.read(reader)?.workspace.read(reader)),
 				derived(reader => current.read(reader)?.snapshot.read(reader)));
-			writer = { sources, store };
+			writer = { sources, pending, release: store.add(new MutableDisposable()), store };
 			this.workspaceConfigurationWriters.set(key, writer);
 		}
 		const retained = writer;
-		retained.sources.set([...retained.sources.get(), source], undefined);
+		if (retained.release.value) {
+			// The released context was only kept to settle its publication.
+			retained.release.clear();
+			retained.sources.set([source], undefined);
+		} else {
+			retained.sources.set([...retained.sources.get(), source], undefined);
+		}
 		return toDisposable(() => {
 			const remaining = retained.sources.get().filter(candidate => candidate !== source);
 			if (remaining.length > 0) {
 				retained.sources.set(remaining, undefined);
-			} else if (this.workspaceConfigurationWriters.get(key) === retained) {
-				this.workspaceConfigurationWriters.delete(key);
-				retained.store.dispose();
+			} else if (this.workspaceConfigurationWriters.get(key) === retained && !retained.release.value) {
+				const disposeWriter = () => {
+					this.workspaceConfigurationWriters.delete(key);
+					retained.store.dispose();
+				};
+				if (!retained.pending.get()) {
+					disposeWriter();
+					return;
+				}
+				// Host automation outlives the reference, so a change still settling is published with the last context.
+				retained.sources.set([{ workspace: constObservable(source.workspace.get()), snapshot: constObservable(source.snapshot.get()) }], undefined);
+				retained.release.value = autorun(reader => {
+					if (!retained.pending.read(reader) && this.workspaceConfigurationWriters.get(key) === retained) {
+						disposeWriter();
+					}
+				});
 			}
 		});
 	}

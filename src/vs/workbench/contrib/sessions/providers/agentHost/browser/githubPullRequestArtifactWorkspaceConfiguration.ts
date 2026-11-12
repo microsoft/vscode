@@ -5,7 +5,7 @@
 
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
-import { autorun, observableSignal, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, derived, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey, gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -26,12 +26,12 @@ export function createGitHubPullRequestArtifactWorkspaceConfigurationSynchronize
 		const settingsChanged = observableSignalFromEvent(store, configurationService.onDidChangeConfiguration);
 		let lastValue: WorkspaceSettings | undefined;
 		let lastConnection: IAgentConnection | undefined;
-		let pending: { readonly connection: IAgentConnection; readonly value: WorkspaceSettings } | undefined;
+		const pending = observableValue<{ readonly connection: IAgentConnection; readonly value: WorkspaceSettings } | undefined>('pendingWorkspaceSettings', undefined);
 		const settingsKey = gitHubPullRequestArtifactWorkspaceSettingsKey(artifactId);
 		const resync = observableSignal(store);
 		const publish = store.add(new RunOnceScheduler(() => {
-			const next = pending;
-			pending = undefined;
+			const next = pending.get();
+			pending.set(undefined, undefined);
 			if (next && isHostSelected()) {
 				lastValue = next.value;
 				next.connection.dispatch(session, {
@@ -60,7 +60,7 @@ export function createGitHubPullRequestArtifactWorkspaceConfigurationSynchronize
 			const integrated = snapshot.read(reader)?.contributions.some(contribution => contribution.integrationId === gitHubPullRequestArtifactIntegrationId) ?? false;
 			if (!isHostSelected() || connection?.connectionAvailable?.read(reader) !== true || !integrated) {
 				lastValue = undefined;
-				pending = undefined;
+				pending.set(undefined, undefined);
 				publish.cancel();
 				return;
 			}
@@ -71,14 +71,16 @@ export function createGitHubPullRequestArtifactWorkspaceConfigurationSynchronize
 			const inspected = context ? configurationService.inspect<readonly string[]>(gitHubPullRequestMarkReadyIgnoredChecksSetting, { resource: context.resource }) : undefined;
 			const ignoredChecks = inspected?.workspaceFolderValue ?? inspected?.workspaceValue;
 			const value: WorkspaceSettings = context && ignoredChecks !== undefined ? { chat: context.chat, workingDirectory: context.workingDirectory, ignoredChecks } : null;
+			const current = pending.read(undefined);
 			if (structuralEquals(value, lastValue)) {
-				pending = undefined;
+				pending.set(undefined, undefined);
 				publish.cancel();
-			} else if (pending?.connection !== connection || !structuralEquals(value, pending.value)) {
+			} else if (current?.connection !== connection || !structuralEquals(value, current.value)) {
 				// Each distinct value restarts the delay, so a value that keeps alternating is never published.
-				pending = { connection, value };
+				pending.set({ connection, value }, undefined);
 				publish.schedule();
 			}
 		}));
+		return derived(reader => pending.read(reader) !== undefined);
 	};
 }

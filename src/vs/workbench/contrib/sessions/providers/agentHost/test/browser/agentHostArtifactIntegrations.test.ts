@@ -610,6 +610,17 @@ suite('Agent Host artifact workspace settings', () => {
 		assert.deepStrictEqual(f.patches, [f.patch('file:///worktree-a'), f.patch('file:///worktree-b')]);
 	}));
 
+	test('publishes a change still settling when its last reference is released, unless the connection is lost first', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///worktree-a'))).dispose();
+		await f.settle();
+		(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///worktree-b'))).dispose();
+		f.connected.set(false, undefined);
+		f.connected.set(true, undefined);
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///worktree-a')]);
+	}));
+
 	for (const remoteAddress of [undefined, 'custom-host:opaque-address']) {
 		test(`artifact sign-in uses the advertised resource and ${remoteAddress ? 'remote credential transform' : 'local authentication flow'}`, async () => {
 			const { instantiation } = createInstantiation(store);
