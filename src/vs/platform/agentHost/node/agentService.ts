@@ -11397,6 +11397,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._configurationService.getRootValue(chatProvidersRootConfigSchema, ChatProvidersConfigKey.Enabled) === true;
 	}
 
+	enableMultipleChatProviders(): void {
+		if (!this.multipleChatProvidersEnabled) {
+			this._configurationService.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+		}
+	}
+
 	async listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
 		return this._automationService.listTriggerDefinitions(params);
 	}

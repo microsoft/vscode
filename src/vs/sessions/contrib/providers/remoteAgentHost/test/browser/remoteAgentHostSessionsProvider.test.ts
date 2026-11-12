@@ -4573,7 +4573,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
 			new NullRemoteAgentHostService(),
 			upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-			new NullLogService(),
+			upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 		));
 		let notifications = 0;
 		disposables.add(resolutions.onDidChangeSessionResolution(() => notifications++));

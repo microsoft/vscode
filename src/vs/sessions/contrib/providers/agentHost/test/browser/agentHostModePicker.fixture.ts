@@ -15,7 +15,6 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { getAgentHostOperatingSystem } from '../../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -256,7 +255,6 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			permissionPicker.render(permissionActionItem);
 			showSeparatePermissions = () => permissionPicker.show(permissionActionItem);
 		}
-		await getAgentHostOperatingSystem(hostService);
 	} else {
 		const picker = disposableStore.add(instantiationService.createInstance(AgentHostModePicker, testChatSourceOf(session)));
 		picker.render(actionItem);
@@ -275,7 +273,6 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 				showSeparatePermissions = () => permissionPicker.show();
 			}
 		}
-		await getAgentHostOperatingSystem(connection);
 	}
 	if (openPermissions || editor || openMode) {
 		await dom.getWindow(toolbar).document.fonts.ready;

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts, TestLayoutService, TestMenuService } from '../../../../test/browser/workbenchTestServices.js';
+import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider, GroupActivationReason, IEditorGroupActivationEvent } from '../../common/editorGroupsService.js';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -247,6 +248,25 @@ suite('EditorGroupsService', () => {
 		part.activateGroup(rootGroup);
 		await part.sideGroup.openEditor(input3, { pinned: true });
 		assert.strictEqual(part.count, 2);
+	});
+
+	test('main part shows the new tab button of its menu in the tab bar of its groups', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const requestedMenus: MenuId[] = [];
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+				requestedMenus.push(id);
+				return super.createMenu(id, contextKeyService);
+			}
+		});
+		const [part] = await createPart(instantiationService);
+		part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+
+		assert.deepStrictEqual({
+			requested: requestedMenus.filter(id => id === MenuId.EditorTabsBarAddTab).length,
+			// Hidden while its menu has no entries, as while the setting is off.
+			hidden: [...part.element.querySelectorAll('.tabs-bar-add-tab')].map(element => element.classList.contains('hidden')),
+		}, { requested: 2, hidden: [true, true] });
 	});
 
 	test('save & restore state', async function () {

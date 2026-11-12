@@ -122,6 +122,7 @@ export class MenuId {
 	static readonly EditorGroupWatermarkToolbar = new MenuId('EditorGroupWatermarkToolbar');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
 	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
+	static readonly EditorTabsBarAddTab = new MenuId('EditorTabsBarAddTab');
 	static readonly EditorTabsBarShowTabsZenModeSubmenu = new MenuId('EditorTabsBarShowTabsZenModeSubmenu');
 	static readonly EditorActionsPositionSubmenu = new MenuId('EditorActionsPositionSubmenu');
 	static readonly DiffEditorViewSubmenu = new MenuId('DiffEditorViewSubmenu');

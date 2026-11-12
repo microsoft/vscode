@@ -442,10 +442,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		}
 	}
 
-	/**
-	 * Transport for the new assignments endpoint, backed by the main-process request service
-	 * (avoids renderer CORS). Shape matches tas-client's injectable `assignmentsFetch`.
-	 */
 	private readonly assignmentsFetch = async (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string }, token = CancellationToken.None): Promise<{ status: number; json(): Promise<unknown> }> => {
 		const context = await this.requestService.request({
 			type: init.method,
@@ -655,8 +651,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			extensionName: 'vscode-core',
 			assignmentsEndpoint,
 			assignmentsFilterProviders: assignmentsEndpoint ? assignmentsFilterProviders : undefined,
-			// Route the assignments request through the main-process request service so it is
-			// not subject to renderer CORS (parity with how core reaches api.github.com).
 			assignmentsFetch: (url, init) => {
 				if (revoked) {
 					throw new CancellationError();

@@ -109,6 +109,8 @@ suite('ResponseSelectionSideChatController', () => {
 
 		const markdown = doc.createElement('div');
 		markdown.classList.add('chat-markdown-part');
+		markdown.style.userSelect = 'text';
+		markdown.style.webkitUserSelect = 'text';
 		// Positioned so the selection's real client rects (the controller
 		// measures the range itself) land at known coordinates.
 		markdown.style.position = 'absolute';
