@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type NetworkConfig, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type CopilotSession, type GitHubTelemetryNotification, type NetworkConfig, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -26,8 +26,9 @@ import { generateUuid, isUUID } from '../../../../base/common/uuid.js';
 import { parseFrontMatter, parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CopilotForkTiming } from './copilotForkTiming.js';
-import { setCopilotRepositoryPluginEnabled } from './copilotRepositoryPluginSettings.js';
+import { readCopilotRepositoryPluginEnablement, setCopilotRepositoryPluginEnabled } from './copilotRepositoryPluginSettings.js';
 import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../common/meta/pluginEnablementMeta.js';
+import { toCopilotAccountModelCatalog } from './copilotAccountModelCatalog.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { Promises as FsPromises } from '../../../../base/node/pfs.js';
 import { detectLibcSync } from '../../../../base/node/libc.js';
@@ -56,8 +57,12 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostBrowserUseEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, AgentHostWorkspaceTrustConfigKey, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
-import { CopilotEntraAuthentication } from './copilotEntraAuthentication.js';
+import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from './copilotEntraAuthentication.js';
+import { ICopilotAccountService } from './copilotAccountService.js';
+import { isMicrosoftCopilotAccountContext, type CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
+import { toCopilotMessageSource } from './copilotMessageSource.js';
+import type { AgentMessageProvenance } from '../../common/agentMessageProvenance.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore, COPILOT_BUILTIN_AGENTS, getCopilotBuiltinAgentUri } from './copilotBuiltinAgents.js';
 import { buildCopilotBuiltinSkillsContainer } from './copilotBuiltinSkills.js';
@@ -1166,6 +1171,14 @@ function extensionHostCliRepositoryPath(marker: IExtensionHostCliMarker | undefi
 	return typeof path === 'string' && path.length > 0 ? path : undefined;
 }
 
+/** The catalog status while a Microsoft account has no service ready to list models from. */
+function getUnlistedAccountCatalogStatus(context: CopilotAccountContext): AgentModelCatalogStatus | undefined {
+	if (context.kind === 'legacy' || context.kind === 'ready') {
+		return undefined;
+	}
+	return context.kind === 'error' ? 'error' : 'pending';
+}
+
 /**
  * Shape of the extension-host Copilot CLI `vscode.requests.metadata.json`
  * sidecar written next to a session's SDK event log. Only the fields adoption
@@ -1213,8 +1226,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	);
 	private readonly _entraAuthentication: CopilotEntraAuthentication | undefined;
 	readonly authenticationRequired: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined> = derived(this, reader =>
-		// One requirement is published at a time. GitHub's goes first, so a pending Microsoft one cannot hide it.
-		this._authenticationRequired.read(reader) ?? this._entraAuthentication?.authenticationRequired.read(reader));
+		isMicrosoftCopilotAccountContext(this._accountService.state.read(reader))
+			? this._entraAuthentication?.authenticationRequired.read(reader)
+			: this._authenticationRequired.read(reader) ?? this._entraAuthentication?.authenticationRequired.read(reader));
 	private readonly _automationAuthenticationReady = observableValue(this, false);
 	/**
 	 * Membership channel for chats the agent spawns itself — sub-agents
@@ -1497,6 +1511,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _readOnlyChatInputErrors = new Map<string, ErrorInfo>();
 	/** Live session -> the turn whose `prepareTurn` launched it; dropped with the session. */
 	private readonly _preparedTurnLaunches = new WeakMap<CopilotAgentSession, string>();
+	/** Chats an import is resuming, whose launch keeps the permission mode the runtime restored. */
+	private readonly _chatsKeepingRestoredPermissionMode = new Set<string>();
 	/**
 	 * Last host-published customization snapshot per configuration scope (AGENTS.md section 8b).
 	 * Updated only from host call boundaries; absence is distinct from an empty list.
@@ -1543,11 +1559,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IRequestService requestService: IRequestService,
+		@ICopilotAccountService private readonly _accountService: ICopilotAccountService,
 	) {
 		super();
 		this._managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
-		if (this._configurationService.copilotM365EnabledAtStartup) {
-			this._entraAuthentication = this._register(this._instantiationService.createInstance(CopilotEntraAuthentication));
+		this._entraAuthentication = this._accountService.authentication;
+		if (this._entraAuthentication) {
+			this._register(autorun(reader => this._onDidChangeAccountContext(this._accountService.state.read(reader))));
 			this._register(this._entraAuthentication.onDidRevoke(() => {
 				void this._requestClientRestart('Microsoft authentication cleared').catch(error => this._logService.error('[Copilot] Failed to restart runtime after Microsoft authentication was cleared', error));
 			}));
@@ -1889,6 +1907,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (chat && this._credentialSources.has(chat.toString())) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Scoped Copilot runtime is unavailable');
 		}
+		if (isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
+			this._accountService.requireReady();
+			return CopilotGitHubSessionCredentials.fromClientAuthentication(undefined);
+		}
 		const credentials = this._githubCredentials.forSession();
 		return this._getEnterpriseHost() && !scoped?.workspace
 			? CopilotGitHubSessionCredentials.fromClientAuthentication(credentials.token)
@@ -1999,6 +2021,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _ensureClientForSession(): Promise<CopilotClient> {
+		if (isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
+			this._accountService.requireReady();
+		}
 		while (true) {
 			const client = await this._ensureClient();
 			const authentication = this._clientStartupAuthentication;
@@ -2637,12 +2662,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Keep the legacy GitHub requirement until the account-choice gate is retired; default-on cleanup is separate.
 			this._entraAuthentication || this._byokModels.length > 0 ? { ...copilotResource, required: false } : copilotResource,
 			this._gitHubEndpointService.getRepoResource(),
-			...(this._entraAuthentication?.getProtectedResources(reader) ?? []),
+			...(this._entraAuthentication ? this._accountService.getProtectedResources(reader) : []),
 		];
 	}
 
 	validateAuthentication(params: AuthenticateParams): void {
-		this._entraAuthentication?.validateAuthentication(params);
+		this._entraAuthentication?.validateAuthentication(params, this.getProtectedResources().find(resource => resource.resource === params.resource));
 	}
 
 	async getNetworkDiagnosticsEndpoints(): Promise<readonly IAgentHostNetworkEndpoint[]> {
@@ -3167,6 +3192,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const installed = plugins.filter(plugin => plugin.installed !== false && plugin.source !== 'builtin');
 		const live = this._findPluginOperationSession(session, chat);
 		const effective = installed.length && live ? await live.listInstalledPlugins() : undefined;
+		const workingDirectory = live?.workingDirectory;
+		const repositoryEnablement = workingDirectory?.scheme === Schemas.file
+			? await readCopilotRepositoryPluginEnablement(this._fileService, workingDirectory) : undefined;
 		return installed.map(plugin => {
 			const matches = effective?.filter(candidate => {
 				if (plugin.id && candidate.id) {
@@ -3191,6 +3219,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// A ready chat omits inactive plugins; an unavailable inventory must remain pending.
 				effectiveEnabled: matches.length === 1 ? matches[0].enabled : effective !== undefined && matches.length === 0 && !ambiguous ? false : undefined,
 				managedDesiredEnabled: plugin.managedDesiredEnabled,
+				...(plugin.marketplace && repositoryEnablement ? { repositoryEnabled: repositoryEnablement.get(`${plugin.name}@${plugin.marketplace}`) ?? null } : {}),
 				resource: plugin.rootPath && isAbsolute(plugin.rootPath) ? URI.file(plugin.rootPath) : undefined,
 				contentRevision: this._plugins.runtimePluginContentRevision,
 				version: plugin.version,
@@ -3506,7 +3535,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return context;
 	}
 
-	async setPluginEnabled(plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+	async setPluginEnabled(plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+		if (scope === 'global' && enabled === null) {
+			throw new Error(localize('copilot.pluginGlobalInheritanceUnsupported', "Global plugin enablement must be enabled or disabled."));
+		}
 		if (scope === 'repository' && !this._findPluginOperationSession(session, chat)) {
 			throw new Error(localize('copilot.pluginEnablementChatRequired', "Repository plugin enablement requires an active chat in the target session."));
 		}
@@ -3531,7 +3563,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (!repository) {
 					throw new Error(localize('copilot.pluginEnablementRepositoryRequired', "The working directory is not in a Git repository."));
 				}
-				await setCopilotRepositoryPluginEnabled(this._fileService, repository, `${installed.name}@${installed.marketplace}`, enabled);
+				await setCopilotRepositoryPluginEnabled(this._fileService, workingDirectory, `${installed.name}@${installed.marketplace}`, enabled);
 				return;
 			}
 			if (enabled) {
@@ -3548,6 +3580,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await Promise.all(this._allLiveSessions().map(session =>
 			this._queueChat(session.sessionId, session.sessionId, 'reloadPluginEnablement', () => session.reloadPlugins('enablement'))));
 		await this._refreshDiscoveredCustomizations(false);
+		if (scope === 'repository') {
+			const installation = (await this.listPluginInstallations(session, chat)).find(candidate =>
+				candidate.marketplace && `${candidate.name}@${candidate.marketplace}` === plugin);
+			if (!installation || installation.effectiveEnabled === undefined || installation.repositoryEnabled !== enabled
+				|| installation.effectiveEnabled !== (enabled ?? installation.enabled)) {
+				throw new Error(localize('copilot.pluginRepositoryEnablementNotApplied', "The repository setting for plugin '{0}' was saved, but the runtime did not apply it to this chat.", plugin));
+			}
+		}
 	}
 
 	async installPlugin(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -3784,6 +3824,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	isReadyForAutomation(model: ModelSelection | undefined, reader?: IReader): boolean {
+		if (isMicrosoftCopilotAccountContext(this._accountService.state.read(reader))) {
+			return false;
+		}
 		const authenticated = this._automationAuthenticationReady.read(reader) && this._authenticationRequired.read(reader) === undefined;
 		if (authenticated) {
 			return true;
@@ -3804,27 +3847,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return false;
 		}
 		const endpointGeneration = this._gitHubEndpointGeneration;
-		await this._authenticationSequencer.queue(async () => {
-			if (endpointGeneration !== this._gitHubEndpointGeneration) {
-				return;
+		return this._authenticationSequencer.queue(async () => {
+			if (token && isMicrosoftCopilotAccountContext(this._accountService.state.get())) {
+				await this._entraAuthentication!.authenticate({ resource: copilotEntraDiscoveryMetadata.resource, token: '' });
 			}
-			this._automationAuthenticationReady.set(false, undefined);
-			// Only a supplied credential rearms the requirement. Clearing it for an
-			// empty token would silence the outstanding requirement when a second
-			// revocation arrives while the agent is already tokenless, because
-			// `_applyGitHubToken` returns early for an unchanged token.
-			if (token) {
-				this._githubCredentialInvalid = false;
-				this._authenticationRequired.set(undefined, undefined);
-			}
-			await this._applyGitHubToken(token || undefined, expiresIn);
-			if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== (token || undefined)) {
-				return;
-			}
-			this._automationAuthenticationReady.set(token.length > 0, undefined);
+			return this._applyGitHubAuthentication(token, expiresIn, endpointGeneration, _meta);
 		});
+	}
+
+	private async _applyGitHubAuthentication(token: string, expiresIn: number | undefined, endpointGeneration: number, _meta?: Record<string, unknown>): Promise<boolean> {
+		if (endpointGeneration !== this._gitHubEndpointGeneration) {
+			return false;
+		}
+		this._automationAuthenticationReady.set(false, undefined);
+		// Duplicate revocation must leave the outstanding credential requirement armed.
+		if (token) {
+			this._githubCredentialInvalid = false;
+			this._authenticationRequired.set(undefined, undefined);
+		}
+		await this._applyGitHubToken(token || undefined, expiresIn);
+		if (endpointGeneration !== this._gitHubEndpointGeneration || this._githubCredentials.token !== (token || undefined)) {
+			return false;
+		}
+		this._automationAuthenticationReady.set(token.length > 0, undefined);
 		const entitlement = readAgentEntitlementHint({ _meta });
-		if (token && entitlement && endpointGeneration === this._gitHubEndpointGeneration && this._githubCredentials.token === token) {
+		if (token && entitlement) {
 			void this._copilotApiService.refreshCopilotUser?.(token, entitlement.trackingId, entitlement.sku).then(async () => {
 				if (endpointGeneration === this._gitHubEndpointGeneration && this._githubCredentials.token === token) {
 					await this._resolveRestrictedTelemetry(token);
@@ -3937,8 +3984,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
+	async completeAuthentication(params: AuthenticateParams): Promise<void> {
+		if (!this._entraAuthentication || params.target || !params.token) {
+			return;
+		}
+		const context = this._accountService.state.get();
+		if (params.resource === copilotEntraDiscoveryMetadata.resource || context.kind === 'choiceRequired' && context.choices.some(choice => choice.resource === params.resource)) {
+			await this._authenticationSequencer.queue(async () => {
+				if (this._accountService.state.get().kind === 'legacy') {
+					this._clearLegacySessions();
+					await this._applyGitHubToken(undefined, undefined);
+				}
+				await this._accountService.authenticate(this._ensureClient(), params);
+			});
+		}
+	}
+
 	async handleAuthenticationToken(params: AuthenticateParams): Promise<boolean> {
-		if (await this._entraAuthentication?.authenticate(params)) {
+		if (await this._entraAuthentication?.authenticate(params, this.getProtectedResources().find(resource => resource.resource === params.resource))) {
 			if (!params.token) {
 				await this._clientStopping;
 			}
@@ -4472,21 +4535,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 
 		const tokenAtRefreshStart = this._githubCredentials.token;
-		if (!tokenAtRefreshStart) {
+		const accountContext = this._accountService.state.get();
+		const unlistedStatus = getUnlistedAccountCatalogStatus(accountContext);
+		if (unlistedStatus) {
+			this._publishModelCatalogStatus(unlistedStatus);
+			return;
+		}
+		if (!tokenAtRefreshStart && accountContext.kind === 'legacy') {
 			this._capiModels = [];
 			this._managedModelPolicy = undefined;
 			this._publishModels();
 			this._publishModelCatalogStatus('ready');
 			return;
 		}
+		const isCurrent = () => this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation && this._accountService.state.get() === accountContext;
 		try {
 			const client = await this._ensureClient();
-			const { models, autoTierMetadata, freeLongContextModels } = await this._listModels(client, tokenAtRefreshStart);
-			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
+			const session = accountContext.kind === 'ready' ? await this._accountService.getSession(accountContext, Promise.resolve(client)) : undefined;
+			const { models, autoTierMetadata, freeLongContextModels } = await this._listModels(client, tokenAtRefreshStart, this._capiModels, session);
+			if (!isCurrent() || this._shutdownPromise) {
 				return;
 			}
-			const modelPolicy = await this._managedSettingsResolver.resolve(client.rpc.managedSettings, tokenAtRefreshStart);
-			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
+			// TODO@TylerLeonhardt: the runtime cannot resolve managed settings for a Microsoft account yet, so none are applied to its catalog.
+			const modelPolicy = session ? undefined : await this._managedSettingsResolver.resolve(client.rpc.managedSettings, tokenAtRefreshStart);
+			if (isCurrent()) {
 				this._setAutoTierMetadata(autoTierMetadata);
 				this._capiModels = models;
 				this._managedModelPolicy = modelPolicy;
@@ -4501,10 +4573,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Token rotated mid-flight — a newer refresh owns the result — or
 			// teardown began while the request was in flight, in which case a
 			// retry would just resurrect the client we are tearing down.
-			if (this._githubCredentials.token !== tokenAtRefreshStart || this._modelCatalogGeneration !== generation || this._shutdownPromise) {
+			if (!isCurrent() || this._shutdownPromise) {
 				return;
 			}
-			if (/\b401\b/.test(getErrorMessage(err))) {
+			if (accountContext.kind === 'legacy' && /\b401\b/.test(getErrorMessage(err))) {
 				this._handleCopilotSessionAuthRequired();
 			}
 			await this._handleClientOperationFailure(err, 'modelRefresh');
@@ -4532,6 +4604,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _publishModelCatalogStatus(status: AgentModelCatalogStatus): void {
 		this._configurationService.publishRootTransientValues?.({ [agentModelCatalogStatusKey(this.id)]: status });
+	}
+
+	/** Another account's catalog and policy never carry over to the context that replaced it. */
+	private _onDidChangeAccountContext(context: CopilotAccountContext): void {
+		this._capiModels = [];
+		this._managedModelPolicy = undefined;
+		this._setAutoTierMetadata(undefined);
+		this._freeLongContextModels.clear();
+		this._publishModels();
+		const unlistedStatus = getUnlistedAccountCatalogStatus(context);
+		if (unlistedStatus) {
+			this._publishModelCatalogStatus(unlistedStatus);
+		} else {
+			void this._scheduleModelRefresh();
+		}
 	}
 
 	/**
@@ -4703,6 +4790,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _stopClient(): Promise<void> {
+		const accountRelease = this._entraAuthentication ? this._accountService.releaseSession() : undefined;
 		this._managedSettingsResolver.invalidate();
 		this._prewarmedSessionMetadata = undefined;
 		// Any parked restart is satisfied by this stop: the next `_ensureClient`
@@ -4718,6 +4806,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				: this._clientStopping;
 		}
 		const stopping = (async () => {
+			if (accountRelease) {
+				await accountRelease.catch(error => this._logService.error('[Copilot] Failed to release account context before stopping runtime', error));
+			}
 			const clientStarting = this._clientStarting;
 			if (clientStarting) {
 				try {
@@ -4983,7 +5074,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
 			const gitHubToken = scoped ? scopedClientCredential(scoped)?.token
-				: startupConfig.enterpriseHost ? this._githubCredentials.token : undefined;
+				: startupConfig.enterpriseHost && !isMicrosoftCopilotAccountContext(this._accountService.state.get()) ? this._githubCredentials.token : undefined;
 			const scopedCredential = scopedClientCredential(scoped);
 			if (scopedCredential) {
 				env['GITHUB_COPILOT_GITHUB_TOKEN'] = scopedCredential.token;
@@ -4999,7 +5090,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				// uses them too.
 				network: this._createRuntimeNetworkConfig(),
 				useLoggedInUser: false,
-				...(!scoped && this._entraAuthentication ? { entra: this._entraAuthentication.options } : {}),
+				...(!scoped && this._accountService.authenticationOptions ? { entra: this._accountService.authenticationOptions } : {}),
 				gitHubToken,
 				...(scoped ? {
 					baseDirectory: env['COPILOT_HOME'],
@@ -5596,7 +5687,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				if (reloaded) {
 					current = this._resolveChatContext(chat, operationContext);
 				}
-				const entry = current.target ?? await this._ensureResolvedChatSession(current);
+				// A resume here keeps the mode the runtime restored, which the import then adopts. A chat the host restored
+				// just before this call already resumed without one, because its configuration was not loaded yet.
+				this._chatsKeepingRestoredPermissionMode.add(current.chatKey);
+				let entry: CopilotAgentSession | undefined;
+				try {
+					entry = current.target ?? await this._ensureResolvedChatSession(current);
+				} finally {
+					this._chatsKeepingRestoredPermissionMode.delete(current.chatKey);
+				}
 				if (!entry) {
 					return undefined;
 				}
@@ -6024,13 +6123,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _listSdkSessions<T extends { readonly sessionId: string }>(reason: 'chats to migrate' | 'discoverable chats' | 'imported chat' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+		const accountContext = this._accountService.state.get();
 		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability: 'available' });
 		const phase = reason === 'chats to migrate' ? 'sessionMigrationScan' : reason === 'discoverable chats' ? 'sessionDiscoveryScan' : reason === 'prewarm session metadata' ? 'sessionMetadataScan' : undefined;
 		const timing = phase && this._startupPerformance.start(phase, this.id);
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
 			const listed = await this._retryAfterClosedConnection('listSessions', listSessions);
-			const sessions = listed.filter(session => !this._customizationInstallations.isPolicySessionId(session.sessionId));
+			if (this._entraAuthentication && this._accountService.state.get() !== accountContext) {
+				timing?.complete('unavailable');
+				return undefined;
+			}
+			const sessions = listed.filter(session => !this._customizationInstallations.isPolicySessionId(session.sessionId) && !this._accountService.isAuthenticationSession(session.sessionId));
 			timing?.complete('success', { scannedSessionCount: sessions.length });
 			this._logService.info(`[Copilot] Listed ${sessions.length} SDK session(s) for ${reason}`);
 			return sessions;
@@ -6187,9 +6291,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Returns the tier metadata with the models, so the caller applies both under one ownership check. */
-	private async _listModels(client: CopilotClient, gitHubToken: string, previousModels = this._capiModels): Promise<ICopilotModelCatalog> {
+	private async _listModels(client: CopilotClient, gitHubToken: string | undefined, previousModels = this._capiModels, session?: CopilotSession): Promise<ICopilotModelCatalog> {
 		this._logService.info('[Copilot] Listing models...');
-		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		const { models, auto } = session
+			? toCopilotAccountModelCatalog(await session.rpc.model.list())
+			: await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
 		const promotions = auto ? collectAutoTierPromotions(auto.tiers) : [];
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && previousModels.some(model => !this._fallbackAutoModels.has(model))) {
@@ -6688,7 +6794,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return await this._mintChatBacking(chat, context, options);
 		} catch (error) {
 			if (!preexisting) {
-				await this._rollbackFailedChatCreate(chat, scope, options.workingDirectories === undefined);
+				await this._rollbackFailedChatCreate(chat, scope, !options.workingDirectories?.length);
 			}
 			throw error;
 		}
@@ -6759,7 +6865,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Creating chat ${chat.toString()} with a deferred backing... ${options.model ? `model=${options.model.id}` : ''}`);
 		const sdkSessionId = generateUuid();
 		// No working directory means a workspace-less chat that runs in a stable scratch dir.
-		const isWorkspaceless = options.workingDirectories === undefined;
+		const isWorkspaceless = !options.workingDirectories?.length;
 		const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, isWorkspaceless);
 		if (!this._credentialSources.has(chat.toString())) {
 			await this._ensureClient();
@@ -6918,7 +7024,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const sessionId = AgentSession.id(session);
 			const credentialContext = this._resolveExplicitChatContext(chat, context);
 			await this._applyChatCredentialBoundary(credentialContext, this._captureChatCredential(credentialContext));
-			const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, options.workingDirectories === undefined);
+			const workingDirectory = await this._resolveCreateWorkingDirectory(options, sessionId, !options.workingDirectories?.length);
 			step = 'startClient';
 			await this._ensureClientForChat(chat, workingDirectory);
 			if (!this._findSessionBySdkId(sessionId) && !this._provisionalSessions.has(sessionId)) {
@@ -8909,7 +9015,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const sdkMode = this._resolveSdkMode(current.ownerSession, current.chat);
 				enterUnboundedPhase();
 				stageRecorder?.mark('turnPrepare');
-				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, sendContext?.agentMergeTurn === true, stageRecorder, sendContext?.originalMessageText);
+				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, sendContext?.agentMergeTurn === true, stageRecorder, sendContext?.originalMessageText, toCopilotMessageSource(sendContext?.messageProvenance));
 				if (!token.isCancellationRequested) {
 					this._deliverPendingSteering(chat, entry);
 				}
@@ -9024,12 +9130,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._pendingSteeringMessages.delete(chatKey);
 	}
 
-	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | Promise<boolean> {
+	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender, provenance?: AgentMessageProvenance): boolean | Promise<boolean> {
 		const target = this._findChatByUri(chat);
 		if (this._isShuttingDown || !target?.hasRunningTurn || this._preparedTurnLaunches.has(target)) {
 			return false;
 		}
-		return target.sendSteering(message, sender);
+		return target.sendSteering(message, sender, provenance);
 	}
 
 	withdrawSteeringMessage(chat: URI, messageId: string): void {
@@ -10126,6 +10232,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workspaceless: storedMetadata.workspaceless,
 				stageRecorder,
 				...context.surface,
+				...(this._chatsKeepingRestoredPermissionMode.has(chatKey) ? { keepsRestoredPermissionMode: true } : {}),
 				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
 			};
 			agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { owner: context.ownerRef, chatChannelUri: chat, resource: context.resource });
@@ -11056,6 +11163,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				workspaceless: storedMetadata.workspaceless,
 				stageRecorder,
 				...surface,
+				...(this._chatsKeepingRestoredPermissionMode.has(chatChannelUri.toString()) ? { keepsRestoredPermissionMode: true } : {}),
 				fallback: {
 					model: storedMetadata.model,
 					longContextWindow: this._longContextWindowFor(storedMetadata.model?.id),
@@ -12215,6 +12323,7 @@ class SessionPluginController extends Disposable {
 					plugin: installation.directSourceId ?? `${installation.name}@${installation.marketplace}`,
 					globalEnabled: installation.enabled,
 					effectiveEnabled: installation.effectiveEnabled,
+					repositoryEnabled: installation.repositoryEnabled,
 					repositorySupported: !!installation.marketplace,
 					managedDesiredEnabled: installation.managedDesiredEnabled,
 					contentRevision: contents.contentRevision,

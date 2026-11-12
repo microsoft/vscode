@@ -13,7 +13,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -127,6 +127,10 @@ suite('Mission Control native provider inventory', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', []);
 		const ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', undefined);
+		const sharedRemoteEnvironmentIds = observableValue<ReadonlySet<string>>('sharedRemoteEnvironmentIds', new Set());
+		instantiation.stub(IRemoteGitHubEnvironmentSharingService, new class extends mock<IRemoteGitHubEnvironmentSharingService>() {
+			override readonly environmentIds = sharedRemoteEnvironmentIds;
+		}());
 		let account = 'first';
 		const created: { provider: TestProvider; options: IEntryDrivenProviderOptions }[] = [];
 		const actions: string[] = [];
@@ -242,7 +246,7 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, ownEnvironmentId, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus,
+			hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus,
 			whenConnected: (id: string) => {
 				const isConnected = () => RemoteAgentHostConnectionStatus.isConnected(connections.get(`cloudsandbox:${id}`)?.status);
 				return isConnected() ? Promise.resolve() : Event.toPromise(Event.filter(connectionsChanged.event, isConnected), connectionListeners);
@@ -302,11 +306,13 @@ suite('Mission Control native provider inventory', () => {
 		});
 	}
 
-	test('marks this computer\'s environment as its local registration and keeps it out of the picker and auto-connect', async () => {
-		const { hosts, ownEnvironmentId, created, actions, rediscover } = fixture('profile', { web: true });
+	test('keeps this computer\'s environment and remotes shared by this client out of the picker and auto-connect', async () => {
+		const { hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, created, actions, rediscover } = fixture('profile', { web: true });
 		ownEnvironmentId.set('own', undefined);
+		sharedRemoteEnvironmentIds.set(new Set(['shared']), undefined);
 		hosts.set([
 			{ id: 'own', name: 'This Machine', kind: 'user-local', status: 'online' },
+			{ id: 'shared', name: 'Shared SSH Host', kind: 'user-local', status: 'online' },
 			{ id: 'other', name: 'Other Machine', kind: 'user-local', status: 'online' },
 		], undefined);
 		await rediscover();
@@ -320,6 +326,7 @@ suite('Mission Control native provider inventory', () => {
 		}, {
 			providers: [
 				{ address: 'cloudsandbox:own', localRegistration: 'githubEnvironment', pickerVisible: false },
+				{ address: 'cloudsandbox:shared', localRegistration: undefined, pickerVisible: false },
 				{ address: 'cloudsandbox:other', localRegistration: undefined, pickerVisible: true },
 			],
 			connects: ['connect:other'],

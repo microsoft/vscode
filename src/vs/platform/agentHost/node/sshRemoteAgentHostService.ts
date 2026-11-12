@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type WebSocket from 'ws';
-import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
+import type { AnyAuthMethod, AuthenticationType, ClientErrorExtensions, ConnectConfig } from 'ssh2';
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
@@ -38,6 +38,7 @@ import {
 	type SSHAgentHostLifecycle,
 	type SSHStrictHostKeyChecking,
 	SSHHostKeyDeniedError,
+	SSHAuthenticationFailedError,
 } from '../common/sshRemoteAgentHost.js';
 import {
 	computeHostKeyFingerprint,
@@ -75,7 +76,7 @@ import {
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
 import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHConfigIncludePaths, parseSSHGOutput } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
 import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
@@ -100,7 +101,7 @@ interface ISSHKnownHostsEvidence {
 /** Minimal subset of ssh2.Client used by this module. */
 interface SSHClient {
 	on(event: 'ready', listener: () => void): SSHClient;
-	on(event: 'error', listener: (err: Error) => void): SSHClient;
+	on(event: 'error', listener: (err: Error & ClientErrorExtensions) => void): SSHClient;
 	on(event: 'close', listener: () => void): SSHClient;
 	/**
 	 * OpenSSH's `UpdateHostKeys` announcement. ssh2 verifies the
@@ -158,15 +159,6 @@ const HANDSHAKE_TIMEOUT_MS = 30_000;
  * the interval a prompt is actually outstanding.
  */
 const INTERACTIVE_TIMEOUT_MS = 300_000;
-
-/**
- * How long a resolved `ssh -G` result stays reusable. One connect attempt asks
- * for the same host several times — proxy and identity resolution, then
- * `known_hosts` lookup during host key verification, plus reconnects that
- * resolve the alias before connecting — and each spawn costs a process. The
- * window is short so an edited SSH config is picked up by the next attempt.
- */
-const RESOLVED_CONFIG_REUSE_MS = 10_000;
 
 /**
  * One entry in the queue of authentication attempts handed to ssh2's
@@ -822,19 +814,12 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private _nativeRequire: NodeJS.Require | undefined;
 	private readonly _proxies = this._register(new DisposableMap<SSHClient, SSHProxyCommand>());
 	private readonly _jumpProxies = this._register(new DisposableMap<SSHClient, SSHProxyJump>());
-	private readonly _resolvedConfigs = new Map<string, { readonly resolved: Promise<ISSHResolvedConfig>; readonly expiry: number }>();
 
 	/**
 	 * Override hook for tests to shorten the relay-creation timeout used on
 	 * relay-acquisition path. See {@link RECONNECT_RELAY_TIMEOUT_MS}.
 	 */
 	protected relayCreationTimeoutMs: number = RECONNECT_RELAY_TIMEOUT_MS;
-
-	/**
-	 * Override hook for tests to disable or shorten the reuse of resolved SSH
-	 * configurations. See {@link RESOLVED_CONFIG_REUSE_MS}.
-	 */
-	protected resolvedConfigReuseMs: number = RESOLVED_CONFIG_REUSE_MS;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -862,7 +847,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult> {
-		const connectionKey = computeSSHConnectionKey(config);
+		return this._connectSession(computeSSHConnectionKey(config), () => this._connect(config), expectedConnectionId);
+	}
+
+	private async _connectSession(connectionKey: string, createSession: () => Promise<SSHConnection>, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		const existing = this._connections.get(connectionKey);
 		if (existing) {
 			return this._acquireRelay(existing, expectedConnectionId);
@@ -871,7 +859,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		if (pending) {
 			return pending.then(session => this._acquireRelay(session, expectedConnectionId));
 		}
-		const connect = this._connect(config);
+		const connect = createSession();
 		this._pendingSessions.set(connectionKey, connect);
 		void connect.finally(() => {
 			if (this._pendingSessions.get(connectionKey) === connect) {
@@ -881,18 +869,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return connect.then(session => this._acquireRelay(session, expectedConnectionId));
 	}
 
-	private async _connect(config: ISSHAgentHostConfig): Promise<SSHConnection> {
+	private async _connect(config: ISSHAgentHostConfig, resolvedConfig?: ISSHResolvedConfig): Promise<SSHConnection> {
 		const connectionKey = computeSSHConnectionKey(config);
-
-		const existing = this._connections.get(connectionKey);
-		if (existing) {
-			return existing;
-		}
-
-		const pending = this._pendingSessions.get(connectionKey);
-		if (pending) {
-			return pending;
-		}
 
 		this._logService.info(`${LOG_PREFIX} Connecting to ${connectionKey}`);
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
@@ -905,7 +883,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			// 1. Establish SSH connection
 			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
-			sshClient = await this._connectSSH(config, connectionKey);
+			sshClient = await this._connectSSH(config, connectionKey, resolvedConfig);
 
 			let endpoint: AgentHostEndpointAddress;
 			let connectionToken: string | undefined;
@@ -1322,6 +1300,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
+		return this._connectSession(
+			computeSSHConnectionKey({ sshConfigHost }),
+			() => this._connectConfiguredHost(sshConfigHost, name, remoteAgentHostCommand, agentForward, userInitiated, preferredAgentLocation),
+			expectedConnectionId,
+		);
+	}
+
+	private async _connectConfiguredHost(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<SSHConnection> {
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
 		// Always use Agent auth — the auth handler will walk through the SSH
@@ -1334,7 +1320,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		}
 		this._logService.info(`${LOG_PREFIX} reconnect: identityFiles=${JSON.stringify(resolved.identityFile)}, explicit key=${privateKeyPath ?? '(none)'}`);
 
-		return this.connect({
+		return this._connect({
 			host: resolved.hostname,
 			port: resolved.port !== 22 ? resolved.port : undefined,
 			username: resolved.user ?? sshConfigHost,
@@ -1347,7 +1333,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
 			userInitiated,
 			preferredAgentLocation,
-		}, expectedConnectionId);
+		}, resolved);
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {
@@ -1403,26 +1389,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
-		const now = Date.now();
-		for (const [key, entry] of this._resolvedConfigs) {
-			if (entry.expiry <= now) {
-				this._resolvedConfigs.delete(key);
-			}
-		}
-		const reusable = this._resolvedConfigs.get(host);
-		if (reusable) {
-			return reusable.resolved;
-		}
-		const resolved = this._doResolveSSHConfig(host);
-		this._resolvedConfigs.set(host, { resolved, expiry: now + this.resolvedConfigReuseMs });
-		// A failed resolution says nothing about the next attempt, so only
-		// successful results are worth reusing.
-		resolved.catch(() => {
-			if (this._resolvedConfigs.get(host)?.resolved === resolved) {
-				this._resolvedConfigs.delete(host);
-			}
-		});
-		return resolved;
+		return this._doResolveSSHConfig(host);
 	}
 
 	protected async _doResolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
@@ -1456,8 +1423,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				continue;
 			}
 
-			const rawValue = stripSSHComment(includeMatch[1]);
-			const patterns = rawValue.split(/\s+/).filter(Boolean);
+			const patterns = parseSSHConfigIncludePaths(includeMatch[1]);
+			if (!patterns) {
+				this._logService.warn(`${LOG_PREFIX} Skipping invalid SSH Include directive in ${configDir}`);
+				continue;
+			}
 
 			for (const rawPattern of patterns) {
 				const pattern = rawPattern.replace(/^~/, os.homedir());
@@ -1512,13 +1482,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	protected async _connectSSH(
 		config: ISSHAgentHostConfig,
 		connectionKey?: string,
+		resolvedConfig?: ISSHResolvedConfig,
 	): Promise<SSHClient> {
 		const originalHost = config.sshConfigHost ?? config.host;
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
 		// Command failures are best effort; failures resolving configured trust files must remain fatal.
-		let resolved: ISSHResolvedConfig | undefined;
+		let resolved = resolvedConfig;
 		try {
-			resolved = await this.resolveSSHConfig(originalHost);
+			resolved ??= await this.resolveSSHConfig(originalHost);
 		} catch (err) {
 			if (err instanceof SSHKnownHostsResolutionError) {
 				throw err;
@@ -1668,6 +1639,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				},
 				() => hostKeyVerificationAborted,
 				() => armDeadline?.(HANDSHAKE_TIMEOUT_MS),
+				resolved,
 			);
 		};
 
@@ -1761,7 +1733,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				resolveConnect();
 			});
 
-			client.on('error', (err: Error) => {
+			client.on('error', (err: Error & ClientErrorExtensions) => {
 				if (err instanceof AggregateError && !err.message) {
 					// Node's dual-stack connection errors have no message, and IPC drops their nested errors.
 					err.message = err.errors.filter((error: unknown): error is Error => error instanceof Error && !!error.message)
@@ -1771,7 +1743,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// ssh2 reports a refused host key as "Host denied (verification
 				// failed)", which is both jargon and redundant — the host key
 				// UI has already told the user what happened.
-				rejectConnect(hostKeyDenied ? new SSHHostKeyDeniedError(displayHost) : err, false);
+				rejectConnect(
+					hostKeyDenied ? new SSHHostKeyDeniedError(displayHost)
+						: err.level === 'client-authentication' ? new SSHAuthenticationFailedError(err.message)
+							: err,
+					false);
 			});
 
 			// A server can drop the connection cleanly mid-handshake (for
@@ -2019,15 +1995,14 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * parsed entries. Overridable so tests can supply entries without touching
 	 * the developer's real SSH setup.
 	 *
-	 * Resolution deliberately goes through `ssh -G` rather than assuming
-	 * `~/.ssh/known_hosts`, so a user who has redirected `UserKnownHostsFile`
-	 * gets the files they actually configured. Command failures use the default
-	 * known-hosts file; failures resolving configured trust files remain fatal.
+	 * Uses the connect attempt's resolved settings, or `ssh -G` when called
+	 * independently. Command failures use the default known-hosts file;
+	 * failures resolving configured trust files remain fatal.
 	 */
-	protected async _readKnownHostsEntries(host: string): Promise<ISSHKnownHostsEvidence> {
-		let resolved: ISSHResolvedConfig | undefined;
+	protected async _readKnownHostsEntries(host: string, resolvedConfig?: ISSHResolvedConfig): Promise<ISSHKnownHostsEvidence> {
+		let resolved = resolvedConfig;
 		try {
-			resolved = await this.resolveSSHConfig(host);
+			resolved ??= await this.resolveSSHConfig(host);
 		} catch (err) {
 			if (err instanceof SSHKnownHostsResolutionError) {
 				throw err;
@@ -2075,6 +2050,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		onRequest: (requestId: string) => (() => void) | void,
 		isAborted: () => boolean,
 		onPromptSettled: () => void,
+		resolvedConfig: ISSHResolvedConfig | undefined,
 	): Promise<void> {
 		let settled = false;
 		let prompted = false;
@@ -2103,7 +2079,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 
 			const fingerprint = computeHostKeyFingerprint(key);
-			const { entries, strictHostKeyChecking, hostKeyAlias } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
+			const { entries, strictHostKeyChecking, hostKeyAlias } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host, resolvedConfig);
 
 			// Gathering evidence is asynchronous, so the connect attempt may
 			// have failed while we were reading known_hosts. Registering now

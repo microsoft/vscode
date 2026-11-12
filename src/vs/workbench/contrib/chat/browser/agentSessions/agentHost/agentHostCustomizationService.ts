@@ -127,7 +127,7 @@ export interface IAgentHostCustomizationService {
 	/** Changes one scope while preserving all other explicit decisions. */
 	setCustomizationEnablement(sessionResource: URI, customizationId: string, currentEnablement: readonly CustomizationEnablement[] | undefined, kind: CustomizationEnablementKind, enabled: boolean): void;
 	canSetRuntimePluginEnablement?(sessionResource: URI): boolean;
-	setRuntimePluginEnablement?(sessionResource: URI, customizationId: string, scope: 'global' | 'repository', enabled: boolean): Promise<void>;
+	setRuntimePluginEnablement?(sessionResource: URI, customizationId: string, scope: 'global' | 'repository', enabled: boolean | null): Promise<void>;
 
 	/**
 	 * Reveals the per-server MCP diagnostics Output channel for the server
@@ -206,7 +206,7 @@ export interface IAgentHostCustomizationTarget {
 	authenticate(request: IAgentHostAuthenticateRequest): Promise<unknown>;
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
-	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
+	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
@@ -751,12 +751,16 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					globalEnabled: installation?.enabled ?? runtime.globalEnabled,
 					managedDesiredEnabled: installation ? installation.managedDesiredEnabled : runtime.managedDesiredEnabled,
 					effectiveEnabled,
+					repositoryEnabled: installation?.repositoryEnabled,
 				}),
 			};
 		});
 	}
 
-	async setRuntimePluginEnablement(sessionResource: URI, customizationId: string, scope: 'global' | 'repository', enabled: boolean): Promise<void> {
+	async setRuntimePluginEnablement(sessionResource: URI, customizationId: string, scope: 'global' | 'repository', enabled: boolean | null): Promise<void> {
+		if (scope === 'global' && enabled === null) {
+			throw new Error(localize('runtimePluginGlobalInheritanceUnsupported', "Global plugin enablement must be enabled or disabled."));
+		}
 		const target = this._resolveTarget(sessionResource);
 		const customization = target?.customizations.find(customization => customization.type === CustomizationType.Plugin && customization.id === customizationId);
 		const runtime = customization && readRuntimePluginEnablement(customization);
@@ -775,7 +779,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			throw new Error(localize('runtimePluginEnablementManaged', "This plugin is managed by your organization."));
 		}
 		const chat = this.getBackendChatResource?.(sessionResource);
-		if (scope === 'repository' && (!runtime.repositorySupported || !chat)) {
+		if (scope === 'repository' && (!currentRuntime.repositorySupported || !chat || enabled === null && currentRuntime.repositoryEnabled === undefined)) {
 			throw new Error(localize('runtimePluginRepositoryUnavailable', "Repository plugin enablement requires a supported plugin and an initialized chat."));
 		}
 		await target.setPluginEnabled(runtime.provider, runtime.plugin, enabled, scope, target.backendSession, chat);

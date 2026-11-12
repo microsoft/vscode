@@ -946,7 +946,8 @@ export const ContextKeys = {
 	RepositoryCount: new RawContextKey<number>('scmRepositoryCount', 0),
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
 	RepositoryVisibility(repository: ISCMRepository) {
-		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
+		// Omit global metadata and let reset remove the repository-specific key.
+		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, undefined, true);
 	}
 };
 

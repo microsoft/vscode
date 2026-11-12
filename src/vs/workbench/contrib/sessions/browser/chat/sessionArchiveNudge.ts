@@ -27,8 +27,9 @@ import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { hashSessionIdForTelemetry } from '../../common/sessionsTelemetry.js';
-import { getSessionOwnedGitHubPullRequestRefs, IChat, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { getChatCapabilities, getSessionOwnedGitHubPullRequestRefs, IChat, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ISessionsService } from '../sessionsService.js';
 import { IGitHubService } from '../github/githubService.js';
 import { GitHubPullRequestState } from '../../common/github/types.js';
 import { getPullRequestKey } from '../../common/github/utils.js';
@@ -44,7 +45,10 @@ const IMPRESSION_STORAGE_KEY_PREFIX = 'sessions.archiveNudge.impression.';
 const ARCHIVE_COUNT_STORAGE_KEY = 'sessions.archiveNudge.archiveCount';
 const COMPACT_AFTER_ARCHIVE_COUNT = 3;
 
-/** The chat whose input shows the suggestion, and the session the suggestion archives. */
+/**
+ * The chat whose input shows the suggestion. The suggestion archives only that chat, except in the session's
+ * main chat, which lives and dies with its session.
+ */
 export interface ISessionArchiveNudgeTarget {
 	readonly session: ISession;
 	readonly chat: IChat;
@@ -52,6 +56,8 @@ export interface ISessionArchiveNudgeTarget {
 
 interface ISessionArchiveNudgeState {
 	readonly session: ISession;
+	/** The chat archived on its own; absent when the suggestion archives the whole session from its main chat. */
+	readonly chat?: IChat;
 	readonly hasWorktree: boolean;
 	readonly pullRequestCount: number;
 }
@@ -98,15 +104,17 @@ type SessionArchiveNudgeEvent = {
 	action: 'shown' | 'dismissed' | 'archived';
 	pullRequestCount: number;
 	hasWorktree: boolean;
+	archivesChat: boolean;
 };
 
 type SessionArchiveNudgeClassification = {
 	owner: 'benibenj';
 	comment: 'Tracks exposure to and interaction with the session archive suggestion after GitHub pull requests associated with the session have merged.';
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, matching session lifecycle events without exposing provider or resource details.' };
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the suggestion was shown, dismissed, or used to archive the session.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the suggestion was shown, dismissed, or used to archive the session or its chat.' };
 	pullRequestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of distinct merged GitHub pull requests from the artifacts and session-owned associations of the chat showing the suggestion.' };
 	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the suggestion explained worktree cleanup.' };
+	archivesChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the suggestion archives only the chat showing it rather than the whole session from its main chat.' };
 };
 
 export class SessionArchiveNudgeService extends Disposable implements ISessionArchiveNudgeService {
@@ -216,9 +224,14 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 	}
 
 	async archive(state: ISessionArchiveNudgeState): Promise<void> {
-		await this._sessionsManagementService.archiveSession(state.session);
-		if (!state.session.isArchived.get()) {
-			throw new Error(localize('sessionArchiveNudge.updateFailed', "The session could not be updated. Check its connection and try again."));
+		if (state.chat) {
+			// Providers reject chat archiving they cannot perform.
+			await this._sessionsManagementService.archiveChat(state.session, state.chat);
+		} else {
+			await this._sessionsManagementService.archiveSession(state.session);
+			if (!state.session.isArchived.get()) {
+				throw new Error(localize('sessionArchiveNudge.updateFailed', "The session could not be updated. Check its connection and try again."));
+			}
 		}
 		const archiveCount = this._storageService.getNumber(ARCHIVE_COUNT_STORAGE_KEY, StorageScope.PROFILE, 0);
 		this._storageService.store(ARCHIVE_COUNT_STORAGE_KEY, Math.min(archiveCount + 1, COMPACT_AFTER_ARCHIVE_COUNT), StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -287,6 +300,7 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 			action,
 			pullRequestCount: state.pullRequestCount,
 			hasWorktree: state.hasWorktree,
+			archivesChat: !!state.chat,
 		});
 	}
 }
@@ -396,6 +410,7 @@ export class SessionArchiveNudge extends Disposable {
 		@IGitHubService gitHubService: IGitHubService,
 		@ISessionArchiveNudgeService private readonly _nudgeService: ISessionArchiveNudgeService,
 		@ICommandService commandService: ICommandService,
+		@ISessionsService private readonly _sessionsService: ISessionsService,
 	) {
 		super();
 
@@ -406,6 +421,11 @@ export class SessionArchiveNudge extends Disposable {
 			}
 			const current = target.read(reader);
 			if (!current || !isSessionAvailableForArchiveNudge(current.session, reader)) {
+				return undefined;
+			}
+			// Another chat cannot fall back to archiving the whole session.
+			if (!isEqual(current.chat.resource, current.session.mainChat.read(reader).resource)
+				&& (current.chat.isArchived.read(reader) || !getChatCapabilities(current.chat, current.session, reader).canArchive)) {
 				return undefined;
 			}
 			if (!this._nudgeService.experimentTriggerPending.read(reader) && (!enabled.read(reader) || this._nudgeService.isDismissed(current.session, reader))) {
@@ -430,12 +450,13 @@ export class SessionArchiveNudge extends Disposable {
 		this._state = derivedOpts({
 			owner: this,
 			equalsFn: (a: ISessionArchiveNudgeCandidate | undefined, b: ISessionArchiveNudgeCandidate | undefined) =>
-				a?.session === b?.session && a?.hasWorktree === b?.hasWorktree && structuralEquals(a?.pullRequestKeys, b?.pullRequestKeys),
+				a?.session === b?.session && a?.chat === b?.chat && a?.hasWorktree === b?.hasWorktree && structuralEquals(a?.pullRequestKeys, b?.pullRequestKeys),
 		}, reader => {
-			const current = eligibleTarget.read(reader)?.session;
-			if (!current) {
+			const eligible = eligibleTarget.read(reader);
+			if (!eligible) {
 				return undefined;
 			}
+			const current = eligible.session;
 			const refs = pullRequests.read(reader);
 			if (!refs?.length) {
 				return undefined;
@@ -445,10 +466,13 @@ export class SessionArchiveNudge extends Disposable {
 			if (!pullRequestCount || !pullRequestModels?.every(model => model.pullRequest.read(reader)?.state === GitHubPullRequestState.Merged)) {
 				return undefined;
 			}
+			const chat = isEqual(eligible.chat.resource, current.mainChat.read(reader).resource) ? undefined : eligible.chat;
 			const workspace = current.workspace.read(reader);
 			return {
 				session: current,
-				hasWorktree: !!workspace && !workspace.isVirtualWorkspace && (!!current.worktreePending?.read(reader) || workspace.folders.some(folder => !!folder.gitRepository?.workTreeUri)),
+				chat,
+				// Archiving a chat on its own keeps the session's worktree.
+				hasWorktree: !chat && !!workspace && !workspace.isVirtualWorkspace && (!!current.worktreePending?.read(reader) || workspace.folders.some(folder => !!folder.gitRepository?.workTreeUri)),
 				pullRequestCount,
 				pullRequestKeys: refs.map(ref => getPullRequestKey(ref.owner, ref.repo, ref.number)),
 			};
@@ -461,20 +485,29 @@ export class SessionArchiveNudge extends Disposable {
 		this.options = this._state.map((state, reader) => state && enabled.read(reader) && !this._nudgeService.isDismissed(state.session, reader) ? {
 			hasWorktree: state.hasWorktree,
 			pullRequestCount: state.pullRequestCount,
+			archivesChat: !!state.chat,
 			compact: this._nudgeService.shouldShowCompact(reader),
 			onDismiss: () => this._nudgeService.dismiss(state),
 			onOpenCleanupSettings: () => commandService.executeCommand('workbench.action.openSettings', AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY),
 			onArchive: async () => {
-				this._getArchiveState(state.session);
-				await this._nudgeService.showArchiveOnboarding(state.session);
-				await this._nudgeService.archive(this._getArchiveState(state.session));
+				this._getArchiveState(state);
+				// The onboarding reveals the session's action in the sessions list, which would archive every chat.
+				if (!state.chat) {
+					await this._nudgeService.showArchiveOnboarding(state.session);
+				}
+				const archiveState = this._getArchiveState(state);
+				await this._nudgeService.archive(archiveState);
+				if (archiveState.chat) {
+					// Like Mark as Done on a chat, set the archived chat aside while its session and other chats stay open.
+					await this._sessionsService.closeChat(archiveState.session, archiveState.chat);
+				}
 			},
 		} : undefined);
 	}
 
-	private _getArchiveState(session: ISession): ISessionArchiveNudgeState {
+	private _getArchiveState(expected: ISessionArchiveNudgeState): ISessionArchiveNudgeState {
 		const state = this._state.get();
-		if (!state || state.session !== session || this._store.isDisposed) {
+		if (!state || state.session !== expected.session || state.chat !== expected.chat || this._store.isDisposed) {
 			throw new Error(localize('sessionArchiveNudge.noLongerAvailable', "This suggestion is no longer available. Review the session before trying again."));
 		}
 		return state;

@@ -46,6 +46,8 @@ export interface IRemoteDevContainerFixture {
 	readonly workspacePath?: string;
 	/** The authority of a remote editor window for {@link workspacePath}. */
 	readonly remoteAuthority?: string;
+	/** Whether the remote host runs the client's commit, or, like a client run from sources, a source checkout. */
+	readonly hostMatchesClientCommit?: boolean;
 	readonly ssh?: { host: string; port: number; username: string; password: string; fingerprint: string };
 	/**
 	 * Checks the Agent Host's routing to the mock server. With `credentialedProxy`, also checks that it forwarded the
@@ -88,7 +90,11 @@ export function getDevContainerCliInstallCommand(codePath?: string): string {
 		throw new Error(`Invalid CLI commit: ${product.commit}`);
 	}
 	const commit = product.commit?.toLowerCase();
-	const latestDownload = `curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"`;
+	// The update server can be slow or return 5xx; retry transient failures within a bounded time.
+	// A commit build that was never published still 404s right away and falls back to the latest CLI.
+	// `timeout` caps the wall clock, since curl's retry budget does not stop an attempt already in flight.
+	const curl = (budgetSeconds: number) => `timeout ${budgetSeconds} curl -fsSL --connect-timeout 15 --max-time 45 --retry 6 --retry-delay 5 --retry-max-time ${budgetSeconds}`;
+	const latestDownload = `${curl(150)} "https://update.code.visualstudio.com/latest/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"`;
 	return [
 		'set -e',
 		'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
@@ -97,7 +103,7 @@ export function getDevContainerCliInstallCommand(codePath?: string): string {
 		`cli_dir="$HOME/${legacyDirectory}"`,
 		`cli_bin="$cli_dir/${archive}"`,
 		...(commit ? [
-			`if curl -fsSL "https://update.code.visualstudio.com/commit:${commit}/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"; then`,
+			`if ${curl(45)} "https://update.code.visualstudio.com/commit:${commit}/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"; then`,
 			`cli_dir="$HOME/${serverDirectory}"`,
 			`cli_bin="$cli_dir/${archive}-${commit}"`,
 			`echo "Installing ${quality} CLI matching desktop commit ${commit}"`,
@@ -935,13 +941,12 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 		}
 	}
 	await run(`test -x ${shellQuote(nodePath)} && test -f ${shellQuote(`${serverPath}/out/${server ? 'server-main.js' : 'bootstrap-fork.js'}`)}${copilotRuntimePath ? ` && test -x ${shellQuote(copilotRuntimePath)}` : ''}`);
-	if (server && options.appOptions.codePath) {
+	// Clients run from sources and source checkouts have no commit.
+	const clientCommit: string | undefined = options.appOptions.codePath ? JSON.parse(fs.readFileSync(getBuildProductPath(options.appOptions.codePath), 'utf8')).commit : undefined;
+	const serverCommit: string | undefined = JSON.parse(await run(`cat ${shellQuote(`${serverPath}/product.json`)}`)).commit;
+	if (server && clientCommit && serverCommit && clientCommit !== serverCommit) {
 		// The server refuses a built client of another commit.
-		const clientCommit: string | undefined = JSON.parse(fs.readFileSync(getBuildProductPath(options.appOptions.codePath), 'utf8')).commit;
-		const serverCommit: string | undefined = JSON.parse(await run(`cat ${shellQuote(`${serverPath}/product.json`)}`)).commit;
-		if (clientCommit && serverCommit && clientCommit !== serverCommit) {
-			throw new Error(`The remote editor window needs a WSL server of the client's commit ${clientCommit}, but ${serverPath} is ${serverCommit}.`);
-		}
+		throw new Error(`The remote editor window needs a WSL server of the client's commit ${clientCommit}, but ${serverPath} is ${serverCommit}.`);
 	}
 	// Published servers bundle their NLS messages; a source checkout runs in development mode.
 	const sourceCheckout = (await run(`if [ -f ${shellQuote(`${serverPath}/out/nls.messages.json`)} ]; then echo bundled; fi`)) !== 'bundled';
@@ -1038,6 +1043,7 @@ async function createWslFixture(options: IRemoteDevContainerFixtureOptions, reso
 	return {
 		name: distro,
 		workspacePath,
+		hostMatchesClientCommit: clientCommit === serverCommit,
 		...(server ? {
 			remoteAuthority: `wsl+${distro}`,
 			settings: {},

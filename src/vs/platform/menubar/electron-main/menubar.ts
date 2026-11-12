@@ -178,8 +178,9 @@ export class Menubar extends Disposable {
 
 		// Listen to some events from window service to update menu
 		this._register(this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e)));
-		this._register(this.nativeHostMainService.onDidBlurMainWindow(() => this.onDidChangeWindowFocus()));
-		this._register(this.nativeHostMainService.onDidFocusMainWindow(() => this.onDidChangeWindowFocus()));
+		this._register(this.nativeHostMainService.onDidBlurMainOrAuxiliaryWindow(() => this.onDidChangeWindowFocus()));
+		this._register(this.nativeHostMainService.onDidFocusMainOrAuxiliaryWindow(() => this.onDidChangeWindowFocus()));
+		this._register(this.nativeHostMainService.onDidChangeWindowAlwaysOnTop(() => this.scheduleUpdateMenu()));
 
 		// Rebuild menu when update state changes so update menu items reflect
 		// the current state (e.g. "Restart to Update" instead of "Check for Updates...").
@@ -601,8 +602,16 @@ export class Menubar extends Disposable {
 	}
 
 	private setMacWindowMenu(macWindowMenu: Menu): void {
+		const focusedWindow = this.getFocusedWindow();
 		const minimize = new MenuItem({ label: nls.localize('mMinimize', "Minimize"), role: 'minimize', accelerator: 'Command+M', enabled: this.windowsMainService.getWindowCount() > 0 });
 		const zoom = new MenuItem({ label: nls.localize('mZoom', "Zoom"), role: 'zoom', enabled: this.windowsMainService.getWindowCount() > 0 });
+		const alwaysOnTop = new MenuItem(this.likeAction('workbench.action.toggleWindowAlwaysOnTop', {
+			label: nls.localize('mAlwaysOnTop', "Always on Top"),
+			type: 'checkbox',
+			checked: focusedWindow?.win?.isAlwaysOnTop() ?? false,
+			enabled: !!focusedWindow,
+			click: () => this.nativeHostMainService.toggleWindowAlwaysOnTop(undefined, { targetWindowId: this.getFocusedWindow()?.id })
+		}));
 		const bringAllToFront = new MenuItem({ label: nls.localize('mBringToFront', "Bring All to Front"), role: 'front', enabled: this.windowsMainService.getWindowCount() > 0 });
 		const switchWindow = this.createMenuItem(nls.localize({ key: 'miSwitchWindow', comment: ['&& denotes a mnemonic'] }, "Switch &&Window..."), 'workbench.action.switchWindow');
 
@@ -621,12 +630,18 @@ export class Menubar extends Disposable {
 		[
 			minimize,
 			zoom,
+			alwaysOnTop,
 			__separator__(),
 			switchWindow,
 			...nativeTabMenuItems,
 			__separator__(),
 			bringAllToFront
 		].forEach(item => macWindowMenu.append(item));
+	}
+
+	private getFocusedWindow() {
+		const window = BrowserWindow.getFocusedWindow();
+		return window ? this.windowsMainService.getWindowById(window.id) ?? this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents) : undefined;
 	}
 
 	private getUpdateMenuItems(): MenuItem[] {

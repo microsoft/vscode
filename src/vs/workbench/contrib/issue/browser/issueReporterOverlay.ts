@@ -42,7 +42,8 @@ import { IssueReporterModel } from './issueReporterModel.js';
 import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
 import { getIssueReporterScreenshotFile, MAX_ISSUE_ATTACHMENTS as MAX_ATTACHMENTS, validateIssueReporterMediaFile } from './issueReporterMedia.js';
 import { RecordingState } from './recordingService.js';
-import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
+import { IAnnotationEditorState } from '../../screenshotTool/browser/screenshotAnnotation.js';
+import { IScreenshotToolService, ScreenshotToolSurface } from '../../screenshotTool/browser/screenshotTool.js';
 
 export interface IScreenshot extends IIssueReporterScreenshot {
 	readonly width: number;
@@ -54,6 +55,13 @@ export interface IScreenshot extends IIssueReporterScreenshot {
 export interface IIssueReporterAttachmentImport {
 	readonly id: string;
 	readonly file: File;
+}
+
+export interface IIssueReporterScreenshotRequest {
+	/** The attachment slot reserved for the screenshot. */
+	readonly id: string;
+	/** Whether the request follows a countdown, after which the whole window is captured. */
+	readonly delayed: boolean;
 }
 
 type PendingAttachment = { readonly id: string; readonly kind: 'pending'; readonly source: 'import' | 'screenshot' | 'recording' };
@@ -73,8 +81,8 @@ export class IssueReporterOverlay {
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 	private readonly _onDidSubmit = new Emitter<{ title: string; body: string }>();
 	readonly onDidSubmit: Event<{ title: string; body: string }> = this._onDidSubmit.event;
-	private readonly _onDidRequestScreenshot = new Emitter<string>();
-	readonly onDidRequestScreenshot: Event<string> = this._onDidRequestScreenshot.event;
+	private readonly _onDidRequestScreenshot = new Emitter<IIssueReporterScreenshotRequest>();
+	readonly onDidRequestScreenshot: Event<IIssueReporterScreenshotRequest> = this._onDidRequestScreenshot.event;
 	private readonly _onDidRequestStartRecording = new Emitter<void>();
 	readonly onDidRequestStartRecording: Event<void> = this._onDidRequestStartRecording.event;
 	private readonly _onDidRequestStopRecording = new Emitter<void>();
@@ -125,6 +133,7 @@ export class IssueReporterOverlay {
 	readonly onDidRequestGenerateTitle: Event<string> = this._onDidRequestGenerateTitle.event;
 
 	private screenshotContainer!: HTMLElement;
+	private screenshotEditHint!: HTMLElement;
 	private screenshotAddCard: HTMLElement | undefined;
 	private addFilesButton!: Button;
 	private attachmentStatus!: HTMLElement;
@@ -186,6 +195,7 @@ export class IssueReporterOverlay {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
@@ -290,6 +300,8 @@ export class IssueReporterOverlay {
 		this.screenshotContainer.tabIndex = 0;
 		this.screenshotContainer.setAttribute('role', 'group');
 		this.screenshotContainer.setAttribute('aria-label', localize('attachmentArea', "Attachments. Paste or drop files here."));
+		this.screenshotEditHint = append(page, $('p.wizard-subtitle.wizard-screenshot-edit-hint'));
+		this.screenshotEditHint.textContent = localize('screenshotEditHint', "Click a screenshot to edit it.");
 		this.attachmentStatus = append(page, $('p.wizard-subtitle.wizard-attachment-status'));
 		this.attachmentStatus.setAttribute('role', 'status');
 		this.attachmentStatus.setAttribute('aria-live', 'polite');
@@ -1856,13 +1868,14 @@ export class IssueReporterOverlay {
 		if (this.uploading || this.screenshotCapturePending || this.delayedScreenshotPending) {
 			return;
 		}
+		const delayed = !!reservation;
 		reservation ??= this.reserveAttachment('screenshot');
 		if (!reservation || !this.attachments.includes(reservation)) {
 			return;
 		}
 		this.screenshotCapturePending = true;
 		this.updateAttachmentButtons();
-		this._onDidRequestScreenshot.fire(reservation.id);
+		this._onDidRequestScreenshot.fire({ id: reservation.id, delayed });
 	}
 
 	completeScreenshotCapture(id = this.getPendingAttachment('screenshot')?.id): void {
@@ -1900,15 +1913,14 @@ export class IssueReporterOverlay {
 		};
 	}
 
+	/** Attaches a screenshot, which its thumbnail opens for markup. */
 	addScreenshot(screenshot: IScreenshot, id = this.getPendingAttachment('screenshot')?.id): void {
 		const reservation = id ? this.attachments.find(item => item.id === id && item.kind === 'pending' && item.source === 'screenshot') : this.reserveAttachment('screenshot');
 		if (this.disposed || !reservation) {
 			return;
 		}
-		const attachment: IssueReporterAttachment<IScreenshot> = { id: reservation.id, kind: 'screenshot', screenshot };
-		this.attachments[this.attachments.indexOf(reservation)] = attachment;
+		this.attachments[this.attachments.indexOf(reservation)] = { id: reservation.id, kind: 'screenshot', screenshot };
 		this.attachmentsChanged();
-		this.openAnnotationEditor(attachment.id);
 	}
 
 	private updateAttachmentButtons(): void {
@@ -2004,6 +2016,7 @@ export class IssueReporterOverlay {
 		this.screenshotContainer.textContent = '';
 		this.screenshotAddCard = undefined;
 		this.attachmentCards.clear();
+		this.screenshotEditHint.hidden = !this.getAttachments().some(attachment => attachment.kind === 'screenshot');
 		let screenshotNumber = 0;
 		for (const attachment of this.getAttachments()) {
 			let card: HTMLElement;
@@ -2056,34 +2069,35 @@ export class IssueReporterOverlay {
 		}
 	}
 
+	/** Opens a screenshot to mark it up. */
 	private openAnnotationEditor(id: string): void {
 		const attachment = this.attachments.find(item => item.id === id);
-		if (attachment?.kind !== 'screenshot') {
+		if (attachment?.kind === 'screenshot') {
+			void this.editScreenshot(id, attachment.screenshot);
+		}
+	}
+
+	/**
+	 * Marks up a screenshot in the Images Preview, which opens as a modal editor over the main window, so that it stays
+	 * large even when the reporter has a narrow window of its own.
+	 */
+	private async editScreenshot(id: string, screenshot: IScreenshot): Promise<void> {
+		const edit = await this.screenshotToolService.edit({
+			original: { dataUrl: screenshot.dataUrl, width: screenshot.width, height: screenshot.height },
+			annotationState: screenshot.annotationState,
+		}, ScreenshotToolSurface.IssueReporter);
+		const index = this.attachments.findIndex(item => item.id === id && item.kind === 'screenshot');
+		if (!edit || this.disposed || index === -1) {
 			return;
 		}
-
-		// Per-editor lifecycle: each call creates a new editor that mounts an
-		// absolutely-positioned overlay on top of any previously-open editor and
-		// disposes itself on save/cancel. This gives us the stacking behavior the
-		// user expects when taking multiple screenshots in a row — the topmost
-		// editor handles save/cancel, then the previous one becomes visible
-		// again.
-		const screenshot = attachment.screenshot;
-		const editorDisposables = this.disposables.add(new DisposableStore());
-		const editor = editorDisposables.add(new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState));
-
-		editorDisposables.add(editor.onDidSave(({ dataUrl, state }) => {
-			const index = this.attachments.findIndex(item => item.id === id);
-			if (index !== -1) {
-				this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl: dataUrl, annotationState: state } };
-				this.attachmentsChanged();
-			}
-			this.disposables.delete(editorDisposables);
-		}));
-
-		editorDisposables.add(editor.onDidCancel(() => {
-			this.disposables.delete(editorDisposables);
-		}));
+		this.attachments[index] = { id, kind: 'screenshot', screenshot: { ...screenshot, annotatedDataUrl: edit.annotated ? edit.image.dataUrl : undefined, annotationState: edit.annotationState } };
+		// The cards are replaced, so focus moves to the new card of the edited screenshot when it was on the old one.
+		const activeElement = getWindow(this.screenshotContainer).document.activeElement;
+		const refocus = isHTMLElement(activeElement) && this.screenshotContainer.contains(activeElement);
+		this.attachmentsChanged();
+		if (refocus) {
+			this.attachmentCards.get(id)?.focus();
+		}
 	}
 
 	getAttachments(): readonly IssueReporterAttachment<IScreenshot>[] {
