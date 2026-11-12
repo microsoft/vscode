@@ -21,10 +21,10 @@ export const sessionsListConfiguration = {
 			tags: ['preview'],
 			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
 			enumDescriptions: [
-				localize('sessions.showChatTabs.multiple', "Each chat is displayed as a tab in the session view."),
-				localize('sessions.showChatTabs.single', "The active chat is displayed as the session view."),
+				localize('sessions.showChatTabs.multiple', "Each chat shows as a tab."),
+				localize('sessions.showChatTabs.single', "Only the active chat shows, with its title."),
 			],
-			description: localize('sessions.showChatTabs', "Controls whether chats in a session are shown as individual tabs or whether the active chat is shown as the session view."),
+			description: localize('sessions.showChatTabs', "Controls whether chats show as tabs or as a single chat with its title."),
 			default: SESSIONS_CHAT_TABS_DEFAULT,
 			experiment: { mode: 'auto' },
 		},
