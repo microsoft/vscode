@@ -1562,15 +1562,15 @@ function getAllowedMcpSession(
 		authorizationServer,
 	);
 	if (accountNamePreference) {
-		// Preserve exact matching for remembered account labels. Configured hints can match
-		// case-insensitively, but only when they identify one account unambiguously.
-		let preferred = sessions.find(session => session.account.label === accountNamePreference.label);
-		if (!preferred && accountNamePreference.allowCaseInsensitiveMatch) {
-			const candidates = sessions.filter(session => session.account.label.toLowerCase() === accountNamePreference.label.toLowerCase());
-			if (new Set(candidates.map(session => session.account.id)).size === 1) {
-				preferred = candidates[0];
-			}
-		}
+		// Remembered account preferences retain their exact-match behavior. Configured
+		// hints can match case-insensitively, but must resolve to only one account.
+		const exact = sessions.filter(session => session.account.label === accountNamePreference.label);
+		const candidates = exact.length || !accountNamePreference.allowCaseInsensitiveMatch
+			? exact
+			: sessions.filter(session => session.account.label.toLowerCase() === accountNamePreference.label.toLowerCase());
+		const preferred = accountNamePreference.allowCaseInsensitiveMatch && new Set(candidates.map(session => session.account.id)).size !== 1
+			? undefined
+			: candidates[0];
 		if (preferred && authenticationMcpAccessService.isAccessAllowedForUrl(providerId, preferred.account.label, options.mcpServerId, options.mcpServerUrl)) {
 			return preferred;
 		}
