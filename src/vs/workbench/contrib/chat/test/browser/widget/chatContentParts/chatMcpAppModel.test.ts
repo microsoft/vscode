@@ -33,6 +33,7 @@ import { ChatMcpAppModel } from '../../../../browser/widget/chatContentParts/too
 import { IMcpAppRenderData } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatMcpAppSubPart.js';
 import { IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
+import { registerTestIframe } from '../../../../../../../base/test/browser/testWindow.js';
 
 suite('ChatMcpAppModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -738,6 +739,7 @@ suite('ChatMcpAppModel', () => {
 		const frame = dom.$<HTMLIFrameElement>('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		assert.ok(frame.contentDocument?.body);
 		const container = dom.$('div');
 		container.style.cssText = 'width: 100px; height: 100px;';

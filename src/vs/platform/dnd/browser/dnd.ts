@@ -201,7 +201,7 @@ async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent
 
 async function extractFileTransferData(accessor: ServicesAccessor, items: DataTransferItemList): Promise<IFileTransferData[]> {
 	const fileSystemProvider = accessor.get(IFileService).getProvider(Schemas.file);
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	if (!(fileSystemProvider instanceof HTMLFileSystemProvider)) {
 		return []; // only supported when running in web
 	}

@@ -596,7 +596,8 @@
 	pointer-events: auto;
 }
 
-.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container {
+/* Not in session chats, which pad it themselves, whatever window shows them. */
+.monaco-workbench:not(.agent-sessions-workbench) .interactive-item-container.interactive-request.editing .chat-request-timestamp-container:where(:not(.sessions-chat *)) {
 	box-sizing: border-box;
 	padding-inline-end: var(--vscode-spacing-size160);
 }
@@ -2661,8 +2662,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
+/* A theme icon is centered in its box, so the box takes the height of the pill rather than the taller height of a list row. */
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-icon-label-iconpath.codicon {
-	padding-top: 2px;
+	height: auto;
 }
 
 .interactive-session .chat-input-container .chat-attached-context {
@@ -2730,11 +2732,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* An attachment shown as a pill inline with the text of a request, see `chat.inlineAttachments.enabled`. */
 .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown .chat-attached-context.chat-request-inline-attachment {
 	display: inline-flex;
-	vertical-align: middle;
 	max-width: 100%;
 	width: auto;
 	margin: 0;
 	padding: 0;
+}
+
+/*
+ * The label of the pill sits on the baseline of the text of the request. The pill takes its baseline from its
+ * first box, which would be its icon, so a box without text that is laid out as the line of its label comes first.
+ */
+.interactive-session .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-inline-attachment .chat-attached-context-attachment::before {
+	content: '\200b';
 }
 
 /* Codicons in the text of a request are moved down to its baseline, while those of a pill are centered in it. */
@@ -2873,6 +2882,22 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
+/*
+ * A reference in the text of a request that is not an attachment pill, such as a slash command, is level with the
+ * pills beside it, and its text stays on the baseline of the text of the request. Its box is a line that also holds
+ * the label of a pill, without text: 18px high, in the smaller font of a pill and inside the width of its border.
+ */
+.interactive-item-container.interactive-request .chat-resource-widget {
+	display: inline-block;
+	padding-block: var(--vscode-strokeThickness);
+	line-height: normal;
+}
+
+.interactive-item-container.interactive-request .chat-resource-widget::before {
+	content: '\200b';
+	font-size: var(--vscode-chat-font-size-body-xs);
+	line-height: 18px;
+}
 
 .interactive-item-container .chat-resource-widget,
 .interactive-item-container .chat-agent-widget .monaco-button {

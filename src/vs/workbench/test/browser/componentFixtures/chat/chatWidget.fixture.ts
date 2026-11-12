@@ -19,7 +19,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/w
 import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
+import { ChatRequestSlashPromptPart, ChatRequestTextPart, IParsedChatRequest } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestModel, ChatRequestSource, IChatRequestModeInfo, IChatRequestModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ChatListWidget } from '../../../../contrib/chat/browser/widget/chatListWidget.js';
@@ -81,6 +81,7 @@ export interface IFixtureFileChange {
 
 export interface IFixtureMessage {
 	readonly user: string; // user prompt text
+	readonly parts?: IParsedChatRequest['parts'];
 	readonly variables?: readonly IChatRequestVariableEntry[];
 	readonly timestamp?: number;
 	readonly modeInfo?: IChatRequestModeInfo;
@@ -445,7 +446,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	for (const message of options.messages) {
 		const request = model.addRequest(
-			makeUserMessage(message.user),
+			message.parts ? { text: message.user, parts: message.parts } : makeUserMessage(message.user),
 			{ variables: message.variables ?? [] },
 			0,
 			message.modeInfo,
@@ -1734,18 +1735,22 @@ interface IVerbosityComparisonOptions {
 	readonly expand?: boolean;
 	/** Names the running tool call with a file link, which renders beside the section's header button. */
 	readonly linkedTitle?: boolean;
+	/** Names the running tool call with a file pill, which must not make the header taller than a plain title. */
+	readonly filePillTitle?: boolean;
 	/** Ends the running response with reasoning that has a summary heading. */
 	readonly reasoningLast?: boolean;
 }
 
 async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean, options: IVerbosityComparisonOptions = {}): Promise<void> {
 	const patchComplete = complete || !!options.reasoningLast;
-	const runningPatchMessage = options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
+	const runningPatchMessage = options.filePillTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts?vscodeLinkType=file)'
+		: options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
 	await renderChatWidget(context, {
 		width: 620,
 		height: 340,
 		listHeight: 340,
 		inputVisible: false,
+		additionalServices: options.filePillTitle ? reg => reg.defineInstance(IFileService, context.disposableStore.add(new TestFileService())) : undefined,
 		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: verbosity,
 		thinkingStyle: ThinkingDisplayMode.Collapsed,
@@ -2529,10 +2534,7 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	},
 ];
 
-/**
- * A request whose pasted image and file are shown as pills inline with its
- * text, see `chat.inlineAttachments.enabled`, optionally in a custom chat font.
- */
+/** A request with image and file pills, a slash command and text, optionally in a custom chat font. */
 async function renderInlineAttachmentPills(context: ComponentFixtureContext, chatFont?: IChatWidgetFixtureOptions['chatFont']): Promise<void> {
 	const canvas = dom.$<HTMLCanvasElement>('canvas');
 	canvas.width = 48;
@@ -2548,15 +2550,21 @@ async function renderInlineAttachmentPills(context: ComponentFixtureContext, cha
 	canvasContext.fillRect(6, 14, 36, 4);
 	canvasContext.fillRect(6, 22, 18, 4);
 	const imageBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), character => character.charCodeAt(0));
+	const text = 'Pasted Image /explain #file:index.ts in detail';
 
 	await renderChatWidget(context, {
 		messages: [{
-			user: 'Why does #file:index.ts look different from Pasted Image?',
+			user: text,
+			parts: [
+				new ChatRequestTextPart(new OffsetRange(0, 13), new Range(1, 1, 1, 14), text.slice(0, 13)),
+				new ChatRequestSlashPromptPart(new OffsetRange(13, 21), new Range(1, 14, 1, 22), 'explain'),
+				new ChatRequestTextPart(new OffsetRange(21, text.length), new Range(1, 22, 1, text.length + 1), text.slice(21)),
+			],
 			variables: [
 				{ kind: 'file', id: 'file:///repo/src/index.ts', name: 'index.ts', value: URI.file('/repo/src/index.ts') },
 				{ kind: 'image', id: 'pasted-image', name: 'Pasted Image', value: imageBytes, mimeType: 'image/png', isPasted: true },
 			],
-			assistant: [{ kind: 'markdown', text: 'Both pills should center their label vertically.' }],
+			assistant: [{ kind: 'markdown', text: 'Attachment pills and slash commands should be level, with their labels on the baseline of the request text.' }],
 		}],
 		height: 200,
 		listHeight: 200,
@@ -2838,6 +2846,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			CompactCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Compact, true) }),
 			ConversationStreaming: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false) }),
 			ConversationStreamingLinkedTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { linkedTitle: true }) }),
+			ConversationStreamingFilePillTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { filePillTitle: true }) }),
 			ConversationStreamingReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { reasoningLast: true }) }),
 			ConversationCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true) }),
 			ConversationExpanded: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true, { expand: true }) }),

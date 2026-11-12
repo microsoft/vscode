@@ -14,9 +14,12 @@ import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/bro
 import './chatWindowActions.js';
 import './chatWindowDragOut.js';
 import './openChatInWindow.js';
-import '../../chatEditor/browser/chatEditor.js';
+import { registerSessionChatViewEditor } from '../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../common/chatWindows.js';
 import { SessionsChatWindowProvider } from './sessionsChatWindowProvider.js';
+
+// The chat of a session shows as an editor: in the chat part of a chat window, and moved into the main window's editors
+registerSessionChatViewEditor();
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {

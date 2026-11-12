@@ -52,6 +52,14 @@ export class AgentsWindowGraphic extends Disposable {
 	/** The graphic rendered in {@link element}, or `undefined` when none is. Changes after the element has been updated. */
 	readonly shownDesign: IObservable<AgentsWindowGraphicDesign | undefined> = this._shownDesign;
 
+	private readonly _hasMultipleEditorWindows = observableValue<boolean | undefined>(this, undefined);
+	/**
+	 * Whether more than one editor window is open, or `undefined` until the windows have been counted.
+	 * {@link AgentsWindowGraphicVariant.Auto} picks its graphic from this. The windows are counted for every
+	 * variant, so that the page can log an experiment trigger for this case in every experiment arm.
+	 */
+	readonly hasMultipleEditorWindows: IObservable<boolean | undefined> = this._hasMultipleEditorWindows;
+
 	/**
 	 * How the graphic, its captions and the Agents window button should be set apart from the rest of the page,
 	 * see {@link ChatConfiguration.WelcomePageAgentsWindowSectionStyle}. The page that shows the graphic applies it.
@@ -75,12 +83,9 @@ export class AgentsWindowGraphic extends Disposable {
 			() => getAgentsWindowSectionStyle(configurationService),
 		);
 
-		// Count the editor windows when the graphic is shown, and only when the graphic depends on them
-		const hasMultipleEditorWindows = observableValue<boolean | undefined>(this, undefined);
+		// Count the editor windows whenever the setting changes, for every variant, see hasMultipleEditorWindows
 		this._register(autorun(reader => {
-			if (variant.read(reader) !== AgentsWindowGraphicVariant.Auto) {
-				return;
-			}
+			variant.read(reader);
 			let disposed = false;
 			reader.store.add(toDisposable(() => disposed = true));
 			const update = async () => {
@@ -91,13 +96,13 @@ export class AgentsWindowGraphic extends Disposable {
 					onUnexpectedError(error);
 				}
 				if (!disposed) {
-					hasMultipleEditorWindows.set(hasMultiple, undefined);
+					this._hasMultipleEditorWindows.set(hasMultiple, undefined);
 				}
 			};
 			update();
 		}));
 
-		const design = derived(this, reader => resolveAgentsWindowGraphicDesign(variant.read(reader), hasMultipleEditorWindows.read(reader)));
+		const design = derived(this, reader => resolveAgentsWindowGraphicDesign(variant.read(reader), this._hasMultipleEditorWindows.read(reader)));
 		this._register(autorun(reader => {
 			const shownDesign = design.read(reader);
 			reset(this.element, ...(shownDesign ? [renderAgentsWindowGraphic(shownDesign)] : []));

@@ -49,13 +49,13 @@ suite('RemoteAgentHostLocationPreferenceService', () => {
 		assert.strictEqual(service.getPreference('ssh:myhost'), 'editor');
 	});
 
-	test('persists under a single component-owned storage key in APPLICATION/USER scope', () => {
+	test('persists under a single component-owned storage key in APPLICATION/MACHINE scope', () => {
 		const { service, storageService } = createService();
 		service.setPreference('ssh:myhost', 'dedicated');
 
 		const raw = storageService.get(REMOTE_AGENT_HOST_LOCATION_PREFERENCE_STORAGE_KEY, StorageScope.APPLICATION);
 		assert.ok(raw);
-		assert.ok(storageService.keys(StorageScope.APPLICATION, StorageTarget.USER).includes(REMOTE_AGENT_HOST_LOCATION_PREFERENCE_STORAGE_KEY));
+		assert.ok(storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE).includes(REMOTE_AGENT_HOST_LOCATION_PREFERENCE_STORAGE_KEY));
 	});
 
 	test('fires onDidChangePreference with the changed host key', () => {
