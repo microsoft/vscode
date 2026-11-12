@@ -12,7 +12,7 @@ import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
 import { Mimes } from '../../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { basename, joinPath } from '../../../../../../../base/common/resources.js';
+import { basename, extname, joinPath } from '../../../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
@@ -105,7 +105,8 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		if (!imageItem || !mimeType) {
 			return;
 		}
-		const currClipboard = await imageItem.asFile()?.data();
+		const imageFile = imageItem.asFile();
+		const currClipboard = await imageFile?.data();
 		if (token.isCancellationRequested || !currClipboard) {
 			return;
 		}
@@ -115,13 +116,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const attachedVariables = target.attachments;
-		const displayName = localize('pastedImageName', 'Pasted Image');
-		let tempDisplayName = displayName;
-
-		for (let appendValue = 2; attachedVariables.some(attachment => attachment.name === tempDisplayName); appendValue++) {
-			tempDisplayName = `${displayName} ${appendValue}`;
-		}
+		const tempDisplayName = getPastedImageName(imageFile?.uri, target.attachments.map(attachment => attachment.name));
 
 		const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, currClipboard, mimeType);
 		if (token.isCancellationRequested || !fileReference) {
@@ -147,6 +142,24 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const edit = createCustomPasteEdit(model, [scaledImageContext], mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.pasteTargetService);
 		return createEditSession(edit);
 	}
+}
+
+/**
+ * Names a pasted image after the file it was pasted from (e.g. a file copied in the OS file
+ * manager or a screenshot tool that saves to disk), or "Pasted Image" for raw clipboard data.
+ * A counter before the extension keeps the name unique among the existing attachments.
+ */
+export function getPastedImageName(fileUri: URI | undefined, existingNames: readonly string[]): string {
+	const name = fileUri ? basename(fileUri) : '';
+	const baseName = name || localize('pastedImageName', 'Pasted Image');
+	const extension = name && fileUri ? extname(fileUri) : '';
+	const stem = baseName.slice(0, baseName.length - extension.length);
+
+	let candidate = baseName;
+	for (let counter = 2; existingNames.includes(candidate); counter++) {
+		candidate = `${stem} ${counter}${extension}`;
+	}
+	return candidate;
 }
 
 async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string, resource: URI): Promise<IChatRequestVariableEntry | undefined> {

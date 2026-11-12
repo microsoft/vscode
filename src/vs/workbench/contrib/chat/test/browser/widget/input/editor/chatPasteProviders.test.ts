@@ -20,7 +20,7 @@ import { IConfigurationService } from '../../../../../../../../platform/configur
 import { ILogService } from '../../../../../../../../platform/log/common/log.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../../../browser/chat.js';
 import { IChatSessionsService } from '../../../../../common/chatSessionsService.js';
-import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
+import { CHAT_ATTACHMENT_MIME_TYPE, createPastedTextArtifact, getGitHubIssueOrPullRequestAttachments, getPastedImageName, pastedTextArtifactDefaultMinLength, PasteTextProvider } from '../../../../../browser/widget/input/editor/chatPasteProviders.js';
 import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { isSupportedChatFileScheme } from '../../../../../common/constants.js';
 import { ChatResponseResource } from '../../../../../common/model/chatModel.js';
@@ -39,6 +39,21 @@ suite('Chat Paste Providers', () => {
 		assert.strictEqual(
 			instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, ChatResponseResource.scheme)),
 			false);
+	});
+
+	test('names pasted images after their file and keeps the names unique', () => {
+		const file = URI.file('/screenshots/diagram.png');
+		assert.deepStrictEqual({
+			fromFile: getPastedImageName(file, []),
+			fromFileTaken: getPastedImageName(file, ['diagram.png', 'diagram 2.png']),
+			withoutFile: getPastedImageName(undefined, []),
+			withoutFileTaken: getPastedImageName(undefined, ['Pasted Image']),
+		}, {
+			fromFile: 'diagram.png',
+			fromFileTaken: 'diagram 3.png',
+			withoutFile: 'Pasted Image',
+			withoutFileTaken: 'Pasted Image 2',
+		});
 	});
 
 	test('creates sequential artifacts only for long pasted text', () => {
