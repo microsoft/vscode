@@ -120,6 +120,23 @@ jobs:
           build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/test-plan > /dev/null
           echo "Linux and Windows run the selected files, and skip their unit test jobs, the node.js integration tests and Agent Host E2E when there are none. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
 
+      # The selected unit test files that the pull request adds, changes or renames, which the Linux
+      # Electron unit test job also runs each alone in a fresh window (see --isolate in
+      # test/unit/README.md): a full run loads every test file before running any, so a test file can
+      # pass there only because another one registers what it reads.
+      - name: List changed unit test files
+        if: steps.plan.outputs.select == 'true'
+        continue-on-error: true
+        run: |
+          if [ -f .build/test-plan/unit.txt ]; then
+            git diff --name-only --diff-filter=AMR HEAD^1 HEAD -- 'src/*.test.ts' | grep -Fx -f .build/test-plan/unit.txt > .build/test-plan/isolate.txt || true
+            if [ -s .build/test-plan/isolate.txt ]; then
+              echo "Linux runs the $(wc -l < .build/test-plan/isolate.txt | tr -d ' ') changed unit test file(s) each alone in a fresh window too." >> "$GITHUB_STEP_SUMMARY"
+            else
+              rm -f .build/test-plan/isolate.txt
+            fi
+          fi
+
       - name: Upload test plan
         if: steps.plan.outputs.select == 'true'
         continue-on-error: true
