@@ -6,6 +6,7 @@
 import { DisposableMap, DisposableStore, MutableDisposable, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -50,6 +51,15 @@ export function getNavigationAnchorForResource(comments: readonly ISessionEditor
 		return undefined;
 	}
 	return commentsOfResource[0].id;
+}
+
+/**
+ * The file that a diff editor shows: its modified side, or its original side when the modified side is the empty
+ * synthetic document that stands in for a deleted file, such as in the Changes editor.
+ */
+export function getDiffEditorResource(model: { readonly original: { readonly uri: URI }; readonly modified: { readonly uri: URI } }): URI {
+	const modified = model.modified.uri;
+	return modified.scheme === Schemas.inMemory && modified.path.startsWith('/synthetic/') ? model.original.uri : modified;
 }
 
 export class AgentFeedbackOverlayController {
@@ -112,35 +122,44 @@ export class AgentFeedbackOverlayController {
 		));
 
 		// When another file becomes active within the editor, such as a file picked in the Changes editor, anchor the
-		// navigation at that file's comments so that the counter shows where the user is.
+		// navigation at that file's comments so that the counter shows where the user is. This only moves the counter:
+		// it does not reveal or focus the comment, which would scroll the file away from where the user put it.
 		const controlListener = this._store.add(new MutableDisposable());
-		const listenToActiveControl = () => {
-			const pane = group.activeEditorPane;
-			controlListener.value = pane?.onDidChangeControl(() => {
-				const control = pane.getControl();
-				const resourceUri = isDiffEditor(control) ? control.getModel()?.modified.uri : isCodeEditor(control) ? control.getModel()?.uri : undefined;
-				if (!resourceUri) {
+		const syncNavigationAnchor = (pane: NonNullable<IEditorGroup['activeEditorPane']>) => {
+			const control = pane.getControl();
+			const diffModel = isDiffEditor(control) ? control.getModel() : undefined;
+			const resourceUri = diffModel ? getDiffEditorResource(diffModel) : isCodeEditor(control) ? control.getModel()?.uri : undefined;
+			if (!resourceUri) {
+				return;
+			}
+			const candidates = getAgentFeedbackOverlayResourceCandidates(pane.input);
+			for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate, hostSession?.get()))) {
+				const comments = getSessionEditorComments(
+					sessionResource,
+					agentFeedbackService.getFeedback(sessionResource),
+					codeReviewService.getPRReviewState(sessionResource).get(),
+					agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
+					shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
+				);
+				if (comments.length > 0) {
+					const currentAnchorId = comments[agentFeedbackService.getNavigationBearing(sessionResource, comments).activeIdx]?.id;
+					const anchorId = getNavigationAnchorForResource(comments, currentAnchorId, resourceUri);
+					if (anchorId) {
+						agentFeedbackService.setNavigationAnchor(sessionResource, anchorId, { reveal: false });
+					}
 					return;
 				}
-				const candidates = getAgentFeedbackOverlayResourceCandidates(pane.input);
-				for (const { sessionResource } of getFeedbackSessionCandidates(candidates, candidate => agentFeedbackService.getFeedbackSessionResource(candidate, hostSession?.get()))) {
-					const comments = getSessionEditorComments(
-						sessionResource,
-						agentFeedbackService.getFeedback(sessionResource),
-						codeReviewService.getPRReviewState(sessionResource).get(),
-						agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
-						shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
-					);
-					if (comments.length > 0) {
-						const currentAnchorId = comments[agentFeedbackService.getNavigationBearing(sessionResource, comments).activeIdx]?.id;
-						const anchorId = getNavigationAnchorForResource(comments, currentAnchorId, resourceUri);
-						if (anchorId) {
-							agentFeedbackService.setNavigationAnchor(sessionResource, anchorId);
-						}
-						return;
-					}
-				}
-			});
+			}
+		};
+		const listenToActiveControl = () => {
+			const pane = group.activeEditorPane;
+			if (!pane) {
+				controlListener.clear();
+				return;
+			}
+			controlListener.value = pane.onDidChangeControl(() => syncNavigationAnchor(pane));
+			// The editor may have shown its file before the group announced it as active.
+			syncNavigationAnchor(pane);
 		};
 		listenToActiveControl();
 		this._store.add(group.onDidActiveEditorChange(listenToActiveControl));

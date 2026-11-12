@@ -23,7 +23,7 @@ import { IFocusedSessionHostService } from '../../../../workbench/services/sessi
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
-import { IAgentFeedbackContext, AGENT_FEEDBACK_NEW_SESSION_RESOURCE, INavigableSessionComment, IAcceptFeedbackOptions, IAgentFeedbackChangeEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackCommentRevealEvent, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackSubmittedEvent, ISubmitFeedbackOptions, IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { IAgentFeedbackContext, AGENT_FEEDBACK_NEW_SESSION_RESOURCE, INavigableSessionComment, IAcceptFeedbackOptions, IAgentFeedbackChangeEvent, IAgentFeedbackNavigationBearing, IAgentFeedbackNavigationChangeEvent, IAgentFeedbackCommentRevealEvent, IAgentFeedbackAddedEvent, IAgentFeedbackConvertedEvent, IAgentFeedbackReplyAddedEvent, IAgentFeedbackSubmittedEvent, ISubmitFeedbackOptions, IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -57,7 +57,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	readonly onDidChangeFeedback = this._onDidChangeFeedback.event;
 	private readonly _onDidChangeFeedbackVisibility = this._store.add(new Emitter<URI>());
 	readonly onDidChangeFeedbackVisibility = this._onDidChangeFeedbackVisibility.event;
-	private readonly _onDidChangeNavigation = this._store.add(new Emitter<URI>());
+	private readonly _onDidChangeNavigation = this._store.add(new Emitter<IAgentFeedbackNavigationChangeEvent>());
 	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
 	private readonly _onDidRevealSessionComment = this._store.add(new Emitter<IAgentFeedbackCommentRevealEvent>());
 	readonly onDidRevealSessionComment = this._onDidRevealSessionComment.event;
@@ -255,7 +255,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			this._sessionUpdatedOrder.delete(key);
 		}
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems });
-		this._onDidChangeNavigation.fire(sessionResource);
+		this._onDidChangeNavigation.fire({ sessionResource, reveal: true });
 		if (isEqual(sessionResource, AGENT_FEEDBACK_NEW_SESSION_RESOURCE)) {
 			this._rebindNewSessionWorkspace();
 		}
@@ -681,14 +681,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return item;
 	}
 
-	setNavigationAnchor(sessionResource: URI, itemId: string | undefined): void {
+	setNavigationAnchor(sessionResource: URI, itemId: string | undefined, options?: { readonly reveal?: boolean }): void {
 		const key = sessionResource.toString();
 		if (itemId) {
 			this._navigationAnchorBySession.set(key, itemId);
 		} else {
 			this._navigationAnchorBySession.delete(key);
 		}
-		this._onDidChangeNavigation.fire(sessionResource);
+		this._onDidChangeNavigation.fire({ sessionResource, reveal: options?.reveal ?? true });
 	}
 
 	getNavigationBearing(sessionResource: URI, items: readonly INavigableSessionComment[] = this.getFeedback(sessionResource)): IAgentFeedbackNavigationBearing {

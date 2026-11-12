@@ -52,8 +52,8 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 	) {
 		super();
 
-		this._store.add(this._agentFeedbackService.onDidChangeNavigation(sessionResource => {
-			if (this._sessionResource && sessionResource.toString() === this._sessionResource.toString()) {
+		this._store.add(this._agentFeedbackService.onDidChangeNavigation(({ sessionResource, reveal }) => {
+			if (reveal && this._sessionResource && sessionResource.toString() === this._sessionResource.toString()) {
 				this._handleNavigation();
 			}
 		}));
