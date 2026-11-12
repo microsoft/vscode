@@ -53,7 +53,7 @@ suite('Saved session draft lifecycle', () => {
 		};
 		const service = disposables.add(new SessionDraftsService(storage, config, view, management,
 			new TestDialogService({ confirmed: true }), new class extends mock<INotificationService>() { }, new NullLogService(), groups, entitlement));
-		return { service, storage, config, sent, navigation };
+		return { service, storage, config, sent, navigation, view };
 	}
 
 	test('default-off preserves the singleton behavior without creating a collection or draft history', () => {
@@ -188,6 +188,60 @@ suite('Saved session draft lifecycle', () => {
 			input: composer.input.inputText, id: composer.id,
 			titles: service.sections.get().flatMap(section => section.items.map(item => item.title)).sort(),
 		}, { input: 'second', id: second.id, titles: ['first', 'second'] });
+	});
+
+	test('opening a draft restores only the requested draft when the composer registers', async () => {
+		const { service, view } = create();
+		const previous = service.save({ inputText: 'previous draft', attachments: [] }, {});
+		const requested = service.save({ inputText: 'requested draft', attachments: [] }, {});
+		const composer = service.createComposer();
+		composer.id = previous.id;
+		const restored: string[] = [];
+		view.openNewSession = async () => {
+			disposables.add(service.registerComposer(composer, async draft => {
+				restored.push(draft.id);
+				composer.updateInput(draft.input);
+			}, () => { }));
+			return { session: undefined, trustDeclined: false };
+		};
+
+		await service.open(requested.id);
+
+		assert.deepStrictEqual({ restored, input: composer.input, id: composer.id }, {
+			restored: [requested.id], input: requested.input, id: requested.id,
+		});
+	});
+
+	test('opening a draft waits for automatic restoration to finish', async () => {
+		const { service } = create();
+		const previous = service.save({ inputText: 'previous draft', attachments: [] }, {});
+		const requested = service.save({ inputText: 'requested draft', attachments: [] }, {});
+		const composer = service.createComposer();
+		composer.id = previous.id;
+		const started = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		const restored: string[] = [];
+		disposables.add(service.registerComposer(composer, async draft => {
+			if (draft.id === previous.id) {
+				started.complete();
+				await resume.p;
+			}
+			restored.push(draft.id);
+			composer.updateInput(draft.input);
+		}, () => { }));
+
+		await started.p;
+		const opening = service.open(requested.id);
+		resume.complete();
+		await opening;
+
+		assert.deepStrictEqual({
+			restored, input: composer.input, id: composer.id,
+			titles: service.sections.get()[0].items.map(item => item.title).sort(),
+		}, {
+			restored: [previous.id, requested.id], input: requested.input, id: requested.id,
+			titles: ['previous draft', 'requested draft'],
+		});
 	});
 
 	test('restoring input does not record an intermediate empty composer in navigation', async () => {

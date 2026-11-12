@@ -852,7 +852,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		this._sending.set(true, undefined);
 		this.setInputEnabled(false);
 		try {
-			if (await this.options.scheduleRequest()) {
+			if (await this.options.scheduleRequest(this._widget?.input.executeToolbarElement)) {
 				this.setDraft(undefined);
 				this.saveState();
 			}

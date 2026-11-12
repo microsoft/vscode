@@ -684,6 +684,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.inputActionsToolbar.getElement();
 	}
 
+	get executeToolbarElement(): HTMLElement {
+		return this.executeToolbar.getElement();
+	}
+
 	get attachContextButtonElement(): HTMLElement | undefined {
 		const element = this.attachContextActionViewItem?.element;
 		return element?.isConnected ? element : undefined;

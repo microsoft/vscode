@@ -134,7 +134,7 @@ export interface INewChatComposerInputOptions {
 	readonly onWillSendDraft?: (draft: IChatDraft) => void;
 	readonly onDidSendDraft?: (accepted: boolean) => void;
 	readonly canSchedule?: IObservable<boolean>;
-	readonly scheduleRequest?: () => Promise<boolean>;
+	readonly scheduleRequest?: (anchor: HTMLElement | undefined) => Promise<boolean>;
 	/** Keep an in-place composer's read-only editor focusable while confirming and sending. */
 	readonly preserveInputFocusOnSend?: boolean;
 	/**

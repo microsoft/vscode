@@ -563,7 +563,7 @@ export class NewChatWidget extends Disposable {
 					&& this._environment.read(reader)?.kind !== 'container'
 					&& this.scheduledChatsService.canSchedule(this._session.read(reader));
 			}),
-			scheduleRequest: () => this._scheduleRequest(),
+			scheduleRequest: anchor => this._scheduleRequest(anchor),
 			get preserveInputFocusOnSend() { return backgroundSend || viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox; },
 			confirmSend: async query => {
 				if (this._savedDraftComposer) {
@@ -1277,7 +1277,7 @@ export class NewChatWidget extends Disposable {
 		});
 	}
 
-	private async _scheduleRequest(): Promise<boolean> {
+	private async _scheduleRequest(anchor: HTMLElement | undefined): Promise<boolean> {
 		const composer = this._savedDraftComposer;
 		const session = this._session.get();
 		if (!composer || !session || this._comparisonSelection.enabled.get() || this._feedbackItems.get().length) {
@@ -1288,7 +1288,7 @@ export class NewChatWidget extends Disposable {
 		const input = this._newChatInput.getDraft();
 		composer.isScheduling = true;
 		try {
-			const accepted = await this.scheduledChatsService.schedule(input, composer.target, session, composer.id);
+			const accepted = await this.scheduledChatsService.schedule(input, composer.target, session, composer.id, undefined, anchor);
 			if (accepted) {
 				this.sessionDraftsService.finishScheduledComposer(composer, revision);
 			}

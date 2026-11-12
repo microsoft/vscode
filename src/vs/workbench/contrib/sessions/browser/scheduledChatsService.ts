@@ -76,7 +76,7 @@ export interface IScheduledChatsService {
 	readonly claimedDraftIds: IObservable<ReadonlySet<string>>;
 	canSchedule(session: ISession | undefined, conversation?: IAutomationDescriptor['conversation']): boolean;
 	readonly availableProviders: IAutomationService['availableProviders'];
-	schedule(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession, compositionId: string, conversation?: IAutomationDescriptor['conversation']): Promise<boolean>;
+	schedule(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession, compositionId: string, conversation?: IAutomationDescriptor['conversation'], anchor?: HTMLElement): Promise<boolean>;
 	hasPendingHandoff(compositionId: string, input: IChatDraft): boolean;
 	assertUnscheduled(compositionId: string, input: IChatDraft): void;
 	registerChatInput(widget: IChatWidget, session: IObservable<ISession | undefined>, chatResource: IObservable<URI | undefined>, canSend: IObservable<boolean>): IDisposable;
@@ -257,7 +257,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 				busy.set(true, undefined);
 				widget.input.setInputEnabled(false);
 				try {
-					if (await this.schedule(input, target, currentSession, compositionId, conversation)) {
+					if (await this.schedule(input, target, currentSession, compositionId, conversation, widget.input.executeToolbarElement)) {
 						if (widget.viewModel?.model === model && stringify(toStoredChatDraft(captureChatInput(widget))) === stringify(toStoredChatDraft(input))) {
 							widget.setInput('');
 							widget.attachmentModel.clearAndSetContext();
@@ -359,7 +359,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		}
 	}
 
-	async schedule(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession, compositionId: string, conversation?: IAutomationDescriptor['conversation']): Promise<boolean> {
+	async schedule(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession, compositionId: string, conversation?: IAutomationDescriptor['conversation'], anchor?: HTMLElement): Promise<boolean> {
 		this.assertEnabled();
 		if (!this.canSchedule(session, conversation) || target.requireDevContainer) {
 			throw new Error(localize('sendLater.unavailable', "Send Later requires a supported local agent host with Automations enabled."));
@@ -374,7 +374,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			}
 			return true;
 		}
-		const date = await this.pickTime();
+		const date = await this.pickTime(anchor);
 		if (!date) {
 			return false;
 		}
@@ -450,17 +450,18 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		status(localize('sendLater.saved', "Request scheduled for {0}", formatTime(handoff.schedule.runAt)));
 	}
 
-	private async pickTime(): Promise<Date | undefined> {
+	private async pickTime(anchor?: HTMLElement): Promise<Date | undefined> {
 		const now = Date.now();
 		const choices = [30, 60, 24 * 60].map(minutes => {
 			const date = new Date(now + minutes * 60_000);
 			return { label: minutes === 30 ? localize('sendLater.thirtyMinutes', "In 30 Minutes") : minutes === 60 ? localize('sendLater.oneHour', "In 1 Hour") : localize('sendLater.tomorrow', "In 24 Hours"), description: formatTime(date.toISOString()), date };
 		});
-		const picked = await this.quickInputService.pick([...choices, { label: localize('sendLater.customTime', "Choose Date and Time..."), description: '', date: undefined }], { title: localize('sendLater.title', "Send Later"), placeHolder: localize('sendLater.pickTime', "Choose when to send. Times use this device's time zone.") });
+		const picked = await this.quickInputService.pick([...choices, { label: localize('sendLater.customTime', "Choose Date and Time..."), description: '', date: undefined }], { title: localize('sendLater.title', "Send Later"), placeHolder: localize('sendLater.pickTime', "Choose when to send. Times use this device's time zone."), anchor, anchorPosition: anchor ? 'above' : undefined });
 		if (!picked || picked.date) {
 			return picked?.date;
 		}
 		const value = await this.quickInputService.input({
+			anchor, anchorPosition: anchor ? 'above' : undefined,
 			title: localize('sendLater.customTitle', "Send Later - Local Date and Time"),
 			prompt: localize('sendLater.timeFormat', "Enter YYYY-MM-DD HH:mm. The confirmation shows the resolved time and time zone."),
 			validateInput: async value => {

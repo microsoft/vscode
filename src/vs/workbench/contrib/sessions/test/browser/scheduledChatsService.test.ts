@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { parse } from '../../../../../base/common/marshalling.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -15,7 +16,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -64,6 +65,8 @@ suite('Scheduled chat handoffs', () => {
 		let conflict = false;
 		let occupied = false;
 		let picks = 0;
+		let customTime = false;
+		const pickerAnchors: Pick<IPickOptions<IQuickPickItem>, 'anchor' | 'anchorPosition'>[] = [];
 		const automations = observableValue<readonly IAutomationDescriptor[]>('automations', []);
 		const runs = observableValue<readonly IAutomationRun[]>('runs', []);
 		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
@@ -131,8 +134,14 @@ suite('Scheduled chat handoffs', () => {
 			override pick<T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>, options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
 			override async pick<T extends IQuickPickItem>(items: QuickPickInput<T>[] | Promise<QuickPickInput<T>[]>, options?: IPickOptions<T>): Promise<T | T[] | undefined> {
 				picks++;
-				const item = (await items).find((item): item is T => item.type !== 'separator');
+				pickerAnchors.push({ anchor: options?.anchor, anchorPosition: options?.anchorPosition });
+				const choices = (await items).filter((item): item is T => item.type !== 'separator');
+				const item = customTime ? choices.at(-1) : choices[0];
 				return options?.canPickMany ? item && [item] : item;
+			}
+			override async input(options?: IInputOptions) {
+				pickerAnchors.push({ anchor: options?.anchor, anchorPosition: options?.anchorPosition });
+				return '2099-01-15 09:30';
 			}
 		};
 		const service = disposables.add(new ScheduledChatsService(config, automationService,
@@ -159,7 +168,8 @@ suite('Scheduled chat handoffs', () => {
 				}
 			}));
 		return {
-			service, storage, config, calls, requests, automations, runs, sessions, sessionsChanged, memberships,
+			service, storage, config, calls, requests, automations, runs, sessions, sessionsChanged, memberships, pickerAnchors,
+			set customTime(value: boolean) { customTime = value; },
 			get picks() { return picks; },
 			set failCreate(value: boolean) { failCreate = value; },
 			set failDelete(value: boolean) { failDelete = value; },
@@ -183,6 +193,7 @@ suite('Scheduled chat handoffs', () => {
 		let enabled = true;
 		let scheduled: readonly IChatScheduledRequest[] = [];
 		const context = disposables.add(new MockContextKeyService());
+		const anchor = $('div');
 		const widget = upcastPartial<IChatWidget>({
 			scopedContextKeyService: context,
 			onDidChangeViewModel: Event.None,
@@ -192,12 +203,30 @@ suite('Scheduled chat handoffs', () => {
 			getContrib: () => undefined,
 			attachmentModel: upcastPartial<ChatAttachmentModel>({ clearAndSetContext: () => { } }),
 			input: upcastPartial<ChatInputPart>({
+				executeToolbarElement: anchor,
 				getAttachedContext: () => new ChatRequestVariableSet(),
 				setInputEnabled: value => { enabled = value; },
 			}),
 		});
 		disposables.add(service.registerChatInput(widget, constObservable(currentSession), constObservable(resource), constObservable(true)));
-		return { widget, context, interactivity, resource, get scheduled() { return scheduled; }, get text() { return text; }, get enabled() { return enabled; } };
+		return { widget, context, interactivity, resource, anchor, get scheduled() { return scheduled; }, get text() { return text; }, get enabled() { return enabled; } };
+	}
+
+	for (const existingChat of [false, true]) {
+		test(`anchors the time picker and custom input above the send controls (existing chat: ${existingChat})`, async () => {
+			const fixture = create();
+			fixture.customTime = true;
+			const source = registerInput(fixture.service);
+			if (existingChat) {
+				await fixture.service.scheduleChatInput(source.widget);
+			} else {
+				await fixture.service.schedule(input, target, session, 'new-composition', undefined, source.anchor);
+			}
+			assert.deepStrictEqual(fixture.pickerAnchors, [
+				{ anchor: source.anchor, anchorPosition: 'above' },
+				{ anchor: source.anchor, anchorPosition: 'above' },
+			]);
+		});
 	}
 
 	test('scheduled messages belong only to their exact session and chat, and disappear after dispatch', async () => {

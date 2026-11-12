@@ -221,8 +221,9 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		this.current = { composer, restore, clear };
 		this.updateNavigation(composer);
 		const saved = this.enabled.get() && this.model.drafts.get().find(draft => draft.id === composer.id);
-		if (saved) {
-			void restore(saved).catch(error => {
+		// An explicit open already restores its requested draft after the composer registers.
+		if (saved && !this.opening) {
+			void this.queueRestore(() => restore(saved)).catch(error => {
 				this.logService.error('[SessionDrafts] Restore failed', error);
 				this.notificationService.error(localize('draft.restoreFailed', "Could not restore the draft. It is still available in Drafts: {0}", String(error)));
 			});
@@ -330,10 +331,14 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	private openDraft(id: string, fromHistory: boolean, token: CancellationToken): Promise<boolean> {
+		return this.queueRestore(() => this.doOpenDraft(id, fromHistory, token));
+	}
+
+	private queueRestore<T>(restore: () => Promise<T>): Promise<T> {
 		return this.openQueue.queue(async () => {
 			this.opening = true;
 			try {
-				return await this.doOpenDraft(id, fromHistory, token);
+				return await restore();
 			} finally {
 				this.opening = false;
 				if (this.current) {

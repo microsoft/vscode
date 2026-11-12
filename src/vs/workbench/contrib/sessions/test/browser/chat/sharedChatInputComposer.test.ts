@@ -47,12 +47,13 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest'] } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
 		let restoredReferences: unknown;
 		let inputEnabled = true;
+		const executeToolbarElement = dom.$('div');
 		let focusRestored = false;
 		const inputTransitions: { enabled: boolean; preserveFocus: boolean }[] = [];
 		let draftModelState: object | undefined;
@@ -94,6 +95,7 @@ suite('SharedChatInputComposer', () => {
 			}),
 			attachmentModel,
 			input: {
+				executeToolbarElement,
 				attachmentModel,
 				currentModeKind: ChatModeKind.Agent,
 				selectedToolsModel: { entriesMap: { get: () => new Map() } },
@@ -117,6 +119,8 @@ suite('SharedChatInputComposer', () => {
 			_modelRef: { value: { object: { inputModel: { setState: (state: object) => { draftModelState = state; } } } } },
 			options: {
 				session: constObservable(undefined),
+				canSchedule: constObservable(!!options.scheduleRequest),
+				scheduleRequest: options.scheduleRequest,
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				inputSnapshot: options.inputSnapshot,
@@ -140,8 +144,19 @@ suite('SharedChatInputComposer', () => {
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
-		return { composer, widget, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+		return { composer, widget, executeToolbarElement, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
+
+	test('scheduling supplies the send controls as the picker anchor and keeps input on cancel', async () => {
+		let anchor: HTMLElement | undefined;
+		const { composer, executeToolbarElement, state } = createComposer({
+			scheduleRequest: async element => { anchor = element; return false; },
+		});
+		await composer.schedule();
+		assert.deepStrictEqual({ anchor, input: state().input }, {
+			anchor: executeToolbarElement, input: { text: 'Build it', attachments: [context.id], enabled: true },
+		});
+	});
 
 	for (const preserveInputFocusOnSend of [false, true]) {
 		test(`retains editor focus during confirmation and sending only when opted in (${preserveInputFocusOnSend})`, async () => {
