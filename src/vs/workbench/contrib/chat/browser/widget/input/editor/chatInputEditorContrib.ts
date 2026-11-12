@@ -19,6 +19,7 @@ import { IThemeService } from '../../../../../../../platform/theme/common/themeS
 import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
 import { INLINE_ATTACHMENT_ANCHOR } from '../../../../common/attachments/chatInlineAttachments.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKindFromValue, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
@@ -47,7 +48,9 @@ function agentAndCommandToKey(agent: IChatAgentData, subcommand: string | undefi
 }
 
 function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
-	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
+	return (p instanceof ChatRequestTextPart && !p.text.trim().length) ||
+		(p instanceof ChatRequestSlashPromptPart) ||
+		(p instanceof ChatRequestDynamicVariablePart && getAgentHostCompletionReferenceKindFromValue(p.data) === AgentHostCompletionReferenceKind.Skill);
 }
 
 function exactlyOneSpaceAfterPart(parsedRequest: readonly IParsedChatRequestPart[], part: IParsedChatRequestPart): boolean {
@@ -60,14 +63,14 @@ function exactlyOneSpaceAfterPart(parsedRequest: readonly IParsedChatRequestPart
 	return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
 }
 
-class InputEditorDecorations extends Disposable {
+export class InputEditorDecorations extends Disposable {
 
 	private static readonly UPDATE_DELAY = 200;
 
 	public readonly id = 'inputEditorDecorations';
 
 	private readonly previouslyUsedAgents = new Set<string>();
-	private clickablePromptSlashCommand: { range: Range; uri: URI } | undefined;
+	private clickablePromptSlashCommands: { range: Range; uri: URI }[] = [];
 	private mouseDownPromptSlashCommand: { position: Position; uri: URI; range: Range } | undefined;
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
@@ -114,15 +117,16 @@ class InputEditorDecorations extends Disposable {
 				return;
 			}
 
-			const clickablePromptSlashCommand = this.clickablePromptSlashCommand;
-			if (!clickablePromptSlashCommand || !clickablePromptSlashCommand.range.containsPosition(e.target.position)) {
+			const targetPosition = e.target.position;
+			const clickable = this.clickablePromptSlashCommands.find(c => c.range.containsPosition(targetPosition));
+			if (!clickable) {
 				return;
 			}
 
 			this.mouseDownPromptSlashCommand = {
-				position: Position.lift(e.target.position),
-				uri: clickablePromptSlashCommand.uri,
-				range: clickablePromptSlashCommand.range,
+				position: Position.lift(targetPosition),
+				uri: clickable.uri,
+				range: clickable.range,
 			};
 		}));
 		this._register(this.widget.inputEditor.onMouseUp(e => {
@@ -320,8 +324,8 @@ class InputEditorDecorations extends Disposable {
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
 	}
 
-	private async updateAsyncInputEditorDecorations(token: CancellationToken): Promise<void> {
-		this.clickablePromptSlashCommand = undefined;
+	public async updateAsyncInputEditorDecorations(token: CancellationToken): Promise<void> {
+		this.clickablePromptSlashCommands = [];
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, []);
 
 		const parsedRequest = this.widget.parsedInput.parts;
@@ -334,14 +338,43 @@ class InputEditorDecorations extends Disposable {
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
 		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
 		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
+		const slashPromptParts = parsedRequest.filter((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
+		const skillParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart =>
+			p instanceof ChatRequestDynamicVariablePart &&
+			getAgentHostCompletionReferenceKindFromValue(p.data) === AgentHostCompletionReferenceKind.Skill
+		);
 
 		// first, fetch all async context
-		const promptSlashCommand = slashPromptPart ? await this.customizationHarnessService.resolvePromptSlashCommand(slashPromptPart.name, viewModel.sessionResource, token) : undefined;
+		const promptSlashCommands = await Promise.all(
+			slashPromptParts.map(part => this.customizationHarnessService.resolvePromptSlashCommand(part.name, viewModel.sessionResource, token))
+		);
+		const resolvedSkills = await Promise.all(
+			skillParts.map(async part => {
+				const skillName = part.text.replace(/^[/#]/, '');
+				const promptCommand = await this.customizationHarnessService.resolvePromptSlashCommand(skillName, viewModel.sessionResource, token);
+				if (promptCommand?.uri) {
+					return {
+						uri: promptCommand.uri,
+						description: promptCommand.description,
+					};
+				}
+				const uri = IChatRequestVariableEntry.toUri(part.toVariableEntry());
+				if (uri) {
+					const description = typeof part._meta?.description === 'string' ? part._meta.description : (part.modelDescription ?? promptCommand?.description);
+					return {
+						uri,
+						description,
+					};
+				}
+				return undefined;
+			})
+		);
 		if (token.isCancellationRequested) {
 			// a new update came in while we were waiting
 			return;
 		}
 
+		const promptSlashCommand = promptSlashCommands[0];
 		if (slashPromptPart && promptSlashCommand) {
 			const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
 			if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(parsedRequest, slashPromptPart) && promptSlashCommand) {
@@ -372,29 +405,63 @@ class InputEditorDecorations extends Disposable {
 			textDecorations.push({ range: slashCommandPart.editorRange, hoverMessage: new MarkdownString(slashCommandPart.slashCommand.detail) });
 		}
 
-		if (slashPromptPart && promptSlashCommand) {
-			this.clickablePromptSlashCommand = {
-				range: Range.lift(slashPromptPart.editorRange),
-				uri: promptSlashCommand.uri,
-			};
+		const clickableDecorations: IDecorationOptions[] = [];
+		const clickableCommands: { range: Range; uri: URI }[] = [];
+
+		for (let i = 0; i < slashPromptParts.length; i++) {
+			const slashPart = slashPromptParts[i];
+			const cmd = promptSlashCommands[i];
+			if (!cmd?.uri) {
+				continue;
+			}
 			const promptHoverMessage = new MarkdownString();
-			if (promptSlashCommand.description) {
-				promptHoverMessage.appendText(promptSlashCommand.description);
+			if (cmd.description) {
+				promptHoverMessage.appendText(cmd.description);
 				promptHoverMessage.appendText('\n');
 			}
 			promptHoverMessage.appendText(localize(
 				'chatInput.promptSlashCommand.open',
 				"Click to open {0}",
-				this.labelService.getUriLabel(promptSlashCommand.uri, { relative: true })
+				this.labelService.getUriLabel(cmd.uri, { relative: true })
 			));
-			const promptDecoration = {
-				range: slashPromptPart.editorRange,
+			clickableDecorations.push({
+				range: slashPart.editorRange,
 				hoverMessage: promptHoverMessage,
-			};
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, [promptDecoration]);
+			});
+			clickableCommands.push({
+				range: Range.lift(slashPart.editorRange),
+				uri: cmd.uri,
+			});
 		}
 
-		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
+		for (let i = 0; i < skillParts.length; i++) {
+			const skillPart = skillParts[i];
+			const resolved = resolvedSkills[i];
+			if (!resolved?.uri) {
+				continue;
+			}
+			const skillHoverMessage = new MarkdownString();
+			if (resolved.description) {
+				skillHoverMessage.appendText(resolved.description);
+				skillHoverMessage.appendText('\n');
+			}
+			skillHoverMessage.appendText(localize(
+				'chatInput.promptSlashCommand.open',
+				"Click to open {0}",
+				this.labelService.getUriLabel(resolved.uri, { relative: true })
+			));
+			clickableDecorations.push({
+				range: skillPart.editorRange,
+				hoverMessage: skillHoverMessage,
+			});
+			clickableCommands.push({
+				range: Range.lift(skillPart.editorRange),
+				uri: resolved.uri,
+			});
+		}
+
+		this.clickablePromptSlashCommands = clickableCommands;
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
 
 		const varDecorations: IDecorationOptions[] = [];
 		// Parts parsed from the text of an inline attachment pill cover its anchor, which the pill renders instead.
@@ -410,14 +477,25 @@ class InputEditorDecorations extends Disposable {
 		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
 
 		const isEditingPreviousRequest = !!viewModel.editing;
-		if (isEditingPreviousRequest) {
-			for (const variable of dynamicVariableParts) {
-				if (!isInlineAttachmentAnchor(variable.editorRange)) {
-					varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });
+		for (const variable of dynamicVariableParts) {
+			if (isInlineAttachmentAnchor(variable.editorRange)) {
+				continue;
+			}
+			const completionKind = getAgentHostCompletionReferenceKindFromValue(variable.data);
+			if (completionKind === AgentHostCompletionReferenceKind.Skill) {
+				// Handled by clickableSlashPromptTextDecorationType if resolved; fallback to varDecorations otherwise
+				if (!clickableCommands.some(c => Range.lift(variable.editorRange).equalsRange(c.range))) {
+					varDecorations.push({ range: variable.editorRange });
 				}
+			} else if (completionKind === AgentHostCompletionReferenceKind.Command) {
+				const description = typeof variable._meta?.description === 'string' ? variable._meta.description : variable.modelDescription;
+				textDecorations.push({ range: variable.editorRange, hoverMessage: description ? new MarkdownString(description) : undefined });
+			} else if (isEditingPreviousRequest) {
+				varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });
 			}
 		}
 
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
 	}
 
@@ -483,7 +561,7 @@ class InputEditorSlashCommandMode extends Disposable {
 
 ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode);
 
-class ChatTokenDeleter extends Disposable {
+export class ChatTokenDeleter extends Disposable {
 
 	public readonly id = 'chatTokenDeleter';
 

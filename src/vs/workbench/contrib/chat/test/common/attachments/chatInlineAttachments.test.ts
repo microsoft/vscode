@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { canOpenAttachment, canShowAttachmentInline, getAttachmentMention, getAttachmentPromptText, getInlineRequestAttachments, getMarkdownCodeRanges, INLINE_ATTACHMENT_ANCHOR as A, isInlineAttachmentCandidate, projectInlineAttachments, recoverAttachmentMentions } from '../../../common/attachments/chatInlineAttachments.js';
-import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, toAgentHostCompletionVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart } from '../../../common/requestParser/chatParserTypes.js';
 
@@ -301,6 +301,11 @@ suite('Chat inline attachments', () => {
 	});
 
 	test('opens pills only when activating them does something', () => {
+		const skillEntry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', 'file:///skills/review/SKILL.md', { uri: 'file:///skills/review/SKILL.md' });
+		const commandEntry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/compact', 'compact', { command: 'compact' });
+		assert.strictEqual(IChatRequestVariableEntry.toUri(skillEntry)?.toString(), 'file:///skills/review/SKILL.md');
+		assert.strictEqual(IChatRequestVariableEntry.toUri(commandEntry), undefined);
+
 		assert.deepStrictEqual([
 			{ kind: 'file', id: 'file', name: 'a.ts', value: URI.file('/a.ts') },
 			{ kind: 'directory', id: 'folder', name: 'src', value: URI.file('/src') },
@@ -309,6 +314,8 @@ suite('Chat inline attachments', () => {
 			{ kind: 'string', id: 'pr', name: 'PR #1', value: 'pr', uri: URI.parse('https://github.com/o/r/pull/1'), handle: 0 },
 			{ kind: 'string', id: 'item', name: 'Item', value: 'item', uri: URI.parse('https://example.com'), handle: 0, commandId: 'open' },
 			{ kind: 'diagnostic', id: 'problems', name: 'Problems', value: undefined },
-		].map(attachment => canOpenAttachment(attachment as IChatRequestVariableEntry)), [true, true, false, false, false, true, true]);
+			skillEntry,
+			commandEntry,
+		].map(attachment => canOpenAttachment(attachment as IChatRequestVariableEntry)), [true, true, false, false, false, true, true, true, false]);
 	});
 });

@@ -4963,7 +4963,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Used for the attachments above the input and for inline attachment pills.
 	 */
 	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean }): IChatAttachmentWidgetInstance {
-		const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
+		const resource = IChatRequestVariableEntry.toUri(attachment);
 		const range = isLocation(attachment.value) ? attachment.value.range : undefined;
 		const widgetOptions = { ...options, isCurrentInput: true };
 		const lm = this._currentLanguageModel.get();
