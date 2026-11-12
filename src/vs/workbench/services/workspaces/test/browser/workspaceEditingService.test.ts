@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DidEnterWorkspaceEvent } from '../../browser/abstractWorkspaceEditingService.js';
+import { DidEnterWorkspaceEvent, preserveFocus } from '../../browser/abstractWorkspaceEditingService.js';
 import { BrowserWorkspaceEditingService } from '../../browser/workspaceEditingService.js';
 import { UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IResolvedFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
@@ -239,6 +239,31 @@ suite('WorkspaceEditingService', () => {
 			await p1;
 
 			assert.deepStrictEqual({ switched: switched.map(u => u?.toString()), trusted: trusted.map(u => u.toString()) }, { switched: [second.toString()], trusted: [second.toString()] });
+		});
+	});
+
+	suite('preserveFocus', () => {
+
+		test('restores focus lost to the body, but not to another element', async () => {
+			const input = document.createElement('input');
+			const other = document.createElement('button');
+			document.body.append(input, other);
+			try {
+				input.focus();
+				await preserveFocus(async () => input.blur());
+				const restored = document.activeElement === input;
+
+				input.focus();
+				await preserveFocus(async () => other.focus());
+				const moved = document.activeElement === other;
+
+				input.focus();
+				await preserveFocus(async () => { input.remove(); });
+				assert.deepStrictEqual({ restored, moved, detached: document.activeElement === input }, { restored: true, moved: true, detached: false });
+			} finally {
+				input.remove();
+				other.remove();
+			}
 		});
 	});
 
