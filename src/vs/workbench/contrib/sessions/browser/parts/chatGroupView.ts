@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, size, trackFocus } from '../../../../../base/browser/dom.js';
+import { $, append, isAncestor, size, trackFocus } from '../../../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -449,7 +449,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 
 			let view = this._currentView.value;
-			if (!view || view.kind !== desiredKind) {
+			const replacingView = !view || view.kind !== desiredKind;
+			// Swapping the view detaches the focused element and drops focus, so give it to the new view.
+			const restoreFocus = replacingView && isAncestor(this._contentContainer.ownerDocument.activeElement, this._contentContainer);
+			if (!view || replacingView) {
 				view = desiredKind === 'chat'
 					? this._chatViewFactory.createChatView(this._chatViewInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
 					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
@@ -467,6 +470,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			if (chat) {
 				const needsConnectionFeedback = chat.interactivity.read(reader) === ChatInteractivity.DraftOnly || view.isInputBlocked.read(reader);
 				view.setChat(chat, session.sessionId, session, needsConnectionFeedback ? () => this._connection.connectOnInput() : undefined);
+			}
+
+			if (restoreFocus) {
+				view.focus();
 			}
 
 			const surfaceContent = surface.read(reader);

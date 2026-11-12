@@ -2026,6 +2026,26 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('keeps focus in the chat when its view is swapped, but only if the old view held it', () => {
+		const focusedKindAfterSwap = (focusOldView: boolean) => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			const outside = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
+			disposables.add(toDisposable(() => outside.remove()));
+			const draft = new TestActiveSession([createChat('draft', SessionStatus.Untitled)], undefined, false);
+			view.setSession(paneContent(view, draft), options);
+			if (focusOldView) {
+				chatViewFactory.views[0].focus();
+			} else {
+				outside.focus();
+			}
+			draft.isNewSessionRequestInProgress.set(true, undefined);
+			const active = mainWindow.document.activeElement;
+			return active === outside ? 'outside' : active?.closest<HTMLElement>('.chat-view')?.dataset.kind;
+		};
+
+		assert.deepStrictEqual({ focused: focusedKindAfterSwap(true), elsewhere: focusedKindAfterSwap(false) }, { focused: 'chat', elsewhere: 'outside' });
+	});
+
 	test('opening a hidden chat to the side removes its temporary active-group assignment', async () => {
 		const { view } = createHarness(disposables);
 		const main = createChat('main');
