@@ -273,6 +273,7 @@ class MockSessionStore implements ISessionsManagementService {
 	setActive(_session: ISession): void { throw new Error('not implemented'); }
 	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	prepareSessionWorktreeCleanup(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }

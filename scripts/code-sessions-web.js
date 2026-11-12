@@ -15,7 +15,7 @@ const APP_ROOT = path.join(__dirname, '..');
 
 async function main() {
 	const args = minimist(process.argv.slice(2), {
-		boolean: ['help', 'no-open', 'skip-welcome', 'mock'],
+		boolean: ['help', 'no-open', 'skip-welcome', 'mock', 'mobile'],
 		string: ['host', 'port'],
 	});
 
@@ -26,7 +26,8 @@ async function main() {
 			'  --port <port>   Port to bind to (default: 8081)\n' +
 			'  --no-open       Do not open browser automatically\n' +
 			'  --skip-welcome  Skip the sessions welcome overlay\n' +
-			'  --mock          Load mock extension for E2E testing\n'
+			'  --mock          Load mock extension for E2E testing\n' +
+			'  --mobile        Serve the mobile (phone) workbench entry point\n'
 		);
 		return;
 	}
@@ -34,18 +35,15 @@ async function main() {
 	const HOST = args['host'] ?? 'localhost';
 	const PORT = parseInt(args['port'] ?? '8081', 10);
 
-	// Collect CSS module paths from the compiled output (same as @vscode/test-web does).
-	// These are turned into an import map so the browser can load `import './foo.css'`
-	// statements as JavaScript shims that inject the CSS via `_VSCODE_CSS_LOAD`.
-	const cssModules = collectCssFiles(path.join(APP_ROOT, 'out'), '');
-
 	const server = http.createServer((req, res) => {
 		const url = new URL(req.url, `http://${HOST}:${PORT}`);
 
 		// Serve the sessions workbench HTML at the root
 		if (url.pathname === '/' || url.pathname === '/index.html') {
+			// Refresh the import map on each page load to include newly compiled stylesheets.
+			const cssModules = collectCssFiles(path.join(APP_ROOT, 'out'), '');
 			res.writeHead(200, { 'Content-Type': 'text/html' });
-			res.end(getSessionsHTML(HOST, PORT, cssModules, args['mock']));
+			res.end(getSessionsHTML(HOST, PORT, cssModules, args['mock'], args['mobile']));
 			return;
 		}
 
@@ -79,7 +77,7 @@ async function main() {
 	});
 
 	server.listen(PORT, HOST, () => {
-		console.log(`\n  Sessions Web running at: http://${HOST}:${PORT}/\n`);
+		console.log(`\n  Sessions Web${args['mobile'] ? ' (mobile)' : ''} running at: http://${HOST}:${PORT}/\n`);
 		if (!args['no-open'] && args.open !== false) {
 			const query = args['skip-welcome'] ? '?skip-sessions-welcome' : '';
 			open.default(`http://${HOST}:${PORT}/${query}`);
@@ -90,7 +88,7 @@ async function main() {
 	process.on('SIGTERM', () => { server.close(); process.exit(0); });
 }
 
-function getSessionsHTML(host, port, cssModules, useMock) {
+function getSessionsHTML(host, port, cssModules, useMock, useMobile) {
 	const baseUrl = `http://${host}:${port}`;
 	const fileRoot = `${baseUrl}/out`;
 
@@ -112,17 +110,34 @@ function getSessionsHTML(host, port, cssModules, useMock) {
 		? `additionalBuiltinExtensions: [{ scheme: 'http', authority: '${host}:${port}', path: '/src/vs/sessions/test/e2e/extensions/sessions-e2e-mock' }],`
 		: '';
 
+	// The mobile entry point is a separate, allow-listed bundle with its own
+	// workbench. The mock variant swaps in the same mock services as desktop.
+	const entryModule = useMobile
+		? (useMock ? 'test/agents.web.mobile.test.internal' : 'agents.web.mobile.main.internal')
+		: (useMock ? 'test/sessions.web.test.internal' : 'sessions.web.main.internal');
+
+	// Expose safe-area insets without disabling browser zoom.
+	const viewportMeta = useMobile
+		? `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+	<meta name="apple-mobile-web-app-capable" content="yes" />
+	<meta name="mobile-web-app-capable" content="yes" />
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />`
+		: `<meta name="viewport" content="width=device-width, initial-scale=1" />`;
+
 	return `<!DOCTYPE html>
 <html>
 <head>
 	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>Sessions</title>
+	${viewportMeta}
+	<title>${useMobile ? 'Agents' : 'Sessions'}</title>
 	<style id="vscode-css-modules"></style>
 	<script>
 		globalThis._VSCODE_FILE_ROOT = '${fileRoot}';
 		const sheet = document.getElementById('vscode-css-modules').sheet;
-		globalThis._VSCODE_CSS_LOAD = function (url) { sheet.insertRule(\`@import url(\${url});\`); };
+		// Append so the cascade follows load order (later stylesheet wins), matching
+		// the bundled build and the Electron dev loader. The default index prepends
+		// and inverts precedence, which makes dev styling diverge from production.
+		globalThis._VSCODE_CSS_LOAD = function (url) { sheet.insertRule(\`@import url(\${url});\`, sheet.cssRules.length); };
 	</script>
 	<script type="importmap">
 ${importMapJson}
@@ -130,11 +145,11 @@ ${importMapJson}
 </head>
 <body aria-label="">
 	<script type="module">
-		import { create, URI } from '${fileRoot}/vs/sessions/${useMock ? 'test/sessions.web.test.internal' : 'sessions.web.main.internal'}.js';
+		import { create, URI } from '${fileRoot}/vs/sessions/${entryModule}.js';
 		create(document.body, {
 			productConfiguration: {
-				nameShort: 'Sessions (Web)',
-				nameLong: 'Sessions (Web)',
+				nameShort: '${useMobile ? 'Agents' : 'Sessions (Web)'}',
+				nameLong: '${useMobile ? 'Agents' : 'Sessions (Web)'}',
 				enableTelemetry: false,
 			},
 			${additionalBuiltinExtensions}
@@ -166,4 +181,3 @@ function collectCssFiles(dir, prefix) {
 }
 
 main();
-

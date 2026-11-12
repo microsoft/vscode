@@ -1190,6 +1190,7 @@ class InnerMinimap extends Disposable {
 	private _buffers: MinimapBuffers | null;
 	private _isMouseOverMinimap: boolean = false;
 	private _hideDelayedScheduler: RunOnceScheduler;
+	private _hideSliderAfterScrollScheduler: RunOnceScheduler;
 
 	constructor(
 		theme: EditorTheme,
@@ -1241,6 +1242,7 @@ class InnerMinimap extends Disposable {
 		this._applyLayout();
 
 		this._hideDelayedScheduler = this._register(new RunOnceScheduler(() => this._hideImmediatelyIfMouseIsOutside(), 500));
+		this._hideSliderAfterScrollScheduler = this._register(new RunOnceScheduler(() => this._domNode.toggleClassName('slider-scrolling', false), 500));
 
 		this._register(dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.MOUSE_OVER, () => {
 			this._isMouseOverMinimap = true;
@@ -1492,6 +1494,10 @@ class InnerMinimap extends Disposable {
 		if (this._model.options.autohide === 'scroll' && (e.scrollTopChanged || e.scrollHeightChanged)) {
 			this._domNode.toggleClassName('active', true);
 			this._hideSoon();
+		}
+		if (this._model.options.showSlider === 'mouseover' && e.scrollTopChanged) {
+			this._domNode.toggleClassName('slider-scrolling', true);
+			this._hideSliderAfterScrollScheduler.schedule();
 		}
 		this._renderDecorations = true;
 		return true;

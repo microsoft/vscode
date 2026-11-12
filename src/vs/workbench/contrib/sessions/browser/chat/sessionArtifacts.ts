@@ -627,14 +627,17 @@ class SessionGitHubCommitResolver extends Disposable {
 /** Publishes a session's artifact and reference sections for the chat input pills. */
 export class SessionArtifacts extends Disposable {
 	private readonly presentations = observableValue<ReadonlyMap<string, ArtifactIntegrationPresentation>>(this, new Map());
+	/** The IDs of the focused chat's records that are artifacts rather than references. */
+	private readonly _artifactIds: IObservable<ReadonlySet<string>>;
 
 	/** Sections for the artifacts pill: what the session produced. */
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	/** Sections for the references pill: what the session points the user at. */
 	readonly referenceSections: IObservable<readonly IChatPillSection[]>;
 	/**
-	 * Undecorated entries of the artifacts and references an integration presents in pills of their own, because their
-	 * main integration assigns them a group ID; see {@link getPresentation}. The sections list the other integrated records.
+	 * Undecorated entries of the artifacts an integration presents in pills of their own, because their main integration
+	 * assigns them a group ID; see {@link getPresentation}. The sections list the other integrated records, including
+	 * every reference.
 	 */
 	readonly integratedEntries: IObservable<readonly IChatPillEntry[]>;
 
@@ -673,6 +676,7 @@ export class SessionArtifacts extends Disposable {
 		const gitHubResolver = this._register(new GitHubResourceDetailsResolver(workbenchGitHubService, logService));
 		// The session publishes every chat's records; this surface shows only the focused chat's, like the GitHub pills.
 		const chatArtifacts = derived(this, reader => getChatSessionArtifacts(session.read(reader), chat.read(reader), reader));
+		this._artifactIds = derived(this, reader => new Set(chatArtifacts.read(reader).filter(artifact => artifact.isArtifact).map(artifact => artifact.id)));
 		this._register(autorun(reader => {
 			const current = session.read(reader);
 			const artifacts = chatArtifacts.read(reader);
@@ -833,11 +837,13 @@ export class SessionArtifacts extends Disposable {
 		});
 
 		// Integrated records listed in the pills for their kind show once per resource, like those in pills of their own.
+		// An artifact with a pill of its own never stands in for them: the pill's filters can hide it, and its pins are
+		// kept apart, so a reference to its resource stays listed with the other references.
 		const hiddenAliases = derived(this, reader => {
 			const integrated = presentations.read(reader);
 			const candidates = chatArtifacts.read(reader).flatMap(artifact => {
 				const snapshot = integrated.get(artifact.id)?.snapshot.read(reader);
-				return snapshot && snapshot.contributions.length > 0 && getArtifactIntegrationGroupId(snapshot) === undefined
+				return snapshot && snapshot.contributions.length > 0 && !this.hasOwnPill(artifact.id, reader)
 					? [{ id: artifact.id, isArtifact: artifact.isArtifact, ...getArtifactIntegrationAliasCandidate(snapshot) }] : [];
 			});
 			const kept = new Set(collapseArtifactIntegrationAliases(candidates).map(candidate => candidate.id));
@@ -902,8 +908,14 @@ export class SessionArtifacts extends Disposable {
 		return this.presentations.read(reader).get(id);
 	}
 
-	/** Whether an integration presents the record in a pill of its own, rather than in the pill for its kind. */
+	/**
+	 * Whether an integration presents the record in a pill of its own, rather than in the pill for its kind. Only artifacts
+	 * do; references stay in the References pill with the other references, whatever their group ID.
+	 */
 	hasOwnPill(id: string, reader: IReader): boolean {
+		if (!this._artifactIds.read(reader).has(id)) {
+			return false;
+		}
 		const snapshot = this.presentations.read(reader).get(id)?.snapshot.read(reader);
 		return !!snapshot && getArtifactIntegrationGroupId(snapshot) !== undefined;
 	}

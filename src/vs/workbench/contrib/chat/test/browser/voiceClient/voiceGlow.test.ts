@@ -13,6 +13,7 @@ import { chatDictationActiveMicGlow, chatVoiceGlowBaseColor, chatVoiceListeningG
 import { resolveDictationMicAccent } from '../../../browser/speechToText/dictationMicGlow.js';
 import { computeVoiceMicGlowBoxShadow, DEFAULT_VOICE_GLOW_COLORS, GlowThemeKind, resolveVoiceGlowColors, resolveVoiceRimAccent, shouldRenderVoiceInputGlow } from '../../../browser/voiceClient/voiceGlow.js';
 import { createVoiceGlowController, createVoiceRimLight } from '../../../browser/voiceClient/voiceGlowController.js';
+import { registerTestIframe } from '../../../../../../base/test/browser/testWindow.js';
 
 suite('VoiceGlow', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -75,6 +76,7 @@ suite('VoiceGlow', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		disposables.add(toDisposable(() => iframe.remove()));
+		disposables.add(registerTestIframe(iframe));
 
 		const auxiliaryDocument = iframe.contentDocument!;
 		const target = auxiliaryDocument.createElement('div');

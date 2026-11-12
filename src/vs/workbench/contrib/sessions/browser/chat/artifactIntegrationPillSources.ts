@@ -27,8 +27,9 @@ export interface IArtifactIntegrationPillItem {
 }
 
 /**
- * The group ID the main integration assigns an integrated record, which gives the record a pill of its own instead of
- * listing it in the pill for its kind. Records without a main integration have none.
+ * The group ID the main integration assigns an integrated record, which gives an artifact a pill of its own instead of
+ * listing it in the pill for its kind. References stay in the References pill regardless. Records without a main
+ * integration have none.
  */
 export function getArtifactIntegrationGroupId(snapshot: ArtifactSnapshot): string | undefined {
 	return getArtifactMainContribution(snapshot)?.view.groupId;

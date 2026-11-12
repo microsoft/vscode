@@ -923,6 +923,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
+		if (isNewSessionRequest && !provider.sessionTypes.some(type => type.id === session.sessionType)) {
+			throw new Error(localize('newSession.typeUnavailable', "{0} is no longer available for new sessions. Choose an available agent to try again.", provider.label));
+		}
 		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session, options) : undefined;
 
 		if (options.background) {
@@ -1452,7 +1455,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!provider) {
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
-		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true });
+		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true, requireConnected: true });
 	}
 
 	/**
@@ -1524,6 +1527,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	canForceWorktreeCleanup(owner: ISession | IManagedSessionWorktree): boolean {
 		const provider = hasKey(owner, { sessionId: true }) ? this._getProvider(owner) : this.sessionsProvidersService.getProvider(owner.providerId);
 		return provider?.supportsForceWorktreeCleanup === true;
+	}
+
+	async prepareSessionWorktreeCleanup(session: ISession): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.prepareSessionWorktreeCleanup) {
+			throw new Error(localize('worktreeCleanupPreparationUnavailable', "This session provider does not support preparing worktree cleanup."));
+		}
+		await provider.prepareSessionWorktreeCleanup(session.sessionId);
 	}
 
 	async sessionWorktreeCleanup(session: ISession, retry: boolean, force?: boolean) {

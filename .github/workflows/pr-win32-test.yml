@@ -50,6 +50,11 @@ env:
   NPM_ARCH: x64
   VSCODE_ARCH: x64
   VSCODE_SKIP_PRELAUNCH: '1'
+  # esbuild follows pnpm's junctions with Go's os.Readlink, which by default for esbuild (its go.mod
+  # says go 1.13) turns the volume behind a mount point into a drive letter path. The Dev Drive and
+  # the workspace image are mounted at the parent of the workspace without a drive letter, so esbuild
+  # couldn't resolve the dependencies of a package. This keeps the volume path (\\?\Volume{...}\).
+  GODEBUG: winreadlinkvolume=1
 
 # Each job reports as "Windows / <job name>", for example "Windows / Electron-Unit", whether it runs
 # or not: the names are fixed, as GitHub does not evaluate the expressions in the name of a skipped
@@ -183,7 +188,7 @@ jobs:
           clean: ${{ steps.image.outputs.used != 'true' }}
 
       # The WSL steps only run in the WSL smoke test job (electron-smoke-wsl).
-      # pr-node-modules.yml fills this cache on main, so pull requests don't download the installer.
+      # pr-pnpm-store.yml fills this cache on main, so pull requests don't download the installer.
       - name: Restore WSL installer
         if: ${{ env.WSL_SMOKE_TESTS == 'true' }}
         uses: ./.github/actions/restore-wsl-installer
@@ -245,18 +250,16 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      # A workspace image holds the node_modules of its commit, which the install step updates
-      - name: Restore node_modules cache
-        id: cache-node-modules
+      # A workspace image holds the node_modules of its commit, which the install step updates, and its
+      # pnpm store
+      - name: Restore pnpm store cache
         if: steps.image.outputs.used != 'true'
-        uses: ./.github/actions/restore-node-modules
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-windows
-          key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+          key-prefix: pnpm-store-windows
 
       # On a workspace image, pnpm installs only what changed since the commit of the image
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -326,7 +329,7 @@ jobs:
         working-directory: test/integration/browser
         run: pnpm run compile
 
-      # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # pr-pnpm-store.yml fills this cache on main, so pull requests don't download the browsers.
       # A workspace image holds them already, and points PLAYWRIGHT_BROWSERS_PATH at them, which this
       # action would point into the workspace.
       - name: Restore Playwright browsers
@@ -398,8 +401,9 @@ jobs:
         env:
           DEBUG: "*browser*"
 
+      # The node.js integration tests never launch an extension host, so they don't use these extensions
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
+        if: ${{ (env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'node') || env.SMOKE_TESTS == 'true' }}
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
