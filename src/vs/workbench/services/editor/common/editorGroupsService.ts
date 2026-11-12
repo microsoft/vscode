@@ -750,6 +750,11 @@ export interface IEditorWorkingSet {
 }
 
 export interface IEditorWorkingSetOptions {
+
+	/**
+	 * Keeps the focus where it is: focus outside of the editor parts is not touched,
+	 * and focus inside of an editor part moves to the new active editor.
+	 */
 	readonly preserveFocus?: boolean;
 }
 

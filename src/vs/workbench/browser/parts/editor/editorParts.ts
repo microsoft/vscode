@@ -24,7 +24,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -814,6 +814,13 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return false;
 		}
 
+		// Applying removes the editors in place, so focus that is inside of an editor
+		// part would be lost: remember it to bring it to the new active editor.
+		const hadEditorFocus = !!options?.preserveFocus && this.parts.some(part => {
+			const container = part.getContainer();
+			return !part.isTransient && !!container && isAncestorOfActiveElement(container);
+		});
+
 		// Apply state: begin with auxiliary windows first because it helps to keep
 		// editors around that need confirmation by moving them into the main part.
 		// Also, in rare cases, the auxiliary part may not be able to apply the state
@@ -825,7 +832,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
 
 		// Restore Focus unless instructed otherwise
-		if (!options?.preserveFocus) {
+		if (!options?.preserveFocus || hadEditorFocus) {
 			const mostRecentActivePart = this.mostRecentActiveParts.find(part => !part.isTransient); // parts owned by someone else are not part of working sets
 			if (mostRecentActivePart) {
 				await mostRecentActivePart.whenReady;
