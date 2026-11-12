@@ -37,8 +37,12 @@ import { AgentsViewSetupPane } from './agentsViewSetupPane.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { SessionsGrouping } from '../views/sessionsList.js';
 
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
+
+/** The editor window's Sessions view groups only by time, environment or worktree, by time until one is chosen. */
+export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree], default: SessionsGrouping.Date };
 
 /** The container of the Sessions view in an editor window, whose title shows the actions of the sessions header. */
 class AgentsViewPaneContainer extends ViewPaneContainer {
@@ -52,7 +56,7 @@ class AgentsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scoped: this.scoped, allowWorktreeGrouping: true };
+		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scoped: this.scoped, groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, quickChatsInTimeGrouping: true };
 		return super.createView(viewDescriptor, sessionsViewOptions);
 	}
 }

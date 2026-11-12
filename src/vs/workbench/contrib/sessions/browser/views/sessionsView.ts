@@ -15,7 +15,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -95,17 +95,42 @@ export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsVi
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
-/** Whether the Sessions view offers {@link SessionsGrouping.Worktree}, as the Agents view of an editor window does. */
-export const SessionsViewWorktreeGroupingContext = new RawContextKey<boolean>('sessionsViewPane.worktreeGrouping', false);
+/** The groupings a Sessions view offers by default, as the Agents window's does: all but {@link SessionsGrouping.Worktree}. */
+export const DEFAULT_SESSIONS_GROUPINGS: readonly SessionsGrouping[] = Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree);
+
+/**
+ * Per grouping, the context key that says whether the Sessions view offers it. Where no Sessions view binds them, such as
+ * in the Command Palette outside one, a view offers {@link DEFAULT_SESSIONS_GROUPINGS}: those say whether they are
+ * unavailable, the others whether they are offered.
+ */
+const groupingContexts = new Map(Object.values(SessionsGrouping).map(grouping => [grouping, DEFAULT_SESSIONS_GROUPINGS.includes(grouping)
+	? { unavailable: new RawContextKey<boolean>(`sessionsViewPane.groupingUnavailable.${grouping}`, false) }
+	: { offered: new RawContextKey<boolean>(`sessionsViewPane.groupingOffered.${grouping}`, false) }]));
+
+/** Whether the Sessions view offers `grouping`, such as in its Grouping menu. */
+export function sessionsViewOffersGrouping(grouping: SessionsGrouping): ContextKeyExpression {
+	const context = groupingContexts.get(grouping)!;
+	return context.unavailable ? context.unavailable.negate() : context.offered!;
+}
+
+/** Binds in `contextKeyService` that a Sessions view offers the `offered` groupings, and no others. */
+export function bindSessionsViewGroupings(contextKeyService: IContextKeyService, offered: readonly SessionsGrouping[]): void {
+	for (const [grouping, context] of groupingContexts) {
+		if (context.unavailable) {
+			context.unavailable.bindTo(contextKeyService).set(!offered.includes(grouping));
+		} else {
+			context.offered!.bindTo(contextKeyService).set(offered.includes(grouping));
+		}
+	}
+}
 
 /**
  * The grouping a stored value names, or `undefined` for a value this build does not know or this view does not offer:
- * {@link SessionsGrouping.Worktree} is offered only by views that allow it, so a view that does not, such as the Agents
- * window's, which shares the stored grouping, keeps its default.
+ * a view keeps its default for a grouping that another view sharing the stored grouping offers, such as Worktree, which
+ * only the Agents view of an editor window offers, or Workspace, which it does not. The stored value stays as it is.
  */
-export function getStoredSessionsGrouping(stored: string | undefined, allowWorktreeGrouping: boolean): SessionsGrouping | undefined {
-	const grouping = Object.values(SessionsGrouping).find(value => value === stored);
-	return grouping === SessionsGrouping.Worktree && !allowWorktreeGrouping ? undefined : grouping;
+export function getStoredSessionsGrouping(stored: string | undefined, groupings: readonly SessionsGrouping[]): SessionsGrouping | undefined {
+	return groupings.find(grouping => grouping === stored);
 }
 
 export interface ISessionsHeaderElements {
@@ -183,8 +208,14 @@ export interface ISessionsViewOptions extends IViewPaneOptions {
 	/** Whether the sessions providers list only the sessions of a scope, such as of an editor window's folders. See the `scoped` option of the sessions list. */
 	readonly scoped?: IObservable<boolean>;
 
-	/** Whether it offers {@link SessionsGrouping.Worktree}; it does not by default. */
-	readonly allowWorktreeGrouping?: boolean;
+	/**
+	 * The groupings it offers, and the one it shows until one of them is chosen, such as when the chosen one is not offered;
+	 * by default, {@link DEFAULT_SESSIONS_GROUPINGS}, showing Inbox or Workspace.
+	 */
+	readonly groupings?: { readonly offered: readonly SessionsGrouping[]; readonly default: SessionsGrouping };
+
+	/** Whether grouping by time lists the sessions without a workspace in the "Chats" section. See the sessions list's option. */
+	readonly quickChatsInTimeGrouping?: boolean;
 }
 
 export class SessionsView extends ViewPane {
@@ -225,7 +256,8 @@ export class SessionsView extends ViewPane {
 
 	private readonly headerInTitle: boolean;
 	private readonly hideCustomizations: boolean;
-	private readonly allowWorktreeGrouping: boolean;
+	private readonly groupings: ISessionsViewOptions['groupings'];
+	private readonly quickChatsInTimeGrouping: boolean;
 	private readonly scoped: IObservable<boolean> | undefined;
 
 	constructor(
@@ -265,8 +297,9 @@ export class SessionsView extends ViewPane {
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
-		this.allowWorktreeGrouping = !!options.allowWorktreeGrouping;
-		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.allowWorktreeGrouping);
+		this.groupings = options.groupings;
+		this.quickChatsInTimeGrouping = !!options.quickChatsInTimeGrouping;
+		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.offeredGroupings);
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -277,7 +310,7 @@ export class SessionsView extends ViewPane {
 		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
-		SessionsViewWorktreeGroupingContext.bindTo(contextKeyService).set(this.allowWorktreeGrouping);
+		bindSessionsViewGroupings(contextKeyService, this.offeredGroupings);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -386,6 +419,7 @@ export class SessionsView extends ViewPane {
 			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
 			findWidgetContainer,
 			scoped: this.scoped,
+			quickChatsInTimeGrouping: this.quickChatsInTimeGrouping,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) {
@@ -1153,9 +1187,13 @@ export class SessionsView extends ViewPane {
 	}
 
 	get grouping(): SessionsGrouping {
-		return this.currentGrouping ?? (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
+		return this.currentGrouping ?? this.groupings?.default ?? (this.configurationService.getValue<boolean>(SESSIONS_LIST_INBOX_ENABLED_SETTING)
 			? SessionsGrouping.Inbox
 			: SessionsGrouping.Workspace);
+	}
+
+	private get offeredGroupings(): readonly SessionsGrouping[] {
+		return this.groupings?.offered ?? DEFAULT_SESSIONS_GROUPINGS;
 	}
 
 	get sorting(): SessionsSorting {
@@ -1167,7 +1205,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {
-		if (this.currentGrouping === grouping) {
+		if (this.currentGrouping === grouping || !this.offeredGroupings.includes(grouping)) {
 			return;
 		}
 
