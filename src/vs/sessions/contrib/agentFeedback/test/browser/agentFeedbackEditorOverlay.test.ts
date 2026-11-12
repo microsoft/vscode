@@ -21,7 +21,8 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
 import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates } from '../../browser/agentFeedbackEditorOverlay.js';
+import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates, getNavigationAnchorForResource } from '../../browser/agentFeedbackEditorOverlay.js';
+import { ISessionEditorComment } from '../../browser/sessionEditorComments.js';
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -168,6 +169,29 @@ suite('AgentFeedbackEditorOverlay', () => {
 		}, {
 			file: [workspaceFolder],
 			emptyFiles: [],
+		});
+	});
+
+	test('anchors the navigation at the first comment of a file that is shown, unless it already is at one of its comments', () => {
+		const a = URI.file('/repo/a.ts');
+		const b = URI.file('/repo/b.ts');
+		const c = URI.file('/repo/c.ts');
+		const comments = [
+			upcastPartial<ISessionEditorComment>({ id: 'a1', resourceUri: a }),
+			upcastPartial<ISessionEditorComment>({ id: 'b1', resourceUri: b }),
+			upcastPartial<ISessionEditorComment>({ id: 'b2', resourceUri: b }),
+		];
+
+		assert.deepStrictEqual({
+			anchorInOtherFile: getNavigationAnchorForResource(comments, 'a1', b),
+			noAnchor: getNavigationAnchorForResource(comments, undefined, b),
+			anchorInFile: getNavigationAnchorForResource(comments, 'b2', b),
+			fileWithoutComments: getNavigationAnchorForResource(comments, 'a1', c),
+		}, {
+			anchorInOtherFile: 'b1',
+			noAnchor: 'b1',
+			anchorInFile: undefined,
+			fileWithoutComments: undefined,
 		});
 	});
 });
