@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../../base/common/collections.js';
+import { hasDriveLetter } from '../../../../base/common/extpath.js';
 import { normalizeDriveLetter } from '../../../../base/common/labels.js';
 import * as paths from '../../../../base/common/path.js';
 import { IProcessEnvironment, isWindows } from '../../../../base/common/platform.js';
@@ -112,6 +113,36 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 
 	private fsPath(displayUri: uri): string {
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
+	}
+
+	/**
+	 * Picks the path library that matches the target file system's separators.
+	 *
+	 * `paths` is bound to the host platform (win32 on Windows, posix otherwise), but
+	 * when resolving variables for a remote workspace (e.g. WSL on a Windows host)
+	 * the file paths produced via the label service already use the remote's
+	 * separators. Operating on them with win32 helpers then emits backslashes in
+	 * the output (see microsoft/vscode#172099). Fall back to posix helpers only
+	 * when all supplied paths clearly use posix separators so Windows-host
+	 * behavior (including drive letters, UNC paths and plain backslash-separated
+	 * paths) is preserved.
+	 */
+	private pathsFor(...pathValues: string[]): paths.IPath {
+		if (!isWindows) {
+			return paths;
+		}
+		for (const p of pathValues) {
+			if (!p) {
+				continue;
+			}
+			// Any indicator of a Windows-style path keeps us on the native
+			// (win32) helpers: a drive letter, UNC prefix, or a backslash
+			// separator anywhere in the path.
+			if (hasDriveLetter(p) || p.startsWith('\\\\') || p.includes('\\')) {
+				return paths;
+			}
+		}
+		return paths.posix;
 	}
 
 	protected async evaluateSingleVariable(replacement: Replacement, folderUri: uri | undefined, processEnvironment?: IProcessEnvironment, commandValueMapping?: IStringDictionary<IResolvedValue>): Promise<IResolvedValue | string | undefined> {
@@ -268,16 +299,21 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 					case 'fileWorkspaceFolderBasename':
 						return paths.basename(getFolderPathForFile(VariableKind.FileWorkspaceFolderBasename));
 
-					case 'relativeFile':
+					case 'relativeFile': {
+						const filePath = getFilePath(VariableKind.RelativeFile);
 						if (folderUri || argument) {
-							return paths.relative(this.fsPath(getFolderUri(VariableKind.RelativeFile)), getFilePath(VariableKind.RelativeFile));
+							const folderPath = this.fsPath(getFolderUri(VariableKind.RelativeFile));
+							return this.pathsFor(filePath, folderPath).relative(folderPath, filePath);
 						}
-						return getFilePath(VariableKind.RelativeFile);
+						return filePath;
+					}
 
 					case 'relativeFileDirname': {
-						const dirname = paths.dirname(getFilePath(VariableKind.RelativeFileDirname));
+						const filePath = getFilePath(VariableKind.RelativeFileDirname);
+						const dirname = this.pathsFor(filePath).dirname(filePath);
 						if (folderUri || argument) {
-							const relative = paths.relative(this.fsPath(getFolderUri(VariableKind.RelativeFileDirname)), dirname);
+							const folderPath = this.fsPath(getFolderUri(VariableKind.RelativeFileDirname));
+							const relative = this.pathsFor(filePath, folderPath).relative(folderPath, dirname);
 							return relative.length === 0 ? '.' : relative;
 						}
 						return dirname;
