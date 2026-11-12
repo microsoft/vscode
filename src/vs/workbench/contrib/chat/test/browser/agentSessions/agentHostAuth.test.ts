@@ -1176,13 +1176,57 @@ suite('resolveMcpServerAuthentication', () => {
 		assert.deepStrictEqual(await authenticate({ servers: { 'ado-client': 'override@example.com' } }), { result: false, token: undefined });
 	});
 
-	test('ignores empty hints and lets a specific hint override a remembered account', () => {
-		assert.strictEqual(resolveMcpLoginHint({ defaults: { microsoft: 'a@example.com' } }, 'ado', 'microsoft', 'saved@example.com'), 'saved@example.com');
-		assert.strictEqual(resolveMcpLoginHint({ defaults: { microsoft: 'a@example.com' }, servers: { ado: ' B@EXAMPLE.COM ' } }, 'ado', 'microsoft', 'saved@example.com'), 'B@EXAMPLE.COM');
+	test('resolves configured hints separately from exact remembered preferences', () => {
+		assert.deepStrictEqual(resolveMcpLoginHint({ defaults: { microsoft: 'a@example.com' } }, 'ado', 'microsoft', 'saved@example.com'), { label: 'saved@example.com', allowCaseInsensitiveMatch: false });
+		assert.deepStrictEqual(resolveMcpLoginHint({ defaults: { microsoft: 'a@example.com' }, servers: { ado: ' B@EXAMPLE.COM ' } }, 'ado', 'microsoft', 'saved@example.com'), { label: 'B@EXAMPLE.COM', allowCaseInsensitiveMatch: true });
 		assert.strictEqual(resolveMcpLoginHint({ servers: { ado: '  ' } }, 'ado', 'microsoft', undefined), undefined);
-		assert.strictEqual(resolveMcpLoginHint({ defaults: { microsoft: 'sso@example.com' } }, 'ado', 'dynamic-mcp-provider', undefined, URI.parse('https://login.microsoftonline.com/tenant/v2.0')), 'sso@example.com');
+		assert.deepStrictEqual(resolveMcpLoginHint({ defaults: { microsoft: 'sso@example.com' } }, 'ado', 'dynamic-mcp-provider', undefined, URI.parse('https://login.microsoftonline.com/tenant/v2.0')), { label: 'sso@example.com', allowCaseInsensitiveMatch: true });
 	});
 
+	test('preserves exact account labels and rejects ambiguous case-insensitive hints', async () => {
+		const resource = 'https://mcp.dev.azure.com/client';
+		const sessions: AuthenticationSession[] = [
+			{ id: 'lower', accessToken: 'lower-token', scopes: ['read'], account: { id: 'lower', label: 'alice' } },
+			{ id: 'upper', accessToken: 'upper-token', scopes: ['read'], account: { id: 'upper', label: 'Alice' } },
+			{ id: 'bob', accessToken: 'bob-token', scopes: ['read'], account: { id: 'bob', label: 'bob@example.com' } },
+		];
+		let remembered: string | undefined;
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'microsoft',
+			getSessions: async () => sessions,
+		}));
+		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => remembered });
+		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
+		instantiationService.stub(IAgentHostMcpOAuthMetadataService, { fetch: async () => { throw new Error('Unexpected OAuth metadata lookup'); } });
+		instantiationService.stub(ILogService, new NullLogService());
+
+		const authenticate = async (serverHint?: string): Promise<string | undefined> => {
+			let forwarded: string | undefined;
+			const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+				resource, authorization_servers: ['https://login.microsoftonline.com/tenant/v2.0'],
+			}, {
+				allowInteraction: false, target: undefined, logPrefix: '[Test]',
+				mcpServerId: 'ado-client', mcpServerName: 'Azure DevOps', configuredServerName: 'ado-client',
+				mcpServerUrl: resource, loginHints: serverHint ? { servers: { 'ado-client': serverHint } } : undefined, scopes: ['read'],
+				authenticate: async request => { forwarded = request.token; },
+			});
+			assert.strictEqual(result, forwarded !== undefined);
+			return forwarded;
+		};
+
+		// Previously remembered provider account labels were compared exactly, even if case differs.
+		remembered = 'Alice';
+		assert.strictEqual(await authenticate(), 'upper-token');
+		remembered = 'ALICE';
+		assert.strictEqual(await authenticate(), undefined);
+		remembered = undefined;
+		assert.strictEqual(await authenticate('ALICE'), undefined);
+		assert.strictEqual(await authenticate('Alice'), 'upper-token');
+		assert.strictEqual(await authenticate('BOB@EXAMPLE.COM'), 'bob-token');
+	});
 
 	for (const { allowInteraction, rootMetadata } of [
 		{ allowInteraction: false, rootMetadata: false },
