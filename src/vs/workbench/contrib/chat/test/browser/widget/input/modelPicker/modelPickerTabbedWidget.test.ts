@@ -2408,6 +2408,32 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual(rows, Array(2).fill(['Auto', '--Upgrade for More Models', 'Locked Model']));
 	});
 
+	test('Max lists models its plan lacks as unavailable rather than as upgrades, unlike Pro and Pro+', () => {
+		const result = Object.fromEntries([ChatEntitlement.Max, ChatEntitlement.Pro, ChatEntitlement.ProPlus].map(entitlement => {
+			const { popup, picker } = createPicker({
+				models: [createAutoModel()],
+				entitlement,
+				showUnavailable: true,
+				controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
+			});
+			const row = element(popup, '.chat-model-picker-unavailable');
+			const state = {
+				rows: listRows(popup),
+				description: row.querySelector('.description')?.textContent,
+				href: row.querySelector<HTMLElement>('.description a')?.dataset.href ?? null,
+				hasLink: row.classList.contains('has-link'),
+			};
+			picker.hide();
+			return [ChatEntitlement[entitlement], state];
+		}));
+		const upgrade = { rows: ['Auto', '--Upgrade for More Models', 'Locked Model'], description: 'Upgrade', href: 'command:workbench.action.chat.upgradePlan', hasLink: true };
+		assert.deepStrictEqual(result, {
+			Max: { rows: ['Auto', '--', 'Locked Model'], description: 'Unavailable', href: null, hasLink: false },
+			Pro: upgrade,
+			ProPlus: upgrade,
+		});
+	});
+
 	test('Free and Student plans keep the Copilot tab for upgrades when Copilot relays no selectable model', () => {
 		const local = model('Local');
 		const result = Object.fromEntries([ChatEntitlement.Free, ChatEntitlement.EDU, ChatEntitlement.Pro].map(entitlement => {

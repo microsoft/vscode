@@ -362,7 +362,7 @@ const CONTROL_MODELS_WITH_LOCKED: IStringDictionary<IModelControlEntry> = {
 	'gpt-6': { label: 'GPT-6', featured: true, exists: false, minVSCodeVersion: '99.0.0' },
 };
 
-/** The curated list a Free or Student account sees, none of which it can select. */
+/** A curated list none of which the account can select, as for Free and Student plans. */
 const FREE_PLAN_CONTROL_MODELS: IStringDictionary<IModelControlEntry> = {
 	'claude-haiku-4.5': { label: 'Claude Haiku 4.5', featured: true, exists: false },
 	'gpt-5.6-terra': { label: 'GPT-5.6 Terra', featured: true, exists: false },
@@ -910,6 +910,15 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 			models: [AUTO_MODEL],
 			selectedModelId: 'copilot/auto',
 			controlModels: CONTROL_MODELS_WITH_LOCKED,
+		}),
+	}),
+	/** Max is the highest individual plan, so curated models missing from its list are unavailable rather than upgrades. */
+	PickerMaxPlanMissingModels: defineComponentFixture({
+		render: context => renderPicker(context, {
+			models: [AUTO_MODEL],
+			selectedModelId: AUTO_MODEL.identifier,
+			controlModels: FREE_PLAN_CONTROL_MODELS,
+			entitlement: ChatEntitlement.Max,
 		}),
 	}),
 	PickerFreePlan: defineComponentFixture({

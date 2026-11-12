@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { MarkdownString } from '../../../../../../../../base/common/htmlContent.js';
+import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { getControlModelsForEntitlement, getModelPickerAccessibilityProvider, getModelPickerControlModels } from '../../../../../browser/widget/input/modelPicker/modelPickerItems.js';
-import { createModelAction, createModelItem } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
+import { createModelAction, createModelItem, createUnavailableModelItem, getUnavailableReason } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { buildModelPickerDestinations } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { filterModelsForSession } from '../../../../../browser/widget/input/chatInputModelUtils.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelsControlManifest } from '../../../../../common/languageModels.js';
-import { ChatEntitlement } from '../../../../../../../services/chat/common/chatEntitlementService.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 
 function createModel(id: string, name: string, vendor = 'copilot'): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -213,6 +216,39 @@ suite('getModelPickerControlModels', () => {
 
 		assert.deepStrictEqual(getModelPickerControlModels(manifest, ChatEntitlement.Unknown, [availableTargeted, byokModel]), {
 			'available-targeted': { label: 'Available Targeted', featured: true, exists: true },
+		});
+	});
+});
+
+suite('createUnavailableModelItem', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('offers each plan the path that unlocks a model it lacks, and never an upgrade to Max', () => {
+		const render = (entitlement: ChatEntitlement, entry: IModelControlEntry) => {
+			const chatEntitlementService = upcastPartial<IChatEntitlementService>({ entitlement });
+			const reason = getUnavailableReason(entry, chatEntitlementService, '1.140.0');
+			const item = createUnavailableModelItem('locked', entry, reason, undefined, undefined, StateType.Idle, chatEntitlementService);
+			const hover = item.hover?.content instanceof MarkdownString ? item.hover.content : undefined;
+			return {
+				reason,
+				description: typeof item.description === 'string' ? item.description : item.description?.value,
+				className: item.className,
+				hover: hover?.value,
+				hoverTrusted: !!hover?.isTrusted,
+			};
+		};
+		const entry: IModelControlEntry = { label: 'Locked', featured: true, exists: false };
+		assert.deepStrictEqual({
+			max: render(ChatEntitlement.Max, entry),
+			pro: render(ChatEntitlement.Pro, entry),
+			update: render(ChatEntitlement.Business, { ...entry, minVSCodeVersion: '99.0.0' }),
+			admin: render(ChatEntitlement.Business, entry),
+		}, {
+			max: { reason: 'unavailable', description: 'Unavailable', className: 'chat-model-picker-unavailable', hover: 'This model is not available for your account.', hoverTrusted: false },
+			pro: { reason: 'upgrade', description: '[Upgrade](command:workbench.action.chat.upgradePlan " ")', className: 'chat-model-picker-unavailable has-link', hover: '[Upgrade to GitHub Copilot Pro+](command:workbench.action.chat.upgradePlan " ") to use the best models.', hoverTrusted: true },
+			update: { reason: 'update', description: 'Update VS Code', className: 'chat-model-picker-unavailable', hover: 'This model requires a newer version of VS Code. [Update VS Code](command:update.checkForUpdate) to access it.', hoverTrusted: true },
+			admin: { reason: 'admin', description: 'Contact Admin', className: 'chat-model-picker-unavailable', hover: 'This model is not available. Contact your administrator to enable it.', hoverTrusted: true },
 		});
 	});
 });

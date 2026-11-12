@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
+import { assertNever } from '../../../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -170,11 +171,18 @@ function getNoticeAriaLabels(model: ILanguageModelChatMetadataAndIdentifier): st
 	];
 }
 
+/** Why a curated model cannot be picked, which decides the path offered to unlock it. */
+export type UnavailableModelReason = 'upgrade' | 'update' | 'admin' | 'unavailable';
+
 export function getUnavailableReason(
 	entry: IModelControlEntry,
 	chatEntitlementService: IChatEntitlementService,
 	currentVSCodeVersion: string,
-): 'upgrade' | 'update' | 'admin' {
+): UnavailableModelReason {
+	// Max is the highest individual plan, so a model it lacks is not unlocked by upgrading.
+	if (chatEntitlementService.entitlement === ChatEntitlement.Max) {
+		return 'unavailable';
+	}
 	const businessOrEnterprise = chatEntitlementService.entitlement === ChatEntitlement.Business || chatEntitlementService.entitlement === ChatEntitlement.Enterprise;
 	if (!businessOrEnterprise) {
 		return 'upgrade';
@@ -200,39 +208,45 @@ function createOrganizationSupportLink(label: string, { url, tooltip }: IModelPi
 export function createUnavailableModelItem(
 	id: string,
 	entry: IModelControlEntry,
-	reason: 'upgrade' | 'update' | 'admin',
+	reason: UnavailableModelReason,
 	manageSettingsUrl: string | undefined,
 	organizationSupport: IModelPickerOrganizationSupport | undefined,
 	updateStateType: StateType,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	let description: string | MarkdownString | undefined;
-	if (reason === 'upgrade') {
-		description = new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true });
-	} else if (reason === 'update') {
-		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
-	} else {
-		const label = getOrganizationSupportActionLabel();
-		description = organizationSupport
-			? createOrganizationSupportLink(label, organizationSupport)
-			: manageSettingsUrl
-				? new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${manageSettingsUrl})`, { isTrusted: true })
-				: label;
-	}
-
 	let hoverContent: MarkdownString;
-	if (reason === 'upgrade') {
-		hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		if (chatEntitlementService.entitlement === ChatEntitlement.Pro) {
-			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHoverProPlus', "[Upgrade to GitHub Copilot Pro+](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
-		} else {
-			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+	switch (reason) {
+		case 'upgrade':
+			description = new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true });
+			hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+			if (chatEntitlementService.entitlement === ChatEntitlement.Pro) {
+				hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHoverProPlus', "[Upgrade to GitHub Copilot Pro+](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+			} else {
+				hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+			}
+			break;
+		case 'update':
+			description = localize('chat.modelPicker.updateDescription', "Update VS Code");
+			hoverContent = getUpdateHoverContent(updateStateType);
+			break;
+		case 'admin': {
+			const label = getOrganizationSupportActionLabel();
+			description = organizationSupport
+				? createOrganizationSupportLink(label, organizationSupport)
+				: manageSettingsUrl
+					? new MarkdownString(`[${escapeMarkdownSyntaxTokens(label)}](${manageSettingsUrl})`, { isTrusted: true })
+					: label;
+			hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+			hoverContent.appendMarkdown(localize('chat.modelPicker.adminHover', "This model is not available. Contact your administrator to enable it."));
+			break;
 		}
-	} else if (reason === 'update') {
-		hoverContent = getUpdateHoverContent(updateStateType);
-	} else {
-		hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		hoverContent.appendMarkdown(localize('chat.modelPicker.adminHover', "This model is not available. Contact your administrator to enable it."));
+		case 'unavailable':
+			description = localize('chat.modelPicker.unavailableDescription', "Unavailable");
+			hoverContent = new MarkdownString(localize('chat.modelPicker.unavailableHover', "This model is not available for your account."));
+			break;
+		default:
+			assertNever(reason);
 	}
 
 	return {
