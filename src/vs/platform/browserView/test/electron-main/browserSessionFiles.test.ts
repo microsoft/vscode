@@ -12,7 +12,7 @@ import { computeRemoteFileTrust, createRemoteRootTree, normalizeRemoteFilePath }
 suite('computeRemoteFileTrust', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const proxy = { port: 1, username: 'u', password: 'p' } as IBrowserViewRemoteNetwork['proxy'];
+	const proxy = { port: 1, username: 'u', password: 'p' } as unknown as IBrowserViewRemoteNetwork['proxy'];
 
 	function network(trustedRoots: string[], options: Partial<IBrowserViewRemoteNetwork> = {}): IBrowserViewRemoteNetwork {
 		return { proxy, scheme: AGENT_HOST_SCHEME, trustedRoots, trustAllFiles: false, caseSensitive: true, ...options };

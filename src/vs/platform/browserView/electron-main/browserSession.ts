@@ -5,7 +5,7 @@
 
 import { session } from 'electron';
 import { createHash } from 'crypto';
-import { normalize, posix } from '../../../base/common/path.js';
+import { normalize } from '../../../base/common/path.js';
 import { isDefined } from '../../../base/common/types.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { joinPath } from '../../../base/common/resources.js';

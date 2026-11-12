@@ -8,13 +8,13 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derivedOpts, IReader, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
-import { OperatingSystem } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../platform/agentHost/common/agentHostTcpSupport.js';
-import { getAgentHostOperatingSystem } from '../../../../platform/agentHost/common/agentHostOperatingSystem.js';
+import { getAgentHostPathStyle } from '../../../../platform/agentHost/common/agentHostPathStyle.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { PathStyle } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { BrowserViewStorageScope, getBrowserViewSessionAffinity, IBrowserViewNetwork, IBrowserViewOwner, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -105,7 +105,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		const onDidChangeTrustedFileRoots = this._register(new Emitter<void>());
 		const updateTrustedFileRoots = () => void this._trustedFileRootsUpdates.queue(async () => {
 			const roots = await this._computeTrustedFileRoots();
-			const caseSensitiveHosts = await this._computeCaseSensitiveHosts(roots);
+			const caseSensitiveHosts = this._computeCaseSensitiveHosts(roots);
 			const key = JSON.stringify([roots.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort(), [...caseSensitiveHosts].sort()]);
 			if (key !== this._trustedFileRootsKey) {
 				this._trustedFileRootsKey = key;
@@ -219,19 +219,16 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		return candidates.filter((_, index) => trusted[index]).map(({ folder }) => folder);
 	}
 
-	/** Looks up the operating system of the hosts the roots are on. Hosts whose lookup fails are left out and treated as case-sensitive. */
-	private async _computeCaseSensitiveHosts(roots: readonly URI[]): Promise<Map<string, boolean>> {
+	/** Looks up the path style of the hosts the roots are on. Hosts whose style is unknown are left out and treated as case-sensitive. */
+	private _computeCaseSensitiveHosts(roots: readonly URI[]): Map<string, boolean> {
 		const hosts = new Map<string, boolean>();
-		await Promise.all([...new Set(roots.map(root => root.authority))].map(async authority => {
+		for (const authority of new Set(roots.map(root => root.authority))) {
 			const connection = this._agentHostConnectionsService.getConnectionByAuthority(authority);
-			if (connection) {
-				try {
-					hosts.set(authority, (await getAgentHostOperatingSystem(connection)) === OperatingSystem.Linux);
-				} catch {
-					// Without a known operating system the host keeps strict, case-sensitive matching.
-				}
+			const pathStyle = connection && getAgentHostPathStyle(connection);
+			if (pathStyle) {
+				hosts.set(authority, pathStyle === PathStyle.Posix);
 			}
-		}));
+		}
 		return hosts;
 	}
 
