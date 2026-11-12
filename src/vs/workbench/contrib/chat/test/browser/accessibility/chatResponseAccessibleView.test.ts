@@ -747,10 +747,10 @@ suite('ChatResponseAccessibleView', () => {
 			});
 		});
 
-		/** The lines that the Accessible View shows for a response made of the given Markdown. */
-		function responseLines(markdown: string, configurationService: TestConfigurationService, rendersNativeComponents: boolean, isFiltered = false): string[] {
+		/** The lines that the Accessible View shows for a response made of the given Markdown, or of the given parts. */
+		function responseLines(content: string | IResponse['value'], configurationService: TestConfigurationService, rendersNativeComponents: boolean, isFiltered = false): string[] {
 			const responseItem = upcastPartial<IChatResponseViewModel>({
-				response: upcastPartial<IResponse>({ value: [{ kind: 'markdownContent', content: new MarkdownString(markdown) }] }),
+				response: upcastPartial<IResponse>({ value: typeof content === 'string' ? [{ kind: 'markdownContent', content: new MarkdownString(content) }] : content }),
 				model: upcastPartial<IChatResponseModel>({ onDidChange: Event.None }),
 				errorDetails: isFiltered ? { message: 'Filtered', responseIsFiltered: true } : undefined,
 				setVote: () => { },
@@ -854,6 +854,31 @@ suite('ChatResponseAccessibleView', () => {
 			assert.deepStrictEqual(
 				responseLines(markdown, new TestConfigurationService({ [ChatConfiguration.NativeComponentsEnabled]: true }), true),
 				['Results', 'Passing: 128', 'Rerun with `--all`', 'Status', 'Stable (Positive)']);
+		});
+
+		test('presents a visual whose fence is split by a reference as the transcript joins it', () => {
+			const reference = URI.file('/repo/src/parser.ts');
+			const parts: IResponse['value'] = [
+				{ kind: 'markdownContent', content: new MarkdownString('Changed files:\n\n```vscode-ui\n<Table>\n<Column>File</Column><Column align="end">Lines</Column>\n<Row><Cell>') },
+				{ kind: 'inlineReference', inlineReference: reference },
+				{ kind: 'markdownContent', content: new MarkdownString('</Cell><Cell>42</Cell></Row>\n</Table>\n```\n\nSee ') },
+				{ kind: 'inlineReference', inlineReference: reference },
+				{ kind: 'markdownContent', content: new MarkdownString(' for the rest.') },
+			];
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.NativeComponentsEnabled]: true });
+			const references = (lines: string[]) => lines.filter(line => line.includes('parser.ts'));
+			const withoutRenderer = references(responseLines(parts, configurationService, true));
+			store.add(registerChatNativeComponentsRenderer(chatNativeComponentsRenderer));
+			assert.deepStrictEqual({
+				rendered: responseLines(parts, configurationService, true),
+				withoutRenderer,
+				filtered: references(responseLines(parts, configurationService, true, true)),
+			}, {
+				rendered: ['Changed files:', 'Table', 'File | Lines', 'parser.ts | 42', 'See parser.ts for the rest.'],
+				// Where no visual is rendered, the parts are read one by one as before.
+				withoutRenderer: ['parser.ts (/repo/src/parser.ts)', 'parser.ts (/repo/src/parser.ts)'],
+				filtered: ['parser.ts (/repo/src/parser.ts)', 'parser.ts (/repo/src/parser.ts)'],
+			});
 		});
 
 		test('omits thinking content when disabled in storage', () => {

@@ -2207,13 +2207,14 @@ suite('ChatMarkdownContentPart', () => {
 			});
 		});
 
-		test('toggles a disclosure with Enter on its own summary, before the transcript list can consume the key', () => {
+		test('toggles a disclosure with Enter on its own summary, before chat takes the key for Edit Request', () => {
 			const nested = '<Disclosure summary="Outer"><Disclosure summary="Inner"><Text>Nested.</Text></Disclosure></Disclosure>';
 			const part = attach(createMarkdownPart(fenced(`${visual}\n${nested}`), undefined, false, false, options));
 			const [method, , inner] = Array.from(root(part)!.querySelectorAll('details'));
-			// Stands for the list, which listens above the visual and handles Enter itself.
-			const reachedList: string[] = [];
-			disposables.add(addDisposableListener(part.domNode, 'keydown', event => reachedList.push(`${event.key === ' ' ? 'Space' : event.key} on ${(event.target as Element).tagName}`)));
+			// Stands for the keybinding service, which listens above the visual. In a chat it runs Edit Request
+			// on Enter wherever no text input has focus, and has nothing bound to Space.
+			const reachedKeybindings: string[] = [];
+			disposables.add(addDisposableListener(part.domNode, 'keydown', event => reachedKeybindings.push(`${event.key === ' ' ? 'Space' : event.key} on ${(event.target as Element).tagName}`)));
 			const press = (target: Element, key: string, keyCode: number) => {
 				target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
 				return shown(part)!.expanded;
@@ -2224,14 +2225,14 @@ suite('ChatMarkdownContentPart', () => {
 				enterAgain: press(method.querySelector('summary')!, 'Enter', 13),
 				spaceIsLeftToTheBrowser: press(method.querySelector('summary')!, ' ', 32),
 				enterElsewhere: press(method.querySelector('.chat-native-text')!, 'Enter', 13),
-				reachedList,
+				reachedKeybindings,
 			}, {
 				enterOnSummary: [true, false, false],
 				enterOnNestedSummary: [true, false, true],
 				enterAgain: [false, false, true],
 				spaceIsLeftToTheBrowser: [false, false, true],
 				enterElsewhere: [false, false, true],
-				reachedList: ['Space on SUMMARY', 'Enter on DIV'],
+				reachedKeybindings: ['Space on SUMMARY', 'Enter on DIV'],
 			});
 		});
 

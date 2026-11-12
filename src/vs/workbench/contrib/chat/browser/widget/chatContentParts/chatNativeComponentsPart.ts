@@ -143,8 +143,9 @@ export class ChatNativeComponentsPart extends Disposable implements IChatNativeC
 			}
 		}, true));
 		this.disclosures.forEach((details, index) => {
-			// The transcript's list consumes Enter before the browser toggles a native disclosure, so the
-			// summary handles the key itself, like a button. Space reaches the browser and needs no help.
+			// Chat binds Enter to Edit Request wherever no text input has focus, which takes the key before
+			// the browser toggles a native disclosure. The summary therefore handles Enter itself, like a
+			// button. Nothing is bound to Space inside a response, so the browser toggles it on Space.
 			this._register(dom.addDisposableListener(details, dom.EventType.KEY_DOWN, event => {
 				if (event.target === details.firstElementChild && new StandardKeyboardEvent(event).equals(KeyCode.Enter)) {
 					dom.EventHelper.stop(event, true);

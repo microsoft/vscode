@@ -27,7 +27,7 @@ A block is bounded: 32,000 characters, 2,000 components, 8 levels of nesting, 12
 - Columns share the width equally and wrap down to a single column as the chat narrows. A wide table scrolls inside its own box. Adjacent badges share a line. A long unbroken string wraps rather than widening the response.
 - Whitespace in text collapses as it does in HTML, so a non-breaking space written as `&#160;` keeps a value and its unit together.
 - A table is a real table with column headers. A bar chart is exposed as a table of its labels and values, and shows every value as text. A tone is an icon with a name, reinforced by color, never color alone. Disclosures are native and keyboard-operable. Keyboard focus draws a ring around the visual; a click inside it does not.
-- The chat Accessible View presents each rendered visual as text: metrics as `label: value`, tables row by row, charts as labelled values. That includes a visual inside a list item or a block quote. Blocks that are shown as source read as source.
+- The chat Accessible View presents each rendered visual as text: metrics as `label: value`, tables row by row, charts as labelled values. That includes a visual inside a list item or a block quote, and one whose block a file reference splits into several response parts. Blocks that are shown as source read as source.
 - Transcript Find searches the original markup, as it does for any code block, and reveals the source when a match in it is selected. Rendered text is not matched a second time.
 - The Show Source choice is remembered per block, as it is for HTML previews. Expanded disclosures are remembered while the window is open, so they survive scrolling a response out of view and back.
 
