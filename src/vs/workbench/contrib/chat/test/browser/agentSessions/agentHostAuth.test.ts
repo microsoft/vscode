@@ -1153,6 +1153,7 @@ suite('resolveMcpServerAuthentication', () => {
 		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => remembered });
 		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
+		instantiationService.stub(IAgentHostMcpOAuthMetadataService, { fetch: async () => { throw new Error('Unexpected OAuth metadata lookup'); } });
 		instantiationService.stub(ILogService, new NullLogService());
 		const authenticate = async (loginHints: { defaults?: Record<string, string>; servers?: Record<string, string> }) => {
 			const before = forwarded.length;
