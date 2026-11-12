@@ -18,6 +18,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, withAgentHostAutomationScheduleKind } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { isClientPluginPolicyRequired } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -28,6 +29,8 @@ import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents,
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { IAgentPluginService } from '../../../../chat/common/plugins/agentPluginService.js';
+import { isPluginUriRequiredByPolicy } from '../../../../chat/browser/agentPluginActions.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../chat/common/automations/automation.js';
 import { AutomationUnavailableError, type AutomationCatalogueState, type AutomationHistoryState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions, type IDeleteAutomationOptions } from '../../../../chat/common/automations/automationService.js';
@@ -114,6 +117,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IAgentPluginService private readonly _agentPluginService?: IAgentPluginService,
 	) {
 		super();
 		this._archiveKey = `agentHostAutomation.legacyRunArchive.${_providerId}`;
@@ -280,27 +284,52 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			const sameTarget = existing !== undefined && this._isCustomizationTargetUnchanged(target, existing, target.sessionTypeId ?? existing.session.provider, true);
 			const currentIds = new Set(current.map(plugin => plugin.id));
 			return [
-				...current.map(plugin => ({
-					id: plugin.id,
-					label: this._customizationLabel(plugin),
-					description: URI.parse(plugin.uri).scheme === SYNCED_CUSTOMIZATION_SCHEME
-						? localize('agentHostAutomation.syncedCustomizationDescription', "Customizations synced from VS Code.")
-						: plugin.version ? localize('agentHostAutomation.customizationVersion', "Version {0}", plugin.version) : undefined,
-					selected: !sameTarget || saved.has(plugin.id),
-					outdated: sameTarget && saved.has(plugin.id)
-						&& (saved.get(plugin.id)!.nonce !== plugin.nonce || saved.get(plugin.id)!.uri !== plugin.uri),
-				})),
-				...[...saved.values()].filter(plugin => !currentIds.has(plugin.id)).map(plugin => ({
-					id: plugin.id,
-					label: this._customizationLabel(plugin),
-					description: localize('agentHostAutomation.savedCustomization', "Not available locally. The saved copy is kept."),
-					selected: true,
-					outdated: false,
-				})),
+				...current.map(plugin => {
+					const required = this._isCustomizationRequired(plugin);
+					return {
+						id: plugin.id,
+						label: this._customizationLabel(plugin),
+						description: URI.parse(plugin.uri).scheme === SYNCED_CUSTOMIZATION_SCHEME
+							? localize('agentHostAutomation.syncedCustomizationDescription', "Customizations synced from VS Code.")
+							: plugin.version ? localize('agentHostAutomation.customizationVersion', "Version {0}", plugin.version) : undefined,
+						selected: required || !sameTarget || saved.has(plugin.id),
+						outdated: sameTarget && saved.has(plugin.id)
+							&& (saved.get(plugin.id)!.nonce !== plugin.nonce || saved.get(plugin.id)!.uri !== plugin.uri),
+						...(required ? { required: true } : {}),
+					};
+				}),
+				...[...saved.values()].filter(plugin => !currentIds.has(plugin.id)).map(plugin => {
+					const required = this._isCustomizationRequired(plugin);
+					return {
+						id: plugin.id,
+						label: this._customizationLabel(plugin),
+						description: localize('agentHostAutomation.savedCustomization', "Not available locally. The saved copy is kept."),
+						selected: true,
+						outdated: false,
+						...(required ? { required: true } : {}),
+					};
+				}),
 			];
 		} finally {
 			scope.dispose();
 		}
+	}
+
+	private _isCustomizationRequired(plugin: ClientPluginCustomization): boolean {
+		if (isClientPluginPolicyRequired(plugin)) {
+			return true;
+		}
+		if (this._agentPluginService) {
+			try {
+				const uri = URI.parse(plugin.uri);
+				if (isPluginUriRequiredByPolicy(this._agentPluginService, uri)) {
+					return true;
+				}
+			} catch {
+				// Invalid URI
+			}
+		}
+		return false;
 	}
 
 	private _customizationLabel(plugin: ClientPluginCustomization): string {
@@ -760,7 +789,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const currentIds = new Set(current.map(plugin => plugin.id));
 		const selectedIds = customizationIds !== undefined ? new Set(customizationIds) : undefined;
 		const customizations = selectedIds
-			? [...current, ...(previous?.session.customizations ?? []).filter(plugin => !currentIds.has(plugin.id))].filter(plugin => selectedIds.has(plugin.id))
+			? [...current, ...(previous?.session.customizations ?? []).filter(plugin => !currentIds.has(plugin.id))].filter(plugin => selectedIds.has(plugin.id) || this._isCustomizationRequired(plugin))
 			: current;
 		definition.session.customizations = customizations;
 		if (!definition.session.agent) {

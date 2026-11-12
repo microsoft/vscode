@@ -745,6 +745,11 @@
 	gap: var(--vscode-spacing-size80);
 }
 
+.automation-customization-row.disabled,
+.automation-customization-row.disabled .automation-customization-text {
+	cursor: default;
+}
+
 .automation-customization-text {
 	display: flex;
 	flex: 1;

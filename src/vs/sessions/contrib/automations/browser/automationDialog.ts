@@ -2338,7 +2338,7 @@ export class AutomationCustomizationSelection extends Disposable {
 	}
 
 	getSelectedIds(): readonly string[] | undefined {
-		return this.choices?.filter(choice => this.toggles.get(choice.id) ?? choice.selected).map(choice => choice.id);
+		return this.choices?.filter(choice => choice.required || (this.toggles.get(choice.id) ?? choice.selected)).map(choice => choice.id);
 	}
 
 	/** Waits for the choices of the current target to load, so a save never omits the selection. */
@@ -2419,8 +2419,15 @@ export class AutomationCustomizationSelection extends Disposable {
 			DOM.append(this.content, $('p.automation-customizations-description', undefined, localize('automation.customizations.empty', "No customizations are available for this target.")));
 		}
 		for (const [index, choice] of choices.entries()) {
+			const isChecked = choice.required || (this.toggles.get(choice.id) ?? choice.selected);
 			const row = DOM.append(this.content, $('.automation-customization-row'));
-			const checkbox = this.rows.add(new Checkbox(choice.label, this.toggles.get(choice.id) ?? choice.selected, defaultCheckboxStyles));
+			if (choice.required) {
+				row.classList.add('disabled');
+			}
+			const checkbox = this.rows.add(new Checkbox(choice.label, isChecked, defaultCheckboxStyles));
+			if (choice.required) {
+				checkbox.disable();
+			}
 			row.appendChild(checkbox.domNode);
 			const text = DOM.append(row, $('.automation-customization-text'));
 			const label = DOM.append(text, $('span.automation-customization-label', { id: `automation-customization-${index}` }, choice.label));
@@ -2428,29 +2435,40 @@ export class AutomationCustomizationSelection extends Disposable {
 			if (this.hoverService) {
 				this.rows.add(this.hoverService.setupDelayedHoverAtMouse(label, { content: choice.label }));
 			}
+			const descriptions: string[] = [];
 			if (choice.description) {
 				const description = DOM.append(text, $('span.automation-customization-description', { id: `automation-customization-description-${index}` }, choice.description));
-				checkbox.domNode.setAttribute('aria-describedby', description.id);
+				descriptions.push(description.id);
 				if (this.hoverService) {
 					this.rows.add(this.hoverService.setupDelayedHoverAtMouse(description, { content: choice.description }));
 				}
 			}
+			if (choice.required) {
+				const required = DOM.append(text, $('span.automation-customization-description.automation-customization-required', { id: `automation-customization-required-${index}` }, localize('automation.customizations.required', "Required by your organization")));
+				descriptions.push(required.id);
+				if (this.hoverService) {
+					this.rows.add(this.hoverService.setupDelayedHoverAtMouse(required, { content: localize('automation.customizations.required', "Required by your organization") }));
+				}
+			}
 			if (choice.outdated) {
 				const outdated = DOM.append(row, $('span.automation-customization-outdated', { id: `automation-customization-outdated-${index}` }, localize('automation.customizations.outdated', "Outdated")));
-				checkbox.domNode.setAttribute('aria-describedby', choice.description
-					? `automation-customization-description-${index} ${outdated.id}`
-					: outdated.id);
+				descriptions.push(outdated.id);
 			}
-			this.rows.add(checkbox.onChange(() => {
-				this.toggles.set(choice.id, checkbox.checked);
-				this.updateSummary();
-			}));
-			this.rows.add(DOM.addDisposableListener(text, DOM.EventType.CLICK, () => {
-				checkbox.checked = !checkbox.checked;
-				this.toggles.set(choice.id, checkbox.checked);
-				this.updateSummary();
-				checkbox.focus();
-			}));
+			if (descriptions.length > 0) {
+				checkbox.domNode.setAttribute('aria-describedby', descriptions.join(' '));
+			}
+			if (!choice.required) {
+				this.rows.add(checkbox.onChange(() => {
+					this.toggles.set(choice.id, checkbox.checked);
+					this.updateSummary();
+				}));
+				this.rows.add(DOM.addDisposableListener(text, DOM.EventType.CLICK, () => {
+					checkbox.checked = !checkbox.checked;
+					this.toggles.set(choice.id, checkbox.checked);
+					this.updateSummary();
+					checkbox.focus();
+				}));
+			}
 		}
 		if (choices.some(choice => choice.outdated)) {
 			const hint = DOM.append(this.content, $('.automation-customizations-message'));

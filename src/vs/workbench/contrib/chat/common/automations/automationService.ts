@@ -158,6 +158,8 @@ export interface IAutomationCustomizationChoice {
 	readonly selected: boolean;
 	/** Saved in the definition but changed locally since; saving the automation refreshes it. */
 	readonly outdated: boolean;
+	/** Required by organization policy and cannot be unchecked. */
+	readonly required?: boolean;
 }
 
 /**
