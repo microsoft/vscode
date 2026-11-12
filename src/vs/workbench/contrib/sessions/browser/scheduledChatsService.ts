@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isHTMLElement } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { parse, stringify } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -44,7 +47,7 @@ import { ISessionDraftsService } from './sessionDraftsService.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsService } from './sessionsService.js';
 import { IPendingSessionItem } from './views/pendingSessions.js';
-import { IChatScheduledRequest } from '../../chat/common/model/chatViewModel.js';
+import { IChatScheduledRequest, IChatScheduledRequestEditing } from '../../chat/common/model/chatViewModel.js';
 
 const handoffStorageKey = 'sessions.scheduledChatHandoffs';
 interface IScheduledChatHandoff {
@@ -93,6 +96,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 	readonly availableProviders: IAutomationService['availableProviders'];
 	private readonly chatInputs = new Map<IChatWidget, { schedule(): Promise<void>; assertUnscheduled(query: string): void }>();
 	private readonly automationsEnabled: IObservable<boolean>;
+	private readonly editingRequest = observableValue<{ id: string; state: IChatScheduledRequestEditing } | undefined>(this, undefined);
 
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
@@ -150,34 +154,53 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			handoffsChanged.read(reader);
 			const automations = automationService.automations.read(reader);
 			const handoffs = this.readHandoffs();
+			const editing = this.editingRequest.read(reader);
 			const items = automationService.automations.read(reader)
-				.filter(automation => automation.purpose === 'scheduledChat' && !automation.oneTimeDispatchedAt)
+				.filter(automation => automation.purpose === 'scheduledChat' && (!automation.oneTimeDispatchedAt || editing?.id === automation.id))
 				.sort((a, b) => (a.schedule.runAt ?? '').localeCompare(b.schedule.runAt ?? ''))
-				.map((automation): IScheduledChatItem => ({
-					pendingSession: true as const, id: automation.id, kind: 'scheduled' as const,
-					title: automation.name,
-					text: automation.request?.text ?? automation.prompt,
-					attachments: automation.request?.attachments?.map(attachment => attachment.label) ?? [],
-					conversation: automation.conversation ?? handoffs.find(handoff => handoff.id === automation.creationId)?.conversation,
-					description: automation.readOnlyReason ?? (automation.oneTimeRunId
-						? runs.find(run => run.id === automation.oneTimeRunId)?.errorMessage ?? localize('scheduledChat.startedOrFailed', "Starting or needs attention")
-						: automation.enabled ? localize('scheduledChat.at', "Scheduled for {0}", formatTime(automation.schedule.runAt)) : localize('scheduledChat.cancelled', "Not scheduled")),
-					folderUri: automation.target.kind === 'workspace' ? automation.target.folderUri : undefined,
-					providerId: automation.target.providerId,
-					sessionType: automation.target.sessionTypeId,
-					environmentId: handoffs.find(handoff => handoff.id === automation.creationId)?.target.environmentId,
-					harness: handoffs.find(handoff => handoff.id === automation.creationId)?.target.harness,
-					applicationId: handoffs.find(handoff => handoff.id === automation.creationId)?.target.applicationId,
-					isQuickChat: automation.target.kind === 'quickChat',
-					open: () => this.preview(automation),
-					actions: [
-						toAction({ id: 'sessions.scheduled.preview', label: localize('scheduledChat.preview', "Preview"), run: () => this.preview(automation) }),
-						toAction({ id: 'sessions.scheduled.sendNow', label: localize('scheduledChat.sendNow', "Send Now"), enabled: !automation.readOnlyReason && !automation.oneTimeRunId && automationService.canRunAutomation(automation.id), run: () => this.sendNow(automation) }),
-						toAction({ id: 'sessions.scheduled.reschedule', label: localize('scheduledChat.reschedule', "Reschedule..."), enabled: !automation.readOnlyReason && !automation.oneTimeRunId, run: () => this.reschedule(automation) }),
-						toAction({ id: 'sessions.scheduled.edit', label: localize('scheduledChat.edit', "Edit as Draft"), enabled: !automation.readOnlyReason && (!automation.oneTimeRunId || !!automation.oneTimeDispatchRejectedAt), run: () => this.cancel(automation, true) }),
-						toAction({ id: 'sessions.scheduled.cancel', label: localize('scheduledChat.cancel', "Cancel Schedule"), enabled: !automation.readOnlyReason && (!automation.oneTimeRunId || !!automation.oneTimeDispatchRejectedAt), run: () => this.cancel(automation, false) }),
-					],
-				}));
+				.map((automation): IScheduledChatItem => {
+					const handoff = handoffs.find(handoff => handoff.id === automation.creationId);
+					const conversation = automation.conversation ?? handoff?.conversation;
+					const requestEditing = editing?.id === automation.id ? editing.state : undefined;
+					const editAction = toAction({
+						id: 'sessions.scheduled.edit',
+						label: conversation ? localize('scheduledChat.editMessage', "Edit") : localize('scheduledChat.edit', "Edit as Draft"),
+						class: ThemeIcon.asClassName(Codicon.edit),
+						enabled: !automation.readOnlyReason && (!automation.oneTimeRunId || !conversation && !!automation.oneTimeDispatchRejectedAt),
+						run: () => conversation ? this.startEditing(automation) : this.cancel(automation, true),
+					});
+					return {
+						pendingSession: true, id: automation.id, kind: 'scheduled',
+						title: automation.name,
+						text: automation.request?.text ?? automation.prompt,
+						attachments: automation.request?.attachments?.map(attachment => attachment.label) ?? [],
+						conversation,
+						description: automation.readOnlyReason ?? (automation.oneTimeRunId
+							? runs.find(run => run.id === automation.oneTimeRunId)?.errorMessage ?? localize('scheduledChat.startedOrFailed', "Starting or needs attention")
+							: automation.enabled ? localize('scheduledChat.at', "Scheduled for {0}", formatTime(automation.schedule.runAt)) : localize('scheduledChat.cancelled', "Not scheduled")),
+						folderUri: automation.target.kind === 'workspace' ? automation.target.folderUri : undefined,
+						providerId: automation.target.providerId,
+						sessionType: automation.target.sessionTypeId,
+						environmentId: handoff?.target.environmentId,
+						harness: handoff?.target.harness,
+						applicationId: handoff?.target.applicationId,
+						isQuickChat: automation.target.kind === 'quickChat',
+						open: async () => { if (conversation) { this.startEditing(automation); } else { await this.cancel(automation, true); } },
+						editAction: conversation ? editAction : undefined,
+						editing: requestEditing,
+						actions: requestEditing ? [
+							toAction({ id: 'sessions.scheduled.save', label: localize('scheduledChat.save', "Save"), class: ThemeIcon.asClassName(Codicon.check), run: () => requestEditing.save() }),
+							toAction({ id: 'sessions.scheduled.editTime', label: localize('scheduledChat.editTime', "Change Send Time..."), class: ThemeIcon.asClassName(Codicon.clock), run: (anchor?: HTMLElement) => requestEditing.selectTime(isHTMLElement(anchor) ? anchor : undefined) }),
+							toAction({ id: 'sessions.scheduled.cancelEdit', label: localize('scheduledChat.cancelEdit', "Cancel Edit"), class: ThemeIcon.asClassName(Codicon.closeSmall), run: () => requestEditing.cancel() }),
+						] : [
+							...(conversation ? [editAction] : [toAction({ id: 'sessions.scheduled.preview', label: localize('scheduledChat.preview', "Preview"), run: () => this.preview(automation) })]),
+							toAction({ id: 'sessions.scheduled.sendNow', label: localize('scheduledChat.sendNow', "Send Now"), class: ThemeIcon.asClassName(Codicon.newLine), enabled: !automation.readOnlyReason && !automation.oneTimeRunId && automationService.canRunAutomation(automation.id), run: () => this.sendNow(automation) }),
+							toAction({ id: 'sessions.scheduled.reschedule', label: localize('scheduledChat.reschedule', "Reschedule..."), class: ThemeIcon.asClassName(Codicon.clock), enabled: !automation.readOnlyReason && !automation.oneTimeRunId, run: (anchor?: HTMLElement) => this.reschedule(automation, isHTMLElement(anchor) ? anchor : undefined) }),
+							...(conversation ? [] : [editAction]),
+							toAction({ id: 'sessions.scheduled.cancel', label: localize('scheduledChat.cancel', "Cancel Schedule"), class: ThemeIcon.asClassName(Codicon.closeSmall), enabled: !automation.readOnlyReason && (!automation.oneTimeRunId || !!automation.oneTimeDispatchRejectedAt), run: () => this.cancel(automation, false) }),
+						],
+					};
+				});
 			for (const handoff of handoffs) {
 				if (handoff.automationId || automations.some(automation => automation.creationId === handoff.id && automation.target.providerId === handoff.target.providerId)) {
 					continue;
@@ -192,7 +215,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 					folderUri: handoff.target.folderUri, providerId: handoff.target.providerId, sessionType: handoff.target.sessionTypeId, isQuickChat: !handoff.target.folderUri,
 					environmentId: handoff.target.environmentId, harness: handoff.target.harness, applicationId: handoff.target.applicationId,
 					open: async () => { await this.retryHandoff(handoff); },
-					actions: [toAction({ id: 'sessions.scheduled.reconcile', label: localize('sendLater.reconcile', "Reconcile Schedule"), run: async () => { await this.retryHandoff(handoff); } })],
+					actions: [toAction({ id: 'sessions.scheduled.reconcile', label: localize('sendLater.reconcile', "Reconcile Schedule"), class: ThemeIcon.asClassName(Codicon.sync), run: async () => { await this.retryHandoff(handoff); } })],
 				});
 			}
 			return items;
@@ -402,14 +425,6 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			}
 		}, async uri => (await this.fileService.readFile(uri)).value, uri => this.workingCopyService.isDirty(uri));
 		const schedule: IAutomationSchedule = { interval: 'once', runAt: date.toISOString(), scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-		const confirmed = await this.dialogService.confirm({
-			message: localize('sendLater.confirm', "Send this request on {0}?", formatTime(schedule.runAt)),
-			detail: localize('sendLater.execution', "The local agent host sends once when available. It cannot wake a sleeping computer or start a stopped host. Your current permissions and policies still apply."),
-			primaryButton: localize('sendLater.action', "Send Later"),
-		});
-		if (!confirmed.confirmed) {
-			return false;
-		}
 		const automationTarget: AutomationTarget = target.folderUri
 			? {
 				kind: 'workspace', folderUri: target.folderUri, providerId: session.providerId, sessionTypeId: session.sessionType,
@@ -472,7 +487,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		const value = await this.quickInputService.input({
 			anchor, anchorPosition: anchor ? 'above' : undefined,
 			title: localize('sendLater.customTitle', "Send Later - Local Date and Time"),
-			prompt: localize('sendLater.timeFormat', "Enter YYYY-MM-DD HH:mm. The confirmation shows the resolved time and time zone."),
+			prompt: localize('sendLater.timeFormat', "Enter YYYY-MM-DD HH:mm in this device's time zone. The local agent host sends when available."),
 			validateInput: async value => {
 				const date = parseScheduledChatTime(value);
 				return date && date.getTime() > Date.now() ? undefined : localize('sendLater.invalidTime', "Enter a valid future local date and time, for example 2027-01-15 09:30.");
@@ -503,10 +518,10 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		await this.automationService.runAutomation(automation.id);
 	}
 
-	private async reschedule(automation: IAutomationDescriptor): Promise<void> {
+	private async reschedule(automation: IAutomationDescriptor, anchor?: HTMLElement): Promise<void> {
 		this.assertEnabled();
 		this.assertWritable(automation);
-		const date = await this.pickTime();
+		const date = await this.pickTime(anchor);
 		if (!date) {
 			return;
 		}
@@ -515,6 +530,90 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
 		}
 		status(localize('scheduledChat.rescheduled', "Request rescheduled for {0}", formatTime(date.toISOString())));
+	}
+
+	private startEditing(automation: IAutomationDescriptor): void {
+		this.assertEnabled();
+		this.assertWritable(automation);
+		const current = this.editingRequest.get();
+		if (current?.id === automation.id) {
+			return;
+		}
+		if (current && this.automationService.automations.get().some(item => item.id === current.id && !item.oneTimeDispatchedAt)) {
+			throw new Error(localize('scheduledChat.finishEditing', "Save or cancel your other scheduled-message edit first."));
+		}
+		if (automation.oneTimeRunId) {
+			throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
+		}
+		const state: IChatScheduledRequestEditing = {
+			text: automation.request?.text ?? automation.prompt,
+			runAt: automation.schedule.runAt ?? '',
+			description: formatTime(automation.schedule.runAt),
+			selectTime: async anchor => {
+				const date = await this.pickTime(anchor);
+				if (date && this.editingRequest.get()?.state === state) {
+					state.runAt = date.toISOString();
+					state.description = formatTime(state.runAt);
+					this.editingRequest.set({ id: automation.id, state }, undefined);
+				}
+			},
+			save: async () => {
+				this.assertEnabled();
+				this.assertWritable(automation);
+				if (this.editingRequest.get()?.state !== state) {
+					throw new Error(localize('scheduledChat.editClosed', "This scheduled-message edit is no longer open."));
+				}
+				if (!(Date.parse(state.runAt) > Date.now())) {
+					throw new Error(localize('scheduledChat.editTimePassed', "Choose a future send time before saving."));
+				}
+				const handoff = this.readHandoffs().find(candidate => candidate.automationId === automation.id || candidate.id === automation.creationId);
+				const original = automation.request ?? handoff?.request;
+				if (!original) {
+					throw new Error(localize('scheduledChat.editUnavailable', "The saved request content is unavailable. Manage this request in Automations."));
+				}
+				if (!state.text.trim() && !original.attachments?.length) {
+					throw new Error(localize('scheduledChat.emptyEdit', "Enter a message or keep an attachment before saving."));
+				}
+				const textChanged = state.text !== original.text;
+				const request = {
+					...original, text: state.text,
+					attachments: textChanged ? original.attachments?.map(attachment => ({ ...attachment, range: undefined })) : original.attachments,
+				};
+				const schedule = { ...automation.schedule, runAt: state.runAt };
+				const result = await this.automationService.updateAutomationIfUnchanged(automation.id, {
+					name: state.text.trim().split('\n')[0].slice(0, 100) || automation.name,
+					prompt: request.text, request, schedule,
+				}, automation, () => {
+					this.assertEnabled();
+					if (!(Date.parse(schedule.runAt) > Date.now())) {
+						throw new Error(localize('scheduledChat.editTimePassed', "Choose a future send time before saving."));
+					}
+				});
+				if (result.kind !== 'updated') {
+					throw new Error(localize('scheduledChat.changed', "The scheduled request changed or has started. Refresh the scheduled messages before trying again."));
+				}
+				if (handoff) {
+					this.writeHandoff({
+						...handoff, request, schedule,
+						input: {
+							...handoff.input, inputText: request.text,
+							attachments: textChanged ? handoff.input.attachments.map(attachment => ({ ...attachment, range: undefined })) : handoff.input.attachments,
+							references: textChanged ? [] : handoff.input.references,
+						},
+					});
+				}
+				if (this.editingRequest.get()?.state === state) {
+					this.editingRequest.set(undefined, undefined);
+				}
+				status(localize('scheduledChat.edited', "Scheduled message saved for {0}", formatTime(schedule.runAt)));
+			},
+			cancel: () => {
+				if (this.editingRequest.get()?.state === state) {
+					this.editingRequest.set(undefined, undefined);
+				}
+			},
+		};
+		this.editingRequest.set({ id: automation.id, state }, undefined);
 	}
 
 	private async cancel(automation: IAutomationDescriptor, edit: boolean): Promise<void> {
@@ -569,7 +668,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			await this.automationService.deleteAutomation(automation.id);
 			this.removeHandoff(handoff.id);
 			if (edit) {
-				await this.draftsService.open(handoff.id);
+				await this.draftsService.open(handoff.id, { removeFromDrafts: true });
 			}
 		} else {
 			if (!handoff.recoverySaved) {

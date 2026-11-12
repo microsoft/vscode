@@ -1121,19 +1121,17 @@ suite('ChatListRenderer', () => {
 	});
 
 	test('scheduled messages render literal content and management actions without immediate-queue controls', async () => {
-		const { disposables, instantiationService, viewModel, renderer, template, node } = createPersistentProgressRenderer();
-		let actions: readonly IAction[] = [];
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const ran = new DeferredPromise<void>();
 		let sent = 0;
-		instantiationService.stub(IContextMenuService, {
-			showContextMenu: delegate => { actions = delegate.getActions!(); },
-		});
-		const send = disposables.add(new Action('sendNow', 'Send Now', undefined, true, async () => { sent++; }));
+		const send = disposables.add(new Action('sendNow', 'Send Now', ThemeIcon.asClassName(Codicon.newLine), true, async () => { sent++; ran.complete(); }));
 		viewModel.setScheduledRequests([{
 			id: 'later', text: '<b>Later</b>\nSecond line', description: 'Tomorrow at 10:00 AM',
 			attachments: ['notes.txt'], actions: [send],
 		}]);
 		const request = viewModel.getItems().find(isRequestVM)!;
 		renderer.renderElement({ ...node, element: request }, 0, template);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
 		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
 		const scheduled = {
 			text: template.value.querySelector('.scheduled-request-text')?.textContent,
@@ -1143,17 +1141,156 @@ suite('ChatListRenderer', () => {
 			requestActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isRequest.key),
 			pendingActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isPendingRequest.key),
 			dragHandle: template.dragHandle,
+			inlineActions: Array.from(template.rowContainer.querySelectorAll('.scheduled-request-actions .action-label')).map(action => action.getAttribute('aria-label')),
 		};
-		template.value.querySelector<HTMLElement>('.scheduled-request-actions .action-label')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-		await actions[0].run();
+		template.rowContainer.querySelector<HTMLElement>('.scheduled-request-actions .action-label')!.click();
+		await ran.p;
 		renderer.renderElement({ ...node, element: request }, 0, template);
 		assert.deepStrictEqual({
-			scheduled, sent, actions: actions.map(action => action.id),
-			recycled: { hasScheduledContent: !!template.value.querySelector('.scheduled-request-text'), scheduledClass: template.rowContainer.classList.contains('scheduled-request') },
+			scheduled, sent,
+			recycled: {
+				hasScheduledContent: !!template.value.querySelector('.scheduled-request-text'),
+				scheduledClass: template.rowContainer.classList.contains('scheduled-request'),
+				hasScheduledToolbar: !!template.rowContainer.querySelector('.scheduled-request-actions'),
+			},
 		}, {
-			scheduled: { text: '<b>Later</b>\nSecond line', attachments: 'Attachments: notes.txt', description: 'Tomorrow at 10:00 AM', html: false, requestActions: false, pendingActions: false, dragHandle: undefined },
-			sent: 1, actions: ['sendNow'], recycled: { hasScheduledContent: false, scheduledClass: false },
+			scheduled: { text: '<b>Later</b>\nSecond line', attachments: 'Attachments: notes.txt', description: 'Tomorrow at 10:00 AM', html: false, requestActions: false, pendingActions: false, dragHandle: undefined, inlineActions: ['Send Now'] },
+			sent: 1, recycled: { hasScheduledContent: false, scheduledClass: false, hasScheduledToolbar: false },
 		});
+		disposables.dispose();
+	});
+
+	test('scheduled messages support click and keyboard editing, selection, and a focus-revealed toolbar', async () => {
+		const { disposables, configurationService, viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+		configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		let edits = 0;
+		let sends = 0;
+		const edit = disposables.add(new Action('edit', 'Edit', ThemeIcon.asClassName(Codicon.edit), true, async () => { edits++; }));
+		const send = disposables.add(new Action('sendNow', 'Send Now', ThemeIcon.asClassName(Codicon.newLine), true, async () => { sends++; }));
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled message', description: 'Tomorrow', attachments: [], actions: [edit, send], editAction: edit }]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const content = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
+		const toolbar = template.rowContainer.querySelector<HTMLElement>('.scheduled-request-actions')!;
+		const resting = mainWindow.getComputedStyle(toolbar).opacity;
+		content.focus();
+		const focused = mainWindow.getComputedStyle(toolbar).opacity;
+		const selection = mainWindow.getSelection()!;
+		disposables.add(toDisposable(() => selection.removeAllRanges()));
+		const range = mainWindow.document.createRange();
+		range.selectNodeContents(content);
+		selection.addRange(range);
+		content.click();
+		const afterSelection = edits;
+		selection.removeAllRanges();
+		content.click();
+		for (const [key, keyCode] of [['Enter', 13], [' ', 32]] as const) {
+			content.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+		}
+		const sendButton = toolbar.querySelector<HTMLElement>('.codicon-newline')!;
+		sendButton.focus();
+		const toolbarFocused = mainWindow.getComputedStyle(toolbar).opacity;
+		sendButton.click();
+		await timeout(0);
+		assert.deepStrictEqual({ resting, focused, toolbarFocused, afterSelection, edits, sends }, {
+			resting: '0', focused: '1', toolbarFocused: '1', afterSelection: 0, edits: 3, sends: 1,
+		});
+		disposables.dispose();
+	});
+
+	test('scheduled message editor changes text and time, saves with Enter, and cancels with Escape', async () => {
+		const { disposables, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const saved: string[] = [];
+		let cancelled = 0;
+		let timeAnchor: HTMLElement | undefined;
+		const editing = {
+			text: 'Original', runAt: '2099-01-15T10:00:00Z', description: 'Tomorrow',
+			selectTime: async (anchor?: HTMLElement) => { timeAnchor = anchor; editing.runAt = '2099-01-16T10:00:00Z'; },
+			save: async () => { saved.push(editing.text, editing.runAt); },
+			cancel: () => { cancelled++; },
+		};
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Original', description: 'Tomorrow', attachments: ['notes.txt'], actions: [], editing }]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		const input = template.value.querySelector<HTMLTextAreaElement>('textarea')!;
+		input.value = 'Edited\nmessage';
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		const timeButton = template.value.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
+		timeButton.click();
+		await timeout(0);
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, shiftKey: true, bubbles: true }));
+		const savedAfterShiftEnter = saved.length;
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await timeout(0);
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+		assert.deepStrictEqual({
+			text: editing.text, timeAnchored: timeAnchor === timeButton, savedAfterShiftEnter, saved, cancelled,
+			attachments: template.value.querySelector('.scheduled-request-attachments')?.textContent,
+			hoverToolbar: !!template.rowContainer.querySelector('.scheduled-request-actions'),
+		}, {
+			text: 'Edited\nmessage', timeAnchored: true, savedAfterShiftEnter: 0,
+			saved: ['Edited\nmessage', '2099-01-16T10:00:00Z'], cancelled: 1,
+			attachments: 'Attachments: notes.txt', hoverToolbar: false,
+		});
+		disposables.dispose();
+	});
+
+	test('scheduled message editor stays compact with all footer controls on one row', () => {
+		const { disposables, viewModel, container, renderer, template, node } = createPersistentProgressRenderer();
+		viewModel.setScheduledRequests([{
+			id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [],
+			editing: {
+				text: 'Edited message', runAt: '2099-01-15T10:00:00Z', description: '11/12/2099, 6:44:11 PM EST',
+				selectTime: async () => { }, save: async () => { }, cancel: () => { },
+			},
+		}]);
+		for (const width of [900, 300, 900]) {
+			container.style.width = `${width}px`;
+			renderer.layout(width);
+			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+			const editor = template.value.querySelector<HTMLElement>('.scheduled-request-editor')!;
+			const bounds = editor.getBoundingClientRect();
+			const controls = [...editor.querySelectorAll<HTMLElement>('.monaco-button')].map(button => button.getBoundingClientRect());
+			assert.deepStrictEqual({
+				width, compact: bounds.width > 0 && bounds.width <= 480,
+				rightAligned: bounds.right === template.value.getBoundingClientRect().right,
+				sameRow: controls.every(control => control.top === controls[0].top),
+				fits: controls.every(control => control.left >= bounds.left && control.right <= bounds.right),
+			}, { width, compact: true, rightAligned: true, sameRow: true, fits: true });
+		}
+		disposables.dispose();
+	});
+
+	test('scheduled messages do not activate disabled edits or edits disabled in settings', () => {
+		const { disposables, configurationService, viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+		let edits = 0;
+		const edit = disposables.add(new Action('edit', 'Edit', ThemeIcon.asClassName(Codicon.edit), true, async () => { edits++; }));
+		const states = [true, false].map(enabled => {
+			edit.enabled = enabled;
+			configurationService.setUserConfiguration('chat.editRequests', enabled ? 'none' : 'inline');
+			viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled', description: 'Tomorrow', attachments: [], actions: [edit], editAction: edit }]);
+			renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+			const content = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
+			content.click();
+			content.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			return { clickable: content.classList.contains('clickable'), edits };
+		});
+		assert.deepStrictEqual(states, [{ clickable: false, edits: 0 }, { clickable: false, edits: 0 }]);
+		disposables.dispose();
+	});
+
+	test('scheduled message action failures are reported after its row rerenders', async () => {
+		const { disposables, instantiationService, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+		const failure = new DeferredPromise<void>();
+		const notified = new DeferredPromise<Parameters<INotificationService['error']>[0]>();
+		const notification = sinon.stub(instantiationService.get(INotificationService), 'error').callsFake(error => { notified.complete(error); });
+		disposables.add(toDisposable(() => notification.restore()));
+		const edit = disposables.add(new Action('edit', 'Edit', ThemeIcon.asClassName(Codicon.edit), true, () => failure.p));
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled', description: 'Tomorrow', attachments: [], actions: [edit], editAction: edit }]);
+		renderer.renderElement({ ...node, element: viewModel.getItems().find(isScheduledRequestVM)! }, 0, template);
+		template.rowContainer.querySelector<HTMLElement>('.scheduled-request-actions .action-label')!.click();
+		renderer.renderElement(node, 0, template);
+		const error = new Error('Schedule changed');
+		failure.error(error);
+		assert.strictEqual(await notified.p, error);
 		disposables.dispose();
 	});
 
@@ -1177,6 +1314,41 @@ suite('ChatListRenderer', () => {
 			dragHandle: template.dragHandle,
 			edits,
 		}, { hasText: true, requestActions: false, pendingActions: false, clickable: false, dragHandle: undefined, edits: 0 });
+		disposables.dispose();
+	});
+
+	test('scheduled messages use the steering bubble alignment at narrow and wide widths', () => {
+		const { disposables, model, viewModel, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		model.addPendingRequest(request, ChatRequestQueueKind.Steering, {});
+		viewModel.setScheduledRequests([{
+			id: 'later', text: 'A scheduled message with enough text to wrap in a narrow chat pane. '.repeat(5),
+			description: 'Tomorrow at 10:00 AM', attachments: ['notes.txt'], actions: [],
+		}]);
+		const steering = viewModel.getItems().find(item => isRequestVM(item) && item.pendingKind === ChatRequestQueueKind.Steering)!;
+		const scheduled = viewModel.getItems().find(isScheduledRequestVM)!;
+		for (const width of [400, 900, 400]) {
+			container.style.width = `${width}px`;
+			renderer.layout(width);
+			renderer.renderElement({ ...node, element: steering }, 0, template);
+			const steeringBubble = template.value.querySelector<HTMLElement>('.rendered-markdown')!;
+			const steeringBounds = steeringBubble.getBoundingClientRect();
+			const steeringStyle = mainWindow.getComputedStyle(steeringBubble);
+			const expected = {
+				right: steeringBounds.right, padding: steeringStyle.padding,
+				borderRadius: steeringStyle.borderRadius, opacity: mainWindow.getComputedStyle(template.rowContainer).opacity,
+			};
+			renderer.renderElement({ ...node, element: scheduled }, 0, template);
+			const bubble = template.value.querySelector<HTMLElement>('.rendered-markdown');
+			assert.ok(bubble, 'Scheduled messages should use the shared request bubble');
+			const bounds = bubble.getBoundingClientRect();
+			const style = mainWindow.getComputedStyle(bubble);
+			assert.deepStrictEqual({
+				right: bounds.right, padding: style.padding, borderRadius: style.borderRadius,
+				opacity: mainWindow.getComputedStyle(template.rowContainer).opacity,
+				visible: bounds.width > 0 && bounds.height > 0,
+				fits: bounds.left >= template.value.getBoundingClientRect().left && bubble.scrollWidth <= bubble.clientWidth,
+			}, { ...expected, visible: true, fits: true });
+		}
 		disposables.dispose();
 	});
 

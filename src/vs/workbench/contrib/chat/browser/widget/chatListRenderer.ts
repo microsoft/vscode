@@ -8,12 +8,14 @@ import { renderFormattedText } from '../../../../../base/browser/formattedTextRe
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
+import { ButtonBar } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { IStickyScrollNodeSourceRange } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
-import { IAction } from '../../../../../base/common/actions.js';
+import { ActionRunner, IAction, toAction } from '../../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -45,8 +47,10 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
@@ -184,6 +188,9 @@ export interface IChatListItemTemplate {
 	completedResponseDisclosureOpen?: boolean;
 	wasResponseComplete?: boolean;
 	readonly completedResponseDisclosureDisposables: DisposableStore;
+	readonly scheduledRequestDisposables: DisposableStore;
+	scheduledRequestHadFocus?: boolean;
+	scheduledRequestAnchor?: HTMLElement;
 	/**
 	 * Token-usage breakdown hover for the response footer's model/credits stat.
 	 * Template-scoped because the focusable footer container is reused across
@@ -994,6 +1001,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly _onDidClickRequest = this._register(new Emitter<IChatListItemTemplate>());
 	readonly onDidClickRequest: Event<IChatListItemTemplate> = this._onDidClickRequest.event;
+	private readonly scheduledRequestActionRunner = this._register(new ActionRunner());
 
 	private readonly _onDidRerender = this._register(new Emitter<IChatListItemTemplate>());
 	readonly onDidRerender: Event<IChatListItemTemplate> = this._onDidRerender.event;
@@ -1056,8 +1064,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
+		this._register(this.scheduledRequestActionRunner.onDidRun(event => {
+			if (event.error) {
+				this.notificationService.error(event.error);
+			}
+		}));
 		this.layoutTrace = this._register(new ChatLayoutTrace(() => performance.now(), logService));
 		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel, () => this.updateWorkingProgressForBackgroundActivity()) : undefined;
 
@@ -1722,6 +1736,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const requestTimestampContainer = dom.append(valueParent, $('.chat-request-timestamp-container'));
 		const elementDisposables = templateDisposables.add(new DisposableStore());
 		const completedResponseDisclosureDisposables = templateDisposables.add(new DisposableStore());
+		const scheduledRequestDisposables = templateDisposables.add(new DisposableStore());
 		const responseTokenStatsHover = templateDisposables.add(new MutableDisposable<IManagedHover>());
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
@@ -1805,7 +1820,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, responseTokenStatsHover, feedbackSurveyWidget };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, requestTimestampContainer, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerToolbarContainer, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer, completedResponseDisclosureDisposables, scheduledRequestDisposables, responseTokenStatsHover, feedbackSurveyWidget };
 		this.templateDataByRow.set(rowContainer, template);
 
 		templateDisposables.add(this._onDidUpdateViewModel.event(() => {
@@ -1895,6 +1910,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * so they can be reused when a new render is started.
 	 */
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
+		templateData.scheduledRequestDisposables.clear();
+		templateData.scheduledRequestHadFocus = false;
+		templateData.scheduledRequestAnchor = undefined;
 		this.pendingProgressContent.deleteAndDispose(templateData);
 		this.removeCompletedResponseDisclosure(templateData);
 		if (templateData.renderedParts) {
@@ -1931,6 +1949,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
+		const sameScheduledRequest = isScheduledRequestVM(element) && templateData.currentElement?.id === element.id;
+		const wasScheduledEditing = sameScheduledRequest && templateData.rowContainer.classList.contains('scheduled-request-editing');
+		const hadScheduledFocus = sameScheduledRequest && (templateData.scheduledRequestHadFocus || dom.isAncestorOfActiveElement(templateData.rowContainer));
+		templateData.scheduledRequestHadFocus = false;
+		templateData.scheduledRequestDisposables.clear();
 		const pendingHeightUpdate = this.pendingHeightUpdates.get(templateData);
 		// Rebuilding the same row must still deliver its pending initial height.
 		if (pendingHeightUpdate && pendingHeightUpdate.element !== element) {
@@ -1967,11 +1990,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Clear pending-related classes and drag handle from previous renders
 		// Do this before element-type checks to ensure dividers also get cleaned up
-		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'scheduled-request', 'chat-pending-dragging', 'terminal-command-request', 'chat-system-notification-response');
+		templateData.rowContainer.classList.remove('pending-item', 'pending-divider', 'pending-request', 'scheduled-request', 'scheduled-request-editing', 'chat-pending-dragging', 'terminal-command-request', 'chat-system-notification-response');
 		templateData.dragHandle?.remove();
 		templateData.dragHandle = undefined;
 		delete templateData.rowContainer.dataset.pendingRequestId;
 		delete templateData.rowContainer.dataset.pendingKind;
+
+		const rowRoot = templateData.rowContainer.parentElement?.parentElement?.parentElement;
+		rowRoot?.classList.toggle('request', isRequestVM(element) || isScheduledRequestVM(element));
+		rowRoot?.classList.toggle('response', isResponseVM(element));
 
 		// Handle pending divider with simplified rendering
 		if (isPendingDividerVM(element)) {
@@ -1979,7 +2006,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 		if (isScheduledRequestVM(element)) {
-			this.renderScheduledRequest(element, templateData);
+			this.renderScheduledRequest(element, templateData, element.editing ? !wasScheduledEditing || hadScheduledFocus : hadScheduledFocus);
 			return;
 		}
 
@@ -2220,10 +2247,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Overlay click listener removed: overlay is non-interactive in cancel-on-any-row mode.
 
-		// hack @joaomoreno
-		const rowRoot = templateData.rowContainer.parentElement?.parentElement?.parentElement;
-		rowRoot?.classList.toggle('request', isRequestVM(element));
-		rowRoot?.classList.toggle('response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
 
@@ -2317,22 +2340,153 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.requestTimestampContainer);
 	}
 
-	private renderScheduledRequest(element: IChatScheduledRequestViewModel, templateData: IChatListItemTemplate): void {
+	private renderScheduledRequest(element: IChatScheduledRequestViewModel, templateData: IChatListItemTemplate, focus: boolean): void {
 		this.preparePendingItem(templateData);
-		templateData.rowContainer.classList.add('scheduled-request');
-		const header = dom.append(templateData.value, dom.$('.scheduled-request-header'));
+		const store = templateData.scheduledRequestDisposables;
+		templateData.rowContainer.classList.add('scheduled-request', 'interactive-request', 'pending-request');
+		if (element.editing) {
+			templateData.rowContainer.classList.add('scheduled-request-editing');
+			this.renderScheduledRequestEditor(element, templateData, focus);
+			return;
+		}
+		const content = dom.append(templateData.value, dom.$('.rendered-markdown'));
+		templateData.scheduledRequestAnchor = content;
+		const header = dom.append(content, dom.$('.scheduled-request-header'));
 		dom.append(header, dom.$('span.codicon.codicon-clock', { 'aria-hidden': 'true' }));
 		dom.append(header, dom.$('span.scheduled-request-description', undefined, element.description));
-		const toolbarContainer = dom.append(header, dom.$('.scheduled-request-actions'));
-		const toolbar = templateData.elementDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
+		const toolbarContainer = dom.append(templateData.rowContainer, dom.$('.request-hover.scheduled-request-actions'));
+		store.add(toDisposable(() => toolbarContainer.remove()));
+		const toolbar = store.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {
 			ariaLabel: localize('scheduledRequestActions', "Scheduled Message Actions"),
+			actionRunner: this.scheduledRequestActionRunner,
 		}));
-		toolbar.setActions([], [...element.actions]);
-		dom.append(templateData.value, dom.$('.scheduled-request-text', undefined, element.text));
+		toolbar.context = content;
+		toolbar.setActions([...element.actions]);
+		dom.append(content, dom.$('.scheduled-request-text', undefined, element.text));
 		if (element.attachments.length) {
-			dom.append(templateData.value, dom.$('.scheduled-request-attachments', undefined,
+			dom.append(content, dom.$('.scheduled-request-attachments', undefined,
 				localize('scheduledRequestAttachments', "Attachments: {0}", element.attachments.join(', '))));
 		}
+		content.tabIndex = 0;
+		if (focus) {
+			this.focusScheduledRequest(templateData, content);
+		}
+		const editAction = element.editAction;
+		if (editAction?.enabled && this.rendererOptions.editable && !this.rendererOptions.readOnly && this.configService.getValue<string>('chat.editRequests') !== 'none') {
+			store.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, event => {
+				if (event.target !== content && event.target !== templateData.rowContainer) {
+					return;
+				}
+				const key = new StandardKeyboardEvent(event);
+				if (key.equals(KeyCode.Enter) || key.equals(KeyCode.Space)) {
+					event.preventDefault();
+					event.stopPropagation();
+					void this.scheduledRequestActionRunner.run(editAction);
+				}
+			}));
+			if (this.configService.getValue<string>('chat.editRequests') === 'inline') {
+				content.classList.add('clickable');
+				store.add(dom.addDisposableListener(content, dom.EventType.CLICK, event => {
+					const selection = dom.getWindow(content).getSelection();
+					if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+						return;
+					}
+					event.preventDefault();
+					event.stopPropagation();
+					void this.scheduledRequestActionRunner.run(editAction);
+				}));
+				store.add(this.hoverService.setupDelayedHover(content, {
+					content: localize('scheduledRequestEdit', "Click to Edit Message and Send Time"),
+					style: HoverStyle.Pointer,
+				}));
+			}
+		}
+	}
+
+	private renderScheduledRequestEditor(element: IChatScheduledRequestViewModel, templateData: IChatListItemTemplate, focus: boolean): void {
+		const editing = element.editing!;
+		const store = templateData.scheduledRequestDisposables;
+		const container = dom.append(templateData.value, dom.$('.scheduled-request-editor'));
+		templateData.scheduledRequestAnchor = container;
+		const input = store.add(new InputBox(container, undefined, {
+			ariaLabel: localize('scheduledRequestEditText', "Scheduled message"),
+			flexibleHeight: true, flexibleMaxHeight: 200, inputBoxStyles: defaultInputBoxStyles,
+		}));
+		input.value = editing.text;
+		store.add(input.onDidChange(value => { editing.text = value; }));
+		store.add(input.onDidHeightChange(() => this.fireItemHeightChange(templateData)));
+		let inputWidth = 0;
+		const resizeObserver = store.add(new dom.DisposableResizeObserver('ChatListItemRenderer.scheduledInput', entries => {
+			const width = entries[0]?.contentRect.width;
+			if (width !== undefined && width !== inputWidth) {
+				inputWidth = width;
+				input.layout();
+			}
+		}, dom.getWindow(container)));
+		store.add(resizeObserver.observe(input.element));
+		if (element.attachments.length) {
+			dom.append(container, dom.$('.scheduled-request-attachments', undefined,
+				localize('scheduledRequestAttachments', "Attachments: {0}", element.attachments.join(', '))));
+		}
+		const buttons = store.add(new ButtonBar(dom.append(container, dom.$('.scheduled-request-editor-actions'))));
+		const time = buttons.addButton({ ...defaultButtonStyles, secondary: true, supportIcons: true, title: editing.description });
+		time.label = `$(clock) ${editing.description}`;
+		time.element.classList.add('scheduled-request-edit-time');
+		time.element.setAttribute('aria-label', localize('scheduledRequestEditTime', "Change send time, {0}", editing.description));
+		const save = buttons.addButton({ ...defaultButtonStyles });
+		save.label = localize('scheduledRequestSave', "Save");
+		const cancel = buttons.addButton({ ...defaultButtonStyles, secondary: true });
+		cancel.label = localize('scheduledRequestCancelEdit', "Cancel");
+		let busy = false;
+		const saveAction = toAction({
+			id: 'scheduledRequest.save', label: save.label,
+			run: async () => {
+				if (busy) {
+					return;
+				}
+				busy = true;
+				input.inputElement.readOnly = true;
+				save.enabled = cancel.enabled = time.enabled = false;
+				try {
+					await editing.save();
+				} finally {
+					busy = false;
+					input.inputElement.readOnly = false;
+					save.enabled = cancel.enabled = time.enabled = true;
+				}
+			},
+		});
+		const selectTime = toAction({ id: 'scheduledRequest.time', label: time.label, run: () => editing.selectTime(time.element) });
+		store.add(time.onDidClick(() => { void this.scheduledRequestActionRunner.run(selectTime); }));
+		store.add(save.onDidClick(() => { void this.scheduledRequestActionRunner.run(saveAction); }));
+		store.add(cancel.onDidClick(() => editing.cancel()));
+		store.add(dom.addDisposableListener(input.inputElement, dom.EventType.KEY_DOWN, event => {
+			if (event.isComposing || busy) {
+				return;
+			}
+			const key = new StandardKeyboardEvent(event);
+			if (key.equals(KeyCode.Enter) || key.equals(KeyCode.Escape)) {
+				event.preventDefault();
+				event.stopPropagation();
+				if (key.equals(KeyCode.Escape)) {
+					editing.cancel();
+				} else {
+					void this.scheduledRequestActionRunner.run(saveAction);
+				}
+			}
+		}));
+		if (focus) {
+			this.focusScheduledRequest(templateData, input.inputElement);
+		}
+	}
+
+	private focusScheduledRequest(templateData: IChatListItemTemplate, element: HTMLElement): void {
+		templateData.scheduledRequestHadFocus = true;
+		// Tree rows can be detached while rendering. Restore focus after reattachment.
+		templateData.scheduledRequestDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(element), () => {
+			templateData.scheduledRequestHadFocus = false;
+			element.focus();
+		}));
 	}
 
 	private renderPendingDivider(element: IChatPendingDividerViewModel, templateData: IChatListItemTemplate): void {
@@ -2342,9 +2496,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const dividerContent = dom.$('.pending-divider-content');
 		const label = dom.append(dividerContent, dom.$('span.pending-divider-label'));
 
-		if (element.dividerKind === 'scheduled') {
-			label.textContent = localize('scheduledDivider', "Scheduled");
-		} else if (element.dividerKind === ChatRequestQueueKind.Steering) {
+		if (element.dividerKind === ChatRequestQueueKind.Steering) {
 			if (element.isSystemInitiated) {
 				label.textContent = localize('systemNotificationDivider', "System notification");
 				label.title = localize('systemNotificationDividerTooltip', "System notification will be sent after the next tool call happens");
@@ -6354,7 +6506,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Relocate before the list detaches the row and drops keyboard focus.
 			this.moveWorkingProgress(this.stickyProgressContainer);
 		}
+		templateData.scheduledRequestHadFocus = !details?.onScroll && isScheduledRequestVM(node.element)
+			&& (templateData.scheduledRequestHadFocus || dom.isAncestorOfActiveElement(templateData.rowContainer));
 		templateData.elementDisposables.clear();
+		templateData.scheduledRequestDisposables.clear();
+		templateData.scheduledRequestAnchor = undefined;
 		const ownsElementMappings = this.templateDataByRequestId.get(node.element.id) === templateData;
 
 		if (templateData.currentElement && !this.viewModel?.editing) {

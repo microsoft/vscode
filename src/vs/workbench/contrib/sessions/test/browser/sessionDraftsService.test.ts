@@ -11,10 +11,13 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../../platform/notification/common/notificationMessage.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
@@ -34,6 +37,7 @@ suite('Saved session draft lifecycle', () => {
 		const sent = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const navigation: (string | undefined)[] = [];
 		const notifications: string[] = [];
+		const infoNotifications: NotificationMessage[] = [];
 		let openSavedDraft: ((id: string, token: CancellationToken) => Promise<boolean>) | undefined;
 		const view = new class extends mock<ISessionsService>() {
 			override registerSavedDraftOpener(opener: (id: string, token: CancellationToken) => Promise<boolean>) { openSavedDraft = opener; return Disposable.None; }
@@ -56,8 +60,9 @@ suite('Saved session draft lifecycle', () => {
 		const service = disposables.add(new SessionDraftsService(storage, config, view, management,
 			new TestDialogService({ confirmed: true }), new class extends mock<INotificationService>() {
 				override error(message: Parameters<INotificationService['error']>[0]) { notifications.push(String(message)); }
+				override info(message: NotificationMessage | NotificationMessage[]) { infoNotifications.push(...Array.isArray(message) ? message : [message]); }
 			}, new NullLogService(), groups, entitlement));
-		return { service, storage, config, sent, navigation, view, notifications, openSavedDraft: (id: string, token: CancellationToken) => openSavedDraft!(id, token) };
+		return { service, storage, config, sent, navigation, view, notifications, infoNotifications, openSavedDraft: (id: string, token: CancellationToken) => openSavedDraft!(id, token) };
 	}
 
 	test('default-off preserves the singleton behavior without creating a collection or draft history', () => {
@@ -83,6 +88,50 @@ suite('Saved session draft lifecycle', () => {
 			{ title: 'Unscoped request', description: '', ariaLabel: 'Unscoped request, draft' },
 			{ title: 'Workspace request', description: 'vscode', ariaLabel: 'Workspace request, draft, vscode' },
 		]);
+	});
+
+	test('navigation creates an info notification whose link restores the saved draft', async () => {
+		const { service, infoNotifications } = create();
+		const composer = service.createComposer();
+		const registration = disposables.add(service.registerComposer(composer, async () => { }, () => { }));
+		composer.updateInput({ inputText: 'Keep this draft', attachments: [] });
+		const saved = service.stow(composer, { notifyCreated: true })!;
+		registration.dispose();
+		const message = infoNotifications[0];
+		assert.ok(message instanceof NotificationText);
+		const link = message.nodes.find(node => typeof node !== 'string');
+		assert.ok(link);
+		const uri = URI.parse(link.href);
+		const command = CommandsRegistry.getCommand(uri.path);
+		assert.ok(command);
+		const next = service.createComposer();
+		disposables.add(service.registerComposer(next, async draft => next.updateInput(draft.input), () => { }));
+		const instantiation = disposables.add(new TestInstantiationService());
+		const args = JSON.parse(decodeURIComponent(uri.query));
+		await instantiation.invokeFunction(command.handler, ...args);
+		service.stow(next, { notifyCreated: true });
+		assert.deepStrictEqual({
+			count: infoNotifications.length, message: message.toString(), label: link.label,
+			scheme: uri.scheme, restored: next.input, id: next.id,
+		}, {
+			count: 1, message: 'Created draft. Open Draft', label: 'Open Draft',
+			scheme: 'command', restored: saved.input, id: saved.id,
+		});
+		await service.sections.get()[0].items.find(item => item.id === saved.id)!.actions.find(action => action.id === 'sessions.drafts.delete')!.run();
+		await assert.rejects(async () => instantiation.invokeFunction(command.handler, ...args), /no longer available/);
+	});
+
+	test('draft notifications exclude disabled, empty, scheduling, restoration, and background saves', () => {
+		const results = ['disabled', 'empty', 'scheduling', 'restoring', 'background'].map(reason => {
+			const { service, infoNotifications } = create(reason !== 'disabled');
+			const composer = service.createComposer();
+			composer.updateInput({ inputText: reason === 'empty' ? '  ' : 'Unsent', attachments: [] });
+			composer.isScheduling = reason === 'scheduling';
+			composer.isRestoring = reason === 'restoring';
+			service.stow(composer, { notifyCreated: reason !== 'background' });
+			return { reason, count: infoNotifications.length };
+		});
+		assert.deepStrictEqual(results, ['disabled', 'empty', 'scheduling', 'restoring', 'background'].map(reason => ({ reason, count: 0 })));
 	});
 
 	test('saves several compositions, resumes the same identity, and retains them on live disable', async () => {
@@ -148,6 +197,78 @@ suite('Saved session draft lifecycle', () => {
 			{ cleared: false, sameIdentity: true, input: 'keep singleton input', sections: [] },
 			{ cleared: false, sameIdentity: true, input: '  ', sections: [] },
 		]);
+	});
+
+	test('opening a recovered schedule consumes its saved revision and stows occupied input', async () => {
+		const { service } = create();
+		const draft = service.save({
+			inputText: 'scheduled request',
+			attachments: [{ kind: 'file', id: 'file', name: 'file.ts', value: URI.file('/workspace/file.ts') }],
+		}, { folderUri: URI.file('/workspace'), providerId: 'provider', modelId: 'model', groupId: 'group' });
+		const composer = service.createComposer();
+		const registration = disposables.add(service.registerComposer(composer, async value => {
+			composer.updateInput(value.input);
+		}, () => { }));
+		composer.updateInput({ inputText: 'previous input', attachments: [] });
+
+		await service.open(draft.id, { removeFromDrafts: true });
+
+		const opened = {
+			input: composer.input, target: composer.target, id: composer.id,
+			saved: service.sections.get().flatMap(section => section.items.map(item => item.title)),
+		};
+		registration.dispose();
+		assert.deepStrictEqual({
+			opened,
+			afterLeaving: service.sections.get().flatMap(section => section.items.map(item => item.title)).sort(),
+		}, {
+			opened: { input: draft.input, target: draft.target, id: draft.id, saved: ['previous input'] },
+			afterLeaving: ['previous input', 'scheduled request'],
+		});
+	});
+
+	for (const outcome of ['failed', 'disposed'] as const) {
+		test(`opening a recovered schedule retains its saved revision when restoration is ${outcome}`, async () => {
+			const { service } = create();
+			const draft = service.save({ inputText: 'recoverable request', attachments: [] }, {});
+			const composer = service.createComposer();
+			const started = new DeferredPromise<void>();
+			const resume = new DeferredPromise<void>();
+			const registration = disposables.add(service.registerComposer(composer, async () => {
+				started.complete();
+				await resume.p;
+				if (outcome === 'failed') {
+					throw new Error('Restore failed');
+				}
+			}, () => { }));
+			const opening = service.open(draft.id, { removeFromDrafts: true });
+			await started.p;
+			if (outcome === 'disposed') {
+				registration.dispose();
+			}
+			resume.complete();
+			if (outcome === 'failed') {
+				await assert.rejects(opening, /Restore failed/);
+			} else {
+				await opening;
+			}
+			assert.deepStrictEqual(service.sections.get().flatMap(section => section.items.map(item => item.id)), [draft.id]);
+		});
+	}
+
+	test('opening a recovered schedule does not consume a newer saved revision', async () => {
+		const { service } = create();
+		const draft = service.save({ inputText: 'original request', attachments: [] }, {});
+		const composer = service.createComposer();
+		disposables.add(service.registerComposer(composer, async value => {
+			service.save({ inputText: 'newer request', attachments: [] }, {}, draft.id);
+			composer.updateInput(value.input);
+		}, () => { }));
+		await service.open(draft.id, { removeFromDrafts: true });
+		assert.deepStrictEqual({
+			input: composer.input.inputText,
+			saved: service.sections.get().flatMap(section => section.items.map(item => item.title)),
+		}, { input: 'original request', saved: ['newer request'] });
 	});
 
 	test('a failed save leaves the current input and identity intact', () => {

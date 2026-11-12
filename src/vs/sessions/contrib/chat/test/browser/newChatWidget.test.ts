@@ -576,6 +576,38 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('saved draft navigation notifies when the input or its host hides, but not during send', () => {
+		const hostVisible = observableValue('hostVisible', true);
+		const inputVisible = observableValue('inputVisible', true);
+		const composer = { isSending: false };
+		let captures = 0;
+		const stowed: { sameComposer: boolean; notifyCreated?: boolean }[] = [];
+		const harness = {
+			options: { hostVisible, inputVisible },
+			_savedDraftComposer: composer,
+			_captureSavedDraftTarget: () => { captures++; },
+			sessionDraftsService: {
+				stow: (value: typeof composer, options?: { notifyCreated?: boolean }) => {
+					stowed.push({ sameComposer: value === composer, notifyCreated: options?.notifyCreated });
+				},
+			},
+			notificationService: { error: (error: Error) => { throw error; } },
+		};
+		const track = Reflect.get(NewChatWidget.prototype, '_trackSavedDraftVisibility') as (this: typeof harness) => IDisposable;
+		disposables.add(track.call(harness));
+		inputVisible.set(false, undefined);
+		hostVisible.set(false, undefined);
+		inputVisible.set(true, undefined);
+		hostVisible.set(true, undefined);
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		composer.isSending = true;
+		inputVisible.set(false, undefined);
+		assert.deepStrictEqual({ captures, stowed }, {
+			captures: 2, stowed: [{ sameComposer: true, notifyCreated: true }, { sameComposer: true, notifyCreated: true }],
+		});
+	});
+
 	suite('saved draft restoration', () => {
 		function createHarness(session: ISession) {
 			let input: IChatDraft = { inputText: 'previous input', attachments: [] };

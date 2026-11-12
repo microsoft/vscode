@@ -948,6 +948,14 @@ export class ChatListWidget extends Disposable {
 		e.browserEvent.stopPropagation();
 
 		const selected = e.element;
+		if (isScheduledRequestVM(selected)) {
+			this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => [...selected.actions],
+				getActionsContext: () => this._renderer.getTemplateDataForRequestId(selected.id)?.scheduledRequestAnchor,
+			});
+			return;
+		}
 
 		const targetContext = getChatContextMenuTargetContext(e.browserEvent.target);
 		const linkTarget = targetContext.linkTarget;

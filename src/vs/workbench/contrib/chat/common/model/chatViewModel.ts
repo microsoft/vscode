@@ -266,13 +266,24 @@ export interface IChatResponseViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 }
 
-/** Display-only requests owned by a scheduler, never entries in the immediate-send queue. */
+export interface IChatScheduledRequestEditing {
+	text: string;
+	runAt: string;
+	description: string;
+	selectTime(anchor?: HTMLElement): Promise<void>;
+	save(): Promise<void>;
+	cancel(): void;
+}
+
+/** Requests owned by a scheduler, never entries in the immediate-send queue. */
 export interface IChatScheduledRequest {
 	readonly id: string;
 	readonly text: string;
 	readonly description: string;
 	readonly attachments: readonly string[];
 	readonly actions: readonly IAction[];
+	readonly editAction?: IAction;
+	readonly editing?: IChatScheduledRequestEditing;
 }
 
 export interface IChatScheduledRequestViewModel extends IChatScheduledRequest {
@@ -290,7 +301,7 @@ export interface IChatPendingDividerViewModel {
 	readonly id: string; // e.g., 'pending-divider-steering' or 'pending-divider-queued'
 	readonly sessionResource: URI;
 	readonly isComplete: true;
-	readonly dividerKind: ChatRequestQueueKind | 'scheduled';
+	readonly dividerKind: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
 	currentRenderedHeight: number | undefined;
 }
@@ -511,7 +522,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}
 
 		if (this._scheduledRequests.length > 0) {
-			items.push({ kind: 'pendingDivider', id: 'pending-divider-scheduled', sessionResource: this.sessionResource, isComplete: true, dividerKind: 'scheduled', currentRenderedHeight: undefined });
 			items.push(...this._scheduledRequests);
 		}
 		return items;

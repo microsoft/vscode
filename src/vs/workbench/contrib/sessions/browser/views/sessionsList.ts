@@ -3118,7 +3118,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 
 		template.label.textContent = element.label;
 		template.countLabel.style.display = '';
-		if (this.hideSectionCount && !sessionInboxSections.some(id => id === element.id) || shortcut) {
+		if (this.hideSectionCount && !element.pendingItems && !sessionInboxSections.some(id => id === element.id) || shortcut) {
 			template.countLabel.textContent = '';
 			template.count.style.display = 'none';
 		} else {
@@ -5282,7 +5282,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				groupRenderer,
 				showMoreRenderer,
 				placeholderRenderer,
-				new PendingSessionRenderer(instantiationService, (item, anchor) => this.showPendingSessionContextMenu(item, anchor)),
+				new PendingSessionRenderer(instantiationService, (item, anchor) => this.showPendingSessionContextMenu(item, anchor), error => this.notificationService.error(error)),
 			],
 			{
 				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
@@ -6443,7 +6443,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			children.push({
 				element,
 				collapsible: true,
-				collapsed: resolveCollapsed(element, this.getSavedCollapseState(element.id)
+				collapsed: resolveCollapsed(element, (this.getSavedCollapseState(element.id) ?? true)
 					? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded),
 				children: pendingItems.map(item => ({ element: item })),
 			});

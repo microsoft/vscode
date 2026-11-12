@@ -642,19 +642,7 @@ export class NewChatWidget extends Disposable {
 			savedDraftRegistration.value = this.sessionDraftsService.registerComposer(this._savedDraftComposer,
 				(draft, token) => this._restoreSavedDraft(draft, token),
 				() => this._newChatInput.setDraft({ inputText: '', attachments: [] }));
-			let wasVisible = true;
-			this._register(autorun(reader => {
-				const visible = this.options.hostVisible?.read(reader) ?? true;
-				if (wasVisible && !visible && !this._savedDraftComposer!.isSending) {
-					this._captureSavedDraftTarget();
-					try {
-						this.sessionDraftsService.stow(this._savedDraftComposer!);
-					} catch (error) {
-						this.notificationService.error(error);
-					}
-				}
-				wasVisible = visible;
-			}));
+			this._register(this._trackSavedDraftVisibility());
 		}
 		this._register(this._trackSessionPreparation());
 		this._register(this._trackComparisonSelection(comparisonConfigResolving));
@@ -1300,6 +1288,23 @@ export class NewChatWidget extends Disposable {
 		} finally {
 			composer.isScheduling = this.scheduledChatsService.hasPendingHandoff(compositionId, input);
 		}
+	}
+
+	private _trackSavedDraftVisibility(): IDisposable {
+		let wasVisible = true;
+		return autorun(reader => {
+			const visible = (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true);
+			const composer = this._savedDraftComposer;
+			if (wasVisible && !visible && composer && !composer.isSending) {
+				this._captureSavedDraftTarget();
+				try {
+					this.sessionDraftsService.stow(composer, { notifyCreated: true });
+				} catch (error) {
+					this.notificationService.error(error);
+				}
+			}
+			wasVisible = visible;
+		});
 	}
 
 	private _captureSavedDraftTarget(): void {

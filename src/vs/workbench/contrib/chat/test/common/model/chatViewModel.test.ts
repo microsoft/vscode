@@ -294,7 +294,7 @@ suite('ChatViewModel', () => {
 				before, changed, updatedDescription: updated.description,
 				remaining: viewModel.getItems().filter(isPendingDividerVM).map(item => item.dividerKind),
 			}, {
-				before: { dividers: [ChatRequestQueueKind.Queued, 'scheduled'], scheduled: ['Follow up'], queued: ['queued'] },
+				before: { dividers: [ChatRequestQueueKind.Queued], scheduled: ['Follow up'], queued: ['queued'] },
 				changed: true, updatedDescription: 'Next week', remaining: [ChatRequestQueueKind.Queued],
 			});
 		});

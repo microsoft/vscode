@@ -9,8 +9,10 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -65,6 +67,11 @@ suite('Sessions - pending list items', () => {
 			}));
 			const list = create();
 			list.layout(800, 400);
+			const initialSection = list.getTreeSnapshot().find(node => node.type === 'section' && node.id === 'drafts');
+			const count = list.getItemRow({ section: 'drafts' })!.querySelector<HTMLElement>('.session-section-count')!;
+			const initial = { collapsed: initialSection?.type === 'section' && initialSection.collapsed, count: count.textContent, countVisible: mainWindow.getComputedStyle(count).display !== 'none' };
+			list.setItemCollapsed({ section: 'drafts' }, false);
+			const expandedSection = create().getTreeSnapshot().find(node => node.type === 'section' && node.id === 'drafts');
 			const headers = list.getTreeSnapshot().flatMap(node => node.type === 'section' ? [node.id] : []).slice(0, 2);
 			const scheduledRow = !!list.getItemRow({ pendingSession: 'send-later' });
 			const draftTitles = [...list.element.querySelectorAll('.session-title')].map(element => element.textContent).filter(title => title?.endsWith('-draft'));
@@ -79,10 +86,11 @@ suite('Sessions - pending list items', () => {
 			const restored = create();
 			const restoredSection = restored.getTreeSnapshot().find(node => node.type !== 'session' && node.id === 'drafts');
 			assert.deepStrictEqual({
+				initial, expandedRestored: expandedSection?.type === 'section' && !expandedSection.collapsed,
 				headers, draftTitles, scheduledRow, scheduledCollapsed, scheduledOnlySection,
 				emptyHasPending: empty.includes('drafts') || empty.includes('scheduled'),
 				restoredCollapsed: restoredSection?.type === 'section' && restoredSection.collapsed,
-			}, { headers: ['pinned', 'drafts'], draftTitles: ['z-draft', 'a-draft'], scheduledRow: true, scheduledCollapsed: true, scheduledOnlySection: true, emptyHasPending: false, restoredCollapsed: true });
+			}, { initial: { collapsed: true, count: '3', countVisible: true }, expandedRestored: true, headers: ['pinned', 'drafts'], draftTitles: ['z-draft', 'a-draft'], scheduledRow: true, scheduledCollapsed: true, scheduledOnlySection: true, emptyHasPending: false, restoredCollapsed: true });
 		});
 	}
 
@@ -99,6 +107,7 @@ suite('Sessions - pending list items', () => {
 			pendingSections, scheduledSessions, schedulingEnabled: constObservable(true), onSessionOpen: () => { },
 		}));
 		list.layout(800, 400);
+		list.setItemCollapsed({ section: 'drafts' }, false);
 		list.filters.setScheduledOnly(true);
 		const row = list.getItemRow({ pendingSession: 'Follow up' })!;
 		const filtered = {
@@ -155,6 +164,7 @@ suite('Sessions - pending list items', () => {
 				]), scheduledSessions: constObservable([item('scheduled', { kind: 'scheduled' })]), onSessionOpen: () => { },
 			}));
 			list.layout(800, 400);
+			list.setItemCollapsed({ section: 'drafts' }, false);
 			const draft = list.getItemRow({ pendingSession: 'draft' })!.querySelector<HTMLElement>('.session-item')!;
 			for (const size of [2, 6, 16]) {
 				list.element.style.setProperty(`--vscode-spacing-size${size * 10}`, `${size}px`);
@@ -188,6 +198,7 @@ suite('Sessions - pending list items', () => {
 			onSessionOpen: () => { opened.push('session'); },
 		}));
 		list.layout(400, 400);
+		list.setItemCollapsed({ section: 'drafts' }, false);
 		list.setFocusedItem({ pendingSession: 'first' });
 		openFocusedItem(harness, list);
 		const tree = list.element.querySelector('.monaco-list')!;
@@ -214,6 +225,42 @@ suite('Sessions - pending list items', () => {
 		});
 	});
 
+	test('drafts expose only Delete as a focus-revealed inline action without opening the row', async () => {
+		const harness = createListHarness(disposables, []);
+		const invoked: string[] = [];
+		const draft = item('draft', {
+			open: async () => { invoked.push('open'); },
+			actions: [
+				toAction({ id: 'sessions.drafts.resume', label: 'Resume Draft', class: ThemeIcon.asClassName(Codicon.play), run: () => { invoked.push('resume'); } }),
+				toAction({ id: 'sessions.drafts.delete', label: 'Delete Draft', class: ThemeIcon.asClassName(Codicon.trash), run: () => { invoked.push('delete'); } }),
+			],
+		});
+		const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+			grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: [draft] }]),
+			onSessionOpen: () => { invoked.push('session'); },
+		}));
+		list.layout(400, 400);
+		list.setItemCollapsed({ section: 'drafts' }, false);
+		const row = list.getItemRow({ pendingSession: 'draft' })!;
+		const toolbar = row.querySelector<HTMLElement>('.session-title-toolbar')!;
+		const resting = mainWindow.getComputedStyle(toolbar).display;
+		list.setFocusedItem({ pendingSession: 'draft' });
+		const focused = mainWindow.getComputedStyle(toolbar).display;
+		const actions = [...toolbar.querySelectorAll<HTMLElement>('.action-label')];
+		actions.forEach(action => action.click());
+		await timeout(0);
+		assert.deepStrictEqual({
+			resting, focused, invoked,
+			labels: actions.map(action => action.getAttribute('aria-label')),
+			icons: actions.map(action => ['codicon-play', 'codicon-trash'].filter(icon => action.classList.contains(icon))),
+			overflow: !!toolbar.querySelector('.codicon-ellipsis'),
+		}, {
+			resting: 'none', focused: 'block', invoked: ['delete'],
+			labels: ['Delete Draft'], icons: [['codicon-trash']], overflow: false,
+		});
+	});
+
 	test('pending search matches descriptions and workspace paths without leaving empty sections', async () => {
 		const harness = createListHarness(disposables, []);
 		const container = harness.createContainer();
@@ -227,6 +274,7 @@ suite('Sessions - pending list items', () => {
 			onSessionOpen: () => { },
 		}));
 		list.layout(600, 400);
+		list.setItemCollapsed({ section: 'drafts' }, false);
 		list.openFind();
 		const input = findWidgetContainer.querySelector<HTMLInputElement>('input')!;
 		input.value = 'editor tomorrow';
@@ -294,6 +342,7 @@ suite('Sessions - pending list items', () => {
 			pendingSections: constObservable<readonly IPendingSessionSection[]>([{ id: 'drafts', label: 'Drafts', items: drafts }]), onSessionOpen: () => { },
 		}));
 		list.layout(800, 400);
+		list.setItemCollapsed({ section: 'drafts' }, false);
 		const visible = () => drafts.filter(item => !!list.getItemRow({ pendingSession: item.id })).map(item => item.id);
 		list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
 		list.filters.setExcluded({ kind: 'environment', id: 'remote' }, true);

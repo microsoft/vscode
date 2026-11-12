@@ -6,17 +6,22 @@
 import { toAction } from '../../../../base/common/actions.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { createCommandUri } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatDraft } from '../../chat/common/attachments/chatDraft.js';
@@ -30,6 +35,7 @@ import { ISessionGroupsService } from './sessionGroupsService.js';
 import { IPendingSessionSection } from './views/pendingSessions.js';
 
 const activeDraftKey = 'sessions.savedDrafts.active';
+const openDraftCommandId = 'sessions.drafts.open';
 
 export const ISessionDraftsService = createDecorator<ISessionDraftsService>('sessionDraftsService');
 
@@ -40,12 +46,12 @@ export interface ISessionDraftsService {
 	createComposer(): SessionDraftComposer;
 	registerComposer(composer: SessionDraftComposer, restore: (draft: ISavedSessionDraft, token?: CancellationToken) => Promise<void>, clear: () => void): IDisposable;
 	stowAndClear(): ISavedSessionDraft | undefined;
-	open(id: string): Promise<void>;
+	open(id: string, options?: { removeFromDrafts?: boolean }): Promise<void>;
 	save(input: IChatDraft, target: ISavedSessionDraftTarget, id?: string): ISavedSessionDraft;
 	restoreRecovery(input: IChatDraft, target: ISavedSessionDraftTarget): Promise<void>;
 	getDraftRevision(composer: SessionDraftComposer): string | undefined;
 	finishScheduledComposer(composer: SessionDraftComposer, revision: string | undefined): void;
-	stow(composer: SessionDraftComposer): ISavedSessionDraft | undefined;
+	stow(composer: SessionDraftComposer, options?: { notifyCreated?: boolean }): ISavedSessionDraft | undefined;
 }
 
 /** Snapshot ownership is independent of the provisional provider session and of its editor's lifetime. */
@@ -142,6 +148,11 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		const hidden = observableFromEvent(this, entitlementService.onDidChangeSentiment, () => entitlementService.sentiment.hidden);
 		this.enabled = derived(this, reader => configured.read(reader) && !hidden.read(reader));
 		this.model = this._register(new SavedSessionDrafts(storageService));
+		this._register(CommandsRegistry.registerCommand(openDraftCommandId, async (_accessor, id: string) => {
+			if (!await this.openDraft(id, CancellationToken.None)) {
+				throw new Error(localize('draft.noLongerAvailable', "This draft is no longer available."));
+			}
+		}));
 		this._register(autorun(reader => {
 			const error = this.model.error.read(reader);
 			if (error && this.enabled.read(reader)) {
@@ -181,8 +192,8 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 				isQuickChat: !draft.target.folderUri,
 				open: () => this.open(draft.id),
 				actions: [
-					toAction({ id: 'sessions.drafts.resume', label: localize('draft.resume', "Resume Draft"), run: () => this.open(draft.id) }),
-					toAction({ id: 'sessions.drafts.delete', label: localize('draft.delete', "Delete Draft"), run: () => this.delete(draft.id) }),
+					toAction({ id: 'sessions.drafts.resume', label: localize('draft.resume', "Resume Draft"), class: ThemeIcon.asClassName(Codicon.play), run: () => this.open(draft.id) }),
+					toAction({ id: 'sessions.drafts.delete', label: localize('draft.delete', "Delete Draft"), class: ThemeIcon.asClassName(Codicon.trash), run: () => this.delete(draft.id) }),
 				],
 			}));
 			return items.length ? [{ id: 'drafts', label: localize('drafts', "Drafts"), items }] : [];
@@ -279,7 +290,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		return saved;
 	}
 
-	stow(composer: SessionDraftComposer): ISavedSessionDraft | undefined {
+	stow(composer: SessionDraftComposer, options?: { notifyCreated?: boolean }): ISavedSessionDraft | undefined {
 		if (!this.enabled.get() || composer.isScheduling || composer.isRestoring) {
 			return undefined;
 		}
@@ -289,7 +300,15 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			}
 			return undefined;
 		}
-		return this.model.save(composer.input, composer.target, composer.id);
+		const isNew = !this.model.drafts.get().some(draft => draft.id === composer.id);
+		const saved = this.model.save(composer.input, composer.target, composer.id);
+		if (isNew && options?.notifyCreated) {
+			this.notificationService.info(NotificationText.format(
+				localize('draft.created', "Created draft. {0}"),
+				NotificationText.link(localize('draft.open', "Open Draft"), createCommandUri(openDraftCommandId, saved.id).toString()),
+			));
+		}
+		return saved;
 	}
 
 	reportSaveError(error: unknown): void {
@@ -353,12 +372,12 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		this.model.remove(draft.id, draft.revision);
 	}
 
-	async open(id: string): Promise<void> {
-		await this.openDraft(id, CancellationToken.None);
+	async open(id: string, options?: { removeFromDrafts?: boolean }): Promise<void> {
+		await this.openDraft(id, CancellationToken.None, options?.removeFromDrafts);
 	}
 
-	private openDraft(id: string, token: CancellationToken): Promise<boolean> {
-		return this.queueRestore(() => this.doOpenDraft(id, token));
+	private openDraft(id: string, token: CancellationToken, removeFromDrafts = false): Promise<boolean> {
+		return this.queueRestore(() => this.doOpenDraft(id, token, removeFromDrafts));
 	}
 
 	private queueRestore<T>(restore: () => Promise<T>): Promise<T> {
@@ -375,7 +394,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		});
 	}
 
-	private async doOpenDraft(id: string, token: CancellationToken): Promise<boolean> {
+	private async doOpenDraft(id: string, token: CancellationToken, removeFromDrafts: boolean): Promise<boolean> {
 		if (token.isCancellationRequested) {
 			return false;
 		}
@@ -404,12 +423,15 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 			throw new Error(localize('draft.noComposer', "Could not open the new-session composer."));
 		}
 		await current.restore(draft, token);
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || current.composer.disposed || this.current !== current) {
 			return false;
 		}
 		this.groupsService.setPendingNewSessionGroup(draft.target.groupId);
 		this.updateNavigation(current.composer);
 		this.storageService.store(activeDraftKey, draft.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (removeFromDrafts) {
+			this.model.remove(draft.id, draft.revision);
+		}
 		return true;
 	}
 

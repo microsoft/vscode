@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
-import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
+import { ActionRunner, IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createMatches, FuzzyScore } from '../../../../../base/common/filters.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -126,6 +126,7 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 	constructor(
 		private readonly instantiationService: IInstantiationService,
 		private readonly showActions: (item: IPendingSessionItem, anchor: HTMLElement) => void,
+		private readonly onActionError: (error: Error) => void,
 	) { }
 
 	renderTemplate(container: HTMLElement): IPendingSessionTemplate {
@@ -138,7 +139,13 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const compactDescription = DOM.append(titleRow, DOM.$('.session-compact-hover-description'));
 		const scheduledIndicator = DOM.append(titleRow, DOM.$(`span.session-scheduled-indicator${ThemeIcon.asCSSSelector(Codicon.clock)}`, { 'aria-hidden': 'true' }));
 		const toolbarContainer = DOM.append(titleRow, DOM.$('.session-title-toolbar'));
-		const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, {}));
+		const actionRunner = disposables.add(new ActionRunner());
+		disposables.add(actionRunner.onDidRun(event => {
+			if (event.error) {
+				this.onActionError(event.error);
+			}
+		}));
+		const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, toolbarContainer, { actionRunner }));
 		for (const type of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 			disposables.add(DOM.addDisposableListener(toolbarContainer, type, e => e.stopPropagation()));
 		}
@@ -160,7 +167,7 @@ export class PendingSessionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const description = getPendingSessionDescription(item);
 		template.description.textContent = description;
 		template.compactDescription.textContent = description;
-		template.toolbar.setActions([toAction({
+		template.toolbar.setActions(item.kind === 'draft' ? getPendingSessionActions(item, false).filter(action => action.id !== 'sessions.drafts.resume') : [toAction({
 			id: 'sessions.pending.actions',
 			label: localize('pendingSessionActions', "More Actions..."),
 			class: ThemeIcon.asClassName(Codicon.ellipsis),
