@@ -243,7 +243,8 @@ export class TaskTurnStreamer {
 					return;
 				}
 				// Defensive: missing task with no sessions and no events → nothing to wait for.
-				if (!latestTurn && events.length === 0) {
+				// A submitted decision stays bounded by the failure limit and observation timeout instead.
+				if (!decision && !latestTurn && events.length === 0) {
 					return;
 				}
 

@@ -415,7 +415,11 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				break;
 			}
 			case 'confirmation': {
-				const text = `${part.title}\n${renderChatMessageAsPlaintext(part.message)}`;
+				// `$(...)` in request details is literal text unless the message renders theme icons.
+				const message = typeof part.message === 'string' || part.message.supportThemeIcons
+					? renderChatMessageAsPlaintext(part.message)
+					: renderAsPlaintext(part.message, { useLinkFormatter: true });
+				const text = `${part.title}\n${message}`;
 				if (text.trim()) {
 					contentParts.push({ partIndex, text });
 				}

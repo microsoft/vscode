@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -41,6 +41,25 @@ suite('ChatResponseAccessibleView', () => {
 			]);
 		});
 	}
+
+	test('keeps literal icon syntax in confirmation details unless theme icons are enabled', () => {
+		const codeblock = '```json\n{"body":"Run $(whoami) before continuing"}\n```';
+		const read = (message: string | IMarkdownString) => {
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'confirmation', title: 'Allow comment?', message, data: { requestId: 'permission-1' } });
+			return getChatResponsePlaintextParts(upcastPartial<IChatResponseViewModel>({ response }), true).map(part => part.text);
+		};
+
+		assert.deepStrictEqual({
+			markdown: read(new MarkdownString(codeblock)),
+			dto: read({ value: codeblock }),
+			themeIcons: read(new MarkdownString('Run $(check) now', { supportThemeIcons: true })),
+		}, {
+			markdown: ['Allow comment?\n{"body":"Run $(whoami) before continuing"}'],
+			dto: ['Allow comment?\n{"body":"Run $(whoami) before continuing"}'],
+			themeIcons: ['Allow comment?\nRun now'],
+		});
+	});
 
 	test('keeps untrusted confirmation markdown as plain accessible text', () => {
 		const response = store.add(new Response([]));

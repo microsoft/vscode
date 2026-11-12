@@ -1671,6 +1671,21 @@ describe('TaskTurnStreamer automation permissions', () => {
 		expect(stream.output).toEqual(['Decision submitted, but cloud resumption was not observed. Refresh the session to check its state; do not submit the decision again.']);
 	});
 
+	it('keeps observing a decision when the first poll fails both reads', async () => {
+		const task = automationPermissionTask();
+		const events = [...permissionEvents(), evt('permission.completed', { requestId: 'prompt-1', result: { kind: 'approved' } }), evt('tool.execution_complete', { toolCallId: 'tool-1', success: true })];
+		const backend = new class extends mock<CloudAgentBackend>() {
+			override fetchTaskContent = vi.fn<CloudAgentBackend['fetchTaskContent']>()
+				.mockRejectedValueOnce(new Error('offline'))
+				.mockResolvedValue({ task: { ...task, state: 'completed' }, turns: [] });
+			override fetchTaskEvents = vi.fn<CloudAgentBackend['fetchTaskEvents']>().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(events);
+		}();
+		const stream = new MockChatResponseStream();
+		await new TaskTurnStreamer(backend, new ChatSessionContentBuilder('copilot-cloud-agent', new TestGitService(), new TestLogService()), new TestLogService(), 1)
+			.stream(stream, task.id, { mode: 'current', seedEventIds: new Set(), permissionDecision: { requestId: 'prompt-1', toolCallId: 'tool-1', approved: true }, observationTimeoutMs: 1500 }, CancellationToken.None);
+		expect({ polls: backend.fetchTaskContent.mock.calls.length, output: stream.output }).toEqual({ polls: 2, output: ['The cloud runtime approved the permission and completed the tool call.'] });
+	});
+
 	it('keeps decision observation bounded when refreshed metadata is unavailable', async () => {
 		const task = makeTask([], 'completed');
 		const backend = new class extends mock<CloudAgentBackend>() {
