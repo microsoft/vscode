@@ -24,6 +24,7 @@ import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/br
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ChatAutomationsEnabledContext } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { getLabeledPickerResponsiveItems } from '../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
@@ -31,7 +32,7 @@ import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { SharedChatInputComposer, SharedChatInputComposerBusyContext } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
 import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsViewGroupingContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
-import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { INSERT_AUTOMATE_COMMAND_ID, SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionsGrouping } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
@@ -74,6 +75,28 @@ export class SendInBackgroundAction extends Action2 {
 }
 
 registerAction2(SendInBackgroundAction);
+
+export class InsertAutomateSlashCommandAction extends Action2 {
+	constructor() {
+		super({
+			id: INSERT_AUTOMATE_COMMAND_ID,
+			title: localize2('insertAutomateSlashCommand', "Insert Automate Command"),
+			shortTitle: localize2('insertAutomateSlashCommand.short', "Insert /automate"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatAutomationsEnabledContext),
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		// Set the input directly on the focused widget (shared by the new-session
+		// composer and ordinary chats) instead of `workbench.action.chat.open`,
+		// which cannot reveal the new-session composer's `SharedChatInputComposer`.
+		accessor.get(IChatWidgetService).lastFocusedWidget?.setInput('/automate ');
+	}
+}
+
+registerAction2(InsertAutomateSlashCommandAction);
 
 MenuRegistry.appendMenuItem(Menus.NewSessionChatInputToolbar, {
 	command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },

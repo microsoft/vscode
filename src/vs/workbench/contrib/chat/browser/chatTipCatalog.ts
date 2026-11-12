@@ -16,14 +16,13 @@ import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
 import { SessionIsCreatedContext } from '../../sessions/common/contextkeys.js';
-import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../sessions/common/sessionCommands.js';
+import { INSERT_AUTOMATE_COMMAND_ID, SEND_IN_BACKGROUND_COMMAND_ID } from '../../sessions/common/sessionCommands.js';
 import { ChatAutomationsEnabledContext } from '../common/automations/automationsEnabled.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
-	INSERT_AUTOMATE_COMMAND_ID,
 	INSERT_FORK_CONVERSATION_COMMAND_ID,
 	INSERT_TROUBLESHOOT_COMMAND_ID,
 } from './actions/chatActions.js';
@@ -382,6 +381,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			ChatContextKeys.enabled,
 			ChatAutomationsEnabledContext,
 		),
+		requiresCommands: [INSERT_AUTOMATE_COMMAND_ID],
 		excludeWhenCommandsExecuted: [INSERT_AUTOMATE_COMMAND_ID],
 		excludeWhenToolsInvoked: ['vscode_configureAutomation'],
 	},
