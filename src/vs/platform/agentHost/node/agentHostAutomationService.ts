@@ -22,7 +22,7 @@ import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomat
 import { toTelemetryModel } from './agentHostTelemetryReporter.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
 import { AUTOMATION_CATALOG_URI, type AutomationState, type ErrorInfo, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
 import { automationReducer } from '../common/state/sessionReducers.js';
@@ -943,10 +943,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			const cursors = { ...readScheduleCursors(current._meta) };
 			let automation = current;
-			// A run yet to start in the session covers this occurrence too; another would only repeat its prompt after it.
+			// A run yet to start in the session, even one still creating it, covers this occurrence too; another would only repeat its prompt after it.
 			let claimedForAutomation = hasAgentHostAutomationContinueSession(current.definition) && Iterable.some(this._runs.values(), run => {
 				const continued = this._continuedRuns.get(run.resource);
-				return run.automation === current.resource && (run.lifecycle.status === AutomationRunStatus.Pending || continued !== undefined && continued.turnId === undefined);
+				return run.automation === current.resource && !isTerminalLifecycle(run.lifecycle) && (run.primarySession === undefined || continued !== undefined && continued.turnId === undefined);
 			});
 			for (const trigger of current.definition.triggers) {
 				if (trigger.kind !== AutomationTriggerKind.Schedule) {
@@ -1198,7 +1198,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const provider = previous && this._runProviders.get(previous.resource);
 		const session = previous?.primarySession !== undefined ? URI.parse(previous.primarySession) : undefined;
-		// A session keeps the folders, mode, approvals and sandbox it was created with, so an edit of them since starts over.
+		// A session keeps the folders and configuration it was created with, so an edit of them since starts over.
 		if (!session || !provider || !previous || readSessionTemplateChangedAt(previous._meta) !== templateRevision) {
 			return false;
 		}
@@ -1733,14 +1733,13 @@ function readSessionTemplateChangedAt(meta: Record<string, unknown> | undefined)
 }
 
 /**
- * What of a session template a session keeps from its creation and a run of it must not silently ignore: its folders,
- * mode, approvals and sandbox. Model and agent apply per turn, except that a turn without a model keeps its session's;
- * derived configuration values and customization snapshots change without an edit of the Automation.
+ * What of a session template a session keeps from its creation and a run of it must not silently ignore: its provider,
+ * folders and persistent configuration, including a provider's own, such as mode, approvals and sandbox. Model and agent
+ * apply per turn, except that a turn without a model keeps its session's; customization snapshots change without an edit
+ * of the Automation.
  */
 function toSessionShape(template: AutomationSessionTemplate): unknown {
-	const config = template.config ?? {};
-	const keys = [SessionConfigKey.Mode, SessionConfigKey.AutoApprove, SessionConfigKey.Permissions, SessionConfigKey.SandboxEnabled, SessionConfigKey.Isolation, SessionConfigKey.Branch];
-	return JSON.parse(JSON.stringify({ provider: template.provider, workingDirectories: template.workingDirectories, config: keys.map(key => config[key]) }));
+	return JSON.parse(JSON.stringify({ provider: template.provider, workingDirectories: template.workingDirectories, config: omitTransientSessionConfigValues(template.config ?? {}) }));
 }
 
 function getExecutionSessionTemplate(definition: AutomationDefinition): AutomationSessionTemplate {

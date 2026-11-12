@@ -26,6 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
+import { type AutomationDefinitionPatch } from '../../common/state/protocol/channels-automation/actions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
@@ -1874,8 +1875,13 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
-	for (const clearModel of [false, true]) {
-		test(`a continued run ${clearModel ? 'starts over once the model is cleared, as a turn without a model keeps its session\'s' : 'continues a session created after an edit, even if the run was due before it'}`, async () => {
+	const edits: [name: string, changes: AutomationDefinitionPatch[]][] = [
+		['continues a session created after an edit, even if the run was due before it', []],
+		['starts over once the model is cleared, as a turn without a model keeps its session\'s', [{ message: { ...definition().message, model: { id: 'chosen' } } }, { message: definition().message }]],
+		['starts over once a provider\'s own setting changes, such as its approvals', [{ session: { provider: 'mock', config: { 'codex.permissionsPreset': 'default' } } }]],
+	];
+	for (const [name, changes] of edits) {
+		test(`a continued run ${name}`, async () => {
 			const previous = URI.parse('mock:/previous');
 			const next = URI.parse('mock:/next');
 			createIdleSession(previous);
@@ -1892,14 +1898,25 @@ suite('AgentHostAutomationService', () => {
 				startSession: async session => { await used.complete(session.toString()); },
 			});
 			await service.handleConfigurationChanged();
-			for (const model of clearModel ? [{ id: 'chosen' }, undefined] : []) {
-				await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { message: { ...definition().message, model } } });
+			for (const change of changes) {
+				await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: change });
 			}
 			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'next' });
 
-			assert.strictEqual(await used.p, (clearModel ? next : previous).toString());
+			assert.strictEqual(await used.p, (changes.length > 0 ? next : previous).toString());
 		});
 	}
+
+	test('a continued Automation skips occurrences while its run still creates the session', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+		const automation = await storeContinuedAutomation(URI.parse('mock:/gone'));
+		const created = new DeferredPromise<URI>();
+		const service = createService({ createSession: () => created.p });
+		await service.handleConfigurationChanged();
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { triggers: [{ id: 'minutely', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }] } });
+		await timeout(3.5 * 60_000);
+
+		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries.find(entry => entry.resource === automation)?.runs.filter(run => run.origin.kind === AutomationRunOriginKind.Trigger).length, 1);
+	}));
 
 	test('a continued run waits while an earlier run of its session waits to resume after a wake, until that run is cancelled', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
 		const session = URI.parse('mock:/shared');
