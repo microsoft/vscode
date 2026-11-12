@@ -88,8 +88,10 @@ suite('WorkspaceEditingService', () => {
 
 	suite('setFolderLocation', () => {
 
-		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean; state?: WorkbenchState }) {
+		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean; state?: WorkbenchState; confirmed?: boolean; destinationTrusted?: boolean }) {
 			const trusted: URI[] = [];
+			const prompts: string[] = [];
+			const switchTrust: (boolean | undefined)[] = [];
 			const trustLookups: URI[] = [];
 			const resolved: URI[] = [];
 			const switched: (URI | undefined)[] = [];
@@ -99,22 +101,25 @@ suite('WorkspaceEditingService', () => {
 				{
 					getWorkbenchState: () => options.state ?? WorkbenchState.FOLDER,
 					getWorkspace: () => ({ folders: [{ uri: options.current }], uri: URI.file('/work/project') }),
-					setFolderLocation: async (location: URI) => { switched.push(location); }
+					setFolderLocation: async (location: URI, o?: { trusted?: boolean }) => { switched.push(location); switchTrust.push(o?.trusted); }
 				},
-				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				{ confirm: async () => { prompts.push('trust'); return { confirmed: options.confirmed ?? false }; } },
+				undefined,
 				{ extUri },
 				{
 					isWorkspaceTrusted: () => options.currentTrusted ?? options.primaryTrusted,
-					getUriTrustInfo: async (uri: URI) => { trustLookups.push(uri); return { trusted: options.primaryTrusted }; },
+					getUriTrustInfo: async (uri: URI) => { trustLookups.push(uri); return { trusted: extUri.isEqual(uri, URI.file('/work/project')) ? options.primaryTrusted : (options.destinationTrusted ?? false) || trusted.some(t => extUri.isEqual(t, uri)) }; },
 					setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); }
 				},
 				undefined, undefined, undefined,
 				{
 					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', providerId: 'test', builtIn: options.builtIn ?? true }; },
 					setLocation: (_folder: unknown, _location: unknown, reason?: string) => { reasons.push(reason); }
-				}
+				},
+				{ isWorkspaceTrustEnabled: () => true }
 			));
-			return { service, reasons, trustLookups: () => trustLookups.map(u => u.toString()), trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
+			return { service, reasons, prompts, switchTrust, trustLookups: () => trustLookups.map(u => u.toString()), trusted: () => trusted.map(u => u.toString()), resolved: () => resolved.length, switched: () => switched.map(u => u?.toString()) };
 		}
 
 		test('a non-local location is rejected without resolving, trusting or switching', async () => {
@@ -152,7 +157,7 @@ suite('WorkspaceEditingService', () => {
 			const trustedPrimary = createService({ current: URI.file('/work/b'), primaryTrusted: true, currentTrusted: false });
 			await trustedPrimary.service.setFolderLocation(alt);
 
-			assert.deepStrictEqual({ untrustedPrimary: untrustedPrimary.trusted(), trustedPrimary: trustedPrimary.trusted(), lookups: trustedPrimary.trustLookups() }, { untrustedPrimary: [], trustedPrimary: [alt.toString()], lookups: [URI.file('/work/project').toString()] });
+			assert.deepStrictEqual({ untrustedPrimary: untrustedPrimary.trusted(), trustedPrimary: trustedPrimary.trusted(), lookups: trustedPrimary.trustLookups() }, { untrustedPrimary: [], trustedPrimary: [alt.toString()], lookups: [alt.toString(), URI.file('/work/project').toString()] });
 		});
 
 		test('a pending switch is superseded by a later return to the primary', async () => {
@@ -167,7 +172,8 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
 				undefined, undefined, undefined,
-				{ resolveLocation: () => resolution.p, setLocation: () => { } }
+				{ resolveLocation: () => resolution.p, setLocation: () => { } },
+				{ isWorkspaceTrustEnabled: () => true }
 			));
 
 			const pending = service.setFolderLocation(alt);
@@ -185,12 +191,14 @@ suite('WorkspaceEditingService', () => {
 			const switched: (URI | undefined)[] = [];
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
-				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], identity: primary }), setFolderLocation: async (location: URI) => { switched.push(location); } },
-				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async (location: URI) => { switched.push(location); } },
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { confirm: async () => ({ confirmed: true }) },
+				undefined,
 				{ extUri },
-				{ getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
+				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
 				undefined, undefined, undefined,
-				{ resolveLocation: () => resolution.p, setLocation: () => { } }
+				{ resolveLocation: () => resolution.p, setLocation: () => { } },
+				{ isWorkspaceTrustEnabled: () => true }
 			));
 
 			const pending = service.setFolderLocation(alt);
@@ -200,6 +208,62 @@ suite('WorkspaceEditingService', () => {
 			await service.setFolderLocation(primary, { ifIdle: true });
 
 			assert.deepStrictEqual(switched.map(u => u?.toString()), [alt.toString(), primary.toString()]);
+		});
+
+		test('switching a trusted workspace to an untrusted location asks once, and declining still switches in Restricted Mode', async () => {
+			const alt = URI.file('/work/alt');
+			const declined = createService({ current: URI.file('/work/project'), primaryTrusted: true, builtIn: false, confirmed: false });
+			await declined.service.setFolderLocation(alt);
+			const accepted = createService({ current: URI.file('/work/project'), primaryTrusted: true, builtIn: false, confirmed: true });
+			await accepted.service.setFolderLocation(alt);
+
+			assert.deepStrictEqual({
+				declined: { prompts: declined.prompts, trusted: declined.trusted(), switched: declined.switched(), switchTrust: declined.switchTrust },
+				accepted: { prompts: accepted.prompts, trusted: accepted.trusted(), switched: accepted.switched(), switchTrust: accepted.switchTrust }
+			}, {
+				declined: { prompts: ['trust'], trusted: [], switched: [alt.toString()], switchTrust: [false] },
+				accepted: { prompts: ['trust'], trusted: [alt.toString()], switched: [alt.toString()], switchTrust: [true] }
+			});
+		});
+
+		test('an untrusted workspace switching to a trusted location loads it trusted, without asking', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: false, builtIn: false, destinationTrusted: true });
+			await fixture.service.setFolderLocation(URI.file('/work/alt'));
+			assert.deepStrictEqual({ prompts: fixture.prompts, switchTrust: fixture.switchTrust }, { prompts: [], switchTrust: [true] });
+		});
+
+		test('a built-in location of a trusted primary switches without asking', async () => {
+			const fixture = createService({ current: URI.file('/work/project'), primaryTrusted: true, builtIn: true });
+			await fixture.service.setFolderLocation(URI.file('/work/alt'));
+			assert.deepStrictEqual({ prompts: fixture.prompts, switchTrust: fixture.switchTrust }, { prompts: [], switchTrust: [true] });
+		});
+
+		test('a switch superseded while the trust prompt is open persists no trust and does not switch', async () => {
+			const primary = URI.file('/work/project');
+			const alt = URI.file('/work/alt');
+			const answer = new DeferredPromise<{ confirmed: boolean }>();
+			const trusted: URI[] = [];
+			const switched: (URI | undefined)[] = [];
+			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+				undefined,
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async (location: URI) => { switched.push(location); } },
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				{ confirm: () => answer.p },
+				undefined,
+				{ extUri },
+				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
+				undefined, undefined, undefined,
+				{ resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: false }), setLocation: () => { } },
+				{ isWorkspaceTrustEnabled: () => true }
+			));
+
+			const pending = service.setFolderLocation(alt);
+			await timeout(0);
+			await service.setFolderLocation(primary);
+			answer.complete({ confirmed: true });
+			await pending;
+
+			assert.deepStrictEqual({ trusted: trusted.map(u => u.toString()), switched: switched.map(u => u?.toString()) }, { trusted: [], switched: [primary.toString()] });
 		});
 
 		function createServiceWithPendingTrust() {
@@ -216,9 +280,10 @@ suite('WorkspaceEditingService', () => {
 				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders, uri: identity }), setFolderLocation: async (location: URI) => { switched.push(location); } },
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
-				{ getUriTrustInfo: () => trustInfo.p, setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
+				{ isWorkspaceTrusted: () => true, getUriTrustInfo: (uri: URI) => extUri.isEqual(uri, primary) ? trustInfo.p : Promise.resolve({ trusted: false }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } }
+				{ resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } },
+				{ isWorkspaceTrustEnabled: () => true }
 			));
 			return {
 				service, primary, alt, trustInfo,
@@ -265,9 +330,10 @@ suite('WorkspaceEditingService', () => {
 				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async (location: URI) => { switched.push(location); } },
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
-				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
+				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ resolveLocation: (_primary: URI, location: URI) => resolutions.get(location.toString())!.p, setLocation: () => { } }
+				{ resolveLocation: (_primary: URI, location: URI) => resolutions.get(location.toString())!.p, setLocation: () => { } },
+				{ isWorkspaceTrustEnabled: () => true }
 			));
 
 			const p1 = service.setFolderLocation(first);
