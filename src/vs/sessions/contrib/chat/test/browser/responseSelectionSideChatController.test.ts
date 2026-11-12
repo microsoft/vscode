@@ -40,6 +40,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ChatInteractivity, IChat, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 class RecordingNotificationService extends TestNotificationService {
 	readonly notifications: { severity: Severity; message: string }[] = [];
@@ -665,6 +666,7 @@ suite('ResponseSelectionSideChatController', () => {
 		const frame = dom.getActiveDocument().createElement('iframe');
 		dom.getActiveDocument().body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		const frameWindow = frame.contentWindow! as Window & typeof globalThis & { getSelection: () => Selection | null };
 		frameWindow.document.body.appendChild(widget.domNode);
 		const textNode = transcriptDomNode.querySelector('.chat-markdown-part')!.firstChild as Text;
