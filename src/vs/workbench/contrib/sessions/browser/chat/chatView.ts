@@ -510,6 +510,7 @@ export class ChatView extends AbstractChatView {
 				supportsFileReferences: true,
 				rendererOptions: {
 					renderInputRequests: options.inputOnly ? false : undefined,
+					renderHtmlPreviews: true,
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					contentHorizontalPadding: this._chatItemHorizontalPadding,
