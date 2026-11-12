@@ -23,7 +23,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { BrowserViewStorageScope, IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -193,6 +193,11 @@ export class BrowserEditorInput extends EditorInput {
 	get network(): IBrowserViewNetwork | undefined {
 		const session = this._initialData.session;
 		return session?.scope === BrowserViewStorageScope.Global ? undefined : session?.network;
+	}
+
+	/** The network the page actually runs on: the resolved model's, falling back to the request before resolution. */
+	get activeNetwork(): IBrowserViewNetwork | undefined {
+		return this._model ? this._model.network : this.network;
 	}
 
 	get url(): string | undefined {
@@ -400,9 +405,10 @@ export class BrowserEditorInput extends EditorInput {
 
 		const currentUrl = this.url;
 		let renamedUrl = currentUrl;
-		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, this.network)) {
+		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, this.activeNetwork)) {
 			const currentResource = URI.parse(currentUrl);
-			renamedUrl = target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString();
+			// Map the target to the URL the page displays first, so the page's query isn't written over agent host metadata.
+			renamedUrl = URI.parse(remoteUrlToFileUrl(this.activeNetwork, target.toString())).with({ query: currentResource.query, fragment: currentResource.fragment }).toString();
 		}
 		return {
 			editor: {

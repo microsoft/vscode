@@ -174,6 +174,34 @@ suite('NavigateBrowserTool', () => {
 		});
 	});
 
+	test('maps remote resource URLs to the file URL of the page\'s network before navigating', async () => {
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(new TestConfigurationService()));
+		const navigationUrls: (string | undefined)[] = [];
+		const page = upcastPartial<BrowserEditorInput>({ model: upcastPartial<IBrowserViewModel>({ network: { authority: 'host' } }) });
+		const tool = new NavigateBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				invokeFunction: async (_sessionId, _pageId, _fnDef, args) => {
+					navigationUrls.push(typeof args?.[0] === 'string' ? args[0] : undefined);
+					return { summary: '' };
+				},
+			}),
+			networkFilterService,
+			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map([['page', page]]), resolveNetwork: () => undefined }),
+			upcastPartial<IRemoteExplorerService>({}),
+		);
+
+		for (const url of ['vscode-remote://host/repo/index.html?view=preview#top', 'vscode-remote://other/repo/index.html']) {
+			await tool.invoke(
+				upcastPartial<IToolInvocation>({ parameters: { pageId: 'page', type: 'url', url } }),
+				async () => 0,
+				upcastPartial<ToolProgress>({ report: () => { } }),
+				CancellationToken.None,
+			);
+		}
+
+		assert.deepStrictEqual(navigationUrls, ['file:///repo/index.html?view=preview#top', 'vscode-remote://other/repo/index.html']);
+	});
+
 	test('allows a loopback forwarded destination as tunnel transport', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);

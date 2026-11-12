@@ -7,6 +7,7 @@ import type { CancellationToken } from '../../../../../base/common/cancellation.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
+import { remoteUrlToFileUrl } from '../../../../../platform/browserView/common/browserView.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
@@ -145,7 +146,8 @@ export class NavigateBrowserTool implements IToolImpl {
 				// remote's localhost directly. Rewrite to the forwarded local address (if
 				// any) so the page can be reached. The page keeps the network it was created with.
 				const model = this.browserViewService.getKnownBrowserViews().get(params.pageId)?.model;
-				const usesRemoteNetwork = model ? !!model.network : !!this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
+				const network = model ? model.network : this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
+				const usesRemoteNetwork = !!network;
 				const rewrite = rewriteRemoteLocalhostUrl(params.url!, this.remoteExplorerService, usesRemoteNetwork);
 				const tunnelPolicyError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
 				if (tunnelPolicyError) {
@@ -153,7 +155,7 @@ export class NavigateBrowserTool implements IToolImpl {
 				}
 				const result = await playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, target) => {
 					return page.goto(target, { waitUntil: 'domcontentloaded' });
-				}, rewrite.url);
+				}, remoteUrlToFileUrl(network, rewrite.url));
 				return rewrite.rewritten
 					? { ...result, content: [remoteUrlRewriteNotice(params.url!, rewrite.url), ...result.content] }
 					: result;
