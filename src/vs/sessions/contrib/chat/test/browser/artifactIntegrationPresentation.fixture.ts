@@ -251,8 +251,8 @@ function pullRequest(state: PullRequestState, options: IPullRequestFixtureOption
 		authentication: state === 'unavailable' ? { enabled: true } : undefined,
 		actions: [
 			{ id: 'markReady', label: 'Mark Ready', iconId: Codicon.gitPullRequest.id, kind: 'code' },
-			{ id: 'fixChecks', label: 'Fix Checks', iconId: Codicon.tools.id, kind: 'prompt' },
-			{ id: 'addressComments', label: 'Address Comments', iconId: Codicon.commentDiscussion.id, kind: 'prompt' },
+			{ id: 'fixChecks', label: 'Fix Checks', iconId: Codicon.lightbulb.id, kind: 'prompt' },
+			{ id: 'addressComments', label: 'Address Comments', iconId: Codicon.comment.id, kind: 'prompt' },
 			{ id: 'merge', label: 'Merge', iconId: Codicon.gitMerge.id, kind: 'code' },
 			{ id: 'refresh', label: 'Refresh Status', iconId: Codicon.refresh.id, kind: 'code' },
 		],
