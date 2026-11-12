@@ -2410,7 +2410,7 @@ suite('ChatPetWidget', () => {
 			|| Number.parseFloat(second.style.top) + 24 <= Number.parseFloat(first.style.top) || Number.parseFloat(first.style.top) + 24 <= Number.parseFloat(second.style.top));
 	});
 
-	test('mini pets spawn across the platform and stack where their paths overlap', () => {
+	test('mini pets spawn across the platform and stack where their paths overlap', async () => {
 		const { widget, firstHost, button, overlay, firstParent, layout } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const parts: IChatProgressResponseContent[] = [];
@@ -2434,11 +2434,50 @@ suite('ChatPetWidget', () => {
 		firstParent.style.width = '120px';
 		layout();
 		const bounds = firstParent.getBoundingClientRect();
+		await waitForPetAnimation(() => [left, right, above].every(pet => {
+			const rect = pet.getBoundingClientRect();
+			return rect.left >= bounds.left - 0.1 && rect.right <= bounds.right + 0.1 && rect.bottom <= bounds.top + 0.1 && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-');
+		}));
 		const rects = [left, right, above].map(pet => pet.getBoundingClientRect());
 		assert.ok(rects.every(rect => rect.left >= bounds.left - 0.1 && rect.right <= bounds.right + 0.1 && rect.bottom <= bounds.top + 0.1));
 		assert.ok(rects.every((rect, index) => rects.slice(index + 1).every(other =>
 			rect.right <= other.left + 0.1 || other.right <= rect.left + 0.1 || rect.bottom <= other.top + 0.1 || other.bottom <= rect.top + 0.1)));
 	});
+
+	for (const reducedMotion of [false, true]) {
+		test(`mini pets resize once and only displaced pets respawn (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
+			const { widget, firstHost, overlay, firstParent, layout } = createHostTransitionHarness(reducedMotion);
+			const tools = ['stays', 'upper', 'support', 'outside'].map(id => {
+				const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+				tool.toolSpecificData = { kind: 'subagent', isActive: true };
+				return tool;
+			});
+			widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)) });
+			const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
+			for (const [index, pet] of pets.entries()) {
+				pet.classList.remove('arriving');
+				pet.style.left = `${[20, 90, 100, 220][index]}px`;
+				pet.style.top = `${index === 1 ? -48 : -24}px`;
+			}
+			firstParent.style.width = '120px';
+			layout();
+			layout();
+			layout();
+			assert.deepStrictEqual(pets.map(pet => pet.style.left), ['20px', '90px', '100px', '220px']);
+			await waitForPetAnimation(() => pets[2].querySelector('img')?.getAttribute('src')?.includes('buddy-respawn-') === true
+				&& pets[3].querySelector('img')?.getAttribute('src')?.includes('buddy-respawn-') === true);
+			assert.deepStrictEqual({
+				stays: [pets[0].style.left, pets[0].style.top],
+				upper: [pets[1].style.left, pets[1].style.top],
+			}, { stays: ['20px', '-24px'], upper: ['90px', '-24px'] });
+			await waitForPetAnimation(() => pets.every(pet => !pet.classList.contains('arriving') && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-') === true));
+			const input = firstParent.getBoundingClientRect();
+			const rects = pets.map(pet => pet.getBoundingClientRect());
+			assert.ok(rects.every(rect => rect.left >= input.left - 0.1 && rect.right <= input.right + 0.1 && rect.bottom <= input.top + 0.1));
+			assert.ok(rects.every((rect, index) => rects.slice(index + 1).every(other =>
+				rect.right <= other.left + 0.1 || other.right <= rect.left + 0.1 || rect.bottom <= other.top + 0.1 || other.bottom <= rect.top + 0.1)));
+		});
+	}
 
 	for (const petLeft of [0, 192]) {
 		for (const staggered of [false, true]) {
@@ -2478,7 +2517,7 @@ suite('ChatPetWidget', () => {
 	}
 
 	for (const petLeft of [0, 300]) {
-		test(`mini pets stay in a bounded area with many subagents (main pet at ${petLeft})`, () => {
+		test(`mini pets stay in a bounded area with many subagents (main pet at ${petLeft})`, async () => {
 			const { widget, firstHost, button, overlay, firstParent, root, layout } = createHostTransitionHarness(true);
 			const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 			const tools = Array.from({ length: 100 }, (_, index) => {
@@ -2506,15 +2545,25 @@ suite('ChatPetWidget', () => {
 					bounded: right - left <= input.width + 0.1 && bottom - top <= 96.1,
 					visible: rects.every(rect => rect.width > 0 && rect.height > 0),
 					overlaps,
-				}, { count, withinChat: true, bounded: true, visible: true, overlaps: false });
+				}, { count, withinChat: true, bounded: true, visible: true, overlaps: false }, JSON.stringify({ left, right, top, bottom, input: input.toJSON(), movement: movement.toJSON() }));
 			};
 			checkBounds(100);
 			firstParent.style.width = '120px';
 			layout();
+			await waitForPetAnimation(() => pets.every(pet => {
+				const rect = pet.getBoundingClientRect();
+				const input = firstParent.getBoundingClientRect();
+				return rect.left >= input.left - 0.1 && rect.right <= input.right + 0.1 && rect.bottom <= input.top + 0.1 && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-');
+			}));
 			checkBounds(100);
 			root.style.height = '64px';
 			firstParent.style.top = '32px';
 			layout();
+			await waitForPetAnimation(() => pets.every(pet => {
+				const rect = pet.getBoundingClientRect();
+				const input = firstParent.getBoundingClientRect();
+				return rect.left >= input.left - 0.1 && rect.right <= input.right + 0.1 && rect.top >= root.getBoundingClientRect().top - 0.1 && rect.bottom <= input.top + 0.1 && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-');
+			}));
 			checkBounds(100);
 			tools[0].toolSpecificData = { kind: 'subagent', isActive: false };
 			changed.fire({ reason: 'other' });
