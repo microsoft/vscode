@@ -174,7 +174,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		const links = serverStateFolders.map(folder => link(`${name}/${folder}`));
 		return name === serverDataFolderName ? links : [
 			// Persist another product's state only if it is used in this container.
-			`if [ -d "$home_prefix/"${shellQuote(name)} ] || [ -d "$state/"${shellQuote(name)} ]; then`,
+			`if [ -d "$home_prefix/"${shellQuote(name)} ] || [ -d ./${shellQuote(name)} ]; then`,
 			...links.map(line => `  ${line}`),
 			'fi',
 		];
@@ -194,17 +194,24 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'progress step:volume',
 		'test ! -L "$volume"',
 		'test -d "$volume"',
+		'volume_real=$(cd -P "$volume" && pwd -P)',
 		'progress step:stateFolder',
 		'test ! -L "$state"',
 		'test -d "$state" || mkdir "$state" || test -d "$state"',
+		// The user can own the volume's root folder, e.g., when Docker copied a user-owned /workspaces from the image, and then
+		// replace the state folder at any time. Works inside the state folder after checking that it is on the volume and owned
+		// by root, so a later replacement does not affect this script.
+		'cd -P "$state"',
+		`if [ "$(pwd -P)" != "$volume_real/"${shellQuote(stateFolderName)} ]; then echo "$state is not a folder on the volume" >&2; exit 1; fi`,
+		'if [ "$(stat -c %u .)" != 0 ]; then echo "$state is not owned by root" >&2; exit 1; fi',
 		// Moved folders are no longer protected by the home folder's permissions, so only the user's group may enter. Root
 		// owns the state folder and the parents of moved folders, so the user cannot plant symlinks for this script to follow.
-		'chown -h "$state_owner" "$state"',
-		'chmod 750 "$state"',
+		'chown -h "$state_owner" .',
+		'chmod 750 .',
 		// Serializes links, e.g., from two windows opening the container, so a folder being moved is not taken for restored state.
 		'locked=',
-		'if command -v flock >/dev/null 2>&1; then exec 9<"$state"; flock 9; locked=1; fi',
-		`test -e "$state/.layout" || printf '%s\\n' ${shellQuote(stateLayoutVersion)} > "$state/.layout"`,
+		'if command -v flock >/dev/null 2>&1; then exec 9<.; flock 9; locked=1; fi',
+		`test -e .layout || printf '%s\\n' ${shellQuote(stateLayoutVersion)} > .layout`,
 		'progress step:statePath',
 		'if [ -e "$link_path" ] && [ ! -L "$link_path" ]; then echo "$link_path exists and is not a symlink" >&2; exit 1; fi',
 		'progress step:stateLink',
@@ -242,11 +249,12 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  rel=$1',
 		'  shift',
 		'  src="$home_prefix/$rel"',
-		'  dst="$state/$rel"',
+		// Relative to the state folder, see above.
+		'  dst="./$rel"',
 		'  target="$link_path/$rel"',
 		'  if [ -z "$home_found" ]; then skip home "home folder $home_prefix not found"; return 0; fi',
 		'  for parent in "$@"; do',
-		'    if is_other "$home_prefix/$parent" || is_other "$state/$parent"; then skip parent "~/$parent is not a folder"; return 0; fi',
+		'    if is_other "$home_prefix/$parent" || is_other "./$parent"; then skip parent "~/$parent is not a folder"; return 0; fi',
 		'  done',
 		'  if has_mount "$home_real/$rel"; then skip mounted "it is already mounted"; return 0; fi',
 		'  if [ -L "$src" ]; then',
@@ -254,13 +262,13 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  elif [ -e "$src" ] && [ ! -d "$src" ]; then',
 		'    skip file "it is not a folder"; return 0',
 		'  fi',
-		'  if is_other "$dst"; then skip state "$dst is not a folder"; return 0; fi',
+		'  if is_other "$dst"; then skip state "$state/$rel is not a folder"; return 0; fi',
 		'  for parent in "$@"; do',
 		'    if [ ! -d "$home_prefix/$parent" ]; then',
 		'      mkdir "$home_prefix/$parent" || test -d "$home_prefix/$parent"',
 		'      chown -h "$owner" "$home_prefix/$parent"',
 		'    fi',
-		'    test -d "$state/$parent" || mkdir "$state/$parent" || test -d "$state/$parent"',
+		'    test -d "./$parent" || mkdir "./$parent" || test -d "./$parent"',
 		'  done',
 		'  result=existing',
 		'  if [ ! -L "$src" ]; then',
@@ -284,7 +292,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  if [ "$(stat -c %u:%g "$dst")" != "$owner" ]; then chown -R "$owner" "$dst"; fi',
 		'  if [ ! -L "$src" ]; then',
 		'    ln -sT "$target" "$src" || test "$(readlink "$src")" = "$target"',
-		'    echo "Persisting ~/$rel in $dst" >&2',
+		'    echo "Persisting ~/$rel in $state/$rel" >&2',
 		'  fi',
 		'  progress "folder:$result"',
 		'}',
