@@ -314,8 +314,9 @@ suite('Detect Changes', () => {
 		const agentHostOutputs = ['agent-host-e2e', 'agent-host-test-profile', 'agent-host-test-profile-reason'];
 		// And whether the pull request changes ripple, and whether ripple failed, for the Ripple job, and whether
 		// the test jobs have planned files to run: unit tests (for the Browser ones, browser tests), node.js
-		// integration tests and Agent Host E2E suites.
-		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e'];
+		// integration tests and Agent Host E2E suites; and whether the pull request introduces unit tests that read
+		// registrations they do not load, for the Test Registrations job.
+		const rippleOutputs = ['ripple-changed', 'ripple-failed', 'selected-unit-tests', 'selected-browser-unit-tests', 'selected-node-integration-tests', 'selected-agent-host-e2e', 'registration-findings'];
 		assert.deepStrictEqual(Object.keys(loadWorkflow().jobs.changes.outputs ?? {}).sort(), [...outputs, ...agentHostOutputs, ...rippleOutputs].sort());
 	});
 
