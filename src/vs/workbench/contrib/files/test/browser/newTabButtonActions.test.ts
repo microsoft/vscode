@@ -9,8 +9,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpression, ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { NEW_TAB_BUTTON_SETTING } from '../../../../browser/parts/editor/newTabButton.js';
 import { IEditorCommandsContext } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -32,10 +30,8 @@ suite('New tab button entries', () => {
 		let activeGroup = groups[0];
 		const opened: { editor: unknown; group: number | undefined }[] = [];
 		const created: INewUntitledTextEditorOptions[] = [];
-		const telemetryService = new CapturingTelemetryService();
 
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IEditorGroupsService, {
 			getGroup: (id: number) => groups.find(group => group.id === id),
 			get activeGroup() { return activeGroup; },
@@ -59,7 +55,7 @@ suite('New tab button entries', () => {
 
 		await instantiationService.invokeFunction(accessor => action.run(accessor, { groupId: 2 } satisfies IEditorCommandsContext));
 
-		return { opened, created, activeGroup: activeGroup.id, telemetry: telemetryService.events.map(event => ({ eventName: event.eventName, data: event.data })) };
+		return { opened, created, activeGroup: activeGroup.id };
 	}
 
 	test('are shown only while the setting is on', () => {
@@ -78,7 +74,6 @@ suite('New tab button entries', () => {
 			opened: [{ editor: { resource: undefined, untitledOrigin: 'newTabButton', options: { pinned: true, override: 'default' } }, group: 2 }],
 			created: [],
 			activeGroup: 2,
-			telemetry: [{ eventName: 'newTabButton', data: { action: 'untitledFile' } }],
 		});
 	});
 
@@ -87,7 +82,6 @@ suite('New tab button entries', () => {
 			opened: [{ editor: { resource: untitledResource, options: { pinned: true, override } }, group: 2 }],
 			created: [{ languageId: 'markdown', origin: 'newTabButton' }],
 			activeGroup: 2,
-			telemetry: [{ eventName: 'newTabButton', data: { action: 'markdown' } }],
 		});
 
 		assert.deepStrictEqual(await run(new NewMarkdownDocumentFromNewTabButtonAction(), true), expected('vscode.markdown.editor'));

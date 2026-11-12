@@ -565,7 +565,6 @@ registerAction2(class OpenIntegratedBrowserFromNewTabButtonAction extends NewTab
 			title: localize2('browser.openFromNewTabButton', "New Integrated Browser"),
 			icon: Codicon.globe,
 			order: 4,
-			action: 'browser'
 		});
 	}
 

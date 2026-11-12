@@ -23,7 +23,6 @@ export class NewUntitledFileFromNewTabButtonAction extends NewTabButtonEntryActi
 			title: localize2('newTabButton.untitledFile', "New Untitled Text File"),
 			icon: Codicon.newFile,
 			order: 1,
-			action: 'untitledFile'
 		});
 	}
 
@@ -44,7 +43,6 @@ export class NewMarkdownDocumentFromNewTabButtonAction extends NewTabButtonEntry
 			title: localize2('newTabButton.markdown', "New Markdown Document"),
 			icon: Codicon.markdown,
 			order: 2,
-			action: 'markdown'
 		});
 	}
 

@@ -43,7 +43,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
-import { NewTabButtonEntryAction } from '../../../../browser/parts/editor/newTabButton.js';
+import { NewTabButtonEntryAction, NewTabButtonHidden } from '../../../../browser/parts/editor/newTabButton.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -805,7 +805,7 @@ export function registerChatActions() {
 				}, {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
 					order: 1
 				}],
 			});
@@ -825,7 +825,6 @@ export function registerChatActions() {
 				title: localize2('interactiveSession.open', "New Chat Editor"),
 				icon: Codicon.commentDiscussion,
 				order: 3,
-				action: 'chat',
 				when: ChatContextKeys.enabled
 			});
 		}
@@ -849,7 +848,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('copilot')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('copilot')),
 					order: 1
 				}],
 			});
@@ -874,7 +873,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
 					order: 1
 				}],
 			});
@@ -899,7 +898,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
 					order: 1
 				}],
 			});
