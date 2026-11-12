@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -34,6 +35,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IQuickChatService } from '../../../../chat/browser/chat.js';
 import { ChatWidgetService } from '../../../../chat/browser/widget/chatWidgetService.js';
+import { ChatInputPart } from '../../../../chat/browser/widget/input/chatInputPart.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { ComposerInputSnapshot, IComposerInputSnapshot, IComposerSendAttempt, readNewChatDraftState } from '../../../common/newChatDraftState.js';
 import { IChat } from '../../../../../services/sessions/common/session.js';
@@ -77,6 +79,7 @@ suite('SharedChatInputComposer', () => {
 			addContext: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
 		};
 		const widget: { input: object | undefined;[key: string]: unknown } = {
+			domNode: dom.$('div'),
 			getInput: () => {
 				assert.ok(widget.input, 'Cannot read the disposed widget input');
 				return text;
@@ -198,6 +201,109 @@ suite('SharedChatInputComposer', () => {
 				});
 			});
 		}
+	}
+
+	for (const [moveFocus, disableMovesFocus] of [[false, false], [true, false], [false, true], [true, true]]) {
+		test(`restores actual editor focus after rejection without stealing it from another control (moved: ${moveFocus}, toolbar: ${disableMovesFocus})`, async () => {
+			const root = dom.append(dom.getActiveWindow().document.body, dom.$('div'));
+			store.add(toDisposable(() => root.remove()));
+			const editor = dom.append(root, dom.$<HTMLTextAreaElement>('textarea'));
+			const sendControl = dom.append(root, dom.$('button'));
+			const otherControl = dom.append(root, dom.$('button'));
+			const { composer, widget, state } = createComposer({
+				sendResult: false,
+				onSend: () => {
+					if (moveFocus) {
+						otherControl.focus();
+					}
+				},
+			});
+			widget.domNode = root;
+			Object.assign(widget.input!, {
+				hasFocus: () => dom.getWindow(editor).document.activeElement === editor,
+				setInputEnabled: (enabled: boolean) => {
+					editor.disabled = !enabled;
+					if (!enabled && disableMovesFocus) {
+						sendControl.focus();
+					}
+				},
+				focus: () => editor.focus(),
+			});
+			editor.focus();
+
+			const sent = await composer.submit(true);
+
+			assert.deepStrictEqual({ sent, input: state().input.text, focused: dom.getWindow(root).document.activeElement === (moveFocus ? otherControl : editor) }, {
+				sent: false, input: 'Build it', focused: true,
+			});
+		});
+	}
+
+	for (const moveFocus of ['none', 'confirmation', 'send']) {
+		test(`restores foreground editor focus after confirmation and rejection unless focus moved during ${moveFocus}`, async () => {
+			const root = dom.append(dom.getActiveWindow().document.body, dom.$('div'));
+			store.add(toDisposable(() => root.remove()));
+			const editorHost = dom.append(root, dom.$('div'));
+			const editor = dom.append(editorHost, dom.$<HTMLTextAreaElement>('textarea'));
+			const inputActions = dom.append(root, dom.$('div'));
+			const sendControl = dom.append(root, dom.$('button'));
+			const otherControl = dom.append(root, dom.$('button'));
+			const confirmation = new DeferredPromise<boolean>();
+			const { composer, widget, state } = createComposer({
+				sendResult: false,
+				confirmSend: confirmation,
+				onSend: () => {
+					if (moveFocus === 'send') {
+						otherControl.focus();
+					}
+				},
+			});
+			const input: ChatInputPart = Object.assign(Object.create(widget.input!), {
+				inputEnabled: true,
+				_inputEditor: {
+					hasWidgetFocus: () => dom.getWindow(editor).document.activeElement === editor,
+					updateOptions: ({ readOnly }: { readOnly: boolean }) => { editor.readOnly = readOnly; },
+					focus: () => editor.focus(),
+				},
+				_inputEditorElement: editorHost,
+				attachmentsContainer: dom.append(root, dom.$('div')),
+				inputActionsToolbar: { getElement: () => inputActions },
+				secondaryToolbarContainer: dom.append(root, dom.$('div')),
+				dnd: { setDisabledOverlay: () => { } },
+				executeToolbar: { focus: () => sendControl.focus() },
+				setInputEnabled: ChatInputPart.prototype.setInputEnabled,
+				hasFocus: ChatInputPart.prototype.hasFocus,
+				focus: ChatInputPart.prototype.focus,
+			});
+			widget.domNode = root;
+			widget.input = input;
+			editor.focus();
+
+			const sending = composer.submit(false);
+			await timeout(0);
+			const toolbarFocusedDuringConfirmation = dom.getWindow(root).document.activeElement === sendControl;
+			if (moveFocus === 'confirmation') {
+				otherControl.focus();
+			}
+			confirmation.complete(true);
+			const sent = await sending;
+
+			assert.deepStrictEqual({
+				sent,
+				toolbarFocusedDuringConfirmation,
+				input: state().input.text,
+				attachments: state().input.attachments,
+				readOnly: editor.readOnly,
+				focused: dom.getWindow(root).document.activeElement === (moveFocus === 'none' ? editor : otherControl),
+			}, {
+				sent: false,
+				toolbarFocusedDuringConfirmation: true,
+				input: 'Build it',
+				attachments: ['context'],
+				readOnly: false,
+				focused: true,
+			});
+		});
 	}
 
 	for (const background of [false, true]) {

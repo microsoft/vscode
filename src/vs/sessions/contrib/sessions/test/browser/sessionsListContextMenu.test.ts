@@ -38,6 +38,7 @@ import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, 
 import { SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionGroup } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
@@ -117,6 +118,9 @@ suite('Sessions list context menus', () => {
 			pinnedSessionIds,
 		});
 		const commandService = harness.instantiationService.get(ICommandService);
+		if (grouping === SessionsGrouping.Inbox) {
+			harness.instantiationService.stub(ISessionsListModelService, disposables.add(harness.instantiationService.createInstance(SessionsListModelService)));
+		}
 		harness.instantiationService.stub(IContextKeyService, contextKeyService);
 		harness.instantiationService.stub(IContextMenuService, contextMenuService);
 		harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
@@ -204,6 +208,15 @@ suite('Sessions list context menus', () => {
 				menuDisposed: true,
 			});
 		}
+	});
+
+	test('inbox does not offer unsupported group creation in empty space or category menus', () => {
+		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Inbox);
+		dispatchContextMenu(container.querySelector<HTMLElement>('.monaco-list-rows')!);
+		const empty = contextMenuService.delegate?.getActions().some(action => action.id === 'sessions.createGroup') ?? false;
+		dispatchContextMenu(container.querySelector<HTMLElement>('.session-section')!);
+		const section = contextMenuService.delegate?.getActions().some(action => action.id === 'sessions.createGroup') ?? false;
+		assert.deepStrictEqual({ empty, section }, { empty: false, section: false });
 	});
 
 	test('multiselection disables single-session context menu actions', async () => {

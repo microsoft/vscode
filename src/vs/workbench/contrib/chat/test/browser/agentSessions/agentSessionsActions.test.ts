@@ -10,6 +10,7 @@ import { isMacintosh, OperatingSystem, OS } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -29,10 +30,10 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
-import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -143,6 +144,41 @@ suite('AgentSessionsActions', () => {
 		}
 		assert.deepStrictEqual(calls, [true, false].flatMap(read =>
 			['first', 'second', 'second'].map(session => ({ session, read }))));
+	});
+
+	test('marks automation runs read when the sessions list shows them', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: string[] = [];
+		const createSession = (name: string) => upcastPartial<IAgentSession>({
+			resource: URI.parse(`test:/${name}`),
+			isArchived: () => false,
+			isRead: () => false,
+			setRead: () => calls.push(name),
+		});
+		const ordinary = createSession('ordinary');
+		const automation = createSession('automation');
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			model: upcastPartial<IAgentSessionsModel>({
+				sessions: [ordinary],
+				sessionsIncludingAutomationRuns: [ordinary, automation],
+			}),
+		}));
+		const context: IMarshalledAgentSessionContext = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: ordinary,
+			sessions: [ordinary],
+			showAutomationRuns: true,
+		};
+		const action = new MarkAllAgentSessionsReadAction();
+
+		await instantiationService.invokeFunction(accessor => action.run(accessor));
+		const defaultSessions = calls.splice(0);
+		await instantiationService.invokeFunction(accessor => action.run(accessor, context));
+
+		assert.deepStrictEqual({ defaultSessions, displayedSessions: calls }, {
+			defaultSessions: ['ordinary'],
+			displayedSessions: ['ordinary', 'automation'],
+		});
 	});
 
 	test('completes and restores focused or selected side chats without changing their parent', async () => {

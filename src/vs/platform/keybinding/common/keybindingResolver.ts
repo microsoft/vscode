@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ContextKeyExpression, ContextKeyExprType, IContext, IContextKeyService, implies } from '../../contextkey/common/contextkey.js';
+import { IKeybindingAlias } from './keybindingsRegistry.js';
 import { ResolvedKeybindingItem } from './resolvedKeybindingItem.js';
 
 //#region resolution-result
@@ -172,6 +173,41 @@ export class KeybindingResolver {
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Binds the command of each alias to the keybindings of its source, right after them, so that it outranks the source
+	 * where the alias applies. The bindings are defaults of the alias's command, which the user can remove or rebind.
+	 * Removing a keybinding of the source removes the default keybindings of the alias's command at that key, but not
+	 * those inherited from the user's keybindings of the source, which may rebind that key.
+	 */
+	public static applyAliases(defaults: ResolvedKeybindingItem[], overrides: ResolvedKeybindingItem[], aliases: readonly IKeybindingAlias[]): { defaults: ResolvedKeybindingItem[]; overrides: ResolvedKeybindingItem[] } {
+		if (aliases.length === 0) {
+			return { defaults, overrides };
+		}
+
+		const inherit = (rules: ResolvedKeybindingItem[]) => {
+			const result: ResolvedKeybindingItem[] = [];
+			for (const rule of rules) {
+				result.push(rule);
+				for (const alias of aliases) {
+					if (rule.command === alias.source) {
+						result.push(new ResolvedKeybindingItem(rule.resolvedKeybinding, alias.command, undefined, alias.when, true, rule.extensionId, rule.isBuiltinExtension));
+					}
+				}
+			}
+			return result;
+		};
+
+		// A removal's when clause describes where the source applies, so it removes the alias's keybindings wherever the alias applies.
+		const sourceRemovals = defaults.concat(overrides).filter(rule => aliases.some(alias => rule.command === `-${alias.source}`));
+		const isRemovedWithSource = (rule: ResolvedKeybindingItem) => aliases.some(alias => rule.command === alias.command
+			&& sourceRemovals.some(removal => removal.command === `-${alias.source}` && KeybindingResolver._isTargetedForRemoval(rule, removal.chords, undefined)));
+
+		return {
+			defaults: inherit(defaults).filter(rule => !isRemovedWithSource(rule)),
+			overrides: inherit(overrides),
+		};
 	}
 
 	private _addKeyPress(keypress: string, item: ResolvedKeybindingItem): void {

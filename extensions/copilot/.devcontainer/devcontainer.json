@@ -19,7 +19,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"dbaeumer.vscode-eslint",
+				"oxc.oxc-vscode",
 				"esbenp.prettier-vscode",
 				"connor4312.esbuild-problem-matchers",
 				"GitHub.copilot@prerelease",

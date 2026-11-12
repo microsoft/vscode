@@ -28,6 +28,7 @@ import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type Ch
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
 import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
+import type { IModelRouterSituation } from './modelRouterSituation.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -234,12 +235,6 @@ export interface IAgentChatHistoryChange {
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
 
-/** Options for {@link IAgent.startChatDiscovery}. */
-export interface IAgentChatDiscoveryOptions {
-	/** The host's startup-frozen gate for publishing adoptable legacy chats. */
-	readonly migrateLegacyChats: boolean;
-}
-
 /** Lightweight ordered chat metadata for session-list presentation. */
 export interface IAgentSessionChatMetadata {
 	readonly chat: URI;
@@ -341,6 +336,15 @@ export interface IAgentPluginUninstallRequest {
 
 /** Provider-owned persisted installation, not a session-effective or client-provided plugin. */
 export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
+	/** Persisted user/global activation reported by the owning runtime. */
+	readonly enabled?: boolean;
+	/** Effective activation in the exact live chat; absent before that chat is initialized. */
+	readonly effectiveEnabled?: boolean;
+	readonly managedDesiredEnabled?: boolean;
+	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
+	readonly resource?: URI;
+	/** Host-owned installed-content revision; activation-only changes preserve it. */
+	readonly contentRevision?: string;
 	readonly version?: string;
 	readonly description?: string;
 	readonly verifiedSource?: { readonly repository: string; readonly revision: string };
@@ -349,7 +353,16 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 
 export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
 export type AgentExtensionSource = 'user' | 'project' | 'plugin';
-export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
+/**
+ * `dormant` is enabled and settled like `running`: the runtime advertises the
+ * extension's declared tools and canvases and starts the extension on first use.
+ */
+export type AgentExtensionStatus = 'running' | 'dormant' | 'disabled' | 'failed' | 'starting' | 'unknown';
+
+/** Whether an extension is enabled and settled, so its advertised tools and canvases are authoritative even before it starts. */
+export function isAgentExtensionEnabledAndSettled(status: AgentExtensionStatus): boolean {
+	return status === 'running' || status === 'dormant';
+}
 
 /** One executable extension discovered from the provider's persisted or session-effective inventory. */
 export interface IAgentExtensionInfo {
@@ -357,7 +370,7 @@ export interface IAgentExtensionInfo {
 	readonly name: string;
 	readonly resource?: URI;
 	readonly source: AgentExtensionSource;
-	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `failed`, or `starting`. */
+	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `dormant`, `failed`, or `starting`. */
 	readonly status: AgentExtensionStatus;
 	readonly pluginName?: string;
 }
@@ -1973,6 +1986,8 @@ export interface IAgentTurnModelRequest {
 	readonly previousTurns: readonly Turn[];
 	/** The turn's custom agent, whose own model can take the place of a router's pick. */
 	readonly agent?: AgentSelection;
+	/** Facts about the turn besides its message, such as what is attached. Never content. */
+	readonly situation?: IModelRouterSituation;
 }
 
 export interface IAgentTurnModelResolution {
@@ -2029,8 +2044,8 @@ export interface IAgent {
 	listPluginInstallations?(session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	/** Persists enablement for an installed plugin identified by its marketplace spec or direct source ID. */
-	setPluginEnabled?(plugin: string, enabled: boolean): Promise<void>;
+	/** Persists enablement at the requested scope, deriving the repository from the target chat. */
+	setPluginEnabled?(plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
@@ -2282,7 +2297,7 @@ export interface IAgent {
 	 * The host passes its own startup-frozen legacy-migration gate so discovery
 	 * and listing always agree on whether legacy chats are adoptable.
 	 */
-	startChatDiscovery?(options?: IAgentChatDiscoveryOptions): Promise<void>;
+	startChatDiscovery?(): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
@@ -2345,7 +2360,11 @@ export interface IAgent {
 
 	// ---- Authentication and diagnostics ------------------------------------
 
-	getProtectedResources(): ProtectedResourceMetadata[];
+	/** Advertised authentication resources; optional credentials are marked `required: false`. */
+	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
+
+	/** Reject unauthorized delivery before providers or the canonical credential store are mutated. */
+	validateAuthentication?(params: AuthenticateParams): void;
 
 	/** An empty token revokes the credential previously forwarded for this resource. Optional metadata carries client hints, not authorization. */
 	authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean>;

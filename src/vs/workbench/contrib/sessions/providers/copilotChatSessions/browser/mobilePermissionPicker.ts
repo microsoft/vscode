@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -17,6 +18,9 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { getPermissionLevelBadge } from '../../../../chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { IChatPhoneInputPresenter } from '../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { createChatPhoneInputSessionContext } from '../../../browser/chatPhoneInputContext.js';
 import { IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { isPhoneLayout } from '../../../../../browser/parts/sessions/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../browser/mobile/mobilePickerSheet.js';
@@ -33,6 +37,7 @@ const LEARN_MORE_ID = 'learn-more';
  * (e.g. user resized past the breakpoint after the picker rendered).
  */
 export class MobilePermissionPicker extends PermissionPicker {
+	private _configurationOpen = false;
 
 	constructor(
 		_delegate: IPermissionPickerDelegate,
@@ -45,6 +50,8 @@ export class MobilePermissionPicker extends PermissionPicker {
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
+		@ISessionHost private readonly _sessionHost: ISessionHost,
 	) {
 		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService, agentHostEnablementService);
 	}
@@ -54,7 +61,24 @@ export class MobilePermissionPicker extends PermissionPicker {
 	}
 
 	protected override _showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
+		if (!this._triggerElement || this._configurationOpen || this.actionWidgetService.isVisible || this._isResolving()) {
+			return;
+		}
+		if (this._phonePresenter.supportsUnifiedConfiguration) {
+			const trigger = this._triggerElement;
+			this._configurationOpen = true;
+			trigger.setAttribute('aria-expanded', 'true');
+			void this._phonePresenter.showCombinedModeAndModelSheet(trigger, {
+				kind: 'session',
+				getSessionContext: () => createChatPhoneInputSessionContext(this._sessionHost.session.get(), this._sessionHost.chat.get()),
+				initialSection: 'permissions',
+			}).finally(() => {
+				this._configurationOpen = false;
+				trigger.setAttribute('aria-expanded', 'false');
+				if (trigger.isConnected) {
+					trigger.focus();
+				}
+			}).catch(onUnexpectedError);
 			return;
 		}
 		if (!isPhoneLayout(this._layoutService)) {

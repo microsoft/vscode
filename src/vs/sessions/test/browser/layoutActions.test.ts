@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append, getActiveElement } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -15,14 +18,22 @@ import { ContextKeyExpr, ContextKeyValue, IContext } from '../../../platform/con
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
-import { LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsSessionsWindowContext, LayoutModeContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../base/common/keybindings.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
+import { KeybindingsRegistry } from '../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingResolver, ResultKind } from '../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { DesktopLayoutContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { TogglePanelAction } from '../../../workbench/browser/parts/panel/panelActions.js';
-import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { DesktopWorkbench } from '../../browser/desktopWorkbench.js';
 import { Menus } from '../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_FIXED_COLUMN_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
-import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 
@@ -51,7 +62,7 @@ await Promise.all([
 
 suite('Sessions - Layout Actions', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('offers shared layout density commands in the title bar menu and the desktop View > Appearance menu', () => {
 		const parents = [AgentsWindowMenus.TitleBarContext, MenuId.MenubarAppearanceMenu, MenuId.MenubarViewMenu].map(menu =>
@@ -103,6 +114,7 @@ suite('Sessions - Layout Actions', () => {
 				`2_workbench_layout: ${TOGGLE_PANEL_ACTION_ID}`,
 				`3_workbench_layout_move: submenu ${LayoutDensityMenu.id}`,
 				`3_workbench_layout_move: submenu ${MenuId.PanelAlignmentMenu.id}`,
+				`3_workbench_layout_move: submenu ${Menus.DetailsPosition.id}`,
 				'4_editor: breadcrumbs.toggle',
 				'4_editor: editor.action.toggleMinimap',
 				'4_editor: editor.action.toggleRenderControlCharacter',
@@ -113,6 +125,131 @@ suite('Sessions - Layout Actions', () => {
 				'undefined: workbench.action.alignPanelCenter',
 				'undefined: workbench.action.alignPanelJustify',
 			],
+		});
+	});
+
+	test('Cmd/Ctrl+B toggles the Agents window\'s side bar in its main window and nothing in a chat window, which has no side bar of its own, while it still toggles VS Code\'s', () => {
+		const keyOn = (os: OperatingSystem) => {
+			const rules = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+			const resolver = new KeybindingResolver(rules.flatMap(rule => rule.keybinding && rule.command
+				? USLayoutResolvedKeybinding.resolveKeybinding(rule.keybinding, os).map(resolved => new ResolvedKeybindingItem(resolved, rule.command, rule.commandArgs, rule.when ?? undefined, true, null, false))
+				: []), [], () => { });
+			const [key] = USLayoutResolvedKeybinding.resolveKeybinding(decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyB, os)!, os);
+			const resolve = (values: Record<string, ContextKeyValue>) => {
+				const result = resolver.resolve({ getValue: <T extends ContextKeyValue>(name: string) => values[name] as T | undefined }, [], key.getDispatchChords()[0]!);
+				return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+			};
+			const agentsWindow = { [IsSessionsWindowContext.key]: true, chatIsEnabled: true };
+			const vsCodeRule = rules.find(rule => rule.command === 'workbench.action.toggleSidebarVisibility')!;
+			return {
+				key: key.getUserSettingsLabel(),
+				agentsWindow: resolve(agentsWindow),
+				chatWindow: resolve({ ...agentsWindow, [IsAuxiliaryWindowContext.key]: true, [LayoutModeContext.key]: 'sideBySide' }),
+				// The Agents window's rule is not registered in VS Code, where VS Code's own rule claims the key
+				vsCodeWindow: vsCodeRule.when?.evaluate({ getValue: () => undefined }) !== false && vsCodeRule.keybinding?.getHashCode() === decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyB, os)!.getHashCode(),
+			};
+		};
+		const expected = (key: string) => ({ key, agentsWindow: 'workbench.action.agentToggleSidebarVisibility', chatWindow: undefined, vsCodeWindow: true });
+
+		assert.deepStrictEqual({
+			macOS: keyOn(OperatingSystem.Macintosh),
+			linux: keyOn(OperatingSystem.Linux),
+			windows: keyOn(OperatingSystem.Windows),
+		}, {
+			macOS: expected('cmd+b'),
+			linux: expected('ctrl+b'),
+			windows: expected('ctrl+b'),
+		});
+	});
+
+	test('Increase Current View Size targets floating tree and header focus rather than the containing editor', () => {
+		const root = append(mainWindow.document.body, $('div'));
+		store.add(toDisposable(() => root.remove()));
+		const editor = append(root, $('div'));
+		const details = append(editor, $('div'));
+		const tree = append(details, $('button'));
+		const header = append(editor, $('button'));
+		const text = append(editor, $('button'));
+		const host = {
+			partVisibility: { editor: true, auxiliaryBar: true },
+			isAuxiliaryBarFloating: () => true,
+			editorGroupService: { mainPart: { floatingDetails: { hasFocus: () => getActiveElement() === header } } },
+			getContainer: (_window: Window, part: Parts) => part === Parts.EDITOR_PART ? editor : part === Parts.AUXILIARYBAR_PART ? details : undefined,
+		};
+		Object.setPrototypeOf(host, DesktopWorkbench.prototype);
+		const hasFocus = Reflect.get(DesktopWorkbench.prototype, 'hasFocus') as (this: typeof host, part: Parts) => boolean;
+		const resized: Parts[] = [];
+		const layout = upcastPartial<IWorkbenchLayoutService>({
+			mainContainer: root, activeContainer: root,
+			hasFocus: part => hasFocus.call(host, part),
+			resizePart: part => { resized.push(part); },
+		});
+		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => layout as T });
+		const command = CommandsRegistry.getCommand('workbench.action.increaseViewSize');
+		assert.ok(command);
+		for (const target of [tree, header, text]) {
+			target.focus();
+			command.handler(accessor);
+		}
+		assert.deepStrictEqual(resized, [Parts.AUXILIARYBAR_PART, Parts.AUXILIARYBAR_PART, Parts.EDITOR_PART]);
+	});
+
+	test('offers floating alongside docked detail positions with only the active layout checked', async () => {
+		const configuration = new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				return this.setUserConfiguration(key, value);
+			}
+		}({ [SESSIONS_DETAILS_POSITION_SETTING]: 'right', [SESSIONS_FLOATING_DETAILS_SETTING]: false });
+		const accessor = upcastPartial<ServicesAccessor>({ get: <T>() => configuration as T });
+		const options = MenuRegistry.getMenuItems(Menus.DetailsPosition).filter(isIMenuItem).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+		const checked = () => {
+			const values: Record<string, ContextKeyValue> = {
+				[`config.${SESSIONS_DETAILS_POSITION_SETTING}`]: configuration.getValue(SESSIONS_DETAILS_POSITION_SETTING),
+				[`config.${SESSIONS_FLOATING_DETAILS_SETTING}`]: configuration.getValue(SESSIONS_FLOATING_DETAILS_SETTING),
+			};
+			const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
+			return options.filter(item => {
+				const toggled = item.command.toggled;
+				return toggled && (hasKey(toggled, { condition: true }) ? toggled.condition : toggled).evaluate(context);
+			}).map(item => item.command.id);
+		};
+		await CommandsRegistry.getCommand('workbench.action.agentSessions.detailsPosition.top')!.handler(accessor);
+		const top = checked();
+		await CommandsRegistry.getCommand('workbench.action.agentSessions.detailsPosition.bottom')!.handler(accessor);
+		const bottom = checked();
+		await CommandsRegistry.getCommand('workbench.action.agentSessions.toggleFloatingDetails')!.handler(accessor);
+		const enabled = [configuration.getValue(SESSIONS_DETAILS_POSITION_SETTING), configuration.getValue(SESSIONS_FLOATING_DETAILS_SETTING)];
+		const floating = checked();
+		await CommandsRegistry.getCommand('workbench.action.agentSessions.detailsPosition.left')!.handler(accessor);
+		const left = { checked: checked(), floating: configuration.getValue(SESSIONS_FLOATING_DETAILS_SETTING) };
+		await CommandsRegistry.getCommand('workbench.action.agentSessions.detailsPosition.right')!.handler(accessor);
+		assert.deepStrictEqual({
+			enabled,
+			top, bottom, floating, left, right: checked(),
+			reset: [configuration.getValue(SESSIONS_DETAILS_POSITION_SETTING), configuration.getValue(SESSIONS_FLOATING_DETAILS_SETTING)],
+			options: options.map(item => item.command.id),
+			menuLabels: options.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
+			paletteLabels: options.map(item => {
+				const title = MenuRegistry.getCommand(item.command.id)!.title;
+				return typeof title === 'string' ? title : title.value;
+			}),
+			separateEntries: [AgentsWindowMenus.TitleBarContext, Menus.SessionsEditorTitle, MenuId.MenubarAppearanceMenu].flatMap(menu =>
+				MenuRegistry.getMenuItems(menu).filter(isIMenuItem).filter(item => item.command.id === 'workbench.action.agentSessions.toggleFloatingDetails')),
+		}, {
+			enabled: ['bottom', true],
+			top: ['workbench.action.agentSessions.detailsPosition.top'],
+			bottom: ['workbench.action.agentSessions.detailsPosition.bottom'],
+			floating: ['workbench.action.agentSessions.toggleFloatingDetails'],
+			left: { checked: ['workbench.action.agentSessions.detailsPosition.left'], floating: false },
+			right: ['workbench.action.agentSessions.detailsPosition.right'],
+			reset: ['right', false],
+			options: [
+				...['top', 'bottom', 'left', 'right'].map(position => `workbench.action.agentSessions.detailsPosition.${position}`),
+				'workbench.action.agentSessions.toggleFloatingDetails',
+			],
+			menuLabels: ['Above Editor', 'Below Editor', 'Left', 'Right', 'Floating'],
+			paletteLabels: ['Move Details Above Editor', 'Move Details Below Editor', 'Move Details Left', 'Move Details Right', 'Floating Details Panel'],
+			separateEntries: [],
 		});
 	});
 
@@ -235,6 +372,9 @@ suite('Sessions - Layout Actions', () => {
 		const scenarios: Record<string, Record<string, ContextKeyValue>> = {
 			layoutActions: base,
 			layoutActionsOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false },
+			docked: { ...base, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: false, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
+			dockedActivityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
+			dockedEditorMaximized: { ...base, editorMaximized: true, [`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`]: true },
 			activityBarOff: { ...base, [`config.${SESSION_ACTIVITY_BAR_SETTING}`]: false },
 			// The activity bar is hidden with the Sessions part while the editor is maximized, and in the phone layout.
 			editorMaximized: { ...base, editorMaximized: true },
@@ -251,6 +391,9 @@ suite('Sessions - Layout Actions', () => {
 			placement: {
 				layoutActions: ['activityBar'],
 				layoutActionsOff: ['titleBar'],
+				docked: [],
+				dockedActivityBarOff: ['titleBar'],
+				dockedEditorMaximized: ['titleBar'],
 				activityBarOff: ['titleBar'],
 				editorMaximized: ['titleBar'],
 				// The phone layout has its own panel controls.
@@ -294,7 +437,6 @@ suite('Sessions - Layout Actions', () => {
 				order: item.order,
 				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 				hasToggledState: Boolean(item.command.toggled),
-				when: item.when?.serialize(),
 			}))
 			.sort((a, b) => (a.icon ?? '').localeCompare(b.icon ?? ''));
 
@@ -310,15 +452,12 @@ suite('Sessions - Layout Actions', () => {
 					order: 10,
 					icon: Codicon.layoutPanel.id,
 					hasToggledState: false,
-					// Hidden while the Session Activity Bar shows its layout actions.
-					when: 'editorMaximized && panelVisible && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !agentSessionsDesktopLayout && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || panelVisible && !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 				{
 					group: 'navigation',
 					order: 10,
 					icon: Codicon.layoutPanelOff.id,
 					hasToggledState: false,
-					when: 'editorMaximized && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !agentSessionsDesktopLayout && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.sessionActivityBar.showLayoutActions && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible || !config.sessions.showSessionActivityBar && !isAuxiliaryWindow && !panelVisible && !sessionsIsPhoneLayout && !sessionsWelcomeVisible',
 				},
 			],
 			terminalActionPresent: false,

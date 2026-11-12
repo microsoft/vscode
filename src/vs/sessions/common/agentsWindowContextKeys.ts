@@ -5,7 +5,7 @@
 
 import { localize } from '../../nls.js';
 import { ContextKeyExpr, RawContextKey } from '../../platform/contextkey/common/contextkey.js';
-import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../workbench/contrib/sessions/common/sessionConfig.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
 
 /*
@@ -31,7 +31,6 @@ export const ActiveSessionCanvasReferenceContext = new RawContextKey<string>('ac
 //#region < --- Custom View Grid --- >
 
 export const CustomViewVisibleContext = new RawContextKey<boolean>('customViewVisible', false, localize('customViewVisible', "Whether a custom view is shown in place of the sessions grid. The side panel and the panel are hidden while it is."));
-export const InboxCanvasFocusContext = new RawContextKey<boolean>('inboxCanvasFocus', false, localize('inboxCanvasFocus', "Whether the Inbox canvas has keyboard focus"));
 export const AutomationsCustomViewFocusContext = new RawContextKey<boolean>('automationsCustomViewFocus', false, localize('automationsCustomViewFocus', "Whether the Automations custom view has keyboard focus"));
 export const AutomationsHasItemsContext = new RawContextKey<boolean>('automationsHasItems', false, localize('automationsHasItems', "Whether there is at least one automation"));
 
@@ -69,6 +68,15 @@ export const DesktopFilesTabAvailableContext = new RawContextKey<boolean>('agent
 //#region < --- Mobile Layout --- >
 
 export const KeyboardVisibleContext = new RawContextKey<boolean>('sessionsKeyboardVisible', false, localize('sessionsKeyboardVisible', "Whether the virtual keyboard is visible"));
+
+/** Whether the docked Session Activity Bar makes the title bar's panel toggles redundant. */
+export const SessionActivityBarDockedContext = ContextKeyExpr.and(
+	DesktopLayoutContext,
+	IsPhoneLayoutContext.negate(),
+	EditorMaximizedContext.negate(),
+	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+	ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING}`, true),
+)!;
 
 /**
  * Whether the desktop layout shows the Session Activity Bar with its layout actions. It then hosts
