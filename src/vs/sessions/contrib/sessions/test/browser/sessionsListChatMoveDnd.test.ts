@@ -1270,6 +1270,26 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 		});
 	});
 
+	test('after a same-session reorder, the list reveals the moved chat at its new position below the view', async () => {
+		const own = listSession('Own', ['a', 'b', 'c', 'd', 'e']);
+		const list = render([own], { height: 180, simulateMoves: true });
+		list.setExpanded('Own', true);
+		await settle();
+		const lastShownBefore = list.rendered().rows.includes('e');
+
+		await list.dragOver('a', 'Own', 0.5).drop();
+		await settle();
+		const after = list.rendered();
+
+		assert.deepStrictEqual({ lastShownBefore, moves: list.moves, movedShown: after.rows.includes('a'), focused: after.focused, selected: after.selected }, {
+			lastShownBefore: false,
+			moves: ['a -> Own after e'],
+			movedShown: true,
+			focused: ['a'],
+			selected: [],
+		});
+	});
+
 	test('after a move, the selection stays on the open chat, which is not the one the list reveals and focuses', async () => {
 		const open = listSession('Open', []);
 		const single = listSession('Single', [], listChat('Moved'));
