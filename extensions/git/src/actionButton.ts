@@ -163,10 +163,16 @@ export class ActionButton {
 
 		// Not a branch (tag, detached)
 		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name) {
+			const hasStagedChanges = this.repository.indexGroup.resourceStates.length > 0;
+			const hasUnstagedChanges = this.repository.workingTreeGroup.resourceStates.length > 0;
+			const isStagedCommit = hasStagedChanges && hasUnstagedChanges;
+
 			return {
 				command: 'git.commit',
-				title: l10n.t('{0} Commit', '$(check)'),
-				tooltip: this.state.isCommitInProgress ? l10n.t('Committing Changes...') : l10n.t('Commit Changes'),
+				title: isStagedCommit ? l10n.t('{0} Commit Staged', '$(check)') : l10n.t('{0} Commit', '$(check)'),
+				tooltip: this.state.isCommitInProgress
+					? isStagedCommit ? l10n.t('Committing Staged Changes...') : l10n.t('Committing Changes...')
+					: isStagedCommit ? l10n.t('Commit Staged Changes') : l10n.t('Commit Changes'),
 				arguments: [this.repository.sourceControl, null]
 			};
 		}
