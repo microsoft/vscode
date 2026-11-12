@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ILifecycleService, LifecyclePhase, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
@@ -105,7 +106,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const resumeProgressOptionsTitle = `[${localize('resuming working changes window', 'Resuming working changes...')}](command:${showOutputChannelCommand.id})`;
+const resumeProgressOptionsTitle = NotificationText.link(localize('resuming working changes window', 'Resuming working changes...'), `command:${showOutputChannelCommand.id}`);
 const resumeProgressOptions = {
 	location: ProgressLocation.Window,
 	type: 'syncing',

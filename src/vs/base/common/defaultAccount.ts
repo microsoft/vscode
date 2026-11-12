@@ -44,6 +44,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
 	readonly token_based_billing?: boolean;
 	readonly can_upgrade_plan?: boolean;
+	readonly cloud_sessions_enabled?: boolean;
 	readonly cloud_session_storage_enabled?: boolean;
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotData;
@@ -72,9 +73,9 @@ export interface IPolicyData {
 	readonly managedSettings?: ManagedSettingsData;
 
 	/**
-	 * Whether at least one managed-settings delivery channel currently supplies a setting — i.e.
-	 * the user is governed by GitHub Copilot managed settings at all, independent of which keys
-	 * were set.
+	 * Whether at least one managed-settings delivery channel currently contributes governance.
+	 * The Local-only `vscode.temporaryAllowLocalHarness` key does not contribute to this flag;
+	 * other settings retain presence-based governance.
 	 *
 	 * Unlike {@link managedSettings}, this also reflects structured runtime-owned keys that the
 	 * policy projection does not retain.
@@ -85,6 +86,7 @@ export interface IPolicyData {
 export interface ICopilotTokenInfo {
 	readonly sn?: string;
 	readonly fcv1?: string;
+	readonly st?: string;
 }
 
 export interface IDefaultAccountAuthenticationProvider {

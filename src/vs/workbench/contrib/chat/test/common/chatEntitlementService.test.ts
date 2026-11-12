@@ -13,7 +13,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getChatEntitlement, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind, SIMULATABLE_CHAT_ENTITLEMENTS, simulateEntitlementsData } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
@@ -554,6 +554,43 @@ suite('getQuotaReset', () => {
 	});
 });
 
+suite('simulateEntitlementsData', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('every simulated entitlement resolves to itself and keeps the account identity', () => {
+		const actual: IEntitlementsData = {
+			access_type_sku: 'copilot_enterprise_seat_quota',
+			chat_enabled: true,
+			assigned_date: '2026-04-17T12:53:45-07:00',
+			can_signup_for_limited: false,
+			copilot_plan: 'enterprise',
+			organization_login_list: ['microsoft'],
+			is_staff: true,
+			analytics_tracking_id: 'tracking-id',
+		};
+
+		const simulated = SIMULATABLE_CHAT_ENTITLEMENTS.map(entitlement => {
+			const data = simulateEntitlementsData(entitlement, actual);
+			const quotas = parseQuotas(data);
+			return { entitlement: getChatEntitlement(data), organisations: data.organization_login_list, isStaff: data.is_staff, trackingId: data.analytics_tracking_id, limitedChat: quotas.chat?.unlimited === false, premiumChat: quotas.premiumChat !== undefined };
+		});
+
+		const expected = (entitlement: ChatEntitlement, limitedChat: boolean, premiumChat: boolean) => ({ entitlement, organisations: ['microsoft'], isStaff: true, trackingId: 'tracking-id', limitedChat, premiumChat });
+		assert.deepStrictEqual(simulated, [
+			expected(ChatEntitlement.Available, false, false),
+			expected(ChatEntitlement.Unavailable, false, false),
+			expected(ChatEntitlement.Free, true, false),
+			expected(ChatEntitlement.EDU, false, true),
+			expected(ChatEntitlement.Pro, false, true),
+			expected(ChatEntitlement.ProPlus, false, true),
+			expected(ChatEntitlement.Max, false, true),
+			expected(ChatEntitlement.Business, false, true),
+			expected(ChatEntitlement.Enterprise, false, true),
+		]);
+	});
+});
+
 suite('ChatEntitlementService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -586,6 +623,52 @@ suite('ChatEntitlementService', () => {
 			afterNoChange: ['remaining'],
 		});
 	});
+
+	const availabilityChanges: { name: string; before: ChatEntitlementService['quotas']; after: ChatEntitlementService['quotas'] }[] = [
+		{
+			name: 'additional usage permission',
+			before: { premiumChat: { percentRemaining: 0, unlimited: false }, additionalUsageEnabled: true },
+			after: { premiumChat: { percentRemaining: 0, unlimited: false }, additionalUsageEnabled: false },
+		},
+		{
+			name: 'pooled allowance availability',
+			before: { premiumChat: { percentRemaining: 100, unlimited: true, hasQuota: true } },
+			after: { premiumChat: { percentRemaining: 100, unlimited: true, hasQuota: false } },
+		},
+		{
+			name: 'premium allowance becomes limited',
+			before: { premiumChat: { percentRemaining: 0, unlimited: true } },
+			after: { premiumChat: { percentRemaining: 0, unlimited: false } },
+		},
+		{
+			name: 'session rate limit becomes limited',
+			before: { sessionRateLimit: { percentRemaining: 0, unlimited: true } },
+			after: { sessionRateLimit: { percentRemaining: 0, unlimited: false } },
+		},
+		{
+			name: 'weekly rate limit becomes limited',
+			before: { weeklyRateLimit: { percentRemaining: 0, unlimited: true } },
+			after: { weeklyRateLimit: { percentRemaining: 0, unlimited: false } },
+		},
+	];
+	for (const { name, before, after } of availabilityChanges) {
+		test(`signals quota availability changes without a percentage change: ${name}`, () => {
+			const service = createService();
+			service.acceptQuotas(before);
+			let changes = 0;
+			store.add(service.onDidChangeQuotaRemaining(() => changes++));
+
+			service.acceptQuotas(after);
+			const afterChange = changes;
+			service.acceptQuotas(after);
+			const afterIdenticalSnapshot = changes;
+			service.acceptQuotas(before);
+
+			assert.deepStrictEqual({ afterChange, afterIdenticalSnapshot, afterRecovery: changes }, {
+				afterChange: 1, afterIdenticalSnapshot: 1, afterRecovery: 2,
+			});
+		});
+	}
 
 	test('merges defined snapshot fields until the snapshot is removed', () => {
 		const service = createService();

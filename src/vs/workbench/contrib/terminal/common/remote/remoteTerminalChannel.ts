@@ -127,7 +127,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		shouldPersistTerminal: boolean,
 		cols: number,
 		rows: number,
-		unicodeVersion: '6' | '11'
+		unicodeVersion: '6' | '11',
+		os: OperatingSystem
 	): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
@@ -149,8 +150,10 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		}
 
 		const envVariableCollections: ITerminalEnvironmentVariableCollections = [];
-		for (const [k, v] of this._environmentVariableService.collections.entries()) {
-			envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map), serializeEnvironmentDescriptionMap(v.descriptionMap)]);
+		if (options.environmentVariableCollections !== undefined) {
+			for (const [k, v] of this._environmentVariableService.getMergedCollection(this._remoteAuthority, os).collections.entries()) {
+				envVariableCollections.push([k, serializeEnvironmentVariableCollection(v.map), serializeEnvironmentDescriptionMap(v.descriptionMap)]);
+			}
 		}
 
 		const resolverResult = await this._remoteAuthorityResolverService.resolveAuthority(this._remoteAuthority);
@@ -326,11 +329,11 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 
 	// #region Pty service contribution RPC calls
 
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.InstallAutoReply, [match, reply]);
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.InstallAutoReply, [match, reply, ownerId]);
 	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.UninstallAllAutoReplies, []);
+	uninstallAllAutoReplies(ownerId: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.UninstallAllAutoReplies, [ownerId]);
 	}
 
 	// #endregion

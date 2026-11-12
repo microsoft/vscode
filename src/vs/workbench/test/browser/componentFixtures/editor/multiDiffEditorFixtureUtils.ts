@@ -10,12 +10,13 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { MultiDiffEditorVariant } from '../../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorOptions.js';
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import type { MultiDiffEditorVariant } from '../../../../../editor/common/multiDiffEditor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ResourceLabel } from '../../../../browser/labels.js';
@@ -24,7 +25,7 @@ import { INotebookDocumentService } from '../../../../services/notebook/common/n
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, registerWorkbenchServices } from '../fixtureUtils.js';
 
-class FixtureWorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
+export class FixtureWorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
@@ -118,19 +119,58 @@ export function createMultiDiffEditorFixtureServices(disposableStore: Disposable
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
 			reg.definePartialInstance(INotebookDocumentService, { getNotebook: () => undefined });
+			reg.define(IListService, ListService);
 			registerWorkbenchServices(reg);
 		},
 	});
 }
 
-export function createMultiDiffEditorFixtureWidget(instantiationService: IInstantiationService, container: HTMLElement, diffEditorOptions?: IDiffEditorOptions) {
+export function createMultiDiffEditorFixtureWidget(
+	instantiationService: IInstantiationService,
+	container: HTMLElement,
+	diffEditorOptions?: IDiffEditorOptions,
+	variant: MultiDiffEditorVariant = 'noCards',
+) {
 	const uiFactory = instantiationService.createInstance(FixtureWorkbenchUIElementFactory);
 	return instantiationService.createInstance(
 		MultiDiffEditorWidget,
 		container,
 		uiFactory,
-		{ variant: MultiDiffEditorVariant.Compact, diffEditorOptions },
+		{
+			variant,
+			diffEditorOptions,
+		},
 	);
+}
+
+export interface IMultiDiffEditorFixtureDocumentSide {
+	readonly uri: string;
+	readonly text?: string;
+}
+
+export function createMultiDiffEditorFixtureDocument(
+	instantiationService: TestInstantiationService,
+	textModels: DisposableStore,
+	sides: {
+		readonly original?: IMultiDiffEditorFixtureDocumentSide;
+		readonly modified?: IMultiDiffEditorFixtureDocumentSide;
+		readonly languageId?: string;
+	}
+): RefCounted<IDocumentDiffItem> {
+	const createSource = (side: IMultiDiffEditorFixtureDocumentSide | undefined): DiffItemSource | undefined => {
+		if (!side) {
+			return undefined;
+		}
+		const uri = URI.parse(side.uri);
+		const model = side.text === undefined
+			? undefined
+			: textModels.add(createTextModel(instantiationService, side.text, uri, sides.languageId ?? 'typescript'));
+		return new DiffItemSource(uri, model);
+	};
+	return RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		original: createSource(sides.original),
+		modified: createSource(sides.modified),
+	}, { dispose() { } });
 }
 
 export function createMultiDiffEditorFixtureDocuments(instantiationService: TestInstantiationService, textModels: DisposableStore) {

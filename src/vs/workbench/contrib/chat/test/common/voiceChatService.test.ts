@@ -6,12 +6,12 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
-import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
+import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, IVoiceLiveSessionProvider, IVoiceLiveSessionResult, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider, UserSelectedTools } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatFollowup, IChatProgress } from '../../common/chatService/chatService.js';
@@ -112,6 +112,8 @@ suite('VoiceChat', () => {
 		readonly hasActiveKeywordRecognition = false;
 
 		registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable { throw new Error('Method not implemented.'); }
+		registerVoiceLiveSessionProvider(identifier: string, provider: IVoiceLiveSessionProvider): IDisposable { throw new Error('Method not implemented.'); }
+		createVoiceLiveSession(): Promise<IVoiceLiveSessionResult | undefined> { throw new Error('Method not implemented.'); }
 		onDidStartSpeechToTextSession = Event.None;
 		onDidEndSpeechToTextSession = Event.None;
 
@@ -136,7 +138,7 @@ suite('VoiceChat', () => {
 		recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> { throw new Error('Method not implemented.'); }
 	}
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let emitter: Emitter<ISpeechToTextEvent>;
 
 	let service: VoiceChatService;
@@ -154,10 +156,6 @@ suite('VoiceChat', () => {
 	setup(() => {
 		emitter = disposables.add(new Emitter<ISpeechToTextEvent>());
 		service = disposables.add(new VoiceChatService(new TestSpeechService(), new TestChatAgentService(), new MockContextKeyService()));
-	});
-
-	teardown(() => {
-		disposables.clear();
 	});
 
 	test('Agent and slash command detection (useAgents: false)', async () => {
@@ -374,5 +372,4 @@ suite('VoiceChat', () => {
 		assert.strictEqual(event.waitingForInput, true);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

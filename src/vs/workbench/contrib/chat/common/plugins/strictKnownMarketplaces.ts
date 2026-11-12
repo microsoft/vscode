@@ -9,14 +9,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference } from './marketplaceReference.js';
 
 /**
- * The allowlist entry type for `chat.plugins.strictMarketplaces`. Re-exported
+ * The allowlist entry type for managed `strictKnownMarketplaces`. Re-exported
  * from `base/common` so chat plugin code can import it alongside the matcher it
  * operates with; the same type is consumed by the managed-settings adapter.
  */
 export type { IStrictMarketplaceSource };
 
 /**
- * The value of the `chat.plugins.strictMarketplaces` allowlist.
+ * The value of the managed `strictKnownMarketplaces` allowlist.
  * - `undefined`: no restrictions — all marketplaces are allowed.
  * - `[]`: complete lockdown — no marketplace is allowed.
  * - non-empty array: only marketplaces matching an entry are allowed.
@@ -24,12 +24,8 @@ export type { IStrictMarketplaceSource };
 export type StrictKnownMarketplaces = readonly IStrictMarketplaceSource[];
 
 /**
- * Coerces a resolved configuration value into a {@link StrictKnownMarketplaces}
- * allowlist. Returns `undefined` (meaning "no restrictions") when the value is
- * not an array — which is also how an unset policy surfaces (the registered
- * `null` default). Malformed entries (non-objects or entries without a string
- * `source`) are dropped so a bad managed-settings payload degrades to "no match"
- * rather than throwing during matching.
+ * Validates a decoded managed allowlist, dropping malformed entries.
+ * Non-array values mean no restrictions; an empty array blocks all marketplaces.
  */
 export function getStrictKnownMarketplaces(value: unknown): StrictKnownMarketplaces | undefined {
 	if (!Array.isArray(value)) {

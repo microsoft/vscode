@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from './errors.js';
 import { Emitter, Event } from './event.js';
 import { DisposableStore, IDisposable } from './lifecycle.js';
 
@@ -55,6 +56,31 @@ export namespace CancellationToken {
 		isCancellationRequested: true,
 		onCancellationRequested: shortcutEvent
 	});
+
+	/**
+	 * Creates a CancellationToken that is tied to the lifetime of the provided AbortSignal.
+	 */
+	export function fromAbortSignal(signal: AbortSignal, lifetime: DisposableStore): CancellationToken {
+		if (signal.aborted) {
+			return CancellationToken.Cancelled;
+		}
+		const token = lifetime.add(new MutableToken());
+		lifetime.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => token.cancel()));
+		return token;
+	}
+
+	/** Creates an AbortSignal that aborts with CancellationError when the token is cancelled. */
+	export const toAbortSignal = (token: CancellationToken, lifetime: DisposableStore): AbortSignal => {
+		if (token === CancellationToken.None) {
+			return new AbortController().signal;
+		}
+		if (token.isCancellationRequested) {
+			return AbortSignal.abort(new CancellationError());
+		}
+		const controller = new AbortController();
+		lifetime.add(token.onCancellationRequested(() => controller.abort(new CancellationError())));
+		return controller.signal;
+	};
 }
 
 class MutableToken implements CancellationToken {
@@ -145,6 +171,13 @@ export function cancelOnDispose(store: DisposableStore): CancellationToken {
 	const source = new CancellationTokenSource();
 	store.add({ dispose() { source.cancel(); } });
 	return source.token;
+}
+
+/** Creates an AbortSignal that aborts with CancellationError when the store is disposed. */
+export function abortOnDispose(store: DisposableStore): AbortSignal {
+	const controller = new AbortController();
+	store.add({ dispose() { controller.abort(new CancellationError()); } });
+	return controller.signal;
 }
 
 /**

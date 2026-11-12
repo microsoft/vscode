@@ -102,6 +102,8 @@ export const ChatPasteAttachmentMetadata = {
 	FileName: 'vscode.chat.attachment.fileName',
 	PastedLines: 'vscode.chat.attachment.pastedLines',
 	TextArtifact: 'vscode.chat.attachment.textArtifact',
+	/** Preserves explicit-file sendability when its content is snapshotted as text. */
+	FileSnapshot: 'vscode.chat.attachment.fileSnapshot',
 } as const;
 
 const ChatTranscriptContextMetadataKey = 'vscode.chat.transcriptContext';
@@ -567,6 +569,8 @@ export interface IChatRequestDebugEventsVariableEntry extends IBaseChatRequestVa
 	readonly sessionResource: URI;
 }
 
+export const ChatSessionReferenceVariableId = 'vscode.sessionReference';
+
 export interface IChatRequestSessionReferenceVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'sessionReference';
 	readonly value: URI;
@@ -727,6 +731,21 @@ export function chatReferenceVariableEntryFromDynamicValue(value: IChatReference
 	};
 }
 
+/**
+ * A link to an agent session in the chat input, which its inline attachment
+ * pill shows as the session's title and status. The pill is derived from the
+ * link's text and is not attached to the request: the prompt keeps the link.
+ */
+export interface IChatRequestSessionLinkVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'sessionLink';
+	/** The `agent-host-session://` link that opens the session, which the link in the input carries. */
+	readonly value: URI;
+}
+
+export function isSessionLinkVariableEntry(entry: IChatRequestVariableEntry): entry is IChatRequestSessionLinkVariableEntry {
+	return entry.kind === 'sessionLink';
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
@@ -735,7 +754,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
 	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry | IChatRequestChatReferenceVariableEntry
-	| IChatRequestTranscriptContextVariableEntry;
+	| IChatRequestTranscriptContextVariableEntry | IChatRequestSessionLinkVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -877,8 +896,9 @@ export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IIm
 	return obj.kind === 'image';
 }
 
-export function isExplicitFileOrImageVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry | IChatRequestDirectoryEntry | IImageVariableEntry {
-	return obj.kind === 'file' || obj.kind === 'directory' || obj.kind === 'image';
+export function isExplicitFileOrImageVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry | IChatRequestDirectoryEntry | IImageVariableEntry | IChatRequestPasteVariableEntry {
+	return obj.kind === 'file' || obj.kind === 'directory' || obj.kind === 'image'
+		|| (isPasteVariableEntry(obj) && obj._meta?.[ChatPasteAttachmentMetadata.FileSnapshot] === true);
 }
 
 export function getExplicitFileOrImageAttachmentSummary(entries: readonly IChatRequestVariableEntry[]): string | undefined {

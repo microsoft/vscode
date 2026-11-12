@@ -80,6 +80,7 @@ export interface IJSONSchema {
 	patternErrorMessage?: string;
 	deprecationMessage?: string;
 	markdownDeprecationMessage?: string;
+	deprecationMessageSeverity?: 'warning' | 'info';
 	enumDescriptions?: string[];
 	markdownEnumDescriptions?: string[];
 	markdownDescription?: string;
@@ -247,7 +248,7 @@ export function getCompressedContent(schema: IJSONSchema): string {
 	// this will add new items to the definitions array
 	const str = stringify(schema);
 
-	// now stringify the definitions. Each invication of stringify cann add new items to the definitions array, so the length can grow while we iterate
+	// now stringify the definitions. Each invocation of stringify can add new items to the definitions array, so the length can grow while we iterate
 	const defStrings: string[] = [];
 	for (let i = 0; i < definitions.length; i++) {
 		defStrings.push(`"_${i}":${stringify(definitions[i])}`);
@@ -327,4 +328,3 @@ function traverseNodes(root: IJSONSchema, visit: (schema: IJSONSchema) => boolea
 		next = toWalk.pop();
 	}
 }
-

@@ -1,0 +1,301 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.create-pull-request-widget {
+	width: 460px;
+	max-width: calc(100vw - 32px);
+	max-height: calc(100vh - 48px);
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	color: var(--vscode-editorWidget-foreground);
+	background: var(--vscode-editorWidget-background);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-lg);
+	font-size: var(--vscode-fontSize-body1);
+	overflow: hidden;
+}
+
+.create-pull-request-widget .create-pr-header,
+.create-pull-request-widget .create-pr-body,
+.create-pull-request-widget .create-pr-footer {
+	padding: var(--vscode-spacing-size160);
+}
+
+.create-pull-request-widget .create-pr-header {
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+}
+
+.create-pull-request-widget .create-pr-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.create-pull-request-widget .create-pr-heading > .codicon,
+.create-pull-request-widget .create-pr-heading-separator,
+.create-pull-request-widget .create-pr-branches > .codicon {
+	flex-shrink: 0;
+}
+
+.create-pull-request-widget h2 {
+	flex-shrink: 0;
+	min-width: 0;
+	max-width: 65%;
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.create-pull-request-widget .create-pr-repository-context {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+}
+
+.create-pull-request-widget .create-pr-repository,
+.create-pull-request-widget .create-pr-branches,
+.create-pull-request-widget .create-pr-branches-loading {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.create-pull-request-widget .create-pr-repository,
+.create-pull-request-widget .create-pr-branches > .monaco-icon-label,
+.create-pull-request-widget .create-pr-branches-loading {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.create-pull-request-widget .create-pr-branches {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.create-pull-request-widget .create-pr-branches,
+.create-pull-request-widget .create-pr-branches-loading {
+	margin-left: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size80));
+}
+
+.create-pull-request-widget .create-pr-base-branch {
+	max-width: 45%;
+}
+
+.create-pull-request-widget > .monaco-scrollable-element {
+	min-height: 0;
+}
+
+.create-pull-request-widget .create-pr-body {
+	overflow: hidden;
+	max-height: max(120px, calc(100vh - 240px));
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size160);
+	box-sizing: border-box;
+}
+
+.create-pull-request-widget .create-pr-field,
+.create-pull-request-widget .create-pr-option-text {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.create-pull-request-widget .create-pr-label {
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.create-pull-request-widget .create-pr-field-label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-height: var(--vscode-spacing-size160);
+}
+
+.create-pull-request-widget .create-pr-field-label > .codicon {
+	flex-shrink: 0;
+	margin-left: auto;
+	color: var(--vscode-descriptionForeground);
+}
+
+.create-pull-request-widget .monaco-inputbox {
+	width: 100%;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.create-pull-request-widget .monaco-inputbox > .ibwrapper > .input {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+}
+
+.create-pull-request-widget .create-pr-description-field .monaco-inputbox,
+.create-pull-request-widget .create-pr-description-field textarea {
+	min-height: 112px;
+}
+
+.create-pull-request-widget .create-pr-hint {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+}
+
+.create-pull-request-widget .create-pr-generation {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+	margin-top: calc(-1 * var(--vscode-spacing-size80));
+}
+
+.create-pull-request-widget .create-pr-generation > .codicon {
+	flex-shrink: 0;
+}
+
+.create-pull-request-widget .create-pr-generation-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.create-pull-request-widget .create-pr-generation > .monaco-button {
+	width: auto;
+}
+
+.create-pull-request-widget .create-pr-draft {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.create-pull-request-widget .create-pr-draft > .monaco-checkbox {
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.create-pull-request-widget .create-pr-option-text {
+	cursor: pointer;
+}
+
+.create-pull-request-widget .create-pr-agent-merge {
+	gap: var(--vscode-spacing-size80);
+}
+
+.create-pull-request-widget .create-pr-agent-merge-actions {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.create-pull-request-widget .create-pr-agent-merge-option {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+}
+
+.create-pull-request-widget .create-pr-agent-merge-option:last-child {
+	grid-column: 1 / -1;
+}
+
+.create-pull-request-widget .create-pr-agent-merge-option > .monaco-checkbox {
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.create-pull-request-widget .create-pr-agent-merge-label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+}
+
+.create-pull-request-widget .create-pr-agent-merge-label-text {
+	cursor: pointer;
+}
+
+.create-pull-request-widget .create-pr-agent-merge-info.codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	cursor: help;
+}
+
+.create-pull-request-widget .monaco-custom-radio {
+	width: 100%;
+}
+
+.create-pull-request-widget .monaco-custom-radio > .monaco-button {
+	flex: 1;
+	padding: var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+}
+
+.create-pull-request-widget .create-pr-error {
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.create-pull-request-widget .create-pr-footer {
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+}
+
+.create-pull-request-widget .create-pr-buttons {
+	display: flex;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.create-pull-request-widget .create-pr-buttons > .monaco-button {
+	width: auto;
+	min-width: 80px;
+}
+
+.create-pull-request-widget .create-pr-buttons > .monaco-button-dropdown {
+	max-width: 100%;
+}
+
+.create-pull-request-widget .create-pr-buttons .create-pr-submit {
+	width: auto;
+	min-width: 80px;
+}
+
+.create-pull-request-widget .create-pr-buttons .monaco-dropdown-button {
+	width: auto;
+	flex-shrink: 0;
+}
+
+.create-pull-request-widget [hidden] {
+	display: none;
+}

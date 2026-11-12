@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -13,7 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatResponseViewModel, IChatViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../../contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -40,7 +41,8 @@ class AnnounceChatConfirmationAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const pendingWidget = chatWidgetService.getAllWidgets().find(widget => widget.viewModel?.model.requestNeedsInput.get());
+		const pendingWidget = chatWidgetService.getAllWidgets().find(widget =>
+			widget.viewModel?.model.requestNeedsInput.get() || getPendingMcpAuthenticationResponse(widget.viewModel));
 
 		if (!pendingWidget) {
 			alert(localize('noChatSession', 'No active chat session found.'));
@@ -61,7 +63,10 @@ class AnnounceChatConfirmationAction extends Action2 {
 		// dialogs (via `configureAccessibilityContainer`).
 		let firstConfirmationElement: HTMLElement | undefined;
 
-		const lastResponse = viewModel.getItems()[viewModel.getItems().length - 1];
+		const lastItem = viewModel.getItems().at(-1);
+		const lastResponse = viewModel.model.requestNeedsInput.get()
+			? lastItem
+			: getPendingMcpAuthenticationResponse(viewModel) ?? lastItem;
 		if (isResponseVM(lastResponse)) {
 			// Reveal the response so its confirmation widget is rendered (the
 			// chat list is virtualized — querying before reveal can miss it).
@@ -71,6 +76,12 @@ class AnnounceChatConfirmationAction extends Action2 {
 			if (confirmationWidgets.length > 0) {
 				firstConfirmationElement = confirmationWidgets[confirmationWidgets.length - 1];
 			}
+		}
+
+		function getPendingMcpAuthenticationResponse(viewModel: IChatViewModel | undefined): IChatResponseViewModel | undefined {
+			return viewModel?.getItems().findLast((item): item is IChatResponseViewModel =>
+				isResponseVM(item) && item.response.value.some(part =>
+					part.kind === 'mcpAuthenticationRequired' && !part.isUsed && part.servers.get().length > 0));
 		}
 
 		if (firstConfirmationElement) {
@@ -115,7 +126,10 @@ class ToggleThinkingContentAccessibleViewAction extends Action2 {
 	}
 }
 
-export function registerChatAccessibilityActions(): void {
-	registerAction2(AnnounceChatConfirmationAction);
-	registerAction2(ToggleThinkingContentAccessibleViewAction);
+export function registerChatAccessibilityActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AnnounceChatConfirmationAction));
+	store.add(registerAction2(ToggleThinkingContentAccessibleViewAction));
+
+	return store;
 }

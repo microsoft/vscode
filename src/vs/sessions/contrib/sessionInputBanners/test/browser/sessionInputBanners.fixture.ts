@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ISessionInputBanner, SessionInputBannerWidget } from '../../browser/sessionInputBannerWidget.js';
+import { ISessionInputBanner, SessionInputBannerWidget } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionInputBannerWidget.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/inputBanners/' }, {
 	CIFailures: defineComponentFixture({
@@ -121,7 +121,12 @@ function combinedPRBanner(number: number, failed: number, comments: number, mult
 		actions: [{
 			label: 'Fix Checks & Address Comments',
 			primary: true,
-			dropdownActions: [fixCI, addressComments],
+			dropdownActions: [
+				fixCI,
+				addressComments,
+				{ label: 'Reveal Checks', run: () => console.log('Open Pull Request') },
+				{ label: 'Reveal Comments', run: () => console.log('Reveal Comments') },
+			],
 			run: () => console.log('Fix Checks and Address Comments'),
 		}],
 		dismiss: () => console.log('Dismiss PR banner'),

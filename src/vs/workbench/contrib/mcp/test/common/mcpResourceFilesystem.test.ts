@@ -20,7 +20,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { TestContextService, TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestLoggerService, TestProductService, TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { McpResourceFilesystem } from '../../common/mcpResourceFilesystem.js';
 import { McpService } from '../../common/mcpService.js';
@@ -46,14 +46,14 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 			[IWorkbenchEnvironmentService, {}],
 			[ITelemetryService, NullTelemetryService],
 			[IProductService, TestProductService],
-			[IAllowedMcpServersService, { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowed: () => true }],
+			[IAllowedMcpServersService, { _serviceBrand: undefined, onDidChangeAllowedMcpServers: Event.None, isAllowed: () => true, isServerAllowedBeforeResolution: () => true, isServerAllowed: () => true, getServerPolicyVariableValues: () => [] }],
 		);
 
 		const parentInsta1 = ds.add(new TestInstantiationService(services));
 		const registry = new TestMcpRegistry(parentInsta1);
 
 		const parentInsta2 = ds.add(parentInsta1.createChild(new ServiceCollection([IMcpRegistry, registry])));
-		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService(), storageService));
+		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), new TestConfigurationService(), storageService, new TestUserDataProfileService()));
 		mcpService.updateCollectedServers();
 
 		const instaService = ds.add(parentInsta2.createChild(new ServiceCollection(

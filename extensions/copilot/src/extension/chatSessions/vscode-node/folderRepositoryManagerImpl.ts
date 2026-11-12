@@ -864,7 +864,7 @@ export class CopilotCLIFolderRepositoryManager extends FolderRepositoryManager {
 	 * @inheritdoc
 	 */
 	protected async getSessionFallbackFolder(sessionId: string): Promise<vscode.Uri | undefined> {
-		const cwd = this.sessionService.getSessionWorkingDirectory(sessionId);
+		const cwd = await this.sessionService.getSessionWorkingDirectory(sessionId);
 		if (cwd && (await checkPathExists(cwd, this.fileSystem))) {
 			return cwd;
 		}

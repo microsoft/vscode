@@ -712,9 +712,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return;
 		}
 		this._commentsViewRegistered = true;
-
-		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
-		if (!commentsPanelAlreadyConstructed) {
+		const commentsViewAlreadyRegistered = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getView(COMMENTS_VIEW_ID) !== null;
+		if (!commentsViewAlreadyRegistered) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
 				title: COMMENTS_VIEW_TITLE,
@@ -737,7 +736,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				}
 			}], VIEW_CONTAINER);
 		}
-		this.registerViewListeners(commentsPanelAlreadyConstructed);
+		this.registerViewListeners(commentsViewAlreadyRegistered);
 	}
 
 	private setComments() {
@@ -769,8 +768,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	 * no listeners for comment threads being set or updated. Listen for the view opening for the
 	 * first time and send it comments then.
 	 */
-	private registerViewListeners(commentsPanelAlreadyConstructed: boolean) {
-		if (!commentsPanelAlreadyConstructed) {
+	private registerViewListeners(commentsViewAlreadyRegistered: boolean) {
+		if (!commentsViewAlreadyRegistered) {
 			this.registerViewOpenedListener();
 		}
 

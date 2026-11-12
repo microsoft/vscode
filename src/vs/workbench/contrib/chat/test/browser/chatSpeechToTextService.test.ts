@@ -9,13 +9,17 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, selectAuthoritativeDictationTranscript, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
+import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupSystemPrompt, isDictationEntitled, resolveDictationBackend, selectAuthoritativeDictationTranscript, selectFinalDictationTranscript, stripDictationFillers } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatUtilityModelService, IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IVoiceCodeTranscriptionClient, IVoiceCodeTranscriptionError } from '../../browser/speechToText/voiceCodeTranscriptionClient.js';
+import { ILocalTranscriptionModelStatus, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 
 type CleanupTestService = {
 	_configurationService: {
@@ -23,6 +27,7 @@ type CleanupTestService = {
 		inspect: () => { defaultValue: string | undefined };
 	};
 	_languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>;
+	_chatUtilityModelService: IChatUtilityModelService;
 	_promptsService: {
 		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
 	};
@@ -71,7 +76,7 @@ type FinalizationTestService = {
 	_deltaText: string;
 	_logService: Pick<Console, 'warn'>;
 	_pendingLocalTeardown: Promise<void> | undefined;
-	_finishBackend: () => Promise<string | undefined>;
+	_finishBackend: () => Promise<{ text: string | undefined; timedOut: boolean }>;
 };
 
 type MaiTeardownTestService = FinalizationTestService & {
@@ -88,21 +93,53 @@ type MaiTeardownTestService = FinalizationTestService & {
 
 type StopTestService = {
 	_sessionGeneration: number;
-	_activeBackend: 'mai';
+	_activeBackend: 'nemo' | 'mai';
 	_maiReceivedFinal: boolean;
 	_finalizedText: string;
 	_deltaText: string;
 	_sessionErrorCode: string;
 	_finalizeMs: number;
 	_flushCapture: (() => Promise<void>) | undefined;
-	_finishBackend: () => Promise<string | undefined>;
+	_finishBackend: () => Promise<{ text: string | undefined; timedOut: boolean }>;
 	_stopCapture: () => void;
 	_setState: (state: ChatSpeechToTextState) => void;
 	_accessibilitySignalService: { playSignal: (signal: unknown) => void };
 	_configurationService: { getValue: () => boolean };
+	_logService: { trace: (message: string) => void; error?: (message: string, error: unknown) => void };
+	_notificationService: { error: (message: string) => void };
 	_logSessionTelemetry: (outcome: string) => void;
 	_teardown: () => void;
 	_stopAndTranscribe: (generation: number) => Promise<string | undefined>;
+};
+
+type LocalStartupTestService = {
+	_sessionGeneration: number;
+	_localSessionDisposables: DisposableStore;
+	_localTranscription: {
+		onDidTranscribe: Event<{ text: string; finalizedText?: string; isFinal: boolean }>;
+		onDidChangeModelStatus: Event<ILocalTranscriptionModelStatus>;
+		start: () => Promise<void>;
+		getModelStatus: () => Promise<ILocalTranscriptionModelStatus>;
+	};
+	_environmentService: { cacheHome: URI };
+	_configurationService: { getValue: () => string };
+	_emitTranscript: () => void;
+	_handleModelStatus: (status: ILocalTranscriptionModelStatus) => void;
+	_startLocalSession: (window: Window & typeof globalThis, generation: number) => Promise<void>;
+};
+
+type StartupFailureTestService = {
+	_state: ChatSpeechToTextState;
+	_startInProgress: number | undefined;
+	_sessionGeneration: number;
+	_startGeneration: number;
+	_sessionErrorCode: string;
+	_logSessionTelemetry: (outcome: string) => void;
+	_cancelBackend: () => void;
+	_teardown: () => void;
+	_setState: (state: ChatSpeechToTextState) => void;
+	_notificationService: { error: (message: string) => void };
+	_failSession: (errorCode: string, message: string) => void;
 };
 
 type MaiFailureTestService = {
@@ -132,7 +169,7 @@ type AudioPushTestService = {
 
 suite('ChatSpeechToTextService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('allows dictation without a paid plan and restricts MAI for external Enterprise users', () => {
 		assert.deepStrictEqual({
@@ -193,27 +230,24 @@ suite('ChatSpeechToTextService', () => {
 			cancel: async () => { cancellations++; },
 		};
 
-		try {
-			const resultPromise = service._finishBackend();
-			await clock.tickAsync(8000);
+		store.add(toDisposable(() => clock.restore()));
+		const resultPromise = service._finishBackend();
+		await clock.tickAsync(8000);
 
-			assert.deepStrictEqual({
-				result: await resultPromise,
-				cancellations,
-				teardownPending: service._pendingLocalTeardown !== undefined,
-				warnings,
-			}, {
-				result: 'streamed transcript',
-				cancellations: 1,
-				teardownPending: true,
-				warnings: ['[chat-stt] on-device final transcription timed out after 8000ms; using streamed transcript'],
-			});
+		assert.deepStrictEqual({
+			result: await resultPromise,
+			cancellations,
+			teardownPending: service._pendingLocalTeardown !== undefined,
+			warnings,
+		}, {
+			result: { text: 'streamed transcript', timedOut: true },
+			cancellations: 1,
+			teardownPending: true,
+			warnings: ['[chat-stt] on-device final transcription timed out after 8000ms; using streamed transcript'],
+		});
 
-			stop.complete('');
-			await service._pendingLocalTeardown;
-		} finally {
-			clock.restore();
-		}
+		stop.complete('');
+		await service._pendingLocalTeardown;
 	});
 
 	test('waits for the dedicated MAI final until the backend deadline', async () => {
@@ -231,28 +265,25 @@ suite('ChatSpeechToTextService', () => {
 			sendPttEnd: turnId => sentTurns.push(turnId),
 		};
 
-		try {
-			let settled = false;
-			const resultPromise = service._finishBackend().then(result => {
-				settled = true;
-				return result;
-			});
-			await clock.tickAsync(4000);
-			assert.strictEqual(settled, false);
-			await clock.tickAsync(31_000);
+		store.add(toDisposable(() => clock.restore()));
+		let settled = false;
+		const resultPromise = service._finishBackend().then(result => {
+			settled = true;
+			return result;
+		});
+		await clock.tickAsync(4000);
+		assert.strictEqual(settled, false);
+		await clock.tickAsync(31_000);
 
-			assert.deepStrictEqual({
-				result: await resultPromise,
-				sentTurns,
-				warnings,
-			}, {
-				result: 'streamed transcript',
-				sentTurns: ['turn-1'],
-				warnings: ['[chat-stt] cloud final transcription timed out after 35000ms; using streamed transcript'],
-			});
-		} finally {
-			clock.restore();
-		}
+		assert.deepStrictEqual({
+			result: await resultPromise,
+			sentTurns,
+			warnings,
+		}, {
+			result: { text: 'streamed transcript', timedOut: true },
+			sentTurns: ['turn-1'],
+			warnings: ['[chat-stt] cloud final transcription timed out after 35000ms; using streamed transcript'],
+		});
 	});
 
 	test('teardown releases a pending MAI final wait immediately', async () => {
@@ -297,7 +328,7 @@ suite('ChatSpeechToTextService', () => {
 				pendingTimers: clock.countTimers(),
 			}, {
 				settled: true,
-				result: '',
+				result: { text: '', timedOut: false },
 				disconnects: 1,
 				warnings: [],
 				pendingTimers: 0,
@@ -321,7 +352,7 @@ suite('ChatSpeechToTextService', () => {
 		service._deltaText = '';
 		service._sessionErrorCode = '';
 		service._flushCapture = undefined;
-		service._finishBackend = async () => '';
+		service._finishBackend = async () => ({ text: '', timedOut: false });
 		service._stopCapture = () => { };
 		service._setState = state => states.push(state);
 		service._accessibilitySignalService = { playSignal: () => { } };
@@ -335,6 +366,220 @@ suite('ChatSpeechToTextService', () => {
 		}, {
 			result: '',
 			states: [ChatSpeechToTextState.Transcribing, ChatSpeechToTextState.Idle],
+		});
+	});
+
+	test('reports an empty on-device finalization timeout as an error', async () => {
+		const states: ChatSpeechToTextState[] = [];
+		const outcomes: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as StopTestService;
+		service._sessionGeneration = 0;
+		service._activeBackend = 'nemo';
+		service._maiReceivedFinal = false;
+		service._finalizedText = 'um';
+		service._deltaText = '';
+		service._sessionErrorCode = '';
+		service._flushCapture = undefined;
+		service._finishBackend = async () => ({ text: 'um', timedOut: true });
+		service._stopCapture = () => { };
+		service._setState = state => states.push(state);
+		service._accessibilitySignalService = { playSignal: () => { } };
+		service._configurationService = { getValue: () => false };
+		service._logService = { trace: () => { } };
+		service._logSessionTelemetry = outcome => outcomes.push(outcome);
+		service._teardown = () => { };
+
+		assert.deepStrictEqual({
+			result: await service._stopAndTranscribe(0),
+			errorCode: service._sessionErrorCode,
+			outcomes,
+			states,
+		}, {
+			result: undefined,
+			errorCode: 'transcribe.timeout',
+			outcomes: ['error'],
+			states: [ChatSpeechToTextState.Transcribing, ChatSpeechToTextState.Idle],
+		});
+	});
+
+	test('preserves a partial transcript when on-device finalization times out', async () => {
+		const outcomes: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as StopTestService;
+		service._sessionGeneration = 0;
+		service._activeBackend = 'nemo';
+		service._maiReceivedFinal = false;
+		service._finalizedText = 'partial transcript';
+		service._deltaText = '';
+		service._sessionErrorCode = '';
+		service._flushCapture = undefined;
+		service._finishBackend = async () => ({ text: 'partial transcript', timedOut: true });
+		service._stopCapture = () => { };
+		service._setState = () => { };
+		service._accessibilitySignalService = { playSignal: () => { } };
+		service._configurationService = { getValue: () => false };
+		service._logService = { trace: () => { } };
+		service._logSessionTelemetry = outcome => outcomes.push(outcome);
+		service._teardown = () => { };
+
+		assert.deepStrictEqual({
+			result: await service._stopAndTranscribe(0),
+			errorCode: service._sessionErrorCode,
+			outcomes,
+		}, {
+			result: 'partial transcript',
+			errorCode: '',
+			outcomes: ['completed'],
+		});
+	});
+
+	test('handles an initial on-device model error', async () => {
+		const statuses: ILocalTranscriptionModelStatus[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as LocalStartupTestService;
+		const status: ILocalTranscriptionModelStatus = {
+			state: LocalTranscriptionModelState.Error,
+			error: 'failed to load',
+			errorCode: 'load',
+		};
+		service._sessionGeneration = 1;
+		service._localSessionDisposables = new DisposableStore();
+		service._localTranscription = {
+			onDidTranscribe: Event.None,
+			onDidChangeModelStatus: Event.None,
+			start: async () => { },
+			getModelStatus: async () => status,
+		};
+		service._environmentService = { cacheHome: URI.file('/cache') };
+		service._configurationService = { getValue: () => '' };
+		service._emitTranscript = () => { };
+		service._handleModelStatus = modelStatus => statuses.push(modelStatus);
+
+		store.add(toDisposable(() => service._localSessionDisposables.dispose()));
+		await service._startLocalSession(mainWindow, 1);
+		assert.deepStrictEqual(statuses, [status]);
+	});
+
+	test('tracks on-device errors after an initially ready model and ignores stale events', async () => {
+		const statuses: ILocalTranscriptionModelStatus[] = [];
+		const statusChanged = store.add(new Emitter<ILocalTranscriptionModelStatus>());
+		const service = Object.create(ChatSpeechToTextService.prototype) as LocalStartupTestService;
+		service._sessionGeneration = 1;
+		service._localSessionDisposables = store.add(new DisposableStore());
+		service._localTranscription = {
+			onDidTranscribe: Event.None,
+			onDidChangeModelStatus: statusChanged.event,
+			start: async () => { },
+			getModelStatus: async () => ({ state: LocalTranscriptionModelState.Ready }),
+		};
+		service._environmentService = { cacheHome: URI.file('/cache') };
+		service._configurationService = { getValue: () => '' };
+		service._emitTranscript = () => { };
+		service._handleModelStatus = status => statuses.push(status);
+
+		await service._startLocalSession(mainWindow, 1);
+		const error: ILocalTranscriptionModelStatus = { state: LocalTranscriptionModelState.Error, error: 'native inference failed' };
+		statusChanged.fire(error);
+		service._sessionGeneration++;
+		statusChanged.fire(error);
+
+		assert.deepStrictEqual(statuses, [error]);
+	});
+
+	test('handles on-device errors emitted before start returns', async () => {
+		const statuses: ILocalTranscriptionModelStatus[] = [];
+		const statusChanged = store.add(new Emitter<ILocalTranscriptionModelStatus>());
+		const error: ILocalTranscriptionModelStatus = { state: LocalTranscriptionModelState.Error, error: 'native startup failed' };
+		let snapshots = 0;
+		const service = Object.create(ChatSpeechToTextService.prototype) as LocalStartupTestService;
+		service._sessionGeneration = 1;
+		service._localSessionDisposables = store.add(new DisposableStore());
+		service._localTranscription = {
+			onDidTranscribe: Event.None,
+			onDidChangeModelStatus: statusChanged.event,
+			start: async () => statusChanged.fire(error),
+			getModelStatus: async () => {
+				snapshots++;
+				return { state: LocalTranscriptionModelState.Ready };
+			},
+		};
+		service._environmentService = { cacheHome: URI.file('/cache') };
+		service._configurationService = { getValue: () => '' };
+		service._emitTranscript = () => { };
+		service._handleModelStatus = status => {
+			statuses.push(status);
+			service._sessionGeneration++;
+		};
+
+		await service._startLocalSession(mainWindow, 1);
+
+		assert.deepStrictEqual({ statuses, snapshots }, { statuses: [error], snapshots: 0 });
+	});
+
+	for (const transcript of ['', 'partial transcript']) {
+		test(`reports on-device finalization errors with ${transcript ? 'a partial transcript' : 'no transcript'}`, async () => {
+			const outcomes: string[] = [];
+			const notifications: string[] = [];
+			const errors: unknown[] = [];
+			const error = new Error('native inference failed');
+			const service = Object.create(ChatSpeechToTextService.prototype) as StopTestService;
+			service._sessionGeneration = 0;
+			service._activeBackend = 'nemo';
+			service._maiReceivedFinal = false;
+			service._finalizedText = transcript;
+			service._deltaText = '';
+			service._sessionErrorCode = '';
+			service._flushCapture = undefined;
+			service._finishBackend = async () => { throw error; };
+			service._stopCapture = () => { };
+			service._setState = () => { };
+			service._accessibilitySignalService = { playSignal: () => { } };
+			service._configurationService = { getValue: () => false };
+			service._logService = { trace: () => { }, error: (_message, error) => errors.push(error) };
+			service._notificationService = { error: message => notifications.push(message) };
+			service._logSessionTelemetry = outcome => outcomes.push(outcome);
+			service._teardown = () => { };
+
+			assert.deepStrictEqual({
+				result: await service._stopAndTranscribe(0),
+				errorCode: service._sessionErrorCode,
+				outcomes,
+				errors,
+				notifications,
+			}, {
+				result: transcript || undefined,
+				errorCode: 'transcribe',
+				outcomes: ['error'],
+				errors: [error],
+				notifications: ['Could not finish on-device speech-to-text: native inference failed'],
+			});
+		});
+	}
+
+	test('fails a session while on-device startup is in progress', () => {
+		const calls: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as StartupFailureTestService;
+		service._state = ChatSpeechToTextState.Idle;
+		service._startInProgress = 4;
+		service._sessionGeneration = 2;
+		service._startGeneration = 4;
+		service._sessionErrorCode = '';
+		service._logSessionTelemetry = outcome => calls.push(`telemetry:${outcome}`);
+		service._cancelBackend = () => calls.push('cancel');
+		service._teardown = () => calls.push('teardown');
+		service._setState = state => calls.push(`state:${state}`);
+		service._notificationService = { error: message => calls.push(`error:${message}`) };
+
+		service._failSession('model', 'failed to load');
+
+		assert.deepStrictEqual({
+			sessionGeneration: service._sessionGeneration,
+			startGeneration: service._startGeneration,
+			errorCode: service._sessionErrorCode,
+			calls,
+		}, {
+			sessionGeneration: 3,
+			startGeneration: 5,
+			errorCode: 'model',
+			calls: ['telemetry:error', 'cancel', 'teardown', `state:${ChatSpeechToTextState.Idle}`, 'error:failed to load'],
 		});
 	});
 
@@ -383,6 +628,24 @@ suite('ChatSpeechToTextService', () => {
 
 		assert.doesNotThrow(() => service._pushAudio(new Float32Array([0.5]), mainWindow));
 		assert.deepStrictEqual(failures, [error]);
+	});
+
+	test('uses MAI on web and preserves the configured backend on desktop', () => {
+		assert.deepStrictEqual({
+			webWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', undefined, true),
+			webWithMai: resolveDictationBackend('mai', undefined, true),
+			webWithLocalPolicy: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', 'nemotron-3.5-asr-streaming-0.6b', true),
+			webWithMaiPolicy: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', 'mai', true),
+			desktopWithLocalModel: resolveDictationBackend('nemotron-3.5-asr-streaming-0.6b', undefined, false),
+			desktopWithMai: resolveDictationBackend('mai', undefined, false),
+		}, {
+			webWithLocalModel: 'mai',
+			webWithMai: 'mai',
+			webWithLocalPolicy: 'nemo',
+			webWithMaiPolicy: 'mai',
+			desktopWithLocalModel: 'nemo',
+			desktopWithMai: 'mai',
+		});
 	});
 
 	test('resolves the dictation language from Voice Mode configuration, display language, and browser locale', () => {
@@ -583,136 +846,130 @@ suite('ChatSpeechToTextService', () => {
 
 	test('bounds stalled language model cleanup and falls back to the raw transcript', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const logs: string[] = [];
-			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
-			service._configurationService = {
-				getValue: () => 'auto',
-				inspect: () => ({ defaultValue: 'auto' }),
-			};
-			service._languageModelsService = {
-				selectLanguageModels: async () => ['test-model'],
-				sendChatRequest: () => new Promise<ILanguageModelChatResponse>(() => { }),
-			};
-			service._promptsService = {
-				getDictationInstructions: async () => undefined,
-			};
-			service._logService = {
-				info: message => logs.push(message),
-				warn: message => logs.push(message),
-				trace: message => logs.push(message),
-			};
-			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
-			let settled = false;
-			cleanupPromise.then(() => settled = true);
-			await clock.tickAsync(4999);
-			await Promise.resolve();
-			const settledBeforeTimeout = settled;
-			await clock.tickAsync(1);
+		store.add(toDisposable(() => clock.restore()));
+		const logs: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+		service._configurationService = {
+			getValue: () => 'auto',
+			inspect: () => ({ defaultValue: 'auto' }),
+		};
+		service._languageModelsService = {
+			selectLanguageModels: async () => ['test-model'],
+			sendChatRequest: () => new Promise<ILanguageModelChatResponse>(() => { }),
+		};
+		service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
+		service._promptsService = {
+			getDictationInstructions: async () => undefined,
+		};
+		service._logService = {
+			info: message => logs.push(message),
+			warn: message => logs.push(message),
+			trace: message => logs.push(message),
+		};
+		const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
+		let settled = false;
+		cleanupPromise.then(() => settled = true);
+		await clock.tickAsync(4999);
+		await Promise.resolve();
+		const settledBeforeTimeout = settled;
+		await clock.tickAsync(1);
 
-			assert.deepStrictEqual({
-				settledBeforeTimeout,
-				result: await cleanupPromise,
-				timedOutStartingRequest: logs.some(log => log.includes('timed out (phase=startRequest, elapsedMs=5000, timeoutMs=5000)')),
-				fellBackWithPhase: logs.some(log => log.includes('reason=timeout, phase=startRequest, elapsedMs=5000')),
-			}, {
-				settledBeforeTimeout: false,
-				result: undefined,
-				timedOutStartingRequest: true,
-				fellBackWithPhase: true,
-			});
-		} finally {
-			clock.restore();
-		}
+		assert.deepStrictEqual({
+			settledBeforeTimeout,
+			result: await cleanupPromise,
+			timedOutStartingRequest: logs.some(log => log.includes('timed out (phase=startRequest, elapsedMs=5000, timeoutMs=5000)')),
+			fellBackWithPhase: logs.some(log => log.includes('reason=timeout, phase=startRequest, elapsedMs=5000')),
+		}, {
+			settledBeforeTimeout: false,
+			result: undefined,
+			timedOutStartingRequest: true,
+			fellBackWithPhase: true,
+		});
 	});
 
 	test('reports a timeout during model selection instead of no model', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const logs: string[] = [];
-			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
-			service._configurationService = {
-				getValue: () => 'auto',
-				inspect: () => ({ defaultValue: 'auto' }),
-			};
-			service._languageModelsService = {
-				selectLanguageModels: () => new Promise<string[]>(() => { }),
-				sendChatRequest: async () => { throw new Error('Unexpected request'); },
-			};
-			service._promptsService = {
-				getDictationInstructions: async () => undefined,
-			};
-			service._logService = {
-				info: message => logs.push(message),
-				warn: message => logs.push(message),
-				trace: message => logs.push(message),
-			};
+		store.add(toDisposable(() => clock.restore()));
+		const logs: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+		service._configurationService = {
+			getValue: () => 'auto',
+			inspect: () => ({ defaultValue: 'auto' }),
+		};
+		service._languageModelsService = {
+			selectLanguageModels: () => new Promise<string[]>(() => { }),
+			sendChatRequest: async () => { throw new Error('Unexpected request'); },
+		};
+		service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
+		service._promptsService = {
+			getDictationInstructions: async () => undefined,
+		};
+		service._logService = {
+			info: message => logs.push(message),
+			warn: message => logs.push(message),
+			trace: message => logs.push(message),
+		};
 
-			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
-			await clock.tickAsync(5000);
+		const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
+		await clock.tickAsync(5000);
 
-			assert.deepStrictEqual({
-				result: await cleanupPromise,
-				timedOutSelectingModel: logs.some(log => log.includes('reason=timeout, phase=selectModel, elapsedMs=5000')),
-				reportedNoModel: logs.some(log => log.includes('reason=noModel')),
-			}, {
-				result: undefined,
-				timedOutSelectingModel: true,
-				reportedNoModel: false,
-			});
-		} finally {
-			clock.restore();
-		}
+		assert.deepStrictEqual({
+			result: await cleanupPromise,
+			timedOutSelectingModel: logs.some(log => log.includes('reason=timeout, phase=selectModel, elapsedMs=5000')),
+			reportedNoModel: logs.some(log => log.includes('reason=noModel')),
+		}, {
+			result: undefined,
+			timedOutSelectingModel: true,
+			reportedNoModel: false,
+		});
 	});
 
 	test('allows language model cleanup to complete after 1.5 seconds', async () => {
 		const clock = sinon.useFakeTimers();
-		try {
-			const logs: string[] = [];
-			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
-			service._configurationService = {
-				getValue: () => 'auto',
-				inspect: () => ({ defaultValue: 'auto' }),
-			};
-			service._languageModelsService = {
-				selectLanguageModels: async () => ['test-model'],
-				sendChatRequest: async () => ({
-					stream: (async function* () {
-						await new Promise(resolve => setTimeout(resolve, 2000));
-						yield { type: 'text', value: 'hello' } as const;
-					})(),
-					result: Promise.resolve(undefined),
-				}),
-			};
-			service._promptsService = {
-				getDictationInstructions: async () => undefined,
-			};
-			service._logService = {
-				info: message => logs.push(message),
-				warn: message => logs.push(message),
-				trace: message => logs.push(message),
-			};
+		store.add(toDisposable(() => clock.restore()));
+		const logs: string[] = [];
+		const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
+		service._configurationService = {
+			getValue: () => 'auto',
+			inspect: () => ({ defaultValue: 'auto' }),
+		};
+		service._languageModelsService = {
+			selectLanguageModels: async () => ['test-model'],
+			sendChatRequest: async () => ({
+				stream: (async function* () {
+					await new Promise(resolve => setTimeout(resolve, 2000));
+					yield { type: 'text', value: 'hello' } as const;
+				})(),
+				result: Promise.resolve(undefined),
+			}),
+		};
+		service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
+		service._promptsService = {
+			getDictationInstructions: async () => undefined,
+		};
+		service._logService = {
+			info: message => logs.push(message),
+			warn: message => logs.push(message),
+			trace: message => logs.push(message),
+		};
 
-			const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
-			let settled = false;
-			cleanupPromise.then(() => settled = true);
-			await clock.tickAsync(1999);
-			await Promise.resolve();
-			const settledBeforeResponse = settled;
-			await clock.tickAsync(1);
+		const cleanupPromise = service._cleanupWithLanguageModel('um hello', CancellationToken.None);
+		let settled = false;
+		cleanupPromise.then(() => settled = true);
+		await clock.tickAsync(1999);
+		await Promise.resolve();
+		const settledBeforeResponse = settled;
+		await clock.tickAsync(1);
 
-			assert.deepStrictEqual({
-				settledBeforeResponse,
-				result: await cleanupPromise,
-				appliedAfterTwoSeconds: logs.some(log => log.includes('applied language model cleanup') && log.includes('elapsedMs=2000')),
-			}, {
-				settledBeforeResponse: false,
-				result: 'hello',
-				appliedAfterTwoSeconds: true,
-			});
-		} finally {
-			clock.restore();
-		}
+		assert.deepStrictEqual({
+			settledBeforeResponse,
+			result: await cleanupPromise,
+			appliedAfterTwoSeconds: logs.some(log => log.includes('applied language model cleanup') && log.includes('elapsedMs=2000')),
+		}, {
+			settledBeforeResponse: false,
+			result: 'hello',
+			appliedAfterTwoSeconds: true,
+		});
 	});
 
 	test('selects the configured or experiment-default cleanup model and falls back when a dedicated model is unavailable', async () => {
@@ -730,6 +987,7 @@ suite('ChatSpeechToTextService', () => {
 				},
 				sendChatRequest: () => Promise.reject(new Error('Unexpected request')),
 			};
+			service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -778,6 +1036,7 @@ suite('ChatSpeechToTextService', () => {
 					};
 				},
 			};
+			service._chatUtilityModelService = store.add(new ChatUtilityModelService(service._languageModelsService as ILanguageModelsService, new NullLogService()));
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};

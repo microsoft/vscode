@@ -1,0 +1,25 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "otel-resume-before".
+    response:
+      content: otel-resume-before
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "otel-resume-before".
+        - role: assistant
+          content: otel-resume-before
+        - role: user
+          content: Reply exactly "otel-resume-after".
+    response:
+      content: otel-resume-after
+      stopReason: end_turn

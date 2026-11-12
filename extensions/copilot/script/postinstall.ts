@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { compressTikToken } from './build/compressTikToken';
 import { copyStaticAssets } from './build/copyStaticAssets';
+import { copyFileReplacing, writeFileReplacing } from './build/replaceFile';
 
 export interface ITreeSitterGrammar {
 	name: string;
@@ -103,13 +104,27 @@ function getCopilotPlatformPackageCandidates(): string[] {
 	return [`${process.platform}-${arch}`];
 }
 
+/**
+ * Returns the folders that may hold the platform packages of `@github/copilot`: the `@github`
+ * folder of `node_modules`, where a flat `node_modules` puts them, and the folder that holds the
+ * real path of `@github/copilot`, where a symlinked `node_modules` (pnpm's isolated layout) puts
+ * the optional dependencies of that package.
+ */
+function getCopilotScopeCandidates(): string[] {
+	const scopeDir = path.dirname(COPILOT_PACKAGE_DIR);
+	const realScopeDir = path.dirname(fs.realpathSync(COPILOT_PACKAGE_DIR));
+	return realScopeDir === fs.realpathSync(scopeDir) ? [scopeDir] : [scopeDir, realScopeDir];
+}
+
 async function resolveCopilotCliSourceDir(): Promise<string> {
 	const tried: string[] = [];
-	for (const platformPackage of getCopilotPlatformPackageCandidates()) {
-		const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', `copilot-${platformPackage}`);
-		tried.push(sourceDir);
-		if (fs.existsSync(path.join(sourceDir, 'sdk', 'index.js'))) {
-			return sourceDir;
+	for (const scopeDir of getCopilotScopeCandidates()) {
+		for (const platformPackage of getCopilotPlatformPackageCandidates()) {
+			const sourceDir = path.join(scopeDir, `copilot-${platformPackage}`);
+			tried.push(sourceDir);
+			if (fs.existsSync(path.join(sourceDir, 'sdk', 'index.js'))) {
+				return sourceDir;
+			}
 		}
 	}
 
@@ -131,7 +146,7 @@ async function ensureCopilotSdkExport() {
 		}
 	};
 
-	await fs.promises.writeFile(packageJsonPath, `${JSON.stringify(packageJson, undefined, 2)}\n`);
+	await writeFileReplacing(packageJsonPath, `${JSON.stringify(packageJson, undefined, 2)}\n`);
 }
 
 async function materializeCopilotCliSdkLayout(): Promise<string> {
@@ -148,7 +163,7 @@ async function materializeCopilotCliSdkLayout(): Promise<string> {
 
 		for (const entry of await fs.promises.readdir(sourceDir)) {
 			if (entry.startsWith('tree-sitter') && entry.endsWith('.wasm')) {
-				await fs.promises.copyFile(path.join(sourceDir, entry), path.join(COPILOT_PACKAGE_DIR, entry));
+				await copyFileReplacing(path.join(sourceDir, entry), path.join(COPILOT_PACKAGE_DIR, entry));
 			}
 		}
 	}

@@ -11,16 +11,11 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { IRange } from '../../../../editor/common/core/range.js';
 import { DetailedLineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
-
-export interface IAgentFeedbackContext {
-	readonly codeSelection?: string;
-	readonly diffHunks?: string;
-}
+import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { type IAgentFeedbackService, IAgentFeedbackContext } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/common/chatSessionFileChange.js';
 
 export function changeMatchesResource(change: ISessionFileChange, resourceUri: URI): boolean {
 	if (isIChatSessionFileChange2(change)) {
@@ -36,19 +31,13 @@ export function changeMatchesResource(change: ISessionFileChange, resourceUri: U
 export function getSessionChangeForResource(
 	sessionResource: URI | undefined,
 	resourceUri: URI,
-	sessionsManagementService: ISessionsManagementService,
+	agentFeedbackService: IAgentFeedbackService,
 ): ISessionFileChange | undefined {
 	if (!sessionResource) {
 		return undefined;
 	}
 
-	const sessionData = sessionsManagementService.getSession(sessionResource);
-	if (sessionData) {
-		const changes = sessionData.changes.get();
-		return changes.find(change => changeMatchesResource(change, resourceUri));
-	}
-
-	return undefined;
+	return agentFeedbackService.getChatChanges(sessionResource).find(change => changeMatchesResource(change, resourceUri));
 }
 
 export function createAgentFeedbackContext(

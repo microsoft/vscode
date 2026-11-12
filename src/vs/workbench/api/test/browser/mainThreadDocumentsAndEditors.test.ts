@@ -28,7 +28,7 @@ import { UriIdentityService } from '../../../../platform/uriIdentity/common/uriI
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { TextModel } from '../../../../editor/common/model/textModel.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -151,7 +151,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		disposables.dispose();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Model#add', () => {
 		deltas.length = 0;
@@ -171,46 +171,38 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('ignore huge model', function () {
 
 		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
-		try {
-			const largeModelString = 'abc'.repeat(1024);
-			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
+		store.add(toDisposable(() => { TextModel._MODEL_SYNC_LIMIT = oldLimit; }));
+		const largeModelString = 'abc'.repeat(1024);
+		TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
 
-			const model = modelService.createModel(largeModelString, null);
-			disposables.add(model);
-			assert.ok(model.isTooLargeForSyncing());
+		const model = modelService.createModel(largeModelString, null);
+		disposables.add(model);
+		assert.ok(model.isTooLargeForSyncing());
 
-			assert.strictEqual(deltas.length, 1);
-			const [delta] = deltas;
-			assert.strictEqual(delta.newActiveEditor, null);
-			assert.strictEqual(delta.addedDocuments, undefined);
-			assert.strictEqual(delta.removedDocuments, undefined);
-			assert.strictEqual(delta.addedEditors, undefined);
-			assert.strictEqual(delta.removedEditors, undefined);
-
-		} finally {
-			TextModel._MODEL_SYNC_LIMIT = oldLimit;
-		}
+		assert.strictEqual(deltas.length, 1);
+		const [delta] = deltas;
+		assert.strictEqual(delta.newActiveEditor, null);
+		assert.strictEqual(delta.addedDocuments, undefined);
+		assert.strictEqual(delta.removedDocuments, undefined);
+		assert.strictEqual(delta.addedEditors, undefined);
+		assert.strictEqual(delta.removedEditors, undefined);
 	});
 
 	test('ignore huge model from editor', function () {
 
 		const oldLimit = TextModel._MODEL_SYNC_LIMIT;
-		try {
-			const largeModelString = 'abc'.repeat(1024);
-			TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
+		store.add(toDisposable(() => { TextModel._MODEL_SYNC_LIMIT = oldLimit; }));
+		const largeModelString = 'abc'.repeat(1024);
+		TextModel._MODEL_SYNC_LIMIT = largeModelString.length / 2;
 
-			const model = modelService.createModel(largeModelString, null);
-			const editor = myCreateTestCodeEditor(model);
+		const model = modelService.createModel(largeModelString, null);
+		const editor = myCreateTestCodeEditor(model);
 
-			assert.strictEqual(deltas.length, 1);
-			deltas.length = 0;
-			assert.strictEqual(deltas.length, 0);
-			editor.dispose();
-			model.dispose();
-
-		} finally {
-			TextModel._MODEL_SYNC_LIMIT = oldLimit;
-		}
+		assert.strictEqual(deltas.length, 1);
+		deltas.length = 0;
+		assert.strictEqual(deltas.length, 0);
+		editor.dispose();
+		model.dispose();
 	});
 
 	test('ignore simple widget model', function () {

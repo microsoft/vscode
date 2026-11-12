@@ -1,0 +1,21 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* A background shell's full description leads its details, above the command. */
+.chat-pill-location-hover > .chat-background-shell-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+/*
+ * Stop is red in every window, like the debug toolbar's Stop. The Agents window doesn't load
+ * the debug feature, which registers this color, so it falls back to the error color, which
+ * shares the stop color's defaults.
+ */
+.chat-background-shell-output .chat-terminal-action-bar .action-label.codicon-debug-stop,
+.chat-background-shell-command .chat-terminal-action-bar .action-label.codicon-debug-stop {
+	color: var(--vscode-debugIcon-stopForeground, var(--vscode-errorForeground));
+}

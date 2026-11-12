@@ -5,6 +5,8 @@
 
 /* eslint-disable no-restricted-globals */
 
+import { getPartsSplashColors, getPartsSplashLayoutMetrics, getPartsSplashPartRadius } from './partsSplash.js';
+
 (async function () {
 
 	// Add a perf entry right from the top
@@ -52,9 +54,10 @@
 		let baseTheme;
 		let shellBackground;
 		let shellForeground;
+		const splashColors = data ? getPartsSplashColors(data, window.document.hasFocus(), !!configuration.workspace) : undefined;
 		if (data) {
 			baseTheme = data.baseTheme;
-			shellBackground = data.colorInfo.editorBackground;
+			shellBackground = splashColors?.background;
 			shellForeground = data.colorInfo.foreground;
 		} else if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
 			if (configuration.colorScheme.dark) {
@@ -92,11 +95,7 @@
 		if (data?.layoutInfo) {
 			const { layoutInfo, colorInfo } = data;
 			const modernUI = layoutInfo.modernUI === true;
-			const floatingMargin = layoutInfo.modernUICompact === true ? 0 : 4;
-			// The cluster perimeter is the same in both densities; only the inter-card gap differs.
-			const floatingOuterMargin = 4;
-			const floatingBorderWidth = 1;
-			const floatingBorderRadius = 8;
+			const { floatingMargin, floatingOuterMargin, floatingBorderWidth } = getPartsSplashLayoutMetrics(layoutInfo);
 			const contentTop = layoutInfo.titleBarHeight;
 			const contentBottom = layoutInfo.statusBarHeight;
 
@@ -208,6 +207,7 @@
 				fallbackOuterEdges = { left: true, right: true, top: true, bottom: true },
 				compactBorderColor = colorInfo.surfaceBorder ?? colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent'
 			) => {
+				const floatingBorderRadius = getPartsSplashPartRadius(layoutInfo, partBounds);
 				element.style.boxSizing = 'border-box';
 				if (layoutInfo.modernUICompact === true) {
 					const outerEdges = partBounds?.outerEdges ?? (partBounds && compactClusterEdges ? {
@@ -234,7 +234,7 @@
 			};
 
 			const contentHeight = `calc(100% - ${contentTop + contentBottom}px)`;
-			const activityHeight = modernUI ? `calc(100% - ${contentTop + contentBottom + floatingMargin}px)` : contentHeight;
+			const activityHeight = modernUI ? `calc(100% - ${contentTop + contentBottom + floatingOuterMargin}px)` : contentHeight;
 			const modernActivityBarBackground = (window.document.hasFocus()
 				? colorInfo.modernActivityBarBackground
 				: colorInfo.modernActivityBarInactiveBackground ?? colorInfo.modernActivityBarBackground)
@@ -258,7 +258,7 @@
 				titleDiv.style.height = `${layoutInfo.titleBarHeight}px`;
 				titleDiv.style.left = '0';
 				titleDiv.style.top = '0';
-				titleDiv.style.backgroundColor = modernUI ? 'transparent' : `${colorInfo.titleBarBackground}`;
+				titleDiv.style.backgroundColor = splashColors?.titleBarBackground ?? '';
 				(titleDiv.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 				splash.appendChild(titleDiv);
 
@@ -303,7 +303,7 @@
 				} else if (modernUI) {
 					// The rail is a card here too: rounded on the window side, and square where it
 					// meets the primary side bar so the two read as one connected surface.
-					const radius = `${floatingBorderRadius}px`;
+					const radius = `${getPartsSplashPartRadius(layoutInfo, activityBarBounds)}px`;
 					activityDiv.style.boxSizing = 'border-box';
 					activityDiv.style.backgroundColor = modernActivityBarBackground ?? 'transparent';
 					activityDiv.style.border = `${floatingBorderWidth}px solid ${railBorderColor}`;
@@ -448,6 +448,7 @@
 				const panelDiv = document.createElement('div');
 				setPartBounds(panelDiv, layoutInfo.partBounds.panel);
 				applyFloatingCardStyles(panelDiv, colorInfo.panelBackground ?? colorInfo.editorBackground, layoutInfo.partBounds.panel);
+				panelDiv.style.borderColor = colorInfo.modernPanelBorder ?? colorInfo.surfaceBorder ?? colorInfo.agentsPanelBorder ?? colorInfo.editorGroupBorder ?? 'transparent';
 				splash.appendChild(panelDiv);
 			}
 
@@ -459,13 +460,7 @@
 				statusDiv.style.height = `${layoutInfo.statusBarHeight}px`;
 				statusDiv.style.bottom = '0';
 				statusDiv.style.left = '0';
-				if (modernUI) {
-					statusDiv.style.backgroundColor = 'transparent';
-				} else if (configuration.workspace && colorInfo.statusBarBackground) {
-					statusDiv.style.backgroundColor = colorInfo.statusBarBackground;
-				} else if (!configuration.workspace && colorInfo.statusBarNoFolderBackground) {
-					statusDiv.style.backgroundColor = colorInfo.statusBarNoFolderBackground;
-				}
+				statusDiv.style.backgroundColor = splashColors?.statusBarBackground ?? '';
 				splash.appendChild(statusDiv);
 
 				if (!modernUI && colorInfo.statusBarBorder) {

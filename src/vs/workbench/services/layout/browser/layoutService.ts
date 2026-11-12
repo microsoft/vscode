@@ -53,7 +53,21 @@ export const enum LayoutSettings {
 	SHADOWS = 'workbench.shadows',
 	MODERN_UI = 'workbench.experimental.modernUI',
 	MODERN_UI_DENSITY = 'window.density.layout',
+	MODERN_UI_FROSTED_GLASS = 'workbench.modernUIFrostedGlass',
+	MODERN_UI_FROSTED_GLASS_OPACITY = 'workbench.modernUIFrostedGlassOpacity',
+	MODERN_UI_EDITOR_TAB_STYLE = 'workbench.experimental.modernUIEditorTabStyle',
 	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
+}
+
+export const enum ModernUIFrostedGlassOpacity {
+	Minimum = 50,
+	Maximum = 100,
+	Default = 80
+}
+
+export const enum ModernUIEditorTabStyle {
+	Connected = 'connected',
+	Pill = 'pill'
 }
 
 export const enum ModernUIDensity {
@@ -61,13 +75,7 @@ export const enum ModernUIDensity {
 	Compact = 'compact'
 }
 
-/**
- * The margin (in pixels) reserved on each side of a part when the Modern UI Update
- * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow or shrink their
- * content by this amount to leave room for the margin/border applied in CSS
- * (`src/vs/workbench/browser/media/floatingPanels.css`, `.floating-panels`).
- * Keep in sync with the `--vscode-spacing-size40` (4px) token used there.
- */
+/** Default panel gutter, retained at exterior edges. Inter-panel spacing is resolved separately. */
 export const FLOATING_PANEL_MARGIN = 4;
 
 /**
@@ -76,26 +84,18 @@ export const FLOATING_PANEL_MARGIN = 4;
 export const COMPACT_FLOATING_PANEL_MARGIN = 0;
 
 /**
- * Compact Modern UI density keeps a small perimeter between the connected card
- * cluster and the surrounding window chrome.
+ * Compact Modern UI density connects the card cluster directly to the window chrome.
  */
-export const COMPACT_FLOATING_PANEL_OUTER_MARGIN = 4;
-/**
- * The trailing card margin (in pixels) when the Modern UI Update experiment is
- * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
- * it forms the 4px inter-card gap. Keep in sync with the
- * `--vscode-spacing-sizeNone` (0px) token used in `floatingPanels.css`.
- */
+export const COMPACT_FLOATING_PANEL_OUTER_MARGIN = 0;
+/** The trailing card margin; the following card supplies the resolved inter-panel gap. */
 export const FLOATING_PANEL_INNER_MARGIN = 0;
 
 export function getFloatingPanelMargin(layoutService: IWorkbenchLayoutService): number {
-	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_MARGIN : FLOATING_PANEL_MARGIN;
+	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_MARGIN : layoutService.getPanelSpacing();
 }
 
 /**
- * The perimeter gutter (in pixels) a card reserves on an edge that faces window chrome
- * rather than another card. Both densities use the same 4px perimeter; they differ only in
- * the gap *between* cards (see {@link getFloatingPanelMargin}). Keep in sync with
+ * The density-specific perimeter gutter (in pixels) on an edge facing window chrome. Keep in sync with
  * `--modern-ui-floating-card-outer-margin` in `floatingPanels.css`.
  */
 export function getFloatingPanelOuterMargin(layoutService: IWorkbenchLayoutService): number {
@@ -107,6 +107,20 @@ export const enum ActivityBarPosition {
 	TOP = 'top',
 	BOTTOM = 'bottom',
 	HIDDEN = 'hidden'
+}
+
+/**
+ * Whether the compact menu is owned by the title bar rather than the activity bar.
+ * This is the case when the activity bar is at the top or bottom, because the activity
+ * bar then lives in the side bar and disappears with the side bar. The title bar
+ * only owns the menu while the custom title bar is shown in the main window; otherwise
+ * the activity bar keeps it so that the menu remains reachable.
+ */
+export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
+	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	return getMenuBarVisibility(configurationService) === 'compact'
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM)
+		&& shouldShowCustomTitleBar(configurationService, mainWindow);
 }
 
 export const enum EditorTabsMode {
@@ -284,9 +298,17 @@ export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbe
 		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART);
 	const leading = meetsActivityBarRail ? FLOATING_PANEL_INNER_MARGIN : margin;
 
+	const panelMeetsRightActivityBar = partId === Parts.PANEL_PART
+		&& isHorizontal(layoutService.getPanelPosition())
+		&& layoutService.getSideBarPosition() === Position.RIGHT
+		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART)
+		&& layoutService.isVisible(Parts.SIDEBAR_PART)
+		&& getFloatingSidebarSiblingToEditorStatus(layoutService).sideBar;
+	const trailing = panelMeetsRightActivityBar ? margin : FLOATING_PANEL_INNER_MARGIN;
+
 	return {
 		left: outerGutter.left ? outerMargin : leading,
-		right: outerGutter.right ? outerMargin : FLOATING_PANEL_INNER_MARGIN,
+		right: outerGutter.right ? outerMargin : trailing,
 	};
 }
 
@@ -323,7 +345,6 @@ export function getFloatingPaneCompositeVerticalMargins(
 	}
 
 	const outerEdges = getFloatingPaneCompositeVerticalOuterEdges(layoutService, partId, targetWindow);
-	const statusBarVisible = layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow);
 	const margin = getFloatingPanelMargin(layoutService);
 	const outerMargin = getFloatingPanelOuterMargin(layoutService);
 
@@ -332,7 +353,7 @@ export function getFloatingPaneCompositeVerticalMargins(
 			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
 			: margin,
 		bottom: outerEdges.bottom
-			? statusBarVisible ? FLOATING_PANEL_MARGIN : outerMargin
+			? outerMargin
 			: FLOATING_PANEL_INNER_MARGIN
 	};
 }
@@ -383,7 +404,7 @@ export function getFloatingEditorVerticalMargins(
 			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
 			: margin,
 		bottom: outerEdges.bottom
-			? layoutService.isVisible(Parts.STATUSBAR_PART, targetWindow) ? FLOATING_PANEL_MARGIN : outerMargin
+			? outerMargin
 			: FLOATING_PANEL_INNER_MARGIN
 	};
 }
@@ -553,6 +574,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns whether Modern UI uses its compact density.
 	 */
 	isModernUICompact(): boolean;
+
+	/** Effective gap between panel areas, in pixels. Compact and phone layouts return zero. */
+	getPanelSpacing(): number;
 
 	/**
 	 * Focuses the part in the target window. If the part is not visible this is a noop.

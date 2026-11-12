@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Project, Symbol as NativeSymbol } from '@typescript/native/unstable/async';
-import type { Node, SourceFile } from '@typescript/native/unstable/ast';
+import type { Project, Symbol as NativeSymbol } from '@typescript/native/async';
+import type { Node, SourceFile } from '@typescript/native/ast';
 import type * as protocol from '../../common/serverProtocol';
 import type { Symbols } from './typescripts';
 

@@ -129,6 +129,7 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 			overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 			fixedOverflowWidgets: true
 		}, {
+			variant: this._variantConfiguration.diffEditorVariant,
 			runWithOriginalEditorScrollAnchor: (anchorLineNumber, update) => this._runWithEditorScrollAnchor(
 				() => this._outerEditorHeight + this._getOriginalEditorLineTop(anchorLineNumber),
 				update
@@ -367,10 +368,13 @@ export class DiffEditorItemTemplate extends VirtualizedItemTemplate<DocumentDiff
 	private setItem(item: DocumentDiffItemViewModel | undefined, initialSize = 0): void {
 		this._verticalStateUpdate.clear();
 		const optionsOverride = this._optionsOverride;
+		const variantOptions = this._variantConfiguration.diffEditorOptions;
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
+				...variantOptions,
 				...options,
 				...optionsOverride?.get(),
+				hideOriginalLineNumbers: optionsOverride?.get()?.hideOriginalLineNumbers ?? options.hideOriginalLineNumbers ?? variantOptions?.hideOriginalLineNumbers ?? false,
 				scrollBeyondLastLine: false,
 				hideUnchangedRegions: {
 					enabled: true,

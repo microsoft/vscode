@@ -19,4 +19,23 @@ fi
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 echo "Running sanity tests"
+for arg in "$@"; do
+	if [ "$arg" = "--setuid-sandbox" ]; then
+		# Only the dedicated setuid pass needs a non-root runner and privileged package installation.
+		for command in sudo useradd runuser; do
+			if ! command -v "$command" > /dev/null 2>&1; then
+				echo "Error: $command is required for setuid sandbox tests; rebuild the sanity test image with its prerequisites" >&2
+				exit 1
+			fi
+		done
+		useradd --create-home sanity
+		printf 'sanity ALL=(root) NOPASSWD: /usr/bin/dpkg, /usr/bin/rpm\n' > /etc/sudoers.d/sanity
+		chmod 440 /etc/sudoers.d/sanity
+		chmod 755 /root
+		chown sanity /root
+		mkdir -p /root/screenshots /root/crash-dumps
+		chown -R sanity /root/screenshots /root/crash-dumps
+		exec runuser -u sanity -- node /root/out/index.js "$@"
+	fi
+done
 node /root/out/index.js "$@"

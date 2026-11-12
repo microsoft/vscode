@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
+import { timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IExtensionsProfileScannerService, IProfileExtensionsScanOptions } from '../../common/extensionsProfileScannerService.js';
 import { AbstractExtensionsScannerService, ExtensionScannerInput, IExtensionsScannerService, IScannedExtensionManifest, Translations } from '../../common/extensionsScannerService.js';
 import { ExtensionsProfileScannerService } from '../../node/extensionsProfileScannerService.js';
-import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../../extensions/common/extensions.js';
+import { ExtensionType, getManifestCacheFileName, IExtensionManifest, TargetPlatform } from '../../../extensions/common/extensions.js';
 import { IFileService } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -25,6 +27,9 @@ import { IUserDataProfilesService, UserDataProfilesService } from '../../../user
 
 let translations: Translations = Object.create(null);
 const ROOT = URI.file('/ROOT');
+
+// Comfortably longer than the throttle the scanner uses before it validates a cache hit
+const CACHE_VALIDATION_DELAY = 10_000;
 
 class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
@@ -472,6 +477,107 @@ suite('NativeExtensionsScanerService Test', () => {
 			assert.deepStrictEqual(extension.manifest.version, '1.66.0');
 			assert.deepStrictEqual(extension.type, ExtensionType.System);
 		});
+
+	});
+
+	suite('manifest cache', () => {
+
+		// The cache is only used for built products, development always scans from disk
+		setup(() => instantiationService.stub(INativeEnvironmentService, 'isBuilt', true));
+
+		test('system extensions are cached per scan language', async () => {
+			await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+
+			await testObject.scanSystemExtensions({});
+			await testObject.scanSystemExtensions({ language: 'en' });
+			await testObject.scanSystemExtensions({ language: 'zh-CN' });
+
+			assert.deepStrictEqual(await cacheFileNames(), [
+				getManifestCacheFileName(ExtensionType.System, undefined),
+				getManifestCacheFileName(ExtensionType.System, 'en'),
+				getManifestCacheFileName(ExtensionType.System, 'zh-CN'),
+			].sort());
+		});
+
+		test('system extension scan is only served from the cache of the same language', async () => {
+			const extensionLocation = await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+			await testObject.scanSystemExtensions({ language: 'en' });
+
+			// Rewrite the manifest, which leaves the mtime of the scanned location untouched
+			await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
+			const cached = await testObject.scanSystemExtensions({ language: 'en' });
+			const rescanned = await testObject.scanSystemExtensions({ language: 'de' });
+
+			assert.deepStrictEqual([cached[0].manifest.version, rescanned[0].manifest.version], ['1.0.0', '2.0.0']);
+		});
+
+		test('user extensions are cached per scan language', async () => {
+			await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+			const profileLocation = instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource;
+			const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+
+			await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
+
+			assert.deepStrictEqual(await cacheFileNames(), [getManifestCacheFileName(ExtensionType.User, 'en')]);
+		});
+
+		test('a system cache hit validates the cache by scanning again', async () => {
+			await runWithFakedTimers({}, async () => {
+				const extensionLocation = await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+				const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+				await testObject.scanSystemExtensions({ language: 'en' });
+
+				// Leaves the mtime of the scanned location untouched, so the next scan still hits the cache
+				await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
+				await testObject.scanSystemExtensions({ language: 'en' });
+				await timeout(CACHE_VALIDATION_DELAY);
+
+				assert.deepStrictEqual(await cacheFileNames(), []);
+			});
+		});
+
+		test('a user cache hit validates the cache by scanning again', async () => {
+			await runWithFakedTimers({}, async () => {
+				const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+				const profileLocation = instantiationService.get(IUserDataProfilesService).defaultProfile.extensionsResource;
+				const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+				// The first scan creates the profile resource, so scan twice to cache a stable input
+				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
+				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
+
+				// Leaves the mtime of the scanned profile resource untouched, so the next scan still hits the cache
+				await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
+				await testObject.scanUserExtensions({ profileLocation, language: 'en', useCache: true });
+				await timeout(CACHE_VALIDATION_DELAY);
+
+				assert.deepStrictEqual(await cacheFileNames(), []);
+			});
+		});
+
+		test('cache hits in several languages are all validated, not just the last one', async () => {
+			await runWithFakedTimers({}, async () => {
+				const extensionLocation = await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
+				const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
+				await testObject.scanSystemExtensions({ language: 'en' });
+				await testObject.scanSystemExtensions({ language: 'de' });
+
+				// Leaves the mtime of the scanned location untouched, so both scans still hit their cache
+				await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.json'), VSBuffer.fromString(JSON.stringify(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '2.0.0' }))));
+				await testObject.scanSystemExtensions({ language: 'en' });
+				await testObject.scanSystemExtensions({ language: 'de' });
+				await timeout(CACHE_VALIDATION_DELAY);
+
+				assert.deepStrictEqual(await cacheFileNames(), []);
+			});
+		});
+
+		async function cacheFileNames(): Promise<string[]> {
+			const cacheHome = instantiationService.get(IUserDataProfilesService).defaultProfile.cacheHome;
+			const resolved = await instantiationService.get(IFileService).resolve(cacheHome);
+			return (resolved.children ?? []).map(child => child.name).sort();
+		}
 
 	});
 });
