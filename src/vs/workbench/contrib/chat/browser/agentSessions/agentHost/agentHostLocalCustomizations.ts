@@ -55,6 +55,10 @@ export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 ];
 
 export interface ILocalCustomizationSyncOptions {
+	/**
+	 * Sync user customizations too. Set for an agent host on another machine,
+	 * which cannot discover any of the client's files itself.
+	 */
 	readonly includeUserStorage?: boolean;
 }
 
@@ -84,9 +88,10 @@ export interface ILocalCustomizationFile {
  * any per-provider plumbing. A built-in skill is left out when a workspace
  * or user skill with the same name overrides it and the harness receives or
  * discovers that skill. Workspace overrides are looked up in `roots`, the
- * folders the session works in, or in the window's workspace when `roots` is
- * empty. In the regular VS Code workbench window the built-in lookup returns
- * nothing and this is a no-op.
+ * folders the session works in: `undefined` stands for the window's
+ * workspace and an empty array for a session without a workspace. In the
+ * regular VS Code workbench window the built-in lookup returns nothing and
+ * this is a no-op.
  */
 export async function enumerateLocalCustomizationsForHarness(
 	promptsService: IPromptsService,
@@ -94,7 +99,7 @@ export async function enumerateLocalCustomizationsForHarness(
 	sessionType: string,
 	token: CancellationToken,
 	options: ILocalCustomizationSyncOptions | undefined,
-	roots: readonly URI[] = [],
+	roots?: readonly URI[],
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
 	const seenUris = new ResourceSet();
@@ -110,8 +115,9 @@ export async function enumerateLocalCustomizationsForHarness(
 		const lists = await Promise.all(
 			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
-		const overridingSkillNames = type === PromptsType.skill
-			? await getOverridingSkillNames(promptsService, storageSources, lists, harnessSessionType, fullySyncedStorageSources, roots, token)
+		const builtInIndex = storageSources.indexOf(PromptsStorage.builtIn);
+		const overridingSkillNames = type === PromptsType.skill && builtInIndex >= 0 && lists[builtInIndex].length > 0
+			? await getOverridingSkillNames(promptsService, syncProvider, storageSources, lists, harnessSessionType, fullySyncedStorageSources, !!options?.includeUserStorage, roots, token)
 			: undefined;
 		for (let i = 0; i < lists.length; i++) {
 			const source = storageSources[i];
@@ -183,17 +189,22 @@ function isSkillFolderDiscoveredByHarness(harness: string, source: PromptFileSou
  * built-in skill with one of these names is overridden and must not be
  * forwarded to the agent host next to the workspace or user copy.
  *
- * The host discovers workspace skills in the folders the session works in,
- * so when `roots` are given they are looked up there rather than in the
- * window's workspace.
+ * A synced skill counts only while the user has not opted it out of the sync.
+ * The host discovers workspace skills in the folders the session works in, so
+ * `roots` are looked up rather than the window's workspace unless they are
+ * `undefined`; an empty array means the session has no workspace. A host on
+ * another machine (`isRemoteHost`) discovers none of the client's own files,
+ * so for it only synced skills and skills in the session's folders count.
  */
 async function getOverridingSkillNames(
 	promptsService: IPromptsService,
+	syncProvider: ICustomizationSyncProvider,
 	storageSources: readonly PromptsStorage[],
 	lists: readonly (readonly IPromptPath[])[],
 	harnessSessionType: string,
 	fullySyncedStorageSources: readonly PromptsStorage[],
-	roots: readonly URI[],
+	isRemoteHost: boolean,
+	roots: readonly URI[] | undefined,
 	token: CancellationToken,
 ): Promise<ReadonlySet<string>> {
 	const names = new Set<string>();
@@ -207,15 +218,15 @@ async function getOverridingSkillNames(
 		if (storage !== PromptsStorage.local && storage !== PromptsStorage.user) {
 			continue;
 		}
-		const discoverable = storage === PromptsStorage.user || roots.length === 0;
+		const discoverable = !isRemoteHost && (storage === PromptsStorage.user || roots === undefined);
 		for (const file of lists[i]) {
-			if (isSyncedToHarness(file, storage, fullySyncedStorageSources)
-				|| (discoverable && isSkillFolderDiscoveredByHarness(harnessSessionType, file.source))) {
+			const synced = isSyncedToHarness(file, storage, fullySyncedStorageSources) && !syncProvider.isDisabled(file.uri);
+			if (synced || (discoverable && isSkillFolderDiscoveredByHarness(harnessSessionType, file.source))) {
 				addIfApplicable(file);
 			}
 		}
 	}
-	if (roots.length > 0) {
+	if (roots?.length) {
 		const rootLists = await Promise.all(roots.map(root => promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.local, token, root)));
 		for (const file of rootLists.flat()) {
 			if (isSkillFolderDiscoveredByHarness(harnessSessionType, file.source)) {
@@ -357,7 +368,7 @@ export async function resolveCustomizationRefs(
 	bundlers: ISyncedCustomizationBundlers,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
-	workingDirectories: readonly URI[] = [],
+	workingDirectories?: readonly URI[],
 	windowRemoteAuthority: string | null = null,
 ): Promise<ClientPluginCustomization[]> {
 	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, workingDirectories);
@@ -424,7 +435,7 @@ export async function resolveCustomizationRefs(
 	}
 
 	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
-	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories ?? [], windowRemoteAuthority);
 	const syncedFiles = looseFiles.filter(file => !isStandaloneSkillOrAgent(file));
 	if (isRemoteAgentHostSessionType(sessionType) && parseAgentHostHarness(sessionType) === 'copilot') {
 		syncedFiles.push({

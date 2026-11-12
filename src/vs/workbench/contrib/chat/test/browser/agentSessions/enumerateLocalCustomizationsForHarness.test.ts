@@ -281,9 +281,10 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 				.map(item => item.uri.toString())
 		));
 
+		// A remote host (`includeUserStorage`) cannot discover the client's window workspace, so only the synced user skill overrides there.
 		assert.deepStrictEqual(results, [
 			[builtinCreatePr.toString()],
-			[userSkill.toString(), builtinCreatePr.toString()],
+			[userSkill.toString(), builtinCodeReview.toString(), builtinCreatePr.toString()],
 		]);
 	});
 
@@ -330,15 +331,64 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 			]],
 		]));
 
-		const results = await Promise.all([[], [sessionFolder]].map(async roots =>
+		const results = await Promise.all([undefined, [sessionFolder], []].map(async roots =>
 			(await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined, roots))
 				.map(item => item.uri.toString())
 		));
 
+		// `undefined` roots stand for the window's workspace, an empty array for a session without a workspace.
 		assert.deepStrictEqual(results, [
 			[builtinMerge.toString()],
 			[builtinCodeReview.toString()],
+			[builtinCodeReview.toString(), builtinMerge.toString()],
 		]);
+	});
+
+	test('counts only synced skills and skills in the session folders as overrides on a remote host', async () => {
+		const sessionFolder = URI.file('/repo');
+		const syncDisabledUserSkill = URI.file('/home/user/.copilot/skills/code-review/SKILL.md');
+		const syncedUserSkill = URI.file('/home/user/.copilot/skills/create-pr/SKILL.md');
+		const windowSkill = URI.file('/workspace/.github/skills/merge/SKILL.md');
+		const sessionSkill = URI.file('/repo/.github/skills/merge/SKILL.md');
+		const builtins = ['code-review', 'merge', 'create-pr'].map(name => URI.file(`/builtin/${name}/SKILL.md`));
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.skill}/${PromptsStorage.local}`, [makePromptPath(windowSkill, PromptsType.skill, PromptsStorage.local, undefined, PromptFileSource.GitHubWorkspace)]],
+			[`${PromptsType.skill}/${PromptsStorage.local}@${sessionFolder.toString()}`, [makePromptPath(sessionSkill, PromptsType.skill, PromptsStorage.local, undefined, PromptFileSource.GitHubWorkspace)]],
+			[`${PromptsType.skill}/${PromptsStorage.user}`, [
+				makePromptPath(syncDisabledUserSkill, PromptsType.skill, PromptsStorage.user, undefined, PromptFileSource.CopilotPersonal),
+				makePromptPath(syncedUserSkill, PromptsType.skill, PromptsStorage.user, undefined, PromptFileSource.CopilotPersonal),
+			]],
+			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, builtins.map(uri => makePromptPath(uri, PromptsType.skill, PromptsStorage.builtIn))],
+		]));
+		const syncProvider = new FakeSyncProvider(new Set([syncDisabledUserSkill.toString()]));
+
+		const results = await Promise.all([undefined, [sessionFolder]].map(async roots =>
+			(await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, 'remote-devbox-copilotcli', CancellationToken.None, { includeUserStorage: true }, roots))
+				.filter(item => !item.disabled)
+				.map(item => item.uri.toString())
+		));
+
+		// The remote host receives only the synced user skill and discovers none of the client's own files, but it does discover skills in the folders the session works in.
+		assert.deepStrictEqual(results, [
+			[syncedUserSkill.toString(), builtins[0].toString(), builtins[1].toString()],
+			[syncedUserSkill.toString(), builtins[0].toString()],
+		]);
+	});
+
+	test('skips the session-folder lookup when there are no built-in skills to override', async () => {
+		const roots: string[] = [];
+		const promptsService = makePromptsService(new Map());
+		const listPromptFilesForStorage = promptsService.listPromptFilesForStorage;
+		promptsService.listPromptFilesForStorage = (type, storage, token, root) => {
+			if (root) {
+				roots.push(root.toString());
+			}
+			return listPromptFilesForStorage(type, storage, token, root);
+		};
+
+		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined, [URI.file('/repo-a'), URI.file('/repo-b')]);
+
+		assert.deepStrictEqual({ result, roots }, { result: [], roots: [] });
 	});
 
 	test('returns empty when the prompts service exposes no built-in skills (regular workbench)', async () => {

@@ -61,7 +61,7 @@ import { AgentHostActiveClientService, IAgentHostActiveClientService } from '../
 import { AgentHostMcpAppToolsService, IAgentHostMcpAppToolsService } from '../../../browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
@@ -126,7 +126,8 @@ suite('AgentHostClientTools', () => {
 		fullReferenceNames?: ReadonlyMap<string, string>,
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IFileService, TestFileService);
+		const fileService = new TestFileService();
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IAgentHostFileSystemService, {
 			ensureSyncedCustomizationProvider: () => { },
 		});
@@ -142,6 +143,7 @@ suite('AgentHostClientTools', () => {
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: mcpOptions?.remoteAuthority });
+		let promptListings = 0;
 		instantiationService.stub(IPromptsService, new class extends mock<IPromptsService>() {
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeSlashCommands = Event.None;
@@ -149,6 +151,7 @@ suite('AgentHostClientTools', () => {
 			override readonly onDidChangeInstructions = Event.None;
 			override getDisabledPromptFiles() { return new ResourceSet(); }
 			override async listPromptFilesForStorage() {
+				promptListings++;
 				return [];
 			}
 		}());
@@ -181,7 +184,7 @@ suite('AgentHostClientTools', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
-		return { service };
+		return { service, fileService, getPromptListings: () => promptListings };
 	}
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
@@ -224,6 +227,49 @@ suite('AgentHostClientTools', () => {
 			scopeAfterReleaseIsResolved: true,
 		});
 	});
+
+	test('refreshes a scope when skills change in the skill folders of its roots', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { service, fileService, getPromptListings } = createActiveClientService();
+		const root = URI.file('/repo');
+		const ambientScope = service.acquireScope('agent-host-claude', undefined);
+		const workspacelessScope = service.acquireScope('agent-host-claude', []);
+		await Promise.all([ambientScope.whenResolved(), workspacelessScope.whenResolved()]);
+		const watchesWithoutRoots = fileService.watches.map(uri => uri.path);
+		const scope = service.acquireScope('agent-host-claude', [root]);
+		await scope.whenResolved();
+		const watches = fileService.watches.map(uri => uri.path).sort();
+
+		const listingsBeforeUnrelatedChange = getPromptListings();
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: URI.file('/repo/src/index.ts'), type: FileChangeType.ADDED }], false));
+		await timeout(100);
+		const refreshedOnUnrelatedChange = getPromptListings() !== listingsBeforeUnrelatedChange;
+
+		const listingsBeforeSkillChange = getPromptListings();
+		fileService.fireFileChanges(new FileChangesEvent([{ resource: URI.file('/repo/.github/skills/code-review/SKILL.md'), type: FileChangeType.ADDED }], false));
+		await timeout(100);
+		await scope.whenResolved();
+		const refreshedOnSkillChange = getPromptListings() !== listingsBeforeSkillChange;
+
+		scope.dispose();
+		ambientScope.dispose();
+		workspacelessScope.dispose();
+
+		assert.deepStrictEqual({
+			ambientAndWorkspacelessScopesDiffer: ambientScope.customizations !== workspacelessScope.customizations,
+			watchesWithoutRoots,
+			watches,
+			refreshedOnUnrelatedChange,
+			refreshedOnSkillChange,
+			watchesAfterDispose: fileService.watches.length,
+		}, {
+			ambientAndWorkspacelessScopesDiffer: true,
+			watchesWithoutRoots: [],
+			watches: ['/repo/.agents/skills', '/repo/.claude/skills', '/repo/.github/skills'],
+			refreshedOnUnrelatedChange: false,
+			refreshedOnSkillChange: true,
+			watchesAfterDispose: 0,
+		});
+	}));
 
 	test('isolates additional tools to one session and moves them with the session resource', () => {
 		const tool: IToolData = {
