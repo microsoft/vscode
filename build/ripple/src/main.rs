@@ -11,6 +11,7 @@ mod deps;
 mod engine;
 mod git;
 mod graph;
+mod registries;
 
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
@@ -32,11 +33,19 @@ const USAGE: &str = "usage: ripple <command> --config FILE [--repo PATH] [option
 	\tplan --base REV [--head REV] [--out-dir DIR]: the unit test files to run for a change\n\
 	\tblame --test PATH --since REV [--until REV]: the commits in a range that can affect a test\n\
 	\twhy --test PATH --base REV [--head REV]: how a change reaches a test that it selects\n\
+	\tregistrations [--rev REV] [--base REV]: unit tests that read a registry entry that nothing they load registers; with --base, only those that are new since then\n\
 	\treplay --since DATE [--until REV] [--out FILE] [--hubs 1]: selection statistics over first-parent history";
 
 /// The commands of `USAGE`.
 const COMMANDS: &[&str] = &[
-	"stats", "affected", "analyze", "plan", "blame", "why", "replay",
+	"stats",
+	"affected",
+	"analyze",
+	"plan",
+	"blame",
+	"why",
+	"replay",
+	"registrations",
 ];
 
 /// The options of all commands. Each one takes a value.
@@ -143,6 +152,12 @@ fn main() -> Result<()> {
 			args.get("base").context("--base is required")?,
 			args.get("head").unwrap_or("HEAD"),
 		),
+		"registrations" => registrations(
+			&config,
+			repo,
+			args.get("rev").unwrap_or("HEAD"),
+			args.get("base"),
+		),
 		"replay" => replay(
 			&config,
 			repo,
@@ -152,6 +167,69 @@ fn main() -> Result<()> {
 			args.get("hubs").is_some(),
 		),
 		_ => unreachable!(),
+	}
+}
+
+/// Reports the unit tests that read a registry entry that nothing they load registers (see
+/// registries.rs), and fails if there are any. With `base`, only those that are new since then.
+fn registrations(config: &Config, repo: PathBuf, rev: &str, base: Option<&str>) -> Result<()> {
+	let t = Instant::now();
+	let mut engine = Engine::new(repo, config);
+	fn check(
+		engine: &mut Engine,
+		config: &Config,
+		rev: &str,
+	) -> Result<(Vec<registries::Finding>, registries::Summary)> {
+		let snap = engine.snapshot(rev)?;
+		let graph = Graph::build(&snap, config);
+		registries::check(&snap, &graph, config)
+	}
+	let (mut findings, summary) = check(&mut engine, config, rev)?;
+	let total = findings.len();
+	if let Some(base) = base {
+		let (before, _) = check(&mut engine, config, base)?;
+		let known: HashSet<(&str, &str, &str)> = before.iter().map(|f| f.id()).collect();
+		findings.retain(|f| !known.contains(&f.id()));
+	}
+	let github = std::env::var_os("GITHUB_ACTIONS").is_some();
+	for f in &findings {
+		let registered = match f.loaded_by.as_slice() {
+			[] => format!("only {} registers it", f.registered_by.join(", ")),
+			modules => format!(
+				"{} registers it, which {} run{} when loaded",
+				f.registered_by.join(", "),
+				modules.join(", "),
+				if modules.len() == 1 { "s" } else { "" }
+			),
+		};
+		let message = format!(
+			"reads the {} entry {}, but nothing the test loads registers it: {registered}. It passes only when another test file loads that, so import it or register the entry in the test (or add a `ripple-ignore-registration` comment if the test does not depend on the entry).",
+			f.registry, f.key
+		);
+		println!("{}:{}: {message}", f.test, f.line);
+		if github {
+			println!(
+				"::error file={},line={},title=Test depends on a registration it does not load::{message}",
+				f.test, f.line
+			);
+		}
+	}
+	eprintln!(
+		"checked {} registry reads in {} unit test files ({} reads of keys that nothing registers or that cannot be resolved are not checked)",
+		summary.checked, summary.tests, summary.unchecked
+	);
+	eprintln!(
+		"{} finding(s){} in {} ms",
+		findings.len(),
+		base.map_or(String::new(), |b| format!(
+			" new since {b} ({total} in {rev})"
+		)),
+		t.elapsed().as_millis()
+	);
+	if findings.is_empty() {
+		Ok(())
+	} else {
+		std::process::exit(1)
 	}
 }
 

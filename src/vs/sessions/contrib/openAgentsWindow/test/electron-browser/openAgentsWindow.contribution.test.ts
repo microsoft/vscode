@@ -309,6 +309,7 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 
 	test('registers the command handler without adding a default keybinding or command palette entry', async () => {
 		const defaultKeybindingsBefore = KeybindingsRegistry.getDefaultKeybindings().filter(keybinding => keybinding.command === OPEN_AGENTS_WINDOW_COMMAND_ID);
+		// ripple-ignore-registration: compares the Command Palette before and after registering the command
 		const commandPaletteItemsBefore = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).filter(item => item.command.id === OPEN_AGENTS_WINDOW_COMMAND_ID);
 		const nativeHostService = new TestNativeHostService();
 		store.add(registerOpenAgentsWindowCommand());
@@ -329,6 +330,7 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 		assert.deepStrictEqual({
 			openAgentsWindowOptions: nativeHostService.openAgentsWindowOptions,
 			defaultKeybindingDelta: KeybindingsRegistry.getDefaultKeybindings().filter(keybinding => keybinding.command === OPEN_AGENTS_WINDOW_COMMAND_ID).length - defaultKeybindingsBefore.length,
+			// ripple-ignore-registration: the delta since the read before registering the command
 			commandPaletteDelta: MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).filter(item => item.command.id === OPEN_AGENTS_WINDOW_COMMAND_ID).length - commandPaletteItemsBefore.length,
 		}, {
 			openAgentsWindowOptions: options.map(option => ({ ...option, source: option.source ?? AgentsWindowOpenSource.CommandPalette })),

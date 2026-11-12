@@ -205,5 +205,65 @@
 	"moduleLoaders": [
 		"importAMDNodeModule",
 		"resolveAmdNodeModulePath"
-	]
+	],
+
+	// Registries that unit tests read by key, for `ripple registrations`: a test that reads an
+	// entry must load a module that registers it, or register it itself. A test run loads every
+	// test file before running any, so a test that relies on another test file to load the module
+	// that registers the entry passes in a full run, but fails alone or when a pull request's test
+	// plan does not select that other file.
+	"registries": {
+		// `Registry.as(<id>)` returns the registry of an id.
+		"accessor": "Registry.as",
+		// Each registry is `<module>#<name>`: the object whose methods read and register entries, or
+		// the id passed to the accessor. `read` lists the methods that read an entry by the key in
+		// their first argument. `register` lists the calls that register entries: a `method` of the
+		// registry, or a `call` of a function or of another object's method, with where their first
+		// argument holds the keys (`keys`, see build/ripple/README.md). With `class`, the first
+		// argument is a class whose constructor passes the descriptor to `super` (or a `new`
+		// expression); without `required`, a call that has none of the keys registers nothing;
+		// `registers` is a fixed key that the call registers when one of the keys is `true`; and
+		// `refine` is where the arguments hold what `readFilter` filters by (`@1` is the second
+		// argument). With `unique`, every key is registered once, so a read of a key that a
+		// registration names must reach that registration, and not just any registration whose key
+		// cannot be resolved.
+		"keyed": {
+			"command": {
+				"registry": "src/vs/platform/commands/common/commands.ts#CommandsRegistry",
+				"read": ["getCommand"],
+				"unique": true,
+				"register": [
+					{ "method": "registerCommand", "keys": ["", "id"] },
+					{ "method": "registerCommandAlias", "keys": [""] },
+					{ "call": "src/vs/platform/keybinding/common/keybindingsRegistry.ts#KeybindingsRegistry.registerCommandAndKeybindingRule", "keys": ["id"] },
+					{ "call": "src/vs/platform/actions/common/actions.ts#registerAction2", "keys": ["id"], "class": true },
+					{ "call": "src/vs/editor/browser/editorExtensions.ts#registerEditorAction", "keys": ["id"], "class": true },
+					{ "call": "src/vs/editor/browser/editorExtensions.ts#registerEditorCommand", "keys": ["id"], "class": true }
+				]
+			},
+			// Tests usually look for one command in a menu: `readFilter` makes a read of a menu whose
+			// result is filtered by `item.command.id === ID` depend on the item of that command (see
+			// `refine`), so that a test checking that a command is not in a menu depends on nothing.
+			"menu": {
+				"registry": "src/vs/platform/actions/common/actions.ts#MenuRegistry",
+				"read": ["getMenuItems"],
+				"readFilter": "command.id",
+				"register": [
+					{ "method": "appendMenuItem", "keys": [""], "refine": "@1.command.id" },
+					{ "method": "appendMenuItems", "keys": ["[].id"] },
+					{ "call": "src/vs/platform/actions/common/actions.ts#registerAction2", "keys": ["menu.id", "menu[].id"], "class": true, "required": false, "refine": "id" },
+					{ "call": "src/vs/platform/actions/common/actions.ts#registerAction2", "keys": ["f1"], "class": true, "required": false, "refine": "id", "registers": "src/vs/platform/actions/common/actions.ts#MenuId.CommandPalette" },
+					{ "call": "src/vs/editor/browser/editorExtensions.ts#registerEditorAction", "keys": ["contextMenuOpts.menuId", "contextMenuOpts[].menuId"], "class": true, "required": false, "refine": "id" }
+				]
+			},
+			"view editor": {
+				"registry": "src/vs/workbench/browser/parts/editor/viewEditorRegistry.ts#ViewEditorExtensions.ViewEditors",
+				"read": ["get"],
+				"unique": true,
+				"register": [
+					{ "method": "register", "keys": ["viewType"] }
+				]
+			}
+		}
+	}
 }
