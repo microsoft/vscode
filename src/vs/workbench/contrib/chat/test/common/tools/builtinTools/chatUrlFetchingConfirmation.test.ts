@@ -10,6 +10,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../..
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInputOptions, IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IUrlApprovalSettings } from '../../../../../../../platform/url/common/urlApprovalPatterns.js';
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { ChatUrlFetchingConfirmationContribution } from '../../../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
@@ -87,6 +88,85 @@ suite('ChatUrlFetchingConfirmationContribution', () => {
 				[false, { 'user.example': true, 'default.example': false }],
 			],
 		});
+	});
+
+	for (const target of [ConfigurationTarget.WORKSPACE, ConfigurationTarget.WORKSPACE_FOLDER]) {
+		test(`edits URL patterns at configuration target ${target} using its latest value`, async () => {
+			const userValue = { 'user.example': true };
+			let workspaceValue: Record<string, boolean | IUrlApprovalSettings> = { 'scoped.example': true };
+			let workspaceFolderValue: Record<string, boolean | IUrlApprovalSettings> | undefined = target === ConfigurationTarget.WORKSPACE_FOLDER
+				? { 'scoped.example': { approveRequest: true, approveResponse: false } }
+				: undefined;
+			const writes: { target: ConfigurationTarget | undefined; approvals: Record<string, boolean | IUrlApprovalSettings> }[] = [];
+			const configurationService = new TestConfigurationService();
+			store.add(configurationService.onDidChangeConfigurationEmitter);
+			sinon.stub(configurationService, 'updateValue').callsFake(async (_key: string, value: unknown, writeTarget?: unknown) => {
+				const approvals = value as Record<string, boolean | IUrlApprovalSettings>;
+				writes.push({ target: writeTarget as ConfigurationTarget | undefined, approvals });
+				if (writeTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+					workspaceFolderValue = approvals;
+				} else if (writeTarget === ConfigurationTarget.WORKSPACE) {
+					workspaceValue = approvals;
+				}
+			});
+			sinon.stub(configurationService, 'getValue').callsFake(() => ({ ...userValue, ...workspaceValue, ...workspaceFolderValue }));
+			sinon.stub(configurationService, 'inspect').callsFake(() => ({ userValue, workspaceValue, workspaceFolderValue }));
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IQuickInputService, {});
+			instantiationService.stub(IPreferencesService, {});
+			const contribution = instantiationService.createInstance(ChatUrlFetchingConfirmationContribution, () => undefined);
+			const item = contribution.getManageActions().find(item => item.label === 'scoped.example')!;
+			if (workspaceFolderValue) {
+				workspaceFolderValue = { ...workspaceFolderValue, 'new.example': true };
+			} else {
+				workspaceValue = { ...workspaceValue, 'new.example': true };
+			}
+			await item.onDidChangeChecked!(false);
+			const unchecked = contribution.getManageActions().find(item => item.label === 'scoped.example')!.checked;
+			await item.onDidTriggerItemButton!(item.buttons![0]);
+
+			assert.deepStrictEqual({ unchecked, writes, userValue }, {
+				unchecked: false,
+				writes: [
+					{
+						target, approvals: target === ConfigurationTarget.WORKSPACE
+							? { 'scoped.example': { approveRequest: false, approveResponse: true }, 'new.example': true }
+							: { 'scoped.example': false, 'new.example': true }
+					},
+					{ target, approvals: { 'new.example': true } },
+				],
+				userValue: { 'user.example': true },
+			});
+		});
+	}
+
+	test('adding an existing default URL pattern preserves response approval', async () => {
+		const defaultValue = { 'default.example': true, 'response.example': { approveResponse: true } };
+		let userValue: Record<string, boolean | IUrlApprovalSettings> = {};
+		const writes: { value: Record<string, boolean | IUrlApprovalSettings>; target: ConfigurationTarget | undefined }[] = [];
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		sinon.stub(configurationService, 'updateValue').callsFake(async (_key: string, value: unknown, target?: unknown) => {
+			userValue = value as Record<string, boolean | IUrlApprovalSettings>;
+			writes.push({ value: userValue, target: target as ConfigurationTarget | undefined });
+		});
+		sinon.stub(configurationService, 'getValue').callsFake(() => ({ ...defaultValue, ...userValue }));
+		sinon.stub(configurationService, 'inspect').callsFake(() => ({ defaultValue, userValue }));
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configurationService);
+		const inputs = Object.keys(defaultValue);
+		instantiationService.stub(IQuickInputService, { input: async () => inputs.shift() });
+		instantiationService.stub(IPreferencesService, {});
+		const contribution = instantiationService.createInstance(ChatUrlFetchingConfirmationContribution, () => undefined);
+		const addItem = contribution.getManageActions().find(item => item.label === 'Add URL Pattern...')!;
+		await addItem.onDidOpen!();
+		await addItem.onDidOpen!();
+
+		assert.deepStrictEqual(writes, [
+			{ value: { 'default.example': { approveRequest: true, approveResponse: true } }, target: ConfigurationTarget.USER },
+			{ value: { 'default.example': { approveRequest: true, approveResponse: true }, 'response.example': { approveRequest: true, approveResponse: true } }, target: ConfigurationTarget.USER },
+		]);
 	});
 
 	test('adds request-only URL patterns while preserving existing response approvals', async () => {

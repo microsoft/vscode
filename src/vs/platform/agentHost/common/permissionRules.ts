@@ -117,9 +117,10 @@ export function matchesPermissionRule(rule: string, request: IPermissionRequest,
 		case 'Shell':
 			return request.kind === AgentPermissionKind.Shell && parsed.specifier === undefined;
 		case 'Mcp':
-			return request.kind === AgentPermissionKind.Mcp && !!request.mcpServerName
-				&& (parsed.specifier === undefined || parsed.specifier === request.mcpServerName
-					|| (request.mcpToolName !== undefined && parsed.specifier === `${request.mcpServerName}/${request.mcpToolName}`));
+			return request.kind === AgentPermissionKind.Mcp && (parsed.specifier === undefined
+				|| (!!request.mcpServerName && !request.mcpServerName.includes('/')
+					&& (parsed.specifier === request.mcpServerName
+						|| (request.mcpToolName !== undefined && parsed.specifier === `${request.mcpServerName}/${request.mcpToolName}`))));
 		case 'WebFetch':
 			return request.kind === AgentPermissionKind.Url && (parsed.specifier === undefined || matchesWebFetch(parsed.specifier, request.url));
 		case 'Read':

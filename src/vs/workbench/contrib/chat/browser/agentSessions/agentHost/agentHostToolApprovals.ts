@@ -10,6 +10,7 @@ import { localize } from '../../../../../../nls.js';
 import { mcpServerRule, mcpToolRule } from '../../../../../../platform/agentHost/common/permissionRules.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { isAgentHostSessionResource, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { InternalFetchWebPageToolId } from '../../../common/tools/builtinTools/tools.js';
 import { ILanguageModelToolsConfirmationService, IToolPreApprovalStore } from '../../../common/tools/languageModelToolsConfirmationService.js';
@@ -25,6 +26,7 @@ CommandsRegistry.registerCommand(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID, (a
 	accessor.get(IAgentHostCustomizationService),
 	accessor.get(ILanguageModelToolsConfirmationService),
 	accessor.get(ILanguageModelToolsService),
+	!accessor.get(IWorkbenchEnvironmentService).remoteAuthority,
 ));
 
 /** Opens host-wide tool approvals for an agent-host session, returning false when its root config is unavailable. */
@@ -33,6 +35,7 @@ export function manageAgentHostToolApprovals(
 	customizationService: IAgentHostCustomizationService,
 	confirmationService: ILanguageModelToolsConfirmationService,
 	toolsService: ILanguageModelToolsService,
+	mirrorsLocalSettings: boolean,
 ): boolean {
 	if (!isAgentHostSessionResource(sessionResource)) {
 		return false;
@@ -78,7 +81,7 @@ export function manageAgentHostToolApprovals(
 	const isDiscovering = observableValue('agentHostToolApprovals.isDiscovering', servers.some(server => !!server.listTools));
 
 	// URL and terminal approval settings are mirrored only into the local agent host.
-	if (isLocalAgentHostTarget(sessionResource.scheme)) {
+	if (mirrorsLocalSettings && isLocalAgentHostTarget(sessionResource.scheme)) {
 		for (const toolId of [InternalFetchWebPageToolId, TerminalToolId.RunInTerminal]) {
 			const tool = toolsService.getTool(toolId);
 			if (tool) {
@@ -94,15 +97,26 @@ export function manageAgentHostToolApprovals(
 		}
 	}
 
+	const getHostPermissions = () => {
+		const permissions = customizationService.getHostPermissions(sessionResource);
+		if (permissions) {
+			for (const [rule, approved] of approvalOverrides) {
+				if (permissions.allow.includes(rule) === approved) {
+					approvalOverrides.delete(rule);
+				}
+			}
+		}
+		return permissions;
+	};
 	const setRuleApproved = (rule: string | undefined, approved: boolean) => {
 		if (rule === undefined) {
 			return;
 		}
-		approvalOverrides.set(rule, approved);
-		const permissions = customizationService.getHostPermissions(sessionResource);
+		const permissions = getHostPermissions();
 		if (!permissions) {
 			return;
 		}
+		approvalOverrides.set(rule, approved);
 		const allow = new Set(permissions.allow);
 		for (const [overriddenRule, overriddenApproved] of approvalOverrides) {
 			if (overriddenApproved) {
@@ -113,7 +127,10 @@ export function manageAgentHostToolApprovals(
 		}
 		customizationService.setHostPermissions(sessionResource, { ...permissions, allow: [...allow] });
 	};
-	const isRuleApproved = (rule: string | undefined) => rule !== undefined && (approvalOverrides.get(rule) ?? customizationService.getHostPermissions(sessionResource)?.allow.includes(rule) ?? false);
+	const isRuleApproved = (rule: string | undefined) => {
+		const permissions = getHostPermissions();
+		return rule !== undefined && (approvalOverrides.get(rule) ?? permissions?.allow.includes(rule) ?? false);
+	};
 	const getToolRule = (tool: IToolData) => {
 		const name = toolNames.get(tool.id);
 		return name ? mcpToolRule(name.server, name.tool) : undefined;

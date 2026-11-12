@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -588,6 +589,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			manageActionIndex?: number;
 		}
 
+		const manageActionSequencer = new Sequencer();
 		const uncheckedManageActions = new Map<string, { item: IToolTreeItem; index: number }>();
 		const preApprovalStore = options?.preApprovalStore;
 
@@ -1008,13 +1010,13 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			quickTree.busy = preApprovalStore.isDiscovering?.get() ?? false;
 		}
 
-		// Contributed items persist asynchronously, so rebuild once they settle to show their new state.
-		const runManageAction = async (action: void | Promise<void>) => {
-			await action;
+		// Serialize contributed edits, including their settings reads, before rebuilding.
+		const runManageAction = (action: () => void | Promise<void>) => manageActionSequencer.queue(async () => {
+			await action();
 			if (!disposables.isDisposed) {
 				quickTree.setItemTree(buildTreeItems());
 			}
-		};
+		});
 
 		disposables.add(quickTree.onDidChangeCheckboxState(item => {
 			if (isAutoApprovePolicyRestricted(this._configurationService) && item.type !== 'manage') {
@@ -1072,10 +1074,11 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				this._postExecutionServerConfirmStore.setAutoConfirmation(item.serverId, newState);
 				quickTree.setItemTree(buildTreeItems());
 			} else if (item.type === 'manage') {
-				if (!item.checked && item.id && item.manageActionIndex !== undefined) {
+				const checked = !!item.checked;
+				if (!checked && item.id && item.manageActionIndex !== undefined) {
 					uncheckedManageActions.set(item.id, { item, index: item.manageActionIndex });
 				}
-				void runManageAction((item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidChangeChecked?.(!!item.checked));
+				void runManageAction(() => (item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidChangeChecked?.(checked));
 			} else if (item.type === 'combination' && item.combinationKey) {
 				this._combinationConfirmStore.setAutoConfirmation(item.combinationKey, newState, item.label, item.combinationArgs);
 				quickTree.setItemTree(buildTreeItems());
@@ -1087,7 +1090,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				if (i.item.id) {
 					uncheckedManageActions.delete(i.item.id);
 				}
-				void runManageAction((i.item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidTriggerItemButton?.(i.button));
+				void runManageAction(() => (i.item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidTriggerItemButton?.(i.button));
 			} else if (i.item.type === 'combination' && i.button === viewArgsButton && i.item.combinationArgs) {
 				this._dialogService.prompt({
 					message: localize('combinationArguments', "Arguments"),

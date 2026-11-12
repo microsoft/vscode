@@ -299,30 +299,30 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 				buttons: [trashButton],
 				// The checkbox controls fetching without asking; response approval is kept as is.
 				checked: getUrlApproval(settings).request,
-				onDidChangeChecked: checked => this._updateUserApprovals(approvals => {
+				onDidChangeChecked: checked => this._updateApprovals((approvals, target) => {
 					const defaultSettings = this._getDefaultApprovedUrls()[pattern];
 					const next = { request: checked, response: getUrlApproval(this._getApprovedUrls()[pattern] ?? settings).response };
-					const matchesDefault = defaultSettings !== undefined
+					const matchesDefault = target === ConfigurationTarget.USER && (defaultSettings !== undefined
 						? getUrlApproval(defaultSettings).request === next.request && getUrlApproval(defaultSettings).response === next.response
-						: !next.request && !next.response;
+						: !next.request && !next.response);
 					if (matchesDefault) {
 						delete approvals[pattern];
 					} else {
 						approvals[pattern] = next.request === next.response ? next.request : { approveRequest: next.request, approveResponse: next.response };
 					}
-				}),
+				}, pattern),
 				onDidTriggerItemButton: button => {
 					if (button !== trashButton) {
 						return;
 					}
-					return this._updateUserApprovals(approvals => {
+					return this._updateApprovals(approvals => {
 						if (this._getDefaultApprovedUrls()[pattern] !== undefined) {
 							// Default patterns cannot be deleted, so override them instead.
 							approvals[pattern] = false;
 						} else {
 							delete approvals[pattern];
 						}
-					});
+					}, pattern);
 				}
 			};
 
@@ -341,7 +341,7 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 					return;
 				}
 				await this._updateUserApprovals(approvals => {
-					const existing = approvals[pattern];
+					const existing = approvals[pattern] ?? this._getDefaultApprovedUrls()[pattern];
 					approvals[pattern] = {
 						approveRequest: true,
 						approveResponse: typeof existing === 'boolean' ? existing : existing?.approveResponse === true
@@ -382,9 +382,23 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 
 	/** Edits only the user value, so default patterns are not copied into user settings. */
 	private _updateUserApprovals(update: (approvals: Record<string, boolean | IUrlApprovalSettings>) => void): Promise<void> {
-		const approvals = { ...this._configurationService.inspect<Record<string, boolean | IUrlApprovalSettings>>(ChatConfiguration.AutoApprovedUrls).userValue };
-		update(approvals);
-		return this._configurationService.updateValue(ChatConfiguration.AutoApprovedUrls, approvals, ConfigurationTarget.USER);
+		return this._updateApprovals(update);
+	}
+
+	private _updateApprovals(update: (approvals: Record<string, boolean | IUrlApprovalSettings>, target: ConfigurationTarget) => void, pattern?: string): Promise<void> {
+		const inspected = this._configurationService.inspect<Record<string, boolean | IUrlApprovalSettings>>(ChatConfiguration.AutoApprovedUrls);
+		let target = ConfigurationTarget.USER;
+		let value = inspected.userValue;
+		if (pattern !== undefined && inspected.workspaceFolderValue?.[pattern] !== undefined) {
+			target = ConfigurationTarget.WORKSPACE_FOLDER;
+			value = inspected.workspaceFolderValue;
+		} else if (pattern !== undefined && inspected.workspaceValue?.[pattern] !== undefined) {
+			target = ConfigurationTarget.WORKSPACE;
+			value = inspected.workspaceValue;
+		}
+		const approvals = { ...value };
+		update(approvals, target);
+		return this._configurationService.updateValue(ChatConfiguration.AutoApprovedUrls, approvals, target);
 	}
 }
 

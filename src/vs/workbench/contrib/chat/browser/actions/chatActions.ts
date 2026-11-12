@@ -1960,10 +1960,14 @@ registerAction2(class EditToolApproval extends Action2 {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
 		if (scope === undefined) {
 			const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
-			if (sessionResource && isAgentHostSessionResource(sessionResource) && CommandsRegistry.getCommand(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID)
-				&& await commandService.executeCommand<boolean>(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID, sessionResource)) {
+			if (sessionResource && isAgentHostSessionResource(sessionResource)) {
+				if (!CommandsRegistry.getCommand(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID)
+					|| !await commandService.executeCommand<boolean>(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID, sessionResource)) {
+					notificationService.info(localize('chat.agentHostToolApprovalsUnavailable', "Tool approvals for this agent host are not available yet. Try again once it has connected."));
+				}
 				return;
 			}
 		}

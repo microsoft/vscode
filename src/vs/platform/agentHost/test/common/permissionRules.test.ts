@@ -261,7 +261,10 @@ suite('Permission rules', () => {
 			['Mcp(corp/*)', request, false],
 			['Mcp(corp)', { ...request, kind: AgentPermissionKind.CustomTool }, false],
 			['Mcp(corp)', { ...request, mcpServerName: undefined }, false],
-			['Mcp', { ...request, mcpServerName: undefined }, false],
+			['Mcp', { ...request, mcpServerName: undefined }, true],
+			['Mcp(*)', { ...request, mcpServerName: undefined }, true],
+			['Mcp(corp/get_me)', { ...request, mcpServerName: 'corp/get_me' }, false],
+			['Mcp', { ...request, mcpServerName: 'corp/get_me' }, true],
 		];
 		assert.deepStrictEqual(cases.map(([rule, candidate]) => [rule, candidate, matchesPermissionRule(rule, candidate, context)]), cases);
 	});

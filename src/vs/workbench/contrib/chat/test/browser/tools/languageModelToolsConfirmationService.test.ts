@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -333,6 +334,67 @@ suite('LanguageModelToolsConfirmationService', () => {
 			],
 			deleted: [['manage/testTool/Add Row...', 'Add Row...', undefined]],
 			rows: [],
+		});
+	});
+
+	test('serializes contribution checkbox and button handlers before they read settings', async () => {
+		const onDidChangeCheckboxState = store.add(new Emitter<IQuickTreeItem>());
+		const onDidTriggerItemButton = store.add(new Emitter<IQuickTreeItemButtonEvent<IQuickTreeItem>>());
+		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
+		const firstStarted = new DeferredPromise<void>();
+		const writeReady = new DeferredPromise<void>();
+		const rebuilt = new DeferredPromise<void>();
+		let items: IQuickTreeItem[] = [];
+		let rebuilds = 0;
+		const quickTree = upcastPartial<IQuickTree<IQuickTreeItem>>({
+			get itemTree() { return items; },
+			onDidChangeCheckboxState: onDidChangeCheckboxState.event,
+			onDidTriggerItemButton: onDidTriggerItemButton.event,
+			onDidHide: onDidHide.event,
+			onDidAccept: Event.None,
+			setItemTree: value => {
+				items = value;
+				if (++rebuilds === 3) {
+					void rebuilt.complete();
+				}
+			},
+			show: () => { },
+			dispose: () => { },
+		});
+		instantiationService.stub(IQuickInputService, { createQuickTree: <T extends IQuickTreeItem>() => quickTree as IQuickTree<T> });
+		service = store.add(instantiationService.createInstance(LanguageModelToolsConfirmationService));
+		let approvals: string[] = [];
+		const started: string[] = [];
+		const update = async (label: string) => {
+			const current = approvals;
+			started.push(label);
+			if (label === 'first') {
+				void firstStarted.complete();
+			}
+			await writeReady.p;
+			approvals = [...current, label];
+		};
+		const deleteButton = { tooltip: 'Delete' };
+		store.add(service.registerConfirmationContribution('testTool', {
+			canUseDefaultApprovals: false,
+			getManageActions: () => [
+				{ label: 'first', checked: false, onDidChangeChecked: () => update('first') },
+				{ label: 'second', buttons: [deleteButton], onDidTriggerItemButton: () => update('second') },
+			],
+		}));
+		service.manageConfirmationPreferences([{ id: 'testTool', source: ToolDataSource.Internal, displayName: 'Tool', modelDescription: '' }], { defaultScope: 'session' });
+		onDidChangeCheckboxState.fire({ ...items[0].children![0], checked: true });
+		onDidTriggerItemButton.fire({ item: items[0].children![1], button: deleteButton });
+		await firstStarted.p;
+		const beforeWrite = { started: [...started], approvals };
+		await writeReady.complete();
+		await rebuilt.p;
+		onDidHide.fire({ reason: QuickInputHideReason.Other });
+
+		assert.deepStrictEqual({ beforeWrite, started, approvals }, {
+			beforeWrite: { started: ['first'], approvals: [] },
+			started: ['first', 'second'],
+			approvals: ['first', 'second'],
 		});
 	});
 

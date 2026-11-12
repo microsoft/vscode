@@ -107,7 +107,7 @@ export interface IAgentHostCustomizationService {
 	 */
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
 
-	/** Returns validated host-wide permissions, or undefined when the session's host root config is unavailable. */
+	/** Returns host-wide permissions, or undefined when the host does not advertise writable permissions. */
 	getHostPermissions(sessionResource: URI): IPermissionsValue | undefined;
 
 	/** Updates host-wide permissions on the connection backing the session. */
@@ -516,7 +516,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	getHostPermissions(sessionResource: URI): IPermissionsValue | undefined {
 		const rootConfig = this._resolveTarget(sessionResource)?.rootConfig;
-		if (!rootConfig) {
+		const permissionsSchema = rootConfig?.schema.properties[SessionConfigKey.Permissions];
+		if (!rootConfig || !permissionsSchema || permissionsSchema.readOnly) {
 			return undefined;
 		}
 		// The host validates permissions when it reads them, so use the published value as is.
