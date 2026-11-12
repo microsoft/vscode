@@ -42,6 +42,7 @@ import type { SessionState } from '../../../../../../platform/agentHost/common/s
 import { StateComponents, type ChatState, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -873,14 +874,17 @@ export class AgentHostChatInputPicker extends Disposable {
 		const isReadOnly = !!ctx.schema.readOnly || (isStartedSession && ctx.schema.sessionMutable === false);
 		const trigger = renderPickerTrigger(slot, isReadOnly, this._renderDisposables, () => this._showPicker(trigger).catch(onUnexpectedError), !!this._getModePickerPermissions());
 		this._trigger = trigger;
-		this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => {
+		const hoverContent = () => {
 			const current = this._readContext();
-			return {
-				content: this._getModePickerPermissions()
-					? trigger.ariaLabel ?? ''
-					: current ? current.approvalHover ?? getConfigPickerTriggerHover(this._generic ? '' : this._property, current.schema, current.value, isReadOnly, this._isSandboxed()) : ''
-			};
-		}));
+			return this._getModePickerPermissions()
+				? trigger.ariaLabel ?? ''
+				: current ? current.approvalHover ?? getConfigPickerTriggerHover(this._generic ? '' : this._property, current.schema, current.value, isReadOnly, this._isSandboxed()) : '';
+		};
+		if (this._hoverService.setupManagedHover) {
+			this._renderDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), trigger, hoverContent));
+		} else {
+			this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, () => ({ content: hoverContent() })));
+		}
 		this._renderTrigger(trigger, ctx.schema, ctx.value, isReadOnly, this._isChatConfigResolving(ctx));
 	}
 
