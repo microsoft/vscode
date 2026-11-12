@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
@@ -32,10 +33,10 @@ class TestElectronWebviewElement extends ElectronWebviewElement {
 suite('ElectronWebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWebview(shortcutStates: boolean[] = [], windowId = 42) {
+	function createWebview(shortcutStates: boolean[] = [], windowId = 42, titleBarStyle = 'native') {
 		const calls: { command: string; args: unknown }[] = [];
 		const instantiationService = workbenchInstantiationService(undefined, store);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ window: { titleBarStyle: 'native' } }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ window: { titleBarStyle } }));
 		const service: IWebviewManagerService = {
 			_serviceBrand: undefined,
 			onFoundInFrame: Event.None,
@@ -63,7 +64,24 @@ suite('ElectronWebviewElement', () => {
 			contentOptions: {},
 			extension: undefined,
 		}, themeProvider));
+		if (webview.element) {
+			mainWindow.document.body.appendChild(webview.element);
+		}
 		return { webview, calls };
+	}
+
+	function focusIframe(webview: TestElectronWebviewElement): void {
+		assert.ok(webview.element?.contentWindow);
+		webview.element.contentWindow.focus();
+		assert.strictEqual(webview.element.ownerDocument.activeElement, webview.element);
+	}
+
+	function focusOutsideWebviews(): void {
+		const button = mainWindow.document.createElement('button');
+		mainWindow.document.body.appendChild(button);
+		store.add(toDisposable(() => button.remove()));
+		button.focus();
+		assert.strictEqual(mainWindow.document.activeElement, button);
 	}
 
 	function createAuxiliaryDocument() {
@@ -82,9 +100,12 @@ suite('ElectronWebviewElement', () => {
 			const first = createWebview(shortcutStates).webview;
 			const second = createWebview(shortcutStates).webview;
 			if (previouslyFocused) {
+				focusIframe(first);
 				first.handleFocusChange(true);
+				focusOutsideWebviews();
 				first.handleFocusChange(false);
 			}
+			focusIframe(second);
 			second.handleFocusChange(true);
 			shortcutStates.length = 0;
 
@@ -98,7 +119,9 @@ suite('ElectronWebviewElement', () => {
 			const shortcutStates: boolean[] = [];
 			const first = createWebview(shortcutStates).webview;
 			const second = createWebview(shortcutStates).webview;
+			focusIframe(first);
 			first.handleFocusChange(true);
+			focusIframe(second);
 			second.handleFocusChange(true);
 
 			if (disposeBeforeBlur) {
@@ -120,9 +143,12 @@ suite('ElectronWebviewElement', () => {
 		const shortcutStates: boolean[] = [];
 		const first = createWebview(shortcutStates).webview;
 		const second = createWebview(shortcutStates).webview;
+		focusIframe(first);
 		first.handleFocusChange(true);
+		focusIframe(second);
 		second.handleFocusChange(true);
 		first.handleFocusChange(false);
+		focusIframe(first);
 		first.handleFocusChange(true);
 		second.handleFocusChange(false);
 		second.dispose();
@@ -136,12 +162,65 @@ suite('ElectronWebviewElement', () => {
 		const secondStates: boolean[] = [];
 		const first = createWebview(firstStates, 42).webview;
 		const second = createWebview(secondStates, 43).webview;
+		focusIframe(first);
 		first.handleFocusChange(true);
+		focusIframe(second);
 		second.handleFocusChange(true);
 		first.dispose();
 		second.dispose();
 
 		assert.deepStrictEqual({ firstStates, secondStates }, { firstStates: [true, false], secondStates: [true, false] });
+	});
+
+	for (const dispose of [false, true]) {
+		test(`reconciles an unreported focus round trip before ${dispose ? 'disposal' : 'blur'}`, () => {
+			const states: boolean[] = [];
+			const first = createWebview(states).webview;
+			const second = createWebview(states).webview;
+			focusIframe(first);
+			first.handleFocusChange(true);
+			second.focus();
+			focusIframe(first); // Neither webview poll observes the transient change.
+			if (dispose) {
+				first.dispose();
+			} else {
+				focusOutsideWebviews();
+				first.handleFocusChange(false);
+			}
+			const statesAfterRelease = [...states];
+			second.dispose();
+			assert.deepStrictEqual({ statesAfterRelease, states }, { statesAfterRelease: [true, true, false], states: [true, true, false] });
+		});
+	}
+
+	(isMacintosh ? test.skip : test)('an ineligible webview does not take ownership from an eligible one', () => {
+		const states: boolean[] = [];
+		const first = createWebview(states).webview;
+		const second = createWebview(states, 42, 'custom').webview;
+		focusIframe(first);
+		first.handleFocusChange(true);
+		focusIframe(second);
+		second.handleFocusChange(true);
+		first.handleFocusChange(false);
+		focusOutsideWebviews();
+		second.handleFocusChange(false);
+		first.dispose();
+		second.dispose();
+		assert.deepStrictEqual(states, [true, false]);
+	});
+
+	test('disposing an old view preserves an actually focused view before its focus notification', () => {
+		const states: boolean[] = [];
+		const first = createWebview(states).webview;
+		const second = createWebview(states).webview;
+		focusIframe(first);
+		first.handleFocusChange(true);
+		focusIframe(second);
+		first.dispose();
+		const statesBeforeBlur = [...states];
+		focusOutsideWebviews();
+		second.handleFocusChange(false);
+		assert.deepStrictEqual({ statesBeforeBlur, states }, { statesBeforeBlur: [true], states: [true, false] });
 	});
 
 	test('disposing a focused webview restores native shortcuts after its view zone is removed', () => {

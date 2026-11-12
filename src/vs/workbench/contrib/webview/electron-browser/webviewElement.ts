@@ -63,7 +63,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			configurationService, contextMenuService, notificationService, environmentService,
 			logService, remoteAuthorityResolverService, tunnelService, accessibilityService, instantiationService, remoteAgentService);
 
-		this._webviewKeyboardHandler = new WindowIgnoreMenuShortcutsManager(configurationService, mainProcessService, _nativeHostService);
+		this._webviewKeyboardHandler = this._register(new WindowIgnoreMenuShortcutsManager(this.element, configurationService, mainProcessService, _nativeHostService));
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 
@@ -85,7 +85,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		this.stopFind(false);
 
 		// Make sure keyboard handler knows it closed (#71800)
-		this._webviewKeyboardHandler.didBlur();
+		this._webviewKeyboardHandler.dispose();
 
 		super.dispose();
 	}
