@@ -393,6 +393,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	}
 	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
 		content.push(localize('chat.renameSession', 'To rename the current chat session when supported, invoke the Rename command{0}. Agent Host sessions can be renamed after sending the first request.', `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`));
+		content.push(localize('chat.sessionCustomizations', "In the Sessions list, open a session's context menu{0} and choose Open Customizations to manage the customizations for that session's harness and workspace. This action is disabled when multiple sessions are selected.", '<keybinding:editor.action.showContextMenu>'));
 		content.push(localize('chat.markSessionsRead', "When the Sessions list has focus, mark the focused session or selected sessions as read{0} or unread{1} without opening them. These shortcuts do not apply while typing in an input.", `<keybinding:${AGENT_SESSION_MARK_READ_ACTION_ID}>`, `<keybinding:${AGENT_SESSION_MARK_UNREAD_ACTION_ID}>`));
 		content.push(localize('chat.markNestedSessionRead', "The same read and unread shortcuts work on nested sessions and change only the targeted nested sessions, not their parent."));
 		content.push(sessionArchiveActionWording === ChatSessionArchiveActionWording.MarkAsDone
