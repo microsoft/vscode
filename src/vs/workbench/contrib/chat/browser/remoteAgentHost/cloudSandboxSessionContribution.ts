@@ -75,6 +75,7 @@ const DISCOVERY_POLL_INTERVAL_MS = 5 * 60_000;
 const DISCOVERY_POLL_JITTER_MS = 60_000;
 const FULL_DISCOVERY_INTERVAL_MS = 15 * 60_000;
 const MAX_DISCOVERY_RETRY_INTERVAL_MS = 15 * 60_000;
+const SESSION_FEED_INACTIVITY_GRACE_MS = 60_000;
 const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
 
 interface ICloudSandboxDiscoveryRequest extends ICloudSandboxDiscoveryOptions {
@@ -212,6 +213,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _discoveryTrigger: CloudSandboxDiscoveryTrigger | undefined;
 	private _lastDiscoveryFailed = false;
 	private _discoveryDeferred = false;
+	private _inactiveSince: number | undefined;
 	private _discoveryIncremental = false;
 	private _lastDiscoveryAttempt: number | undefined;
 	private _lastFullDiscovery: number | undefined;
@@ -248,6 +250,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
+		this._inactiveSince = this._hostService.hasFocus ? undefined : Date.now();
 		this._updateArchiveRegistration();
 
 		// Supply the generic remote-agent-host contribution with the sandbox host's per-connection
@@ -298,6 +301,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._register(this._chatEntitlementService.onDidChangeSentiment(() => this._updateEnablement()));
 
 		this._register(this._hostService.onDidChangeFocus(focused => {
+			this._updateDiscoveryActivity();
 			if (focused) {
 				void this._refreshIfStale('focus');
 			}
@@ -386,8 +390,12 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	/** Window adapters may defer catalog network work until first use. */
 	protected get discoveryEnabled(): boolean { return true; }
 
-	/** Window adapters may pause automatic network work without discarding the catalog or live connections. */
-	protected get discoveryActive(): boolean { return true; }
+	/** Automatic monitoring pauses in background windows; adapters may additionally require their chat surface. */
+	protected get discoveryActive(): boolean { return this._hostService.hasFocus; }
+
+	protected _updateDiscoveryActivity(): void {
+		this._inactiveSince = this.discoveryActive ? undefined : this._inactiveSince ?? Date.now();
+	}
 
 	/** Inventory scans are serialized; feed task reads use an independent coalescing lane. */
 	protected _discoverAndSeed(request: ICloudSandboxDiscoveryRequest = {}): Promise<void> {
@@ -566,7 +574,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			}
 			while (!token.isCancellationRequested && this._isEnabled() && this.discoveryActive && this._configurationService.getValue<boolean>(CloudSandboxSessionFeedEnabledSettingId) === true) {
 				const feed = this._sessionFeed.value ??= this._instantiationService.createInstance(CloudSandboxSessionFeed,
-					refresh => void this._refreshFromFeed(refresh), undefined, undefined, () => this.discoveryEnabled && this.discoveryActive);
+					refresh => void this._refreshFromFeed(refresh), undefined, undefined, () => this.discoveryEnabled && (
+						this.discoveryActive || this._inactiveSince !== undefined && Date.now() - this._inactiveSince < SESSION_FEED_INACTIVITY_GRACE_MS));
 				await feed.start();
 				if (this._sessionFeed.value === feed) {
 					break;

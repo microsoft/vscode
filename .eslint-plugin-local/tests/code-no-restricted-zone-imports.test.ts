@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RuleTester } from 'eslint';
+import { RuleTester } from 'oxlint/plugins-dev';
 import { suite, test } from 'node:test';
 import { resolve } from 'path';
-import tseslint from 'typescript-eslint';
 import rule from '../code-no-restricted-zone-imports.ts';
 
 RuleTester.describe = suite;
@@ -25,7 +24,7 @@ const options = [{
 }];
 const error = (specifier: string, suffix = '') => ({ message: `Unexpected path "${specifier}" imported in restricted zone.${suffix}` });
 
-new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-restricted-zone-imports', rule, {
+new RuleTester({ languageOptions: { sourceType: 'module', parserOptions: { lang: 'ts' } } }).run('code-no-restricted-zone-imports', rule, {
 	valid: [
 		{ name: 'allowed relative import', filename: commonFile, options, code: `import { IGitService } from './git';` },
 		{ name: 'bare specifier', filename: commonFile, options, code: `import { Worker } from 'some-package/node/worker';` },

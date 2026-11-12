@@ -1393,10 +1393,9 @@ export interface AuthenticateParams extends BaseParams {
 	 */
 	target?: AuthenticateTarget;
 	/**
-	 * Opaque client-local account-selection hint scoped to the originating client,
-	 * `resource`, and optional `target`; stable across token renewals and distinct
-	 * across account, provider, or authorization-server changes.
-	 * This is unverified provenance, never authorization or cross-client identity;
+	 * Optional identifier for the client's selected account, sent alongside the token.
+	 * Hosts can compare `accountId` values to detect when the underlying account has changed.
+	 * Hosts MUST treat `accountId` as an opaque string.
 	 * see {@link /specification/authentication#account-selection-hints | Account selection hints}.
 	 *
 	 * @minLength 1

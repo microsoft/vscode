@@ -27,7 +27,7 @@ The generated protocol includes the Changesets model:
 
 ### Current targeted backports
 
-The generated copy uses the `.ahp-version` source commit `d7a5579b` plus targeted source backports for MCP-served skills and optional `AuthenticateParams.accountId`. Preserve these deltas when syncing until the recorded pin includes them. The older `CreateChatParams.title`, deprecated `SessionChatSummary.archived`, and `ChatIsReadChanged` compatibility deltas are already present in this pin.
+The generated copy uses the `.ahp-version` source commit `d7a5579b` plus targeted source backports for MCP-served skills and optional `AuthenticateParams.accountId`. The account field matches the merged [microsoft/agent-host-protocol#583](https://github.com/microsoft/agent-host-protocol/pull/583) at `eea267f02b9b031aebe6abea12a4e80927da2493`. Preserve these deltas when syncing until the recorded pin includes them. The older `CreateChatParams.title`, deprecated `SessionChatSummary.archived`, and `ChatIsReadChanged` compatibility deltas are already present in this pin.
 
 For a narrow sync, set `AHP_PROTOCOL_REPO` to an isolated protocol source worktree at the recorded pin with those source backports applied, then run the normal sync script. Do not copy unrelated upstream changes or edit generated files to recover the existing deltas.
 

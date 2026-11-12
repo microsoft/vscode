@@ -13,6 +13,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
 import type { ProtectedResourceMetadata } from '../common/state/protocol/state.js';
+import { authenticationAccountLabelMeta, readAuthenticationAccountLabel } from '../common/meta/agentAuthenticationLabel.js';
 import { isScopedCredentialUsable, normalizeAuthenticationScopes, type IAgentHostAuthenticationScope, type IAgentHostCredentialPrincipal, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../common/agentHostCredentials.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
@@ -22,6 +23,14 @@ export interface IAgentHostAuthTokenChangeEvent {
 	readonly resource: string;
 	readonly scopes: readonly string[];
 	readonly token: string | undefined;
+}
+
+export interface IAgentHostAuthCredential {
+	readonly token: string;
+	readonly scopes: readonly string[];
+	readonly accountId?: string;
+	readonly accountLabel?: string;
+	readonly expiresAt: number | undefined;
 }
 
 export const IAgentHostAuthenticationService = createDecorator<IAgentHostAuthenticationService>('agentHostAuthenticationService');
@@ -38,6 +47,10 @@ export interface IAgentHostAuthenticationService {
 	getAuthToken(request: IAgentHostAuthTokenRequest, source?: IAgentHostCredentialSource): string | undefined;
 	/** Stable host-local comparison key, not the current wire hint or a verified identity. */
 	getAuthAccountId(request: IAgentHostAuthTokenRequest): string | undefined;
+	/** Reads a credential and its provenance without the legacy unscoped fallback; expired values are opt-in. */
+	getAuthCredential(request: IAgentHostAuthTokenRequest, includeExpired?: boolean): IAgentHostAuthCredential | undefined;
+	/** Forgets the resource's credentials and in-flight writes without signing out an external account. */
+	invalidateAuthTokens(resource: string): void;
 	getSessionCredentialBinding(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialSource(session: string, usage?: 'execution' | 'agentMerge'): IAgentHostCredentialSource | undefined;
 	getSessionCredentialPrincipal(session: string): IAgentHostCredentialPrincipal | undefined;
@@ -57,13 +70,9 @@ export interface IAgentHostAuthenticationController {
 	replay(provider: IAgent): Promise<void>;
 }
 
-interface IStoredAuthToken {
+interface IStoredAuthToken extends IAgentHostAuthCredential {
 	readonly target?: AuthenticateParams['target'];
 	readonly resource: string;
-	readonly scopes: readonly string[];
-	readonly token: string;
-	readonly expiresAt: number | undefined;
-	readonly accountId?: string;
 	readonly clientId?: string;
 	readonly lastAccountId?: string;
 	/** The first learned hint retains the bootstrap context established without a hint. */
@@ -141,8 +150,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		if (params.accountId !== undefined && (typeof params.accountId !== 'string' || params.accountId.length === 0)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'accountId must be a nonempty string');
 		}
+		const providerList = [...providers];
 		if (scope) {
-			const providerList = [...providers];
 			const resources = [
 				...providerList.flatMap(provider => provider.getProtectedResources().map(resource => resource.resource)),
 				...(scope.principal ? [scope.principal.apiOrigin] : []),
@@ -165,6 +174,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			}
 			return { authenticated };
 		}
+		for (const provider of providerList) {
+			provider.validateAuthentication?.(params);
+		}
 		const scopes = normalizeAuthenticationScopes(params.scopes);
 		const key = this._key(params.resource, scopes, params.target);
 		const previousRequest = this._authenticationRequests.get(key);
@@ -173,7 +185,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		// Wake replayers only after the replacement request is visible.
 		previousRequest?.completed.complete();
 		try {
-			return await this._authenticate(params, providers, scopes, key, request, clientId);
+			return await this._authenticate(params, providerList, scopes, key, request, clientId);
 		} finally {
 			if (this._authenticationRequests.get(key) === request) {
 				this._authenticationRequests.delete(key);
@@ -184,6 +196,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	private async _authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scopes: readonly string[], key: string, request: IAuthenticationRequest, clientId: string | undefined): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
+		const accountLabel = readAuthenticationAccountLabel(params);
 		const expiresAt = getExpirationTime(params.expiresIn);
 		const providerList = [...providers];
 		// Multiple providers may share the same protected resource (e.g.
@@ -229,6 +242,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				);
 			}
 		}
+		for (const provider of providerList) {
+			provider.validateAuthentication?.(params);
+		}
 		if (this._authenticationRequests.get(key) !== request) {
 			return { authenticated };
 		}
@@ -248,7 +264,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			const unhintedAccountId = previousSelection?.unhintedAccountId
 				?? (previousSelection && previousSelection.lastAccountId === undefined ? lastAccountId : undefined);
 			this._tokens.set(key, {
-				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId,
+				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId, accountLabel,
 				clientId, lastAccountId, unhintedAccountId, ...(params.target ? { target: params.target } : {}),
 			});
 		}
@@ -289,6 +305,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn,
 				...(stored.target ? { target: stored.target } : {}),
 				...(stored.accountId !== undefined ? { accountId: stored.accountId } : {}),
+				...(stored.accountLabel !== undefined ? { _meta: authenticationAccountLabelMeta(stored.accountLabel) } : {}),
 			};
 			if (!stored.target && protectedResources.has(stored.resource)) {
 				try {
@@ -313,6 +330,27 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			return source.getCredential(request)?.token;
 		}
 		return this._getAuthToken(request, false)?.token;
+	}
+
+	getAuthCredential(request: IAgentHostAuthTokenRequest, includeExpired = false): IAgentHostAuthCredential | undefined {
+		const credential = this._getAuthToken(request, includeExpired);
+		return credential && (request.scopes ?? []).every(scope => credential.scopes.includes(scope)) ? credential : undefined;
+	}
+
+	invalidateAuthTokens(resource: string): void {
+		for (const [key, request] of this._authenticationRequests) {
+			if (!request.target && request.resource === resource) {
+				this._authenticationRequests.delete(key);
+				request.completed.complete();
+			}
+		}
+		for (const [key, credential] of this._tokens) {
+			if (!credential.target && credential.resource === resource) {
+				this._tokens.delete(key);
+				this._revocations.set(key, (this._revocations.get(key) ?? 0) + 1);
+				this._onDidChangeAuthToken.fire({ resource, scopes: credential.scopes, token: undefined });
+			}
+		}
 	}
 
 	getAuthAccountId(request: IAgentHostAuthTokenRequest): string | undefined {
@@ -491,6 +529,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const { resolveMissionControlIdentity } = await import('./missionControl/missionControlAuthentication.js');
 		const captured = new Map<string, IAgentHostScopedCredential>();
 		for (const resource of resources) {
+			const sameOrigin = new URL(resource.resource).origin === new URL(principal.apiOrigin).origin;
+			if (resource.required === false && !sameOrigin) {
+				continue;
+			}
 			if (this.useLocalCredentials && this._localCredentials?.getResources().some(candidate => candidate.resource === resource.resource)) {
 				const credential = this.getSharedCredential({ resource: resource.resource, scopes: resource.scopes_supported });
 				if (credential) {
@@ -500,7 +542,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				}
 				continue;
 			}
-			if (new URL(resource.resource).origin !== new URL(principal.apiOrigin).origin) {
+			if (!sameOrigin) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Local credential origin does not match the isolated session owner');
 			}
 			const request = { resource: resource.resource, scopes: resource.scopes_supported };

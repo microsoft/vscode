@@ -12,7 +12,7 @@ import { ErrorNoTelemetry } from '../../../../../../../base/common/errors.js';
 import { createCommandUri, escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../../../base/common/severity.js';
-import { isObject } from '../../../../../../../base/common/types.js';
+import { isObject, isDefined } from '../../../../../../../base/common/types.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmationOption } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -27,7 +27,7 @@ import { IPreferencesService } from '../../../../../../services/preferences/comm
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
 import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../../terminal/terminalContribExports.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
-import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
+import { getTerminalExecutionTargetDescription, getTerminalExecutionTargetMessage, migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { isResponseVM } from '../../../../common/model/chatViewModel.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -167,7 +167,10 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				wordWrap: 'on',
 				readOnly: isReadOnly,
 				tabFocusMode: true,
-				ariaLabel: hasDistinctMessage ? localize('chat.terminal.confirmation.ariaLabel', "{0}\n{1}", titleText, messageText) : titleText
+				ariaLabel: [
+					hasDistinctMessage ? localize('chat.terminal.confirmation.ariaLabel', "{0}\n{1}", titleText, messageText) : titleText,
+					getTerminalExecutionTargetDescription(terminalData),
+				].filter(isDefined).join('\n')
 			}
 		};
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language ?? 'sh') ?? 'shellscript';
@@ -204,10 +207,18 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		}
 		const elements = h('.chat-confirmation-message-terminal', [
 			h('.chat-confirmation-message-terminal-editor@editor'),
+			h('.chat-confirmation-message-terminal-target@target'),
 			h('.chat-confirmation-message-terminal-reason@reason'),
 			h('.chat-confirmation-message-terminal-disclaimer@disclaimer'),
 		]);
 		append(elements.editor, editor.object.element);
+		// Always visible, unlike the details below that can fold into the risk badge's hover.
+		const executionTarget = getTerminalExecutionTargetMessage(terminalData);
+		if (executionTarget) {
+			this._appendMarkdownPart(elements.target, executionTarget, codeBlockRenderOptions);
+		} else {
+			elements.target.remove();
+		}
 		if (message && hasDistinctMessage) {
 			this._appendMarkdownPart(elements.reason, typeof message === 'string' ? new MarkdownString().appendText(message) : message, codeBlockRenderOptions);
 		} else {

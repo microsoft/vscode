@@ -326,7 +326,7 @@ export class IssueReporterOverlay {
 		// Mount inside .monaco-workbench so VS Code's color theme CSS vars
 		// (--vscode-debugToolBar-background, etc.) cascade and the bar matches the
 		// active theme. body is outside that scope and the vars wouldn't resolve.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const workbench = targetWindow.document.querySelector('.monaco-workbench') as HTMLElement | null;
 		const mountTarget = workbench ?? targetWindow.document.body;
 
@@ -1589,7 +1589,7 @@ export class IssueReporterOverlay {
 		if (state) {
 			card.classList.add(`upload-${state}`);
 		}
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const overlay = card.querySelector('.review-progress-overlay') as HTMLElement | null;
 		if (!overlay) {
 			return;
@@ -2342,7 +2342,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		// Mount inside .monaco-workbench so theme CSS vars cascade. Fall back to
 		// document.body when no workbench root is present (shouldn't happen in
 		// practice but keeps the bar visible regardless).
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const workbench = targetWindow.document.querySelector('.monaco-workbench') as HTMLElement | null;
 		const mountTarget = workbench ?? targetWindow.document.body;
 		if (this.floatingBar.parentElement !== mountTarget) {
@@ -2438,7 +2438,7 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 	showCloseButton(): void {
 		// Add close button next to the existing preview button
 		const nav = this.previewButton.element.parentElement;
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		if (nav && !nav.querySelector('.wizard-close-btn')) {
 			this.closeButton = this.disposables.add(new Button(nav, { ...defaultButtonStyles, secondary: true }));
 			this.closeButton.label = localize('closeTab', "Close");

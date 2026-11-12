@@ -22,7 +22,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue, IAllowedMcpServersService, IMcpGalleryServerResolveResult, McpGalleryResolveStatus, replaceMcpServerVariableReferences } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IMcpDevModeConfig, IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpDevModeConfig, IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType, McpServerVariableType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
@@ -30,6 +30,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IURLService } from '../../../../platform/url/common/url.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { parseConfigurationVariable } from '../../../../platform/configuration/common/configurationVariables.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IMcpResourceScannerService } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
@@ -41,7 +42,7 @@ import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkben
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
-import { HasInstalledMcpServersContext, IEditableMcpServerConfiguration, IMcpConfigPath, IMcpServerEditorOptions, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionProvenance, McpCollectionSortOrder, McpServerEditorTab, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IEditableMcpServerConfiguration, IMcpConfigPath, IMcpServerEditorOptions, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionProvenance, McpCollectionSortOrder, McpServerEditorTab, McpServerEnablementState, McpServerInstallState, McpServerEnablementStatus, McpServerLaunch, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
 import { McpResourceFormat, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { ContributionEnablementState } from '../../chat/common/enablement.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
@@ -86,11 +87,126 @@ function parseMcpInstallUriPayload(query: string): IMcpInstallUriPayload | undef
 		return undefined;
 	}
 
+	const inputs = payload.inputs === undefined
+		? undefined
+		: sanitizeMcpServerVariables(payload.inputs);
+	if (payload.inputs !== undefined && !inputs) {
+		return undefined;
+	}
+	const launch = McpServerLaunch.fromServerConfiguration(config);
+	if (!launch || containsCommandVariable(config) || containsCommandVariable(inputs) || containsCommandVariable(McpServerLaunch.toSerialized(launch))) {
+		return undefined;
+	}
+
 	return {
 		name: payload.name,
 		config,
-		inputs: Array.isArray(payload.inputs) ? payload.inputs as IMcpServerVariable[] : undefined,
+		inputs,
 	};
+}
+
+function sanitizeMcpServerVariables(value: unknown): IMcpServerVariable[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+
+	const result: IMcpServerVariable[] = [];
+	const ids = new Set<string>();
+	for (const item of value) {
+		if (!isObject(item)) {
+			return undefined;
+		}
+
+		const payload = item as Record<string, unknown>;
+		if (!isString(payload.id) || !payload.id || !isString(payload.description) || ids.has(payload.id)) {
+			return undefined;
+		}
+		if (payload.default !== undefined && !isString(payload.default)) {
+			return undefined;
+		}
+
+		let input: IMcpServerVariable;
+		if (payload.type === McpServerVariableType.PROMPT) {
+			const allowedProperties = ['id', 'type', 'description', 'default', 'password'];
+			if (Object.keys(payload).some(key => !allowedProperties.includes(key)) || (payload.password !== undefined && !isBoolean(payload.password))) {
+				return undefined;
+			}
+			input = {
+				id: payload.id,
+				type: payload.type,
+				description: payload.description,
+				password: payload.password === true,
+				...(payload.default === undefined ? {} : { default: payload.default }),
+			};
+		} else if (payload.type === McpServerVariableType.PICK) {
+			const allowedProperties = ['id', 'type', 'description', 'default', 'options'];
+			const options = sanitizeMcpServerVariableOptions(payload.options);
+			if (Object.keys(payload).some(key => !allowedProperties.includes(key)) || !options) {
+				return undefined;
+			}
+			input = {
+				id: payload.id,
+				type: payload.type,
+				description: payload.description,
+				password: false,
+				...(payload.default === undefined ? {} : { default: payload.default }),
+				options,
+			};
+		} else {
+			return undefined;
+		}
+
+		ids.add(input.id);
+		result.push(input);
+	}
+
+	return result;
+}
+
+function sanitizeMcpServerVariableOptions(value: unknown): IMcpServerVariable['options'] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+
+	const result: NonNullable<IMcpServerVariable['options']>[number][] = [];
+	for (const item of value) {
+		if (isString(item)) {
+			result.push(item);
+			continue;
+		}
+		if (!isObject(item)) {
+			return undefined;
+		}
+
+		const payload = item as Record<string, unknown>;
+		if (!isString(payload.value) || (payload.label !== undefined && !isString(payload.label)) || Object.keys(payload).some(key => key !== 'value' && key !== 'label')) {
+			return undefined;
+		}
+		result.push({
+			value: payload.value,
+			...(payload.label === undefined ? {} : { label: payload.label }),
+		});
+	}
+	return result;
+}
+
+function containsCommandVariable(value: unknown): boolean {
+	if (isString(value)) {
+		for (let offset = value.indexOf('${'); offset !== -1; offset = value.indexOf('${', offset + 2)) {
+			const parsed = parseConfigurationVariable(value, offset);
+			if (parsed?.replacement.name === 'command') {
+				return true;
+			}
+		}
+		return false;
+	}
+	if (Array.isArray(value)) {
+		return value.some(containsCommandVariable);
+	}
+	if (isObject(value)) {
+		return Object.entries(value).some(([key, entry]) => containsCommandVariable(key) || containsCommandVariable(entry));
+	}
+	return false;
 }
 
 function sanitizeMcpServerConfiguration(payload: Record<string, unknown>): IMcpServerConfiguration | undefined {
@@ -964,7 +1080,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	private async handleMcpInstallUri(uri: URI): Promise<boolean> {
 		const parsed = parseMcpInstallUriPayload(uri.query);
 		if (!parsed) {
-			return false;
+			this.notificationService.warn(localize('mcpInstallLinkInvalid', "This MCP install link is invalid or contains unsupported options."));
+			return true;
 		}
 
 		try {

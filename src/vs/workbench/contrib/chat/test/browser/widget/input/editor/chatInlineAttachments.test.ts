@@ -31,11 +31,13 @@ import { IFileService, IFileSystemWatcher } from '../../../../../../../../platfo
 import { ServiceCollection } from '../../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../../../../platform/product/common/productService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IExtensionService } from '../../../../../../../services/extensions/common/extensions.js';
 import { ChatAttachmentModel } from '../../../../../browser/attachments/chatAttachmentModel.js';
 import { ChatDynamicVariableModel } from '../../../../../browser/attachments/chatDynamicVariables.js';
 import { IChatAttachmentResolveService } from '../../../../../browser/attachments/chatAttachmentResolveService.js';
+import { IChatAttachmentWidgetRegistry } from '../../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatWidget } from '../../../../../browser/chat.js';
 import { ChatInlineAttachments } from '../../../../../browser/widget/input/editor/chatInlineAttachments.js';
 import { IChatWidgetContrib } from '../../../../../browser/widget/chatWidget.js';
@@ -62,14 +64,17 @@ suite('ChatInlineAttachments', () => {
 		isActive(): boolean;
 		/** The prompt that the input stands for, and the ids of its attachments. */
 		state(): { prompt: string; attachments: string[] };
+		/** What the pills that were rendered last show. */
+		readonly rendered: IChatRequestVariableEntry[];
 	}
 
 	/**
 	 * @param showsPills Whether the input's host shows pills, which a host
 	 * whose chat widget does not own the input, such as the Automation dialog's,
 	 * does not.
+	 * @param showsSessionLinks Whether a widget can show the sessions that links in the input link to, as in the Agents window.
 	 */
-	function createInput(text: string, showsPills = true, renderEditor = false): ITestInput {
+	function createInput(text: string, showsPills = true, renderEditor = false, showsSessionLinks = false): ITestInput {
 		const disposables = store.add(new DisposableStore());
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.InlineAttachmentsEnabled]: true });
 		const instantiationService = createCodeEditorServices(disposables, new ServiceCollection([IConfigurationService, configurationService]));
@@ -87,6 +92,10 @@ suite('ChatInlineAttachments', () => {
 		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
 			override readonly extensions = [];
 		});
+		instantiationService.stub(IProductService, upcastPartial<IProductService>({ urlProtocol: 'code-oss' }));
+		instantiationService.stub(IChatAttachmentWidgetRegistry, upcastPartial<IChatAttachmentWidgetRegistry>({
+			hasFactory: kind => showsSessionLinks && kind === 'sessionLink',
+		}));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, text));
 		let editor: ICodeEditor;
@@ -129,9 +138,11 @@ suite('ChatInlineAttachments', () => {
 			const container = editor.getContainerDomNode().parentElement!;
 			dnd.addOverlay(container, container, editor.getContainerDomNode());
 		}
+		const rendered: IChatRequestVariableEntry[] = [];
 		const controller = disposables.add(instantiationService.createInstance(ChatInlineAttachments, editor, attachments, {
 			widget: showsPills ? widget : undefined,
 			createAttachmentWidget: (attachment: IChatRequestVariableEntry, container: HTMLElement) => {
+				rendered.push(attachment);
 				const element = dom.append(container, dom.$('span.chat-attached-context-attachment', undefined, attachment.name));
 				return { element, onDidDelete: Event.None, onDidOpen: Event.None, dispose: () => element.remove() };
 			},
@@ -150,6 +161,7 @@ suite('ChatInlineAttachments', () => {
 				prompt: controller.project()?.text ?? editor.getValue(),
 				attachments: attachments.attachments.map(attachment => attachment.id),
 			}),
+			rendered,
 		};
 	}
 
@@ -580,6 +592,71 @@ suite('ChatInlineAttachments', () => {
 			forModel: [['file:a.ts', '[a.ts](file:///a.ts)'], ['file:a.ts', '[a.ts](file:///a.ts)']],
 			persisted: [['file:a.ts', undefined], ['file:a.ts', undefined]],
 			attachments: ['file:a.ts'],
+		});
+	});
+
+	test('a session link becomes a pill that shows the session where a widget can, while the prompt keeps the link', async () => {
+		const link = 'code-oss://agents/agent-host-session/copilotcli/session-1';
+		const text = `continue ${link} please`;
+		const shown = createInput(text, true, false, true);
+		const hidden = createInput(text);
+		await settle();
+
+		assert.deepStrictEqual({
+			shown: {
+				input: shown.editor.getValue(),
+				...shown.state(),
+				forModel: shown.controller.project([], { forModel: true })?.text,
+				rendered: shown.rendered.map(entry => ({ kind: entry.kind, name: entry.name, value: String(entry.value) })),
+			},
+			hidden: { input: hidden.editor.getValue(), rendered: hidden.rendered.length },
+		}, {
+			shown: {
+				input: 'continue \uFFFC please',
+				prompt: text,
+				attachments: [],
+				forModel: text,
+				rendered: [{ kind: 'sessionLink', name: 'Session', value: 'agent-host-session://copilotcli/session-1' }],
+			},
+			hidden: { input: text, rendered: 0 },
+		});
+	});
+
+	test('a session link within other text becomes a pill too, which the prompt says exactly where it is', async () => {
+		const link = 'agent-host-session://copilotcli/session-1';
+		const collapse = async (text: string) => {
+			const input = createInput(text, true, false, true);
+			await settle();
+			return { input: input.editor.getValue(), prompt: input.state().prompt };
+		};
+
+		// A pill right after a link ends the link, which becomes a pill too.
+		assert.deepStrictEqual(await Promise.all([`check (${link}), then`, `{"session":"${link}"}`, `${link}\uFFFC`].map(collapse)), [
+			{ input: 'check (\uFFFC), then', prompt: `check (${link}), then` },
+			{ input: '{"session":"\uFFFC"}', prompt: `{"session":"${link}"}` },
+			{ input: '\uFFFC\uFFFC', prompt: link },
+		]);
+	});
+
+	test('a session link pill dragged into parentheses keeps the link exactly where it is, during and after the move', async () => {
+		const link = 'agent-host-session://copilotcli/session-1';
+		const input = createInput(`see () ${link}`, true, true, true);
+		await settle();
+		const container = input.editor.getContainerDomNode();
+		const widget = container.querySelector<HTMLElement>('.chat-inline-attachment .chat-attached-context-attachment')!;
+		const dataTransfer = new DataTransfer();
+		sinon.stub(input.editor, 'getTargetAtClientPoint').returns(dropTarget(new Position(1, 6)));
+		const duringMove: (string | undefined)[] = [];
+		const listener = input.editor.onDidChangeModelContent(() => duringMove.push(input.controller.project()?.text));
+		dispatchDrag(widget, dom.EventType.DRAG_START, dataTransfer);
+		dispatchDrag(container, dom.EventType.DRAG_OVER, dataTransfer);
+		dispatchDrag(container, dom.EventType.DROP, dataTransfer);
+		listener.dispose();
+		await settle();
+
+		assert.deepStrictEqual({ duringMove, moved: input.state().prompt }, {
+			duringMove: [`see (${link}) `],
+			moved: `see (${link}) `,
 		});
 	});
 

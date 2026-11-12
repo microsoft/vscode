@@ -78,6 +78,7 @@ function createAuthenticationInstantiationService(store: Pick<DisposableStore, '
 	service.stub(IConfigurationService, new TestConfigurationService());
 	service.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 		override readonly currentDefaultAccount = null;
+		override getDefaultAccountAuthenticationProvider() { return { id: 'test-provider', name: 'Test Provider', enterprise: false }; }
 	}());
 	return service;
 }

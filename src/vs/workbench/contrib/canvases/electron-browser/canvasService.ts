@@ -333,7 +333,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return input;
 	}
 
-	async resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution> {
+	async resolveCanvasModel(reference: ICanvasReference, source: URI, reload = false): Promise<ICanvasModelResolution> {
 		const key = getCanvasReferenceKey(reference);
 		if (!isEqual(this.presentations.get(key)?.canvas?.source, source)) {
 			// A view outside the editor working set, such as a pinned canvas page, observes the canvas
@@ -341,18 +341,19 @@ export class CanvasService extends Disposable implements ICanvasService {
 			// reconciliation completes synchronously, so judge the source only once the update settled.
 			await Promise.resolve();
 		}
-		const presentation = this.presentations.get(key) ?? this.createExternalPresentation(reference, source);
-		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)) {
+		const presentation = this.presentations.get(key) ?? (reload ? undefined : this.createExternalPresentation(reference, source));
+		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)
+			|| (reload && (!presentation.model || !this.isLiveSource(reference, source)))) {
 			throw new CancellationError();
+		}
+		if (!reload && presentation.model && isEqual(presentation.modelSource, source)) {
+			return { model: presentation.model, reused: true };
 		}
 		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
 			return { model: await presentation.modelPromise.value, reused: true };
 		}
-		if (presentation.model && isEqual(presentation.modelSource, source)) {
-			return { model: presentation.model, reused: true };
-		}
 		if (presentation.model) {
-			return { model: await this.navigatePresentationModel(presentation, presentation.model, source), reused: false };
+			return { model: await this.navigatePresentationModel(presentation, presentation.model, source, reload), reused: false };
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
@@ -385,12 +386,23 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return { model: await value, reused: false };
 	}
 
-	/** Loads a new source into the retained page, so it is replaced in place without detaching its view or moving focus. */
-	private navigatePresentationModel(presentation: ICanvasPresentation, model: IBrowserViewModel, source: URI): Promise<IBrowserViewModel> {
+	private isLiveSource(reference: ICanvasReference, source: URI): boolean {
+		const canvas = this.lookupCanvas(reference)?.canvas;
+		return !this._store.isDisposed && canvas?.instanceId !== undefined && isEqual(canvas.source, source) && this.isPresentable(reference);
+	}
+
+	/** Loads a source into the retained page without detaching its view or moving focus. */
+	private navigatePresentationModel(presentation: ICanvasPresentation, model: IBrowserViewModel, source: URI, reload = false): Promise<IBrowserViewModel> {
 		const generation = ++presentation.modelGeneration;
-		// The page leaves its previous source even if this navigation is superseded, so returning to that source must load it again.
-		presentation.modelSource = undefined;
-		const isCurrent = () => presentation.model === model && presentation.modelGeneration === generation && isEqual(presentation.canvas?.source, source);
+		// Keep same-source reloads cached so revisiting a failure never retries it automatically.
+		if (!reload || !isEqual(presentation.modelSource, source)) {
+			presentation.modelSource = undefined;
+		}
+		const isCurrent = () => presentation.model === model && presentation.modelGeneration === generation
+			&& isEqual(presentation.canvas?.source, source) && (!reload || this.isLiveSource(presentation.reference, source));
+		if (!isCurrent()) {
+			throw new CancellationError();
+		}
 		const url = source.toString(true);
 		const network = model.network;
 		const loaded = network ? this.loadOnRemoteNetwork(model, network, url, isCurrent) : model.loadURL(url);

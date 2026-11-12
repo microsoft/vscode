@@ -331,16 +331,35 @@ suite('Part Grid', () => {
 		assert.deepStrictEqual({ title: rect('title'), bottom: rect('bottom') }, { title: { left: 4, right: 4 }, bottom: { left: 4, right: 4 } });
 	});
 
-	test('the gripper on a gap sash draws its outer dots the grid gap apart', () => {
-		const container = createContainer();
-		container.style.setProperty('--part-grid-gap', '6px');
-		const sash = container.appendChild(mainWindow.document.createElement('div'));
-		sash.classList.add('monaco-sash', 'vertical', GRID_GAP_SASH_CLASS);
-
-		const style = mainWindow.getComputedStyle(sash, '::after');
-
-		assert.deepStrictEqual({ content: style.content, shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim() }, { content: '""', shadow: '0px -6px 0px 0px, 0px 6px 0px 0px' });
-	});
+	for (const direction of [Direction.Right, Direction.Down]) {
+		test(`gripper dot size and spacing stay fixed as the ${direction === Direction.Right ? 'vertical' : 'horizontal'} panel gap changes`, () => {
+			const container = createContainer();
+			container.style.cssText = 'width: 1000px; height: 800px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-sash-size: 4px;';
+			const grid = disposables.add(new PartGrid(container, new class extends mock<IEditorGroupsService>() { }()));
+			grid.addView('first', createView());
+			grid.addView('second', createView(), { reference: 'first', direction });
+			const vertical = direction === Direction.Right;
+			const snapshots = [];
+			for (const gap of [0, 1, 4, 8, 16]) {
+				grid.setGap(gap);
+				grid.layout(1000, 800);
+				const sash = container.querySelector<HTMLElement>(`.monaco-sash.${GRID_GAP_SASH_CLASS}`)!;
+				const style = mainWindow.getComputedStyle(sash, '::after');
+				const first = container.querySelector<HTMLElement>('[data-part-grid-cell="first"] > .part-grid-card')!.getBoundingClientRect();
+				const second = container.querySelector<HTMLElement>('[data-part-grid-cell="second"] > .part-grid-card')!.getBoundingClientRect();
+				snapshots.push({
+					gap: vertical ? second.left - first.right : second.top - first.bottom,
+					size: [style.width, style.height],
+					shadow: style.boxShadow.replace(/rgba?\([^)]*\)\s*/g, '').trim(),
+					thickness: vertical ? sash.getBoundingClientRect().width : sash.getBoundingClientRect().height,
+				});
+			}
+			assert.deepStrictEqual(snapshots, [0, 1, 4, 8, 16].map(gap => ({
+				gap, size: ['2px', '2px'], thickness: 4,
+				shadow: vertical ? '0px -4px 0px 0px, 0px 4px 0px 0px' : '-4px 0px 0px 0px, 4px 0px 0px 0px',
+			})));
+		});
+	}
 
 	test('with no gap between the cards, the grabber of the lower part takes the pointer over the sash on its edge within its span; the sash keeps the rest of the edge', async () => {
 		const parts = await createParts();

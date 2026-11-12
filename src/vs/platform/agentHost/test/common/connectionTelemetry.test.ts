@@ -28,6 +28,8 @@ suite('Connection telemetry privacy', () => {
 			{ code: 'ERR_TLS_CERT_ALTNAME_INVALID' },
 			{ cause: { code: 'ENOTFOUND', message: 'secret host.example.com' } },
 			{ cause: { code: 'ECONNRESET' } },
+			{ name: 'CloudSandboxNetworkError' },
+			{ name: 'InitialAuthenticationError' },
 			{ cause: { response: { status: 403 } } },
 		];
 		assert.deepStrictEqual(errors.map(error => getConnectionTelemetryError(error === undefined ? undefined : getConnectionDiagnosticError(error))), [
@@ -45,6 +47,8 @@ suite('Connection telemetry privacy', () => {
 			{ errorCategory: 'tls' },
 			{ errorCategory: 'dns' },
 			{ errorCategory: 'network' },
+			{ errorCategory: 'network' },
+			{ errorCategory: 'authentication' },
 			{ errorCategory: 'authorization', statusCode: 403 },
 		]);
 	});
