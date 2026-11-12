@@ -247,6 +247,12 @@ export interface IAutomationSessionConfiguration {
 	readonly permissionLevel?: string;
 }
 
+/** Serializable choices retained by an unsent session, without requiring a connection. */
+export interface ISessionDraftConfiguration extends IAutomationSessionConfiguration {
+	readonly isolationMode?: string;
+	readonly branch?: string;
+}
+
 /** Programmatic worktree settings applied together before a new session starts. */
 export interface ISessionWorktreeConfiguration {
 	readonly isolationMode?: string;
@@ -288,6 +294,9 @@ export interface ISessionModelsSnapshot {
  * Unlike the aggregate IAutomationService, creation eligibility needs no provider ID because ownership is implicit.
  */
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Explicit host support for durable absolute-time requests; absent means unsupported. */
+	readonly supportsOneTimeAutomation?: IObservable<boolean>;
+	readonly supportsExistingChatAutomation?: IObservable<boolean>;
 	readonly configuration?: IAutomationProviderConfiguration;
 	/** Disabled providers are excluded from the aggregate catalogue and routing. */
 	readonly enabled?: IObservable<boolean>;
@@ -590,6 +599,8 @@ export interface ISessionsProvider {
 
 	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
 	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
+
+	getDraftSessionConfiguration?(sessionId: string): ISessionDraftConfiguration | undefined;
 
 	/** Model preferences scoped to a session rather than the ordinary New Session defaults. */
 	getAutomationModelConfiguration?(sessionId: string): IModelConfigurationAccess | undefined;

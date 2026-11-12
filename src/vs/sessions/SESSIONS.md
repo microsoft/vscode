@@ -232,6 +232,12 @@ Automation editing uses an independent draft so it cannot replace the ordinary N
 
 Provider-specific configuration remains opaque to shared Sessions code. Scoped Automation and New Session surfaces consume the same provider menu contributions through the host they are in; providers may advertise presentation capabilities such as a combined phone Mode/Model picker without exposing provider identity checks to shared UI.
 
+### Saved compositions and scheduled requests
+
+Saved drafts are client-owned compositions, not provider sessions. `ISessionDraftsService` persists complete input and synchronous provider configuration in machine-local profile storage with independent draft IDs and revisions. The main composer saves on committed navigation away and shutdown, resumes the same identity through history, and removes only the submitted revision after confirmed acceptance. Provisional provider sessions can be replaced without disposing their saved composition. Disabled draft capture preserves existing records and leaves the singleton composer backup in use.
+
+`IScheduledChatsService` captures a durable request and journals its stable creation identity before handing it to Automations. Retries reconcile that identity rather than selecting another time or rereading captured context. Only an accepted host definition releases the originating input. New-session requests carry the captured session template; existing-chat requests carry the exact session and chat resources and never recreate the conversation or reapply its configuration. The host, not a window timer, owns execution and ordinary queue admission. Cancelling must win the host's admission race before content becomes editable; recovery never overwrites occupied input. The authoring setting does not cancel accepted host work.
+
 ### Operations
 
 Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.

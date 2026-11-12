@@ -32,6 +32,8 @@ Automation runs are excluded from the primary Sessions list unless they are show
 
 ## Placement precedence
 
+Saved drafts and scheduled requests enter through explicit pending-item sections, separate from the provider session catalog. They have durable composition/Automation identity, their own open and management actions, and do not claim a running session status. Empty sections are omitted, and the same search and applicable target/scope filters apply. Drafts are ordered by recent editing and scheduled definitions by send time. A host-confirmed dispatch removes the pending scheduled row independently of loaded run-history pages; the resulting new session uses normal session listing rather than the recurring-Automation hide-until-reply rule. Follow-ups keep the existing conversation in its ordinary section.
+
 A session appears in exactly one primary section. Higher-precedence states win:
 
 ```text

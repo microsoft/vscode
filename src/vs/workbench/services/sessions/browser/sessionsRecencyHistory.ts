@@ -16,6 +16,7 @@ export type SessionRecencyEntry = {
 	readonly chatResource: URI | undefined;
 } | {
 	readonly kind: 'newSession';
+	readonly draftId?: string;
 } | {
 	readonly kind: 'canvas';
 	readonly id: string;
@@ -36,7 +37,7 @@ export function getRecencyEntryKey(entry: SessionRecencyEntry): string {
 		case 'session':
 			return JSON.stringify([entry.kind, getComparisonKey(entry.sessionResource), entry.chatResource && getComparisonKey(entry.chatResource)]);
 		case 'newSession':
-			return entry.kind;
+			return entry.draftId === undefined ? entry.kind : JSON.stringify([entry.kind, entry.draftId]);
 		case 'canvas':
 			return `${entry.kind}:${entry.id}`;
 		case 'customView':

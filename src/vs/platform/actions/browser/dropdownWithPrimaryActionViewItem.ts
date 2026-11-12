@@ -98,8 +98,6 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		super.render(this._container);
 		this._container.classList.add('monaco-dropdown-with-primary');
 		const primaryContainer = DOM.$('.action-container');
-		primaryContainer.role = 'button';
-		primaryContainer.ariaDisabled = String(!this.action.enabled);
 		this._primaryAction.render(DOM.append(this._container, primaryContainer));
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
@@ -109,7 +107,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
-				this._primaryAction.element!.tabIndex = -1;
+				this._primaryAction.setFocusable(false);
 				this._dropdown.focus();
 				event.stopPropagation();
 			}
@@ -120,9 +118,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			}
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
-				this._primaryAction.element!.tabIndex = 0;
 				this._dropdown.setFocusable(false);
-				this._primaryAction.element?.focus();
+				this._primaryAction.focus();
 				event.stopPropagation();
 			}
 		}));
@@ -134,22 +131,19 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		if (fromRight) {
 			this._dropdown.focus();
 		} else {
-			this._primaryAction.element!.tabIndex = 0;
-			this._primaryAction.element!.focus();
+			this._primaryAction.focus();
 		}
 	}
 
 	override blur(): void {
-		this._primaryAction.element!.tabIndex = -1;
+		this._primaryAction.blur();
 		this._dropdown.blur();
 		this._container!.blur();
 	}
 
 	override setFocusable(focusable: boolean): void {
-		if (focusable) {
-			this._primaryAction.element!.tabIndex = 0;
-		} else {
-			this._primaryAction.element!.tabIndex = -1;
+		this._primaryAction.setFocusable(focusable);
+		if (!focusable) {
 			this._dropdown.setFocusable(false);
 		}
 	}

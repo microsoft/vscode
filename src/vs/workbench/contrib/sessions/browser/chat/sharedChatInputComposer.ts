@@ -57,7 +57,7 @@ import { IWorkspaceSelectionSnapshot } from '../../../../services/sessions/commo
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessionsProvidersService.js';
 import { ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
-import { ChatInputSupportsBackgroundContext } from '../../common/contextkeys.js';
+import { ChatInputCanScheduleContext, ChatInputSupportsBackgroundContext } from '../../common/contextkeys.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import { WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
@@ -363,6 +363,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			SharedChatInputComposer._backgroundComposers.set(widget, this);
 			this._register(toDisposable(() => SharedChatInputComposer._backgroundComposers.delete(widget)));
 		}
+		const canScheduleKey = ChatInputCanScheduleContext.bindTo(widget.scopedContextKeyService);
+		this._register(autorun(reader => canScheduleKey.set(!!this.options.canSchedule?.read(reader) && !this._sending.read(reader))));
+		this._register(toDisposable(() => canScheduleKey.reset()));
 		if (this.options.inputVisible) {
 			const inputVisible = this.options.inputVisible;
 			this._register(autorun(reader => container.classList.toggle('hidden', !inputVisible.read(reader))));
@@ -743,7 +746,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 		this._restoreDraftState();
 		// Only once the host's input is restored and the queued context is merged into it, so neither overwrites it.
-		if (this.options.inputSnapshot) {
+		if (this.options.inputSnapshot || this.options.onDidChangeDraft) {
 			this._register(this._trackInputSnapshot(widget));
 		}
 	}
@@ -765,7 +768,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		if (inlineAttachments) {
 			store.add(inlineAttachments.onDidChange(write));
 		}
-		store.add(this.options.inputSnapshot!.registerRestorer(draft => this._showRestoredInput(widget, draft)));
+		if (this.options.inputSnapshot) {
+			store.add(this.options.inputSnapshot.registerRestorer(draft => this._showRestoredInput(widget, draft)));
+		}
 		write();
 		return store;
 	}
@@ -785,8 +790,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	private _writeInputSnapshot(widget: ChatWidget): void {
-		if (this.options.inputSnapshot && this._widget === widget) {
-			this.options.inputSnapshot.set({ inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
+		if (this._widget === widget) {
+			const draft = { inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) };
+			this.options.inputSnapshot?.set(draft);
+			this.options.onDidChangeDraft?.(draft);
 		}
 	}
 
@@ -830,12 +837,37 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	getDraft(): IChatDraft {
-		return { inputText: this.getInputValue(), attachments: [...this.attachments] };
+		const references = this._widget ? this._getDraftReferences(this._widget) : undefined;
+		return { inputText: this.getInputValue(), attachments: [...this.attachments], ...(references ? { references } : {}) };
+	}
+
+	setInputEnabled(enabled: boolean): void {
+		this._widget?.input.setInputEnabled(enabled);
+	}
+
+	async schedule(): Promise<void> {
+		if (!this.options.canSchedule?.get() || !this.options.scheduleRequest || this._sending.get() || !this.hasInput) {
+			throw new Error(localize('sendLater.composerUnavailable', "Send Later is not available for this composition."));
+		}
+		this._sending.set(true, undefined);
+		this.setInputEnabled(false);
+		try {
+			if (await this.options.scheduleRequest()) {
+				this.setDraft(undefined);
+				this.saveState();
+			}
+		} finally {
+			this._sending.set(false, undefined);
+			this.setInputEnabled(true);
+		}
 	}
 
 	setDraft(draft: IChatDraft | undefined): void {
 		this.setInputValue(draft?.inputText ?? '');
 		this._widget?.attachmentModel.clearAndSetContext(...(draft?.attachments ?? []));
+		if (draft) {
+			this._restoreDraftReferences(draft);
+		}
 	}
 
 	applyDraft(draft: IChatDraft): boolean {
@@ -1105,6 +1137,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}
 
 			// The input is about to be cleared: until the send ends, the host restores what is sent.
+			this.options.onWillSendDraft?.(this.getDraft());
 			attemptId = this.options.inputSnapshot?.beginSendAttempt({ inputText: this.getInputValue(), attachments: [...this.attachments], references: this._getDraftReferences(widget) });
 			// Clear the input as a regular chat send does. The widget is bound to
 			// the draft's chat model, which the running session adopts once the
@@ -1135,6 +1168,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			this.logService.error('[SharedChatInputComposer] Failed to send request', error);
 			return false;
 		} finally {
+			this.options.onDidSendDraft?.(sent);
 			// After a rejection or failure restored the input, so the snapshot holds it again.
 			if (attemptId) {
 				this._endSendAttempt(attemptId, sent, isInputAlive());

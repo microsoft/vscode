@@ -265,6 +265,7 @@ export interface INewSessionRequestEndedEvent {
 }
 
 export interface ISessionsManagementService {
+	configureNewSessionDraft(session: ISession, options: ICreateNewSessionOptions, token?: CancellationToken): Promise<void>;
 	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
 	acquireArchivedSessionItems(): IDisposable;
 	readonly _serviceBrand: undefined;

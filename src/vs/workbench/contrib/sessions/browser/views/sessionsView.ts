@@ -49,6 +49,8 @@ import { PANEL_SECTION_BORDER } from '../../../../common/theme.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
+import { ISessionDraftsService } from '../sessionDraftsService.js';
+import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
@@ -216,6 +218,8 @@ export class SessionsView extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
+		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
+		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
@@ -331,6 +335,13 @@ export class SessionsView extends ViewPane {
 			() => !this.sessionsControl || this.sessionsControl.scrollTop === 0,
 		));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
+			pendingSections: derived(this, reader => {
+				const claimedDraftIds = this.scheduledChatsService.claimedDraftIds.read(reader);
+				const drafts = this.sessionDraftsService.sections.read(reader)
+					.map(section => ({ ...section, items: section.items.filter(item => !claimedDraftIds.has(item.id)) }))
+					.filter(section => section.items.length);
+				return [...this.scheduledChatsService.sections.read(reader), ...drafts];
+			}),
 			sectionRowHeight: this.presentation.sectionRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,

@@ -32,6 +32,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
 import { DropdownWithDefaultActionViewItem, getFlatContextMenuActions } from '../../browser/menuEntryActionViewItem.js';
+import { DropdownWithPrimaryActionViewItem } from '../../browser/dropdownWithPrimaryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../common/actions.js';
 
 suite('Context menu alternative actions', () => {
@@ -115,6 +116,32 @@ suite('Context menu alternative actions', () => {
 			});
 		}
 	}
+});
+
+suite('DropdownWithPrimaryActionViewItem', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('split-button keyboard navigation focuses named controls without nested buttons', () => {
+		const host = append(mainWindow.document.body, $('div'));
+		disposables.add(toDisposable(() => host.remove()));
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'primary', title: 'Primary' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { });
+		const item = disposables.add(new DropdownWithPrimaryActionViewItem(action,
+			toAction({ id: 'more', label: 'More', run: () => { } }), [], '', undefined,
+			new class extends mock<IContextMenuService>() { }, new MockKeybindingService(),
+			new TestNotificationService(), contextKeyService, new TestThemeService(), new TestAccessibilityService()));
+		item.render(host);
+		item.setFocusable(true);
+		item.focus();
+		const focused = [mainWindow.document.activeElement?.getAttribute('aria-label')];
+		mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+		focused.push(mainWindow.document.activeElement?.getAttribute('aria-label'));
+		mainWindow.document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
+		focused.push(mainWindow.document.activeElement?.getAttribute('aria-label'));
+		assert.deepStrictEqual({ focused, nested: host.querySelectorAll('[role="button"] [role="button"]').length }, {
+			focused: ['Primary', 'More', 'Primary'], nested: 0,
+		});
+	});
 });
 
 suite('DropdownWithDefaultActionViewItem', () => {

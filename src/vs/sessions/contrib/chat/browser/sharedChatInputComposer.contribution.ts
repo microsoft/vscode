@@ -14,7 +14,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -29,10 +29,12 @@ import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { getLabeledPickerResponsiveItems } from '../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { SharedChatInputComposer, SharedChatInputComposerBusyContext } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
-import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ChatInputCanScheduleContext, ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SessionsViewGroupingContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionsGrouping } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { IScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
 const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
@@ -74,6 +76,39 @@ export class SendInBackgroundAction extends Action2 {
 }
 
 registerAction2(SendInBackgroundAction);
+
+export class SendLaterAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.sendLater',
+			title: localize2('sessions.sendLater', "Send Later..."),
+			category: CHAT_CATEGORY,
+			icon: Codicon.clock,
+			f1: true,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatInputCanScheduleContext, ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate()),
+			menu: {
+				id: MenuId.ChatExecuteSecondary,
+				group: 'navigation',
+				order: 99,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true), ChatInputCanScheduleContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const widget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		if (widget) {
+			const composer = SharedChatInputComposer.getBackgroundComposer(widget);
+			if (composer) {
+				await composer.schedule();
+			} else {
+				await accessor.get(IScheduledChatsService).scheduleChatInput(widget);
+			}
+		}
+	}
+}
+
+registerAction2(SendLaterAction);
 
 MenuRegistry.appendMenuItem(Menus.NewSessionChatInputToolbar, {
 	command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },

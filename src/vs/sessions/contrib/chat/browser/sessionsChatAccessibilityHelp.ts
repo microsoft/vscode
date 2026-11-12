@@ -37,7 +37,7 @@ import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../wo
 import { ISessionComparisonService } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from '../../../../workbench/contrib/sessions/browser/chat/sessionComparisonResult.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
@@ -67,9 +67,14 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		const restoreFocus = createSessionsChatFocusRestorer(accessor);
 		const configurationService = accessor.get(IConfigurationService);
 		const archiveActionWording = getChatSessionArchiveActionWording(configurationService);
-
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
+		if (configurationService.getValue<boolean>(SESSIONS_DRAFTS_ENABLED_SETTING)) {
+			content.push(localize('sessionsChat.savedDrafts', "Unsent new sessions are saved in Drafts when you leave the main composer. Drafts have not been sent. Expand Drafts with Right Arrow, select a draft with Up or Down Arrow, and press Enter to resume its input and target. The context menu offers Resume Draft and Delete Draft. Drafts remain saved when the experimental drafts setting is turned off."));
+		}
+		if (configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING)) {
+			content.push(localize('sessionsChat.sendLater', "For supported local agents, use Send Later from the send button's dropdown in a new session or an existing chat, or from the Command Palette, to choose a future date and time. Focus Send and press Right Arrow to reach the dropdown, then Enter to open it. An existing-chat request is sent to that same conversation, waiting in its queue if it is busy. The confirmation states the local date, time and time zone. Scheduled requests appear in Scheduled after Pinned. Enter opens a read-only preview; the context menu offers Send Now, Reschedule, Edit, and Cancel Schedule. Editing cancels the future send first and recovers the input in a new-session draft or its original conversation without replacing occupied input. The local agent host sends once when available, even without the Agents window, but cannot wake a sleeping computer or start a stopped host. Turning off Send Later does not cancel accepted requests; manage them in Automations."));
+		}
 		content.push(getChatInputSessionLinkAccessibilityHelp());
 		if (!accessor.get(IChatEntitlementService).sentiment.hidden && configurationService.getValue<boolean>('chat.disableAIFeatures') !== true) {
 			if (configurationService.getValue<boolean>(ChatConfiguration.HtmlPreviewEnabled)) {

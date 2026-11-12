@@ -289,6 +289,8 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 	const localSchedule = automationScheduleToLocal(schedule);
 	const time = formatTime(localSchedule.scheduleHour, localSchedule.scheduleMinute);
 	switch (schedule.interval) {
+		case 'once':
+			return localize('automationsAccessibleView.once', "Once at {0}", new Date(schedule.runAt!).toLocaleString(undefined, { timeZoneName: 'short' }));
 		case 'custom':
 			return localize('automationsAccessibleView.custom', "Custom schedule");
 		case 'manual':

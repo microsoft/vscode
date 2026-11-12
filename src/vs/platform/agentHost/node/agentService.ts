@@ -78,7 +78,7 @@ import { IAdditionalWorktreeLifecycleService } from './chatContributions/additio
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import type { IScratchFolder } from './agentHostScratchFolderDatabase.js';
 import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
-import { AgentHostAutomationService } from './agentHostAutomationService.js';
+import { AgentHostAutomationService, enqueueAutomationConversation } from './agentHostAutomationService.js';
 import { createAgentChatContext, createAgentChatCreationContext, inheritedChatFolders } from './agentChatContext.js';
 import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostAuthenticationScope, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
@@ -1355,6 +1355,30 @@ export class AgentService extends Disposable implements IAgentService {
 		);
 		this._catalogListReader = new AgentHostCatalogListReader(this._orchestratorDatabase);
 		this._automationService = this._register(instantiationService.createInstance(AgentHostAutomationService, {
+			supportsOneTimeAutomation: this._hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess,
+			supportsExistingConversation: this._hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess,
+			prepareConversation: async (conversation, message, messageId) => {
+				const session = URI.parse(conversation.session);
+				const registration = await this._orchestratorDatabase.getSessionV2Registration(conversation.session);
+				const owner = await this._chatOwnership.resolveChatOwner(conversation.chat);
+				if (!registration || owner?.owner !== conversation.session || this._authService.getSessionCredentialPrincipal(conversation.session)
+					|| this._catalogSyncService.isSessionDeletionFenced(session) || this._sessionResidency.isBeingDisposed(session)) {
+					throw new Error('The scheduled conversation is deleted, moved, or requires an authenticated client.');
+				}
+				await this.restoreSession(session);
+				await this._stateManager.resolveChatState(conversation.chat);
+				if (!this._stateManager.getChatState(conversation.chat)
+					|| this._chatOwnership.getChatOwner(conversation.chat) !== conversation.session
+					|| !this._providerService.getProviderForChat(conversation.session, conversation.chat)) {
+					throw new Error('The scheduled conversation or its provider is unavailable.');
+				}
+				return () => {
+					if (this._catalogSyncService.isSessionDeletionFenced(session) || this._sessionResidency.isBeingDisposed(session)) {
+						throw new Error('The scheduled conversation is being deleted.');
+					}
+					enqueueAutomationConversation(this._stateManager, this._chatOwnership, conversation, message, messageId);
+				};
+			},
 			isSessionTemplateAvailable: (template, reader) => {
 				const provider = this._providerService.resolveProvider(template.provider);
 				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
@@ -1379,7 +1403,7 @@ export class AgentService extends Disposable implements IAgentService {
 					automation: run.automation,
 					automationRun: run.resource,
 				},
-			}, { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource }),
+			}, { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource, ...(run.purpose ? { purpose: run.purpose } : {}) }),
 			getRecoverableSessionProvider: async (session, expectedProvider) => {
 				const registration = await this._orchestratorDatabase.getSessionV2Registration(session.toString());
 				if (!registration || (await this._sessionRegistry.listProvisional()).has(session.toString())) {

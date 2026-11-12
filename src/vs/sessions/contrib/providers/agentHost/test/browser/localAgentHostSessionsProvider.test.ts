@@ -6067,6 +6067,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [
 			{ ...createSession('cached-run', { summary: 'Cached run' }), origin: automationOrigin },
+			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: { ...automationOrigin, purpose: 'scheduledChat' } },
 			createSession('cached-plain', { summary: 'Cached plain' }),
 		]);
 		const nextHost = new MockAgentHostService();
@@ -6076,7 +6077,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			listSessionsCalls: nextHost.listSessionsCallCount,
 			marks: Object.fromEntries(provider.getSessions().map(session => [session.title.get(), session.isAutomation?.get()])),
-		}, { listSessionsCalls: 0, marks: { 'Cached run': true, 'Cached plain': false } });
+			scheduled: provider.getSessions().filter(session => session.isScheduledChat?.get()).map(session => session.title.get()),
+		}, { listSessionsCalls: 0, marks: { 'Cached run': true, 'Cached scheduled chat': true, 'Cached plain': false }, scheduled: ['Cached scheduled chat'] });
 	}));
 
 	test('preserves typed automation provenance when the run catalogue changes or is deleted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

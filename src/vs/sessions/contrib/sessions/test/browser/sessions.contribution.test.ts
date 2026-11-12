@@ -13,7 +13,7 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/k
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 import '../../browser/sessions.contribution.js';
 
@@ -28,9 +28,20 @@ const externalApplicationBadgeShowFromProperty = configurationRegistry.getConfig
 const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING];
 const indentItemsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_INDENT_ITEMS_SETTING];
 const sessionsSettingKeys = Object.keys(configurationRegistry.getConfigurationProperties()).filter(key => key.startsWith('sessions.'));
+const pendingSessionProperties = [SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING].map(key => configurationRegistry.getConfigurationProperties()[key]);
 
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('drafts and Send Later have independent default-off application experiment settings', () => {
+		assert.deepStrictEqual(pendingSessionProperties.map(property => ({
+			type: property.type, default: property.default, scope: property.scope,
+			tags: property.tags, experiment: property.experiment,
+		})), [0, 1].map(() => ({
+			type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'], experiment: { mode: 'auto' },
+		})));
+	});
 
 	test('disables the External section by default with automatic experiments', () => {
 		assert.deepStrictEqual({

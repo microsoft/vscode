@@ -62,9 +62,10 @@ import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions, MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -4404,6 +4405,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.updateChatSessionPickerContainer();
 			}
 		}));
+		const secondaryExecuteMenu = this._register(this.menuService.createMenu(MenuId.ChatExecuteSecondary, this.contextKeyService));
+		const secondaryExecuteActions = () => getFlatActionBarActions(secondaryExecuteMenu.getActions({ shouldForwardArgs: true }));
+		const hasSecondaryExecuteActions = ChatContextKeys.hasSecondaryExecuteActions.bindTo(this.contextKeyService);
+		hasSecondaryExecuteActions.set(secondaryExecuteActions().length > 0);
+		this._register(toDisposable(() => hasSecondaryExecuteActions.reset()));
+		this._register(secondaryExecuteMenu.onDidChange(() => {
+			hasSecondaryExecuteActions.set(secondaryExecuteActions().length > 0);
+			this.executeToolbar?.refresh();
+		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
@@ -4426,6 +4436,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					});
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
+					if (secondaryExecuteActions().length) {
+						return this.instantiationService.createInstance(class extends DropdownWithPrimaryActionViewItem {
+							override render(container: HTMLElement): void {
+								super.render(container);
+								this._primaryAction.element?.classList.add('action-item', 'chat-submit-button');
+							}
+						}, action, {
+							id: 'chat.sendOptions', label: localize('chat.sendOptions', "More Send Options"), tooltip: '', class: undefined, enabled: true, run: () => { },
+						}, { getActions: secondaryExecuteActions }, '', { hoverDelegate: options.hoverDelegate });
+					}
 					const submitLabel = this.options.hostSubmit?.label;
 					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
 						override render(container: HTMLElement): void {

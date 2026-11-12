@@ -404,7 +404,10 @@ export function registerChatQueueActions(): void {
 		icon: Codicon.listOrdered,
 		when: ContextKeyExpr.and(
 			queuingActionsPresent,
-			ChatContextKeys.inputHasText,
+			ContextKeyExpr.or(
+				ChatContextKeys.inputHasText,
+				ContextKeyExpr.and(ChatContextKeys.hasSecondaryExecuteActions, ChatContextKeys.inputHasSendableContent),
+			),
 		),
 		group: 'navigation',
 		order: 4,

@@ -15,7 +15,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
-import { MenuId, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, SubmenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -46,6 +46,8 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	private readonly _primaryAction: ActionViewItem;
 	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
 	private _altKeyPressed = false;
+	private readonly _secondaryExecuteMenu: IMenu;
+	private _executeContext: IChatExecuteActionContext | undefined;
 
 	constructor(
 		action: IAction,
@@ -58,8 +60,10 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSideChatService private readonly chatSideChatService: IChatSideChatService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super(undefined, action);
+		this._secondaryExecuteMenu = this._register(menuService.createMenu(MenuId.ChatExecuteSecondary, contextKeyService));
 
 		const isSteerDefault = this._isSteerDefault();
 
@@ -178,6 +182,11 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._dropdown.setFocusable(focusable);
 	}
 
+	override setActionContext(context: IChatExecuteActionContext | undefined): void {
+		super.setActionContext(context);
+		this._executeContext = context;
+	}
+
 	private _getDropdownActions(): IActionWidgetDropdownAction[] {
 		const isSteerDefault = this._isSteerDefault();
 
@@ -263,7 +272,15 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			}
 		} : undefined;
 
-		return coalesce([sendAction, queueAction, steerAction, askInSideChatAction]);
+		const secondaryActions = this._secondaryExecuteMenu.getActions({ shouldForwardArgs: true }).flatMap(([, actions]) => actions);
+		return [
+			...coalesce([sendAction, queueAction, steerAction, askInSideChatAction]),
+			...secondaryActions.map(action => ({
+				id: action.id, label: action.label, tooltip: action.tooltip, enabled: action.enabled,
+				class: action.class, checked: action.checked,
+				run: () => action.run(this._executeContext),
+			})),
+		];
 	}
 
 	/**

@@ -1243,6 +1243,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
+	async configureNewSessionDraft(session: ISession, options: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || this._ownership.get(session.sessionId)?.state !== 'draft') {
+			throw new Error('The saved draft is no longer available for configuration.');
+		}
+		if ((options.isolationMode && !provider.setWorktreeConfiguration && !provider.setIsolationMode) || (options.branch && !provider.setWorktreeConfiguration && !provider.setBranch)) {
+			throw new Error('The provider cannot restore the saved draft workspace configuration.');
+		}
+		await this._configureNewSession(provider, session, options, true, token, session.workspace.get()?.folders[0]?.root);
+	}
+
 	private async _configureNewSession(
 		provider: ISessionsProvider,
 		session: ISession,
