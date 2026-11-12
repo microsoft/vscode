@@ -18,6 +18,8 @@ import { SyncDescriptor } from '../../../../../../platform/instantiation/common/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../../../common/views.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -172,6 +174,14 @@ suite('AgentsViewGate', () => {
 
 		gate.dispose();
 		assert.deepStrictEqual(registered(), { container: undefined, view: undefined });
+	});
+
+	test('registers the chat tabs setting of the Agents window, with its default, while the setting is on', () => {
+		const gate = createGate(true);
+		const property = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[SESSIONS_CHAT_TABS_SETTING];
+		gate.dispose();
+
+		assert.deepStrictEqual({ default: property?.default, enum: property?.enum }, { default: SessionsChatTabsMode.Single, enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single] });
 	});
 
 	test('registers the actions of the list once the Sessions view first shows', () => {

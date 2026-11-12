@@ -35,7 +35,7 @@ import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestar
 import { ISessionAttentionService } from '../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { SessionAttentionService } from '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
 import { sessionsListConfiguration } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);
 
@@ -103,18 +103,6 @@ export const sessionsConfiguration = {
 			description: localize('sessions.list.agentTools.enabled', "Controls whether agents can read and organize the Sessions list: create, nest, and reorder custom groups, move, pin, and archive sessions, and change the list's grouping, sorting, and filters. This only applies to the Sessions list of the Agents window."),
 			default: true,
 			experiment: { mode: 'auto' }
-		},
-		[SESSIONS_CHAT_TABS_SETTING]: {
-			type: 'string',
-			tags: ['preview'],
-			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
-			enumDescriptions: [
-				localize('sessions.showChatTabs.multiple', "Each chat is displayed as a tab in the session view."),
-				localize('sessions.showChatTabs.single', "The active chat is displayed as the session view."),
-			],
-			description: localize('sessions.showChatTabs', "Controls whether chats in a session are shown as individual tabs or whether the active chat is shown as the session view."),
-			default: SESSIONS_CHAT_TABS_DEFAULT,
-			experiment: { mode: 'auto' },
 		},
 		[NEW_SESSION_BUTTON_STYLE_SETTING]: {
 			type: 'string',

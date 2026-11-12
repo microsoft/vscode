@@ -6,7 +6,7 @@
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, IConfigurationNode } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
-import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
+import { AutomationSessionsListMode, ExternalSessionApplicationBadgeMode, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, USE_WORKTREE_SETTING } from '../common/sessionConfig.js';
 import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
 
 /**
@@ -16,6 +16,18 @@ import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFA
 export const sessionsListConfiguration = {
 	id: 'sessionsList',
 	properties: {
+		[SESSIONS_CHAT_TABS_SETTING]: {
+			type: 'string',
+			tags: ['preview'],
+			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
+			enumDescriptions: [
+				localize('sessions.showChatTabs.multiple', "Each chat is displayed as a tab in the session view."),
+				localize('sessions.showChatTabs.single', "The active chat is displayed as the session view."),
+			],
+			description: localize('sessions.showChatTabs', "Controls whether chats in a session are shown as individual tabs or whether the active chat is shown as the session view."),
+			default: SESSIONS_CHAT_TABS_DEFAULT,
+			experiment: { mode: 'auto' },
+		},
 		[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental'],

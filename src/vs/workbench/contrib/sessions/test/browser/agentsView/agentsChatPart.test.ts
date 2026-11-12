@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { IAgentsViewFolderLocationService } from '../../../browser/agentsView/agentsViewFolderLocation.js';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -270,9 +271,9 @@ suite('AgentsChatPartService', () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 				return storageService.get(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			},
-			setShowTabs: (value: string) => {
-				configurationService.setUserConfiguration('workbench.editor.showTabs', value);
-				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'workbench.editor.showTabs' }));
+			setConfiguration: (key: string, value: string) => {
+				configurationService.setUserConfiguration(key, value);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (affected: string) => affected === key }));
 			},
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
 			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => {
@@ -696,16 +697,18 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/a'], active: '/a' }], activeGroup: 0, visible: false });
 	});
 
-	test('its tabs show as a chat window\'s do, following workbench.editor.showTabs as it changes', async () => {
-		const { service, part, setShowTabs } = createService();
+	test('its tabs show its chats as the Agents window shows the chats of a session: the active one by default, each in a tab with Multiple, as the setting changes', async () => {
+		const { service, part, setConfiguration } = createService();
 		await service.openChat(session, chatA);
-		const shown = part.options;
+		const single = part.options;
 
-		setShowTabs('none');
+		setConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Multiple);
+		const multiple = part.options;
+		// The tabs of the editor area do not change those of the chat part
+		setConfiguration('workbench.editor.showTabs', 'none');
+		const withEditorTabsNone = part.options;
 
-		assert.deepStrictEqual({ shown, none: part.options }, {
-			shown: { doubleClickTabToToggleEditorGroupSizes: 'off', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
-			none: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
-		});
+		const options = (showTabs: string) => ({ doubleClickTabToToggleEditorGroupSizes: 'off', showTabs, tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 });
+		assert.deepStrictEqual({ single, multiple, withEditorTabsNone }, { single: options('single'), multiple: options('multiple'), withEditorTabsNone: options('multiple') });
 	});
 });

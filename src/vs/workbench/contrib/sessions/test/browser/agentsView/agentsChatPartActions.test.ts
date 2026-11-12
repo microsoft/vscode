@@ -16,7 +16,7 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { AgentsChatPartChatTabsMenu, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
@@ -97,6 +97,19 @@ suite('Agents chat part actions', () => {
 				commandPalette: 'agentHostEnabled && chatIsEnabled',
 			},
 			keybindings: 0,
+		});
+	});
+
+	test('the header of a chat in the chat part offers how it shows its chats, Multiple or Single, only with AI features enabled', async () => {
+		store.add(registerAgentsChatPartActions());
+		const submenuWhen = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).find(item => !isIMenuItem(item) && item.submenu === AgentsChatPartChatTabsMenu)?.when?.serialize();
+
+		assert.deepStrictEqual({
+			submenuWhen,
+			choices: MenuRegistry.getMenuItems(AgentsChatPartChatTabsMenu).filter(isIMenuItem).map(item => [item.command.id, item.command.precondition?.serialize()]),
+		}, {
+			submenuWhen: 'chatIsEnabled && inAgentsChatPart',
+			choices: [['workbench.action.agentsView.showMultipleChatTabs', 'chatIsEnabled'], ['workbench.action.agentsView.showSingleChat', 'chatIsEnabled']],
 		});
 	});
 
