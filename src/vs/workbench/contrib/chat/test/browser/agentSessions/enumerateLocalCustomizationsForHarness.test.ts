@@ -16,8 +16,8 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { type IPromptPath, type IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
-function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage, sessionTypes?: readonly string[]): IPromptPath {
-	return { uri, type, storage, sessionTypes } as IPromptPath;
+function makePromptPath(uri: URI, type: PromptsType, storage: PromptsStorage, sessionTypes?: readonly string[], source?: PromptFileSource): IPromptPath {
+	return { uri, type, storage, sessionTypes, source } as IPromptPath;
 }
 
 function makePromptsService(
@@ -25,8 +25,10 @@ function makePromptsService(
 	disabledPromptFiles: ReadonlyMap<PromptsType, ResourceSet> = new Map(),
 ): IPromptsService {
 	return {
-		async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage): Promise<readonly IPromptPath[]> {
-			return files.get(`${type}/${storage}`) ?? [];
+		async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, _token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]> {
+			// Like the real service, `root` only scopes workspace (local) storage.
+			const key = root && storage === PromptsStorage.local ? `${type}/${storage}@${root.toString()}` : `${type}/${storage}`;
+			return files.get(key) ?? [];
 		},
 		getDisabledPromptFiles(type: PromptsType): ResourceSet {
 			return disabledPromptFiles.get(type) ?? new ResourceSet();
@@ -263,10 +265,10 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		const builtinCreatePr = URI.file('/builtin/create-pr/SKILL.md');
 		const promptsService = makePromptsService(new Map([
 			[`${PromptsType.skill}/${PromptsStorage.local}`, [
-				{ ...makePromptPath(workspaceSkill, PromptsType.skill, PromptsStorage.local), source: PromptFileSource.GitHubWorkspace },
-				{ ...makePromptPath(claudeOnlySkill, PromptsType.skill, PromptsStorage.local, ['claude']), source: PromptFileSource.ClaudeWorkspace },
+				makePromptPath(workspaceSkill, PromptsType.skill, PromptsStorage.local, undefined, PromptFileSource.GitHubWorkspace),
+				makePromptPath(claudeOnlySkill, PromptsType.skill, PromptsStorage.local, ['claude'], PromptFileSource.ClaudeWorkspace),
 			]],
-			[`${PromptsType.skill}/${PromptsStorage.user}`, [makePromptPath(userSkill, PromptsType.skill, PromptsStorage.user)]],
+			[`${PromptsType.skill}/${PromptsStorage.user}`, [makePromptPath(userSkill, PromptsType.skill, PromptsStorage.user, undefined, PromptFileSource.CopilotPersonal)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
 				makePromptPath(builtinCodeReview, PromptsType.skill, PromptsStorage.builtIn),
 				makePromptPath(builtinMerge, PromptsType.skill, PromptsStorage.builtIn),
@@ -282,6 +284,60 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		assert.deepStrictEqual(results, [
 			[builtinCreatePr.toString()],
 			[userSkill.toString(), builtinCreatePr.toString()],
+		]);
+	});
+
+	test('keeps built-in skills whose override sits in a folder the harness does not discover', async () => {
+		const githubSkill = URI.file('/workspace/.github/skills/code-review/SKILL.md');
+		const claudeSkill = URI.file('/workspace/.claude/skills/merge/SKILL.md');
+		const builtinCodeReview = URI.file('/builtin/code-review/SKILL.md');
+		const builtinMerge = URI.file('/builtin/merge/SKILL.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.skill}/${PromptsStorage.local}`, [
+				makePromptPath(githubSkill, PromptsType.skill, PromptsStorage.local, undefined, PromptFileSource.GitHubWorkspace),
+				makePromptPath(claudeSkill, PromptsType.skill, PromptsStorage.local, undefined, PromptFileSource.ClaudeWorkspace),
+			]],
+			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
+				makePromptPath(builtinCodeReview, PromptsType.skill, PromptsStorage.builtIn),
+				makePromptPath(builtinMerge, PromptsType.skill, PromptsStorage.builtIn),
+			]],
+		]));
+
+		const results = await Promise.all([SessionType.AgentHostClaude, SessionType.AgentHostCodex, SessionType.CopilotCLI].map(async sessionType =>
+			(await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), sessionType, CancellationToken.None, undefined))
+				.map(item => item.uri.toString())
+		));
+
+		assert.deepStrictEqual(results, [
+			[builtinCodeReview.toString()],
+			[builtinMerge.toString()],
+			[],
+		]);
+	});
+
+	test('looks up workspace overrides in the session folders instead of the window workspace', async () => {
+		const sessionFolder = URI.file('/repo-b');
+		const windowSkill = URI.file('/repo-a/.github/skills/code-review/SKILL.md');
+		const sessionSkill = URI.file('/repo-b/.github/skills/merge/SKILL.md');
+		const builtinCodeReview = URI.file('/builtin/code-review/SKILL.md');
+		const builtinMerge = URI.file('/builtin/merge/SKILL.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.skill}/${PromptsStorage.local}`, [makePromptPath(windowSkill, PromptsType.skill, PromptsStorage.local, undefined, PromptFileSource.GitHubWorkspace)]],
+			[`${PromptsType.skill}/${PromptsStorage.local}@${sessionFolder.toString()}`, [makePromptPath(sessionSkill, PromptsType.skill, PromptsStorage.local, undefined, PromptFileSource.GitHubWorkspace)]],
+			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [
+				makePromptPath(builtinCodeReview, PromptsType.skill, PromptsStorage.builtIn),
+				makePromptPath(builtinMerge, PromptsType.skill, PromptsStorage.builtIn),
+			]],
+		]));
+
+		const results = await Promise.all([[], [sessionFolder]].map(async roots =>
+			(await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined, roots))
+				.map(item => item.uri.toString())
+		));
+
+		assert.deepStrictEqual(results, [
+			[builtinMerge.toString()],
+			[builtinCodeReview.toString()],
 		]);
 	});
 

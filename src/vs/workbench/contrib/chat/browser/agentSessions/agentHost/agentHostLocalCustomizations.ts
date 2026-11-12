@@ -8,6 +8,7 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isCopilotAgentHostProvider, isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -81,8 +82,11 @@ export interface ILocalCustomizationFile {
  * sessions-aware prompts service is in play) are also enumerated so that
  * `/create-pr`, `/merge`, etc. are available to every agent host without
  * any per-provider plumbing. A built-in skill is left out when a workspace
- * or user skill with the same name overrides it. In the regular VS Code
- * workbench window the built-in lookup returns nothing and this is a no-op.
+ * or user skill with the same name overrides it and the harness receives or
+ * discovers that skill. Workspace overrides are looked up in `roots`, the
+ * folders the session works in, or in the window's workspace when `roots` is
+ * empty. In the regular VS Code workbench window the built-in lookup returns
+ * nothing and this is a no-op.
  */
 export async function enumerateLocalCustomizationsForHarness(
 	promptsService: IPromptsService,
@@ -90,6 +94,7 @@ export async function enumerateLocalCustomizationsForHarness(
 	sessionType: string,
 	token: CancellationToken,
 	options: ILocalCustomizationSyncOptions | undefined,
+	roots: readonly URI[] = [],
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
 	const seenUris = new ResourceSet();
@@ -106,7 +111,7 @@ export async function enumerateLocalCustomizationsForHarness(
 			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		const overridingSkillNames = type === PromptsType.skill
-			? getOverridingSkillNames(storageSources, lists, harnessSessionType)
+			? await getOverridingSkillNames(promptsService, storageSources, lists, harnessSessionType, fullySyncedStorageSources, roots, token)
 			: undefined;
 		for (let i = 0; i < lists.length; i++) {
 			const source = storageSources[i];
@@ -115,9 +120,7 @@ export async function enumerateLocalCustomizationsForHarness(
 				if (source === PromptsStorage.builtIn && overridingSkillNames?.has(getSkillFolderName(file.uri))) {
 					continue;
 				}
-				if (!fullySyncedStorageSources.includes(source)
-					&& file.source !== PromptFileSource.ConfigWorkspace
-					&& file.source !== PromptFileSource.ConfigPersonal) {
+				if (!isSyncedToHarness(file, source, fullySyncedStorageSources)) {
 					continue;
 				}
 				if (matchesSessionType(file.sessionTypes, harnessSessionType) && !seenUris.has(file.uri)) {
@@ -139,25 +142,84 @@ export async function enumerateLocalCustomizationsForHarness(
 }
 
 /**
- * Collects the canonical (folder) names of workspace and user skills that
- * apply to `harnessSessionType`. Built-in skills have the lowest precedence,
- * so a built-in skill with one of these names is overridden and must not be
- * forwarded to the agent host next to the workspace or user copy, which the
- * host discovers itself or receives through the sync.
+ * Whether `file`, listed from `storage`, is sent to the agent host: either its
+ * whole storage is synced, or it comes from a non-default configured location.
+ * Files in default locations are left for the host to discover itself.
  */
-function getOverridingSkillNames(
+function isSyncedToHarness(file: IPromptPath, storage: PromptsStorage, fullySyncedStorageSources: readonly PromptsStorage[]): boolean {
+	return fullySyncedStorageSources.includes(storage)
+		|| file.source === PromptFileSource.ConfigWorkspace
+		|| file.source === PromptFileSource.ConfigPersonal;
+}
+
+/**
+ * Whether the agent host for `harness` discovers skills in the default skill
+ * folder that `source` stands for without the client syncing them.
+ */
+function isSkillFolderDiscoveredByHarness(harness: string, source: PromptFileSource | undefined): boolean {
+	if (isCopilotAgentHostProvider(harness)) {
+		return source === PromptFileSource.AgentsWorkspace
+			|| source === PromptFileSource.GitHubWorkspace
+			|| source === PromptFileSource.ClaudeWorkspace
+			|| source === PromptFileSource.AgentsPersonal
+			|| source === PromptFileSource.CopilotPersonal;
+	}
+	if (harness === CLAUDE_AGENT_PROVIDER_ID) {
+		return source === PromptFileSource.ClaudeWorkspace
+			|| source === PromptFileSource.ClaudePersonal;
+	}
+	if (harness === CODEX_AGENT_PROVIDER_ID) {
+		return source === PromptFileSource.AgentsWorkspace
+			|| source === PromptFileSource.GitHubWorkspace
+			|| source === PromptFileSource.AgentsPersonal;
+	}
+	return false;
+}
+
+/**
+ * Collects the canonical (folder) names of workspace and user skills that
+ * apply to `harnessSessionType` and that its agent host receives through the
+ * sync or discovers itself. Built-in skills have the lowest precedence, so a
+ * built-in skill with one of these names is overridden and must not be
+ * forwarded to the agent host next to the workspace or user copy.
+ *
+ * The host discovers workspace skills in the folders the session works in,
+ * so when `roots` are given they are looked up there rather than in the
+ * window's workspace.
+ */
+async function getOverridingSkillNames(
+	promptsService: IPromptsService,
 	storageSources: readonly PromptsStorage[],
 	lists: readonly (readonly IPromptPath[])[],
 	harnessSessionType: string,
-): ReadonlySet<string> {
+	fullySyncedStorageSources: readonly PromptsStorage[],
+	roots: readonly URI[],
+	token: CancellationToken,
+): Promise<ReadonlySet<string>> {
 	const names = new Set<string>();
+	const addIfApplicable = (file: IPromptPath) => {
+		if (matchesSessionType(file.sessionTypes, harnessSessionType)) {
+			names.add(getSkillFolderName(file.uri));
+		}
+	};
 	for (let i = 0; i < lists.length; i++) {
-		if (storageSources[i] !== PromptsStorage.local && storageSources[i] !== PromptsStorage.user) {
+		const storage = storageSources[i];
+		if (storage !== PromptsStorage.local && storage !== PromptsStorage.user) {
 			continue;
 		}
+		const discoverable = storage === PromptsStorage.user || roots.length === 0;
 		for (const file of lists[i]) {
-			if (matchesSessionType(file.sessionTypes, harnessSessionType)) {
-				names.add(getSkillFolderName(file.uri));
+			if (isSyncedToHarness(file, storage, fullySyncedStorageSources)
+				|| (discoverable && isSkillFolderDiscoveredByHarness(harnessSessionType, file.source))) {
+				addIfApplicable(file);
+			}
+		}
+	}
+	if (roots.length > 0) {
+		const rootLists = await Promise.all(roots.map(root => promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.local, token, root)));
+		for (const file of rootLists.flat()) {
+			if (isSkillFolderDiscoveredByHarness(harnessSessionType, file.source)) {
+				addIfApplicable(file);
 			}
 		}
 	}
@@ -298,7 +360,7 @@ export async function resolveCustomizationRefs(
 	workingDirectories: readonly URI[] = [],
 	windowRemoteAuthority: string | null = null,
 ): Promise<ClientPluginCustomization[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, workingDirectories);
 	const enabled = enumerated.filter(e => !e.disabled);
 
 	const plugins = agentPluginService.plugins.get();
