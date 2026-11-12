@@ -16,7 +16,8 @@ import { ICommentController, ICommentInfo, ICommentService } from '../../../../.
 import { ICommentThreadChangedEvent } from '../../../../../workbench/contrib/comments/common/commentModel.js';
 import { AgentFeedbackCommentsArbitrationService, IAgentFeedbackCommentsArbitrationService } from '../../browser/agentFeedbackCommentsArbitration.js';
 import { AgentFeedbackWorkbenchCommentsContribution } from '../../browser/agentFeedbackWorkbenchComments.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 suite('Agent Feedback Comments Arbitration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

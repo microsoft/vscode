@@ -15,8 +15,8 @@ import { localize } from '../../../../nls.js';
 import { AgentFeedbackAuthorValue, authorForFeedbackKind } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from '../../../../workbench/contrib/comments/browser/commentService.js';
-import { AgentFeedbackState, IAgentFeedback } from './agentFeedbackModel.js';
-import { IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackState, IAgentFeedback } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { AGENT_FEEDBACK_COMMENT_CONTROLLER_ID, IAgentFeedbackCommentsArbitrationService } from './agentFeedbackCommentsArbitration.js';
 
 class AgentFeedbackCommentThread implements CommentThread<IRange> {
