@@ -2630,17 +2630,13 @@ async function confirmAndDeleteAutomation(
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
-	const supportsHistoryChoice = automationService.supportsDeleteHistoryChoice?.(automation.id) === true;
-	const deleteDetail = supportsHistoryChoice
-		? localize('confirmDeleteHistoryChoice', "This will permanently delete the automation. Clear the checkbox to keep its run history.")
-		: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history.");
+	const deleteDetail = localize('confirmDeleteDetail', "This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.");
 	const shared = automation.ownership === 'repository';
 	const confirmed = await dialogService.confirm({
-		...(shared ? { type: 'warning' as const } : {}),
+		type: 'warning',
 		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
 		detail: shared ? withSharedAutomationWarning('delete', deleteDetail) : deleteDetail,
 		primaryButton: localize('delete', "Delete"),
-		...(supportsHistoryChoice ? { checkbox: { label: localize('deleteAutomationHistory', "Delete Run History"), checked: true } } : {}),
 	});
 	if (!confirmed.confirmed) {
 		return;
@@ -2654,7 +2650,7 @@ async function confirmAndDeleteAutomation(
 			if (!isEnabled()) {
 				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
 			}
-		}, supportsHistoryChoice ? { deleteHistory: confirmed.checkboxChecked !== false } : undefined);
+		}, automationService.supportsDeleteHistoryChoice?.(automation.id) === true ? { deleteHistory: true } : undefined);
 		status(localize('automationDeletedStatus', "Deleted automation {0}", automation.name));
 	} catch (error) {
 		logService.error('[AutomationsCards] Failed to delete automation', error);

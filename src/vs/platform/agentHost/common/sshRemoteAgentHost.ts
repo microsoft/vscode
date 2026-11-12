@@ -94,6 +94,13 @@ export interface ISSHAgentHostConfig {
 	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
 }
 
+/** Configured hosts resolve their connection settings in the node-side connect attempt. */
+export type SSHAgentHostConnectionRequest = ISSHAgentHostConfig | {
+	readonly sshConfigHost: string;
+	readonly name: string;
+	readonly userInitiated?: boolean;
+};
+
 /**
  * Compute the stable per-host key used to key in-flight SSH connections,
  * the shared endpoint-selection request/candidates, and this host's
@@ -235,7 +242,7 @@ export interface ISSHRemoteAgentHostService {
 	 *
 	 * Resolves with the connection handle once the agent host is reachable.
 	 */
-	connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection>;
+	connect(config: SSHAgentHostConnectionRequest): Promise<ISSHAgentHostConnection>;
 
 	/**
 	 * Disconnect an SSH-bootstrapped connection by host address.
@@ -261,7 +268,7 @@ export interface ISSHRemoteAgentHostService {
 	 */
 	listSSHConfigFiles(): Promise<URI[]>;
 
-	/** Resolve full SSH config for a host via `ssh -G`. */
+	/** Resolve current SSH config for a host via a fresh `ssh -G` evaluation. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
 	/**
@@ -660,7 +667,7 @@ export interface ISSHRemoteAgentHostMainService {
 	/** List the known SSH configuration file URIs (user config always included). */
 	listSSHConfigFiles(): Promise<URI[]>;
 
-	/** Resolve full SSH config for a host via `ssh -G`. */
+	/** Resolve current SSH config for a host via a fresh `ssh -G` evaluation. */
 	resolveSSHConfig(host: string): Promise<ISSHResolvedConfig>;
 
 	/**

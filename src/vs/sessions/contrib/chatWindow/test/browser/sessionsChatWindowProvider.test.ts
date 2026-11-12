@@ -354,16 +354,33 @@ suite('Sessions chat window provider', () => {
 		});
 	});
 
+	test('a chat stays in the main window\'s grid until its window binds it, so that the editors of its session are there to move into the window; its window then keeps it out', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main')]);
+		const { provider, events, windowInstantiationService } = createProvider(store, [session]);
+
+		const content = (await provider.resolveContent(session.resource))!;
+		await content.resolveChat(session.resource);
+		const beforeBind = [...events];
+		const binding = store.add(content.bind!(window, windowInstantiationService));
+		const afterBind = [...events];
+		binding.dispose();
+		const afterUnbind = [...events];
+		content.dispose();
+
+		assert.deepStrictEqual({ beforeBind, afterBind, afterUnbind }, { beforeBind: [], afterBind: ['hide session /main'], afterUnbind: ['hide session /main'] });
+	});
+
 	test('another resource of a chat a window shows, such as its session\'s, resolves to the entry the window has of it, not to one of its own', async () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main')]);
-		const { provider, events } = createProvider(store, [session]);
+		const { provider } = createProvider(store, [session]);
 		const content = store.add((await provider.resolveContent(session.resource))!);
 		const shown = (await content.resolveChat(URI.parse('test:/main')))!;
 
 		const ofSession = await content.resolveChat(session.resource);
 
-		assert.deepStrictEqual({ same: ofSession === shown, events }, { same: true, events: ['hide session /main'] });
+		assert.deepStrictEqual({ same: ofSession === shown }, { same: true });
 	});
 
 	test('a session resolves to the chat its grid slot shows, unless the exact chat is asked for, which is its main chat', async () => {
@@ -574,9 +591,10 @@ suite('Sessions chat window provider', () => {
 		const from = Object.assign(createSession('from', fromChats.get()), { chats: fromChats, dispose: () => disposed.push('from') });
 		const to = Object.assign(createSession('to', toChats.get()), { chats: toChats, dispose: () => disposed.push('to') });
 		const sessions = [from, to];
-		const { provider, events, onDidChangeSessions } = createProvider(store, sessions);
+		const { provider, events, onDidChangeSessions, windowInstantiationService } = createProvider(store, sessions);
 		const content = (await provider.resolveContent(URI.parse('test:/moved')))!;
 		const chat = asWindowChat((await content.resolveChat(URI.parse('test:/moved')))!);
+		store.add(content.bind!(window, windowInstantiationService));
 		const before = chat.session.get() === from;
 
 		transaction(tx => {

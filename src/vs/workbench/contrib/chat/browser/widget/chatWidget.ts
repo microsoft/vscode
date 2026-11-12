@@ -1279,6 +1279,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getTemplateDataForRequestId: (requestId) => this.getTemplateDataForRequestId(requestId),
 				onDidRerenderRow: this.onDidRerenderRow,
 				editorsInUse: () => this.listWidget.editorsInUse(),
+				getCodeBlockInfoForEditor: uri => this.listWidget.getCodeBlockInfoForEditor(uri),
 				getScrollTop: () => this.listWidget.scrollTop,
 				setScrollTop: (scrollTop) => { this.listWidget.scrollTop = scrollTop; },
 				getRenderHeight: () => this.listWidget.renderHeight,

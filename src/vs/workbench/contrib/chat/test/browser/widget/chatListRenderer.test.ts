@@ -15486,7 +15486,7 @@ suite('ChatListRenderer', () => {
 		}
 
 		for (const carousel of [true, false]) {
-			for (const selectedOption of ['save-session-sandbox-path', 'save-sandbox-path', 'skip']) {
+			for (const selectedOption of ['save-session-sandbox-path', 'save-workspace-sandbox-path', 'save-sandbox-path', 'skip']) {
 				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, async () => {
 					const context = createConfirmationRenderer();
 					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
@@ -15507,6 +15507,7 @@ suite('ChatListRenderer', () => {
 						invocationMessage: 'Allow read/write access to the folder.',
 						options: [
 							{ id: 'save-session-sandbox-path', label: 'Allow for This Session', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'save-workspace-sandbox-path', label: 'Allow for This Workspace', kind: ConfirmationOptionKind.Approve, group: 1 },
 							{ id: 'save-sandbox-path', label: 'Allow for This User', kind: ConfirmationOptionKind.Approve, group: 1 },
 							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
 						],
@@ -15522,10 +15523,14 @@ suite('ChatListRenderer', () => {
 					assert.ok(primary && dropdown && skip);
 					const labels = [primary, skip].map(button => button.textContent?.replaceAll('\u00a0', ' '));
 					const hasFilePreview = !!container.querySelector('.chat-modified-files-confirmation-list');
-					dropdown.click();
+					if (selectedOption === 'save-workspace-sandbox-path') {
+						dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+					} else {
+						dropdown.click();
+					}
 					const moreActions = menuActions.filter(action => !(action instanceof Separator));
-					if (selectedOption === 'save-sandbox-path') {
-						await moreActions[0].run();
+					if (selectedOption === 'save-workspace-sandbox-path' || selectedOption === 'save-sandbox-path') {
+						await moreActions[selectedOption === 'save-workspace-sandbox-path' ? 0 : 1].run();
 					} else {
 						(selectedOption === 'skip' ? skip : primary).click();
 					}
@@ -15537,7 +15542,7 @@ suite('ChatListRenderer', () => {
 						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
 					}, {
 						labels: ['Allow for This Session', 'Skip'],
-						moreLabels: ['Allow for This User'],
+						moreLabels: ['Allow for This Workspace', 'Allow for This User'],
 						hasFilePreview: true,
 						confirmed: {
 							type: ToolConfirmKind.UserAction,
