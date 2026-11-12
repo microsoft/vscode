@@ -21,6 +21,7 @@ import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchCont
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -269,7 +270,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			// The view may not create a terminal at all, for example when it hides on startup.
 			const timeout = setTimeout(() => done(), TERMINAL_VIEW_CREATION_TIMEOUT);
 			store.add(toDisposable(() => clearTimeout(timeout)));
-			store.add(Event.once(Event.filter(this._terminalService.onDidCreateInstance, instance => !instance.shellLaunchConfig.hideFromUser))(instance => {
+			// Other terminals can be created meanwhile, such as editor, task or extension terminals;
+			// only a default shell in the panel can be the one the view created.
+			store.add(Event.once(Event.filter(this._terminalService.onDidCreateInstance, instance => this._couldBeTerminalViewShell(instance)))(instance => {
 				clearTimeout(timeout);
 				// Its cwd is known once its process is ready, however long the shell takes to start.
 				const settled = () => done(instance);
@@ -416,6 +419,23 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		this._activeSessionId = undefined;
 		await this._onActiveSessionChanged(session, this._mainWindowHost.chat.get());
 		return session;
+	}
+
+	/**
+	 * Whether the terminal could be the one the terminal view creates when it
+	 * opens empty: a shell in the panel that no editor, task, extension or
+	 * restored terminal session asked for.
+	 */
+	private _couldBeTerminalViewShell(instance: ITerminalInstance): boolean {
+		const config = instance.shellLaunchConfig;
+		return instance.target === TerminalLocation.Panel
+			&& !config.hideFromUser
+			&& !config.isFeatureTerminal
+			&& !config.isExtensionOwnedTerminal
+			&& config.type !== 'Task'
+			&& !config.extHostTerminalId
+			&& !config.customPtyImplementation
+			&& !config.attachPersistentProcess;
 	}
 
 	/**

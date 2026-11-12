@@ -21,6 +21,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { TerminalLocation } from '../../../../../platform/terminal/common/terminal.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ChatInteractivity, IChat, ISession, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus } from '../../../../../workbench/services/sessions/common/session.js';
@@ -257,6 +258,7 @@ function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 		get isDisposed() { return isDisposed; },
 		get shellLaunchConfig() { return shellLaunchConfig; },
 		get processReady() { return processReady; },
+		target: TerminalLocation.Panel,
 		onDisposed: Event.None,
 		onExit: Event.None,
 		async getInitialCwd() {
@@ -607,6 +609,36 @@ suite('SessionsTerminalContribution', () => {
 
 		terminalViewVisible = true;
 		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/configured-cwd').fsPath);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+		await tick();
+
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [URI.file('/worktree-a').fsPath], disposed: [viewTerminal.instanceId] });
+	});
+
+	test('does not take a terminal created elsewhere for the terminal view terminal', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const editorTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/elsewhere').fsPath);
+		editorTerminal.target = TerminalLocation.Editor;
+		const extensionTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/elsewhere').fsPath);
+		extensionTerminal._testSetShellLaunchConfig({ isExtensionOwnedTerminal: true } as ITerminalInstance['shellLaunchConfig']);
+		const taskTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/elsewhere').fsPath);
+		taskTerminal._testSetShellLaunchConfig({ type: 'Task' } as ITerminalInstance['shellLaunchConfig']);
+		for (const unrelated of [editorTerminal, extensionTerminal, taskTerminal]) {
+			terminalInstances.set(unrelated.instanceId, unrelated);
+			onDidCreateInstance.fire(unrelated);
+		}
 		await tick();
 		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/configured-cwd').fsPath);
 		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
