@@ -573,14 +573,6 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 					},
 				};
 			} else {
-				if (!pending.isolation && this._worktreeIsolation.supported) {
-					try {
-						const externalWorktree = pending.externalWorktree ?? await this._worktreeIsolation.resolveExternalWorktreeProject(workspaceFolder);
-						workspaceMetadata = externalWorktree?.metadata;
-					} catch {
-						// Ignore errors
-					}
-				}
 				prepared = await host.prepareChatWorkingDirectory(session, workspaceFolder, {
 					isolation: pending.isolation ? 'worktree' : 'folder', forceNewWorktree: pending.isolation, prompt: pending.prompt ?? '',
 					...(pending.credentials ? { credentialSource: pending.credentials } : {}),
