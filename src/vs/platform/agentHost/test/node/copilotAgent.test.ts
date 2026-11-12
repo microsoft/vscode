@@ -1441,9 +1441,10 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	}
 
 	readonly basicLookups: { readonly proxyUrl: string; readonly realm: string | undefined; readonly attempt: number }[] = [];
+	basicCredentials = (attempt: number): { username: string; password: string } | undefined => attempt === 1 ? { username: 'user', password: 'secret' } : undefined;
 	async lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<{ username: string; password: string } | undefined> {
 		this.basicLookups.push({ proxyUrl, realm, attempt });
-		return attempt === 1 ? { username: 'user', password: 'secret' } : undefined;
+		return this.basicCredentials(attempt);
 	}
 
 	getConfigurationValue<T>(_key: string): T | undefined {
@@ -15165,15 +15166,70 @@ suite('CopilotAgent', () => {
 				credentials: [
 					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: false }, signal),
 					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: true }, signal),
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: true }, signal),
 					await authenticateBasic?.({ proxy: 'https://proxy.example:8443', previousRejected: false }, signal),
 				],
 				basicLookups: proxyResolver.basicLookups,
 			}, {
-				credentials: [{ username: 'alice', password: 's@cret' }, undefined, { username: 'user', password: 'secret' }],
+				credentials: [{ username: 'alice', password: 's@cret' }, { username: 'user', password: 'secret' }, undefined, { username: 'user', password: 'secret' }],
 				basicLookups: [
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
 					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 2 },
 					{ proxyUrl: 'https://proxy.example:8443', realm: undefined, attempt: 1 },
 				],
+			});
+		});
+
+		test('asks a client again when it answers the rejected credentials of the http.proxy setting', async () => {
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.basicCredentials = attempt => attempt === 1 ? { username: 'alice', password: 'old' } : { username: 'alice', password: 'stored' };
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			assert.deepStrictEqual({
+				credentials: [
+					await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+					await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+					await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+				],
+				attempts: proxyResolver.basicLookups.map(lookup => lookup.attempt),
+			}, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'stored' }, { username: 'alice', password: 'stored' }],
+				attempts: [1, 2, 1, 2],
+			});
+		});
+
+		test('answers a rejection with the credentials of the http.proxy setting once after they change', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [await authenticateBasic?.({ ...request, previousRejected: false }, signal)];
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:new@proxy.example:3128' });
+			credentials.push(
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+			);
+
+			assert.deepStrictEqual({ credentials, basicLookups: proxyResolver.basicLookups }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'new' }, { username: 'user', password: 'secret' }],
+				basicLookups: [{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 }],
 			});
 		});
 

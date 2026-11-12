@@ -11,7 +11,7 @@ import * as path from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, latestUserInputCarriesTag, MockLlmServer, preseedChatExtensionEnablement, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
-import { createRemoteDevContainerFixture, CREDENTIALED_PROXY_FORWARDED_LOG, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
+import { CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG, createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -181,8 +181,8 @@ export function setup(logger: Logger, quality: Quality) {
 				if (process.env.VSCODE_SMOKE_TEST_HTTP_PROXY) {
 					const agentHostLogPath = path.join(agentHost.logsPath, 'agenthost.log');
 					assert.ok(
-						(await waitForLogContent(() => readFileIfExists(agentHostLogPath), CREDENTIALED_PROXY_FORWARDED_LOG)).includes(CREDENTIALED_PROXY_FORWARDED_LOG),
-						`Expected the Agent Host to forward the http.proxy setting with credentials to the Copilot runtime in ${agentHostLogPath}`
+						CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG.test(await waitForLogContent(() => readFileIfExists(agentHostLogPath), CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG)),
+						`Expected the Agent Host to answer the Copilot runtime's Basic proxy challenge with the credentials of the http.proxy setting in ${agentHostLogPath}`
 					);
 				}
 				await app.workbench.agentsWindow.startNewSession();
@@ -512,8 +512,9 @@ export function setup(logger: Logger, quality: Quality) {
 
 	// Run by test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac, which provisions a WSL
 	// proxy with Basic authentication and a Windows PAC script that selects it, and passes the credentials to type into
-	// the proxy login dialog. No setting or environment variable carries them. Each test then changes the proxy password
-	// and logs in again with the new one, after the proxy rejected the old one the Copilot runtime still had.
+	// the proxy login dialog. No setting or environment variable carries them, except for the stale password of the
+	// http.proxy setting of one suite. Each other test then changes the proxy password and logs in again with the new
+	// one, after the proxy rejected the old one the Copilot runtime still had.
 	const basicPacProxyScheme = process.platform === 'win32' ? process.env.VSCODE_SMOKE_TEST_BASIC_PAC_PROXY : undefined;
 	if (!basicPacProxyScheme) {
 		logger.log('Skipping the AgentHost Basic PAC proxy suites: run test/smoke/scripts/run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac on Windows');
@@ -560,6 +561,54 @@ export function setup(logger: Logger, quality: Quality) {
 				logger.log(`Agents Window (local Basic PAC proxy) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 				throw error;
+			}
+		});
+	});
+
+	// The http.proxy setting names the proxy with a stale password: after the proxy rejects it, the login dialog asks
+	// for the current one.
+	const basicPacProxyUrl = basicPacProxyScheme && process.env.VSCODE_SMOKE_TEST_PROXY_URL ? new URL(process.env.VSCODE_SMOKE_TEST_PROXY_URL) : undefined;
+	const staleHttpProxy = basicPacProxyUrl && `${basicPacProxyUrl.protocol}//${encodeURIComponent(basicPacProxyCredentials.username)}:stale-${randomUUID()}@${basicPacProxyUrl.host}`;
+	(staleHttpProxy ? describe : describe.skip)('Agents Window (local AgentHost, Basic PAC proxy, stale http.proxy credentials)', () => {
+		const scenario = 'smoke-local-basic-pac-proxy-stale-credentials-agent-host';
+		const reply = 'LOCAL_BASIC_PAC_PROXY_STALE_CREDENTIALS_RESPONSE';
+		const context = setupAgentHostSuite(logger, {
+			serverLabel: 'Local Basic PAC proxy AgentHost with stale http.proxy credentials',
+			mockServerHost: '0.0.0.0',
+			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
+				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
+			},
+			settings: {
+				'http.proxy': staleHttpProxy,
+			},
+		});
+
+		it('Asks for the credentials of the proxy of a local AgentHost after it rejects those of the http.proxy setting', async function () {
+			this.timeout(10 * 60 * 1000);
+			const app = this.app as Application;
+			const agentHostLogPath = path.join(context.logsPath, 'agenthost.log');
+			const logins = app.workbench.agentsWindow.fillProxyAuthenticationDialogs(basicPacProxyCredentials.username, basicPacProxyCredentials.password);
+			try {
+				await app.workbench.agentsWindow.waitForNewSessionView();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				const requestTag = `[proxy-request:${randomUUID()}]`;
+				const requestsBefore = context.mockServer.getRequests().length;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`hello with stale http.proxy credentials [scenario:${scenario}] ${requestTag}`);
+				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
+				await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
+				await waitForPromptRequest(context.mockServer, requestsBefore, requestTag);
+				const rejectedLogLine = /\[Copilot\] The proxy \S+ rejected the credentials of the http\.proxy setting, asking a client for credentials/;
+				const log = await waitForLogContent(() => readFileIfExists(agentHostLogPath), log => CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG.test(log) && rejectedLogLine.test(log), 30_000);
+				assert.ok(CONFIGURED_PROXY_CREDENTIALS_ANSWERED_LOG.test(log), `Expected the Agent Host to answer the Copilot runtime's Basic proxy challenge with the credentials of the http.proxy setting in ${agentHostLogPath}`);
+				assert.ok(rejectedLogLine.test(log), `Expected the Agent Host to ask a client for credentials after the proxy rejected those of the http.proxy setting in ${agentHostLogPath}`);
+				const details = await logins.stop();
+				assert.ok(details.some(detail => /^The proxy localhost:\d+ requires a username and password\.$/.test(detail)), `Expected a proxy login dialog, got ${JSON.stringify(details)}`);
+			} catch (error) {
+				logger.log(`Agents Window (local Basic PAC proxy, stale http.proxy credentials) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Agents Window (local Basic PAC proxy, stale http.proxy credentials)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
+				throw error;
+			} finally {
+				await logins.stop();
 			}
 		});
 	});
@@ -1066,7 +1115,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// scratch, so set the production default explicitly rather than
 				// relying on configuration registration timing.
 				'http.proxySupport': 'override',
-				// A proxy with credentials, which the Agent Host forwards to the Copilot runtime in its environment.
+				// A proxy with credentials, which the Agent Host answers the Copilot runtime's Basic challenges with.
 				...(process.env.VSCODE_SMOKE_TEST_HTTP_PROXY ? {
 					'http.proxy': process.env.VSCODE_SMOKE_TEST_HTTP_PROXY,
 				} : {}),
@@ -1151,7 +1200,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 /**
  * Registers the test of an editor window connected to a VS Code server in WSL, whose Agent Host reaches the mock server
  * only through the Windows client's proxy, authenticated with `auth`. With `Basic`, the credentials come from the
- * http.proxy setting, which the Agent Host forwards to the Copilot runtime.
+ * http.proxy setting, which the Agent Host answers the Copilot runtime's Basic challenges with.
  */
 function setupWslRemoteEditorProxySuite(logger: Logger, auth: 'Kerberos' | 'Basic', title: string): void {
 	const scenario = `smoke-wsl-remote-${auth.toLowerCase()}-proxy-agent-host`;

@@ -25,7 +25,8 @@
 	With -ProxyAuth BasicPac, the Agents Window suites run with a local Agent Host and with one in WSL. Squid requires
 	Basic authentication, the PAC selects it, and the smoke tests type its credentials into the proxy login dialog, with
 	no http.proxy setting, KDC or network-only credentials. Each suite then changes the proxy's password, and types the
-	new one when the proxy rejects the remembered credentials.
+	new one when the proxy rejects the remembered credentials. Another local Agent Host suite sets the proxy with a stale
+	password in the http.proxy setting, and types the credentials when the proxy rejects it.
 
 	Every change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-<auth>-proxy.
 
@@ -767,6 +768,8 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts"
 		# The smoke tests change the proxy's password to this one in Squid's password file.
 		$environment['VSCODE_SMOKE_TEST_PROXY_NEW_PASSWORD'] = $newPassword
 		$environment['VSCODE_SMOKE_TEST_PROXY_HTPASSWD'] = "$WslRoot/proxy.htpasswd"
+		# The smoke tests set this with a stale password as the http.proxy setting.
+		$environment['VSCODE_SMOKE_TEST_PROXY_URL'] = $ProxyUrl
 	} else {
 		$environment['VSCODE_SMOKE_TEST_WSL_BASIC_PROXY'] = '1'
 		# The smoke tests set this as the http.proxy setting.
