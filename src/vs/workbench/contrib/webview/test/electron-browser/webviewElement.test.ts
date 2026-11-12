@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
@@ -31,9 +32,46 @@ class TestElectronWebviewElement extends ElectronWebviewElement {
 	public override handleFocusChange(isFocused: boolean): void { super.handleFocusChange(isFocused); }
 }
 
+function focusHostDocument(): void {
+	const button = mainWindow.document.createElement('button');
+	mainWindow.document.body.appendChild(button);
+	try {
+		button.focus();
+	} finally {
+		button.remove();
+	}
+}
+
+async function setWebContentsFocus(focused: boolean, focusTarget: Window = mainWindow): Promise<void> {
+	const listeners = new DisposableStore();
+	const changed = mainWindow.document.hasFocus() === focused ? undefined : new Promise<void>(resolve => {
+		const onChange = () => {
+			if (mainWindow.document.hasFocus() === focused) {
+				resolve();
+			}
+		};
+		const event = focused ? EventType.FOCUS : EventType.BLUR;
+		listeners.add(addDisposableListener(mainWindow, event, onChange, true));
+		if (focusTarget !== mainWindow) {
+			listeners.add(addDisposableListener(focusTarget, event, onChange, true));
+		}
+	});
+	try {
+		// The IPC reply can arrive before the renderer observes the focus change.
+		await ipcRenderer.invoke('vscode:test-set-web-contents-focus', focused);
+		if (focused) {
+			focusHostDocument();
+		}
+		await changed;
+	} finally {
+		listeners.dispose();
+	}
+}
+
 suite('ElectronWebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	suiteSetup(() => ipcRenderer.invoke('vscode:test-set-web-contents-focus', true));
+	suiteSetup(() => setWebContentsFocus(true));
+	teardown(() => focusHostDocument());
 
 	function createWebview(shortcutStates: boolean[] = [], windowId = 42, titleBarStyle = 'native') {
 		const calls: { command: string; args: unknown }[] = [];
@@ -240,6 +278,8 @@ suite('ElectronWebviewElement', () => {
 				first.handleFocusChange(false);
 			}
 			assert.deepStrictEqual(states, [true]);
+			await Promise.resolve(); // Drain setup callbacks while the second iframe is still focused.
+			assert.deepStrictEqual(states, [true]);
 			focusOutsideWebviews();
 			await Promise.resolve();
 			// The second webview's poll samples false both times and emits no notification.
@@ -256,13 +296,15 @@ suite('ElectronWebviewElement', () => {
 		focusIframe(second);
 		second.handleFocusChange(true);
 		await Promise.resolve();
+		const focusTarget = second.element?.contentWindow;
+		assert.ok(focusTarget);
 		try {
-			await ipcRenderer.invoke('vscode:test-set-web-contents-focus', false);
+			await setWebContentsFocus(false, focusTarget);
 			assert.strictEqual(mainWindow.document.hasFocus(), false);
 			first.handleFocusChange(false);
 			assert.deepStrictEqual(states, [true, true, false]);
 		} finally {
-			await ipcRenderer.invoke('vscode:test-set-web-contents-focus', true);
+			await setWebContentsFocus(true, focusTarget);
 		}
 		assert.strictEqual(mainWindow.document.hasFocus(), true, 'test renderer regained native focus');
 		focusIframe(second);
@@ -286,6 +328,8 @@ suite('ElectronWebviewElement', () => {
 		webview.mountTo(auxiliaryDocument.body, auxiliaryWindow);
 		focusIframe(webview);
 		webview.handleFocusChange(true);
+		await Promise.resolve(); // Setup reconciliation must not stand in for the auxiliary listener.
+		assert.deepStrictEqual(states, [true]);
 		focusOutsideWebviews(auxiliaryDocument);
 		await Promise.resolve();
 		assert.deepStrictEqual(states, [true, false]);
@@ -315,6 +359,7 @@ suite('ElectronWebviewElement', () => {
 		first.handleFocusChange(true); // A delayed focus report must not override actual auxiliary focus.
 		nativeFocus.fire(auxiliaryWindow.vscodeWindowId);
 		await Promise.resolve();
+		first.handleFocusChange(false); // A stale owner would release shortcuts from the wrong document.
 		assert.deepStrictEqual(states, [true, true]);
 		focusOutsideWebviews(auxiliaryDocument);
 		await Promise.resolve();
