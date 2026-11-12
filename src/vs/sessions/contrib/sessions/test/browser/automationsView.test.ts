@@ -1757,7 +1757,7 @@ suite('AutomationsCardsWidget', () => {
 			runDisabled: widget.element.querySelector('.automations-card-run-button')?.classList.contains('disabled'),
 			ariaLabel: card.getAttribute('aria-label'),
 			tooltips,
-			accessible: buildAutomationsAccessibleContent([unreachable], [], 'ready').includes('We can\'t reach this automation. Network failed'),
+			accessible: buildAutomationsAccessibleContent([unreachable], [], 'ready').includes('Daily review, enabled\nWe can\'t reach this automation. Network failed'),
 		}, {
 			inMainGroup: true,
 			inDisabledGroup: false,
@@ -1769,6 +1769,31 @@ suite('AutomationsCardsWidget', () => {
 			tooltips: ['We can\'t reach this automation. Network failed'],
 			accessible: true,
 		});
+	});
+
+	test('an availability error clears pending run feedback', async () => {
+		const { widget, automationService, runner } = setup();
+		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+		runner.whenDispatched = dispatched.p;
+		const item = automation();
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([item]);
+		widget.element.querySelector<HTMLButtonElement>('.automations-card-run-button')?.click();
+		assert.strictEqual(widget.element.querySelector('.automations-card-prompt')?.textContent, 'Starting run...');
+
+		automationService.canUpdate = false;
+		automationService.canRun = false;
+		automationService.canDelete = false;
+		automationService.setAutomations([{ ...item, availabilityError: 'Network failed' }]);
+
+		assert.deepStrictEqual({
+			prompt: widget.element.querySelector('.automations-card-prompt')?.textContent,
+			label: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+		}, {
+			prompt: 'Review the workspace',
+			label: 'Daily review — Hourly — We can\'t reach this automation. Network failed',
+		});
+		await dispatched.complete({ kind: 'notStarted', reason: 'targetUnavailable' });
 	});
 
 	test('uses sentence-case Cron for saved cards and accessible schedule text', () => {

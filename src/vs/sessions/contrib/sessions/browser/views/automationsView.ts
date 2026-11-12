@@ -888,6 +888,9 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
+		if (automation.availabilityError && card.startingRuns.get()) {
+			card.startingRuns.set(undefined, undefined);
+		}
 		card.main.disabled = !this.automationService.canUpdateAutomation(automation.id);
 		this.updateCardRunState(card, automation);
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));

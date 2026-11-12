@@ -233,7 +233,7 @@ suite('GitHubCloudAutomationStore', () => {
 				return client;
 			}
 		}();
-		const store = disposables.add(new GitHubCloudAutomationStore(resolveRepositoryUri, service, accounts, storage, new NullLogService(), recents));
+		const store = disposables.add(new GitHubCloudAutomationStore(resolveRepositoryUri, false, service, accounts, storage, new NullLogService(), recents));
 		const changeAccount = (value: IDefaultAccount | null) => {
 			accounts.currentDefaultAccount = value;
 			accountChanged.fire(value);
@@ -616,6 +616,26 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	});
 
+	test('client acquisition failures without cached definitions stay quiet and disable mutations', async () => {
+		const { store, delayAcquisition, acquisitionStarted } = setup();
+		const pending = new DeferredPromise<void>();
+		delayAcquisition(pending.p);
+		const refresh = store.refresh();
+		await acquisitionStarted.p;
+		await pending.error(new Error('Repository grant unavailable'));
+		await assert.rejects(refresh, /Repository grant unavailable/);
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+			canMutate: store.canMutate.get(),
+		}, {
+			entries: [],
+			state: 'ready',
+			canMutate: false,
+		});
+	});
+
 	test('uncertain mutations block retries until an explicit successful refresh', async () => {
 		const { store, api } = setup();
 		const cause = api.mutationResult = new MutationUncertainError('unknown');
@@ -985,7 +1005,7 @@ suite('GitHubCloudAutomationStore', () => {
 			}
 		}();
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new GitHubCloudAutomationStore(() => undefined, service,
+		const store = disposables.add(new GitHubCloudAutomationStore(() => undefined, false, service,
 			new class extends mock<IDefaultAccountService>() {
 				override currentDefaultAccount = account;
 				override readonly onDidChangeDefaultAccount = Event.None;

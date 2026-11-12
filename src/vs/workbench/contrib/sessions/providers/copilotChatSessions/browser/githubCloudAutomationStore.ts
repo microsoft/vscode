@@ -57,6 +57,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private lifetime = new AbortController();
 	private readonly clientStore = this._register(new DisposableStore());
 	private clientPromise: Promise<IGitHubAccountClient> | undefined;
+	private clientAcquisitionFailed = false;
 	private refreshPromise: Promise<void> | undefined;
 	private operations = new Sequencer();
 	private readonly cachedHistory = observableValue<readonly ICloudAutomationHistoryEntry[]>(this, []);
@@ -77,6 +78,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 
 	constructor(
 		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
+		initialMutationUncertain: boolean,
 		@IWorkbenchGitHubService private readonly gitHubService: IWorkbenchGitHubService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -87,6 +89,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		this._register(defaultAccountService.onDidChangeDefaultAccount(() => this.reset(true)));
 		this._register(gitHubService.onDidChangeDefaultClient(() => this.reset(false)));
 		this.reset(true);
+		this.uncertain.set(initialMutationUncertain, undefined);
 	}
 
 	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget> {
@@ -344,8 +347,9 @@ export class GitHubCloudAutomationStore extends Disposable {
 			await refresh;
 		} catch (error) {
 			if (!signal.aborted && !this._store.isDisposed) {
+				const quietAcquisitionFailure = this.cachedEntries.get().length === 0 && this.clientAcquisitionFailed;
 				transaction(tx => {
-					this.state.set('error', tx);
+					this.state.set(quietAcquisitionFailure ? 'ready' : 'error', tx);
 					this.canMutate.set(false, tx);
 				});
 				this.logService.warn('[CloudAutomations] Failed to refresh repositories', error);
@@ -359,7 +363,14 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	private async acquireClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
-		const client = await this.gitHubService.acquireDefaultAccountApiClient(signal);
+		let client: IGitHubAccountClient;
+		try {
+			client = await this.gitHubService.acquireDefaultAccountApiClient(signal);
+			this.clientAcquisitionFailed = false;
+		} catch (error) {
+			this.clientAcquisitionFailed = true;
+			throw error;
+		}
 		if (signal.aborted) {
 			client.dispose();
 			throw signal.reason;
@@ -697,6 +708,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		this.repositoryManageabilityFailures.clear();
 		this.lifetime = new AbortController();
 		this.clientPromise = undefined;
+		this.clientAcquisitionFailed = false;
 		this.clientStore.clear();
 		this.refreshPromise = undefined;
 		this.operations = new Sequencer();

@@ -209,6 +209,7 @@ suite('CloudAutomationStore', () => {
 			override onDidChangeSentiment = sentimentChanged.event;
 		}();
 		const api = new TestApi();
+		let acquisitionError: Error | undefined;
 		const credentialLifetime = new AbortController();
 		const client = new class extends mock<IGitHubAccountClient>() {
 			override readonly onDidInvalidate = Event.None;
@@ -230,7 +231,12 @@ suite('CloudAutomationStore', () => {
 		}();
 		instantiation.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
 			override readonly onDidChangeDefaultClient = clientChanged.event;
-			override async acquireDefaultAccountApiClient() { return client; }
+			override async acquireDefaultAccountApiClient() {
+				if (acquisitionError) {
+					throw acquisitionError;
+				}
+				return client;
+			}
 		}());
 		instantiation.stub(IInstantiationService, instantiation);
 		instantiation.stub(IConfigurationService, configuration);
@@ -250,7 +256,10 @@ suite('CloudAutomationStore', () => {
 			await configuration.setUserConfiguration(key, value);
 			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER });
 		};
-		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation, configuration };
+		return {
+			provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation, configuration,
+			setAcquisitionError: (error: Error | undefined) => acquisitionError = error,
+		};
 	}
 
 	function setupTools() {
@@ -699,6 +708,29 @@ suite('CloudAutomationStore', () => {
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
 	});
 
+	test('unavailable definitions retain active history without continuing to poll', async () => {
+		const clock = useFakeTimers();
+		disposables.add(toDisposable(() => clock.restore()));
+		const { provider, api, set } = setup();
+		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.listError = new Error('Offline');
+		await assert.rejects(provider.refresh(), /Some GitHub repositories could not be refreshed/);
+		api.calls.length = 0;
+		await clock.tickAsync(60_000);
+
+		assert.deepStrictEqual({
+			historyCalls: api.calls.filter(call => call === 'history'),
+			runs: provider.runs.get().map(run => run.status),
+			availabilityError: provider.automations.get()[0].availabilityError,
+		}, {
+			historyCalls: [],
+			runs: ['running'],
+			availabilityError: 'Offline',
+		});
+	});
+
 	test('history failures retain rows without poisoning definition readiness or acknowledgements', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
@@ -941,6 +973,31 @@ suite('CloudAutomationStore', () => {
 		}, { initializing: { state: 'loading', writable: false, calls: [] }, state: 'ready', names: ['Review'] });
 	});
 
+	test('client acquisition failures without cached definitions stay quiet', async () => {
+		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
+		const { provider, api, set, setAcquisitionError } = setup(new NullLogService(), undefined, undefined, initialAccount);
+		setAcquisitionError(new Error('Repository grant unavailable'));
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const refresh = provider.refresh();
+		await initialAccount.complete(account);
+		await assert.rejects(refresh, /Repository grant unavailable/);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			state: provider.catalogueState.get(),
+			reason: provider.unavailableReason.get(),
+			canCreate: provider.canCreateAutomation.get(),
+			automations: provider.automations.get(),
+			calls: api.calls,
+		}, {
+			state: 'ready',
+			reason: undefined,
+			canCreate: false,
+			automations: [],
+			calls: [],
+		});
+	});
+
 	test('a history-only failure after account initialization leaves the catalogue ready', async () => {
 		const initialAccount = new DeferredPromise<IDefaultAccount | null>();
 		const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
@@ -1174,6 +1231,9 @@ suite('CloudAutomationStore', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ state: provider.catalogueState.get(), writable: provider.canCreateAutomation.get() },
 			{ state: 'ready', writable: false });
+		const creates = api.calls.filter(call => call === 'create').length;
+		await assert.rejects(provider.createAutomation(options), /Refresh cloud automations/);
+		assert.strictEqual(api.calls.filter(call => call === 'create').length, creates);
 		api.listError = undefined;
 		api.createError = undefined;
 		api.definitions = [{ ...definition, name: 'Reconciled' }];

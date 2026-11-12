@@ -53,6 +53,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.pendingRefreshes.read(reader) > 0);
 	private historyRefresh: Promise<void> | undefined;
 	private discoveryAttempts = 0;
+	private storeAccountKey: string | undefined;
 	private readonly historyScheduler = this._register(new RunOnceScheduler(() => {
 		this.discoveryAttempts = Math.max(0, this.discoveryAttempts - 1);
 		this.refreshHistoryInBackground();
@@ -135,6 +136,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			if (!account) {
 				this.accountInitialized.read(reader);
 			}
+			const previousStore = this.store.read(undefined);
+			const accountKey = account ? `${account.authenticationProvider.id}:${account.sessionId}` : undefined;
+			const initialMutationUncertain = accountKey === this.storeAccountKey && previousStore?.mutationUncertain.read(undefined) === true;
 			let store: GitHubCloudAutomationStore | undefined;
 			const enabled = this.enabled.read(reader);
 			this.logService.trace('[CloudAutomations] Store availability', {
@@ -144,8 +148,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				enterprise: account?.enterprise,
 			});
 			if (enabled && account && !account.enterprise) {
-				store = reader.store.add(instantiationService.createInstance(GitHubCloudAutomationStore, resolveRepositoryUri));
+				store = reader.store.add(instantiationService.createInstance(GitHubCloudAutomationStore, resolveRepositoryUri, initialMutationUncertain));
 			}
+			this.storeAccountKey = accountKey;
 			transaction(tx => {
 				this.store.set(store, tx);
 				this.refreshError.set(undefined, tx);
@@ -238,7 +243,12 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			}
 		} catch (error) {
 			if (this.store.get() === store && !isCancellationError(error)) {
-				this.refreshError.set(error instanceof Error ? error.message : localize('cloudAutomations.refreshFailed', "Cloud automations could not be refreshed."), undefined);
+				this.refreshError.set(store.entries.get().length > 0
+					? error instanceof Error ? error.message : localize('cloudAutomations.refreshFailed', "Cloud automations could not be refreshed.")
+					: undefined, undefined);
+				if (store.entries.get().some(entry => entry.availabilityError !== undefined)) {
+					this.historyScheduler.cancel();
+				}
 				this.logService.trace('[CloudAutomations] Definition refresh failed', error);
 			}
 			throw error;
@@ -270,7 +280,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			} finally {
 				if (this.store.get() === store && !this._store.isDisposed) {
 					this.historyRefresh = undefined;
-					if (this.historyState.get() === 'ready' && (this.discoveryAttempts > 0 || this.runs.get().some(run => run.status === 'pending' || run.status === 'running'))) {
+					if (this.historyState.get() === 'ready' && (this.discoveryAttempts > 0 || this.runs.get().some(run =>
+						(run.status === 'pending' || run.status === 'running') && this.getAutomation(run.automationId)?.availabilityError === undefined))) {
 						this.historyScheduler.schedule();
 					}
 				}

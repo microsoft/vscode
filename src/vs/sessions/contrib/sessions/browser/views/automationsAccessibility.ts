@@ -181,15 +181,16 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			for (const automation of group.automations) {
 				lines.push('');
 				const starting = startingAutomationIds.has(automation.id);
-				lines.push(automation.availabilityError
-					? localize('automationsAccessibleView.automationUnavailable', "{0}, unavailable. We can't reach this automation. {1}", automation.name, automation.availabilityError)
-					: starting
-						? automation.enabled
-							? localize('automationsAccessibleView.automationRunning', "{0}, enabled, Running", automation.name)
-							: localize('automationsAccessibleView.automationDisabledRunning', "{0}, disabled, Running", automation.name)
-						: automation.enabled
-							? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-							: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+				lines.push(starting
+					? automation.enabled
+						? localize('automationsAccessibleView.automationRunning', "{0}, enabled, Running", automation.name)
+						: localize('automationsAccessibleView.automationDisabledRunning', "{0}, disabled, Running", automation.name)
+					: automation.enabled
+						? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+						: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+				if (automation.availabilityError) {
+					lines.push(localize('automationsAccessibleView.automationUnavailable', "We can't reach this automation. {0}", automation.availabilityError));
+				}
 				const triggers = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
 				lines.push(triggers ? localize('automationsAccessibleView.triggers', "Triggers: {0}", triggers)
 					: localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
