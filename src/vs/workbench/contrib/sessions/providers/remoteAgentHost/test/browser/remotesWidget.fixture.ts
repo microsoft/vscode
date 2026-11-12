@@ -111,6 +111,9 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		async updateServer(id: string) {
 			await this.setConnected(id, true);
 		}
+		async setSharedAsGitHubEnvironment(id: string, shared: boolean) {
+			this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, gitHubEnvironment: shared ? { state: 'enabled' } : undefined } : remote), undefined);
+		}
 		async deleteTunnel(id: string) {
 			const remote = this.remotes.get().find(remote => remote.id === id);
 			if (remote && await confirmTunnelDeletion(instantiationService.get(IDialogService), remote.name)) {
