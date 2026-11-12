@@ -141,6 +141,11 @@ export interface IByokLmChatResult {
 		readonly reasoningTokens?: number;
 	};
 	readonly error?: string;
+	/**
+	 * HTTP status reported by the model provider for {@link error}, when known.
+	 * Client errors (4xx) are deterministic and should not be retried.
+	 */
+	readonly errorStatus?: number;
 }
 
 /**

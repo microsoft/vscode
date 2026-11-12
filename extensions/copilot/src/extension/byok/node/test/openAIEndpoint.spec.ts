@@ -299,6 +299,86 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(messages[0].reasoning).toBeUndefined();
 		});
 
+		describe('issue #344748: tool-call messages without streamed reasoning', () => {
+			const toolCallMessage = (id: string, thinkingText?: string): Raw.ChatMessage => ({
+				role: Raw.ChatRole.Assistant,
+				content: thinkingText === undefined ? [] : [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: { type: 'thinking', thinking: { id: `cot-${id}`, text: thinkingText } }
+				}],
+				toolCalls: [{ id, type: 'function', function: { name: 'read_file', arguments: '{}' } }]
+			});
+			const conversation: Raw.ChatMessage[] = [
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Earlier' }] },
+				toolCallMessage('call_0'),
+				{ role: Raw.ChatRole.Tool, toolCallId: 'call_0', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'old' }] },
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Read it' }] },
+				toolCallMessage('call_1', 'I should read the file.'),
+				{ role: Raw.ChatRole.Tool, toolCallId: 'call_1', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'contents' }] },
+				toolCallMessage('call_2'),
+				{ role: Raw.ChatRole.Tool, toolCallId: 'call_2', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'more' }] },
+				{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Done' }] },
+			];
+			const reasoningFields = (thinking: boolean) => {
+				const endpoint = instaService.createInstance(OpenAIEndpoint,
+					{
+						...modelMetadata,
+						supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+						capabilities: { ...modelMetadata.capabilities, supports: { ...modelMetadata.capabilities.supports, thinking } }
+					},
+					'test-api-key',
+					'https://api.deepseek.com/v1/chat/completions');
+				const body = endpoint.createRequestBody(createTestOptions(conversation));
+				return (body.messages as any[]).map(m => ({ role: m.role, reasoning_content: m.reasoning_content, reasoning: m.reasoning }));
+			};
+
+			it('emits empty reasoning on current-turn assistant tool-call messages that have none when thinking is supported', () => {
+				expect(reasoningFields(true)).toStrictEqual([
+					{ role: 'user', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'user', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: 'I should read the file.', reasoning: 'I should read the file.' },
+					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: '', reasoning: '' },
+					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: undefined, reasoning: undefined },
+				]);
+			});
+
+			it('leaves messages untouched when thinking is not supported', () => {
+				expect(reasoningFields(false).every(m => m.reasoning_content === undefined && m.reasoning === undefined)).toBe(true);
+			});
+
+			it('also backfills earlier-turn tool-call messages when history reasoning is replayed (issue #341934)', () => {
+				const endpoint = instaService.createInstance(OpenAIEndpoint,
+					{
+						...modelMetadata,
+						supported_endpoints: [ModelSupportedEndpoint.ChatCompletions],
+						capabilities: { ...modelMetadata.capabilities, supports: { ...modelMetadata.capabilities.supports, thinking: true } }
+					},
+					'test-api-key',
+					'https://api.deepseek.com/v1/chat/completions');
+				const body = endpoint.createRequestBody(createTestOptions([
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Build it' }] },
+					toolCallMessage('call_0', 'Start the build.'),
+					{ role: Raw.ChatRole.Tool, toolCallId: 'call_0', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'moved to background' }] },
+					// A tool call the runtime inserted itself, with no reasoning.
+					toolCallMessage('read_powershell'),
+					{ role: Raw.ChatRole.Tool, toolCallId: 'read_powershell', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'build output' }] },
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Now test it' }] },
+				]));
+				expect((body.messages as any[]).map(m => ({ role: m.role, reasoning_content: m.reasoning_content, reasoning: m.reasoning }))).toStrictEqual([
+					{ role: 'user', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: 'Start the build.', reasoning: 'Start the build.' },
+					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'assistant', reasoning_content: '', reasoning: '' },
+					{ role: 'tool', reasoning_content: undefined, reasoning: undefined },
+					{ role: 'user', reasoning_content: undefined, reasoning: undefined },
+				]);
+			});
+		});
+
 		it('should handle multiple messages with thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{

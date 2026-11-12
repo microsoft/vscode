@@ -154,7 +154,10 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			this._logService.warn(`[AgentHostByokLmHandler] chat request failed for ${request.vendor}/${request.modelId}: ${message}`);
-			return { output: [], error: message };
+			// The LM API only carries the message across the extension host boundary;
+			// the Copilot extension formats provider failures as `Request Failed: <status> <body>`.
+			const status = /^Request Failed: (?<status>\d{3})\b/.exec(message)?.groups?.status;
+			return { output: [], error: message, ...(status ? { errorStatus: Number(status) } : {}) };
 		}
 	}
 
