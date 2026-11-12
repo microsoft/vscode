@@ -2,7 +2,7 @@
   "name": "code-oss-dev",
   "version": "1.147.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "d915b90d880d6ec3c76cd109247ccded03003672",
+  "distro": "e4637e796395773592ca7e71dd3bc9112b676df9",
   "nativeBuild": {
     "runtime": "electron",
     "target": "43.8.6",
