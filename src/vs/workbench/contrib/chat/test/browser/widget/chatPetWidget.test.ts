@@ -2542,6 +2542,119 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
+	test('mini pets keep a large initial group on the approval prompt', () => {
+		const { widget, firstHost, overlay, firstParent, button } = createHostTransitionHarness(true);
+		firstParent.style.width = '240px';
+		button.style.left = '192px';
+		const tools = Array.from({ length: 20 }, (_, index) => {
+			const id = `subagent-${index}`;
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		});
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)), getPlatforms: () => {
+			const bounds = firstParent.getBoundingClientRect();
+			return [{ left: bounds.left + 20, right: bounds.right - 20, top: bounds.top - 60, isDefault: true }];
+		} });
+		const bounds = firstParent.getBoundingClientRect();
+		const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
+		assert.deepStrictEqual({
+			count: pets.length,
+			onPrompt: pets.every(pet => {
+				const rect = pet.getBoundingClientRect();
+				return rect.bottom <= bounds.top - 60 + 0.1 && rect.left >= bounds.left + 20 - 0.1 && rect.right <= bounds.right - 20 + 0.1;
+			}),
+		}, { count: 20, onPrompt: true });
+	});
+
+	for (const reducedMotion of [false, true]) {
+		test(`mini pets fall and respawn when a prompt replaces their support (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
+			const { widget, firstHost, overlay, firstParent, root, platformChanged } = createHostTransitionHarness(reducedMotion);
+			let promptVisible = false;
+			const tools = ['first', 'second'].map(id => {
+				const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+				tool.toolSpecificData = { kind: 'subagent', isActive: true };
+				return tool;
+			});
+			widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)), getPlatforms: () => {
+				const bounds = firstParent.getBoundingClientRect();
+				return [{ left: bounds.left, right: bounds.right, top: bounds.top - (promptVisible ? 60 : 0), isDefault: true }];
+			} });
+			await timeout(1_300);
+			const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
+			promptVisible = true;
+			platformChanged.fire();
+			assert.ok(pets.every(pet => Math.abs(Number.parseFloat(pet.style.top) + 24 + overlay.getBoundingClientRect().top - root.getBoundingClientRect().bottom) < 0.1));
+			await waitForPetAnimation(() => pets.every(pet => pet.querySelector('img')?.getAttribute('src')?.includes('buddy-respawn-') === true));
+			await waitForPetAnimation(() => pets.every(pet => !pet.classList.contains('arriving') && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-') === true));
+			assert.deepStrictEqual({
+				identity: [...overlay.querySelectorAll('.chat-pet-subagent')],
+				onPrompt: pets.every(pet => Math.abs(pet.getBoundingClientRect().bottom - firstParent.getBoundingClientRect().top + 60) < 0.1),
+			}, { identity: pets, onPrompt: true });
+			promptVisible = false;
+			platformChanged.fire();
+			await waitForPetAnimation(() => pets.every(pet => !pet.classList.contains('arriving')));
+			assert.ok(pets.every(pet => Math.abs(pet.getBoundingClientRect().bottom - firstParent.getBoundingClientRect().top) < 0.1));
+		});
+	}
+
+	test('mini pets cancel a pending prompt respawn when their subagent finishes', async () => {
+		const { widget, firstHost, overlay, firstParent, platformChanged } = createHostTransitionHarness(true);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		let promptVisible = false;
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool], changed.event)), getPlatforms: () => {
+			const bounds = firstParent.getBoundingClientRect();
+			return [{ left: bounds.left, right: bounds.right, top: bounds.top - (promptVisible ? 60 : 0), isDefault: true }];
+		} });
+		promptVisible = true;
+		platformChanged.fire();
+		const image = overlay.querySelector<HTMLImageElement>('.chat-pet-subagent img')!;
+		await whenSpriteLoaded(image);
+		assert.ok(image.getAttribute('src')?.includes('buddy-respawn-'));
+		tool.toolSpecificData = { kind: 'subagent', isActive: false };
+		changed.fire({ reason: 'other' });
+		await timeout(1_000);
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent, .chat-pet-subagent-despawning').length, 0);
+	});
+
+	test('mini pets fold antennae after real arrivals and subsequent stacking', async () => {
+		const color = '#ec80ee';
+		const { widget, firstHost, overlay } = createHostTransitionHarness(false, 'teleport', color);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tools: ChatToolInvocation[] = [];
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+		for (let index = 0; index < 20; index++) {
+			const id = `subagent-${index}`;
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			tools.push(tool);
+			changed.fire({ reason: 'other' });
+			await timeout(60);
+		}
+		const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-pet-subagent')];
+		await waitForPetAnimation(() => pets.every(pet => !pet.classList.contains('arriving') && pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-') === true));
+		const supporting = pets.filter(pet => pets.some(above => above !== pet
+			&& Math.abs(above.getBoundingClientRect().bottom - pet.getBoundingClientRect().top) < 0.5
+			&& above.getBoundingClientRect().left < pet.getBoundingClientRect().right - 0.5
+			&& above.getBoundingClientRect().right > pet.getBoundingClientRect().left + 0.5));
+		assert.ok(supporting.length > 0, JSON.stringify(pets.map(pet => ({ left: pet.style.left, top: pet.style.top, scale: pet.style.getPropertyValue('--chat-pet-subagent-scale'), rect: pet.getBoundingClientRect().toJSON() }))));
+		assert.deepStrictEqual(supporting.map(pet => ({
+			arriving: pet.classList.contains('arriving'),
+			folded: !!pet.querySelector('.chat-pet-eyes.bobbed'),
+			idle: pet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-'),
+		})), supporting.map(() => ({ arriving: false, folded: true, idle: true })));
+		for (const pet of supporting) {
+			const image = pet.querySelector<HTMLImageElement>('img')!;
+			await image.decode();
+			const expected = mainWindow.document.createElement('canvas');
+			expected.width = expected.height = 96;
+			expected.getContext('2d')!.drawImage(getChatPetColoredSprite(image, color), 20 * 96, 0, 96, 96, 0, 0, 96, 96);
+			assert.strictEqual(pet.querySelector<HTMLCanvasElement>('canvas')!.toDataURL(), expected.toDataURL());
+		}
+	});
+
 	for (const variant of ['stable', 'insiders'] as const) {
 		for (const reducedMotion of [false, true]) {
 			test(`mini pets hold folded antennae while supporting another pet (${variant}, ${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
@@ -2578,6 +2691,10 @@ suite('ChatPetWidget', () => {
 					assert.deepStrictEqual({ pixels: canvas.toDataURL(), eyesLowered: !!bottom.querySelector('.chat-pet-eyes.bobbed') },
 						{ pixels: expected.toDataURL(), eyesLowered: frame === 20 });
 				};
+				checkFrame(20);
+				// The lower pet may finish its longer fall after the upper one has already landed.
+				bottom.dispatchEvent(new mainWindow.AnimationEvent('animationend', { animationName: 'chat-pet-subagent-fall' }));
+				assert.ok(image.getAttribute('src')?.includes('buddy-idle-'));
 				checkFrame(20);
 				clock.tick(2_500);
 				checkFrame(20);
