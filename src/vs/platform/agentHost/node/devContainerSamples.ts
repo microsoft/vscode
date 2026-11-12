@@ -27,8 +27,11 @@ interface ISampleCommands {
 	readonly devcontainer: (args: readonly string[]) => Promise<ICommandResult>;
 	readonly readSource: () => Promise<{ readonly commitSha: string; readonly content: string }>;
 	readonly onContainerStarted: (containerId: string) => void;
-	/** Links user state folders if the container has a state volume, which containers created with the setting on keep. */
-	readonly linkUserState?: (containerId: string, remoteUser: string) => Promise<void>;
+	/**
+	 * Links user state folders if the container has a state volume, which containers created with the setting on keep.
+	 * `selectorArgs` select the container for the Dev Containers CLI, which applies `configuration`.
+	 */
+	readonly linkUserState?: (containerId: string, remoteUser: string, selectorArgs: readonly string[], configuration: Record<string, unknown>) => Promise<void>;
 	/** Reports that the state volume was added, or the error adding it. */
 	readonly reportUserStateMount?: (error?: unknown) => void;
 }
@@ -175,7 +178,7 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	if (errors.length || !isRecord(result) || result.outcome !== 'success' || typeof result.containerId !== 'string' || !result.containerId || typeof result.remoteUser !== 'string' || !result.remoteUser || result.remoteWorkspaceFolder !== workspace) {
 		throw new Error(localize('devContainerSample.invalidUpResult', "The Dev Container CLI returned an invalid sample container."));
 	}
-	await commands.linkUserState?.(result.containerId, result.remoteUser);
+	await commands.linkUserState?.(result.containerId, result.remoteUser, cliArgs, config);
 
 	// Publish only a complete checkout, and never replace an existing workspace.
 	const cloneScript = `set -eu

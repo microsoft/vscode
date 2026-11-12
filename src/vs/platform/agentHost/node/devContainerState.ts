@@ -26,7 +26,7 @@ const serverStateFolders = ['data/User/globalStorage', 'data/User/workspaceStora
 const homeStateFolders = ['.copilot'];
 const linkProgressPrefix = 'vscode-state:';
 const linkSteps = ['volume', 'stateFolder', 'statePath', 'stateLink', 'home', 'mountinfo', 'folders'];
-const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state'];
+const linkSkipReasons = ['parent', 'mounted', 'symlink', 'file', 'state', 'home'];
 
 /** Computes the Dev Containers CLI's `${devcontainerId}` for the container's id labels. */
 export function getDevContainerId(idLabels: readonly string[]): string {
@@ -122,21 +122,25 @@ function normalizeMountTarget(target: string): string {
 export interface IDevContainerStateLinkOptions {
 	/** Where the state volume is mounted in the container. */
 	readonly volumePath: string;
+	/** The home folder of the server data folder. */
 	readonly homeFolder: string;
+	/** HOME of the user's processes if it differs, e.g., set by `remoteEnv`. Folders such as ~/.copilot are linked there. */
+	readonly userHomeFolder?: string;
 	readonly uid: string;
 	readonly gid: string;
 	readonly serverDataFolderName: string;
 }
 
 /**
- * Links user state folders in the home folder to the state volume. Runs as root before the server or any
+ * Links user state folders in the home folders to the state volume. Runs as root before the server or any
  * lifecycle command starts. Folders with a mount at, above or inside them are already persisted otherwise.
  */
 export function buildLinkDevContainerStateCommand(options: IDevContainerStateLinkOptions): string {
 	const { uid, gid, serverDataFolderName } = options;
 	const volumePath = normalizeMountTarget(options.volumePath);
 	const homeFolder = normalizeMountTarget(options.homeFolder);
-	if (!posix.isAbsolute(volumePath) || volumePath === '/' || !posix.isAbsolute(homeFolder) || !/^\d+$/.test(uid) || !/^\d+$/.test(gid) || !isFolderName(serverDataFolderName)) {
+	const userHomeFolder = normalizeMountTarget(options.userHomeFolder ?? options.homeFolder);
+	if (!posix.isAbsolute(volumePath) || volumePath === '/' || !posix.isAbsolute(homeFolder) || !posix.isAbsolute(userHomeFolder) || !/^\d+$/.test(uid) || !/^\d+$/.test(gid) || !isFolderName(serverDataFolderName)) {
 		throw new Error('Invalid Dev Container state folder or user');
 	}
 	const link = (folder: string) => {
@@ -158,6 +162,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'umask 022',
 		`volume=${shellQuote(volumePath)}`,
 		`home=${shellQuote(homeFolder)}`,
+		`user_home=${shellQuote(userHomeFolder)}`,
 		`owner=${shellQuote(`${uid}:${gid}`)}`,
 		`state_owner=${shellQuote(`0:${gid}`)}`,
 		`state="$volume/"${shellQuote(stateFolderName)}`,
@@ -183,10 +188,17 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'progress step:stateLink',
 		'ln -sfnT "$state" "$link_path"',
 		'progress step:home',
-		'if [ ! -d "$home" ]; then progress noHome; echo "Not persisting user state: home folder $home not found" >&2; exit 0; fi',
-		'home_prefix=${home%/}',
-		'home_real=$(cd "$home" && pwd -P)',
-		'home_real=${home_real%/}',
+		'set_home() {',
+		'  home_prefix=${1%/}',
+		'  home_found=',
+		'  if [ -d "$1" ]; then',
+		'    home_real=$(cd "$1" && pwd -P)',
+		'    home_real=${home_real%/}',
+		'    home_found=1',
+		'  fi',
+		'}',
+		'set_home "$home"',
+		'if [ -z "$home_found" ]; then progress noHome; echo "Not persisting user state: home folder $home not found" >&2; exit 0; fi',
 		'progress step:mountinfo',
 		'test -r /proc/self/mountinfo',
 		`mounts=$(cut -d' ' -f5 /proc/self/mountinfo | sed 's/\\\\040/ /g')`,
@@ -210,6 +222,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'  src="$home_prefix/$rel"',
 		'  dst="$state/$rel"',
 		'  target="$link_path/$rel"',
+		'  if [ -z "$home_found" ]; then skip home "home folder $home_prefix not found"; return 0; fi',
 		'  for parent in "$@"; do',
 		'    if is_other "$home_prefix/$parent" || is_other "$state/$parent"; then skip parent "~/$parent is not a folder"; return 0; fi',
 		'  done',
@@ -255,6 +268,7 @@ export function buildLinkDevContainerStateCommand(options: IDevContainerStateLin
 		'}',
 		'progress step:folders',
 		...serverLinks,
+		'set_home "$user_home"',
 		...homeStateFolders.map(link),
 	].join('\n');
 }

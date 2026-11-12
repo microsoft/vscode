@@ -201,7 +201,11 @@ suite('Dev Container samples', () => {
 		});
 	});
 
-	test('reports sample CLI stages for user state telemetry with sanitized errors', async () => {
+	type CommandResult = { stdout: string; stderr: string; code: number };
+	const sampleUpResult: CommandResult = { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${folder}` }), stderr: '', code: 0 };
+
+	/** Creates a host that prepares the sample on a container with a user state volume. */
+	function createUserStateSampleHost(containerMetadata: object[], devcontainer: (args: readonly string[]) => CommandResult, localCommand: (args: readonly string[]) => string) {
 		const config = { image: 'sample-image' };
 		const github = new class extends mock<IGitHubService>() {
 			override acquireAnonymousClient() {
@@ -213,20 +217,19 @@ suite('Dev Container samples', () => {
 		}();
 		const configuration = new TestConfigurationService({});
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const host = store.add(new class extends DevContainerAgentHostMainService {
+		return store.add(new class extends DevContainerAgentHostMainService {
 			prepareSample() {
 				return this._prepareSample('sample', sample, CancellationToken.None, () => { }, false, true);
 			}
 			protected override async _runDocker(args: readonly string[]) {
 				const stdout = args[0] === 'volume'
 					? args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath }) : ''
-					: args.includes('cat') ? JSON.stringify(config) : '';
+					: args[0] === 'inspect' ? JSON.stringify(containerMetadata)
+						: args.includes('cat') ? JSON.stringify(config) : '';
 				return { stdout, stderr: '', code: 0 };
 			}
 			protected override async _runDevContainer(_connectionId: string, args: readonly string[]) {
-				return args[0] === 'up'
-					? { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${folder}` }), stderr: '', code: 0 }
-					: { stdout: JSON.stringify({ outcome: 'error', message: 'postCreateCommand failed: cannot write /home/vscode/.npm as vscode' }), stderr: '', code: 1 };
+				return devcontainer(args);
 			}
 			protected override async _getContainerMounts() {
 				return [{ Type: 'volume', Source: '/volumes/state', Destination: '/.vscode-volume', Name: `vscode-state-${'0'.repeat(52)}` }];
@@ -235,13 +238,19 @@ suite('Dev Container samples', () => {
 				return {};
 			}
 			protected override async _runLocalCommand(_command: string, args: readonly string[]) {
-				return { stdout: args.includes('vscode') ? '1000\n1000\n/home/vscode\n' : '', stderr: '', code: 0 };
+				return { stdout: localCommand(args), stderr: '', code: 0 };
 			}
 		}(
 			new NullLogService(), new class extends mock<IProductService>() { }(), NullTelemetryService,
 			configuration, new class extends mock<INativeEnvironmentService>() { override readonly userDataPath = cacheDirectory; }(),
 			new class extends mock<IRequestService>() { }(), github,
 		));
+	}
+
+	test('reports sample CLI stages for user state telemetry with sanitized errors', async () => {
+		const host = createUserStateSampleHost([{ remoteUser: 'vscode' }],
+			args => args[0] === 'up' ? sampleUpResult : { stdout: JSON.stringify({ outcome: 'error', message: 'postCreateCommand failed: cannot write /home/vscode/.npm as vscode' }), stderr: '', code: 1 },
+			args => args.includes('vscode') ? '1000\n1000\n/home/vscode\n' : '');
 		const reports: object[] = [];
 		store.add(host.onDidReportUserState(({ connectionId: _, ...report }) => reports.push(report)));
 		await assert.rejects(host.prepareSample(), /devcontainer run-user-commands failed \(exit 1\)/);
@@ -252,6 +261,28 @@ suite('Dev Container samples', () => {
 			{ stage: 'link', outcome: 'linked', target: 'volume', ...progress },
 			{ stage: 'userCommands', outcome: 'failed', reason: 'exitCode', exitCode: 1, errorMessage: 'postCreateCommand failed: cannot write ~/.npm as <user>' },
 		]);
+	});
+
+	test('reads the sample user HOME through the Dev Containers CLI when container metadata sets it in remoteEnv', async () => {
+		const userQueries: string[][] = [];
+		const linkedHomes: (string | undefined)[] = [];
+		const host = createUserStateSampleHost([{ remoteUser: 'vscode' }, { remoteEnv: { HOME: '/custom/home' } }], args => {
+			if (args[0] !== 'exec') {
+				return sampleUpResult;
+			}
+			userQueries.push([args[0], String(args.includes('--override-config')), ...args.slice(-5, -1)]);
+			return { stdout: '1000\n1000\n/custom/home\n', stderr: '', code: 0 };
+		}, args => {
+			if (args.at(-1)?.includes('link_state')) {
+				linkedHomes.push(/^home=(.*)$/m.exec(args.at(-1)!)?.[1]);
+			}
+			return '';
+		});
+		await host.prepareSample();
+		assert.deepStrictEqual({ userQueries, linkedHomes }, {
+			userQueries: [['exec', 'true', '--container-id', 'container', '/bin/sh', '-c']],
+			linkedHomes: [`'/custom/home'`],
+		});
 	});
 
 	test('keeps sandbox Docker options in the generated sample config through lifecycle setup', async () => {

@@ -251,7 +251,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.resolve({ stdout: this.sandboxConfigurationOutput ?? JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: this.cacheMountConfigured ? [{ target: '/vscode' }] : [] } }), stderr: this.configurationReadExitCode ? 'configuration read failed' : '', code: this.configurationReadExitCode });
 		}
 		if (args[0] === 'exec') {
-			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
+			return Promise.resolve({ stdout: args.at(-1)?.startsWith('id -u;') ? '1000\n1000\n/custom/home\n' : '', stderr: '', code: 0 });
 		}
 		if (args[0] === 'run-user-commands') {
 			this.linkedBeforeLifecycle = this.localCommands.some(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
@@ -1152,6 +1152,26 @@ suite('Dev Container Agent Host Main Service', () => {
 				{ connectionId: 'state', stage: 'userCommands', outcome: 'succeeded' },
 			],
 		});
+	});
+
+	test('reads HOME through the Dev Containers CLI only when remoteEnv sets it', async () => {
+		const run = async (remoteEnv: object | undefined) => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			service.sandboxConfigurationOutput = JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: [], remoteEnv } });
+			service.containerMounts = [...service.containerMounts, { Type: 'volume', Source: '/volumes/state', Destination: '/workspaces', Name: `vscode-state-${'0'.repeat(52)}` }];
+			service.linkStateResult = { stdout: 'vscode-state:step:folders\n', code: 0 };
+			await service.connect({ connectionId: 'home', workspaceFolder: '/workspace', name: 'Project', persistUserState: true });
+			const link = service.localCommands.find(command => command.args[2] === 'root' && !!command.args.at(-1)?.includes('link_state'));
+			return {
+				cli: service.devContainerArgs.filter(args => args[0] === 'exec').map(args => args.slice(0, -1)),
+				docker: service.localCommands.filter(command => command.args[2] === 'node').length,
+				home: /^home=(.*)$/m.exec(link?.args.at(-1) ?? '')?.[1],
+			};
+		};
+		assert.deepStrictEqual([await run({ HOME: '/custom/home' }), await run({ PATH: '/bin' })], [
+			{ cli: [['exec', '--log-level', 'debug', '--workspace-folder', '/workspace', '--container-id', 'container-id', '/bin/sh', '-c']], docker: 0, home: `'/custom/home'` },
+			{ cli: [], docker: 1, home: `'/home/node'` },
+		]);
 	});
 
 	test('does not add the user state mount to an existing container', async () => {

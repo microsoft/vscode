@@ -99,6 +99,7 @@ suite('DevContainerState', () => {
 			{ volumePath: 'workspaces' },
 			{ volumePath: '/' },
 			{ homeFolder: 'home/node' },
+			{ userHomeFolder: 'home/node' },
 			{ uid: 'node' },
 			{ gid: '1000; true' },
 			{ serverDataFolderName: '..' },

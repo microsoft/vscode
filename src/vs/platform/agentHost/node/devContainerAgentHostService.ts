@@ -195,6 +195,21 @@ const devContainerMountsValidator = vArray(vObj({
 	Name: vOptionalProp(vString()),
 }));
 
+/** How to read the container user's HOME as the Agent Host's shell sees it. */
+interface IDevContainerUserQuery {
+	/** Selects the container for `devcontainer exec`. */
+	readonly selectorArgs: readonly string[];
+	readonly environment: NodeJS.ProcessEnv | undefined;
+	/** Whether `remoteEnv` may set HOME, which only `devcontainer exec` applies. */
+	readonly remoteEnvSetsHome: () => Promise<boolean>;
+}
+
+/** Whether `remoteEnv` in any of the Dev Container configurations or metadata entries sets HOME. */
+export function devContainerRemoteEnvSetsHome(entries: readonly unknown[]): boolean {
+	const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+	return entries.some(entry => isRecord(entry) && isRecord(entry.remoteEnv) && Object.hasOwn(entry.remoteEnv, 'HOME'));
+}
+
 /** Testable relay abstraction owned by the shared-process launcher. */
 export interface IDevContainerRelay extends IDisposable {
 	send(message: string): void;
@@ -353,7 +368,17 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				upResult = up.parsed;
 				registerContainer(upResult.containerId);
 				// Containers created with the setting on keep their volume, so they are linked even if it is off now.
-				const homeFolder = await this._linkUserState(config.connectionId, upResult.containerId, upResult.remoteUser, !!config.persistUserState, tokenSource.token);
+				const homeFolder = await this._linkUserState(config.connectionId, upResult.containerId, upResult.remoteUser, !!config.persistUserState, tokenSource.token, {
+					selectorArgs,
+					environment: sandboxEnvironment,
+					remoteEnvSetsHome: async () => {
+						try {
+							return devContainerRemoteEnvSetsHome([JSON.parse(await configuration).mergedConfiguration]);
+						} catch {
+							return true;
+						}
+					},
+				});
 				if (config.persistUserState) {
 					await this._runUserCommands(config.connectionId, [...selectorArgs, '--container-id', upResult.containerId], tokenSource.token, sandboxEnvironment, { homeFolder, user: upResult.remoteUser });
 				}
@@ -503,8 +528,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const { stdout, stderr, code } = await this._runDevContainerStage<unknown>(connectionId, stage, !!persistUserState, args, token, undefined, stage === 'up' ? parseDevContainerUpResult : parseDevContainerUserCommandsResult, errorValues);
 				return { stdout, stderr, code };
 			},
-			linkUserState: async (containerId, remoteUser) => {
-				errorValues = { homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, token), user: remoteUser };
+			linkUserState: async (containerId, remoteUser, selectorArgs, configuration) => {
+				errorValues = {
+					homeFolder: await this._linkUserState(connectionId, containerId, remoteUser, !!persistUserState, token, {
+						selectorArgs,
+						environment: undefined,
+						remoteEnvSetsHome: async () => devContainerRemoteEnvSetsHome([configuration]) || this._containerMetadataSetsHome(containerId, token),
+					}),
+					user: remoteUser,
+				};
 			},
 			reportUserStateMount: error => this._onDidReportUserState.fire(error === undefined
 				? { connectionId, stage: 'mount', outcome: 'added', target: 'volume' }
@@ -622,7 +654,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	 * Links user state folders to the container's user state volume, if it has one. `enabled` is whether the setting is on.
 	 * Returns the container user's home folder if it was read.
 	 */
-	private async _linkUserState(connectionId: string, containerId: string, remoteUser: string | undefined, enabled: boolean, token: CancellationToken): Promise<string | undefined> {
+	private async _linkUserState(connectionId: string, containerId: string, remoteUser: string | undefined, enabled: boolean, token: CancellationToken, userQuery: IDevContainerUserQuery): Promise<string | undefined> {
 		let reason = 'inspect';
 		let target: string | undefined;
 		let exitCode: number | undefined;
@@ -651,7 +683,11 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 			reason = 'user';
 			const environment = await this._resolveShellEnvironment();
-			const user = await this._runLocalCommand('docker', ['exec', '--user', remoteUser, containerId, '/bin/sh', '-c', 'id -u; id -g; printf "%s\\n" "$HOME"'], environment, token);
+			const userScript = 'id -u; id -g; printf "%s\\n" "$HOME"';
+			// The Agent Host's shell gets `remoteEnv`, which can set another HOME. Only the slower `devcontainer exec` resolves it.
+			const user = await userQuery.remoteEnvSetsHome()
+				? await this._runDevContainer(connectionId, getDevContainerExecArgs([...userQuery.selectorArgs, '--container-id', containerId], userScript), token, userQuery.environment)
+				: await this._runLocalCommand('docker', ['exec', '--user', remoteUser, containerId, '/bin/sh', '-c', userScript], environment, token);
 			const [uid, gid, home] = user.stdout.trim().split(/\r?\n/);
 			homeFolder = home;
 			if (user.code !== 0 || !uid || !gid || !homeFolder) {
@@ -691,6 +727,18 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			this._onDidReportUserState.fire({ connectionId, stage: 'link', outcome: 'failed', reason, step: progress?.step, exitCode, target, ...getProgress(), errorMessage });
 		}
 		return homeFolder;
+	}
+
+	/** Whether the container's Dev Container metadata, which includes the image's, sets HOME in `remoteEnv`. */
+	private async _containerMetadataSetsHome(containerId: string, token: CancellationToken): Promise<boolean> {
+		const result = await this._runDocker(['inspect', '--format', '{{index .Config.Labels "devcontainer.metadata"}}', containerId], token);
+		try {
+			const metadata: unknown = JSON.parse(result.stdout);
+			return devContainerRemoteEnvSetsHome(Array.isArray(metadata) ? metadata : [metadata]);
+		} catch {
+			// `devcontainer exec` resolves HOME without the metadata.
+			return true;
+		}
 	}
 
 	private async _runUserCommands(connectionId: string, selectorArgs: readonly string[], token: CancellationToken, environment: NodeJS.ProcessEnv | undefined, errorValues: IDevContainerStateErrorValues): Promise<void> {
