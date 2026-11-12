@@ -214,7 +214,7 @@ suite('ImageCarouselEditor', () => {
 				}]
 			}, 1));
 			await editor.setInput(input, undefined, {}, CancellationToken.None);
-			const actions = () => [...parent.querySelectorAll('.image-actions .action-label')].map(action => action.getAttribute('aria-label'));
+			const actions = () => [...parent.querySelectorAll('.image-actions .action-label')].map(action => ({ name: action.getAttribute('aria-label'), text: action.textContent }));
 			const slideshow = parent.querySelector<HTMLElement>('.slideshow-container')!;
 			const offered = actions();
 			editor.previous();
@@ -229,8 +229,9 @@ suite('ImageCarouselEditor', () => {
 				offered, notOffered, marking,
 				after: { slideshow: slideshow.style.display, markUp: !!parent.querySelector('.image-carousel-mark-up'), isMarkingUp: isMarkingUp(), image: { data: image.data?.toString(), mimeType: image.mimeType, uri: image.uri } },
 			}, {
-				offered: ['Mark Up', 'Download'],
-				notOffered: ['Download'],
+				// Mark Up shows its label after Download, which keeps its place.
+				offered: [{ name: 'Download', text: '' }, { name: 'Mark Up', text: 'Mark Up' }],
+				notOffered: [{ name: 'Download', text: '' }],
 				marking: { slideshow: 'none', markUps: 1, inEditor: true, isMarkingUp: true },
 				// The preview shows, and downloads, what the markup changed.
 				after: { slideshow: '', markUp: false, isMarkingUp: false, image: { data: 'marked', mimeType: 'image/jpeg', uri: undefined } },

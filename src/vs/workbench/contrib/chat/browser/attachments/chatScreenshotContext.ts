@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { getScreenshotToolImageData, IScreenshotToolEdit, IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createScreenshotToolImage, getScreenshotToolImageData, IScreenshotToolEdit, IScreenshotToolEditable, IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
 import { IChatRequestVariableEntry, isImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { extractImagesFromChatVariables } from '../../common/chatImageExtraction.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 
 export const ScreenshotVariableId = 'screenshot-focused-window';
@@ -35,4 +37,21 @@ export function applyScreenshotToolEdit(attachmentModel: ChatAttachmentModel, at
 	// The chat input renders its attachments again as soon as they change, and looks up which ones can be edited then.
 	screenshotToolService.registerEditableAttachment(marked, { original: edit.original, annotationState: edit.annotationState });
 	attachmentModel.updateContext([], [marked]);
+}
+
+/**
+ * Returns an attached image to mark up: as the screenshot tool remembers it, with the annotations of its earlier
+ * markups, or else as it is attached, such as an image that was pasted.
+ */
+export function getEditableImageAttachment(attachment: IChatRequestVariableEntry | undefined, screenshotToolService: IScreenshotToolService, readFile: (uri: URI) => Promise<Uint8Array>): IScreenshotToolEditable | Promise<IScreenshotToolEditable> {
+	return (attachment && screenshotToolService.getEditableAttachment(attachment)) ?? loadEditableImageAttachment(attachment, readFile);
+}
+
+async function loadEditableImageAttachment(attachment: IChatRequestVariableEntry | undefined, readFile: (uri: URI) => Promise<Uint8Array>): Promise<IScreenshotToolEditable> {
+	const [image] = attachment ? extractImagesFromChatVariables([attachment]) : [];
+	if (!image) {
+		throw new Error('The image is no longer attached.');
+	}
+	const data = image.data ?? VSBuffer.wrap(await readFile(image.uri));
+	return { original: await createScreenshotToolImage(data, image.mimeType), annotationState: undefined };
 }

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, clearNode, Dimension, EventType, h, hide, show } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventType, h, hide, reset, show } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -76,6 +77,31 @@ function getDownloadName({ name, mimeType }: ICarouselImage): string {
 interface IActiveMarkUp {
 	readonly index: number;
 	readonly markUp: IImageCarouselMarkUp;
+}
+
+const MARK_UP_ACTION_ID = 'imageCarousel.markUp';
+
+/**
+ * Shows an action's icon, its class, followed by its label, for an action that should be easy to find among icons.
+ */
+class IconAndLabelActionViewItem extends ActionViewItem {
+
+	constructor(action: IAction, options: IActionViewItemOptions) {
+		super(undefined, action, { ...options, icon: false, label: true });
+	}
+
+	override render(container: HTMLElement): void {
+		container.classList.add('icon-and-label');
+		super.render(container);
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			const icon = $('span');
+			icon.className = this.action.class ?? '';
+			reset(this.label, icon, $('span', undefined, this.action.label));
+		}
+	}
 }
 
 export class ImageCarouselEditor extends EditorPane implements IImageViewerEditorPane {
@@ -254,6 +280,7 @@ export class ImageCarouselEditor extends EditorPane implements IImageViewerEdito
 
 		const toolbar = this._contentDisposables.add(this._instantiationService.createInstance(WorkbenchToolBar, elements.imageActions, {
 			ariaLabel: localize('imageCarousel.actions', "Images Preview actions"),
+			actionViewItemProvider: (action, options) => action.id === MARK_UP_ACTION_ID ? new IconAndLabelActionViewItem(action, options) : undefined,
 		}));
 		this._toolbar = toolbar;
 		this._toolbarCanMarkUp = undefined;
@@ -575,21 +602,21 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			return;
 		}
 		this._toolbarCanMarkUp = canMarkUp;
-		const actions: IAction[] = [];
+		const actions: IAction[] = [toAction({
+			id: 'imageCarousel.download',
+			label: localize('imageCarousel.download', "Download"),
+			class: ThemeIcon.asClassName(Codicon.cloudDownload),
+			run: () => this.downloadCurrentImage(),
+		})];
+		// Mark Up comes last, so that Download keeps its place when an image cannot be marked up.
 		if (canMarkUp) {
 			actions.push(toAction({
-				id: 'imageCarousel.markUp',
+				id: MARK_UP_ACTION_ID,
 				label: localize('imageCarousel.markUp', "Mark Up"),
 				class: ThemeIcon.asClassName(Codicon.edit),
 				run: () => this.markUpCurrentImage(),
 			}));
 		}
-		actions.push(toAction({
-			id: 'imageCarousel.download',
-			label: localize('imageCarousel.download', "Download"),
-			class: ThemeIcon.asClassName(Codicon.cloudDownload),
-			run: () => this.downloadCurrentImage(),
-		}));
 		this._toolbar.setActions(actions);
 	}
 

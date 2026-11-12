@@ -506,7 +506,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		resource: URI | undefined,
 		attachment: IChatRequestVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin; imageDimensions?: ResourceMap<dom.IDimension>; imageBase64Data?: IChatImageBase64Data; edit?: () => Promise<void> },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin; imageDimensions?: ResourceMap<dom.IDimension>; imageBase64Data?: IChatImageBase64Data; markUp?: () => Promise<void> },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -531,8 +531,10 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const ref = attachment.references?.[0]?.reference;
 		resource = ref && URI.isUri(ref) ? ref : undefined;
 		const imageData = coerceImageBuffer(attachment.value);
-		// The Images Preview opens first; a screenshot that can be edited is marked up there, or else right away.
+		// A click opens the Images Preview, where the image can be marked up, or else its file, or else its markup.
 		const canPreview = (!!resource || !!imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
+		const clickMarksUp = !canPreview && !resource && !!options.markUp;
+		const clickOffersMarkUp = canPreview && !!options.markUp;
 		let ariaLabel: string;
 		if (omittedState === OmittedState.Full && modelName && !modelSupportsVision(currentLanguageModel)) {
 			ariaLabel = localize('chat.unsupportedImageAttachment', "Image not sent because {0} does not support images: {1}", modelName, attachment.name);
@@ -543,37 +545,37 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		} else if (omittedState === OmittedState.ImageLimitExceeded) {
 			ariaLabel = localize('chat.imageLimitExceededAttachment', "Image not sent due to limit: {0}", attachment.name);
 		} else if (isAutoModel) {
-			ariaLabel = options.edit
-				? canPreview
-					? localize('chat.autoMarkUpImageAttachment', "Attached image, {0}. Press Enter to preview or mark it up. Image support depends on the model selected by Copilot Fusion.", attachment.name)
-					: localize('chat.autoEditableImageAttachment', "Attached image, {0}. Press Enter to edit it. Image support depends on the model selected by Copilot Fusion.", attachment.name)
-				: localize('chat.autoImageAttachment', "Attached image, {0}. Image support depends on the model selected by Copilot Fusion.", attachment.name);
+			ariaLabel = clickOffersMarkUp
+				? localize('chat.autoMarkUpImageAttachment', "Attached image, {0}. Press Enter to preview or mark it up. Image support depends on the model selected by Copilot Fusion.", attachment.name)
+				: clickMarksUp
+					? localize('chat.autoMarkUpOnlyImageAttachment', "Attached image, {0}. Press Enter to mark it up. Image support depends on the model selected by Copilot Fusion.", attachment.name)
+					: localize('chat.autoImageAttachment', "Attached image, {0}. Image support depends on the model selected by Copilot Fusion.", attachment.name);
 		} else {
-			ariaLabel = options.edit
-				? canPreview
-					? localize('chat.markUpImageAttachment', "Attached image, {0}. Press Enter to preview or mark it up.", attachment.name)
-					: localize('chat.editableImageAttachment', "Attached image, {0}. Press Enter to edit it.", attachment.name)
-				: localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
+			ariaLabel = clickOffersMarkUp
+				? localize('chat.markUpImageAttachment', "Attached image, {0}. Press Enter to preview or mark it up.", attachment.name)
+				: clickMarksUp
+					? localize('chat.markUpOnlyImageAttachment', "Attached image, {0}. Press Enter to mark it up.", attachment.name)
+					: localize('chat.imageAttachment', "Attached image, {0}", attachment.name);
 		}
 
 		const clickHandler = async () => {
-			if ((resource || imageData) && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
+			if (canPreview) {
 				await this.openInCarousel(attachment.id, attachment.name, imageData, resource, options.isCurrentInput);
-			} else if (options.edit) {
-				await options.edit();
 			} else if (resource) {
 				await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
+			} else if (options.markUp) {
+				await options.markUp();
 			}
 		};
 
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		const hoverHint = options.edit
-			? canPreview
-				? localize('chat.markUpImageAttachmentHint', "Click to preview or mark up this screenshot.")
-				: localize('chat.editImageAttachmentHint', "Click to edit this screenshot.")
-			: undefined;
+		const hoverHint = clickOffersMarkUp
+			? localize('chat.markUpImageAttachmentHint', "Click to preview or mark up this image.")
+			: clickMarksUp
+				? localize('chat.markUpOnlyImageAttachmentHint', "Click to mark up this image.")
+				: undefined;
 
 		if (options.imagePresentation === 'inline' && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded && (!currentLanguageModel || modelSupportsVision(currentLanguageModel))) {
 			this._register(this.renderInlineImage(resource, attachment.name, fullName, options.imageBase64Data ?? imageData, ariaLabel, options.imageReveal, options.imageDimensions));
@@ -593,10 +595,13 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			}
 		}
 		this.attachSaveButton(resource, imageData, attachment.name, options.supportsDeletion);
+		if (options.markUp) {
+			this.attachMarkUpButton(options.markUp);
+		}
 
 		// Wire up click + keyboard (Enter/Space) open handlers
 		const canOpenCarousel = !!imageData && configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled);
-		if (options.edit || canOpenCarousel || resource) {
+		if (clickMarksUp || canOpenCarousel || resource) {
 			this.element.style.cursor = 'pointer';
 			this._register(registerOpenEditorListeners(this.element, async () => {
 				await clickHandler();
@@ -763,6 +768,39 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 				this.notificationService.error(localize('chat.attachment.saveImageError', "Failed to save image: {0}", error));
 			}
 		}));
+	}
+
+	/**
+	 * Ends the pill with a Mark Up button, as the remove button starts it, which marks up the image right away. Like the
+	 * remove button, it is no tab stop: Enter on the pill opens the Images Preview, where the image can be marked up too.
+	 */
+	private attachMarkUpButton(markUp: () => Promise<void>): void {
+		const markUpButton = this._register(new Button(this.element, {
+			supportIcons: true,
+			hoverDelegate: this._register(createInstantHoverDelegate()),
+			title: localize('chat.attachment.markUpButton', "Mark Up")
+		}));
+		this.element.classList.add('can-mark-up');
+		markUpButton.element.classList.add('chat-attached-context-mark-up-button');
+		markUpButton.element.tabIndex = -1;
+		markUpButton.icon = Codicon.editCompact;
+		let markingUp = false;
+		this._register(markUpButton.onDidClick(async e => {
+			e.preventDefault();
+			e.stopPropagation();
+			// The second click of a double click would start another markup.
+			if (markingUp) {
+				return;
+			}
+			markingUp = true;
+			try {
+				await markUp();
+			} finally {
+				markingUp = false;
+			}
+		}));
+		// A double click on the pill opens its preview, which would show behind the markup.
+		this._register(dom.addDisposableListener(markUpButton.element, dom.EventType.DBLCLICK, e => dom.EventHelper.stop(e, true)));
 	}
 }
 
