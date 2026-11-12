@@ -17,7 +17,7 @@ import { IFocusedSessionHostService, ISessionHostService } from '../../../../wor
 import { IChat, ISession, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
-import { getEditorTarget, revealEditorTarget } from '../../../../workbench/contrib/sessionChanges/browser/chatWindowEditorTarget.js';
+import { getEditorTarget, revealEditorTarget } from '../../../../workbench/contrib/sessions/browser/chatWindowEditorTarget.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';

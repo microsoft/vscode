@@ -61,7 +61,7 @@ import { activateHostPane, IActionTarget, SessionActivatingActionRunner } from '
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
 import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
-import { getEditorTarget, getEditorTargetGroup, revealEditorTarget } from '../../../sessionChanges/browser/chatWindowEditorTarget.js';
+import { getEditorTarget, getEditorTargetGroup, revealEditorTarget } from '../chatWindowEditorTarget.js';
 import { ISessionChangesService } from '../../../../services/sessions/common/sessionChangesService.js';
 import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
