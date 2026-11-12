@@ -762,11 +762,35 @@ export namespace IChatRequestVariableEntry {
 	 * Returns URI of the passed variant entry. Return undefined if not found.
 	 */
 	export function toUri(entry: IChatRequestVariableEntry): URI | undefined {
-		return URI.isUri(entry.value)
-			? entry.value
-			: isLocation(entry.value)
-				? entry.value.uri
-				: undefined;
+		if (URI.isUri(entry.value)) {
+			return entry.value;
+		}
+		if (isLocation(entry.value)) {
+			return entry.value.uri;
+		}
+		if (getAgentHostCompletionReferenceKind(entry) === AgentHostCompletionReferenceKind.Skill) {
+			if (typeof entry._meta?.uri === 'string') {
+				try {
+					return URI.parse(entry._meta.uri);
+				} catch {
+					// ignore
+				}
+			}
+			if (URI.isUri(entry._meta?.uri)) {
+				return entry._meta.uri;
+			}
+			if (typeof entry.id === 'string') {
+				try {
+					const uri = URI.parse(entry.id);
+					if (uri.scheme) {
+						return uri;
+					}
+				} catch {
+					// ignore
+				}
+			}
+		}
+		return undefined;
 	}
 
 	export function toExport(v: IChatRequestVariableEntry): IChatRequestVariableEntry {
