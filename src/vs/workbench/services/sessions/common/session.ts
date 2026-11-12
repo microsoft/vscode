@@ -871,6 +871,8 @@ export interface IChat {
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
 	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
+	/** Canvas types advertised by the subscribed chat registry. */
+	readonly canvasDefinitions?: IObservable<SessionCanvasDefinitionSnapshot>;
 	/** Keep canvas channels observed while this chat's session is inactive. Dispose when the external presentation closes. */
 	observeCanvases?(): IDisposable;
 	/** Keep {@link changesets} and their changes observed while no window shows this chat's session. Dispose when the external presentation, such as a Changes editor of the chat, closes. */

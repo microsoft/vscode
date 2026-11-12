@@ -6,7 +6,7 @@
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
-import { RunOnceScheduler } from '../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import type { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
@@ -16,6 +16,7 @@ import { autorun, IObservable, IReader } from '../../../base/common/observable.j
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import type { CanvasRegistryState } from '../common/state/protocol/channels-canvases/state.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -29,7 +30,7 @@ import { resolveAgentMessageProvenance } from '../common/agentMessageProvenance.
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
 import { type AgentHostPrewarmSkipReason, type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, resolveSubagentChatParent, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
+import { AgentPermissionKind, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, resolveSubagentChatParent, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentCanvasSignal, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
@@ -51,7 +52,7 @@ import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js'
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type AgentSelection, type ModelSelection, type SessionActiveClient } from '../common/state/protocol/state.js';
 import { CustomizationEnablementKind, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
-import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
+import { ActionType, isChatAction, StateAction, type ChatAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallResultConfirmedAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
 import {
 	createErrorResponsePart,
 	getErrorResponsePart,
@@ -149,6 +150,7 @@ interface IPendingSubagentSignal {
 const MAX_PENDING_SUBAGENT_SIGNALS = 1000;
 const MAX_FAILED_SUBAGENT_ROUTES = 1000;
 const SUBAGENT_START_TIMEOUT = 30_000;
+const PENDING_CANVAS_REGISTRATION_TIMEOUT = 30_000;
 
 class PendingSubagentSignals extends Disposable {
 	readonly entries: IPendingSubagentSignal[] = [];
@@ -291,6 +293,11 @@ export class AgentSideEffects extends Disposable {
 	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
 	private readonly _pendingMcpServerStarts = new NKeyMap<CancellationTokenSource, [ProtocolURI, string]>();
 	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
+	/** Latest provider-published Canvas states and aggregate actions for chats that have not registered yet. */
+	private readonly _pendingCanvasStates = new Map<ProtocolURI, Map<string, IAgentCanvasSignal>>();
+	private readonly _pendingCanvasActions = new Map<ProtocolURI, Map<ActionType, ChatAction>>();
+	private readonly _pendingCanvasRegistries = new Map<ProtocolURI, CanvasRegistryState>();
+	private readonly _pendingCanvasExpirations = this._register(new DisposableMap<ProtocolURI>());
 	/** Reports where overlapped and sequential provider preparation diverge. */
 	private readonly _overlapExperimentTrigger: AgentHostSettingExperimentTrigger;
 
@@ -350,6 +357,33 @@ export class AgentSideEffects extends Disposable {
 			(session, turnId) => this._turnTracker.getSubagentKind(session, turnId),
 		);
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
+		this._register(this._stateManager.onDidRegisterChat(({ chat }) => {
+			this._pendingCanvasExpirations.deleteAndDispose(chat);
+			const states = this._pendingCanvasStates.get(chat);
+			this._pendingCanvasStates.delete(chat);
+			for (const signal of states?.values() ?? []) {
+				this._stateManager.setCanvasState(chat, signal.resource, signal.state);
+			}
+			const actions = this._pendingCanvasActions.get(chat);
+			this._pendingCanvasActions.delete(chat);
+			const registry = this._pendingCanvasRegistries.get(chat);
+			this._pendingCanvasRegistries.delete(chat);
+			if (registry) {
+				this._stateManager.setCanvasRegistry(chat, registry);
+			}
+			for (const type of [ActionType.ChatCanvasesChanged]) {
+				const action = actions?.get(type);
+				if (action) {
+					this._stateManager.dispatchServerAction(chat, action);
+				}
+			}
+		}));
+		this._register(this._stateManager.onDidUnregisterChat(({ chat }) => {
+			this._pendingCanvasExpirations.deleteAndDispose(chat);
+			this._pendingCanvasStates.delete(chat);
+			this._pendingCanvasActions.delete(chat);
+			this._pendingCanvasRegistries.delete(chat);
+		}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
@@ -764,12 +798,33 @@ export class AgentSideEffects extends Disposable {
 	 * once the `subagent_started` arrives.
 	 */
 	private _handleAgentSignal(agent: IAgent, signal: AgentSignal): void {
+		if (signal.kind === 'canvas_registry') {
+			const chat = signal.chat.toString();
+			if (this._stateManager.getChatState(chat)) {
+				this._stateManager.setCanvasRegistry(chat, signal.registry);
+			} else {
+				this._retainPendingCanvasChat(chat);
+				this._pendingCanvasRegistries.set(chat, signal.registry);
+			}
+			return;
+		}
 		if (signal.kind === 'chat_usage') {
 			this._chatContributions.chatUsage(signal);
 			return;
 		}
 		if (signal.kind === 'canvas') {
-			this._stateManager.setCanvasState(signal.chat.toString(), signal.resource.toString(), signal.state);
+			const chat = signal.chat.toString();
+			if (this._stateManager.getChatState(chat)) {
+				this._stateManager.setCanvasState(chat, signal.resource, signal.state);
+			} else {
+				this._retainPendingCanvasChat(chat);
+				let pending = this._pendingCanvasStates.get(chat);
+				if (!pending) {
+					pending = new Map();
+					this._pendingCanvasStates.set(chat, pending);
+				}
+				pending.set(signal.resource, signal);
+			}
 			return;
 		}
 		if (signal.kind === 'subagent_started') {
@@ -921,6 +976,16 @@ export class AgentSideEffects extends Disposable {
 				return;
 			}
 			const state = this._stateManager.getChatState(sessionKey);
+			if (action.type === ActionType.ChatCanvasesChanged && !state) {
+				this._retainPendingCanvasChat(sessionKey);
+				let pending = this._pendingCanvasActions.get(sessionKey);
+				if (!pending) {
+					pending = new Map();
+					this._pendingCanvasActions.set(sessionKey, pending);
+				}
+				pending.set(action.type, action);
+				return;
+			}
 			const startedWithSteering = action.type === ActionType.ChatTurnStarted
 				&& action.queuedMessageId !== undefined
 				&& state !== undefined
@@ -933,6 +998,18 @@ export class AgentSideEffects extends Disposable {
 				this._runTurnCompleteSideEffects(sessionKey, undefined);
 			}
 		}
+	}
+
+	private _retainPendingCanvasChat(chat: ProtocolURI): void {
+		if (this._pendingCanvasExpirations.has(chat)) {
+			return;
+		}
+		this._pendingCanvasExpirations.set(chat, disposableTimeout(() => {
+			this._pendingCanvasStates.delete(chat);
+			this._pendingCanvasActions.delete(chat);
+			this._pendingCanvasRegistries.delete(chat);
+			this._pendingCanvasExpirations.deleteAndDispose(chat);
+		}, PENDING_CANVAS_REGISTRATION_TIMEOUT));
 	}
 
 	private _trackProviderStartedTurn(agent: IAgent, channel: ProtocolURI, action: ChatTurnStartedAction, startedWithSteering: boolean): void {

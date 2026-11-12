@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SyncDescriptor } from '../../instantiation/common/descriptors.js';
+import { AgentHostCanvases, IAgentHostCanvases } from './agentHostCanvases.js';
 import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { AgentHostArtifactEventService, IAgentHostArtifactEventService } from './artifactIntegrations/agentHostArtifactRuntime.js';
 import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDirectory } from './artifactIntegrations/agentHostArtifactIntegrationDirectory.js';
@@ -103,6 +104,7 @@ export interface IAgentHostCoreServiceInputs {
 }
 
 export function registerAgentHostCoreServices(services: ServiceCollection, inputs: IAgentHostCoreServiceInputs): void {
+	services.set(IAgentHostCanvases, new SyncDescriptor(AgentHostCanvases));
 	const databasePath = inputs.rootConfigResource
 		? joinPath(dirname(inputs.rootConfigResource), 'agent-host.db').fsPath
 		: ':memory:';

@@ -36,7 +36,7 @@ import { agentHostAuthority, createEditorRemoteAgentHostResourceUriMapper, toAge
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../common/agentHostChatProviders.js';
 import { agentHostStateReceiveLimits } from '../../common/agentHostChannel.js';
-import { negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
+import { getAgentHostClientProtocolVersions, negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
@@ -51,7 +51,7 @@ import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/pro
 import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
-import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type InitializeParams, type IStateSnapshot, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
@@ -69,7 +69,7 @@ import { artifactToolsConfigurationProperties } from '../../common/artifactTools
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { AgentHostAuthenticationPendingError } from '../../common/agentHostAdvertisedAuthentication.js';
-import type { IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
+import { CanvasesEnabledSettingId, type IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
 
 // Settings used to exercise declarative agent-host mirroring. Registered by this
 // suite rather than pulling in a product configuration contribution: the
@@ -3138,7 +3138,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('subscribes to an opaque host-advertised canvas channel', async () => {
 		const { client, transport } = createClient();
-		const resource = URI.parse('ahp-canvas://other-host/document/preview');
+		const resource = URI.parse('ahp-canvas:/other-host-document-preview');
 		const reference = disposables.add(client.getSubscription(StateComponents.Canvas, resource, 'canvas-test'));
 		await timeout(0);
 		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
@@ -4295,6 +4295,35 @@ suite('AgentHostProtocolClient', () => {
 		const error = { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found' };
 		transport.fireMessage({ jsonrpc: '2.0', id: 1, error });
 		await assertRemoteProtocolError(result, error);
+	});
+
+	test('opens and disposes client-addressed Canvas resources through standard commands', async () => {
+		const { client, transport } = createClient();
+		const params = {
+			channel: 'ahp-canvas:/client.example-opaque-preview',
+			canvases: 'ahp-canvases://opaque.example/collections/preview',
+			extensionId: 'opaque-provider-id',
+			canvasId: 'preview',
+		};
+		const open = client.openCanvas(params);
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'openCanvas',
+			params,
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 1, result: null });
+		await open;
+
+		const dispose = client.disposeCanvas(URI.parse(params.channel));
+		assert.deepStrictEqual(transport.sentMessages[1], {
+			jsonrpc: '2.0',
+			id: 2,
+			method: 'disposeCanvas',
+			params: { channel: params.channel },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 2, result: null });
+		await dispose;
 	});
 
 	test('deleteAutomation sends exact session identities through the supported extension', async () => {
@@ -6129,6 +6158,41 @@ suite('AgentHostProtocolClient', () => {
 				capability: client.initializeResult.get()?.multipleChatProviders,
 				reasons,
 			}, { transports: 2, replacementMethods: ['initialize'], capability: {}, reasons: ['protocolReinitialize'] });
+		});
+
+		test('re-initializes when Canvases are enabled after a protocol 1.0 handshake', async () => {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initial = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initial.id,
+				result: { protocolVersion: '1.0.0', serverSeq: 1, snapshots: [] },
+			});
+			await connecting;
+
+			await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
+			fireConfigurationChange(configurationService, CanvasesEnabledSettingId);
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const initialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 2, snapshots: [] },
+			});
+			await waitForConnectedWithin(client);
+
+			assert.deepStrictEqual({
+				transports: transports.length,
+				replacementMethod: initialize.method,
+				offered: (initialize.params as InitializeParams).protocolVersions,
+				negotiated: client.initializeResult.get()?.protocolVersion,
+			}, {
+				transports: 2,
+				replacementMethod: 'initialize',
+				offered: getAgentHostClientProtocolVersions(false, true),
+				negotiated: PROTOCOL_VERSION,
+			});
 		});
 
 		test('a subscribe in flight when the host enables chats with their own agents succeeds after the re-initialize', async () => {

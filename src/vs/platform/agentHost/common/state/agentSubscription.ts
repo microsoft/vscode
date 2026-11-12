@@ -9,11 +9,13 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
+import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, type CanvasesAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientCanvasesAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
 import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
 import { canvasReducer } from './protocol/channels-canvas/reducer.js';
 import type { CanvasState } from './protocol/channels-canvas/state.js';
+import { canvasesReducer } from './protocol/channels-canvases/reducer.js';
+import type { CanvasesState } from './protocol/channels-canvases/state.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
 import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
@@ -47,10 +49,10 @@ export interface IAgentSubscription<T> {
 	readonly verifiedValue: T | undefined;
 
 	/**
-	 * Whether client actions applied optimistically still await the host's
+	 * Whether dispatched client actions still await the host's
 	 * acknowledgement. They are replayed after a reconnect only while the
 	 * subscription is held; releasing its last reference discards them.
-	 * Reported by session, chat, and annotations subscriptions.
+	 * Reported by session, chat, annotations, and canvas collection subscriptions.
 	 */
 	readonly hasPendingActions?: boolean;
 
@@ -313,15 +315,13 @@ interface IPendingAction {
 }
 
 /**
- * A pending optimistic action awaiting server confirmation, paired with the
- * channel it was dispatched to so it can be replayed across a reconnect. The
- * channel is a session channel for {@link SessionStateSubscription} actions and
- * a chat channel for {@link ChatStateSubscription} actions.
+ * A pending client action awaiting server confirmation, paired with its
+ * target channel so it can be replayed across a reconnect.
  */
 export interface IPendingDispatchAction {
 	readonly clientSeq: number;
-	/** The optimistic action awaiting confirmation. */
-	readonly action: SessionAction | ChatAction | AnnotationsAction;
+	/** The client action awaiting confirmation. */
+	readonly action: SessionAction | ChatAction | AnnotationsAction | ClientCanvasesAction;
 	/** URI of the channel this action targets, as stored on the subscription. */
 	readonly channel: string;
 }
@@ -743,6 +743,68 @@ export class CanvasStateSubscription extends BaseAgentSubscription<CanvasState> 
 	}
 }
 
+/** Server-authoritative subscription to an advertised canvas collection. */
+export class CanvasesStateSubscription extends BaseAgentSubscription<CanvasesState> {
+
+	private readonly _pendingActions: { readonly clientSeq: number; readonly action: ClientCanvasesAction }[] = [];
+
+	constructor(
+		private readonly _resource: string,
+		clientId: string,
+		private readonly _seqAllocator: () => number,
+		log: (msg: string) => void,
+	) {
+		super(clientId, log);
+	}
+
+	/** Retains an intent for reconnect replay without changing authoritative collection state. */
+	applyOptimistic(action: ClientCanvasesAction): number {
+		const clientSeq = this._seqAllocator();
+		this._pendingActions.push({ clientSeq, action });
+		return clientSeq;
+	}
+
+	protected override _applyReducer(state: CanvasesState, action: StateAction): CanvasesState {
+		return canvasesReducer(state, action as CanvasesAction, this._log);
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return envelope.channel === this._resource && envelope.action.type.startsWith('canvases/');
+	}
+
+	protected override _reconcile(envelope: ActionEnvelope, isOwnAction: boolean): void {
+		if (isOwnAction && envelope.origin) {
+			this.dropPendingByClientSeq(envelope.origin.clientSeq);
+		}
+		super._reconcile(envelope, isOwnAction);
+	}
+
+	protected override _acknowledgeSnapshotAction(clientSeq: number): void {
+		this.dropPendingByClientSeq(clientSeq);
+	}
+
+	get hasPendingActions(): boolean {
+		return this._pendingActions.length > 0;
+	}
+
+	clearPending(): void {
+		this._pendingActions.length = 0;
+	}
+
+	getPendingActions(): IPendingDispatchAction[] {
+		return this._pendingActions.map(pending => ({ ...pending, channel: this._resource }));
+	}
+
+	dropPendingByClientSeq(clientSeq: number): boolean {
+		const index = this._pendingActions.findIndex(pending => pending.clientSeq === clientSeq);
+		if (index === -1) {
+			return false;
+		}
+		this._pendingActions.splice(index, 1);
+		return true;
+	}
+}
+
 /**
  * Subscription to a changeset at an expanded changeset URI (e.g.
  * `<sessionUri>/changeset/session`).
@@ -839,7 +901,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription | CanvasStateSubscription;
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription | CanvasStateSubscription | CanvasesStateSubscription;
 
 // --- Annotations State Subscription ------------------------------------------
 
@@ -1193,7 +1255,7 @@ export class AgentSubscriptionManager extends Disposable {
 
 	private _disposeSubscriptionEntry(resource: URI, entry: ManagedSubscriptionEntry): void {
 		this._tryUnsubscribe(resource);
-		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
+		if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription || entry.sub instanceof CanvasesStateSubscription) {
 			entry.sub.clearPending();
 		}
 		entry.sub.dispose();
@@ -1238,7 +1300,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 * `channel` is the protocol URI string identifying the channel the
 	 * action targets (a session URI for session actions, etc.).
 	 */
-	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): number {
+	dispatchOptimistic(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | ClientCanvasesAction | IRootConfigChangedAction): number {
 		if (isSessionAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof SessionStateSubscription) {
@@ -1257,6 +1319,11 @@ export class AgentSubscriptionManager extends Disposable {
 		} else if (isAnnotationsAction(action)) {
 			const entry = this._subscriptions.get(URI.parse(channel));
 			if (entry?.sub instanceof AnnotationsStateSubscription) {
+				return entry.sub.applyOptimistic(action);
+			}
+		} else if (action.type === ActionType.CanvasesRegistryRequested) {
+			const entry = this._subscriptions.get(URI.parse(channel));
+			if (entry?.sub instanceof CanvasesStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
 		}
@@ -1306,7 +1373,7 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
-	 * Snapshot of every pending optimistic action that must survive reconnect.
+	 * Snapshot of every pending client action that must survive reconnect.
 	 * Callers use this to replay actions after a transport
 	 * reconnect; entries are kept on their subscriptions until they're
 	 * either echoed back by the server or explicitly dropped via
@@ -1315,7 +1382,7 @@ export class AgentSubscriptionManager extends Disposable {
 	getPendingActions(): IPendingDispatchAction[] {
 		const out: IPendingDispatchAction[] = [];
 		for (const { sub } of this._subscriptions.values()) {
-			if (sub instanceof SessionStateSubscription || sub instanceof ChatStateSubscription || sub instanceof AnnotationsStateSubscription) {
+			if (sub instanceof SessionStateSubscription || sub instanceof ChatStateSubscription || sub instanceof AnnotationsStateSubscription || sub instanceof CanvasesStateSubscription) {
 				out.push(...sub.getPendingActions());
 			}
 		}
@@ -1329,7 +1396,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	dropPendingAction(resource: string, clientSeq: number): void {
 		const entry = this._subscriptions.get(URI.parse(resource));
-		if (entry?.sub instanceof SessionStateSubscription || entry?.sub instanceof ChatStateSubscription || entry?.sub instanceof AnnotationsStateSubscription) {
+		if (entry?.sub instanceof SessionStateSubscription || entry?.sub instanceof ChatStateSubscription || entry?.sub instanceof AnnotationsStateSubscription || entry?.sub instanceof CanvasesStateSubscription) {
 			entry.sub.dropPendingByClientSeq(clientSeq);
 		}
 	}
@@ -1356,6 +1423,7 @@ export class AgentSubscriptionManager extends Disposable {
 		// Clear any pending optimistic actions before reseating confirmed
 		// state \u2014 they were predicated on the pre-disconnect confirmed
 		// state and won't reconcile correctly against a fresh snapshot.
+		// Collection intents do not depend on that baseline and remain replayable until acknowledged.
 		if (!preservePending && (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription)) {
 			entry.sub.clearPending();
 		}
@@ -1398,7 +1466,7 @@ export class AgentSubscriptionManager extends Disposable {
 		for (const resource of missing) {
 			const entry = this._subscriptions.get(resource);
 			if (entry) {
-				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription) {
+				if (entry.sub instanceof SessionStateSubscription || entry.sub instanceof ChatStateSubscription || entry.sub instanceof AnnotationsStateSubscription || entry.sub instanceof CanvasesStateSubscription) {
 					entry.sub.clearPending();
 				}
 				entry.sub.setError(new Error(`Subscription no longer available after reconnect: ${resource.toString()}`));
@@ -1424,6 +1492,8 @@ export class AgentSubscriptionManager extends Disposable {
 				return new AutomationRunSubscription(key, this._clientId, this._log);
 			case StateComponents.Canvas:
 				return new CanvasStateSubscription(key, this._clientId, this._log);
+			case StateComponents.Canvases:
+				return new CanvasesStateSubscription(key, this._clientId, this._seqAllocator, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:

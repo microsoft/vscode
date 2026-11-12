@@ -25,7 +25,7 @@ import { CustomizationMarketplaceConfiguration } from '../../../../../../platfor
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService } from '../../../../canvases/common/canvas.js';
+import { type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, type ICanvasListOptions, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
@@ -72,7 +72,7 @@ suite('CopilotCanvasesWidget', () => {
 	function createHarness(options?: {
 		readonly definitions?: readonly ICanvasDefinition[];
 		readonly initialCanvases?: (definition: ICanvasDefinition) => readonly ICanvas[];
-		readonly listCanvases?: () => Promise<readonly ICanvasDefinition[]>;
+		readonly listCanvases?: (options?: ICanvasListOptions) => Promise<CanvasDefinitionSnapshot>;
 		readonly extensionInventory?: IAgentExtensionInventory;
 		readonly storageService?: IStorageService;
 		readonly visible?: boolean;
@@ -96,6 +96,7 @@ suite('CopilotCanvasesWidget', () => {
 		let extensionInventory = options?.extensionInventory ?? inventory(definitions);
 		const definitionsChanged = store.add(new Emitter<void>());
 		let listCalls = 0;
+		const listOptions: (ICanvasListOptions | undefined)[] = [];
 		let openCalls = 0;
 		const context: ICanvasContext = {
 			owner: {
@@ -106,9 +107,10 @@ suite('CopilotCanvasesWidget', () => {
 			canvases: constObservable(options?.initialCanvases?.(definitions[0]) ?? []),
 			definitionProvider: {
 				onDidChangeDefinitions: definitionsChanged.event,
-				async listCanvases() {
+				async listCanvases(listOptionsForRequest?: ICanvasListOptions) {
 					listCalls++;
-					return options?.listCanvases ? options.listCanvases() : definitions;
+					listOptions.push(listOptionsForRequest);
+					return options?.listCanvases ? options.listCanvases(listOptionsForRequest) : definitions;
 				},
 				async openCanvas() { openCalls++; },
 			},
@@ -241,6 +243,7 @@ suite('CopilotCanvasesWidget', () => {
 			frontendSessionResource,
 			configurationService,
 			listRequests,
+			listOptions,
 			setRequests,
 			get listCalls() { return listCalls; },
 			get openCalls() { return openCalls; },
@@ -835,6 +838,36 @@ suite('CopilotCanvasesWidget', () => {
 		});
 	});
 
+	test('forwards retry intent once per explicit refresh generation, never on automatic invalidations', async () => {
+		const preview = definition();
+		let failed = false;
+		const harness = createHarness({
+			definitions: [preview],
+			listCanvases: async () => {
+				if (failed) {
+					throw new Error('Registry unavailable.');
+				}
+				return [preview];
+			},
+		});
+		await timeout(20);
+		failed = true;
+		harness.definitionsChanged.fire();
+		await timeout(20);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas extension \'Preview Extension\'"]');
+		assert.ok(disable);
+		disable.click();
+		await timeout(20);
+		harness.definitionsChanged.fire();
+		harness.definitionsChanged.fire();
+		await timeout(20);
+		const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'Preview Extension\'"]');
+		assert.ok(enable);
+		enable.click();
+		await timeout(20);
+		assert.deepStrictEqual(harness.listOptions, [undefined, undefined, { retry: true }, undefined, { retry: true }]);
+	});
+
 	for (const scenario of [
 		{ name: 'successful enable', mutationError: undefined },
 		{ name: 'failed live reconciliation', mutationError: new Error('Canvas extension \'Preview Extension\' was enabled in settings, but couldn\'t be started in this chat. Reconciliation failed.') },
@@ -965,6 +998,8 @@ suite('CopilotCanvasesWidget', () => {
 			initialCanvases: canvas => [{
 				resource: canvasResource,
 				instanceId: getCanvasDefinitionInstanceId(canvas),
+				extensionId: canvas.extensionId,
+				canvasId: canvas.canvasId,
 				title: canvas.displayName,
 				source: URI.parse('extension:/live-preview'),
 			}],

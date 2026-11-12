@@ -35,8 +35,10 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import type { IAgentHostSavedChat, IAgentHostSavedChatContinuation, IAgentHostSavedChatContinuationResult } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
+import type { ClientCanvasesAction } from './state/protocol/action-origin.generated.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from './state/protocol/channels-automation/commands.js';
+import type { OpenCanvasParams } from './state/protocol/channels-canvas/commands.js';
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
@@ -934,7 +936,7 @@ export interface IAgentHostManagementService {
 	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
 	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, credentials?: IAgentHostCredentialSource): Promise<void>;
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
 	/** Local-only bridge for provider-owned plugin install transactions. */
 	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
@@ -1090,6 +1092,10 @@ export interface IAgentService {
 
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
+	openCanvas(params: OpenCanvasParams, credentials?: IAgentHostCredentialSource): Promise<void>;
+	disposeCanvas(canvas: URI, resourceId?: string): Promise<void>;
+	/** Returns the chat recorded for a live or pending Canvas resource. */
+	getCanvasChat?(resourceId: string): string | undefined;
 
 	/**
 	 * Moves a chat that `session` owns (AHP `moveChat`): within `session`, into another existing session with its
@@ -1272,7 +1278,7 @@ export interface IAgentService {
 	 * like `ahp-root://` survive the wire format without normalization.
 	 * Queued dispatches return a promise that settles after application or rejection.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void | Promise<void>;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction | ClientCanvasesAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext, credentials?: IAgentHostCredentialSource): void | Promise<void>;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1409,7 +1415,7 @@ export interface IAgentConnection {
 	 * than {@link URI} objects so authority-less scheme URIs like
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void;
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | ClientCanvasesAction | IRootConfigChangedAction): void;
 
 	/** Wait for the authoritative action echo, including any rejection, or cancellation; the caller must hold the subscription until settlement. */
 	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope>;
@@ -1473,6 +1479,10 @@ export interface IAgentConnection {
 	 * `AgentChatMoveRefusal`.
 	 */
 	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI>;
+	/** Opens or focuses the client-addressed Canvas resource through the standard AHP command. */
+	openCanvas?(params: OpenCanvasParams): Promise<void>;
+	/** Disposes the client-addressed Canvas resource through the standard AHP command. */
+	disposeCanvas?(canvas: URI): Promise<void>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */
@@ -1499,10 +1509,11 @@ export interface IAgentConnection {
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
-	/** Returns `undefined` while the provider registry is unsettled; the host later publishes a canvas change after it settles. */
+	/** Local compatibility path; standard AHP clients observe the advertised Canvas collection. */
 	listSessionCanvases?(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
+	/** Local compatibility path; standard AHP clients use {@link openCanvas}. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
-	/** Local-only: closes a canvas the chat presents, which notifies its canvas provider. */
+	/** Local compatibility path; standard AHP clients use {@link disposeCanvas}. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;

@@ -23,10 +23,13 @@ import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOpt
 import { ChangesSummary, ChatInteractivity, type ChatOrigin, type SessionChatSummary } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
+import { canvasesReducer } from '../common/state/protocol/channels-canvases/reducer.js';
+import { CanvasRegistryStatus, type CanvasesState, type CanvasRegistryState } from '../common/state/protocol/channels-canvases/state.js';
+import type { ClientCanvasesAction } from '../common/state/protocol/action-origin.generated.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import type { CanvasState } from '../common/state/protocol/channels-canvas/state.js';
-import { parseCanvasChatUri } from '../common/canvasUri.js';
-import { URI as ResourceURI } from '../../../base/common/uri.js';
+import { AHP_CANVAS_SCHEME, AHP_CANVASES_SCHEME, isCanvasChannel } from '../common/canvasUri.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -415,6 +418,10 @@ export class AgentHostStateManager extends Disposable {
 	private _automationCatalog: AutomationState | undefined;
 	private readonly _automationRuns = new Map<string, AutomationRunState>();
 	private readonly _canvases = new Map<string, { readonly chat: string; state: CanvasState }>();
+	private readonly _canvasCollections = new Map<string, { readonly chat: string; state: CanvasesState }>();
+	private readonly _chatCanvasCollections = new Map<string, string>();
+	/** Canvas channel bindings survive disposal and may only be reused after their owning chat ends. */
+	private readonly _canvasOwners = new Map<string, string>();
 
 	/**
 	 * Active turns per session, keyed by session URI string with the value
@@ -975,7 +982,11 @@ export class AgentHostStateManager extends Disposable {
 				throw new Error(`Restored chat was invalidated while resolving: ${chat}`);
 			}
 			if (!entry.state) {
-				entry.state = { ...createChatState(entry.summary), turns: restored.turns, draft: restored.draft ?? entry.draft, ...(entry.config ? { config: entry.config } : {}) };
+				const canvasesUri = this._chatCanvasCollections.get(chat);
+				entry.state = {
+					...createChatState(entry.summary), turns: restored.turns, draft: restored.draft ?? entry.draft,
+					...(entry.config ? { config: entry.config } : {}), ...(canvasesUri ? { canvasesUri } : {})
+				};
 				entry.resolver = undefined;
 				if (restored.turns.length > 0) {
 					this._markSessionUsed(entry.session);
@@ -1149,6 +1160,14 @@ export class AgentHostStateManager extends Disposable {
 		if (canvas) {
 			return { resource, state: canvas.state, fromSeq: this._serverSeq };
 		}
+		const collection = this._canvasCollections.get(resource);
+		if (collection) {
+			const owner = this._chatEntries.get(collection.chat);
+			if (!owner?.valid || this._dataOnlySessions.has(owner.session)) {
+				return undefined;
+			}
+			return { resource, state: collection.state, fromSeq: this._serverSeq };
+		}
 
 		// Changeset URIs are nested under their session URI; check them
 		// before falling back to the session map so a session whose URI
@@ -1165,13 +1184,16 @@ export class AgentHostStateManager extends Disposable {
 		// Chat channel URIs resolve to per-chat conversation state.
 		if (isAhpChatChannel(resource)) {
 			const chatEntry = this._chatEntries.get(resource);
-			const chatState = chatEntry?.state;
-			if (!chatState || this._dataOnlySessions.has(chatEntry.session)) {
+			if (!chatEntry?.valid || !chatEntry.state || this._dataOnlySessions.has(chatEntry.session)) {
 				return undefined;
 			}
+			const provider = chatEntry.provider ?? chatEntry.state.provider ?? this._sessionStates.get(chatEntry.session)?.state.provider;
+			const supportsCanvases = this._rootState.agents.some(agent => agent.provider === provider && agent.capabilities?.canvases !== undefined);
+			const collectionUri = this._chatCanvasCollections.get(resource) ?? (chatEntry?.valid && supportsCanvases ? this.ensureCanvasCollection(resource) : undefined);
+			const chatState = chatEntry?.state;
 			return {
 				resource,
-				state: chatState,
+				state: collectionUri ? { ...chatState, canvasesUri: collectionUri } : chatState,
 				fromSeq: this._serverSeq,
 			};
 		}
@@ -1224,15 +1246,78 @@ export class AgentHostStateManager extends Disposable {
 			this._logService.warn(`[AgentHostStateManager] Canvas state for unavailable chat: ${chat}`);
 			return;
 		}
-		if (parseCanvasChatUri(ResourceURI.parse(resource))?.toString() !== chat) {
-			throw new Error(`Canvas channel does not belong to chat: ${resource}`);
+		if (!isCanvasChannel(resource)) {
+			throw new Error(`Invalid ${AHP_CANVAS_SCHEME} channel: ${resource}`);
 		}
+		const boundChat = this._canvasOwners.get(resource);
+		if (boundChat !== undefined && boundChat !== chat) {
+			throw new Error(`Canvas channel is already bound to another chat: ${resource}`);
+		}
+		this._canvasOwners.set(resource, chat);
+		this.ensureCanvasCollection(chat);
 		const previous = this._canvases.get(resource);
 		if (previous?.state === state) {
 			return;
 		}
 		this._canvases.set(resource, { chat, state });
 		this.dispatchServerAction(resource, { type: ActionType.CanvasStateChanged, canvas: state });
+	}
+
+	getCanvas(resource: string): { readonly chat: string; readonly state: CanvasState } | undefined {
+		return this._canvases.get(resource);
+	}
+
+	/** Allocates collection identity without resolving history or starting a provider. */
+	ensureCanvasCollection(chat: string): string {
+		const existing = this._chatCanvasCollections.get(chat);
+		if (existing) {
+			return existing;
+		}
+		if (!this._chatEntries.get(chat)?.valid) {
+			throw new Error(`Canvas collection requires a registered chat: ${chat}`);
+		}
+		const resource = `${AHP_CANVASES_SCHEME}:/${generateUuid()}`;
+		this._chatCanvasCollections.set(chat, resource);
+		this._canvasCollections.set(resource, { chat, state: { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] } });
+		if (this._chatEntries.get(chat)?.state) {
+			this.dispatchServerAction(chat, { type: ActionType.ChatCanvasesUriChanged, canvasesUri: resource });
+		}
+		return resource;
+	}
+
+	getCanvasCollection(resource: string): { readonly chat: string; readonly state: CanvasesState } | undefined {
+		return this._canvasCollections.get(resource);
+	}
+
+	setCanvasRegistry(chat: string, registry: CanvasRegistryState): void {
+		if (!this._chatEntries.get(chat)?.valid) {
+			return;
+		}
+		const resource = this.ensureCanvasCollection(chat);
+		if (!equals(this._canvasCollections.get(resource)?.state.registry, registry)) {
+			this.dispatchServerAction(resource, { type: ActionType.CanvasesRegistryChanged, registry });
+		}
+	}
+
+	private _setChatCanvasMembership(chat: string, canvases: readonly { readonly resource: string }[]): void {
+		if (!this._chatEntries.get(chat)?.valid) {
+			return;
+		}
+		const resource = this.ensureCanvasCollection(chat);
+		const current = this._canvasCollections.get(resource)!.state.canvases;
+		const next = new Set(canvases.map(canvas => canvas.resource));
+		for (const canvas of current) {
+			if (!next.has(canvas.resource)) {
+				this.dispatchServerAction(resource, { type: ActionType.CanvasesCanvasRemoved, resource: canvas.resource });
+			}
+		}
+		const previous = new Set(current.map(canvas => canvas.resource));
+		for (const canvas of canvases) {
+			if (!previous.has(canvas.resource)) {
+				this.dispatchServerAction(resource, { type: ActionType.CanvasesCanvasSet, canvas });
+			}
+		}
+		this._pruneChatCanvases(chat, next);
 	}
 
 	private _pruneChatCanvases(chat: string, resources: ReadonlySet<string>): void {
@@ -2773,6 +2858,10 @@ export class AgentHostStateManager extends Disposable {
 	 * for terminal actions, an expanded changeset URI for changeset actions.
 	 */
 	dispatchServerAction(channel: URI, action: StateAction, credentials?: IAgentHostCredentialSource): void {
+		if (action.type === ActionType.ChatCanvasesChanged) {
+			this._setChatCanvasMembership(channel, action.canvases ?? []);
+			return;
+		}
 		this._applyAndEmit(channel, action, undefined, undefined, credentials);
 	}
 
@@ -2785,7 +2874,7 @@ export class AgentHostStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, origin: ActionOrigin, clientContext?: IAgentHostClientTelemetryContext): unknown {
+	dispatchClientAction(channel: URI, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | ClientCanvasesAction | IRootConfigChangedAction, origin: ActionOrigin, clientContext?: IAgentHostClientTelemetryContext): unknown {
 		return this._applyAndEmit(channel, action, origin, clientContext);
 	}
 
@@ -2823,6 +2912,16 @@ export class AgentHostStateManager extends Disposable {
 
 	private _invalidateChatEntry(chat: URI): void {
 		this._pruneChatCanvases(chat, new Set());
+		const collection = this._chatCanvasCollections.get(chat);
+		if (collection) {
+			this._canvasCollections.delete(collection);
+			this._chatCanvasCollections.delete(chat);
+		}
+		for (const [resource, owner] of this._canvasOwners) {
+			if (owner === chat.toString()) {
+				this._canvasOwners.delete(resource);
+			}
+		}
 		const entry = this._chatEntries.get(chat);
 		if (entry) {
 			entry.valid = false;
@@ -2927,6 +3026,7 @@ export class AgentHostStateManager extends Disposable {
 			}
 		}
 		let sessionReadStateToSynchronize: { readonly session: URI; readonly isRead: boolean } | undefined;
+		let canvasCollectionToProject: { readonly resource: string; readonly chat: string } | undefined;
 		// Apply to state
 		if (isRootAction(action)) {
 			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces
@@ -3011,10 +3111,9 @@ export class AgentHostStateManager extends Disposable {
 					chatEntry.config = newChat.config;
 					this._onDidChangeChatConfig.fire({ session: sessionKey, chat: channel, previous, current: chatEntry.config, clientContext, action: chatAction });
 				}
-				if (chatAction.type === ActionType.ChatCanvasesChanged) {
-					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
+				if (chatAction.type !== ActionType.ChatCanvasesChanged && chatAction.type !== ActionType.ChatCanvasesUriChanged) {
+					this._onChatStateChanged(sessionKey, channel, chat, newChat);
 				}
-				this._onChatStateChanged(sessionKey, channel, chat, newChat);
 				if (chatAction.type === ActionType.ChatIsReadChanged) {
 					readTransition = { wasRead: isSessionStatusRead(chat.status), isRead: isSessionStatusRead(newChat.status) };
 				}
@@ -3056,6 +3155,23 @@ export class AgentHostStateManager extends Disposable {
 					}
 				}
 			}
+		}
+
+		if (action.type === ActionType.CanvasesRegistryRequested || action.type === ActionType.CanvasesRegistryChanged
+			|| action.type === ActionType.CanvasesCanvasSet || action.type === ActionType.CanvasesCanvasRemoved) {
+			const collection = this._canvasCollections.get(channel);
+			if (!collection) {
+				this._logService.warn(`[AgentHostStateManager] Action for unknown Canvas collection: ${channel}`);
+				return undefined;
+			}
+			collection.state = canvasesReducer(collection.state, action, this._log);
+			if (action.type === ActionType.CanvasesCanvasSet || action.type === ActionType.CanvasesCanvasRemoved) {
+				if (action.type === ActionType.CanvasesCanvasRemoved && this._canvases.get(action.resource)?.chat === collection.chat) {
+					this._canvases.delete(action.resource);
+				}
+				canvasCollectionToProject = { resource: channel, chat: collection.chat };
+			}
+			resultingState = collection.state;
 		}
 
 		if (action.type === ActionType.CanvasStateChanged) {
@@ -3139,6 +3255,16 @@ export class AgentHostStateManager extends Disposable {
 			this._actionCredentials.set(envelope, credentials);
 		}
 		this._onDidEmitEnvelope.fire(envelope);
+		if (canvasCollectionToProject) {
+			const collection = this._canvasCollections.get(canvasCollectionToProject.resource);
+			if (collection?.chat === canvasCollectionToProject.chat) {
+				const canvases = collection.state.canvases;
+				this._applyAndEmit(collection.chat, {
+					type: ActionType.ChatCanvasesChanged,
+					canvases: canvases.length ? canvases : undefined,
+				}, undefined);
+			}
+		}
 		if (action.type === ActionType.SessionWorkingDirectorySet || action.type === ActionType.SessionWorkingDirectoryRemoved || action.type === ActionType.SessionWorkingDirectoryReplaced) {
 			const state = this._sessionStates.get(channel)?.state;
 			if (state) {

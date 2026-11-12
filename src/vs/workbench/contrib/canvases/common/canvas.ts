@@ -34,17 +34,23 @@ export interface ICanvasDefinition {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	readonly inputSchema?: unknown;
 	readonly requiresInput: boolean;
 }
 
 /** `undefined` is unsettled; an array, including an empty one, is authoritative. */
 export type CanvasDefinitionSnapshot = readonly ICanvasDefinition[] | undefined;
 
+export interface ICanvasListOptions {
+	/** Explicit user intent to retry a failed registry load; automatic refreshes must omit this. */
+	readonly retry?: boolean;
+}
+
 /** Lists and opens registered canvas types for one canvas context. */
 export interface ICanvasDefinitionProvider {
 	readonly onDidChangeDefinitions: Event<void>;
 	/** Returns `undefined` while unsettled, then fires {@link onDidChangeDefinitions} when an authoritative snapshot is available. */
-	listCanvases(): Promise<CanvasDefinitionSnapshot>;
+	listCanvases(options?: ICanvasListOptions): Promise<CanvasDefinitionSnapshot>;
 	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
 }
 
@@ -281,7 +287,7 @@ const CANVAS_INSTANCE_ID_MAX_LENGTH = 128;
 
 /** Produces the stable instance identifier of the first canvas opened directly from a registered canvas type. */
 export function getCanvasDefinitionInstanceId(canvas: Pick<ICanvasDefinition, 'extensionId' | 'canvasId'>): string {
-	const raw = `${canvas.extensionId}-${canvas.canvasId}`;
+	const raw = `${canvas.extensionId}\u0000${canvas.canvasId}`;
 	const normalized = raw
 		.replace(/[^A-Za-z0-9._-]+/g, '-')
 		.replace(/^[._-]+/, '')
@@ -377,13 +383,7 @@ function getCanvasDefinitionInstanceIndex(canvas: ICanvas): number | undefined {
 
 /** Returns whether a registered extension canvas can be opened without another input flow. */
 export function isOpenableExtensionCanvasDefinition(canvas: ICanvasDefinition): boolean {
-	return !canvas.requiresInput && (
-		canvas.extensionSource !== 'unknown'
-		|| canvas.extensionId.startsWith('user:')
-		|| canvas.extensionId.startsWith('project:')
-		|| canvas.extensionId.startsWith('session:')
-		|| canvas.extensionId.startsWith('plugin:')
-	);
+	return !canvas.requiresInput;
 }
 
 /** Orders registered canvas types by extension and display name. */

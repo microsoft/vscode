@@ -10,24 +10,74 @@ import { autorun, constObservable, observableValue } from '../../../../../base/c
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentCanvasCloseRequest, IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
-import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn, type ActiveTurn, type ResponsePart } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { CanvasRegistryStatus, CanvasesState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvases/state.js';
+import { OpenCanvasParams } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/commands.js';
+import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { buildChatUri, ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn, type ActiveTurn, type ResponsePart } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
+import { AgentHostCanvas, AgentHostCanvasCollection, AgentHostCanvases, getAgentHostCanvasDefinitions } from '../../common/agentHostCanvas.js';
 import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
 suite('AgentHost canvases', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const owner: ICanvasOwner = {
-		providerId: 'local/copilotcli', session: URI.parse('ahp-session:/owner'), chat: URI.parse('ahp-session:/owner/chats/peer'),
+		providerId: 'local/copilotcli', session: URI.parse('ahp-session:/owner'), chat: URI.parse(buildChatUri('ahp-session:/owner', 'peer')),
 	};
 	const resource = URI.parse('ahp-canvas:/host-specific/opaque-reference');
 	const state: CanvasState = {
 		instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview Extension', canvasId: 'preview', url: 'https://example.test/preview',
 	};
+	const collectionResource = 'ahp-canvases://another-host/opaque/collection?revision=1';
+	const ready: CanvasesState = {
+		canvases: [],
+		registry: {
+			status: CanvasRegistryStatus.Ready,
+			extensions: [{
+				id: state.extensionId,
+				label: 'Preview Extension',
+				canvases: [{ id: 'preview', label: 'Preview', description: 'A preview canvas.' }],
+			}],
+		},
+	};
+
+	function createConnection(initial: CanvasesState | undefined) {
+		const changed = store.add(new Emitter<CanvasesState>());
+		let current = initial;
+		return new class extends mock<IAgentConnection>() {
+			readonly requested: string[] = [];
+			readonly released: string[] = [];
+			readonly dispatched: { channel: string; action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
+			readonly opened: OpenCanvasParams[] = [];
+			override readonly initializeResult = constObservable(undefined);
+			override getSubscription<T extends StateComponents>(kind: T, channel: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				this.requested.push(channel.toString());
+				const value = () => (kind === StateComponents.Canvases ? current : state) as ComponentToState[T] | undefined;
+				return {
+					object: {
+						get value() { return value(); },
+						get verifiedValue() { return value(); },
+						onDidChange: kind === StateComponents.Canvases ? Event.map(changed.event, value => value as ComponentToState[T]) : Event.None,
+						onWillApplyAction: Event.None,
+						onDidApplyAction: Event.None,
+					},
+					dispose: () => { this.released.push(channel.toString()); },
+				};
+			}
+			setState(value: CanvasesState): void {
+				current = value;
+				changed.fire(value);
+			}
+			override dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
+				this.dispatched.push({ channel, action });
+			}
+			override async openCanvas(params: OpenCanvasParams): Promise<void> {
+				this.opened.push(params);
+			}
+		}();
+	}
 
 	test('subscribes to advertised resources, updates source state and releases removed channels', () => {
 		const changed = store.add(new Emitter<CanvasState>());
@@ -52,9 +102,9 @@ suite('AgentHost canvases', () => {
 				};
 			}
 		}();
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService()));
 		const references = observableValue<readonly CanvasReference[] | undefined>('references', [{ resource: resource.toString() }]);
-		const context = collection.createContext(owner, references);
+		const context = collection.createContext(owner, references.map(canvases => canvases ? upcastPartial<ChatState>({ canvases: [...canvases] }) : undefined));
 		let canvases: readonly ICanvas[] | undefined;
 		store.add(autorun(reader => { canvases = context.canvases.read(reader); }));
 		const initial = canvases?.[0].source?.toString();
@@ -76,93 +126,226 @@ suite('AgentHost canvases', () => {
 		});
 	});
 
-	test('bridges registered canvas operations through the owning chat context', async () => {
-		const calls: unknown[] = [];
-		const definitionsChanged = store.add(new Emitter<void>());
-		let changeCount = 0;
-		const definition: IAgentCanvasInfo = {
-			canvasId: 'preview',
-			extensionId: 'project:preview',
-			extensionSource: 'project',
-			extensionName: 'Preview Extension',
-			displayName: 'Preview',
-			description: 'A preview canvas.',
-			requiresInput: false,
-			actionCount: 0,
+	test('preserves full input schemas and derives the current direct-open UI policy', () => {
+		const inputSchema = {
+			$schema: 'http://json-schema.org/draft-07/schema#',
+			type: 'object',
+			properties: {
+				issue: { type: 'string', description: 'Issue number or URL.' },
+				options: {
+					type: 'object',
+					properties: { verbose: { type: 'boolean', default: false } },
+				},
+			},
+			required: ['issue'],
+			additionalProperties: false,
 		};
-		const connection = new class extends mock<IAgentConnection>() {
-			override async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
-				calls.push(['list', session.toString(), chat.toString()]);
-				return [definition];
-			}
-			override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
-				calls.push(['open', session.toString(), chat.toString(), request]);
-			}
-		}();
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
-		const context = collection.createContext(owner, constObservable([]), undefined, definitionsChanged.event);
+		const definitions = getAgentHostCanvasDefinitions({
+			status: CanvasRegistryStatus.Ready,
+			extensions: [{
+				id: 'opaque-provider',
+				label: 'Provider',
+				canvases: [
+					{ id: 'plain', label: 'Plain', description: 'No schema.' },
+					{ id: 'optional', label: 'Optional', description: 'Optional input.', inputSchema: { type: 'object', properties: inputSchema.properties } },
+					{ id: 'issue', label: 'Issue', description: 'Required input.', inputSchema },
+				],
+			}],
+		});
+
+		assert.deepStrictEqual(definitions, [{
+			canvasId: 'plain', extensionId: 'opaque-provider', extensionName: 'Provider', extensionSource: 'unknown',
+			displayName: 'Plain', description: 'No schema.', requiresInput: false,
+		}, {
+			canvasId: 'optional', extensionId: 'opaque-provider', extensionName: 'Provider', extensionSource: 'unknown',
+			displayName: 'Optional', description: 'Optional input.', inputSchema: { type: 'object', properties: inputSchema.properties }, requiresInput: false,
+		}, {
+			canvasId: 'issue', extensionId: 'opaque-provider', extensionName: 'Provider', extensionSource: 'unknown',
+			displayName: 'Issue', description: 'Required input.', inputSchema, requiresInput: true,
+		}]);
+	});
+
+	test('bridges registered canvas operations through the advertised collection', async () => {
+		const connection = createConnection(ready);
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService()));
+		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({
+			canvasesUri: collectionResource,
+		}));
+		const context = collection.createContext(owner, chat, true);
 		assert.ok(context.definitionProvider);
-		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
+		store.add(context.definitionProvider.onDidChangeDefinitions(() => { }));
 
 		const definitions = await context.definitionProvider.listCanvases();
 		assert.ok(definitions && definitions.length === 1, 'Expected one canvas definition');
 		await context.definitionProvider.openCanvas(definitions[0], 'stable-preview');
-		definitionsChanged.fire();
 
-		assert.deepStrictEqual({ calls, changeCount }, {
-			calls: [
-				['list', owner.session.toString(), owner.chat.toString()],
-				['open', owner.session.toString(), owner.chat.toString(), {
-					canvasId: 'preview',
-					extensionId: 'project:preview',
-					instanceId: 'stable-preview',
-				}],
-			],
-			changeCount: 1,
+		const params = connection.opened[0];
+		assert.deepStrictEqual({
+			callCount: connection.opened.length,
+			channelScheme: URI.parse(params.channel).scheme,
+			params: { ...params, channel: undefined },
+		}, {
+			callCount: 1,
+			channelScheme: 'ahp-canvas',
+			params: {
+				channel: undefined,
+				canvases: collectionResource,
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+			},
 		});
 	});
 
-	test('invalidates definitions for registry actions and snapshots only', () => {
-		const appliedAction = store.add(new Emitter<ActionEnvelope>());
-		const appliedSnapshot = store.add(new Emitter<ChatState>());
-		const cancelledRefresh = store.add(new Emitter<readonly ActionEnvelope[]>());
-		const subscription = upcastPartial<IAgentSubscription<ChatState>>({
-			onDidApplyAction: appliedAction.event,
-			onDidApplySnapshot: appliedSnapshot.event,
-			onDidCancelSnapshotRefresh: cancelledRefresh.event,
-		});
-		let changes = 0;
-		store.add(getAgentHostCanvasDefinitionsChangedEvent(subscription)(() => changes++));
-
-		appliedAction.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged } }));
-		appliedAction.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }));
-		appliedSnapshot.fire(upcastPartial<ChatState>({}));
-		cancelledRefresh.fire([
-			upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged } }),
-			upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatCanvasesChanged, canvases: undefined } }),
-		]);
-
-		assert.strictEqual(changes, 3);
-	});
-
-	test('closes canvases through the owner\'s host-supplied session and chat only when the host can', async () => {
-		const closed: unknown[] = [];
-		const createConnection = (canClose: boolean) => new class extends mock<IAgentConnection>() {
+	test('refreshes an unavailable advertised canvas through its existing resource', async () => {
+		const calls: OpenCanvasParams[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
 			override readonly initializeResult = constObservable(undefined);
-			override readonly closeSessionCanvas = canClose ? async (session: URI, request: IAgentCanvasCloseRequest, chat: URI) => {
-				closed.push({ session: session.toString(), resource: request.resource.toString(), chat: chat.toString() });
-			} : undefined;
+			override getSubscription<T extends StateComponents>(kind: T, channel: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				assert.strictEqual(channel.toString(), kind === StateComponents.Canvases ? URI.parse(collectionResource).toString() : resource.toString());
+				const value = (kind === StateComponents.Canvases ? { ...ready, canvases: [{ resource: resource.toString() }] } : { ...state, url: undefined }) as ComponentToState[T];
+				return {
+					object: {
+						value,
+						verifiedValue: value,
+						onDidChange: Event.None,
+						onWillApplyAction: Event.None,
+						onDidApplyAction: Event.None,
+					},
+					dispose() { },
+				};
+			}
+			override async openCanvas(params: OpenCanvasParams): Promise<void> {
+				calls.push(params);
+			}
 		}();
-		const references = constObservable<readonly CanvasReference[] | undefined>([]);
-		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(true), new NullLogService())).createContext(owner, references);
-		const unsupported = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(false), new NullLogService())).createContext(owner, references);
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService()));
+		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({
+			canvasesUri: collectionResource,
+		}));
+		const context = collection.createContext(owner, chat, true);
+		const definitions = await context.definitionProvider?.listCanvases();
+		assert.ok(definitions && definitions.length === 1);
+
+		await context.definitionProvider?.openCanvas(definitions[0], 'preview');
+		await context.definitionProvider?.openCanvas(definitions[0], 'new-preview');
+
+		assert.deepStrictEqual(calls.map(params => ({
+			...params, channel: params.channel === resource.toString() ? params.channel : URI.parse(params.channel).scheme,
+		})), [{
+			channel: resource.toString(), canvases: collectionResource, extensionId: state.extensionId, canvasId: state.canvasId,
+		}, {
+			channel: 'ahp-canvas', canvases: collectionResource, extensionId: state.extensionId, canvasId: state.canvasId,
+		}]);
+	});
+
+	test('requests registry activation once, observes loading and ready changes, and surfaces errors without retrying', async () => {
+		const connection = createConnection({ registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] });
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService()));
+		const context = collection.createContext(owner, constObservable(upcastPartial<ChatState>({ canvasesUri: collectionResource })), true);
+		const provider = context.definitionProvider!;
+		let changes = 0;
+		store.add(provider.onDidChangeDefinitions(() => changes++));
+		store.add(autorun(reader => context.canvases.read(reader)));
+		const passiveRequests = connection.dispatched.length;
+
+		const initial = await provider.listCanvases();
+		await provider.listCanvases();
+		connection.setState({ registry: { status: CanvasRegistryStatus.Loading }, canvases: [] });
+		const loading = await provider.listCanvases();
+		connection.setState(ready);
+		const definitions = await provider.listCanvases();
+		connection.setState({ registry: { status: CanvasRegistryStatus.Error, error: { errorType: 'registry', message: 'Registry unavailable' } }, canvases: [] });
+		await assert.rejects(() => provider.listCanvases(), /Registry unavailable/);
+		await assert.rejects(() => provider.listCanvases(), /Registry unavailable/);
+		const retried = await provider.listCanvases({ retry: true });
+		await assert.rejects(() => provider.listCanvases(), /Registry unavailable/);
+		assert.deepStrictEqual({ passiveRequests, initial, loading, definitions: definitions?.length, retried, changes, dispatched: connection.dispatched }, {
+			passiveRequests: 0, initial: undefined, loading: undefined, definitions: 1, retried: undefined, changes: 3,
+			dispatched: [
+				{ channel: collectionResource, action: { type: ActionType.CanvasesRegistryRequested } },
+				{ channel: collectionResource, action: { type: ActionType.CanvasesRegistryRequested } },
+			],
+		});
+	});
+
+	test('waits for a collection snapshot and coalesces requests by registry-state identity across resets', () => {
+		const connection = createConnection(undefined);
+		const collection = new AgentHostCanvases(constObservable(connection), constObservable(upcastPartial<ChatState>({ canvasesUri: collectionResource })));
+		store.add(autorun(reader => collection.state.read(reader)));
+		const missing = collection.listCanvases();
+		collection.listCanvases({ retry: true });
+		const beforeSnapshot = connection.dispatched.length;
+		const initial: CanvasesState = { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] };
+		connection.setState(initial);
+		collection.listCanvases();
+		collection.listCanvases();
+		connection.setState({ ...initial, canvases: [{ resource: resource.toString() }] });
+		collection.listCanvases();
+		const beforeReset = connection.dispatched.length;
+		connection.setState({ registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] });
+		collection.listCanvases();
+		collection.listCanvases();
+		assert.deepStrictEqual({ missing, beforeSnapshot, beforeReset, dispatched: connection.dispatched }, {
+			missing: undefined, beforeSnapshot: 0, beforeReset: 1,
+			dispatched: [
+				{ channel: collectionResource, action: { type: ActionType.CanvasesRegistryRequested } },
+				{ channel: collectionResource, action: { type: ActionType.CanvasesRegistryRequested } },
+			],
+		});
+	});
+
+	test('retains explicit retry intent through missing snapshots and reconnects without automatically retrying errors', () => {
+		const initial = createConnection(undefined);
+		const connection = observableValue<IAgentConnection | undefined>('connection', initial);
+		const collection = new AgentHostCanvases(connection, constObservable(upcastPartial<ChatState>({ canvasesUri: collectionResource })));
+		store.add(autorun(reader => collection.state.read(reader)));
+		const pending = collection.listCanvases({ retry: true });
+		connection.set(undefined, undefined);
+		const disconnected = collection.listCanvases();
+		const restored = createConnection({ registry: { status: CanvasRegistryStatus.Error, error: { errorType: 'registry', message: 'Registry unavailable' } }, canvases: [] });
+		connection.set(restored, undefined);
+		const retried = collection.listCanvases();
+		assert.throws(() => collection.listCanvases(), /Registry unavailable/);
+		assert.deepStrictEqual({ pending, disconnected, retried, initialRequests: initial.dispatched, restoredRequests: restored.dispatched }, {
+			pending: undefined, disconnected: undefined, retried: undefined, initialRequests: [],
+			restoredRequests: [{ channel: collectionResource, action: { type: ActionType.CanvasesRegistryRequested } }],
+		});
+	});
+
+	test('prefers collection membership over legacy duplicates and releases replaced opaque collection URIs', () => {
+		const connection = createConnection(ready);
+		const chat = observableValue<ChatState | undefined>('chat', upcastPartial<ChatState>({
+			canvasesUri: collectionResource, canvases: [{ resource: 'ahp-canvas:/legacy-duplicate' }],
+		}));
+		const collection = new AgentHostCanvases(constObservable(connection), chat);
+		let references: readonly CanvasReference[] | undefined;
+		const observing = store.add(autorun(reader => { references = collection.references.read(reader); }));
+		const authoritative = references;
+		const replacement = 'ahp-canvases:/different-opaque-collection';
+		chat.set(upcastPartial<ChatState>({ canvasesUri: replacement, canvases: [{ resource: 'ahp-canvas:/ignored' }] }), undefined);
+		const replaced = references;
+		chat.set(upcastPartial<ChatState>({ canvases: [{ resource: resource.toString() }] }), undefined);
+		const legacy = references;
+		observing.dispose();
+		assert.deepStrictEqual({ authoritative, replaced, legacy, requested: connection.requested, released: connection.released, dispatched: connection.dispatched }, {
+			authoritative: [], replaced: [], legacy: [{ resource: resource.toString() }],
+			requested: [URI.parse(collectionResource).toString(), replacement], released: [URI.parse(collectionResource).toString(), replacement], dispatched: [],
+		});
+	});
+
+	test('closes canvases by their advertised resource identity', async () => {
+		const closed: unknown[] = [];
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
+			override async disposeCanvas(canvas: URI): Promise<void> {
+				closed.push(canvas.toString());
+			}
+		}();
+		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService())).createContext(owner, constObservable(upcastPartial<ChatState>({})), true);
 
 		await closing.closeCanvas?.(new AgentHostCanvas(resource, state, new NullLogService()));
 
-		assert.deepStrictEqual({ closed, unsupported: unsupported.closeCanvas }, {
-			closed: [{ session: owner.session.toString(), resource: resource.toString(), chat: owner.chat.toString() }],
-			unsupported: undefined,
-		});
+		assert.deepStrictEqual(closed, [resource.toString()]);
 	});
 
 	test('tracks explicit opens by tool identity and request state rather than source changes', () => {
@@ -184,19 +367,19 @@ suite('AgentHost canvases', () => {
 			status: ToolCallStatus.Completed, success: true, confirmed: ToolCallConfirmationReason.NotNeeded, toolInput: '{"instanceId":"preview"}',
 		};
 		const first = upcastPartial<Turn>({ id: 'turn', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: call }] });
-		const chat = observableValue<ChatState | undefined>('chat', upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [first] }));
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
-		const context = collection.createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
+		const chat = observableValue<ChatState | undefined>('chat', upcastPartial<ChatState>({ resource: owner.chat.toString(), canvases: [{ resource: resource.toString() }], turns: [first] }));
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService()));
+		const context = collection.createContext(owner, chat);
 		const initial = context.openRequests?.get().get('preview');
 		const running = upcastPartial<Turn>({
 			id: 'next', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: { ...call, toolCallId: 'running', status: ToolCallStatus.Running } }],
 		});
-		chat.set(upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [first, running] }), undefined);
+		chat.set(upcastPartial<ChatState>({ resource: owner.chat.toString(), canvases: [{ resource: resource.toString() }], turns: [first, running] }), undefined);
 		const pending = context.openRequests?.get().get('preview');
 		const failed = upcastPartial<Turn>({
 			id: 'next', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: { ...call, toolCallId: 'failed', success: false } }],
 		});
-		chat.set(upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [first, failed] }), undefined);
+		chat.set(upcastPartial<ChatState>({ resource: owner.chat.toString(), canvases: [{ resource: resource.toString() }], turns: [first, failed] }), undefined);
 		assert.deepStrictEqual({ initial, pending, latest: context.openRequests?.get().get('preview') }, {
 			initial: { id: 'turn\u0000first', succeeded: true },
 			pending: { id: 'next\u0000running', succeeded: false, pending: true },
@@ -238,10 +421,12 @@ suite('AgentHost canvases', () => {
 			},
 		});
 		const turns = [older, completed];
-		const createChat = (activeTurn?: ActiveTurn) => upcastPartial<ChatState>({ resource: owner.chat.toString(), turns, activeTurn });
+		const createChat = (activeTurn?: ActiveTurn) => upcastPartial<ChatState>({
+			resource: owner.chat.toString(), turns, activeTurn,
+			canvases: [{ resource: resource.toString() }, { resource: uiResource.toString() }],
+		});
 		const chat = observableValue<ChatState | undefined>('chat', createChat());
-		const references = constObservable([{ resource: resource.toString() }, { resource: uiResource.toString() }]);
-		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService())).createContext(owner, references, chat);
+		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService())).createContext(owner, chat);
 		const requests: unknown[] = [];
 		store.add(autorun(reader => {
 			const current = context.openRequests?.read(reader);
@@ -287,8 +472,10 @@ suite('AgentHost canvases', () => {
 				};
 			}
 		}();
-		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [older, newest] }));
-		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService())).createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
+		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({
+			resource: owner.chat.toString(), turns: [older, newest], canvases: [{ resource: resource.toString() }],
+		}));
+		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, undefined, new NullLogService())).createContext(owner, chat);
 
 		assert.deepStrictEqual({ id: context.openRequests?.get().get('preview')?.id, olderReads }, { id: 'newest\u0000open', olderReads: 0 });
 	});

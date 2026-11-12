@@ -16,6 +16,7 @@ import type { CompletionsParams, CompletionsResult, CreateTerminalParams, Resolv
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
+import type { OpenCanvasParams } from '../common/state/protocol/channels-canvas/commands.js';
 import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
@@ -90,6 +91,8 @@ export class NullAgentHostService implements IAgentHostService {
 	async createChat(_session: URI, _chat: URI): Promise<void> { notSupported(); }
 	async setChatWorkspace(_chat: URI, _workspace: IAgentCreateChatWorkspace): Promise<void> { notSupported(); }
 	async disposeChat(_chat: URI): Promise<void> { }
+	async openCanvas(_params: OpenCanvasParams): Promise<void> { notSupported(); }
+	async disposeCanvas(_canvas: URI): Promise<void> { }
 	async createTerminal(_params: CreateTerminalParams): Promise<void> { notSupported(); }
 	async disposeTerminal(_terminal: URI): Promise<void> { }
 	async invokeChangesetOperation(_params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> { return notSupported(); }

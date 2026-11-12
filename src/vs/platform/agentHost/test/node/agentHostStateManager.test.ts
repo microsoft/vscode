@@ -27,6 +27,7 @@ import { supportsRemoteSessions } from '../../common/meta/agentRemoteSessionMeta
 import { collectAgentHostResources } from '../../node/agentHostResources.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
+import { CanvasRegistryStatus } from '../../common/state/protocol/channels-canvases/state.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -260,7 +261,7 @@ suite('AgentHostStateManager', () => {
 
 	test('hosts canvas state independently of chat membership and removes dead sources', () => {
 		manager.createSession(makeSessionSummary());
-		const resource = buildCanvasUri(URI.parse(sessionChatUri), 'preview').toString();
+		const resource = 'ahp-canvas:/client.example-opaque-preview';
 		const canvas: CanvasState = {
 			instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview',
 			url: 'https://example.test/preview',
@@ -272,26 +273,103 @@ suite('AgentHostStateManager', () => {
 			type: ActionType.ChatCanvasesChanged, canvases: [{ resource }],
 		});
 		const ready = manager.getSnapshot(resource)?.state;
+		const collection = manager.ensureCanvasCollection(sessionChatUri);
+		const collectionReady = manager.getSnapshot(collection)?.state;
 		const references = manager.getChatState(sessionChatUri)?.canvases;
 		const { url: _url, ...unavailable } = canvas;
 		manager.setCanvasState(sessionChatUri, resource, unavailable);
 		const cleared = manager.getSnapshot(resource)?.state;
 		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatCanvasesChanged, canvases: undefined });
+		const types = actions.map(action => action.action.type);
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, buildDefaultChatUri(sessionUri)));
+		assert.throws(() => manager.setCanvasState(peer, resource, canvas), /already bound to another chat/);
+		assert.throws(() => manager.setCanvasState(sessionChatUri, 'ahp-canvas:/encoded%2Fidentity', canvas), /Invalid ahp-canvas channel/);
 		assert.deepStrictEqual({
-			ready, cleared, references, removed: manager.getSnapshot(resource),
-			types: actions.map(action => action.action.type),
+			ready, cleared, references, removed: manager.getSnapshot(resource), collectionReady,
+			collectionEmpty: manager.getCanvasCollection(collection)?.state.canvases,
+			types,
 		}, {
 			ready: canvas, cleared: unavailable, references: [{ resource }], removed: undefined,
-			types: [ActionType.CanvasStateChanged, ActionType.ChatCanvasesChanged, ActionType.CanvasStateChanged, ActionType.ChatCanvasesChanged],
+			collectionReady: { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [{ resource }] },
+			collectionEmpty: [],
+			types: [ActionType.ChatCanvasesUriChanged, ActionType.CanvasStateChanged, ActionType.CanvasesCanvasSet, ActionType.ChatCanvasesChanged,
+			ActionType.CanvasStateChanged, ActionType.CanvasesCanvasRemoved, ActionType.ChatCanvasesChanged],
 		});
+	});
+
+	test('Canvas signals during chat registration preserve the new chat before its catalog entry is installed', () => {
+		const resource = 'ahp-canvas:/registered';
+		const canvas: CanvasState = { instanceId: 'registered', extensionId: 'preview', canvasId: 'preview' };
+		disposables.add(manager.onDidRegisterChat(({ chat }) => {
+			manager.setCanvasState(chat, resource, canvas);
+			manager.dispatchServerAction(chat, { type: ActionType.ChatCanvasesChanged, canvases: [{ resource }] });
+		}));
+		manager.createSession(makeSessionSummary());
+		const collection = manager.getChatState(sessionChatUri)?.canvasesUri;
+		assert.deepStrictEqual({
+			chat: manager.getChatState(sessionChatUri)?.resource,
+			canvas: manager.getCanvas(resource)?.state,
+			membership: collection ? manager.getCanvasCollection(collection)?.state.canvases : undefined,
+		}, { chat: sessionChatUri, canvas, membership: [{ resource }] });
+	});
+
+	test('Canvas membership batches preserve staged instances through initial publication and replacement', () => {
+		manager.createSession(makeSessionSummary());
+		const state = (id: string): CanvasState => ({ instanceId: id, extensionId: 'preview', canvasId: 'preview' });
+		const first = 'ahp-canvas:/first';
+		const second = 'ahp-canvas:/second';
+		const third = 'ahp-canvas:/third';
+		manager.setCanvasState(sessionChatUri, first, state('first'));
+		manager.setCanvasState(sessionChatUri, second, state('second'));
+		manager.dispatchServerAction(sessionChatUri, {
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: first }, { resource: second }],
+		});
+		const initial = [manager.getSnapshot(first)?.state, manager.getSnapshot(second)?.state];
+		manager.setCanvasState(sessionChatUri, third, state('third'));
+		manager.dispatchServerAction(sessionChatUri, {
+			type: ActionType.ChatCanvasesChanged,
+			canvases: [{ resource: second }, { resource: third }],
+		});
+		assert.deepStrictEqual({
+			initial,
+			replacement: [manager.getSnapshot(first)?.state, manager.getSnapshot(second)?.state, manager.getSnapshot(third)?.state],
+			legacy: manager.getChatState(sessionChatUri)?.canvases,
+			membership: manager.getCanvasCollection(manager.ensureCanvasCollection(sessionChatUri))?.state.canvases,
+		}, {
+			initial: [state('first'), state('second')],
+			replacement: [undefined, state('second'), state('third')],
+			legacy: [{ resource: second }, { resource: third }],
+			membership: [{ resource: second }, { resource: third }],
+		});
+	});
+
+	test('restored Canvas collection identity survives lazy chat hydration', async () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'canvas-peer');
+		manager.registerRestoredChatSummary(sessionUri, peer, {
+			storageResource: creationTimeChatStorageResource(sessionUri, peer, sessionChatUri),
+			resolver: async () => ({ turns: [] }),
+		});
+		const collection = manager.ensureCanvasCollection(peer);
+		const unresolved = manager.getSnapshot(peer);
+		const restored = await manager.resolveChatState(peer);
+		assert.deepStrictEqual({
+			unresolved,
+			restoredCollection: restored?.canvasesUri,
+			owner: manager.getCanvasCollection(collection)?.chat,
+			currentCollection: manager.getChatState(peer)?.canvasesUri,
+		}, { unresolved: undefined, restoredCollection: collection, owner: peer, currentCollection: collection });
 	});
 
 	test('session eviction removes owned live canvas channels', () => {
 		manager.createSession(makeSessionSummary());
 		const resource = buildCanvasUri(URI.parse(sessionChatUri), 'preview').toString();
 		manager.setCanvasState(sessionChatUri, resource, { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' });
+		const collection = manager.ensureCanvasCollection(sessionChatUri);
 		manager.removeSession(sessionUri);
-		assert.strictEqual(manager.getSnapshot(resource), undefined);
+		assert.deepStrictEqual([manager.getSnapshot(resource), manager.getSnapshot(collection)], [undefined, undefined]);
 	});
 
 	test('listener-owned envelopes share global ordering without mutating or emitting host state', () => {

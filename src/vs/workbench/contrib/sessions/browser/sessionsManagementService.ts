@@ -27,6 +27,7 @@ import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, I
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
+import type { ICanvasListOptions } from '../../canvases/common/canvas.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
@@ -1804,12 +1805,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await provider.moveSessionUnder(session.sessionId, destination.sessionId, after?.resource);
 	}
 
-	async listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot> {
+	async listCanvases(session: ISession, chat: IChat, options?: ICanvasListOptions): Promise<SessionCanvasDefinitionSnapshot> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.listCanvases) {
 			return [];
 		}
-		return provider.listCanvases(session.sessionId, chat.resource);
+		return provider.listCanvases(session.sessionId, chat.resource, options);
 	}
 
 	async openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {

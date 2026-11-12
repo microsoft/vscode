@@ -113,11 +113,21 @@ export interface ChatState {
 	 */
 	backgroundWork?: BackgroundWork[];
 	/**
+	 * Advertised `ahp-canvases:` collection owned by this exact chat.
+	 *
+	 * Clients prefer this collection over legacy `canvases` references, falling
+	 * back to those references when this pointer is absent. Advertising the URI
+	 * does not require materializing backing or starting extensions.
+	 * @stability 1.0
+	 */
+	canvasesUri?: URI;
+	/**
 	 * Live canvases currently exposed by this chat.
 	 *
 	 * Entries intentionally contain only subscribable channel references.
 	 * Clients subscribe to each resource for the experimental presentation
 	 * state, including its current live source URL.
+	 * @deprecated Prefer `canvasesUri`; this is a projection of the same membership.
 	 */
 	canvases?: CanvasReference[];
 	/**

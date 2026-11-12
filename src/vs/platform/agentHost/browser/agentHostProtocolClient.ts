@@ -46,7 +46,7 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentPolicyError, type AgentExtensionMode, type AgentExtensionSource, type AgentExtensionStatus, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlCredentialSealingRequest, type IAgentImportSessionOptions } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, CanvasesEnabledSettingId, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IAgentImportSessionOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
 import { sealAgentHostCredential } from './agentHostCredentialSealing.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
@@ -56,6 +56,7 @@ import { supportsAgentHostCopilotExtensions } from '../common/meta/agentHostCopi
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
 import { reviveSavedChat, type IAgentHostSavedChat, type IAgentHostSavedChatContinuation, type IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
+import type { OpenCanvasParams } from '../common/state/protocol/channels-canvas/commands.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
 import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
@@ -114,6 +115,8 @@ const AHP_CLIENT_CONNECTION_CLOSED = -32000;
 
 /** The first protocol version whose hosts may advertise `multipleChatProviders`. */
 const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
+/** The first protocol version that carries Canvas registry actions. */
+const CANVAS_REGISTRY_PROTOCOL_VERSION = '1.1.0';
 
 function toAgentExtensionMode(value: unknown): AgentExtensionMode | undefined {
 	if (typeof value !== 'string') {
@@ -393,6 +396,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _describeChatSubscriptionsOnReconnect = false;
 	/** Whether this connection already re-initialized for `multipleChatProviders` since the host's gate last turned on. */
 	private _reinitializedForChatProviders = false;
+	/** Whether this connection already re-initialized after Canvases required a newer protocol version. */
+	private _reinitializedForCanvases = false;
 	private readonly _connectionAuthority: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	private _serverSeq = 0;
@@ -592,7 +597,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/** The versions offered in `initialize`; read on every connection, so the setting applies from the next one. */
 	private _offeredProtocolVersions(): string[] {
-		return getAgentHostClientProtocolVersions(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true);
+		return getAgentHostClientProtocolVersions(
+			this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true,
+			this._configurationService.getValue<boolean>(CanvasesEnabledSettingId) === true,
+		);
 	}
 
 	/**
@@ -708,6 +716,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (e.affectsConfiguration(ChatProvidersSettingId.Enabled)) {
 				// The host's gate may already be on (e.g. mirrored by another window), so its root state won't change.
 				this._maybeReinitializeForChatProviders();
+			}
+			if (e.affectsConfiguration(CanvasesEnabledSettingId)) {
+				this._maybeReinitializeForCanvases();
 			}
 			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
 				this._updateAutoApprovePolicyRestriction();
@@ -1736,6 +1747,25 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._handleTransportClose('protocolReinitialize');
 	}
 
+	private _maybeReinitializeForCanvases(): void {
+		if (this._configurationService.getValue<boolean>(CanvasesEnabledSettingId) !== true) {
+			this._reinitializedForCanvases = false;
+			return;
+		}
+		if (this._state.kind !== AgentHostClientState.Connected || !this._transportFactory) {
+			return;
+		}
+		const result = this._initializeResult.get();
+		if (!result || compareProtocolVersions(result.protocolVersion, CANVAS_REGISTRY_PROTOCOL_VERSION) >= 0 || this._reinitializedForCanvases) {
+			return;
+		}
+		this._reinitializedForCanvases = true;
+		this._freshInitializeRequested = true;
+		this._logService.info(`[RemoteAgentHostProtocol] ${this._address} enabled Canvases after the handshake; re-initializing.`);
+		this._transportListeners.clear();
+		this._handleTransportClose();
+	}
+
 
 	private _updateAutoApprovePolicyRestriction(): void {
 		const policyRestricted = this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID)?.policyValue === false;
@@ -1895,7 +1925,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._subscriptionManager.getActiveSubscriptions();
 	}
 
-	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: Parameters<IAgentConnection['dispatch']>[1]): void {
 		// Assisted permissions feedback is restricted telemetry: it goes only to the host, never into this
 		// client's state. A replay after a reconnect resends the optimistic copy, so it drops the feedback.
 		const optimistic = action.type === ActionType.ChatToolCallConfirmed ? withoutAgentPermissionFeedback(action) : action;
@@ -2215,7 +2245,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	private dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _clientId: string, clientSeq: number): void {
+	private dispatchAction(channel: string, action: Parameters<IAgentConnection['dispatch']>[1], _clientId: string, clientSeq: number): void {
 		this._grantImplicitReadsForOutgoingAction(action);
 		if (action.type === ActionType.ChatTurnStarted) {
 			this._onDidConnectionDiagnostic.fire({
@@ -2450,6 +2480,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				: { kind: ChatMoveDestinationKind.NewSession },
 		});
 		return URI.parse(result.session);
+	}
+
+	async openCanvas(params: OpenCanvasParams): Promise<void> {
+		await this._sendRequest('openCanvas', params);
+	}
+
+	async disposeCanvas(canvas: URI): Promise<void> {
+		await this._sendRequest('disposeCanvas', { channel: canvas.toString() });
 	}
 
 	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
@@ -3109,7 +3147,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Inspect an outgoing client-dispatched action and grant implicit reads for
 	 * resources that the host will need to read after receiving the action.
 	 */
-	private _grantImplicitReadsForOutgoingAction(action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+	private _grantImplicitReadsForOutgoingAction(action: Parameters<IAgentConnection['dispatch']>[1]): void {
 		switch (action.type) {
 			case ActionType.SessionActiveClientSet:
 				if (action.activeClient.customizations) {

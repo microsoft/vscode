@@ -38,7 +38,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
+import { type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, type ICanvasListOptions, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
@@ -119,6 +119,7 @@ interface ICanvasStoreLifetime {
 	readonly ownerKey: string;
 	disposed: boolean;
 	request: object | undefined;
+	refreshGeneration: number;
 }
 
 interface IFocusedCanvasAction {
@@ -692,7 +693,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		const canvasStores = mapObservableArrayCached(this, visibleCanvasContexts, (context, store) => {
 			const owner = context.owner;
 			const ownerKey = canvasOwnerKey(owner);
-			const lifetime: ICanvasStoreLifetime = { ownerKey, disposed: false, request: undefined };
+			const lifetime: ICanvasStoreLifetime = { ownerKey, disposed: false, request: undefined, refreshGeneration: this.canvasRefreshGeneration.get() };
 			this.canvasStoreLifetimes.set(ownerKey, lifetime);
 			store.add(toDisposable(() => {
 				lifetime.disposed = true;
@@ -713,7 +714,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				return {
 					owner,
 					includeDefinition: () => true,
-					listCanvases: () => this.listCanvasDefinitions(context, lifetime, refreshGeneration, () => definitionProvider.listCanvases()),
+					listCanvases: () => this.listCanvasDefinitions(context, lifetime, refreshGeneration, options => definitionProvider.listCanvases(options)),
 				};
 			}, `[CopilotCanvasesWidget:${ownerKey}]`, this.logService)).definitions;
 			return { owner, definitions };
@@ -981,7 +982,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		this.render();
 	}
 
-	private async listCanvasDefinitions(context: ICanvasContext, lifetime: ICanvasStoreLifetime, refreshGeneration: number, listCanvases: () => Promise<CanvasDefinitionSnapshot>): Promise<CanvasDefinitionSnapshot> {
+	private async listCanvasDefinitions(context: ICanvasContext, lifetime: ICanvasStoreLifetime, refreshGeneration: number, listCanvases: (options?: ICanvasListOptions) => Promise<CanvasDefinitionSnapshot>): Promise<CanvasDefinitionSnapshot> {
 		const request = {};
 		lifetime.request = request;
 		const isCurrent = () => !this._store.isDisposed
@@ -991,6 +992,8 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (!isCurrent()) {
 			return undefined;
 		}
+		const retry = refreshGeneration > lifetime.refreshGeneration && this.canvasRefreshBatch?.generation === refreshGeneration;
+		lifetime.refreshGeneration = Math.max(lifetime.refreshGeneration, refreshGeneration);
 		const ownerKey = lifetime.ownerKey;
 		this.loadingCanvasOwnerKeys.add(ownerKey);
 		this.canvasErrors.delete(ownerKey);
@@ -1003,7 +1006,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 					return undefined;
 				})
 				: Promise.resolve(undefined);
-			const [definitionsResult, inventoryResult] = await Promise.allSettled([listCanvases(), inventoryPromise]);
+			const [definitionsResult, inventoryResult] = await Promise.allSettled([listCanvases(retry ? { retry: true } : undefined), inventoryPromise]);
 			const inventory = inventoryResult.status === 'fulfilled' ? inventoryResult.value : undefined;
 			if (isCurrent() && inventory) {
 				this.extensionInventories.set(ownerKey, inventory);
@@ -1298,15 +1301,14 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			if (!await this.closeCustomizationEditor()) {
 				return;
 			}
-			const instanceId = getCanvasDefinitionInstanceId(currentItem.canvas);
-			const existing = currentItem.context.canvases.get()?.find(candidate => candidate.instanceId === instanceId);
+			const existing = currentItem.context.canvases.get()?.find(candidate => candidate.extensionId === currentItem.canvas.extensionId && candidate.canvasId === currentItem.canvas.canvasId);
 			if (existing) {
 				await this.canvasService.revealCanvas({ ...currentItem.context.owner, canvas: existing.resource });
 				if (existing.source) {
 					return;
 				}
 			}
-			await currentItem.context.definitionProvider!.openCanvas(currentItem.canvas, instanceId);
+			await currentItem.context.definitionProvider!.openCanvas(currentItem.canvas, existing?.instanceId ?? getCanvasDefinitionInstanceId(currentItem.canvas));
 		} catch (error) {
 			this.notificationService.error(localize('copilotCanvases.openFailed', "Unable to open canvas {0}. {1}", currentItem.canvas.displayName, getErrorMessage(error)));
 		}

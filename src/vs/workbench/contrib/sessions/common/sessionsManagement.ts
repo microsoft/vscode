@@ -15,6 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasListOptions } from '../../canvases/common/canvas.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions } from './sessionsProvider.js';
 
 export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
@@ -720,7 +721,7 @@ export interface ISessionsManagementService {
 	acquireArtifactIntegration(session: ISession, artifactId: string): Promise<IReference<IArtifactModel> | undefined>;
 
 	/** List canvas types registered in one live chat. `undefined` is unsettled and must be followed by a canvas change when authoritative. */
-	listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot>;
+	listCanvases(session: ISession, chat: IChat, options?: ICanvasListOptions): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;

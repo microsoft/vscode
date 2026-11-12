@@ -10,6 +10,7 @@ import { buildOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { isShapedChatUri } from '../../common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 import assert from 'assert';
+import { CanvasRegistryStatus } from '../../common/state/protocol/channels-canvases/state.js';
 import { match, spy, stub } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
@@ -1439,7 +1440,10 @@ suite('AgentService (node dispatcher)', () => {
 				let canvasCredential: string | undefined;
 				class ScopedAgent extends MockAgent {
 					readonly supportsScopedCredentials = true;
-					listSessionCanvases = async () => [];
+					override listSessionCanvases = async () => [];
+					override openSessionCanvas: NonNullable<IAgent['openSessionCanvas']> = async (_session, _request, chat, context) => {
+						canvasCredential = resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token;
+					};
 					override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
 						getMessages: async (chat, context) => {
 							assert.ok(resolveAgentChatContext(context, chat).credentials);
@@ -1452,10 +1456,8 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				const data = createPerSessionDataService();
 				const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-				const provider: IAgent = disposables.add(new ScopedAgent('copilot'));
-				provider.openSessionCanvas = async (_session, _request, chat, context) => {
-					canvasCredential = resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token;
-				};
+				const provider = disposables.add(new ScopedAgent('copilot'));
+				provider.setCapabilities({ multipleChats: { fork: true }, canvases: {} });
 				registerTestAgentProvider(scopedService, provider);
 				const composition = getTestAgentServiceComposition(scopedService);
 				composition.configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
@@ -1494,6 +1496,33 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			});
 		}
+
+		test('a foreign Canvas sponsor cannot execute in an isolated session', async () => {
+			let openCalls = 0;
+			class ScopedAgent extends MockAgent {
+				readonly supportsScopedCredentials = true;
+				override openSessionCanvas: NonNullable<IAgent['openSessionCanvas']> = async () => {
+					openCalls++;
+				};
+			}
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const provider = disposables.add(new ScopedAgent('copilot'));
+			provider.setCapabilities({ multipleChats: { fork: true }, canvases: {} });
+			registerTestAgentProvider(scopedService, provider);
+			getTestAgentServiceComposition(scopedService).configurationService.updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+			const owner = source('1');
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'owner' }, owner);
+			const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot', credentials: owner });
+			const chat = URI.parse(hostDefaultChat(scopedService, session));
+			const foreign = source('2');
+			await scopedService.authenticate({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: 'foreign' }, foreign);
+
+			await assert.rejects(
+				scopedService.openSessionCanvas(session, { canvasId: 'preview', instanceId: 'preview' }, chat, foreign),
+				{ code: AhpErrorCodes.PermissionDenied },
+			);
+			assert.strictEqual(openCalls, 0);
+		});
 
 		test('fresh authentication reaches cold default-chat history before restore tries to read it', async () => {
 			const historyCredentials: (string | undefined)[] = [];
@@ -1792,6 +1821,136 @@ suite('AgentService (node dispatcher)', () => {
 			error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
 		service.unsubscribe(resource, 'canvas-viewer');
 		assert.deepStrictEqual(snapshot.state, canvas);
+	});
+
+	test('Canvas collection observation is passive and concurrent activation shares one materialization', async () => {
+		copilotAgent.setCapabilities({ canvases: {} });
+		registerTestAgentProvider(service, copilotAgent);
+		getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const collection = stateManager.ensureCanvasCollection(chat);
+		const listed = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		let materializations = 0;
+		copilotAgent.listSessionCanvases = async () => {
+			listed.complete();
+			return undefined;
+		};
+		copilotAgent.materializeSessionCanvases = async () => {
+			materializations++;
+			started.complete();
+			await gate.p;
+			stateManager.setCanvasRegistry(chat, { status: CanvasRegistryStatus.Ready, extensions: [] });
+		};
+		service.restoreSession = async () => { throw new Error('Collection observation must not restore a runtime'); };
+		const snapshot = await service.subscribe(URI.parse(collection), 'canvas-observer');
+		await listed.p;
+		const before = materializations;
+		await Promise.all([
+			service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-one', 1),
+			service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-two', 1),
+		]);
+		await started.p;
+		const loading = stateManager.getCanvasCollection(collection)?.state.registry;
+		const ready = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			envelope.action.type === ActionType.CanvasesRegistryChanged && envelope.action.registry.status === CanvasRegistryStatus.Ready));
+		gate.complete();
+		await ready;
+		service.unsubscribe(URI.parse(collection), 'canvas-observer');
+		assert.deepStrictEqual({ initial: snapshot.state, before, loading, materializations, registry: stateManager.getCanvasCollection(collection)?.state.registry }, {
+			initial: { registry: { status: CanvasRegistryStatus.Uninitialized }, canvases: [] },
+			before: 0,
+			loading: { status: CanvasRegistryStatus.Loading },
+			materializations: 1,
+			registry: { status: CanvasRegistryStatus.Ready, extensions: [] },
+		});
+	});
+
+	test('Canvas discovery stays coalesced while extensions start and passive observation preserves failures', async () => {
+		copilotAgent.setCapabilities({ canvases: {} });
+		registerTestAgentProvider(service, copilotAgent);
+		getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const collection = stateManager.ensureCanvasCollection(chat);
+		let materializations = 0;
+		let lists = 0;
+		copilotAgent.materializeSessionCanvases = async () => { materializations++; };
+		copilotAgent.listSessionCanvases = async () => { lists++; return []; };
+		await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 1);
+		await timeout(0);
+		await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 2);
+		const loading = stateManager.getCanvasCollection(collection)?.state.registry;
+		const error = { status: CanvasRegistryStatus.Error as const, error: { errorType: 'extensionFailed', message: 'Extension startup failed' } };
+		stateManager.setCanvasRegistry(chat, error);
+		await service.subscribe(URI.parse(collection), 'canvas-observer');
+		service.unsubscribe(URI.parse(collection), 'canvas-observer');
+		assert.deepStrictEqual({ materializations, lists, loading, current: stateManager.getCanvasCollection(collection)?.state.registry }, {
+			materializations: 1, lists: 0, loading: { status: CanvasRegistryStatus.Loading }, current: error,
+		});
+	});
+
+	test('a passive Canvas list cannot overwrite a newer published registry', async () => {
+		copilotAgent.setCapabilities({ canvases: {} });
+		registerTestAgentProvider(service, copilotAgent);
+		getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const collection = stateManager.ensureCanvasCollection(chat);
+		const gate = new DeferredPromise<void>();
+		const listed = new DeferredPromise<void>();
+		copilotAgent.listSessionCanvases = async () => {
+			listed.complete();
+			await gate.p;
+			return [];
+		};
+		await service.subscribe(URI.parse(collection), 'canvas-observer');
+		await listed.p;
+		const latest = {
+			status: CanvasRegistryStatus.Ready as const,
+			extensions: [{ id: 'preview', canvases: [{ id: 'preview', label: 'Preview', description: 'Latest declaration' }] }],
+		};
+		stateManager.setCanvasRegistry(chat, latest);
+		gate.complete();
+		await timeout(0);
+		service.unsubscribe(URI.parse(collection), 'canvas-observer');
+		assert.deepStrictEqual(stateManager.getCanvasCollection(collection)?.state.registry, latest);
+	});
+
+	test('Canvas registry failure is state and a later explicit request retries', async () => {
+		copilotAgent.setCapabilities({ canvases: {} });
+		registerTestAgentProvider(service, copilotAgent);
+		getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+		const chat = buildDefaultChatUri(session.toString());
+		const stateManager = getStateManager(service);
+		const collection = stateManager.ensureCanvasCollection(chat);
+		let attempts = 0;
+		copilotAgent.materializeSessionCanvases = async () => {
+			if (++attempts === 1) {
+				throw new Error('Discovery failed');
+			}
+			stateManager.setCanvasRegistry(chat, { status: CanvasRegistryStatus.Ready, extensions: [] });
+		};
+		const failed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			envelope.action.type === ActionType.CanvasesRegistryChanged && envelope.action.registry.status === CanvasRegistryStatus.Error));
+		await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 1);
+		await failed;
+		const error = stateManager.getCanvasCollection(collection)?.state.registry;
+		const ready = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+			envelope.action.type === ActionType.CanvasesRegistryChanged && envelope.action.registry.status === CanvasRegistryStatus.Ready));
+		await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 2);
+		await ready;
+		assert.deepStrictEqual({ error, attempts, registry: stateManager.getCanvasCollection(collection)?.state.registry }, {
+			error: { status: CanvasRegistryStatus.Error, error: { errorType: 'canvasRegistryFailed', message: 'Discovery failed' } },
+			attempts: 2,
+			registry: { status: CanvasRegistryStatus.Ready, extensions: [] },
+		});
 	});
 
 	test('subscribing checks writer ownership and Retry refreshes shared input state without a turn', async () => {
@@ -3966,28 +4125,38 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('lists, opens and closes canvases through the owning provider', async () => {
 			const calls: unknown[] = [];
+			const registryListGate = new DeferredPromise<void>();
+			let listCalls = 0;
 			const provider: IAgent = copilotAgent;
 			provider.listSessionCanvases = async (session, chat, context) => {
+				listCalls++;
 				const resolved = resolveAgentChatContext(context, chat);
 				calls.push(['list', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString()]);
+				if (listCalls === 2) {
+					await registryListGate.p;
+				}
 				return [{
 					canvasId: 'preview',
 					extensionId: 'project:preview',
 					extensionSource: 'project',
 					displayName: 'Preview',
 					description: 'Preview generated content.',
-					requiresInput: false,
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 					actionCount: 0,
 				}];
 			};
 			provider.openSessionCanvas = async (session, request, chat, context) => {
 				const resolved = resolveAgentChatContext(context, chat);
-				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), request]);
+				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), {
+					...request,
+					...(request.resource ? { resource: request.resource.toString() } : {}),
+				}]);
 			};
 			provider.closeSessionCanvas = async (session, request, chat, context) => {
 				const resolved = resolveAgentChatContext(context, chat);
 				calls.push(['close', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), request.resource.toString()]);
 			};
+			copilotAgent.setCapabilities({ multipleChats: { fork: true }, canvases: {} });
 			registerTestAgentProvider(service, provider);
 			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
 			const stateManager = getStateManager(service);
@@ -4017,9 +4186,31 @@ suite('AgentService (node dispatcher)', () => {
 				instanceId: 'project-preview-preview',
 			}, chat);
 			await managementService.closeSessionCanvas(session, { resource: URI.parse('ahp-canvas:/preview') }, chat);
+			const collection = stateManager.ensureCanvasCollection(chat.toString());
+			await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 1);
+			await service.dispatchAction(collection, { type: ActionType.CanvasesRegistryRequested }, 'canvas-client', 2);
+			await timeout(0);
+			assert.strictEqual(listCalls, 2);
+			registryListGate.complete();
+			await timeout(0);
+			const resource = URI.parse('ahp-canvas:/client.example-preview');
+			await service.openCanvas({
+				channel: resource.toString(),
+				canvases: collection,
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+			});
+			stateManager.setCanvasState(chat.toString(), resource.toString(), {
+				instanceId: 'provider-preview',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+			});
+			await service.disposeCanvas(resource);
 
 			assert.deepStrictEqual({
 				canvases,
+				registry: stateManager.getCanvasCollection(collection)?.state.registry,
+				standardCalls: calls.slice(-5),
 				calls,
 			}, {
 				canvases: [{
@@ -4028,9 +4219,33 @@ suite('AgentService (node dispatcher)', () => {
 					extensionSource: 'project',
 					displayName: 'Preview',
 					description: 'Preview generated content.',
-					requiresInput: false,
+					inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
 					actionCount: 0,
 				}],
+				registry: {
+					status: CanvasRegistryStatus.Ready,
+					extensions: [{
+						id: 'project:preview',
+						canvases: [{
+							id: 'preview',
+							label: 'Preview',
+							description: 'Preview generated content.',
+							inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+						}],
+					}],
+				},
+				standardCalls: [
+					['close', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', 'ahp-canvas:/preview'],
+					['list', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session'],
+					['restore', 'copilot:/canvas-session'],
+					['open', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', {
+						resource: resource.toString(),
+						resourceId: resource.toString(),
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+					}],
+					['close', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', resource.toString()],
+				],
 				calls: [
 					['restore', 'copilot:/canvas-session'],
 					['list', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session'],
@@ -4041,6 +4256,15 @@ suite('AgentService (node dispatcher)', () => {
 						instanceId: 'project-preview-preview',
 					}],
 					['close', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', 'ahp-canvas:/preview'],
+					['list', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session'],
+					['restore', 'copilot:/canvas-session'],
+					['open', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', {
+						resource: resource.toString(),
+						resourceId: resource.toString(),
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+					}],
+					['close', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', resource.toString()],
 				],
 			});
 		});
@@ -4051,6 +4275,7 @@ suite('AgentService (node dispatcher)', () => {
 			provider.closeSessionCanvas = async (_session, _request, chat) => {
 				closed.push(chat.toString());
 			};
+			copilotAgent.setCapabilities({ multipleChats: { fork: true }, canvases: {} });
 			registerTestAgentProvider(service, provider);
 			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
 			const stateManager = getStateManager(service);
@@ -4086,6 +4311,50 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ restoreCalls, resolverCalls, closed }, { restoreCalls: 0, resolverCalls: 0, closed: [coldPeer.toString()] });
 		});
 
+		test('reserves a canvas channel atomically and retains its declaration binding', async () => {
+			const gate = new DeferredPromise<void>();
+			let openCalls = 0;
+			copilotAgent.setCapabilities({ multipleChats: { fork: true }, canvases: {} });
+			copilotAgent.openSessionCanvas = async () => {
+				openCalls++;
+				await gate.p;
+			};
+			registerTestAgentProvider(service, copilotAgent);
+			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
+			const session = await service.createSession({ legacyChatUris: true, provider: copilotAgent.id });
+			const params = {
+				channel: 'ahp-canvas:/atomic-preview',
+				canvases: getStateManager(service).ensureCanvasCollection(buildDefaultChatUri(session.toString())),
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+			};
+
+			const first = service.openCanvas(params);
+			const joined = service.openCanvas(params);
+			await timeout(0);
+			await assert.rejects(service.openCanvas({ ...params, canvasId: 'other' }), /already bound to another chat or declaration/);
+			assert.strictEqual(openCalls, 1);
+			gate.complete();
+			await Promise.all([first, joined]);
+			await assert.rejects(service.openCanvas({ ...params, extensionId: 'project:other' }), /already bound to another chat or declaration/);
+			const stateManager = getStateManager(service);
+			stateManager.setCanvasState(buildDefaultChatUri(session.toString()), params.channel, {
+				instanceId: 'provider-preview',
+				extensionId: params.extensionId,
+				canvasId: params.canvasId,
+			});
+			await service.openCanvas(params);
+			assert.strictEqual(openCalls, 2);
+			stateManager.setCanvasState(buildDefaultChatUri(session.toString()), params.channel, {
+				instanceId: 'provider-preview',
+				extensionId: params.extensionId,
+				canvasId: params.canvasId,
+				url: 'https://example.test/preview',
+			});
+			await service.openCanvas(params);
+			assert.strictEqual(openCalls, 2);
+		});
+
 		test('rejects a foreign canvas chat before resolving it', async () => {
 			let providerCalls = 0;
 			const provider: IAgent = copilotAgent;
@@ -4093,6 +4362,7 @@ suite('AgentService (node dispatcher)', () => {
 				providerCalls++;
 				return [];
 			};
+			copilotAgent.setCapabilities({ multipleChats: { fork: true }, canvases: {} });
 			registerTestAgentProvider(service, provider);
 			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
 			const stateManager = getStateManager(service);

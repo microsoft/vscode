@@ -23,6 +23,7 @@ import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageP
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasListOptions } from '../../canvases/common/canvas.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -621,7 +622,7 @@ export interface ISessionsProvider {
 	acquireArtifactIntegration?(sessionId: string, artifactId: string): Promise<IReference<IArtifactModel>>;
 
 	/** List canvas types registered in one live chat. After returning `undefined`, republish the chat's canvases when an authoritative snapshot is available. */
-	listCanvases?(sessionId: string, chatResource: URI): Promise<SessionCanvasDefinitionSnapshot>;
+	listCanvases?(sessionId: string, chatResource: URI, options?: ICanvasListOptions): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
 	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;

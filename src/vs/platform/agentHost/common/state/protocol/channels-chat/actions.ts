@@ -44,8 +44,6 @@ interface ToolCallActionBase {
 /**
  * A new message has been sent to the agent, and a new turn starts.
  *
- * A client is only allowed to send {@link MessageKind.User} messages.
- *
  * @category Chat Actions
  * @version 1
  * @clientDispatchable
@@ -601,6 +599,7 @@ export interface ChatChangesetsChangedAction {
  *
  * Replaces {@link ChatState.canvases | `state.canvases`} entirely. Set to
  * `undefined` to clear the collection.
+ * @deprecated Prefer `ChatCanvasesUriChangedAction` and collection actions.
  *
  * @category Chat Actions
  * @version 1
@@ -609,6 +608,19 @@ export interface ChatCanvasesChangedAction {
 	type: ActionType.ChatCanvasesChanged;
 	/** New canvas channel references, or `undefined` to clear the collection. */
 	canvases: CanvasReference[] | undefined;
+}
+
+/**
+ * Replaces or clears the chat's advertised canvas collection URI.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @stability 1.0
+ */
+export interface ChatCanvasesUriChangedAction {
+	type: ActionType.ChatCanvasesUriChanged;
+	/** Owning collection URI, or `undefined` to clear the pointer. */
+	canvasesUri: URI | undefined;
 }
 
 /**
@@ -763,8 +775,6 @@ export interface ChatTurnsLoadedAction {
  *
  * If the chat is idle when a queued message is set, the server SHOULD
  * immediately consume it and start a new turn.
- *
- * A client is only allowed to send {@link MessageKind.User} messages.
  *
  * @category Chat Actions
  * @version 1
@@ -1015,6 +1025,7 @@ export type ChatAction =
 	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
 	| ChatCanvasesChangedAction
+	| ChatCanvasesUriChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
 	| ChatUsageAction
