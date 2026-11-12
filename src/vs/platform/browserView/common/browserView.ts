@@ -363,9 +363,9 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
 	if (original.scheme !== Schemas.file && original.scheme !== Schemas.vscodeRemote) {
 		return url;
 	}
-	// Encode the path so literal percent sequences in file names survive, but keep the query and fragment as is.
-	// The colon of a Windows drive letter must stay literal to be recognized when resolving relative URLs.
-	const path = URI.from({ scheme: Schemas.file, path: original.path }).toString().replace(/^file:\/\/\/(?<drive>[a-zA-Z])%3A(?=\/|$)/i, 'file:///$<drive>:');
+	// Encode each segment so literal percent sequences in file names survive. Colons are valid in
+	// both POSIX paths and Windows drive letters, and must stay literal for relative URLs to resolve.
+	const path = 'file://' + original.path.split('/').map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
 	const suffix = URI.from({ scheme: Schemas.file, path: '/', query: original.query, fragment: uri.fragment }).toString(true).slice('file:///'.length);
 	return path + suffix;
 }
