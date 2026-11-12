@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { extname } from '../../../../base/common/resources.js';
@@ -81,16 +82,19 @@ const STORAGE_KEY = 'untitledDocumentTelemetry.documents';
 interface IPersistedDocument {
 	readonly id: string;
 	readonly createdAt: number;
+	/** Hot exit also keeps empty documents, so a kept document has not necessarily been edited. */
+	edited: boolean;
 }
 
 interface ITrackedDocument extends IPersistedDocument {
 	readonly model: IUntitledTextEditorModel;
 	readonly disposables: DisposableStore;
-	edited: boolean;
 	reverted: boolean;
 	length: number;
-	/** The size before a revert emptied the document, to report the size of discarded content. */
-	lastNonEmptyLength: number;
+	/** The text model version and the length before the last content change, to tell what a revert emptied. */
+	lastChange: { readonly versionId: number; readonly previousLength: number } | undefined;
+	/** The length right before the last revert, e.g. the one Save As does before reporting the save, or Don't Save. */
+	lengthBeforeRevert: number | undefined;
 	language: string;
 	editorId: string | undefined;
 }
@@ -171,17 +175,22 @@ export class UntitledDocumentTelemetry extends Disposable implements IUntitledDo
 		const document: ITrackedDocument = {
 			id: persisted?.id ?? generateUuid(),
 			createdAt: persisted?.createdAt ?? Date.now(),
+			edited: persisted?.edited ?? false,
 			model,
 			disposables: new DisposableStore(),
-			edited: !!persisted,
 			reverted: false,
-			length: model.textEditorModel?.getValueLength() ?? 0,
-			lastNonEmptyLength: 0,
+			length: 0,
+			lastChange: undefined,
+			lengthBeforeRevert: undefined,
 			language: model.getLanguageId() ?? 'plaintext',
 			editorId: undefined,
 		};
 		this.documents.set(model.resource, document);
-		document.disposables.add(model.onDidRevert(() => document.reverted = true));
+		document.disposables.add(model.onDidRevert(() => {
+			document.reverted = true;
+			const changedByRevert = document.lastChange !== undefined && document.lastChange.versionId === model.textEditorModel?.getVersionId();
+			document.lengthBeforeRevert = changedByRevert ? document.lastChange!.previousLength : document.length;
+		}));
 
 		this.log({
 			kind: 'created',
@@ -190,6 +199,24 @@ export class UntitledDocumentTelemetry extends Disposable implements IUntitledDo
 			restored: !!persisted,
 			language: document.language,
 		});
+
+		if (model.textEditorModel) {
+			this.onDidChangeLength(document, model.textEditorModel);
+		}
+	}
+
+	/**
+	 * Content can arrive without an edit, e.g. the initial value of chat's Insert into New File or of
+	 * `openTextDocument({ content })`, so it goes through the same bookkeeping as edits.
+	 */
+	private onDidChangeLength(document: ITrackedDocument, textModel: ITextModel): void {
+		const previousLength = document.length;
+		document.length = textModel.getValueLength();
+		document.lastChange = { versionId: textModel.getVersionId(), previousLength };
+		if (!document.edited && document.length > 0) {
+			document.edited = true;
+			this.log({ kind: 'firstEdit', untitledDocumentId: document.id, msSinceCreated: Date.now() - document.createdAt });
+		}
 	}
 
 	private watchTextModel(model: ITextModel): void {
@@ -220,24 +247,15 @@ export class UntitledDocumentTelemetry extends Disposable implements IUntitledDo
 		if (model.uri.scheme === Schemas.untitled) {
 			disposables.add(model.onDidChangeContent(() => {
 				const document = this.documents.get(model.uri);
-				if (!document) {
-					return;
-				}
-
-				document.length = model.getValueLength();
-				if (document.length > 0) {
-					document.lastNonEmptyLength = document.length;
-				}
-				if (!document.edited && document.length > 0) {
-					document.edited = true;
-					this.log({ kind: 'firstEdit', untitledDocumentId: document.id, msSinceCreated: Date.now() - document.createdAt });
+				if (document) {
+					this.onDidChangeLength(document, model);
 				}
 			}));
 
 			const document = this.documents.get(model.uri);
 			if (document) {
-				document.length = model.getValueLength();
 				document.language = model.getLanguageId();
+				this.onDidChangeLength(document, model);
 			}
 		}
 	}
@@ -256,7 +274,13 @@ export class UntitledDocumentTelemetry extends Disposable implements IUntitledDo
 		}
 
 		const document = this.documents.get(model.resource);
-		if (document) {
+		if (!document) {
+			return;
+		}
+		if (document.reverted) {
+			// Save As reverts the source before it reports the save, so the save gets a chance to end the document first
+			document.disposables.add(disposableTimeout(() => this.end(model.resource, this.getClosedOutcome(document))));
+		} else {
 			this.end(model.resource, this.getClosedOutcome(document));
 		}
 	}
@@ -308,7 +332,7 @@ export class UntitledDocumentTelemetry extends Disposable implements IUntitledDo
 			language: document.language,
 			editorId: document.editorId,
 			msSinceCreated: Date.now() - document.createdAt,
-			sizeBucket: getSizeBucket(outcome === 'closedDiscarded' ? document.lastNonEmptyLength : document.length),
+			sizeBucket: getSizeBucket(document.reverted ? document.lengthBeforeRevert ?? document.length : document.length),
 		});
 	}
 
@@ -318,7 +342,7 @@ export class UntitledDocumentTelemetry extends Disposable implements IUntitledDo
 			const raw = JSON.parse(this.storageService.get(STORAGE_KEY, StorageScope.WORKSPACE, '{}')) as Record<string, IPersistedDocument>;
 			for (const [key, value] of Object.entries(raw)) {
 				if (typeof value?.id === 'string' && typeof value.createdAt === 'number') {
-					result.set(key, value);
+					result.set(key, { id: value.id, createdAt: value.createdAt, edited: value.edited === true });
 				}
 			}
 		} catch {
@@ -334,7 +358,7 @@ export class UntitledDocumentTelemetry extends Disposable implements IUntitledDo
 		const value: Record<string, IPersistedDocument> = {};
 		for (const document of this.documents.values()) {
 			if (this.survivesShutdown(document)) {
-				value[document.model.resource.toString()] = { id: document.id, createdAt: document.createdAt };
+				value[document.model.resource.toString()] = { id: document.id, createdAt: document.createdAt, edited: document.edited };
 			}
 		}
 		if (Object.keys(value).length > 0) {
