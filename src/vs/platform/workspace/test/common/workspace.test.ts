@@ -8,7 +8,7 @@ import { join } from '../../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IRawFileWorkspaceFolder, toWorkspaceIdentifier, Workspace, WorkspaceFolder } from '../../common/workspace.js';
+import { IRawFileWorkspaceFolder, ISingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, Workspace, WorkspaceFolder } from '../../common/workspace.js';
 import { toWorkspaceFolders } from '../../../workspaces/common/workspaces.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -56,6 +56,22 @@ suite('Workspace', () => {
 		assert.deepStrictEqual(
 			{ alternate: toWorkspaceIdentifier(alternate), primary: toWorkspaceIdentifier(primary), updated: updated.identity?.toString(), json: JSON.stringify(alternate.toJSON()).includes('identity') },
 			{ alternate: { id: 'id', uri: mainFolderUri }, primary: { id: 'id', uri: mainFolderUri }, updated: mainFolderUri.toString(), json: false });
+	});
+
+	test('update() keeps the identity across alternate locations and drops it for other workspaces', () => {
+		const folder = (uri: URI) => [new WorkspaceFolder({ uri, name: '', index: 0 })];
+		const workspace = new Workspace('id', folder(mainFolderUri), false, null, () => !isLinux, undefined, mainFolderUri);
+		const initial = workspace.identity?.toString();
+
+		workspace.update(new Workspace('id', folder(test1FolderUri), false, null, () => !isLinux, undefined, workspace.identity));
+		workspace.update(new Workspace('id', folder(test2FolderUri), false, null, () => !isLinux, undefined, workspace.identity));
+		const afterSwitches = { identity: workspace.identity?.toString(), folder: workspace.folders[0].uri.toString(), identifier: (toWorkspaceIdentifier(workspace) as ISingleFolderWorkspaceIdentifier).uri.toString() };
+
+		workspace.update(new Workspace('id', [...folder(test1FolderUri), ...folder(test2FolderUri)], false, workspaceConfigUri, () => !isLinux));
+
+		assert.deepStrictEqual(
+			{ initial, afterSwitches, multiRoot: workspace.identity },
+			{ initial: mainFolderUri.toString(), afterSwitches: { identity: mainFolderUri.toString(), folder: test2FolderUri.toString(), identifier: mainFolderUri.toString() }, multiRoot: undefined });
 	});
 
 	test('getFolder returns the closest folder if the uri is sub', () => {
