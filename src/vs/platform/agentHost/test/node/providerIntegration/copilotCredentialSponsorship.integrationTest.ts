@@ -172,9 +172,10 @@ suite('Copilot Agent credential sponsorship', function () {
 				});
 				const operations = [
 					{ name: 'view', arguments: { path: join(workspace, 'probe.txt') } },
-					{ name: 'apply_patch', input: `*** Begin Patch\n*** Update File: ${join(workspace, 'probe.txt')}\n@@\n-before\n+after\n*** Add File: ${join(workspace, 'created.txt')}\n+created-proof\n*** End Patch\n` },
+					{ name: 'edit', arguments: { path: join(workspace, 'probe.txt'), old_str: 'before', new_str: 'after' } },
+					{ name: 'create', arguments: { path: join(workspace, 'created.txt'), file_text: `created-proof${isWindows ? '\r\n' : '\n'}` } },
 					{ name: 'glob', arguments: { pattern: '*.txt', path: workspace } },
-					{ name: 'rg', arguments: { pattern: 'after', paths: workspace } },
+					{ name: 'grep', arguments: { pattern: 'after', path: workspace } },
 					{
 						name: isWindows ? 'powershell' : 'bash', arguments: {
 							command: isWindows
@@ -199,9 +200,7 @@ suite('Copilot Agent credential sponsorship', function () {
 						index: 0,
 						message: operation ? {
 							role: 'assistant', content: null,
-							tool_calls: [hasKey(operation, { input: true })
-								? { id: `call-${probe}-${calls}`, type: 'custom', custom: { name: operation.name, input: operation.input } }
-								: { id: `call-${probe}-${calls}`, type: 'function', function: { name: operation.name, arguments: JSON.stringify(operation.arguments) } }],
+							tool_calls: [{ id: `call-${probe}-${calls}`, type: 'function', function: { name: operation.name, arguments: JSON.stringify(operation.arguments) } }],
 						} : { role: 'assistant', content: `DONE:${probe}` },
 						finish_reason: operation ? 'tool_calls' : 'stop',
 					}],
@@ -449,7 +448,7 @@ suite('Copilot Agent credential sponsorship', function () {
 		]);
 		assert.deepStrictEqual({ github: githubTokens.length, model: modelTraffic.length, connectors: connectorTokens.length }, beforeDeletion);
 		await send('L-AFTER-DISPOSAL');
-		const codingTools = ['apply_patch', 'glob', 'rg', 'view', isWindows ? 'powershell' : 'bash'].sort();
+		const codingTools = ['create', 'edit', 'glob', 'grep', 'view', isWindows ? 'powershell' : 'bash'].sort();
 		const tokensByProbe = Object.fromEntries(['A', 'B', 'L', 'A-ROTATED', 'B-UNCHANGED', 'L-UNCHANGED', 'A-CONFIG', 'B-CONFIG', 'L-CONFIG', 'L-AFTER-DISPOSAL'].map(probe =>
 			[probe, [...new Set(modelTraffic.filter(traffic => traffic.probe === probe).map(traffic => traffic.token))]]));
 		const toolsByProbe = Object.fromEntries(['A', 'B', 'L'].map(probe =>
@@ -485,11 +484,11 @@ suite('Copilot Agent credential sponsorship', function () {
 				: []).join('\n');
 			return {
 				view: text(1).includes('before'),
-				glob: text(3).includes('probe.txt') && text(3).includes('created.txt'),
-				rg: text(4).includes('probe.txt'),
-				shell: text(5).includes('SHELL_EXECUTION_PROOF'),
-				shellCredential: probe === 'L' ? undefined : text(5).includes('SHELL_CREDENTIAL_PROOF'),
-				scopedSentinelsAbsent: probe === 'L' ? undefined : Object.keys(credentialEnvironmentSentinels).every(key => text(5).includes(`ENV_FAKE_${key}=absent`)),
+				glob: text(4).includes('probe.txt') && text(4).includes('created.txt'),
+				grep: text(5).includes('probe.txt'),
+				shell: text(6).includes('SHELL_EXECUTION_PROOF'),
+				shellCredential: probe === 'L' ? undefined : text(6).includes('SHELL_CREDENTIAL_PROOF'),
+				scopedSentinelsAbsent: probe === 'L' ? undefined : Object.keys(credentialEnvironmentSentinels).every(key => text(6).includes(`ENV_FAKE_${key}=absent`)),
 			};
 		});
 		const files = await Promise.all(['A', 'B', 'L'].map(async name => ({
@@ -518,7 +517,7 @@ suite('Copilot Agent credential sponsorship', function () {
 			tokensByProbe: { A: ['A'], B: ['B'], L: ['L'], 'A-ROTATED': ['AR'], 'B-UNCHANGED': ['B'], 'L-UNCHANGED': ['L'], 'A-CONFIG': ['AR'], 'B-CONFIG': ['B'], 'L-CONFIG': ['L'], 'L-AFTER-DISPOSAL': ['L'] },
 			toolsByProbe: { A: [...codingTools], B: [...codingTools], L: [...codingTools] },
 			files: [0, 1, 2].map(() => ({ edited: 'after\n', created: `created-proof${isWindows ? '\r\n' : '\n'}`, shellExecuted: true })),
-			toolOutcomes: ['A', 'B', 'L'].map(probe => ({ view: true, glob: true, rg: true, shell: true, shellCredential: probe === 'L' ? undefined : true, scopedSentinelsAbsent: probe === 'L' ? undefined : true })),
+			toolOutcomes: ['A', 'B', 'L'].map(probe => ({ view: true, glob: true, grep: true, shell: true, shellCredential: probe === 'L' ? undefined : true, scopedSentinelsAbsent: probe === 'L' ? undefined : true })),
 			promptContexts: [0, 1, 2].map(() => ({ instructions: true, environment: true, ancestorInstructions: false, workspaceSkill: true })),
 			storage: [0, 1].map(() => ({ token: undefined, mode: 'empty', stops: 1, errors: 0 })),
 			stoppedScoped: [1, 1, 1, 1, 1],
@@ -526,7 +525,7 @@ suite('Copilot Agent credential sponsorship', function () {
 			legacyStartupTokenKinds: [undefined],
 			legacyAmbientTokenKinds: ['ENV_COPILOT_SDK_AUTH_TOKEN'],
 			connectorTokenKinds: ['A', 'AR', 'B', 'L'],
-			toolCompletions: 15, unexpectedRequests: [],
+			toolCompletions: 18, unexpectedRequests: [],
 			githubTokenKinds: ['A', 'AR', 'B', 'ENV_COPILOT_SDK_AUTH_TOKEN', 'L'],
 			scopedRuntimeTokens: ['A', 'AR', 'AR', 'B', 'B'],
 		});
