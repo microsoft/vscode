@@ -28,7 +28,7 @@ export interface IBrowserViewPromptSettledEvent {
  */
 export class BrowserViewPrompts extends Disposable {
 
-	private readonly _pending = new Map<string, (value: string | null) => void>();
+	private readonly _pending = new Map<string, { readonly request: IBrowserViewPromptRequestEvent; readonly respond: (value: string | null) => void }>();
 
 	private readonly _onDidRequestPrompt = this._register(new Emitter<IBrowserViewPromptRequestEvent>());
 	/** Fires for prompts the workbench UI should show. */
@@ -56,7 +56,7 @@ export class BrowserViewPrompts extends Disposable {
 			return;
 		}
 		const request = { requestId: generateUuid(), origin, message, defaultValue };
-		this._pending.set(request.requestId, respond);
+		this._pending.set(request.requestId, { request, respond });
 		this._onDidOpenPrompt.fire(request);
 		if (responders.workbench) {
 			this._onDidRequestPrompt.fire(request);
@@ -64,21 +64,21 @@ export class BrowserViewPrompts extends Disposable {
 	}
 
 	respond(requestId: string, value: string | null): void {
-		const respond = this._pending.get(requestId);
-		if (respond) {
+		const pending = this._pending.get(requestId);
+		if (pending) {
 			this._pending.delete(requestId);
-			respond(value);
+			pending.respond(value);
 			this._onDidSettlePrompt.fire({ requestId, value });
 		}
 	}
 
-	/** Answer the longest-waiting prompt. Returns whether there was one. */
-	respondToOldest(value: string | null): boolean {
-		const [requestId] = this._pending.keys();
-		if (requestId === undefined) {
+	/** Answer the longest-waiting prompt, deriving the answer from its request. Returns whether there was one. */
+	respondToOldest(getValue: (request: IBrowserViewPromptRequestEvent) => string | null): boolean {
+		const [pending] = this._pending.values();
+		if (!pending) {
 			return false;
 		}
-		this.respond(requestId, value);
+		this.respond(pending.request.requestId, getValue(pending.request));
 		return true;
 	}
 

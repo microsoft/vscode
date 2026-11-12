@@ -47,9 +47,9 @@ suite('BrowserViewPrompts', () => {
 		ask('Name?');
 		assert.deepStrictEqual({ requests: requests.length, opened, answers }, { requests: 0, opened: ['Name?'], answers: [] });
 
-		assert.strictEqual(prompts.respondToOldest('Grace'), true);
-		assert.strictEqual(prompts.respondToOldest('late'), false);
-		assert.deepStrictEqual({ answers, settled }, { answers: ['Grace'], settled: ['Grace'] });
+		assert.strictEqual(prompts.respondToOldest(request => request.defaultValue), true);
+		assert.strictEqual(prompts.respondToOldest(() => 'late'), false);
+		assert.deepStrictEqual({ answers, settled }, { answers: ['default'], settled: ['default'] });
 	});
 
 	test('settleAll cancels every pending prompt, for example on navigation', () => {

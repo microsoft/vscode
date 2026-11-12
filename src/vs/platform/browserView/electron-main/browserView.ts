@@ -1147,7 +1147,7 @@ export class BrowserView extends Disposable {
 			}
 			const { accept, promptText } = params as { accept?: boolean; promptText?: string };
 			// Only claim the command when it answers our prompt. Otherwise it is for a native dialog.
-			const answered = this._prompts.respondToOldest(accept ? (promptText ?? '') : null);
+			const answered = this._prompts.respondToOldest(request => accept ? (promptText ?? request.defaultValue) : null);
 			return answered ? Promise.resolve({}) : undefined;
 		}));
 	}
