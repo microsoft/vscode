@@ -386,9 +386,12 @@ export function usesSSHConfigFile(preferenceKey: string, isWebPlatform: boolean 
 export function getCopyableRemoteAddress(entry: IRemoteAgentHostEntry | undefined): string | undefined {
 	const connection = entry?.connection;
 	switch (connection?.type) {
-		case RemoteAgentHostEntryType.SSH:
+		case RemoteAgentHostEntryType.SSH: {
+			const port = connection.port ?? 22;
+			const includePort = port !== 22 || connection.hostName.includes(':');
 			return connection.sshConfigHost
-				?? `${connection.user ? `${connection.user}@` : ''}${connection.hostName}${connection.port && connection.port !== 22 ? `:${connection.port}` : ''}`;
+				?? `${connection.user ? `${connection.user}@` : ''}${connection.hostName}${includePort ? `:${port}` : ''}`;
+		}
 		case RemoteAgentHostEntryType.WebSocket:
 			return connection.address;
 		default:

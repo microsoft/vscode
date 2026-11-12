@@ -229,7 +229,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: async context => {
 			await render(context, 900, OS, false, [], false, undefined, false, { connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' });
-			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!.click();
+			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connect-action')!.click();
+			await waitForFixtureCondition(() => context.container.querySelector('.remotes-task-title')?.textContent === 'Troubleshoot connection', 'Recovery should be open before capture');
 		},
 	}),
 	RunBehaviorDraft: defineComponentFixture({
@@ -244,7 +245,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 		labels: { kind: 'screenshot' },
 		render: async context => {
 			await render(context, 360, OS, false, [], false, undefined, false, { height: 500, connectionError: 'connect ECONNREFUSED 127.0.0.1:43192' });
-			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connection-warning')!.click();
+			context.container.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-connect-action')!.click();
+			await waitForFixtureCondition(() => context.container.querySelector('.remotes-task-title')?.textContent === 'Troubleshoot connection', 'Recovery should be open before capture');
 		},
 	}),
 	ShortEmpty: defineComponentFixture({
