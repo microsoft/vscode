@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { type ITunnelApplicationConfig } from '../../../../../../../base/common/product.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { AgentHostProtocolClient } from '../../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getProtocolMessageSize } from '../../../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -176,6 +177,8 @@ function createBrowserTunnelService(
 	};
 	const productService: IProductService = { ...TestProductService, tunnelApplicationConfig };
 	const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stubInstance(AgentHostProtocolClient, {});
 
 	return store.add(new BrowserTunnelAgentHostService(
 		connectionOptions ? new class extends mock<IRemoteAgentHostService>() {
@@ -185,7 +188,7 @@ function createBrowserTunnelService(
 			}
 		}() : createRemoteAgentHostService(),
 		new NullLogService(),
-		store.add(new TestInstantiationService()),
+		instantiationService,
 		configurationService,
 		authenticationService,
 		productService,
@@ -275,6 +278,21 @@ suite('BrowserTunnelAgentHostService', () => {
 		assert.ok(factory);
 		await assert.rejects(factory.createConnection(factory.entries.get()[0], { userInitiated: true }), /Authenticated connection reached the gateway/);
 		assert.deepStrictEqual(interactiveProviders, ['github']);
+	});
+
+	test('records the server type selected by the gateway for the connected address', async () => {
+		let factory: IRemoteAgentHostConnectionFactory | undefined;
+		const service = createBrowserTunnelService(store,
+			[{ id: 'github', accessToken: 'token', scopes: ['tunnel'], account: { id: 'github', label: 'GitHub' } }],
+			async () => [], undefined, {
+			onFactory: value => { factory = value; },
+			createSession: async () => { throw new Error('Unexpected interactive authentication'); },
+		});
+		service.cacheTunnel(tunnel, 'github');
+		assert.ok(factory);
+		const before = service.getSelectedServerType(connection.address);
+		await factory.createConnection(factory.entries.get()[0], { userInitiated: true });
+		assert.deepStrictEqual({ before, after: service.getSelectedServerType(connection.address) }, { before: undefined, after: 'editor' });
 	});
 
 	test('filters discovered tunnels below the supported protocol version', () => {

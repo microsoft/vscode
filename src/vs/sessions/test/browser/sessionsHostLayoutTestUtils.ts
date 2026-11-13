@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ISessionsHostLayoutService } from '../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 
 /**

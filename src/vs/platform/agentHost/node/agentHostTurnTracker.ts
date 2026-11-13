@@ -670,6 +670,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			timing.fusion = {
 				autoTier: fusion.autoTier ?? timing.fusion.autoTier,
 				fusionModel: fusion.fusionModel ?? timing.fusion.fusionModel,
+				modelRouterOutcome: fusion.modelRouterOutcome ?? timing.fusion.modelRouterOutcome,
 			};
 		}
 	}

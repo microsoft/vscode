@@ -25,24 +25,24 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation, SessionNameKind } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { SessionsFlatList, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { createListHarness, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import '../../browser/views/sessionsViewActions.js';
-import { ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, stubPaneHost, testGridPane, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestQuickInputService extends mock<IQuickInputService>() {
 	result: string | undefined;
@@ -778,7 +778,7 @@ suite('Sessions rename', () => {
 			});
 			instantiationService.stub(IQuickInputService, quickInputService);
 			instantiationService.stub(ISessionsManagementService, managementService);
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 			}());
 			stubMissingSessionHostsFromSessionsService(instantiationService);
@@ -924,7 +924,7 @@ suite('Sessions rename', () => {
 			instantiationService.stub(ICommandService, commandService);
 			// The view of the pane that shows the session: the grid's active pane.
 			const viewHost = upcastPartial<ISessionHost>({ kind: SessionHostKind.Pane });
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
 				override getPaneOfHost(host: ISessionHost) { return host === viewHost ? testGridPane(session) : undefined; }
 			});
@@ -995,7 +995,7 @@ suite('Sessions rename', () => {
 				override getSessionView() { return fallbackView; }
 				override getActiveSessionView() { return fallbackView; }
 			});
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable<ITestSessionWithChat | undefined>(activeSession);
 			});
 			stubMissingSessionHostsFromSessionsService(instantiationService);

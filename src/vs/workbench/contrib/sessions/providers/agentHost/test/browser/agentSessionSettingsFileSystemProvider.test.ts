@@ -17,7 +17,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../.
 import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import type { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../browser/sessionsProvidersService.js';
-import type { ISession } from '../../../../common/session.js';
+import type { ISession } from '../../../../../../services/sessions/common/session.js';
 import type { ISessionsProvider } from '../../../../common/sessionsProvider.js';
 import { agentSessionSettingsUri, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from '../../browser/agentSessionSettingsFileSystemProvider.js';
 

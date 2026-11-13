@@ -26,10 +26,10 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
+import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../../../workbench/services/sessions/common/sessionChangesService.js';
 import { CLOSE_CHAT_WINDOW_COMMAND_ID, CLOSE_CHAT_WINDOW_EDITOR_AREA_COMMAND_ID, chatWindowTabEntries } from '../../browser/chatWindowActions.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { TestEditorInput } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -159,24 +159,34 @@ suite('Chat window editor area', () => {
 		assert.deepStrictEqual(events, ['2:showEditor', 'changes:/session-2:/chat-2:20']);
 	});
 
-	test('the Changes entry activates a Changes tab of the session the main part shows, such as one that moved in with the chat or was restored, rather than opening another', async () => {
-		const events: string[] = [];
+	test('the Changes entry activates the Changes tab of the chat the window shows, else opens one for that chat, rather than a tab of its session or of another chat', async () => {
 		const session = { sessionId: 'session-2', resource: URI.parse('test:/session-2'), detachedChat: URI.parse('test:/chat-2') } as LegacyFakePaneState;
-		// Of the session, not of its chat, and of another session.
-		const ofSession = new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse('changes:/session-2'); }();
-		const ofOther = new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse('changes:/other'); }();
-		const instantiationService = createInstantiationService(createWindow(2, events, [ofOther, ofSession]), session);
-		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
-			override getSessionResource(resource: URI) { return resource.scheme === 'changes' ? URI.parse(`test:${resource.path}`) : undefined; }
-			override async openChangesEditor(resource: URI) {
-				events.push(`changes:${resource.path}`);
-				return undefined;
-			}
-		}());
-		const changes = chatWindowTabEntries.find(entry => entry.id === 'sessions.chatWindow.openChanges')!;
-		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(changes.id)!.handler(accessor));
+		const tab = (path: string) => new class extends mock<EditorInput>() { override readonly typeId = 'changes'; override readonly resource = URI.parse(`changes:${path}`); }();
+		const ofSession = tab('/session-2');
+		const ofOtherChat = tab('/session-2/chat-3');
+		const ofShownChat = tab('/session-2/chat-2');
+		const run = async (editors: EditorInput[]) => {
+			const events: string[] = [];
+			const instantiationService = createInstantiationService(createWindow(2, events, editors), session);
+			instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+				override getChangesEditorResource(resource: URI, chatResource?: URI) { return URI.parse(`changes:${resource.path}${chatResource?.path ?? ''}`); }
+				override async openChangesEditor(resource: URI, options: ISessionChangesEditorOptions | undefined) {
+					events.push(`open:${resource.path}:${options?.chatResource?.path}`);
+					return undefined;
+				}
+			}());
+			const changes = chatWindowTabEntries.find(entry => entry.id === 'sessions.chatWindow.openChanges')!;
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(changes.id)!.handler(accessor));
+			return events;
+		};
 
-		assert.deepStrictEqual(events, ['2:showEditor', 'activate:/session-2']);
+		assert.deepStrictEqual({
+			withItsTab: await run([ofSession, ofOtherChat, ofShownChat]),
+			withoutItsTab: await run([ofSession, ofOtherChat]),
+		}, {
+			withItsTab: ['2:showEditor', 'activate:/session-2/chat-2'],
+			withoutItsTab: ['2:showEditor', 'open:/session-2:/chat-2'],
+		});
 	});
 
 	test('the Browser entry opens a browser in the main part of its chat window and focuses its URL input', async () => {

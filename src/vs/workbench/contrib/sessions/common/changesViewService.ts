@@ -6,7 +6,7 @@
 import { constObservable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from './session.js';
+import { IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ChangesViewMode, IsolationMode } from './changes.js';
 
 export interface ActiveSessionState {
@@ -88,6 +88,28 @@ export interface IChangesSessionScope {
 	 * that host, such as a chat window, rather than on another that shows the session.
 	 */
 	readonly hostCommandContext?: { readonly sessionHostId: string };
+}
+
+/**
+ * The scope of the Changes editor that UI is created in, such as the header that shows its picker: UI injects it as it does
+ * its session host. `undefined` outside a Changes editor, where UI takes the scope of its window.
+ */
+export interface IChangesEditorScope {
+	readonly _serviceBrand: undefined;
+	readonly scope: IChangesSessionScope | undefined;
+	/**
+	 * Whether the Changes editor does not show the changes of its scope yet: while it resolves the diffs of an input it
+	 * switched to, or while those changes load. Its header shows no stats meanwhile, which could be of other changes.
+	 */
+	readonly changesPendingObs?: IObservable<boolean>;
+}
+
+export const IChangesEditorScope = createDecorator<IChangesEditorScope>('changesEditorScope');
+
+/** The {@link IChangesEditorScope} of UI outside a Changes editor. */
+export class NoChangesEditorScope implements IChangesEditorScope {
+	declare readonly _serviceBrand: undefined;
+	readonly scope = undefined;
 }
 
 /** The changes observables of the active session, assembled from the service's `activeSession*` observables. */

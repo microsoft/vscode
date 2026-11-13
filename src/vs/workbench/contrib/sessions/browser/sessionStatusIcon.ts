@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { createPixelSpinner } from '../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { SessionStatus } from '../common/session.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
 
 const $ = DOM.$;

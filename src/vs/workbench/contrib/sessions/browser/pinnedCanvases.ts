@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import type { ICanvas, ICanvasReference } from '../../canvases/common/canvas.js';
+import type { ICanvas, ICanvasReference } from '../../../common/canvasReference.js';
 
 /** The custom view that shows the selected pinned canvas full-page. */
 export const PINNED_CANVAS_PAGE_ID = 'sessions.customView.canvas';

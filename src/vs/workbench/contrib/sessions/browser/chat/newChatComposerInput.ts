@@ -14,9 +14,11 @@ import { IChatInputPickerResponsiveLayoutItem } from '../../../chat/browser/widg
 import { IModelPickerComparison } from '../../../chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../chat/browser/widget/input/editor/chatPasteProviders.js';
 import { IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
-import { IWorkspaceSelectionSnapshot } from '../../common/workspaceSelection.js';
+import { IChatDraft } from '../../../chat/common/attachments/chatDraft.js';
+import { IWorkspaceSelectionSnapshot } from '../../../../services/sessions/common/workspaceSelection.js';
+import { IComposerInputSnapshot } from '../../common/newChatDraftState.js';
 import { isInputGitHubContext, toInputGitHubContextMetadata } from '../../common/newChatContextIds.js';
-import type { IChat, ISession } from '../../common/session.js';
+import type { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
 import type { NewChatUserInteraction } from './newChatUserInteraction.js';
 import type { ISessionTypePickerOptions } from './sessionTypePicker.js';
@@ -98,6 +100,8 @@ export interface INewChatInputSendRequest {
 	readonly attachments?: IChatRequestVariableEntry[];
 	readonly background?: boolean;
 	readonly userInteraction?: NewChatUserInteraction;
+	/** The send's attempt in the composer's {@link INewChatComposerInputOptions.inputSnapshot}, when it has one. */
+	readonly attemptId?: string;
 }
 
 /** Repository controls a host renders in place of the session provider's. */
@@ -121,6 +125,16 @@ export interface INewChatComposerInputOptions {
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
 	readonly canApplyWorkspaceDefault?: () => boolean;
 	readonly sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+	/**
+	 * Keeps the composer's input for a host outside the main window, instead of the main composer's saved draft: the
+	 * composer restores from it, writes every change to it and brackets each send with an attempt.
+	 */
+	readonly inputSnapshot?: IComposerInputSnapshot;
+	readonly onDidChangeDraft?: (draft: IChatDraft) => void;
+	readonly onWillSendDraft?: (draft: IChatDraft) => void;
+	readonly onDidSendDraft?: (accepted: boolean) => void;
+	readonly canSchedule?: IObservable<boolean>;
+	readonly scheduleRequest?: (anchor: HTMLElement | undefined) => Promise<(() => void) | undefined>;
 	/** Keep an in-place composer's read-only editor focusable while confirming and sending. */
 	readonly preserveInputFocusOnSend?: boolean;
 	/**
@@ -130,6 +144,8 @@ export interface INewChatComposerInputOptions {
 	readonly confirmSend?: (query: string) => Promise<boolean>;
 	readonly inputVisible?: IObservable<boolean>;
 	readonly hostVisible?: IObservable<boolean>;
+	/** Shows the chat widget only while {@link inputVisible} and {@link hostVisible} are both `true`. */
+	readonly hideChatWidgetWhileHidden?: boolean;
 	readonly canSendRequest: IObservable<boolean>;
 	readonly canSubmitWithoutSession?: IObservable<boolean>;
 	readonly hasAdditionalSendContent?: IObservable<boolean>;
@@ -162,4 +178,10 @@ export interface INewChatComposerInputOptions {
 	 * chat widget. The welcome composer leaves this unset.
 	 */
 	readonly voiceRoutesWhileSessionActive?: boolean;
+	/**
+	 * Whether it can be the target of Voice Mode, which addresses one composer of the whole workbench: the composer it last
+	 * mounted or focused. Unset, it can; a composer of a host of its own, such as a chat window's, cannot, so that it never
+	 * takes Voice Mode from the main window's composer.
+	 */
+	readonly voiceTarget?: boolean;
 }

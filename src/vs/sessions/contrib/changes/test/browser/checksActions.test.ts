@@ -13,7 +13,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChat } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
 import { IGitHubService, IGitHubSessionPullRequestObservables } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';

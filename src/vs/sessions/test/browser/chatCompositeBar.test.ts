@@ -37,14 +37,15 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { ISessionsPartService } from '../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/contrib/sessions/common/session.js';
-import { ISessionPaneTabs, ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import '../../../workbench/contrib/sessions/browser/parts/media/chatGroupsView.css';
-import '../../../workbench/contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../workbench/browser/parts/sessions/media/sessionsPart.css';
+import '../../../workbench/contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../workbench/contrib/sessions/browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
 import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
@@ -52,7 +53,8 @@ import '../../../workbench/contrib/sessions/browser/media/chatBackground.css';
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/connectedEditorTabs.js';
-import { ISessionHost } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionPaneTabs } from '../../../workbench/services/sessions/common/sessionPane.js';
 
 class TestResizeObserver implements ResizeObserver {
 	static instance: TestResizeObserver | undefined;
@@ -197,6 +199,7 @@ interface IChatCompositeBarHarness {
 	readonly activeChatResource: ISettableObservable<string>;
 	readonly visible: ISettableObservable<boolean>;
 	readonly showSessionActions: ISettableObservable<boolean>;
+	readonly renamedChats: readonly string[];
 }
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean; readonly secondaryHarness?: string; readonly knownHarnesses?: IObservable<readonly string[]>; readonly accessibilityService?: IAccessibilityService; readonly providerLookup?: (providerId: string, sessionId?: string) => ISessionsProvider | undefined }): IChatCompositeBarHarness {
@@ -255,8 +258,12 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	});
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(IEditorGroupsService, editorGroupsService);
+	const renamedChats: string[] = [];
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
+		override async renameChat(_session: ISession, chatResource: URI, title: string): Promise<void> {
+			renamedChats.push(`${chatResource.toString()}: ${title}`);
+		}
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { });
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -283,7 +290,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	container.appendChild(bar.element);
 	const tabs = Array.from(bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab'));
 
-	return { store, instantiationService, commandService, contextMenuService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions };
+	return { store, instantiationService, commandService, contextMenuService, sessionsService, editorGroupsService, bar, container, session, tabs, chats, activeChatResource, visible, showSessionActions, renamedChats };
 }
 
 suite('Sessions - ChatCompositeBar', () => {
@@ -1589,6 +1596,26 @@ suite('Sessions - ChatCompositeBar', () => {
 			mouseUpDefaultPrevented: false,
 			auxClickDefaultPrevented: false,
 		});
+	});
+
+	test('rename input commits on Enter and on blur, and Escape cancels', () => {
+		const { renamedChats, tabs } = createHarness(disposables);
+		const rename = (title: string, end: (input: HTMLInputElement) => void) => {
+			tabs[1].dispatchEvent(new MouseEvent(EventType.DBLCLICK, { bubbles: true, button: 0, cancelable: true }));
+			const input = tabs[1].querySelector<HTMLInputElement>('.chat-composite-bar-tab-input input')!;
+			input.value = title;
+			end(input);
+		};
+		const pressKey = (input: HTMLInputElement, key: string, keyCode: number) => input.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key, code: key, keyCode, bubbles: true, cancelable: true }));
+
+		rename('Committed on Enter', input => pressKey(input, 'Enter', 13));
+		rename('Committed on blur', input => input.dispatchEvent(new FocusEvent(EventType.BLUR)));
+		rename('Cancelled with Escape', input => {
+			pressKey(input, 'Escape', 27);
+			input.dispatchEvent(new FocusEvent(EventType.BLUR));
+		});
+
+		assert.deepStrictEqual(renamedChats, ['test-chat://secondary: Committed on Enter', 'test-chat://secondary: Committed on blur']);
 	});
 
 	test('rename input lets clipboard and editing shortcuts reach the workbench keybinding dispatcher without driving the tab', () => {

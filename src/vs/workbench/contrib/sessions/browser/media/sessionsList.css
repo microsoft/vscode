@@ -13,6 +13,27 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
+.sessions-list-control .session-item .session-scheduled-indicator {
+	display: none;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	/* Match the adjacent action labels' icon width and horizontal padding. */
+	width: calc(var(--vscode-codiconFontSize) + var(--vscode-spacing-size60));
+	margin-right: var(--vscode-spacing-size40);
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+
+	&.visible {
+		display: flex;
+		margin-left: auto;
+
+		+ .session-title-toolbar {
+			margin-left: 0;
+		}
+	}
+}
+
 .agent-sessions-navigation-container {
 	.monaco-list-row {
 		left: var(--vscode-spacing-size40);
@@ -127,7 +148,11 @@
 
 		/* The opaque sticky background hides the row tint, so paint it as an overlay. */
 		&:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input) {
-			background-image: linear-gradient(color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent), color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent));
+			background-image: linear-gradient(color-mix(in srgb, var(--vscode-agentSessionNeedsInput-foreground) 8%, transparent), color-mix(in srgb, var(--vscode-agentSessionNeedsInput-foreground) 8%, transparent));
+
+			:is(.hc-black, .hc-light) & {
+				background-image: none;
+			}
 		}
 	}
 
@@ -152,13 +177,16 @@
 		border-radius: var(--vscode-cornerRadius-small);
 
 		> .monaco-tl-row {
-			border-radius: inherit;
+			border-radius: var(--vscode-cornerRadius-small);
 		}
 	}
 
 	&.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
 		padding-bottom: var(--vscode-spacing-size20);
 		background-clip: content-box;
+		/* Content-box clipping subtracts the bottom padding from the vertical corner radii. */
+		border-bottom-left-radius: var(--vscode-cornerRadius-small) calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20));
+		border-bottom-right-radius: var(--vscode-cornerRadius-small) calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20));
 		outline: 0 !important;
 	}
 
@@ -196,7 +224,26 @@
 	/* Suppressed while selected so the selection highlight is not overpainted. */
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input),
 	.monaco-list-row:not(.selected):not(.focused):not(:hover, .hovered) .session-chat-item.needs-input {
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+		background-color: color-mix(in srgb, var(--vscode-agentSessionNeedsInput-foreground) 8%, transparent);
+
+		:is(.hc-black, .hc-light) & {
+			background-color: transparent;
+
+			.session-attention-indicator {
+				display: block;
+			}
+		}
+	}
+
+	.session-attention-indicator {
+		display: none;
+		position: absolute;
+		top: var(--vscode-spacing-size40);
+		bottom: var(--vscode-spacing-size40);
+		left: 0;
+		width: var(--vscode-spacing-size20);
+		background-color: var(--vscode-agentSessionNeedsInput-foreground);
+		pointer-events: none;
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -333,7 +380,8 @@
 			display: block;
 		}
 
-		.session-external-application-badge-title {
+		.session-external-application-badge-title,
+		.session-scheduled-indicator.visible {
 			display: none;
 		}
 
@@ -355,6 +403,36 @@
 }
 
 /* Session Item */
+
+.sessions-list-primary {
+	height: 100%;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.sessions-list-control.inbox-layout {
+	&:not(.compact) .session-item:not(.quick-chat, .session-comparison-attempt) {
+		padding-top: var(--vscode-spacing-size40);
+		padding-bottom: var(--vscode-spacing-size40);
+
+		.session-title-row {
+			padding-bottom: var(--vscode-spacing-size20);
+		}
+	}
+
+	.session-section {
+		font-weight: var(--vscode-fontWeight-regular);
+
+		.session-section-count {
+			margin-left: auto;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.session-section-toolbar.has-no-actions {
+			display: none;
+		}
+	}
+}
 
 .session-item {
 	display: flex;
@@ -380,6 +458,10 @@
 			width: var(--vscode-spacing-size20);
 			border-radius: var(--vscode-cornerRadius-circle);
 			background-color: var(--vscode-focusBorder);
+		}
+
+		> .session-attention-indicator {
+			left: var(--vscode-spacing-size40);
 		}
 	}
 
@@ -731,6 +813,41 @@
 	}
 }
 
+.sessions-list-control .session-inline-actions {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	grid-column: 1 / -1;
+
+	.monaco-button {
+		width: auto;
+		min-width: 0;
+		max-width: 100%;
+		font-size: var(--vscode-fontSize-label1);
+		overflow: hidden;
+
+		> span:not(.codicon) {
+			min-width: 0;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		> .codicon {
+			flex-shrink: 0;
+		}
+	}
+
+	&[hidden] {
+		display: none;
+	}
+}
+
+.phone-layout .sessions-list-control .session-inline-actions .monaco-button {
+	min-height: 44px;
+	box-sizing: border-box;
+}
+
 .sessions-list-control.compact {
 	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		top: var(--vscode-spacing-size60);
@@ -929,6 +1046,29 @@
 			text-overflow: ellipsis;
 			font-size: var(--vscode-fontSize-label1, 12px);
 		}
+
+		.session-approval-working-directory {
+			display: flex;
+			align-items: center;
+			gap: var(--vscode-spacing-size40);
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-fontSize-label1);
+
+			.codicon {
+				flex-shrink: 0;
+				font-size: var(--vscode-codiconFontSize-compact);
+			}
+		}
+
+		/* Right-to-left so a long path is cut at its start, keeping the folders nearest the command.
+			`pre` rather than `nowrap` keeps repeated spaces, which can be all that tells two paths apart. */
+		.session-approval-working-directory-path {
+			min-width: 0;
+			overflow: hidden;
+			white-space: pre;
+			text-overflow: ellipsis;
+			direction: rtl;
+		}
 	}
 
 	.session-approval-button {
@@ -940,6 +1080,11 @@
 			white-space: nowrap;
 		}
 	}
+}
+
+/* The approval row's hover shows the working directory as inline code; keep its repeated spaces too. */
+.monaco-hover.session-approval-hover code {
+	white-space: pre-wrap;
 }
 
 /*
@@ -1333,6 +1478,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		color: var(--session-group-foreground, inherit);
 	}
 
 	.session-section-icon {
@@ -1351,24 +1497,6 @@
 		opacity: 0.7;
 		margin-left: 4px;
 		margin-right: 4px;
-	}
-
-	&.session-section-inbox .session-section-count {
-		opacity: 1;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		box-sizing: border-box;
-		min-width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
-		padding: 0 var(--vscode-spacing-size40);
-		margin-left: var(--vscode-spacing-size40);
-		margin-right: var(--vscode-spacing-size40);
-		border-radius: var(--vscode-cornerRadius-circle);
-		background-color: var(--vscode-activityBarBadge-background);
-		color: var(--vscode-activityBarBadge-foreground);
-		font-size: var(--vscode-fontSize-label3);
-		font-weight: var(--vscode-fontWeight-semiBold);
 	}
 
 	.session-section-keybinding {
@@ -1409,11 +1537,6 @@
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
-}
-
-.hc-black .session-section.session-section-inbox .session-section-count,
-.hc-light .session-section.session-section-inbox .session-section-count {
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
 .monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,
@@ -1464,10 +1587,18 @@
 
 .sessions-list-control {
 	.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label,
-	.monaco-list-row.focused .session-section .session-section-label,
+	.monaco-list-row.focused .session-section .session-section-label {
+		color: var(--session-group-hover-foreground, var(--vscode-strongForeground));
+	}
+
 	.monaco-list-row:is(:hover, .hovered) .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
+	}
+
+	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored,
+	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored .session-section-label {
+		color: inherit;
 	}
 
 	&.session-section-focus-from-pointer {

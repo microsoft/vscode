@@ -108,13 +108,13 @@ export class ReleaseNotesTryouts extends Disposable {
 	}
 
 	render(container: HTMLElement): void {
-		// eslint-disable-next-line no-restricted-syntax -- Fetched HTML does not have workbench element references.
+		// eslint-disable-next-line eslint-js/no-restricted-syntax -- Fetched HTML does not have workbench element references.
 		for (const element of container.querySelectorAll('[data-release-notes-tryout-id], [data-release-notes-tryout-index]')) {
 			element.removeAttribute('data-release-notes-tryout-id');
 			element.removeAttribute('data-release-notes-tryout-index');
 		}
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		for (const link of container.querySelectorAll<HTMLAnchorElement>('a[href]')) {
 			let id: string | undefined;
 			try {
@@ -350,7 +350,7 @@ export class ReleaseNotesTryouts extends Disposable {
 	}
 }
 
-/* eslint-disable no-restricted-syntax -- These functions inspect an isolated, serialized webview document. */
+/* eslint-disable eslint-js/no-restricted-syntax -- These functions inspect an isolated, serialized webview document. */
 function applyReleaseNotesTryoutState(element: HTMLElement, state: IReleaseNotesTryoutState): void {
 	const link = element.querySelector<HTMLAnchorElement>('.release-notes-tryout-link')!;
 	const message = element.querySelector<HTMLElement>('.release-notes-tryout-message')!;
@@ -442,4 +442,4 @@ export function initializeReleaseNotesTryouts(
 	vscode.postMessage({ type: 'releaseNotesTryoutsReady', documentId });
 	return () => controller.abort();
 }
-/* eslint-enable no-restricted-syntax */
+/* eslint-enable eslint-js/no-restricted-syntax */

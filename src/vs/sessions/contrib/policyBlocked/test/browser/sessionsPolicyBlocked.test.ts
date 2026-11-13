@@ -28,7 +28,7 @@ import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPol
 import { getManagedSettingsUpdateInfo, IManagedSettingsUpdateInfo, IManagedSettingsUpdateService } from '../../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.contribution.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 

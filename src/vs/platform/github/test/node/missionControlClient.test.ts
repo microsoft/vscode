@@ -23,7 +23,7 @@ import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
 import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
 import { ClientTokenResponse } from '../../common/missionControl/environments.js';
-import { ApiRequestError, MissionControlClient } from '../../common/missionControl/missionControlClient.js';
+import { ApiRequestError, MissionControlClient, MutationUncertainError, paginated } from '../../common/missionControl/missionControlClient.js';
 import { Task } from '../../common/missionControl/tasks.js';
 
 const signal = () => new AbortController().signal;
@@ -309,7 +309,7 @@ suite('Mission Control client', () => {
 		});
 	}
 
-	test('collects automation, task, run, and event pages with final metadata and unsummed totals', async () => {
+	test('collects automation, task, run, and event pages with conservative metadata and unsummed totals', async () => {
 		const { prompt, ...summary } = automation;
 		const event = { id: 'event', timestamp: date, parentId: null, type: 'message', data: { text: 'Hello' } };
 		const { client, requests } = setup(({ url }) => {
@@ -322,7 +322,13 @@ suite('Mission Control client', () => {
 				: url.pathname.endsWith('/events')
 					? { events: [{ ...event, id: `event-${number}` }], total: 2 }
 					: { tasks: [{ ...task, id: `task-${number}` }], total_active_count: 2 };
-			return Response.json(data, { headers: { date: serverDate, ...(second ? {} : { link: `<${next.href}>; rel="next"` }) } });
+			return Response.json(data, {
+				headers: {
+					date: second ? 'Thu, 01 Jan 2026 00:01:00 GMT' : serverDate,
+					'retry-after': second ? '30' : '120',
+					...(second ? {} : { link: `<${next.href}>; rel="next"` }),
+				},
+			});
 		});
 		const results = [
 			await client.automations.list(repository, signal(), { maxPages: 2 }),
@@ -336,7 +342,7 @@ suite('Mission Control client', () => {
 				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
 				{ tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 2 },
 				{ events: [1, 2].map(number => ({ ...event, id: `event-${number}` })), total: 2 },
-			].map(data => ({ data, nextLink: undefined, serverDate })),
+			].map(data => ({ data, nextLink: undefined, serverDate, retryAfterSeconds: 120 })),
 			requests: [
 				`${collection}/v2`, `${collection}/v2?page=2`,
 				'/agents/tasks', '/agents/tasks?page=2',
@@ -346,12 +352,37 @@ suite('Mission Control client', () => {
 		});
 	});
 
+	test('page parsers receive original metadata while only the collection aggregates it', async () => {
+		const laterDate = 'Thu, 01 Jan 2026 00:01:00 GMT';
+		const { providers } = setup(({ url }) => {
+			const second = url.searchParams.has('page');
+			return Response.json([second ? 'second' : 'first'], {
+				headers: {
+					date: second ? laterDate : serverDate, 'retry-after': second ? '30' : '120',
+					...(second ? {} : { link: `<${apiBaseUri}/agents/tasks?page=2>; rel="next"` }),
+				},
+			});
+		});
+		const client = new MissionControlClient(providers.missionControl);
+		const observed: { serverDate: string | undefined; retryAfterSeconds: number | undefined }[] = [];
+		const result = await client.requestPages({
+			method: 'GET', path: '/tasks', expectedStatus: 200, options: { maxPages: 2 },
+		}, signal(), response => {
+			observed.push({ serverDate: response.metadata?.serverDate, retryAfterSeconds: response.metadata?.retryAfterSeconds });
+			return paginated(response, parse.strings(response.data));
+		}, pages => ({ ...pages[pages.length - 1], data: pages.flatMap(page => page.data) }));
+		assert.deepStrictEqual({ observed, result }, {
+			observed: [{ serverDate, retryAfterSeconds: 120 }, { serverDate: laterDate, retryAfterSeconds: 30 }],
+			result: { data: ['first', 'second'], nextLink: undefined, serverDate, retryAfterSeconds: 120 },
+		});
+	});
+
 	test('partial Mission Control pages keep a continuation but later errors still reject', async () => {
-		let failSecondPage = false;
+		let failure: 'http' | 'schema' | undefined;
 		const { client } = setup(({ url }) => {
 			const page = Number(url.searchParams.get('page') ?? 1);
-			if (page === 2 && failSecondPage) {
-				return Response.json({ message: 'Denied' }, { status: 403 });
+			if (page === 2 && failure) {
+				return failure === 'http' ? Response.json({ message: 'Denied' }, { status: 403 }) : Response.json({ tasks: [{}] });
 			}
 			return Response.json({ tasks: [{ ...task, id: `task-${page}` }], total_active_count: 3 }, {
 				headers: { link: `<${apiBaseUri}/agents/tasks?page=${page + 1}>; rel="next"`, date: serverDate },
@@ -367,17 +398,180 @@ suite('Mission Control client', () => {
 			data: { tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })), total_active_count: 3 },
 			nextLink: `${apiBaseUri}/agents/tasks?page=3`, serverDate,
 		});
-		failSecondPage = true;
-		await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }), { kind: 'authorization' });
+		for (failure of ['http', 'schema'] as const) {
+			await assert.rejects(client.tasks.list(signal(), { maxPages: 3, pageLimitBehavior: 'returnPartial' }),
+				failure === 'http' ? { kind: 'authorization' } : SchemaError);
+		}
 	});
 
 	test('single-page Mission Control limits reject invalid or repeated continuations', async () => {
-		for (const link of ['not-a-link; rel="next"', `<${apiBaseUri}/agents/tasks>; rel="next"`]) {
+		for (const link of [
+			'not-a-link; rel="next"',
+			`<${apiBaseUri}/agents/tasks>; rel="next"`,
+			'<https://unapproved.example.test/agents/tasks?page=2>; rel="next"',
+			'<https://user:secret@api.github.com/agents/tasks?page=2>; rel="next"',
+			'<https://api.github.com/agents/environments?page=2>; rel="next"',
+			'<https://api.githubcopilot.com/agents/tasks/task/events?page=2>; rel="next"',
+			'<https://api.github.com/agents/tasks?page=2#fragment>; rel="next"',
+		]) {
 			const { client, requests } = setup(() => Response.json({ tasks: [task] }, { headers: { link } }));
 			await assert.rejects(client.tasks.list(signal(), { maxPages: 1, pageLimitBehavior: 'returnPartial' }), { kind: 'malformedResponse' });
 			assert.strictEqual(requests.length, 1);
 		}
 	});
+
+	test('task lists reject page and cursor together before resolving credentials', async () => {
+		const { client, requests, identities } = setup(() => Response.json({ tasks: [] }));
+		for (const maxPages of [undefined, 3]) {
+			await assert.rejects(client.tasks.list(signal(), {
+				// @ts-expect-error Runtime callers must also be rejected when both pagination modes are supplied.
+				query: { page: 1, cursor: 'next' }, maxPages,
+			}), { kind: 'validation' });
+		}
+		const rejectedRequests = { requests: requests.length, identities: identities.length };
+		await client.tasks.list(signal(), { query: { cursor: 'next', per_page: 100 } });
+		assert.deepStrictEqual({
+			rejectedRequests,
+			pagination: requests.map(({ url }) => ({ page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor') })),
+		}, {
+			rejectedRequests: { requests: 0, identities: 0 },
+			pagination: [{ page: null, cursor: 'next' }],
+		});
+	});
+
+	test('task reads preserve nullable and provisioning compute metadata', async () => {
+		const provisioning = { ...task, compute: { provider: '' }, current_environment: { id: 'environment', kind: 'managed-sandbox' } };
+		const unbound = { ...task, id: 'unbound', compute: null };
+		const { client } = setup(({ url }) => Response.json(url.pathname === '/agents/tasks' ? { tasks: [unbound, provisioning] } : provisioning));
+		const listed = await client.tasks.list(signal());
+		const detail = await client.tasks.get(task.id, signal());
+		assert.deepStrictEqual({ tasks: listed.data.tasks, detail }, { tasks: [unbound, provisioning], detail: provisioning });
+	});
+
+	test('task batches accept 50 IDs and reject unsupported sizes before resolving credentials', async () => {
+		const ids = Array.from({ length: 50 }, (_, index) => `task-${index}`);
+		const returned = [{ ...task, id: ids[0], compute: null }, { ...task, id: ids[49] }];
+		const { client, requests, identities } = setup(() => Response.json({ tasks: returned }));
+		for (const invalid of [[], [...ids, 'extra']]) {
+			await assert.rejects(client.tasks.getBatch(invalid, signal()), { kind: 'validation' });
+		}
+		const rejectedRequests = { requests: requests.length, identities: identities.length };
+		const tasks = await client.tasks.getBatch(ids, signal());
+		assert.deepStrictEqual({
+			rejectedRequests, tasks,
+			requests: requests.map(({ url, init }) => ({
+				method: init.method, path: url.pathname, ids: url.searchParams.get('task_ids')?.split(','),
+			})),
+		}, {
+			rejectedRequests: { requests: 0, identities: 0 }, tasks: returned,
+			requests: [{ method: 'GET', path: '/agents/tasks/batch', ids }],
+		});
+	});
+
+	test('task batches reject malformed and unrequested rows instead of treating them as omissions', async () => {
+		for (const returned of [{ id: task.id }, { ...task, id: 'unrequested' }]) {
+			const { client } = setup(() => Response.json({ tasks: [returned] }));
+			await assert.rejects(client.tasks.getBatch([task.id], signal()), SchemaError);
+		}
+	});
+
+	test('task continuations preserve omitted filters across page and cursor transitions', async () => {
+		const links = [
+			'https://api.github.com/agents/tasks?page=2',
+			'?cursor=next&per_page=50',
+			'?page=3',
+		];
+		let page = 0;
+		const { client, requests } = setup(() => {
+			const link = links[page++];
+			return Response.json({ tasks: [] }, { headers: link ? { link: `<${link}>; rel="next"` } : {} });
+		});
+		await client.tasks.list(signal(), {
+			query: {
+				page: 1, per_page: 100, with_repo: false, is_archived: true, since: date,
+				sort: 'updated_at', direction: 'desc', include_environment_kinds: 'managed-sandbox',
+				artifact_type: 'pull', artifact_state: ['open', 'draft'],
+			},
+			maxPages: 4,
+		});
+		assert.deepStrictEqual(requests.map(({ url }) => ({
+			origin: url.origin, path: url.pathname,
+			page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor'), size: url.searchParams.get('per_page'),
+			repository: url.searchParams.get('with_repo'), archived: url.searchParams.get('is_archived'),
+			since: url.searchParams.get('since'), sort: url.searchParams.get('sort'), direction: url.searchParams.get('direction'),
+			environments: url.searchParams.get('include_environment_kinds'),
+			artifact: url.searchParams.get('artifact_type'), states: url.searchParams.getAll('artifact_state'),
+		})), [
+			{ page: '1', cursor: null, size: '100' },
+			{ page: '2', cursor: null, size: '100' },
+			{ page: null, cursor: 'next', size: '50' },
+			{ page: '3', cursor: null, size: '50' },
+		].map(pagination => ({
+			origin: apiBaseUri, path: '/agents/tasks', ...pagination,
+			repository: 'false', archived: 'true', since: date, sort: 'updated_at', direction: 'desc',
+			environments: 'managed-sandbox', artifact: 'pull', states: ['open', 'draft'],
+		})));
+	});
+
+	test('task lists bound normalized proxy and cursor walks through empty pages', async () => {
+		const dates = ['Thu, 01 Jan 2026 00:01:00 GMT', serverDate, 'Thu, 01 Jan 2026 00:02:00 GMT'];
+		const hints = [120, 30, 60];
+		const scope = 'per_page=100&with_repo=false&is_archived=true&since=2026-01-01T00%3A00%3A00Z&include_counts=false';
+		let page = 0;
+		const { client, requests } = setup(() => {
+			const index = page++;
+			return Response.json({ tasks: index === 0 ? [] : [{ ...task, id: `task-${index}` }] }, {
+				headers: {
+					date: dates[index], 'retry-after': String(hints[index]),
+					link: index === 0 ? `<https://API.GITHUB.COM:443/agents/tasks?page=2&${scope}>; rel="next"`
+						: `<?cursor=cursor-${index + 2}&${scope}>; rel="next"`,
+				},
+			});
+		}, {
+			...clientOptions(),
+			missionControl: {
+				endpoint: { apiBaseUri: 'https://API.GITHUBCOPILOT.COM:443/agents/', integrationId: 'test-integration' },
+			},
+		});
+		const result = await client.tasks.list(signal(), {
+			query: { page: 1, per_page: 100, with_repo: false, is_archived: true, since: date, include_counts: false },
+			maxPages: 3, pageLimitBehavior: 'returnPartial',
+		});
+		assert.deepStrictEqual({
+			tasks: result.data.tasks,
+			next: result.nextLink, serverDate: result.serverDate, retryAfterSeconds: result.retryAfterSeconds,
+			requests: requests.map(({ url }) => ({
+				origin: url.origin, path: url.pathname, repository: url.searchParams.get('with_repo'),
+				archived: url.searchParams.get('is_archived'), since: url.searchParams.get('since'),
+				size: url.searchParams.get('per_page'), counts: url.searchParams.get('include_counts'),
+				page: url.searchParams.get('page'), cursor: url.searchParams.get('cursor'),
+			})),
+		}, {
+			tasks: [1, 2].map(number => ({ ...task, id: `task-${number}` })),
+			next: `?cursor=cursor-4&${scope}`, serverDate, retryAfterSeconds: 120,
+			requests: [
+				{ page: '1', cursor: null }, { page: '2', cursor: null }, { page: null, cursor: 'cursor-3' },
+			].map(pagination => ({
+				origin: apiBaseUri, path: '/agents/tasks', repository: 'false', archived: 'true', since: date,
+				size: '100', counts: 'false', ...pagination,
+			})),
+		});
+	});
+
+	test('successful list polling hints are exposed without blocking unrelated work', () => runWithFakedTimers({ startTime: Date.parse(date) }, async () => {
+		const { service, client, requests } = setup(({ url }) => url.pathname === '/agents/tasks'
+			? Response.json({ tasks: [] }, { headers: { 'retry-after': '120' } })
+			: Response.json({ id: 'env', name: 'Environment', kind: 'managed-sandbox', status: 'online' }));
+		try {
+			const page = await client.tasks.list(signal());
+			await client.environments.get('env', signal());
+			assert.deepStrictEqual({ retryAfterSeconds: page.retryAfterSeconds, attempts: requests.map(request => request.at - Date.parse(date)) }, {
+				retryAfterSeconds: 120, attempts: [0, 0],
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
 
 	test('automation discovery preserves public metadata without inventing internal fields or defaults', async () => {
 		const tools: readonly AutomationToolGroup[] = [{
@@ -953,7 +1147,7 @@ suite('Mission Control client', () => {
 			return Response.json(emptyPage, { headers: { etag: `"${token}"` } });
 		}, clientOptions(), { onDidChange: Event.None, getToken: () => token });
 		await client.automations.list(repository, signal());
-		const rejected = assert.rejects(client.automations.list(repository, signal()), { kind: 'authentication' });
+		const rejected = assert.rejects(client.automations.list(repository, signal()), { kind: 'unknown', message: 'GitHub credential generation was superseded' });
 		await started.p;
 		token = 'replacement';
 		await client.tasks.list(signal());
@@ -1041,15 +1235,78 @@ suite('Mission Control client', () => {
 		}
 	});
 
+	for (const identity of ['task', 'session']) {
+		test(`rejects whitespace-only ${identity} identifiers before returning creation receipts`, async () => {
+			const response = identity === 'task' ? { ...task, id: ' ' }
+				: { ...task, sessions: [{ id: '\t\n', state: 'idle', created_at: date }] };
+			const { client } = setup(() => Response.json(response, { status: 201 }));
+			await assert.rejects(client.tasks.create({ prompt: 'Work' }, signal()), MutationUncertainError);
+		});
+	}
+
+	test('creation and reservation claims preserve receipts and serialize repository names on the wire', async () => {
+		const requestId = 'ABCD:1234:5678:90AB:CDEF';
+		const { client, requests } = setup(({ init }) => {
+			const reserve = JSON.parse(String(init.body)).reserve === true;
+			return Response.json({
+				...task, ...(reserve ? { reserved: true, reservation_expires_at: date } : { claimed: true }),
+			}, { status: reserve ? 201 : 200, headers: { 'x-github-request-id': requestId } });
+		});
+		const results = [
+			await client.tasks.create({ prompt: '', repositories: [repository], reserve: true }, signal()),
+			await client.tasks.create({ prompt: 'Work', repositories: [repository], reserved_task_id: task.id }, signal()),
+		];
+		assert.deepStrictEqual({
+			receipts: results.map(result => ({ status: result.status, data: result.data, requestId: result.metadata?.requestId })),
+			bodies: requests.map(request => JSON.parse(String(request.init.body))),
+		}, {
+			receipts: [
+				{ status: 201, data: { ...task, reserved: true, reservation_expires_at: date }, requestId },
+				{ status: 200, data: { ...task, claimed: true }, requestId },
+			],
+			bodies: [
+				{ prompt: '', repositories: [{ owner: 'owner', name: 'repo' }], reserve: true },
+				{ prompt: 'Work', repositories: [{ owner: 'owner', name: 'repo' }], reserved_task_id: task.id },
+			],
+		});
+	});
+
+	test('model discovery preserves catalog metadata and uses its API version only for the models route', async () => {
+		const catalog = {
+			data: [{
+				id: 'future-model', name: 'Future', model_picker_enabled: false, policy: { state: 'disabled' },
+				billing: { multiplier: 2, tiers: [{ name: 'future-tier', multiplier: 3 }] },
+				capabilities: { supports: { vision: true, reasoning_effort: ['future-effort'] } },
+			}],
+			default_model: 'future-model',
+		};
+		const options = clientOptions();
+		const { client, requests } = setup(({ url }) => Response.json(url.pathname.endsWith('/swe/models') ? catalog : { tasks: [] }), {
+			...options, missionControl: { endpoint: { ...options.missionControl!.endpoint, apiVersion: '2022-11-28' } },
+		});
+		const result = await client.missionControlModels.list(signal());
+		await client.tasks.list(signal());
+		assert.deepStrictEqual({
+			catalog: result,
+			requests: requests.map(request => ({ path: request.url.pathname, version: new Headers(request.init.headers).get('X-GitHub-Api-Version') })),
+		}, {
+			catalog,
+			requests: [
+				{ path: '/agents/swe/models', version: '2026-06-01' },
+				{ path: '/agents/tasks', version: '2022-11-28' },
+			],
+		});
+	});
+
 	test('tasks use their existing contracts and configured service routes', async () => {
 		const { client, requests } = setup(request => request.init.method === 'DELETE' ? new Response(null, { status: 204 })
 			: Response.json(task, { status: request.init.method === 'POST' && request.url.pathname === '/agents/tasks' ? 201 : 200 }));
 		const results = [
-			await client.tasks.create({ prompt: 'Do the task' }, signal()),
+			(await client.tasks.create({ prompt: 'Do the task' }, signal())).data,
 			await client.tasks.get(task.id, signal()),
 			await client.tasks.update(task.id, { name: 'Renamed' }, signal()),
-			await client.tasks.archive(task.id, signal()),
-			await client.tasks.unarchive(task.id, signal()),
+			await client.tasks.setArchived(task.id, true, signal()),
+			await client.tasks.setArchived(task.id, false, signal()),
 			await client.tasks.delete(task.id, signal()),
 		];
 		assert.deepStrictEqual({ results, routes: requests.map(request => request.url.pathname) }, {

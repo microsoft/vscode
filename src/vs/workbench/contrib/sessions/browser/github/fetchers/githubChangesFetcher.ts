@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { IGitHubChangedFile } from '../../../common/github/types.js';
 
 export class GitHubChangesFetcher {

@@ -17,7 +17,7 @@ import { ILifecycleService, InternalBeforeShutdownEvent, ShutdownReason } from '
 import { TestLifecycleService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISession, SessionStatus } from '../../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LocalAgentHostLifecycleContribution } from '../../electron-browser/localAgentHostLifecycle.contribution.js';

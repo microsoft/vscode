@@ -2190,6 +2190,23 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
+	test('a Working Set marks a file that an agent is writing through a spelling of its path with `.` segments', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: '/repo/pending.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('c'), afterContent: encodeString('c\nd') });
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
+		const editing = () => stateManager.getChangesetState(workingSet)?.files.map(file => file.isEditing);
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, workingSet);
+
+		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/./pending.txt')));
+		const whileWriting = editing();
+		writing.dispose();
+		await waitForChangesetReady(stateManager, workingSet);
+
+		assert.deepStrictEqual({ whileWriting, afterWriting: editing() }, { whileWriting: [true], afterWriting: [false] });
+	});
+
 	test('a Working Set clears the editing mark with the recorded version, not an older in-flight computation', async () => {
 		const staleRead = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
 		const freshRead = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };

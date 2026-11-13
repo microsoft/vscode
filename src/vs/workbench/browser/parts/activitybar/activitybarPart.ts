@@ -405,14 +405,11 @@ export class ActivitybarPart extends Part {
 			return { top: 0, bottom: 0 };
 		}
 
-		const margin = getFloatingPanelMargin(this.layoutService);
 		const outerMargin = getFloatingPanelOuterMargin(this.layoutService);
 		const border = ActivitybarPart.FLOATING_BORDER;
 		return {
 			top: border + (isFloatingTopEdgeExposed(this.layoutService, mainWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN),
-			bottom: border + (this.layoutService.isModernUICompact()
-				? outerMargin
-				: this.layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? margin : outerMargin)
+			bottom: border + outerMargin
 		};
 	}
 
@@ -460,7 +457,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 					options.fillExtraContextMenuActions(actions, e);
 					this.fillContextMenuActions(actions, e);
 				}
-			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
+			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService, configurationService);
 
 		if (globalActivities) {
 			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));

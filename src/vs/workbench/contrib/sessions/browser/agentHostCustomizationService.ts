@@ -11,11 +11,11 @@ import { AbstractAgentHostCustomizationService, type IAgentHostCustomizationTarg
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
-import { IFocusedSessionHostService } from './sessionHost.js';
+import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvider } from '../common/sessionsProvider.js';
 import { AgentCustomization, CustomizationType } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { type CustomizationEnablement } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { IChat, ISession } from '../common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -79,6 +79,9 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		}
 		return {
 			backendSession,
+			get defaultChatResource() {
+				return provider.getBackendChatResource(session.mainChat.get().resource);
+			},
 			clientId: provider.getClientId?.(),
 			customizations: provider.getCustomizations(session.sessionId),
 			resourceUris: {
@@ -94,6 +97,8 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			setCustomizationEnablement: (rawId, enablement: readonly CustomizationEnablement[]) => {
 				provider.setCustomizationEnablement(session.sessionId, rawId, enablement);
 			},
+			setPluginEnabled: provider.setPluginEnabled,
+			listPluginInstallations: provider.listPluginInstallations,
 			startMcpServer: rawId => {
 				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.start() ?? Promise.resolve();
 			},
@@ -133,7 +138,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 		return isEqual(mainChat.resource, resource) ? mainChat : session.chats.get().find(chat => isEqual(chat.resource, resource));
 	}
 
-	getBackendChatResource(sessionResource: URI): URI | undefined {
+	override getBackendChatResource(sessionResource: URI): URI | undefined {
 		const directSession = this._getSession(sessionResource);
 		const ownedChat = directSession ? undefined : this._sessionsManagementService.getSessionForChatResource(sessionResource);
 		const session = directSession ?? ownedChat?.session;

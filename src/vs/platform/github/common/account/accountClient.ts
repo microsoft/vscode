@@ -24,6 +24,7 @@ import { GitHubAuthorizationContext } from '../githubTypes.js';
 import { AutomationsClient } from '../missionControl/automationsClient.js';
 import { EnvironmentsClient } from '../missionControl/environmentsClient.js';
 import { MissionControlClient } from '../missionControl/missionControlClient.js';
+import { ModelsClient } from '../missionControl/modelsClient.js';
 import { TasksClient } from '../missionControl/tasksClient.js';
 import { IGitHubAccountClient } from './account.js';
 
@@ -47,6 +48,7 @@ export class AccountClient extends Disposable implements IGitHubAccountClient {
 	readonly connectors: IGitHubAccountClient['connectors'];
 	readonly automations: IGitHubAccountClient['automations'];
 	readonly environments: IGitHubAccountClient['environments'];
+	readonly missionControlModels: IGitHubAccountClient['missionControlModels'];
 	readonly tasks: IGitHubAccountClient['tasks'];
 	readonly content: IGitHubAccountClient['content'];
 	readonly gist: IGitHubAccountClient['gist'];
@@ -80,6 +82,7 @@ export class AccountClient extends Disposable implements IGitHubAccountClient {
 		this.connectors = new ConnectorsClient(providers.connectors);
 		this.automations = new AutomationsClient(missionControl);
 		this.environments = new EnvironmentsClient(missionControl);
+		this.missionControlModels = new ModelsClient(missionControl);
 		this.tasks = new TasksClient(missionControl);
 		this.content = new ContentClient(providers.rest, providers.rawContent);
 		this.gist = new GistsClient(providers.rest);

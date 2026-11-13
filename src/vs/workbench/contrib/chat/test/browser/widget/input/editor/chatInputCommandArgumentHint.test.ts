@@ -264,7 +264,7 @@ suite('InputEditorCommandArgumentHint', () => {
 			id: 'file:///skills/design-prep/SKILL.md',
 			range: new Range(1, 1, 1, 13),
 			data: { $mid: 'agentHostCompletion', kind: 'skill' },
-			_meta: { uri: 'file:///skills/design-prep/SKILL.md', argumentHint: '<problem>' },
+			_meta: { argumentHint: '<problem>' },
 		};
 		const other: IDynamicVariable = { ...skill, id: 'other', data: 'file:///other.md' };
 		assert.deepStrictEqual({ skill: run('/design-prep ', [skill]), other: run('/design-prep ', [other]) }, {

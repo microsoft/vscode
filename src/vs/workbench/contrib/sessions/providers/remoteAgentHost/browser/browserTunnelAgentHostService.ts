@@ -39,6 +39,7 @@ import {
 	type ITunnelVisibility,
 	ITunnelAgentHostService,
 	type TunnelAutoConnectMode,
+	type TunnelGatewayServerType,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import type { ITunnelDuplexStream, ITunnelMessageSocket } from '../../../../../../platform/agentHost/common/tunnelMessageSocket.js';
 import { connectWebSocketOverDuplex } from '../../../../../../platform/agentHost/common/webSocketOverDuplex.js';
@@ -239,6 +240,9 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 	private readonly _loadDevTunnelsWeb: () => Promise<IDevTunnelsWeb>;
 	private _lastAuthProvider: 'github' | 'microsoft' | undefined;
 
+	/** The server type of each tunnel's latest gateway selection, including reconnects. */
+	private readonly _selectedServerTypes = new Map<string, TunnelGatewayServerType | 'unknown'>();
+
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ILogService private readonly _logService: ILogService,
@@ -366,6 +370,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 				throw new NonReconnectableTransportError('Tunnel agent host selection requires user interaction.');
 			}
 			result = connected;
+			this._selectedServerTypes.set(result.address, result.selected.serverType);
 		} catch (error) {
 			if (isTunnelNotFoundError(error)) {
 				throw new NonReconnectableTransportError(error.message);
@@ -403,6 +408,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 				if (!reconnected) {
 					throw new NonReconnectableTransportError('Tunnel agent host selection requires user interaction.');
 				}
+				this._selectedServerTypes.set(reconnected.address, reconnected.selected.serverType);
 				try {
 					return {
 						transport: new BrowserTunnelConnectionTransport(reconnected.connectionId, this._connector, this._logService),
@@ -447,6 +453,10 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 	async disconnect(address: string): Promise<void> {
 		this._connectionFactory.unstageTunnel(address);
 		await this._remoteAgentHostService.removeRemoteAgentHost(address);
+	}
+
+	getSelectedServerType(address: string): TunnelGatewayServerType | 'unknown' | undefined {
+		return this._selectedServerTypes.get(address);
 	}
 
 	async getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> {

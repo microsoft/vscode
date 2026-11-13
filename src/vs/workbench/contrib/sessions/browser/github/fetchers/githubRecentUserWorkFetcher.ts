@@ -8,7 +8,7 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { GitHubRequestError } from '../../../../../../platform/github/common/githubTypes.js';
 import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export interface IGitHubRecentIssue {
 	readonly number: number;

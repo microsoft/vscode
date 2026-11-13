@@ -127,6 +127,30 @@ suite('Extension query', () => {
 		assert(query.isValid());
 	});
 
+	test('containsMcpTerm', () => {
+		assert.deepStrictEqual([
+			'mcp',
+			'MCP server',
+			'azure-mcp',
+			'(mcp)',
+			'mcp.server',
+			'amcp',
+			'mcps',
+			'mcp_server',
+			'myMcpExtension',
+		].map(value => new Query(value, '').containsMcpTerm()), [
+			true,
+			true,
+			true,
+			true,
+			true,
+			false,
+			false,
+			false,
+			false,
+		]);
+	});
+
 	test('equals', () => {
 		const query1 = new Query('hello', '');
 		let query2 = new Query('hello', '');

@@ -26,16 +26,18 @@ import { Parts, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from 
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../platform/actions/common/actions.js';
 import { MenuWorkbenchButtonBar } from '../../../platform/actions/browser/buttonbar.js';
 import { IEditorGroupsContainer } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { CodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { safeIntl } from '../../../base/common/date.js';
+import { isDefined } from '../../../base/common/types.js';
 import { ITitlebarPart, ITitleProperties, ITitleVariable, IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { WindowTitle } from '../../../workbench/browser/parts/titlebar/windowTitle.js';
 import { AgentsWindowMenus } from '../agentsWindowMenus.js';
 import { IsNewChatSessionContext } from '../../../workbench/contrib/sessions/common/contextkeys.js';
 import { createInstantHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { createMainWindowInstantiationService } from '../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createMainWindowInstantiationService } from '../../../workbench/services/sessions/browser/sessionHost.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
 const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
@@ -97,6 +99,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
+	/** The groups of actions at the right, in order, the last shown of which ends the title bar of a window with layout actions. */
+	private readonly rightToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
@@ -347,6 +351,16 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
+		// Extension contributed actions (before right toolbar)
+		const extensionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-extension-actions-container'));
+		const extensionActionsToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, extensionActionsContainer, MenuId.AgentsTitleBar, {
+			hoverDelegate,
+			contextMenu: AgentsWindowMenus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.extensions',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
 		// The layout actions of a window with layout modes (before right toolbar), such as a chat window: its Layout menu and
 		// the buttons of its actions, which the user shows and hides from the context menu of the toolbar.
 		const windowLayoutContainer = this.showsWindowLayoutActions ? prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-window-layout-container')) : undefined;
@@ -376,15 +390,19 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 		const updateScreenReaderButtonBar = () => {
 			screenReaderToolBarElement.classList.toggle('has-no-actions', screenReaderButtonBar.buttons.length === 0);
+			this.updateLastRightToolBar();
 			this.titleBarToolBarOverflowScheduler.schedule();
 		};
 		this._register(screenReaderButtonBar.onDidChange(updateScreenReaderButtonBar));
 		updateScreenReaderButtonBar();
 
 		this.overflowManagedToolBarElements.push(screenReaderToolBarElement);
+		this.rightToolBarElements.push(...[screenReaderToolBarElement, sessionActionsContainer, windowLayoutContainer, extensionActionsContainer, rightToolbarContainer].filter(isDefined));
+		this.updateLastRightToolBar();
 		this.registerOverflowManagedToolBar(centerActionsContainer, centerActionsToolBar);
 		this.registerOverflowManagedToolBar(centerNavContainer, centerNavToolBar);
 		this.registerOverflowManagedToolBar(rightToolbarContainer, rightToolBar);
+		this.registerOverflowManagedToolBar(extensionActionsContainer, extensionActionsToolBar);
 		this.registerOverflowManagedToolBar(sessionActionsContainer, sessionActionsToolBar);
 		if (windowLayoutContainer && windowLayoutToolBar) {
 			this.registerOverflowManagedToolBar(windowLayoutContainer, windowLayoutToolBar);
@@ -447,10 +465,20 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	private registerOverflowManagedToolBar(element: HTMLElement, toolBar: MenuWorkbenchToolBar): void {
 		this.overflowManagedToolBarElements.push(element);
-		this._register(toolBar.onDidChangeMenuItems(() => this.titleBarToolBarOverflowScheduler.schedule()));
+		this._register(toolBar.onDidChangeMenuItems(() => {
+			this.updateLastRightToolBar();
+			this.titleBarToolBarOverflowScheduler.schedule();
+		}));
 	}
 
 	private updateTitleBarToolBarOverflow(): void {
+		const hasWindowControls = Array.from(this.rightContent.children).some(element => element.classList.contains('window-controls-container') && element.clientWidth > 0);
+		this.rightContent.classList.toggle('has-window-controls', hasWindowControls);
+		this.updateOverflowingToolBars();
+		this.updateLastRightToolBar();
+	}
+
+	private updateOverflowingToolBars(): void {
 		for (const element of this.overflowManagedToolBarElements) {
 			element.classList.remove('overflowing');
 		}
@@ -470,6 +498,21 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}
 	}
 
+	/**
+	 * Marks the last shown group of actions at the right of the title bar of a window with layout actions, such as a chat
+	 * window, which keeps the inset to the window's edge: its layout actions, or the actions before them while those show
+	 * in its Session Activity Bar.
+	 */
+	private updateLastRightToolBar(): void {
+		if (!this.showsWindowLayoutActions) {
+			return;
+		}
+		const last = this.rightToolBarElements.findLast(element => !element.classList.contains('has-no-actions') && !element.classList.contains('overflowing'));
+		for (const element of this.rightToolBarElements) {
+			element.classList.toggle('titlebar-last-actions', element === last);
+		}
+	}
+
 	private isTitleBarOverflowing(): boolean {
 		return [this.rootContainer, this.leftContent, this.centerContent, this.rightContent]
 			.some(element => element.scrollWidth > element.clientWidth);
@@ -486,7 +529,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	focus(): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		(this.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement | null)?.focus();
 	}
 

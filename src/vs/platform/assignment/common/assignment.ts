@@ -41,11 +41,8 @@ https://experimentation.visualstudio.com/Analysis%20and%20Experimentation/_git/A
 "X-VSCode-Platform": "platform",
 "X-VSCode-ReleaseDate": "releasedate",
 "X-VSCode-WindowKind": "windowkind"
-"integratorid": "integratorid"
 */
 export enum Filters {
-	IntegratorId = 'integratorid',
-
 	/**
 	 * The market in which the extension is distributed.
 	 */
@@ -131,8 +128,6 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
-			case Filters.IntegratorId:
-				return COPILOT_INTEGRATION_ID;
 			case Filters.ApplicationVersion:
 				return trimVersionSuffix(this.version); // productService.version
 			case Filters.Build:
@@ -195,8 +190,8 @@ function formatReleaseDate(iso: string): string {
 }
 
 /**
- * userParam names for the new TAS assignments API, emitted by {@link VSCodeCoreAssignmentsFilterProvider}.
- * The integrator is shared with CAPI; VS Code-specific parameters replace the legacy X-VSCode-* headers.
+ * userParam names for the new TAS assignments API (POST /api/v1/assignments), emitted by
+ * {@link VSCodeCoreAssignmentsFilterProvider}. These are sent only in the new endpoint's JSON body.
  */
 export enum AssignmentsFilters {
 	IntegratorId = 'integratorid',

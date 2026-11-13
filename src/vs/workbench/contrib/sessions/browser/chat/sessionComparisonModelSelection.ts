@@ -139,8 +139,8 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		? localize('comparisonPicker.attemptsDescription', "Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.")
 		: localize('comparisonPicker.chatAttemptsDescription', "Select two or more models to run one prompt in parallel and compare their responses side by side."));
 	readonly startCommandId = COMPARE_SESSION_MODELS_COMMAND_ID;
-	readonly enabled = derived(this, reader => !!this._committed.read(reader));
-	readonly configured = this.enabled;
+	readonly configured = derived(this, reader => !!this._committed.read(reader));
+	readonly enabled = derived(this, reader => this.configured.read(reader) && (this.available.read(reader) || this._pending.read(reader)));
 	readonly showPickerHint: IObservable<boolean>;
 	readonly attempts = derived(this, reader => getAttempts(this._committed.read(reader)));
 	readonly attemptModelIds = derived(this, reader => this.attempts.read(reader).map(attempt => attempt.modelId));
@@ -190,6 +190,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		private readonly _getModelLabel: ((modelId: string) => string | undefined) | undefined = undefined,
 		private readonly _reviewAvailable: IObservable<boolean> = constObservable(true),
 		showPickerHint: IObservable<boolean> = constObservable(false),
+		private readonly _pending: IObservable<boolean> = constObservable(false),
 		@IStorageService private readonly _storageService: IStorageService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {

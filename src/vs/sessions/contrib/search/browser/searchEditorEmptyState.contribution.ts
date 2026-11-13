@@ -19,8 +19,8 @@ import { SearchEditor } from '../../../../workbench/contrib/searchEditor/browser
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { searchViewIcon } from '../../../../workbench/contrib/search/browser/searchIcons.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
-import { SessionsEmptyStateActions } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateActions.js';
-import { SessionsEmptyStateLayout } from '../../../../workbench/contrib/sessions/browser/parts/sessionsEmptyStateLayout.js';
+import { SessionsEmptyStateActions } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateActions.js';
+import { SessionsEmptyStateLayout } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateLayout.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';

@@ -21,14 +21,14 @@ import { GitHubPullRequestModel } from '../../../browser/github/models/githubPul
 import { GitHubPullRequestReviewThreadsModel } from '../../../browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { GitHubPullRequestCIModel, GitHubPullRequestCIModelReferenceCollection, parseWorkflowRunId } from '../../../browser/github/models/githubPullRequestCIModel.js';
 import { GitHubIssueModelReferenceCollection, MIN_REFRESH_INTERVAL_MS } from '../../../browser/github/models/githubIssueModel.js';
-import { GitHubApiClient } from '../../../browser/github/githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../../../browser/github/fetchers/githubPRFetcher.js';
 import { GitHubPRCIFetcher } from '../../../browser/github/fetchers/githubPRCIFetcher.js';
 import { IPullRequestChecksSource } from '../../../browser/github/fetchers/githubPRChecksSource.js';
 import { PullRequestCheck, PullRequestChecks } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { computePullRequestIcon, GitHubCIOverallStatus, GitHubCheckConclusion, GitHubCheckStatus, GitHubIssueState, GitHubPullRequestState, IGitHubCICheck, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../common/github/types.js';
-import { getHighestPriorityPullRequestIcon } from '../../../common/session.js';
+import { getHighestPriorityPullRequestIcon } from '../../../../../services/sessions/common/session.js';
 import { PullRequestIconCache } from '../../../browser/github/pullRequestIconCache.js';
 
 //#region Mock Fetchers

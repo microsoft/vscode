@@ -57,6 +57,7 @@ export class ViewEditorPane extends EditorPane {
 	private viewStateSaved = false;
 	private providedTitleVisible = true;
 	private readonly viewDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private readonly inputListener = this._register(new MutableDisposable());
 
 	/**
 	 * The views of inputs that stay in the group while another editor shows, such as another tab: they live on, out of the
@@ -97,12 +98,12 @@ export class ViewEditorPane extends EditorPane {
 	override get maximumHeight() { return this.view?.maximumHeight ?? DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	override get providesTitle(): boolean {
-		return !!this.view?.providesTitle;
+		return !!this.view?.providesTitle && !!this.currentInput?.rendersTitle;
 	}
 
 	override setProvidedTitleVisible(visible: boolean): void {
 		this.providedTitleVisible = visible;
-		this.view?.setProvidedTitleVisible?.(visible);
+		this.view?.setProvidedTitleVisible?.(visible && !!this.currentInput?.rendersTitle);
 	}
 
 	override get titleMenu(): IEditorPaneTitleMenu | undefined {
@@ -136,7 +137,15 @@ export class ViewEditorPane extends EditorPane {
 		this.currentInput = input;
 		this.viewDisposables.value = disposables;
 		if (view.providesTitle) {
-			view.setProvidedTitleVisible?.(this.providedTitleVisible);
+			view.setProvidedTitleVisible?.(this.providedTitleVisible && input.rendersTitle);
+			// While it does not render its title, its group does not tell it whether to show it: it does not.
+			this.inputListener.value = input.onDidChangeCapabilities(() => {
+				if (!input.rendersTitle && this.currentInput === input) {
+					view.setProvidedTitleVisible?.(false);
+				}
+			});
+		} else {
+			this.inputListener.clear();
 		}
 		this._onDidChangeTitleMenu.fire();
 
@@ -189,6 +198,7 @@ export class ViewEditorPane extends EditorPane {
 		this.saveViewState();
 		this.view = undefined;
 		this.currentInput = undefined;
+		this.inputListener.clear();
 		if (view && input && disposables && this.group.contains(input, { strictEquals: true })) {
 			this.viewDisposables.clearAndLeak();
 			view.element.remove();
@@ -232,8 +242,8 @@ export class ViewEditorPane extends EditorPane {
 		disposables.add(new DragAndDropObserver(handle, {
 			onDragStart: e => {
 
-				// Text fields in the handle, such as a rename, keep the mouse
-				if (isHTMLElement(e.target) && isEditableElement(e.target)) {
+				// Text fields in the handle, such as a rename, keep the mouse, as does what the handle's container already declined
+				if (e.defaultPrevented || (isHTMLElement(e.target) && isEditableElement(e.target))) {
 					e.preventDefault();
 					return;
 				}

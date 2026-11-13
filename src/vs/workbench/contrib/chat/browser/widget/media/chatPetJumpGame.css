@@ -19,6 +19,33 @@
 	transition: none;
 }
 
+.chat-pet-jump-retry {
+	position: absolute;
+	z-index: 2;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--vscode-spacing-size80);
+	width: max-content;
+	transform: translate(-50%, -100%);
+	pointer-events: auto;
+}
+
+.chat-pet-jump-retry .monaco-button {
+	width: auto;
+	/* Secondary button colors can be translucent; keep text below the controls out of their fill. */
+	background-color: var(--vscode-editor-background);
+	background-image: linear-gradient(var(--vscode-button-secondaryBackground, transparent), var(--vscode-button-secondaryBackground, transparent));
+}
+
+.chat-pet-jump-retry .monaco-button:is(:hover, :focus) {
+	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground, transparent), var(--vscode-button-secondaryHoverBackground, transparent));
+}
+
+.chat-pet-jump-retry .monaco-keybinding {
+	margin-left: var(--vscode-spacing-size80);
+}
+
 .chat-pet-jump-effects.keyboard-focused .chat-pet-jump-charge {
 	background: var(--vscode-focusBorder);
 }

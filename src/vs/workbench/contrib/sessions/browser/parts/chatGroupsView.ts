@@ -19,18 +19,19 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { contrastBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { agentsPanelBorder } from '../../common/theme.js';
-import { ChatOriginKind, IChat, ISession, isSessionCreated } from '../../common/session.js';
-import { ISessionPaneContent } from '../../common/sessionsManagement.js';
+import { ChatOriginKind, IChat, ISession, isSessionCreated } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../sessionsService.js';
-import { IChatHostOpenerService } from '../chatHostOpener.js';
-import { getWindowHost, ISessionHost } from '../sessionHost.js';
-import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../common/workspaceSelection.js';
+import { IChatHostOpenerService } from '../../../../services/sessions/browser/chatHostOpener.js';
+import { getWindowHost, ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatGroupView, IChatGroupContext } from './chatGroupView.js';
 import { ChatDropZone, ChatGroupDropTarget, IChatGroupDropTargetDelegate } from './chatGroupDropTarget.js';
 import { DraggedSessionIdentifier, getSessionChatDragData, IDraggedSessionChat, isSessionChatDrag, SessionsDataTransfers } from '../dnd.js';
 import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { getGridBottomCornerViews, getGridEdgeInsets, NO_GRID_EDGE_INSETS, updateGridGapSashes } from '../../../../browser/parts/partGrid/partGridGap.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
+import { updateSashEndpoints } from '../../../../browser/part.js';
 
 interface IGroupEntry {
 	readonly id: number;
@@ -1263,7 +1264,7 @@ export class ChatGroupsView extends Themable {
 		if (this._grid) {
 			const hasGaps = gap > 0 && this._groups.length > 1;
 			this.element.classList.toggle('chat-groups-view-has-gaps', hasGaps);
-			updateGridGapSashes(this._grid, hasGaps);
+			updateGridGapSashes(this._grid, hasGaps, gap);
 			const corners = getGridBottomCornerViews(this._grid);
 			for (const group of this._groups) {
 				group.view.element.classList.toggle('chat-grid-bottom-left', group.view === corners.bottomLeft);
@@ -1286,6 +1287,7 @@ export class ChatGroupsView extends Themable {
 			this._grid.layout(width, height, top, left);
 			this._gridDidLayout = true;
 			this._gridTopologyChanged = false;
+			updateSashEndpoints(this._grid.element, hasGaps);
 		} else {
 			this.element.classList.remove('chat-groups-view-has-gaps');
 		}

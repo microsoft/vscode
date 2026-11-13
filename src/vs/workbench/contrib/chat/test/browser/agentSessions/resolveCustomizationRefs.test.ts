@@ -499,6 +499,60 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.deepStrictEqual(refs, []);
 	});
 
+	test('keeps native agent picker metadata without re-forwarding Copilot-owned plugin content', async () => {
+		const pluginUri = URI.file('/plugins/native');
+		const agentUri = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
+		const plugin: IAgentPlugin = {
+			...makePlugin(pluginUri, { agents: 1, mcpServers: 1, enablement: ContributionEnablementState.EnabledProfile }),
+			copilotCliInstallation: { name: 'native', marketplace: 'marketplace' },
+		};
+		const prompts = makePromptsService(new Map([
+			[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.plugin)]],
+		]));
+		const plugins = makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]]));
+		const results = [];
+		for (const sessionType of [SessionType.CopilotCLI, SessionType.AgentHostCopilot, 'remote-sandbox-copilot', 'remote-sandbox-claude']) {
+			const refs = await resolveCustomizationRefs(
+				makeFileService(), prompts, new FakeSyncProvider(), plugins, makeMcpService(),
+				makeConfigurationResolverService(), toBundlers(new FakeBundler()), sessionType, undefined,
+			);
+			const agents = await resolveLocalCustomAgents(
+				makeFileService(), prompts, new FakeSyncProvider(), plugins, sessionType, undefined,
+			);
+			results.push({ sessionType, plugins: refs.filter(ref => ref.uri === pluginUri.toString()).map(ref => ref.name), agents: agents.map(agent => agent.name) });
+		}
+		assert.deepStrictEqual(results, [
+			{ sessionType: SessionType.CopilotCLI, plugins: [], agents: ['agent-0'] },
+			{ sessionType: SessionType.AgentHostCopilot, plugins: [], agents: ['agent-0'] },
+			{ sessionType: 'remote-sandbox-copilot', plugins: [], agents: ['agent-0'] },
+			{ sessionType: 'remote-sandbox-claude', plugins: ['Plugin'], agents: ['agent-0'] },
+		]);
+	});
+
+	test('preserves disabled runtime activation when forwarding native plugins to another provider', async () => {
+		const pluginUri = URI.file('/plugins/native-disabled');
+		const agentUri = URI.joinPath(pluginUri, 'agents', 'agent-0.agent.md');
+		const plugin: IAgentPlugin = {
+			...makePlugin(pluginUri, { agents: 1, mcpServers: 1, enablement: ContributionEnablementState.DisabledProfile }),
+			copilotCliInstallation: { name: 'native-disabled', marketplace: 'marketplace' },
+		};
+		const prompts = makePromptsService(new Map([
+			[`${PromptsType.agent}/${PromptsStorage.plugin}`, [makePromptPath(agentUri, PromptsType.agent, PromptsStorage.plugin)]],
+		]));
+		const plugins = makeAgentPluginService([plugin], new Map([[pluginUri.toString(), true]]));
+		const refs = await resolveCustomizationRefs(
+			makeFileService(), prompts, new FakeSyncProvider(), plugins, makeMcpService(),
+			makeConfigurationResolverService(), toBundlers(new FakeBundler()), 'remote-sandbox-claude', undefined,
+		);
+		const agents = await resolveLocalCustomAgents(
+			makeFileService(), prompts, new FakeSyncProvider(), plugins, 'remote-sandbox-claude', undefined,
+		);
+		assert.deepStrictEqual({
+			enablement: refs.filter(ref => ref.uri === pluginUri.toString()).map(ref => ref.enablement),
+			agents,
+		}, { enablement: [globalEnablement(false)], agents: [] });
+	});
+
 	test('includes plugins that only contribute MCP servers', async () => {
 		const pluginUri = URI.file('/plugins/mcp-only');
 		const promptsService = makePromptsService(new Map());
@@ -538,6 +592,25 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
 			{ uri: pluginUri.toString(), name: 'Agent Only' },
+		]);
+	});
+
+	test('includes plugins without contributions VS Code parses, such as Copilot extensions with canvases', async () => {
+		const pluginUri = URI.file('/plugins/canvas-only');
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService([makePlugin(pluginUri, { label: 'Canvas Only' })]),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			toBundlers(new FakeBundler()),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ({ uri: ref.uri, name: ref.name })), [
+			{ uri: pluginUri.toString(), name: 'Canvas Only' },
 		]);
 	});
 

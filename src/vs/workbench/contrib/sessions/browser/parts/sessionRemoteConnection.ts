@@ -11,7 +11,7 @@ import { autorun, derived, derivedObservableWithCache, IObservable, IReader, obs
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAgentHostConnectionLabels, isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
-import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, ISession } from '../../common/session.js';
+import { SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IRemoteHostUnavailableEmptyStateContent } from './remoteHostUnavailableEmptyState.js';

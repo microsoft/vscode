@@ -7,13 +7,13 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from './npmPackage.ts';
-import { parsePackageKey, readPnpmLockfile, type PnpmLockfile } from './pnpmLock.ts';
+import { getLockfileFolder, parsePackageKey, readPnpmLockfile, type PnpmLockfile } from './pnpmLock.ts';
 
 /**
  * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
  * options with an override for the extension lockfile used to verify natives
- * fetched for the pinned version (defaults to the repo's copy; overridable in
- * tests).
+ * fetched for the pinned version (defaults to the repo's lockfile that records
+ * `extensions/copilot`; overridable in tests).
  */
 export interface PrepareBuiltInCopilotOptions extends EnsureNpmPackageOptions {
 	extensionLockfilePath?: string;
@@ -254,9 +254,11 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
  * Materializes target-platform Copilot CLI SDK files directly inside the built-in copilot extension.
  *
  * This is used when copilot is shipped as a built-in extension so startup does
- * not need to create the shim at runtime. The Copilot VSIX is built once on the
- * Linux x64 host, so product packaging also restores target-platform SDK
- * natives from the selected @github/copilot-{platform} package.
+ * not need to create the shim at runtime. The built-in extension is packaged
+ * with the SDK natives of the build machine, which can differ from the target
+ * (for example darwin-x64 on arm64 Macs, or Alpine on glibc Linux), so product
+ * packaging also restores target-platform SDK natives from the selected
+ * @github/copilot-{platform} package.
  *
  * Note: `node-pty` is no longer shimmed. The copilot CLI SDK resolves
  * `node-pty` from the embedder (VS Code) via `hostRequire` and falls back to
@@ -402,7 +404,7 @@ function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch:
  * so the build must stop rather than ship an unverified binary.
  */
 function resolvePinnedPlatformPackageIntegrity(packageName: string, extVersion: string, options: PrepareBuiltInCopilotOptions): string {
-	const lockfilePath = options.extensionLockfilePath ?? path.join(import.meta.dirname, '..', '..', 'extensions', 'copilot', 'pnpm-lock.yaml');
+	const lockfilePath = options.extensionLockfilePath ?? getCopilotLockfilePath();
 
 	let lockfile: PnpmLockfile;
 	try {
@@ -423,6 +425,18 @@ function resolvePinnedPlatformPackageIntegrity(packageName: string, extVersion: 
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName}@${extVersion} has no integrity in ${lockfilePath}; refusing to fetch an unverifiable native.`);
 	}
 	return integrity;
+}
+
+/**
+ * Returns the `pnpm-lock.yaml` that records the dependencies of `extensions/copilot`: the lockfile
+ * of its pnpm install root.
+ */
+function getCopilotLockfilePath(): string {
+	const lockfileFolder = getLockfileFolder('extensions/copilot');
+	if (lockfileFolder === undefined) {
+		throw new Error('[prepareBuiltInCopilotRipgrepShim] extensions/copilot is not a pnpm project.');
+	}
+	return path.join(import.meta.dirname, '..', '..', lockfileFolder, 'pnpm-lock.yaml');
 }
 
 function readCopilotPackageVersion(copilotBase: string): string {

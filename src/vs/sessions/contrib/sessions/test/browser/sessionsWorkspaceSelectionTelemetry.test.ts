@@ -19,9 +19,9 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../../workbench/contrib/sessions/common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISendRequestSentEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';

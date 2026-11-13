@@ -21,7 +21,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IProviderSessionType, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { getChatHarness, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionType, SessionStatus } from '../../common/session.js';
+import { getChatHarness, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -484,6 +484,12 @@ export class SessionTypePicker extends Disposable {
 
 	get selectedPick(): IPreferredSessionType | undefined {
 		return this._picked;
+	}
+
+	get selectedSessionType(): IProviderSessionType | undefined {
+		const pick = this._picked;
+		return pick && this._folderSessionTypes.find(type =>
+			(!pick.providerId || type.providerId === pick.providerId) && type.sessionType.id === pick.sessionTypeId);
 	}
 
 	/**

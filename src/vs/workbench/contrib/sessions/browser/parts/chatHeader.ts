@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChat, ISession } from '../../common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 
 export interface IChatHeaderContext {
@@ -16,6 +16,7 @@ export interface IChatHeaderContext {
 	/** Whether the header is of a pane that shows one chat of its session apart from its slot, such as a detached pane. */
 	readonly isDetached: boolean;
 	readonly activate: () => void;
+	readonly close: () => void;
 }
 
 /**
@@ -46,6 +47,7 @@ export class ChatHeader extends Disposable {
 			actionsTargetChat: true,
 			showParentContext: true,
 			activateChatGroup: context.activate,
+			closeSession: context.close,
 		} : undefined);
 	}
 

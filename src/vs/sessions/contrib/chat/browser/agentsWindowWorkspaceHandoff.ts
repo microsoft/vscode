@@ -17,10 +17,10 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { ILifecycleService, LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
-import { WorkspaceSelectionOrigin } from '../../../../workbench/contrib/sessions/common/workspaceSelection.js';
-import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { WorkspaceSelectionOrigin } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { WorkspaceHandoffState } from '../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
@@ -30,7 +30,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { readNewChatDraftState } from '../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IRemoteWorkspaceHandoffService } from '../../../common/remoteWorkspaceHandoff.js';
 import { IAgentsWindowRemoteWorkspace } from './agentsWindowOpenIntent.js';
-import { isSessionCreated } from '../../../../workbench/contrib/sessions/common/session.js';
+import { isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 
 export const WORKSPACE_HANDOFF_TIMEOUT_MS = 15_000;
 
@@ -54,8 +54,15 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _notification = this._register(new MutableDisposable());
 	private _cancelPending: ((state: WorkspaceHandoffState) => void) | undefined;
+	private _startupProvidersRegistered = false;
 
+	/**
+	 * @param whenStartupProvidersRegistered Settles once the providers that register during startup have
+	 * registered. Several of them can accept the same folder, so resolving earlier can pick whichever registered
+	 * first instead of the preferred provider, for example Cloud instead of This Computer for a local folder.
+	 */
 	constructor(
+		private readonly whenStartupProvidersRegistered: Promise<unknown>,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -72,6 +79,7 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 	) {
 		super();
 		this._register(lifecycleService.onWillShutdown(() => this.cancel()));
+		whenStartupProvidersRegistered.finally(() => this._startupProvidersRegistered = true).catch(() => undefined);
 	}
 
 	cancel(): void {
@@ -183,6 +191,10 @@ export class AgentsWindowWorkspaceHandoff extends Disposable {
 				const resolution = await raceCancellationError(remoteResolution, source.token);
 				folderUri = resolution.folderUri ?? folderUri;
 				remoteUnavailableReason = resolution.unavailableReason;
+			}
+			if (folderUri && !this._startupProvidersRegistered) {
+				onState('waitingForProvider');
+				await raceCancellationError(this.whenStartupProvidersRegistered.catch(() => undefined), source.token);
 			}
 			// A remote editor window must not fall back to an unrelated local folder.
 			const remoteWithoutFolder = !!intent.remote && !intent.draft && !folderUri;

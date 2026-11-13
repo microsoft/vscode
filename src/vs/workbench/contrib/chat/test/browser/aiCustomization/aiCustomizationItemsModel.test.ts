@@ -281,6 +281,24 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(providerA_callCount, 2);
 		});
 
+		test('session-scoped models keep discovery and counts separate from the active harness', async () => {
+			providerA_items = [{
+				uri: URI.file('/active/SKILL.md'), type: PromptsType.skill, name: 'Active Skill',
+				source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: true,
+			}];
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const resource = URI.parse('B:///other-session');
+			const scope = disposables.add(model.createSessionModel(resource));
+			await scope.model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			assert.deepStrictEqual({
+				activeSession: activeSessionResource.get().toString(),
+				activeCount: model.getCount(AICustomizationManagementSection.Skills).get(),
+				scopedSession: scope.model.getActiveItemSource().sessionResource.toString(),
+				scopedCount: scope.model.getCount(AICustomizationManagementSection.Skills).get(),
+			}, { activeSession: 'A:/session', activeCount: 1, scopedSession: resource.toString(), scopedCount: 0 });
+		});
+
 		test('source.onDidChange refetches only previously-observed sections', async () => {
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			model.getItems(AICustomizationManagementSection.Agents);
@@ -908,7 +926,7 @@ suite('AICustomizationItemsModel', () => {
 
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			const count = model.getPluginCount();
-			await timeout(0);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Plugins);
 
 			assert.strictEqual(count.get(), 2, 'remote-client harness rows are excluded; both internal "plugin" and API "plugins" types are recognised');
 		});

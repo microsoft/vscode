@@ -33,7 +33,7 @@ export class OpenInVSCodeTitleBarWidget extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 
-		container.classList.add('open-in-vscode-titlebar-widget');
+		container.classList.add('open-in-vscode-titlebar-widget', 'agent-sessions-interactive');
 		container.setAttribute('role', 'button');
 
 		// Set quality attribute for distro icon selection. Only set when quality is

@@ -203,6 +203,8 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		getMcpServers(_sessionResource: URI) {
 			return [];
 		},
+		getHostPermissions: () => undefined,
+		setHostPermissions: () => { },
 		addMcpServer(_sessionResource: URI, _name: string, _config) {
 			// no-op
 		},

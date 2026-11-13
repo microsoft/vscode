@@ -9,7 +9,7 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind } from '../../../common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind } from '../../../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../../common/github/sessionGitHubReferences.js';
 
 suite('Session GitHub References', () => {

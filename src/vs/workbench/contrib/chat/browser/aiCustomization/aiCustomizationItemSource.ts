@@ -24,7 +24,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationScope, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationOrganizationControl, ICustomizationSourceFolder, isLegacyDeliveryGroupKey } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -51,6 +51,11 @@ interface ICustomizationSkillBundle {
 
 export interface ICustomizationSkillItem extends ICustomizationItem {
 	readonly skillBundle?: ICustomizationSkillBundle;
+}
+
+/** Browser-only marker for hook actions already enumerated by a host. */
+export interface ICustomizationHookItem extends ICustomizationItem {
+	readonly isHookAction?: boolean;
 }
 
 /**
@@ -104,6 +109,8 @@ export interface IAICustomizationListItem {
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
+	/** Set when the user's organization manages this item. */
+	readonly organizationControl?: ICustomizationOrganizationControl;
 	/** When true, this item can be selected for syncing to a remote harness. */
 	readonly syncable?: boolean;
 	/** When true, this syncable item is currently selected for syncing. */
@@ -170,7 +177,7 @@ export function getFriendlyName(filename: string): string {
  * when parsing fails.
  */
 export async function expandHookFileItems(
-	hookFileItems: readonly ICustomizationItem[],
+	hookFileItems: readonly ICustomizationHookItem[],
 	workspaceService: IAICustomizationWorkspaceService,
 	fileService: IFileService,
 	pathService: IPathService,
@@ -181,7 +188,7 @@ export async function expandHookFileItems(
 	const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
 	for (const item of hookFileItems) {
-		if (!hasReadableCustomizationContent(item.uri)) {
+		if (item.isHookAction || !hasReadableCustomizationContent(item.uri)) {
 			items.push(item);
 			continue;
 		}
@@ -217,6 +224,7 @@ export async function expandHookFileItems(
 							status: item.status,
 							statusMessage: item.statusMessage,
 							disabledReason: item.disabledReason,
+							organizationControl: item.organizationControl,
 							userInvocable: item.userInvocable,
 						});
 					}
@@ -255,7 +263,7 @@ export class AICustomizationItemNormalizer {
 			.sort((a, b) => a.name.localeCompare(b.name));
 	}
 
-	normalizeItem(item: ICustomizationSkillItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
+	normalizeItem(item: ICustomizationSkillItem & ICustomizationHookItem, promptType: PromptsType, uriUseCounts = new ResourceMap<number>()): IAICustomizationListItem {
 		const { source, groupKey, isBuiltin, extensionId, pluginUri } = this.inferStorageAndGroup(item);
 		const scope = this.inferScope(item, source, isBuiltin);
 		const seenCount = uriUseCounts.get(item.uri) ?? 0;
@@ -264,7 +272,7 @@ export class AICustomizationItemNormalizer {
 		const isWorkspaceItem = source === AICustomizationSources.local;
 
 		return {
-			id: `${item.uri.toString()}${duplicateSuffix}`,
+			id: item.isHookAction && item.itemKey ? item.itemKey : `${item.uri.toString()}${duplicateSuffix}`,
 			uri: item.uri,
 			name: item.name,
 			filename: item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote
@@ -287,6 +295,7 @@ export class AICustomizationItemNormalizer {
 			extensionId,
 			status: item.status,
 			statusMessage: item.statusMessage,
+			organizationControl: item.organizationControl,
 		};
 	}
 

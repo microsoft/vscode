@@ -45,6 +45,10 @@ on:
         description: The branch whose workspace images the jobs use (see .github/workflows/workspace_image/README.md)
         type: string
         default: main
+      runner:
+        description: The runner of the jobs. The merge queue and the pull requests to release branches pass dedicated runners (see the top of pr.yml)
+        type: string
+        default: vscode-large-runners-ubuntu-8-core
 
 env:
   NPM_ARCH: x64
@@ -72,7 +76,7 @@ jobs:
   electron-unit-electron:
     name: Electron-Unit (electron)
     if: ${{ inputs.electron_unit_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-unit-electron
       ELECTRON_TESTS: 'true'
@@ -163,17 +167,15 @@ jobs:
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
-      # A workspace image holds the node_modules of its commit, which the install steps update
-      - name: Restore node_modules cache
-        id: cache-node-modules
+      # A workspace image holds the node_modules of its commit, which the install steps update, and its
+      # pnpm store
+      - name: Restore pnpm store cache
         if: steps.image.outputs.used != 'true'
-        uses: ./.github/actions/restore-node-modules
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-linux
-          key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+          key-prefix: pnpm-store-linux
 
       - name: Install build dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: build
         run: |
           set -e
@@ -192,7 +194,6 @@ jobs:
       # On a workspace image, pnpm installs only what changed since the commit of the image, and
       # setup-env.sh reuses the sysroots and compilers in its .build folder
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
 
@@ -368,7 +369,7 @@ jobs:
         working-directory: test/integration/browser
         run: pnpm run compile
 
-      # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # pr-pnpm-store.yml fills this cache on main, so pull requests don't download the browsers.
       # A workspace image holds them already, and points PLAYWRIGHT_BROWSERS_PATH at them, which this
       # action would point into the workspace.
       - name: Restore Playwright browsers
@@ -423,6 +424,17 @@ jobs:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # The changed unit test files of the plan (see the List changed unit test files step of pr.yml),
+      # each alone in a fresh window: a test file that passes above only because another test file
+      # registers what it reads fails here.
+      - name: 🧪 Run changed unit test files alone (Electron)
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'node' && hashFiles('.build/test-plan/isolate.txt') != '' }}
+        timeout-minutes: 15
+        run: ./scripts/test.sh --isolate --workers 4 --rerun-failed-files 2 --runList .build/test-plan/isolate.txt
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_PRELAUNCH: '1'
+
       - name: 🧪 Run unit tests (node.js)
         if: ${{ env.ELECTRON_TESTS == 'true' && env.UNIT_TESTS == 'true' && env.UNIT_TEST_SUITE != 'electron' && (hashFiles('.build/test-plan/plan.json') == '' || hashFiles('.build/test-plan/unit.txt') != '') }}
         timeout-minutes: 25
@@ -435,8 +447,9 @@ jobs:
         env:
           DEBUG: "*browser*"
 
+      # The node.js integration tests never launch an extension host, so they don't use these extensions
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ env.INTEGRATION_TESTS == 'true' || env.SMOKE_TESTS == 'true' }}
+        if: ${{ (env.INTEGRATION_TESTS == 'true' && env.INTEGRATION_TEST_SUITE != 'node') || env.SMOKE_TESTS == 'true' }}
         run: |
           set -e
           pnpm run gulp \
@@ -633,7 +646,7 @@ jobs:
   electron-unit-node:
     name: Electron-Unit (node)
     if: ${{ inputs.electron_unit_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-unit-node
       ELECTRON_TESTS: 'true'
@@ -648,7 +661,7 @@ jobs:
   electron-node:
     name: Electron (node.js)
     if: ${{ inputs.node_integration_tests }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-node
       ELECTRON_TESTS: 'true'
@@ -660,7 +673,7 @@ jobs:
   electron-extension-host:
     name: Electron (extension host)
     if: ${{ inputs.electron_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-extension-host
       ELECTRON_TESTS: 'true'
@@ -673,7 +686,7 @@ jobs:
   agent-host-e2e:
     name: Agent-Host-E2E
     if: ${{ inputs.agent_host_e2e_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-agent-host-e2e
       ELECTRON_TESTS: 'true'
@@ -687,7 +700,7 @@ jobs:
   electron-smoke-1:
     name: Electron-Smoke (shard 1/3)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-smoke-shard1
       ELECTRON_TESTS: 'true'
@@ -699,7 +712,7 @@ jobs:
   electron-smoke-2:
     name: Electron-Smoke (shard 2/3)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-smoke-shard2
       ELECTRON_TESTS: 'true'
@@ -711,7 +724,7 @@ jobs:
   electron-smoke-3:
     name: Electron-Smoke (shard 3/3)
     if: ${{ inputs.electron_smoke_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: electron-smoke-shard3
       ELECTRON_TESTS: 'true'
@@ -723,7 +736,7 @@ jobs:
   browser-unit:
     name: Browser-Unit
     if: ${{ inputs.browser_unit_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: browser-unit
       BROWSER_TESTS: 'true'
@@ -734,7 +747,7 @@ jobs:
   browser:
     name: Browser
     if: ${{ inputs.browser_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: browser
       BROWSER_TESTS: 'true'
@@ -747,7 +760,7 @@ jobs:
   remote-integration:
     name: Remote (integration)
     if: ${{ inputs.remote_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: remote
       REMOTE_TESTS: 'true'
@@ -757,7 +770,7 @@ jobs:
   remote-smoke:
     name: Remote (smoke)
     if: ${{ inputs.remote_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       ARTIFACT_NAME: remote-smoke
       REMOTE_TESTS: 'true'

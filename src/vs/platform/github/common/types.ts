@@ -9,7 +9,7 @@ export type RequestFetch = typeof globalThis.fetch;
 /** Fixed API domains for request attribution, independent of callers and quota identities. */
 export const gitHubRequestDomains = [
 	'actions', 'automations', 'capabilities', 'checks', 'connectors', 'content', 'credentials', 'environments',
-	'gists', 'issues', 'notifications', 'organizations', 'pullRequests', 'repositories', 'reviews',
+	'gists', 'issues', 'models', 'notifications', 'organizations', 'pullRequests', 'repositories', 'reviews',
 	'search', 'tasks', 'users', 'other',
 ] as const;
 
@@ -90,6 +90,14 @@ export class RequestError extends Error {
 	) {
 		super(message);
 		this.name = 'RequestError';
+	}
+
+	public static isNotFound(error: unknown): boolean {
+		return error instanceof RequestError && error.statusCode === 404;
+	}
+
+	public static isForbidden(error: unknown): boolean {
+		return error instanceof RequestError && error.statusCode === 403;
 	}
 }
 

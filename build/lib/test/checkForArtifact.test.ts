@@ -20,10 +20,15 @@ interface RunResult {
 	readonly stderr: string;
 }
 
-function run(args: string[], buildsApiUrl: string): Promise<RunResult> {
+function run(args: string[], buildsApiUrl: string | undefined, extraEnv: Record<string, string> = {}): Promise<RunResult> {
 	return new Promise((resolve, reject) => {
+		const env: NodeJS.ProcessEnv = { ...process.env, SYSTEM_ACCESSTOKEN: 'token', ...extraEnv };
+		delete env.BUILDS_API_URL;
+		if (buildsApiUrl !== undefined) {
+			env.BUILDS_API_URL = buildsApiUrl;
+		}
 		const child = spawn(process.execPath, [scriptPath, ...args], {
-			env: { ...process.env, BUILDS_API_URL: buildsApiUrl, SYSTEM_ACCESSTOKEN: 'token' },
+			env,
 			stdio: ['ignore', 'pipe', 'pipe'],
 		});
 		let stdout = '';
@@ -49,7 +54,7 @@ suite('checkForArtifact', () => {
 
 	before(async () => {
 		server = createServer((req, res) => {
-			if (req.url?.startsWith('/builds/1/artifacts?')) {
+			if (req.url?.startsWith('/builds/1/artifacts?') || req.url?.startsWith('/Monaco/_apis/build/builds/7/artifacts?')) {
 				res.setHeader('Content-Type', 'application/json');
 				res.end(JSON.stringify({ value: [{ name: 'published_archive' }, { name: 'published_archive_sbom' }] }));
 			} else {
@@ -91,6 +96,25 @@ suite('checkForArtifact', () => {
 
 		assert.strictEqual(result.code, 1);
 		assert.match(result.stderr, /Usage: node checkForArtifact\.ts/);
+	});
+
+	test('builds the API URL from the predefined variables when BUILDS_API_URL is not set', async () => {
+		const result = await run(['PUBLISHED', 'published_archive', 'MISSING', 'missing_setup'], undefined, {
+			SYSTEM_COLLECTIONURI: `${baseUrl}/`,
+			SYSTEM_TEAMPROJECT: 'Monaco',
+			BUILD_BUILDID: '7',
+		});
+
+		assert.deepStrictEqual({ code: result.code, variables: setVariables(result.stdout) }, {
+			code: 0,
+			variables: { PUBLISHED: 'true', MISSING: 'false' },
+		});
+	});
+
+	test('only imports Node built-ins and retry.ts, so it runs in jobs without the build dependencies', () => {
+		const imports = [...readFileSync(scriptPath, 'utf8').matchAll(/^import .* from '([^']+)';$/gm)].map(m => m[1]);
+
+		assert.deepStrictEqual(imports.filter(i => !i.startsWith('node:') && i !== './retry.ts'), []);
 	});
 
 	test('does not call process.exit, which crashes Node on Windows while fetch is still closing its connection', () => {

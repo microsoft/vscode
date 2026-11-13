@@ -17,7 +17,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IApplicationBadge, INativeHostService } from '../../../../../platform/native/common/native.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
-import { ISession, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessions } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { SESSIONS_APPLICATION_BADGE_OPTIONS_DEFAULT, SESSIONS_APPLICATION_BADGE_OPTIONS_SETTING, SESSIONS_APPLICATION_BADGE_SETTING, SessionsApplicationBadge } from '../../electron-browser/sessionsApplicationBadge.js';

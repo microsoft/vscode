@@ -2393,6 +2393,21 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('cleanup-adopted worktrees preserve managed removal guards after the host restarts', async () => {
+		const worktree = URI.joinPath(worktreesRoot, 'cleanup-adopted');
+		const first = createIsolation(disposables);
+		await first.recordAdoptedWorktreeMetadata(sessionUri, {
+			worktreePath: worktree, repositoryRoot: repoRoot, branchName: 'agents/cleanup-adopted', baseBranch: undefined, managedCleanup: true,
+		});
+		const restarted = createIsolation(disposables);
+		const recorded = await restarted.readSessionWorktreeForRemoval(sessionUri);
+		assert.deepStrictEqual({
+			worktree: recorded?.worktree.toString(), repositoryRoot: recorded?.repositoryRoot.toString(), branch: recorded?.branchName, managedCleanup: recorded?.managedCleanup,
+		}, {
+			worktree: worktree.toString(), repositoryRoot: repoRoot.toString(), branch: 'agents/cleanup-adopted', managedCleanup: true,
+		});
+	});
+
 	test('applyRestoreAnnouncement prepends a markdown part when worktree metadata exists', async () => {
 		const isolation = createIsolation(disposables);
 		const turn: Turn = {

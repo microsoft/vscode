@@ -9,7 +9,7 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { classifySessionWorkspaceTopology, getNonArchivedSessionListCount, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionArtifactOpen, logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
-import { ISession, SessionArtifactKind } from '../../common/session.js';
+import { ISession, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 
 suite('sessionsTelemetry helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

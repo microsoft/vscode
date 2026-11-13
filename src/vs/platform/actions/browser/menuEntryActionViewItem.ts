@@ -202,6 +202,10 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		return this._wantsAltCommand && this._menuItemAction.alt || this._menuItemAction;
 	}
 
+	protected get onClickAnimation(): ClickAnimation | undefined {
+		return this._options?.onClickAnimation;
+	}
+
 	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
@@ -214,13 +218,13 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 			}
 		});
 		try {
-			const animationTarget = this._options?.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
+			const animationTarget = this.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
 			const context = this._context;
 			await this.actionRunner.run(commandAction, context);
-			if (!actionError && this._options?.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced() && (this._options.shouldTriggerClickAnimation?.(context) ?? true)) {
+			if (!actionError && this.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced() && (this._options?.shouldTriggerClickAnimation?.(context) ?? true)) {
 				const icon = this._menuItemAction.item.icon;
-				triggerClickAnimation(animationTarget, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
-				this._options.onDidTriggerClickAnimation?.();
+				triggerClickAnimation(animationTarget, this.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+				this._options?.onDidTriggerClickAnimation?.();
 			}
 		} catch (err) {
 			this._notificationService.error(err);

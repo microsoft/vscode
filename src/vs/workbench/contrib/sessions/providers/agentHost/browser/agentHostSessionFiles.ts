@@ -21,11 +21,11 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IChatSessionFileChange2 } from '../../../../chat/common/chatSessionsService.js';
-import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../common/session.js';
+import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../../services/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type CustomizationIndexFactory, type ICustomizationJobScheduler } from '../../../../chat/common/agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
+import { IChatSessionFileChange2 } from '../../../../../common/chatSessionFileChange.js';
 
 /**
  * A single file edit emitted by a tool call, decoded from the protocol so the

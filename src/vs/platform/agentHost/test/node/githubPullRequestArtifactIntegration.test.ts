@@ -142,7 +142,7 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			}
 		}();
 	}();
-	const github = createTestGitHubService(client, Event.map(invalidated.event, () => undefined), {
+	const github = createTestGitHubService(client, Event.map(Event.filter(invalidated.event, event => event.reason !== 'reauthorization'), () => undefined), {
 		actions: new class extends mock<IActionsClient>() {
 			override async getRun(_repository: RepositoryRef, runId: number) {
 				return upcastPartial<WorkflowRun>({ id: runId, status: workflowStatus });
@@ -252,6 +252,8 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			acquireError = undefined;
 			invalidated.fire({ reason: 'replacement' });
 		},
+		/** Same-token reauthorization: the credential and repository client are kept. */
+		reauthorize: () => invalidated.fire({ reason: 'reauthorization' }),
 		onRefresh: (hook: () => void | Promise<void>) => { refreshHook = hook; },
 		onMutation: (hook: () => void | Promise<void>) => { mutationHook = hook; },
 		onPrepareMerge: (hook: () => Promise<void>) => { prepareMergeHook = hook; },
@@ -673,6 +675,34 @@ suite('GitHub pull request artifact integration', () => {
 		assert.deepStrictEqual(f.authenticationRequests, []);
 	}));
 
+	test('revalidates an action refusal after same-token reauthorization without replaying the action', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, { ...base, core: { ...base.core, value: { ...base.core.value!, draft: true } } });
+		f.onMutation(() => { throw new GitHubRequestError('Resource protected by organization SAML enforcement.', 'authorization', 403); });
+		await f.invoke('markReady');
+		const refused = f.model.snapshot.get().contributions[0].view.availability.kind;
+		let revalidations = 0;
+		f.onMutation(() => { });
+		f.onRefresh(() => { revalidations++; f.snapshot.set({ ...f.snapshot.get() }, undefined); });
+		f.reauthorize();
+		await waitForState(f.model.snapshot, snapshot => snapshot.contributions[0]?.view.availability.kind === 'available');
+		assert.deepStrictEqual({ refused, revalidated: revalidations > 0, requests: f.authenticationRequests.length, mutations: f.mutations },
+			{ refused: 'authenticationRequired', revalidated: true, requests: 1, mutations: [] });
+	}));
+
+	test('clears sign-in once the pull request loads again even while another fragment keeps failing', () => run(async store => {
+		const base = createPullRequestArtifactSnapshot();
+		const f = await fixture(store, { ...base, core: { ...base.core, status: 'error', complete: false, error: { kind: 'authentication', message: 'Bad credentials' } } });
+		const availability = () => f.model.snapshot.get().contributions[0].view.availability;
+		const refused = availability();
+		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'loading', complete: false } }, undefined);
+		const loading = availability();
+		f.snapshot.set({ ...base, checks: { ...base.checks, status: 'error', complete: false, error: { kind: 'overloaded', message: 'GitHub request capacity exceeded' } } }, undefined);
+		const settled = availability();
+		const signIn = { kind: 'authenticationRequired', reason: 'Sign in to GitHub to see the state of this pull request.' };
+		assert.deepStrictEqual({ refused, loading, settled, requests: f.authenticationRequests.length }, { refused: signIn, loading: signIn, settled: { kind: 'available' }, requests: 1 });
+	}));
+
 	test('keeps CI visible for open/draft PRs and comments only when qualifying threads remain', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, {
@@ -1048,7 +1078,7 @@ suite('GitHub pull request artifact integration', () => {
 			},
 			title: 'Checks (2/4)',
 			items: [
-				{ id: 'pending', icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' } },
+				{ id: 'pending', icon: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' } },
 				{ id: 'failed', icon: { id: 'error-compact', colorId: 'errorForeground' } },
 				{ id: 'skipped', icon: { id: 'skip', colorId: 'descriptionForeground' } },
 				{ id: 'passed', icon: { id: 'pass-filled-compact', colorId: 'charts.green' } },
@@ -1125,7 +1155,7 @@ suite('GitHub pull request artifact integration', () => {
 			states.push({ icon: section?.icon, label: section?.label, description: section?.description, title: details.details.get().title, checksReady: arePullRequestArtifactChecksReady(snapshot) });
 		}
 		assert.deepStrictEqual(states, [
-			{ icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
+			{ icon: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
 			{ icon: { id: 'pass-filled-compact', colorId: 'charts.green' }, label: '1/1', description: '1 of 1 checks passed; 0 failed.', title: 'Checks (1/1)', checksReady: true },
 			{ icon: { id: 'skip', colorId: 'descriptionForeground' }, label: '1/1', description: '1 of 1 checks completed without failure; 0 failed; 1 skipped.', title: 'Checks (1/1)', checksReady: true },
 		]);

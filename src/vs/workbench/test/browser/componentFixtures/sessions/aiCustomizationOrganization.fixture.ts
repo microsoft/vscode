@@ -45,6 +45,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 // Ensure color registrations are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // Fixtures for how customizations are organized into groups. Each variant
 // feeds the real items model and list widget through the same provider
@@ -312,7 +313,7 @@ const agentHostCustomizations: readonly Customization[] = [
 	]),
 	directory(URI.from({ scheme: 'copilot-builtin', path: '/agents' }), CustomizationType.Agent, false, [
 		{ uri: URI.from({ scheme: 'copilot-builtin', path: '/agents/ask.agent.md' }), name: 'Ask', description: 'Answers questions about your code without making changes', meta: { 'vscode.chatMode': 'ask' } },
-	], { meta: { 'vscode.customization.scope': 'application' } }),
+	], { meta: { 'vscode.customizationDiscovery': { source: 'builtin' } } }),
 	plugin(hostAzurePlugin, 'azure'),
 	plugin(hostApifyPlugin, 'apify', { degraded: 'One skill could not be loaded' }),
 	plugin(clientPlaywrightPlugin, 'playwright', { clientId: CLIENT_ID }),
@@ -381,7 +382,7 @@ function createWorkspaceContextService(folders: readonly URI[]): IWorkspaceConte
 	}));
 	return new class extends mock<IWorkspaceContextService>() {
 		override readonly onDidChangeWorkspaceFolders = Event.None;
-		override getWorkspace(): IWorkspace { return { id: 'fixture', folders: workspaceFolders }; }
+		override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'fixture', folders: workspaceFolders }); }
 		override getWorkspaceFolder(resource: URI) {
 			return workspaceFolders.find(folder => resource.path.startsWith(`${folder.uri.path}/`)) ?? null;
 		}

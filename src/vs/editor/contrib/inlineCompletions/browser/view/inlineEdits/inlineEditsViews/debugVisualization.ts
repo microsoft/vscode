@@ -183,7 +183,7 @@ class HtmlHorizontalOffsetRangeVisualizer implements IVisualizationEffect {
 		};
 
 		// This is for debugging only
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		document.body.appendChild(container);
 		updatePosition();
 
@@ -234,7 +234,7 @@ class HtmlRectVisualizer implements IVisualizationEffect {
 		};
 
 		// This is for debugging only
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		document.body.appendChild(div);
 		updatePosition();
 

@@ -1,6 +1,11 @@
 name: Test chat-lib
 description: Extracts the chat-lib package from the Copilot extension, then builds and tests it. Expects the repository to be checked out.
 
+inputs:
+  restore-pnpm-store:
+    description: Restore the pnpm store from the cache. 'false' installs without it, as the jobs of pr.yml that start from a workspace image do, whose image holds the dependencies of Copilot (see .github/workflows/workspace_image/README.md).
+    default: 'true'
+
 runs:
   using: composite
   steps:
@@ -12,44 +17,46 @@ runs:
     - name: Setup pnpm
       uses: ./.github/actions/setup-pnpm
 
-    # Reuse a node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on `main`:
-    # the Copilot cache on Linux and Windows, and the full cache (which includes extensions/copilot)
-    # on macOS. Never save: PR-scoped caches are not shared with other PRs and only evict the
-    # shared ones.
-    - name: Restore node_modules cache
-      id: cache-node-modules
-      uses: ./.github/actions/restore-node-modules
+    # Reuse a pnpm store that .github/workflows/pr-pnpm-store.yml keeps warm on `main`: the Copilot
+    # store on Linux and Windows, and the full store (which includes extensions/copilot) on macOS.
+    # Never save: PR-scoped caches are not shared with other PRs and only evict the shared ones.
+    - name: Restore pnpm store cache
+      if: inputs.restore-pnpm-store == 'true'
+      uses: ./.github/actions/restore-pnpm-store
       with:
-        key-prefix: ${{ runner.os == 'macOS' && 'node_modules-macos' || runner.os == 'Windows' && 'copilot-node_modules-windows' || 'copilot-node_modules-linux' }}
-        key-args: ${{ runner.os == 'macOS' && 'darwin $(node -p process.arch) $(node -p process.arch)' || '$(node -p process.platform) $(node -p process.arch)' }}
+        key-prefix: ${{ runner.os == 'macOS' && 'pnpm-store-macos' || runner.os == 'Windows' && 'pnpm-store-copilot-windows' || 'pnpm-store-copilot-linux' }}
 
-    # extensions/copilot is a separate install root; chat-lib is a member of its workspace.
+    # Copilot and chat-lib are members of the root pnpm workspace. pnpm runs the root install
+    # scripts, which install the whole repository, on every install that runs scripts, filtered or
+    # not: the install skips the scripts, then builds Copilot's dependencies and runs its postinstall,
+    # like the Copilot jobs of pr.yml. The rebuild ignores the root .pnpmfile.mjs, which builds native
+    # modules for Electron: chat-lib runs in Node.js.
     - name: Install Copilot dependencies
-      if: steps.cache-node-modules.outputs.cache-hit != 'true'
       shell: bash
-      working-directory: extensions/copilot
-      run: pnpm install --frozen-lockfile
+      run: |
+        pnpm install --frozen-lockfile --ignore-scripts --filter copilot-chat --filter @vscode/chat-lib
+        pnpm --ignore-pnpmfile --filter copilot-chat --filter @vscode/chat-lib rebuild
+        pnpm --dir extensions/copilot run postinstall
 
     # The extraction sets chat-lib's dependencies to Copilot's versions, in its package.json and in
-    # Copilot's pnpm-lock.yaml. Remove the node_modules of the folders above extensions/copilot (some
-    # are restored from the cache) so that chat-lib only resolves the dependencies of Copilot's
-    # workspace.
+    # the root pnpm-lock.yaml.
     - name: Extract chat-lib
       shell: bash
       working-directory: extensions/copilot
-      run: |
-        pnpm run extract-chat-lib
-        rm -rf ../node_modules ../../node_modules
+      run: pnpm run extract-chat-lib
 
-    # Installs chat-lib's dependencies for the versions that the extraction set, then runs chat-lib's
-    # postinstall, which copies static files next to the extracted sources: pnpm doesn't run it again
-    # when the workspace is already up to date.
+    # Installs chat-lib's dependencies for the versions that the extraction set, without the root
+    # install scripts, then runs chat-lib's postinstall, which copies static files next to the
+    # extracted sources. Then removes the packages in the node_modules folders above
+    # extensions/copilot (every install adds the root project's), so that chat-lib only resolves its
+    # own dependencies and Copilot's.
     - name: Install chat-lib dependencies
       shell: bash
       working-directory: extensions/copilot
       run: |
-        pnpm install --frozen-lockfile
+        pnpm install --frozen-lockfile --ignore-scripts --filter @vscode/chat-lib
         pnpm --dir chat-lib run postinstall
+        pnpm exec tsx script/build/isolateChatLib.ts
 
     - name: Build chat-lib
       shell: bash

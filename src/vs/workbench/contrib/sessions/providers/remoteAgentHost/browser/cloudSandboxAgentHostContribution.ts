@@ -30,7 +30,7 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IAgentHostConnectionLabels, IAgentHostGroup } from '../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../common/agentHostFilter.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ISession } from '../../../common/session.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, COPILOT_PROVIDER_ID } from '../../copilotChatSessions/common/copilotChatSessions.js';
 import { CloudSandboxSessionsProvider } from './cloudSandboxSessionsProvider.js';
 import { IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';

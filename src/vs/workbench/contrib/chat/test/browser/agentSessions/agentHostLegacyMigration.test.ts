@@ -17,13 +17,7 @@ import { getTelemetryMigrationErrorMessage, getTelemetryMigrationSessionId } fro
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { adoptLegacyCopilotCliResource, reportLegacyMigrationOpen } from '../../../browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { COPILOT_CLI_AGENT_PROVIDER, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
-
-/** Migration enabled; the redirect is a no-op without it. */
-const migrationOn: IConfigurationService = new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true });
 
 suite('AgentHost legacy Copilot CLI migration', () => {
 
@@ -88,7 +82,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('redirects to the agent-host twin once the subscription carries state', async () => {
 		const { connection, subscribed } = createConnection('adopted');
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
+		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), telemetry, 'open');
 
 		assert.deepStrictEqual(
 			{ resolved: resolved?.toString(), subscribed: subscribed.map(s => s.toString()), outcomes },
@@ -122,7 +116,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 			}
 		};
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
+		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), telemetry, 'open');
 		assert.deepStrictEqual({
 			resolved,
 			events: events.map(({ error, data }) => ({ error, outcome: data.outcome, reason: data.reason, errorMessage: data.errorMessage })),
@@ -178,7 +172,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('suppresses malformed-path messages in probe and open telemetry while preserving error codes', async () => {
 		const message = 'The argument \'path\' must be a string, Uint8Array, or URL without null bytes. Received \'/private-prefix\\x00...\'';
 		const { connection } = createConnection('initialError', message);
-		await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
+		await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), telemetry, 'open');
 		reportLegacyMigrationOpen(telemetry, 'restore', twinResource, false, new ProtocolError(-32603, message));
 		assert.deepStrictEqual(events.map(({ name, data }) => ({
 			name, reason: data.reason, errorCode: data.errorCode, errorMessage: data.errorMessage,
@@ -191,8 +185,8 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('retries after a refusal instead of pinning the session to the legacy path', async () => {
 		const { connection, subscribed } = createConnection('refused');
 
-		const first = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
-		const second = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
+		const first = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), telemetry, 'open');
+		const second = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), telemetry, 'open');
 
 		// The host reports every restore failure as SessionNotFound, so a refusal
 		// cannot be told apart from a transient one and must not be remembered.
@@ -205,25 +199,22 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('never probes a resource that is not a legacy Copilot CLI session', async () => {
 		const { connection, subscribed } = createConnection('adopted');
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, twinResource, new NullLogService(), migrationOn, telemetry, 'open');
+		const resolved = await adoptLegacyCopilotCliResource(connection, twinResource, new NullLogService(), telemetry, 'open');
 
 		// Not a migration opportunity at all, so it must not even be counted.
 		assert.deepStrictEqual({ resolved, subscribed, outcomes }, { resolved: undefined, subscribed: [], outcomes: [] });
 	});
 
-	test('does nothing while the migration setting is off', async () => {
+	test('never probes an unsaved legacy draft', async () => {
 		const { connection, subscribed } = createConnection('adopted');
-		const migrationOff: IConfigurationService = new TestConfigurationService();
 
-		const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOff, telemetry, 'open');
+		const resolved = await adoptLegacyCopilotCliResource(connection, URI.from({ scheme: COPILOT_CLI_EH_SCHEME, path: '/untitled-draft' }), new NullLogService(), telemetry, 'restore');
 
-		// The host restores a session whether or not it adopts it, so without this
-		// gate a user who never opted in would still be moved onto the agent host.
-		assert.deepStrictEqual({ resolved, subscribed, outcomes }, { resolved: undefined, subscribed: [], outcomes: ['settingDisabled'] });
+		assert.deepStrictEqual({ resolved, subscribed, outcomes }, { resolved: undefined, subscribed: [], outcomes: [] });
 	});
 
 	test('declines without probing when there is no connection', async () => {
-		assert.strictEqual(await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService(), migrationOn, telemetry, 'open'), undefined);
+		assert.strictEqual(await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService(), telemetry, 'open'), undefined);
 	});
 
 	for (const { state, outcome, reason, hasError } of [
@@ -235,7 +226,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	] as const) {
 		test(`reports diagnostic details for ${reason}`, async () => {
 			const { connection } = createConnection(state, `session not found: ${backendChannel}; frontend ${twinResource}; id ${RAW_ID}`);
-			const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'restore', 100);
+			const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), telemetry, 'restore', 100);
 			const { durationMs, ...data } = events[0].data;
 			assert.deepStrictEqual({ resolved, count: events.length, error: events[0].error, durationType: typeof durationMs, data }, {
 				resolved: undefined,
@@ -247,7 +238,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 					migrationSessionId: getTelemetryMigrationSessionId(backendChannel),
 					errorCode: hasError ? '-32001' : undefined,
 					errorMessage: hasError ? 'session not found: [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]' : undefined,
-					settingEnabledAtStartup: true, settingEnabledNow: true, timeoutMs: 100,
+					timeoutMs: 100,
 				},
 			});
 		});
@@ -256,7 +247,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	test('reports timeouts without inventing an error or an eligibility reason', async () => {
 		await runWithFakedTimers({}, async () => {
 			const { connection } = createConnection('pending');
-			await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'restore', 10);
+			await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), telemetry, 'restore', 10);
 			const { durationMs, ...data } = events[0].data;
 			assert.deepStrictEqual({ count: events.length, error: events[0].error, durationMs, data }, {
 				count: 1, error: false, durationMs: 10,
@@ -264,25 +255,19 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 					source: 'restore', outcome: 'timedOut', reason: 'timedOut',
 					migrationSessionId: getTelemetryMigrationSessionId(backendChannel),
 					errorCode: undefined, errorMessage: undefined,
-					settingEnabledAtStartup: true, settingEnabledNow: true, timeoutMs: 10,
+					timeoutMs: 10,
 				},
 			});
 		});
 	});
 
-	test('reports missing connections and disabled settings with session correlation', async () => {
-		const { connection } = createConnection('pending');
-		const migrationOff = new TestConfigurationService();
-		await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService(), migrationOn, telemetry, 'open');
-		await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOff, telemetry, 'open');
+	test('reports missing connections with session correlation', async () => {
+		await adoptLegacyCopilotCliResource(undefined, legacyResource, new NullLogService(), telemetry, 'open');
 		assert.deepStrictEqual(events.map(({ data }) => ({
 			reason: data.reason,
 			migrationSessionId: data.migrationSessionId,
-			settingEnabledAtStartup: data.settingEnabledAtStartup,
-			settingEnabledNow: data.settingEnabledNow,
 		})), [
-			{ reason: 'noConnection', migrationSessionId: getTelemetryMigrationSessionId(backendChannel), settingEnabledAtStartup: true, settingEnabledNow: true },
-			{ reason: 'settingDisabled', migrationSessionId: getTelemetryMigrationSessionId(backendChannel), settingEnabledAtStartup: false, settingEnabledNow: false },
+			{ reason: 'noConnection', migrationSessionId: getTelemetryMigrationSessionId(backendChannel) },
 		]);
 	});
 

@@ -18,7 +18,7 @@ import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chat
 import { getCopilotCliSessionRawId } from '../../../chat/browser/copilotCliEventsUri.js';
 import { IDynamicVariable } from '../../../chat/common/attachments/chatVariables.js';
 import { ChatSessionReferenceVariableId } from '../../../chat/common/attachments/chatVariableEntries.js';
-import { ISession } from '../../common/session.js';
+import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 
 const VARIABLE_LEADER = '#';

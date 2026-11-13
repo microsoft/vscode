@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -37,6 +37,9 @@ import { ICustomizationMarketplaceResource } from '../../../../../platform/custo
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -46,6 +49,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IChatTipProvider, IChatTipService } from '../../../../../workbench/contrib/chat/browser/chatTipService.js';
+import { extractCommandIds, TIP_CATALOG } from '../../../../../workbench/contrib/chat/browser/chatTipCatalog.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../../workbench/contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
@@ -82,7 +86,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 import { activeSessionViewBackground } from '../../../../../workbench/contrib/sessions/common/theme.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_CODICONS_PRESET, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, ISessionsChatBackground, ISessionsChatBackgroundService, SessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
@@ -92,8 +96,11 @@ import { IWorktreeSuggestionService } from '../../../../../workbench/contrib/ses
 import { NullWorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionDraftsService, SessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { IScheduledChatsService } from '../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
@@ -106,7 +113,7 @@ import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS } from '../../../../../workbench/contrib/sessions/common/newSessionBanners.js';
 import { INewSessionComposerService, INewSessionPromptOption, NewSessionComposerService, NewSessionPromptOptionsState } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
 
 import '../../../../browser/media/style.css';
@@ -192,6 +199,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly height?: number;
 	readonly commentCount?: number;
 	readonly showTip?: boolean;
+	readonly tipId?: string;
 	readonly promptOptions?: NewSessionPromptOptionsState;
 	readonly selectedOptionIndex?: number;
 	readonly editedInput?: string;
@@ -403,6 +411,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		height = DEFAULT_HEIGHT,
 		commentCount = 0,
 		showTip = false,
+		tipId,
 		promptOptions,
 		selectedOptionIndex,
 		editedInput,
@@ -464,6 +473,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly initialRestoreComplete = constObservable(true);
 		readonly activeSession = activeSessionObservable;
+		override registerSavedDraftOpener() { return Disposable.None; }
+		override setCurrentDraftId() { }
 	}();
 	const configurationService = new TestConfigurationService({
 		// Editor settings the composer's chat widget reads.
@@ -505,6 +516,14 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		colorTheme: context.theme,
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
+			if (tipId) {
+				reg.defineInstance(IKeybindingService, new class extends MockKeybindingService {
+					override lookupKeybinding(commandId: string) {
+						const binding = KeybindingsRegistry.getDefaultKeybindings().find(item => item.command === commandId)?.keybinding;
+						return binding ? this.resolveKeybinding(binding)[0] : undefined;
+					}
+				}());
+			}
 			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
 				override readonly enabled = false;
 				override readonly accountKey = undefined;
@@ -574,6 +593,13 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					if (!tipsEnabled || this._hidden) {
 						return undefined;
 					}
+					if (tipId) {
+						const tip = TIP_CATALOG.find(tip => tip.id === tipId);
+						assert(!!tip, `Unknown tip: ${tipId}`);
+						const message = tip.buildMessage({ keybindingService: instantiationService.get(IKeybindingService), experimentalTipMessages: new Map() });
+						const enabledCommands = extractCommandIds(message.value);
+						return { id: tip.id, content: new MarkdownString(`**Tip:** ${message.value}`, { isTrusted: { enabledCommands } }), enabledCommands };
+					}
 					return this._provider?.provideTip()
 						?? (showTip ? { id: 'fixture-tip', content: new MarkdownString('**Tip:** Reference files or folders with # to give the agent more context.') } : undefined);
 				}
@@ -601,6 +627,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
+				override readonly onDidSendRequest = Event.None;
+				override readonly onDidEndNewSessionRequest = Event.None;
+				override readonly onDidReplaceNewDraftSession = Event.None;
 				override isQuickChatTargetAvailable(): boolean { return false; }
 				override getAllProviderSessionTypes() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
@@ -613,6 +642,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly comparisons = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsService, sessionsService);
+			reg.define(ISessionDraftsService, SessionDraftsService);
+			reg.defineInstance(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
+				override getPendingNewSessionGroup() { return undefined; }
+			}());
+			reg.defineInstance(IScheduledChatsService, new class extends mock<IScheduledChatsService>() {
+				override readonly enabled = constObservable(false);
+				override readonly availableProviders = constObservable([]);
+				override canSchedule() { return false; }
+				override assertUnscheduled() { }
+			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return activeSession ? [provider] : []; }
@@ -811,6 +850,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 
 	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
 	instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(phoneLayout) });
+	instantiationService.stub(IViewsService, { getViewWithId: () => null });
 	if (connectorRecommendations) {
 		menuService.addItem(MenuId.ChatTipToolbar, {
 			command: { id: 'workbench.action.chat.previousTip', title: 'Previous tip', icon: Codicon.chevronLeft },
@@ -850,7 +890,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		instantiationService.stub(IAgentWorkbenchLayoutService, { mainContainer: container });
 		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, {});
-		instantiationService.stub(IViewsService, {});
 		instantiationService.set(ILayoutService, new class extends mock<ILayoutService>() {
 			override readonly mainContainer = container;
 			override readonly activeContainer = container;
@@ -893,6 +932,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		session: activeSessionObservable,
 	}));
 	sessionViewContent.appendChild(view.element);
+	view.setVisible(true);
 	view.layout(width, height, 0, 0);
 	const targetWindow = dom.getWindow(container);
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
@@ -1703,6 +1743,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { showTip: true }),
 	}),
+	SendInBackgroundTip: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The new-session composer shows the Send in Background tip below the input, including its default keyboard shortcut and a Customize the shortcut link.'],
+		render: context => renderNewChatWidget(context, { showTip: true, tipId: 'tip.sendInBackground', withWorkspace: true }),
+	}),
 	PromptOptionsLoading: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: context => renderNewChatWidget(context, { promptOptions: { kind: 'loading' } }),
@@ -2019,12 +2064,14 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly sessionId = 'fixture-session';
 		override readonly providerId = providerId;
 		override readonly sessionType = sessionType.id;
+		override readonly application = constObservable({ id: 'fixture', label: 'Fixture' });
 		override readonly status = constObservable(SessionStatus.Untitled);
 		override readonly isCreated = constObservable(false);
 		override readonly loading = constObservable(false);
 		override readonly workspace = constObservable(workspace);
 		override readonly branch = constObservable<string | undefined>('main');
 		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly mode = constObservable(undefined);
 		override readonly mainChat = constObservable(activeChat);
 		override readonly activeChat = constObservable(activeChat);
 	}();

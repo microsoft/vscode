@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
+import { isSafari } from '../../../../../base/browser/browser.js';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -19,6 +20,8 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../plat
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
@@ -39,6 +42,9 @@ import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 suite('MultiEditorTabsControl', () => {
+
+	// WebKit mispositions RTL sticky Add controls: https://bugs.webkit.org/show_bug.cgi?id=203120
+	const stickyAddTabDirections = isSafari ? ['ltr'] : ['ltr', 'rtl'];
 
 	let disposables: DisposableStore;
 
@@ -489,6 +495,11 @@ suite('MultiEditorTabsControl', () => {
 			const oppositeShoulder = mainWindow.getComputedStyle(activeFill, direction === 'rtl' ? '::after' : '::before');
 			const shoulderWidth = Number.parseFloat(oppositeShoulder.width) * zoom;
 			const activeFillBounds = activeFill.getBoundingClientRect();
+			const activeClip = mainWindow.getComputedStyle(activeFill.parentElement!).clipPath;
+			const clipInsets = activeClip === 'none' ? undefined : activeClip.slice(6, -1).split(' ');
+			const shoulderClipEdge = clipInsets
+				? direction === 'rtl' ? activeFillBounds.left + Number.parseFloat(clipInsets[3]) * zoom : activeFillBounds.right - Number.parseFloat(clipInsets[1]) * zoom
+				: direction === 'rtl' ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
 			const activeVisibleWidth = Math.min(activeFillBounds.right, tabs.getBoundingClientRect().right) - Math.max(activeFillBounds.left, boundary);
 			const rtlCapExpected = direction === 'rtl' && activeVisibleWidth > shoulderWidth;
 			const oppositeShoulderOutsideViewport = direction === 'rtl'
@@ -501,15 +512,17 @@ suite('MultiEditorTabsControl', () => {
 					? Math.abs(overlay.getBoundingClientRect().left - boundary) < 1 / 32
 					: !overlay.classList.contains('connected-tab-left-clipped')),
 				oppositeShoulderPresentWhenVisible: oppositeShoulderOutsideViewport || oppositeShoulder.content === '""',
+				activeClipPreservesBodyBoundary: Math.abs(shoulderClipEdge - boundary) < 1 / 32,
 				matchingClip: rendered.every(tab => {
 					const expected = Math.max(0, (direction === 'rtl' ? boundary - tab.getBoundingClientRect().left : tab.getBoundingClientRect().right - boundary) / zoom);
-					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px ([\d.]+)px\)$/ : /^inset\(-1px ([\d.]+)px -1px -8px\)$/);
-					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Number.parseFloat(match[1]) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - expected) < 1 / 32;
+					const inset = expected - (tab.classList.contains('active') && expected + shoulderWidth / zoom <= 8 ? 8 : 0);
+					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px -8px -1px (-?[\d.]+)px\)$/ : /^inset\(-1px (-?[\d.]+)px -1px -8px\)$/);
+					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - inset) < 1 / 32;
 				}),
 			};
 		};
 		const results = [];
-		for (const direction of ['ltr', 'rtl']) {
+		for (const direction of stickyAddTabDirections) {
 			for (const zoom of [1, 1.25]) {
 				const root = group.closest<HTMLElement>('.monaco-workbench')!;
 				root.dir = direction;
@@ -538,10 +551,107 @@ suite('MultiEditorTabsControl', () => {
 			results, hiddenAddClippingCleared,
 			wrappedClippingCleared: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath),
 		}, {
-			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, matchingClip: true } })),
+			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipPreservesBodyBoundary: true, matchingClip: true }, scrolled: { hasClippedTab: true, hasClippedActive: true, rtlCapAtBoundary: true, oppositeShoulderPresentWhenVisible: true, activeClipPreservesBodyBoundary: true, matchingClip: true } })),
 			hiddenAddClippingCleared: true,
 			wrappedClippingCleared: true,
 		});
+	});
+
+	test('Connected active tabs cover the separator when Add Tab clips them', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.classList.add('test-connected-tab-seam');
+		const probe = mainWindow.document.createElement('style');
+		// Expose the painted surfaces to the browser's stacking-order hit test.
+		probe.textContent = '.test-connected-tab-seam.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after { pointer-events: auto; }';
+		root.appendChild(probe);
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.activeSeam') });
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, wrapTabs: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const count of [1, 3]) {
+			const editors = openNamedEditors(Array.from({ length: count }, (_, index) => `file${index}.ts`));
+			for (let activeIndex = 0; activeIndex < count; activeIndex++) {
+				model.setActive(editors[activeIndex]);
+				control.openEditor(editors[activeIndex]);
+				for (const direction of stickyAddTabDirections) {
+					root.dir = direction;
+					for (const width of [600, 100, 600]) {
+						await layoutConnectedGroup(group, width);
+						control.layout({ container: new Dimension(width, 33), available: new Dimension(width, 300) }, { forceRevealActiveTab: true });
+						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						const strip = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+						const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+						const active = tabs.querySelector<HTMLElement>('.tab.active')!;
+						const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+						fill.style.pointerEvents = 'auto';
+						const add = tabs.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+						if (direction === 'rtl') {
+							tabs.classList.add('scroll');
+							tabs.scrollLeft += active.getBoundingClientRect().right - tabs.getBoundingClientRect().right;
+							tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+						}
+						const bounds = fill.getBoundingClientRect();
+						const viewport = tabs.getBoundingClientRect();
+						const left = Math.max(bounds.left, viewport.left, direction === 'rtl' ? add.getBoundingClientRect().right + 8 : viewport.left);
+						const right = Math.min(bounds.right, viewport.right, direction === 'ltr' ? add.getBoundingClientRect().left - 8 : viewport.right);
+						const hit = mainWindow.document.elementFromPoint((left + right) / 2, strip.getBoundingClientRect().bottom - 0.5);
+						results.push({
+							count, activeIndex, direction, width,
+							clipped: !!active.style.clipPath,
+							stacking: mainWindow.getComputedStyle(active).zIndex,
+							visible: right > left,
+							seamOwner: hit === fill ? 'activeFill' : hit?.className,
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result, clipped: result.width === 100, stacking: result.width === 100 ? '1' : 'auto', visible: true, seamOwner: 'activeFill',
+		})));
+	});
+
+	test('fractional terminal tabs retain a natural shoulder when its gutter fits beside Add Tab', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.fractionalShoulder') });
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 120.25, tabSizingFixedMaxWidth: 120.25, wrapTabs: false, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		openNamedEditors(['first.ts', 'middle.ts', 'last.ts']);
+		const results = [];
+		for (const direction of stickyAddTabDirections) {
+			root.dir = direction;
+			for (const zoom of [1, 1.25]) {
+				root.style.zoom = String(zoom);
+				await layoutConnectedGroup(group, 600);
+				await layoutConnectedGroup(group, 300);
+				const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+				tabs.classList.add('scroll');
+				const active = tabs.querySelector<HTMLElement>('.tab.active')!;
+				tabs.scrollLeft += direction === 'rtl'
+					? active.getBoundingClientRect().right - tabs.getBoundingClientRect().right
+					: tabs.scrollWidth;
+				tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+				const fill = active.querySelector<HTMLElement>('.tab-fill')!;
+				const shoulder = mainWindow.getComputedStyle(fill, direction === 'rtl' ? '::before' : '::after');
+				const insets = mainWindow.getComputedStyle(active).clipPath;
+				const clip = insets === 'none' ? undefined : insets.slice(6, -1).split(' ');
+				const naturalEdge = direction === 'rtl' ? fill.getBoundingClientRect().left : fill.getBoundingClientRect().right;
+				const clipEdge = clip ? naturalEdge + (direction === 'rtl' ? Number.parseFloat(clip[3]) : -Number.parseFloat(clip[1])) * zoom : undefined;
+				results.push({
+					direction, zoom, shoulder: shoulder.content,
+					completeCurve: clipEdge === undefined || (direction === 'rtl' ? naturalEdge - clipEdge : clipEdge - naturalEdge) >= Number.parseFloat(shoulder.width) * zoom - 1 / 32,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, shoulder: '""', completeCurve: true })));
 	});
 
 	test('scrolling Add clipping reads every tab before changing clip styles', async () => {
@@ -4672,6 +4782,41 @@ suite('MultiEditorTabsControl', () => {
 		await entry?.run(shownMenu?.getActionsContext?.());
 
 		assert.deepStrictEqual(ran, [[{ groupId: groupView.id }]]);
+	});
+
+	test('logs the journey through the Add Tab menu: opened, then picked or dismissed', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(): Promise<R> { return undefined as R; }
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.addTab.journey') });
+
+		const open = () => container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+		open();
+		const [entry] = shownMenu!.getActions();
+		// Like the context menu: running an entry first hides the menu
+		const onWillRun = shownMenu!.actionRunner!.onWillRun(() => shownMenu!.onHide?.(false));
+		await shownMenu!.actionRunner!.run(entry, shownMenu!.getActionsContext?.());
+		onWillRun.dispose();
+		open();
+		shownMenu!.onHide?.(true);
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events.filter(e => e.eventName === 'editorAddTabMenu').map(e => e.data), [
+			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
+			{ kind: 'picked', menuId: 'test.addTab.journey', entry: 'test.connectedTabs.newEditor' },
+			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
+			{ kind: 'dismissed', menuId: 'test.addTab.journey', entry: undefined },
+		]);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

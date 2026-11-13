@@ -36,7 +36,7 @@ import type { IChatPillEntry } from '../../../../browser/chatPills.js';
 import { IDetachedTerminalInstance, IDetachedXtermTerminal, IDetachedXTermOptions, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { SessionBackgroundShellsControl, type IChatBackgroundShellsSource } from '../../browser/sessionBackgroundShellsControl.js';
 import { sessionBackgroundShellsPillOptions } from '../../browser/sessionChatPillOptions.js';
-import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../common/sessionChatPills.js';
+import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../../../common/chatBackgroundShell.js';
 
 suite('SessionBackgroundShellsControl', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

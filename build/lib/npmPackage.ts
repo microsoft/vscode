@@ -24,7 +24,9 @@ export interface EnsureNpmPackageOptions {
  * Materializes an npm package from the version recorded in the adjacent
  * pnpm-lock.yaml (the lockfile of the install root that owns `nodeModulesRoot`)
  * when it is missing from node_modules, for example the package of another
- * platform.
+ * platform. With pnpm's isolated linker, a package that pnpm installed but
+ * didn't link there (one that isn't a direct dependency) is linked from the
+ * virtual store instead.
  */
 export function ensureNpmPackage(packageName: string, nodeModulesRoot = 'node_modules', options: EnsureNpmPackageOptions = {}): void {
 	const packageDir = path.join(nodeModulesRoot, ...packageName.split('/'));
@@ -34,6 +36,16 @@ export function ensureNpmPackage(packageName: string, nodeModulesRoot = 'node_mo
 
 	const lockFilePath = path.join(path.dirname(nodeModulesRoot), 'pnpm-lock.yaml');
 	const lockPackage = readLockedPackage(lockFilePath, packageName);
+
+	// With pnpm's isolated linker, a package that isn't a direct dependency of the install root is
+	// only in the virtual store, which links one version of each package in `.pnpm/node_modules`.
+	const storeDir = path.join(nodeModulesRoot, '.pnpm', 'node_modules', ...packageName.split('/'));
+	if (fs.existsSync(path.join(storeDir, 'package.json')) && JSON.parse(fs.readFileSync(path.join(storeDir, 'package.json'), 'utf8')).version === lockPackage.version) {
+		fs.mkdirSync(path.dirname(packageDir), { recursive: true });
+		fs.symlinkSync(fs.realpathSync(storeDir), packageDir, 'junction');
+		console.log(`[ensureNpmPackage] Linked ${packageName}@${lockPackage.version} from pnpm's virtual store in ${packageDir}`);
+		return;
+	}
 
 	const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-npm-package-'));
 	try {

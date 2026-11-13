@@ -11,6 +11,13 @@ snapcraft --version
 # This applies to both the apt commands below and snapcraft's internal apt operations for stage-packages
 sudo sh -c 'echo "Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries'
 
+# Abandon a stalled connection after 15s instead of apt's default 120s. snapcraft
+# fetches stage-packages one at a time, and when the mirror stalls a connection the
+# retry on a new one usually succeeds at once; with the default, 35 such stalls took
+# 70 minutes and the job hit its time limit. The timeout applies to inactivity, so
+# slow but progressing downloads are unaffected.
+sudo sh -c 'echo "Acquire::http::Timeout \"15\";" > /etc/apt/apt.conf.d/80-timeout'
+
 # Point apt at the Azure Ubuntu mirror. The build agents cannot reach
 # archive.ubuntu.com/ports.ubuntu.com (DNS resolves them to a non-routable
 # TEST-NET address, so connections time out), whereas the Azure mirror is

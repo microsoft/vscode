@@ -43,7 +43,7 @@ import { ColorThemeData } from '../../../../../workbench/services/themes/common/
 import { IColorMap, IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../../../workbench/services/themes/common/workbenchThemeService.js';
 import '../../../../browser/media/workbench.css';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { applyAgentsPartCardStyles } from '../../../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
+import { applyAgentsPartCardStyles } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { applySessionViewThemeColors } from '../../../../../workbench/contrib/sessions/browser/parts/sessionBarStyles.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { activeSessionViewBackground, activeSessionViewForeground, agentsBackground, agentsChatInputBackground, agentsChatInputForeground, agentsChatInputPlaceholderForeground, agentsDetailBackground, agentsPanelBackground, agentsPanelForeground, inactiveSessionViewBackground, inactiveSessionViewForeground } from '../../../../../workbench/contrib/sessions/common/theme.js';

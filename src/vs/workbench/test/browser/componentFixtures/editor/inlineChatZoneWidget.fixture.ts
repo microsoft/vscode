@@ -98,6 +98,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../../editor/contrib/zoneWidget/browser/zoneWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const SAMPLE_CODE = `import { useState, useEffect } from 'react';
 
@@ -406,7 +407,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override isVisible() { return true; }
 			}());
 			reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override readonly onDidChangeLocation = Event.None; }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override readonly onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override readonly onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
 			reg.defineInstance(IPathService, new TestPathService());
 			reg.defineInstance(IListService, new ListService());

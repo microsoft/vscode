@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
@@ -22,7 +23,7 @@ import { ModelIdentifierResolution } from '../../chat/common/modelSelection.js';
 import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageProviders/promptModelResolver.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -54,6 +55,14 @@ export interface IChatMoveEnd {
 export interface IChatMovedEvent {
 	readonly from: IChatMoveEnd;
 	readonly to: IChatMoveEnd;
+}
+
+/** A session replaced by another; see {@link ISessionsProvider.onDidReplaceSession}. */
+export interface ISessionReplacedEvent {
+	readonly from: ISession;
+	readonly to: ISession;
+	/** The chats of `to` by the resources of the chats of `from` they continue, when their resources differ. */
+	readonly chats?: ResourceMap<URI>;
 }
 
 /**
@@ -180,6 +189,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** Reject an unavailable connection instead of retaining the request for reconnection. */
+	readonly requireConnected?: boolean;
 	/** Initial configuration resolved by the target provider before its first turn. */
 	readonly sessionConfig?: Readonly<Record<string, unknown>>;
 	/** UI-only response observation, forwarded to the chat service rather than the backend. */
@@ -227,6 +238,8 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly pullRequestUrl?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
+	/** Ordinary saved-draft choices, independent of Automation availability. */
+	readonly draftConfiguration?: ISessionDraftConfiguration;
 }
 
 /** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
@@ -243,6 +256,12 @@ export interface IAutomationSessionConfiguration {
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
+}
+
+/** Serializable choices retained by an unsent session, without requiring a connection. */
+export interface ISessionDraftConfiguration extends IAutomationSessionConfiguration {
+	readonly isolationMode?: string;
+	readonly branch?: string;
 }
 
 /** Programmatic worktree settings applied together before a new session starts. */
@@ -286,6 +305,9 @@ export interface ISessionModelsSnapshot {
  * Unlike the aggregate IAutomationService, creation eligibility needs no provider ID because ownership is implicit.
  */
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Explicit host support for durable absolute-time requests; absent means unsupported. */
+	readonly supportsOneTimeAutomation?: IObservable<boolean>;
+	readonly supportsExistingChatAutomation?: IObservable<boolean>;
 	readonly configuration?: IAutomationProviderConfiguration;
 	/** Disabled providers are excluded from the aggregate catalogue and routing. */
 	readonly enabled?: IObservable<boolean>;
@@ -455,7 +477,7 @@ export interface ISessionsProvider {
 	 * @internal This is an implementation detail of the Copilot Chat sessions
 	 * provider. Do not implement or consume this event in other providers.
 	 */
-	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+	readonly onDidReplaceSession?: Event<ISessionReplacedEvent>;
 
 	/**
 	 * Optional. Fires when the user invokes a changeset operation of one of
@@ -588,6 +610,9 @@ export interface ISessionsProvider {
 
 	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
 	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
+
+	/** Capture ordinary draft choices and support restoring them through `draftConfiguration` at creation. */
+	getDraftSessionConfiguration?(sessionId: string): ISessionDraftConfiguration | undefined;
 
 	/** Model preferences scoped to a session rather than the ordinary New Session defaults. */
 	getAutomationModelConfiguration?(sessionId: string): IModelConfigurationAccess | undefined;
@@ -745,6 +770,7 @@ export interface ISessionsProvider {
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	readonly supportsForceWorktreeCleanup?: boolean;
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree, force?: boolean): Promise<void>;
 	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;
@@ -875,14 +901,10 @@ export interface ISessionsProvider {
 	forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
-	 * Create a side chat from an existing chat's turn, inheriting the source
-	 * chat's model/agent selection. Unlike {@link forkChat}, a side chat is for
-	 * a tangential follow-up rather than continuing the same line of work.
-	 * @param sessionId The ID of the session containing the source chat.
-	 * @param sourceChat The resource URI of the chat to branch from.
-	 * @param turnId The ID of the turn to branch from.
+	 * Creates a side chat inheriting the source model/agent and, by default, conversation context.
+	 * Set `includeSourceContext` to false for a fresh chat.
 	 */
-	createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat>;
+	createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext?: boolean): Promise<IChat>;
 
 	/**
 	 * Send a request for a chat within a session.

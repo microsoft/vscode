@@ -40,7 +40,7 @@ async function getConfig(client: CosmosClient, quality: string): Promise<Config>
 	return res.resources[0] as Config;
 }
 
-async function main(force: boolean): Promise<void> {
+async function main(force: boolean): Promise<'released' | 'skipped'> {
 	const commit = getEnv('BUILD_SOURCEVERSION');
 	const quality = getEnv('VSCODE_QUALITY');
 
@@ -53,8 +53,7 @@ async function main(force: boolean): Promise<void> {
 		console.log('Quality config:', config);
 
 		if (config.frozen) {
-			console.log(`Skipping release because quality ${quality} is frozen.`);
-			return;
+			return 'skipped';
 		}
 	}
 
@@ -62,14 +61,23 @@ async function main(force: boolean): Promise<void> {
 
 	const scripts = client.database('builds').container(quality).scripts;
 	await retry(() => scripts.storedProcedure('releaseBuild').execute('', [commit]));
+	return 'released';
 }
 
 const [, , force] = process.argv;
 
 console.log(process.argv);
 
-main(/^true$/i.test(force)).then(() => {
-	console.log('Build successfully released');
+main(/^true$/i.test(force)).then(result => {
+	if (result === 'skipped') {
+		// The step still succeeds, but the build must not read as released
+		const quality = getEnv('VSCODE_QUALITY');
+		console.log(`##vso[task.logissue type=warning]Build not released, since quality ${quality} is frozen. Release it manually once the quality is unfrozen.`);
+		console.log('##vso[build.addbuildtag]release-skipped-frozen');
+		console.log(`Build NOT released: quality ${quality} is frozen`);
+	} else {
+		console.log('Build successfully released');
+	}
 	process.exit(0);
 }, err => {
 	console.error(err);

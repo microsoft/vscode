@@ -27,7 +27,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../../accessibility/common/accessibilityCommands.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ISession } from '../../../common/session.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, SessionComparisonResult, SessionComparisonResultFocused } from '../../../browser/chat/sessionComparisonResult.js';

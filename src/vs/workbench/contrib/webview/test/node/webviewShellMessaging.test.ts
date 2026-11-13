@@ -139,6 +139,56 @@ suite('Webview shell messaging', () => {
 		});
 	});
 
+	test('opted-in intrinsic height fits fractional content and native scrollbars without changing other webviews', () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const reporter = html.match(/const postSize = \(\) => \{[\s\S]*?\r?\n\t+\};/)?.[0];
+		assert.ok(reporter);
+		const sizes: { width: number; height: number }[] = [];
+		for (const [includeHorizontalScrollbarInContentHeight, clientHeight] of [[false, 184], [true, 184], [false, 200], [true, 200]] as const) {
+			new Function('docEl', 'contentWindow', 'options', 'hostMessaging', `${reporter}\npostSize();`)(
+				{ offsetWidth: 440, offsetHeight: 200, clientHeight, getBoundingClientRect: () => ({ height: 200.45 }) },
+				{ innerHeight: 200 },
+				{ includeHorizontalScrollbarInContentHeight },
+				{ postMessage: (_channel: string, data: typeof sizes[number]) => sizes.push(data) },
+			);
+		}
+		assert.deepStrictEqual(sizes, [200, 217, 200, 201].map(height => ({ width: 440, height })));
+	});
+
+	test('only delegates recognized network permissions while preserving script and browser restrictions', () => {
+		const compiledDir = FileAccess.asFileUri('vs/workbench/contrib/webview/test/node').fsPath;
+		const sourceDir = resolve(compiledDir).replaceAll('\\', '/').replace('/out/vs/workbench/', '/src/vs/workbench/');
+		const html = readFileSync(join(sourceDir, '../../browser/pre/index.html'), 'utf8');
+		const allow = html.match(/const allowRules = \[[\s\S]*?newFrame\.setAttribute\('allow',[\s\S]*?\);/)?.[0];
+		assert.ok(allow);
+		const cases = [
+			{ features: [], allowScripts: false, isFirefox: false },
+			{ features: ['local-network-access'], allowScripts: false, isFirefox: false },
+			{ features: [], allowScripts: true, isFirefox: false },
+			{ features: undefined, allowScripts: true, isFirefox: true },
+		];
+		const policies = cases.map(testCase => {
+			let policy: string | undefined;
+			new Function('newFrame', 'isFirefox', 'options', allow)(
+				{
+					featurePolicy: testCase.features ? { features: () => testCase.features } : undefined,
+					setAttribute: (_name: string, value: string) => { policy = value; },
+				},
+				testCase.isFirefox,
+				{ allowScripts: testCase.allowScripts },
+			);
+			return policy;
+		});
+		assert.deepStrictEqual(policies, [
+			'cross-origin-isolated; autoplay;',
+			'cross-origin-isolated; autoplay; local-network-access;',
+			'cross-origin-isolated; autoplay; clipboard-read; clipboard-write;',
+			'cross-origin-isolated; autoplay;',
+		]);
+	});
+
 	for (const command of ['copy', 'cut', 'paste']) {
 		for (const activeRoot of ['body', 'documentElement'] as const) {
 			test(`preserves the document selection for ${command} with ${activeRoot} focused`, () => {

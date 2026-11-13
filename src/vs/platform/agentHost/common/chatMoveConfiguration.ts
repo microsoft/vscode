@@ -16,6 +16,7 @@ export const chatMoveConfigurationProperties = {
 		default: product.quality !== 'stable',
 		scope: ConfigurationScope.APPLICATION,
 		tags: ['experimental'],
+		experiment: { mode: 'startup' },
 		agentHost: { key: ChatMoveConfigKey.Enabled },
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;

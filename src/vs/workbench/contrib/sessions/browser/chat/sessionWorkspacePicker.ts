@@ -15,6 +15,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { disposableTimeout, Limiter, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { getOrSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { autorun, IObservable, IReader, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -39,7 +40,7 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../common/session.js';
+import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { cloneRepository } from '../cloneRepository.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
@@ -56,7 +57,7 @@ import { reportNewChatPickerClosed } from '../newChatPickerTelemetry.js';
 import { Menus } from '../menus.js';
 import { markOnboardingTarget } from '../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { NewSessionWorkspacePreselectionSource } from '../newSessionComposerService.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, WorkspaceSessionFallbackState } from '../../common/workspaceSelection.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, WorkspaceSessionFallbackState } from '../../../../services/sessions/common/workspaceSelection.js';
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
@@ -137,6 +138,11 @@ export interface IWorkspacePickerOptions {
 	readonly sessionWorkspaceProviderFilter?: (providerId: string) => boolean;
 	readonly getWorkspaceGroupAction?: (group: string | undefined) => IWorkspacePickerGroupAction | undefined;
 	readonly getNoWorkspaceOption?: () => IWorkspacePickerNoWorkspaceOption | undefined;
+	/**
+	 * Whether the picker keeps whether No Workspace is selected itself, as a composer outside the main window does, rather
+	 * than reading it from the recent workspaces it shares with the main window's composer.
+	 */
+	readonly ownNoWorkspaceSelection?: boolean;
 }
 
 export interface IWorkspacePickerGroupAction {
@@ -255,6 +261,8 @@ export class WorkspacePicker extends Disposable {
 	readonly onDidRemoveAttachedContext: Event<string> = this._onDidRemoveAttachedContext.event;
 
 	private _selectedFolderUri: URI | undefined;
+	/** Whether No Workspace is selected, with {@link IWorkspacePickerOptions.ownNoWorkspaceSelection}. */
+	private _noWorkspaceSelected = false;
 	private _selectedResolved: IResolvedFolderWorkspace | undefined;
 	private _selectedDevContainerFolderUri: URI | undefined;
 	private _preselectionSource = NewSessionWorkspacePreselectionSource.None;
@@ -300,6 +308,7 @@ export class WorkspacePicker extends Disposable {
 	private readonly _triggerOptions = new Map<HTMLElement, IWorkspacePickerTrigger>();
 	private readonly _triggerContents = new Map<HTMLElement, IWorkspacePickerTriggerElements>();
 	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
+	private readonly _workspaceItemIds = new Map<string, number>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
@@ -446,6 +455,24 @@ export class WorkspacePicker extends Disposable {
 
 		const selectedRepositoryId = this._getCurrentRepositoryId(reader);
 		return selectedRepositoryId !== undefined && selectedRepositoryId === this._getRepositoryId(workspace, reader);
+	}
+
+	/**
+	 * Whether {@link workspace}, such as a draft's, is the workspace of {@link folderUri}: that folder, or the GitHub
+	 * repository of that folder, such as the one a cloud agent works on for a local clone. Another local folder is
+	 * another workspace, even a clone of the same repository.
+	 */
+	isWorkspaceOfFolder(workspace: ISessionWorkspace, folderUri: URI, reader?: IReader): boolean {
+		const root = workspace.folders[0]?.root;
+		if (root && this.uriIdentityService.extUri.isEqual(root, folderUri)) {
+			return true;
+		}
+		if (workspace.group !== SESSION_WORKSPACE_GROUP_GITHUB) {
+			return false;
+		}
+		const resolved = this._isSelectedFolder(folderUri) && this._selectedResolved ? this._selectedResolved : this._resolveFolder(folderUri);
+		const repositoryId = resolved && this._getRepositoryIdForResolvedWorkspace(resolved, reader);
+		return repositoryId !== undefined && repositoryId === this._getRepositoryId(workspace, reader);
 	}
 
 	constructor(
@@ -1296,6 +1323,7 @@ export class WorkspacePicker extends Disposable {
 		this._connectionStatusWatch.clear();
 		this._selectedFolderUri = undefined;
 		this._selectedResolved = undefined;
+		this._noWorkspaceSelected = false;
 		this._preselectionSource = NewSessionWorkspacePreselectionSource.None;
 		this._selectionOrigin = WorkspaceSelectionOrigin.None;
 		if (this._shouldPersistSelection()) {
@@ -1307,10 +1335,15 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	isNoWorkspaceSelected(): boolean {
-		return !!this.options.getNoWorkspaceOption && this.recentWorkspacesService.isNoWorkspaceChecked();
+		return !!this.options.getNoWorkspaceOption && (this.options.ownNoWorkspaceSelection ? this._noWorkspaceSelected : this.recentWorkspacesService.isNoWorkspaceChecked());
 	}
 
-	selectNoWorkspace(userSelection = true): void {
+	/**
+	 * Selects No Workspace.
+	 * @param persist Whether to remember it as the selection of the recent workspaces, which the main window's composer
+	 *        starts from. Defaults to true.
+	 */
+	selectNoWorkspace(userSelection = true, persist = true): void {
 		if (userSelection) {
 			this.options.onUserSelection?.();
 		}
@@ -1320,7 +1353,10 @@ export class WorkspacePicker extends Disposable {
 		this._userHasPicked = true;
 		this._connectionStatusWatch.clear();
 		this._applySelection(undefined);
-		this.recentWorkspacesService.checkNoWorkspace();
+		this._noWorkspaceSelected = true;
+		if (persist) {
+			this.recentWorkspacesService.checkNoWorkspace();
+		}
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
 	}
@@ -1370,6 +1406,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		this._selectedFolderUri = folderUri;
 		this._selectedResolved = resolved;
+		this._noWorkspaceSelected = false;
 		this._watchSelectedGitHubInfo();
 		this._preselectionSource = source;
 		this._selectionOrigin = origin;
@@ -1394,6 +1431,9 @@ export class WorkspacePicker extends Disposable {
 	private _applySelection(resolved: IResolvedFolderWorkspace | undefined, source = NewSessionWorkspacePreselectionSource.None, origin = WorkspaceSelectionOrigin.None): void {
 		this._selectedResolved = resolved;
 		this._selectedFolderUri = resolved?.workspace.folders[0]?.root;
+		if (resolved) {
+			this._noWorkspaceSelected = false;
+		}
 		this._watchSelectedGitHubInfo();
 		this._preselectionSource = resolved ? source : NewSessionWorkspacePreselectionSource.None;
 		this._selectionOrigin = resolved ? origin : WorkspaceSelectionOrigin.None;
@@ -1682,10 +1722,12 @@ export class WorkspacePicker extends Disposable {
 			return undefined;
 		}
 
+		const currentFolder = this._selectedFolderUri?.scheme === Schemas.file ? this._selectedFolderUri : undefined;
 		const result = await this.fileDialogService.showOpenDialog({
 			canSelectFolders: true,
 			canSelectFiles: false,
 			canSelectMany: false,
+			defaultUri: currentFolder ? this.uriIdentityService.extUri.dirname(currentFolder) : undefined,
 		});
 		if (!result?.length) {
 			return undefined;
@@ -1854,7 +1896,7 @@ export class WorkspacePicker extends Disposable {
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
 			const item: IWorkspacePickerItem = {
-				id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+				id: `workspacePicker.workspace.${getOrSet(this._workspaceItemIds, this.uriIdentityService.extUri.getComparisonKey(folderUri), this._workspaceItemIds.size)}`,
 				folderUri,
 				providerId: environmentProvider ? environmentProvider.id : providerId,
 				checked: selected || attached || undefined,

@@ -98,7 +98,29 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 	async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		const disposables = new DisposableStore();
-
+		const initialDefinition = options.existing ?? options.initialValues;
+		if (initialDefinition?.schedule.interval === 'once') {
+			const dialog = disposables.add(new Dialog(
+				this.layoutService.activeContainer,
+				initialDefinition.name,
+				[localize('automation.dialog.close', "Close")],
+				createWorkbenchDialogOptions({
+					type: 'info',
+					detail: [
+						localize('automation.dialog.oneTimeReadOnly', "This one-time automation preserves a captured request and cannot be edited or duplicated in this dialog. Use the available run or removal actions in Automations. Disabling a scheduled chat cancels it permanently."),
+						localize('automation.dialog.oneTimeSchedule', "Scheduled for: {0}", initialDefinition.schedule.runAt ?? ''),
+						initialDefinition.prompt,
+						...(options.existing?.request?.attachments?.map(attachment => attachment.label) ?? []),
+					].join('\n\n'),
+				}, this.keybindingService, this.layoutService, this.hostService),
+			));
+			try {
+				await dialog.show();
+			} finally {
+				disposables.dispose();
+			}
+			return undefined;
+		}
 		const existing = options.existing;
 		const allowedProviders = getAutomationDialogProviders(this.automationService, existing);
 		const initial = existing ?? options.initialValues;
@@ -538,7 +560,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 
 		try {
 			void dialog.show().then(() => closeDialog(undefined));
-			// eslint-disable-next-line no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- Dialog owns its close toolbar and exposes no enablement API.
 			closeToolbar = dialogElement?.querySelector<HTMLElement>('.dialog-toolbar') ?? undefined;
 			focusFirst();
 			return await completion.p;

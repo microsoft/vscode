@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, ITestSessionsService, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -26,10 +26,10 @@ import { IEditorGroup } from '../../../../../workbench/services/editor/common/ed
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { AgentWorkbenchLayout } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditorInput.js';
-import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessions/browser/changes/sessionChangesService.js';
+import { AgentWorkbenchLayout } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { IChat, ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
+import { SessionChangesEditorInput } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditorInput.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
 
 /** The host lookups and the focused host for the state of `sessionsService`, as {@link SessionChangesService} takes them. */
@@ -221,6 +221,45 @@ suite('SessionChangesService', () => {
 			chat: [secondChat.toString()],
 			unscopedChat: undefined,
 		});
+	});
+
+	test('selects the changeset on the chat its editor names, also while only another chat of its session shows', async () => {
+		const selections: { readonly changesetId: string | undefined; readonly chat: string | undefined }[] = [];
+		const sessionResource = URI.parse('agent-host:test-session');
+		const shownChat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/shown') });
+		const namedChat = upcastPartial<IChat>({ resource: URI.parse('agent-host:test-session/named') });
+		const session = upcastPartial<ITestSessionWithChat>({ sessionId: 'session', resource: sessionResource, activeChat: constObservable(shownChat), chats: constObservable([shownChat, namedChat]) });
+		const sessionsService = new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(session);
+			readonly mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
+			readonly windowSessions = constObservable<readonly ITestSessionWithChat[]>([session]);
+			readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
+		}();
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = noActiveSessionResource;
+			override readonly activeSessionChangesObs = noChanges;
+			override setChangesetId(changesetId: string | undefined, _session?: ITestSessionWithChat, chat?: IChat): void {
+				selections.push({ changesetId, chat: chat?.resource.toString() });
+			}
+		}();
+		const service = disposables.add(new SessionChangesService(
+			new class extends mock<IEditorService>() { override async openEditor(): Promise<undefined> { return undefined; } }(),
+			disposables.add(new TestInstantiationService()),
+			new class extends mock<IAgentWorkbenchLayoutService>() { override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile; }(),
+			changesViewService,
+			...hostsOf(disposables, sessionsService),
+			emptyDecorationsService,
+			new NullLogService(),
+		));
+
+		await service.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: TURN_CHANGES_CHANGESET_ID }, chatResource: namedChat.resource });
+		await service.openChangesEditor(sessionResource, { changesetSelection: { kind: 'id', id: UNCOMMITTED_CHANGES_CHANGESET_ID } });
+
+		assert.deepStrictEqual(selections, [
+			{ changesetId: TURN_CHANGES_CHANGESET_ID, chat: namedChat.resource.toString() },
+			{ changesetId: UNCOMMITTED_CHANGES_CHANGESET_ID, chat: shownChat.resource.toString() },
+		]);
 	});
 
 	test('does not select a changeset on the active session when the target session is not shown', async () => {

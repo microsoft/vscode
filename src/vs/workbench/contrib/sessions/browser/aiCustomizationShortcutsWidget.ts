@@ -5,6 +5,7 @@
 
 import './media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
+import './media/disclosure.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -25,13 +26,14 @@ import { IAICustomizationMcpServerCountService } from './customizationMcpServerC
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService } from '../../chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from './agentsWindowExtensionSuggestions.js';
+import { observeVisibleSectionsBadge } from '../../chat/browser/aiCustomization/aiCustomizationSectionBadges.js';
 const $ = DOM.$;
 const CUSTOMIZATIONS_VERTICAL_PADDING = 6;
 const CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY = 'agentSessions.customizationsShortcuts.collapsed';
 
 export interface IAICustomizationShortcutsWidgetOptions {
 	readonly onDidChangeLayout?: () => void;
+	readonly compact?: boolean;
 }
 
 export class AICustomizationShortcutsWidget extends Disposable {
@@ -50,7 +52,8 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	private _scrollableDomNode: HTMLElement | undefined;
 	private _rootVerticalPadding = 0;
 	private _headerTotalCount = 0;
-	private _showExtensionSuggestionsBadge = false;
+	private _sectionsBadge: string | undefined;
+	private _renderedHeaderBadge: string | undefined;
 	private _collapsed = false;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -60,7 +63,11 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	readonly onDidToggleCollapsed = this._onDidToggleCollapsed.event;
 
 	get collapsed(): boolean {
-		return this._collapsed;
+		return this._options?.compact === true || this._collapsed;
+	}
+
+	get compact(): boolean {
+		return this._options?.compact === true;
 	}
 
 	get collapsedHeight(): number {
@@ -78,7 +85,6 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
-		@IAgentsWindowExtensionSuggestionsService private readonly extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
@@ -106,12 +112,23 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._headerTotalCountElement = undefined;
 		this._headerSuggestionBadgeElement = undefined;
 		this._headerSuggestionHover = undefined;
+		this._renderedHeaderBadge = undefined;
 		this._chevronElement = undefined;
 		this._toolbarContentElement = undefined;
 		this._scrollableDomNode = undefined;
 		this._rootVerticalPadding = 0;
 		this._headerTotalCount = 0;
 		DOM.clearNode(this._wrapper);
+		if (this._options?.compact) {
+			const container = DOM.append(this._wrapper, $('.ai-customization-toolbar'));
+			const toolbarContainer = DOM.append(container, $('.ai-customization-toolbar-content'));
+			this._toolbar = this._renderDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, Menus.SidebarCustomizationsEntryPoint, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: { primaryGroup: () => true },
+				telemetrySource: 'sidebarCustomizations',
+			}));
+			return;
+		}
 		this._render(this._wrapper, this._options);
 		this._setCollapsed(this._collapsed);
 	}
@@ -132,7 +149,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._setRootPadding(container, CUSTOMIZATIONS_VERTICAL_PADDING, CUSTOMIZATIONS_VERTICAL_PADDING);
 
 		// Header
-		const header = DOM.append(container, $('.ai-customization-header'));
+		const header = DOM.append(container, $('.ai-customization-header.sessions-disclosure'));
 		this._headerElement = header;
 		header.setAttribute('role', 'button');
 		header.setAttribute('aria-expanded', 'true');
@@ -141,7 +158,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		const headerLabel = DOM.append(header, $('span.ai-customization-header-label'));
 		headerLabel.textContent = localize('customizations', "Customizations");
 		this._headerTotalCountElement = DOM.append(header, $('span.ai-customization-header-total-count.hidden'));
-		this._headerSuggestionBadgeElement = DOM.append(header, $('span.ai-customization-suggestion-badge.hidden', { role: 'img', 'aria-label': getExtensionSuggestionsBadgeDescription() }));
+		this._headerSuggestionBadgeElement = DOM.append(header, $('span.ai-customization-suggestion-badge.hidden', { role: 'img' }));
 		this._headerSuggestionHover = this._renderDisposables.add(new MutableDisposable());
 
 		this._chevronElement = DOM.append(header, $('span.ai-customization-chevron'));
@@ -153,9 +170,10 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			this._headerTotalCount = totalCount.read(reader);
 			this._renderHeaderTotalCount();
 		}));
-		// The header shows the badge while collapsed, otherwise the Extensions item shows it.
+		// The header shows the badge while collapsed, otherwise the item of the section with the badge shows it.
+		const sectionsBadge = this.instantiationService.invokeFunction(observeVisibleSectionsBadge);
 		this._renderDisposables.add(autorun(reader => {
-			this._showExtensionSuggestionsBadge = this.extensionSuggestionsService.showBadge.read(reader);
+			this._sectionsBadge = sectionsBadge.read(reader);
 			this._renderHeaderSuggestionBadge();
 		}));
 
@@ -195,6 +213,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	get desiredHeight(): number {
+		if (this._options?.compact) {
+			return this.collapsedHeight;
+		}
 		const content = this._toolbarContentElement;
 		if (!content) {
 			return 0;
@@ -255,15 +276,19 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		if (!this._headerElement || !this._headerSuggestionBadgeElement || !this._headerSuggestionHover) {
 			return;
 		}
-		const visible = this._collapsed && this._showExtensionSuggestionsBadge;
-		const currentlyVisible = !this._headerSuggestionBadgeElement.classList.contains('hidden');
-		if (visible === currentlyVisible) {
+		const badge = this._collapsed ? this._sectionsBadge : undefined;
+		if (badge === this._renderedHeaderBadge) {
 			return;
 		}
-		this._headerSuggestionBadgeElement.classList.toggle('hidden', !visible);
-		this._headerSuggestionHover.value = visible
-			? this.hoverService.setupDelayedHover(this._headerElement, { content: getExtensionSuggestionsBadgeDescription() })
-			: undefined;
+		this._renderedHeaderBadge = badge;
+		this._headerSuggestionBadgeElement.classList.toggle('hidden', badge === undefined);
+		if (badge !== undefined) {
+			this._headerSuggestionBadgeElement.setAttribute('aria-label', badge);
+			this._headerSuggestionHover.value = this.hoverService.setupDelayedHover(this._headerElement, { content: badge });
+		} else {
+			this._headerSuggestionBadgeElement.removeAttribute('aria-label');
+			this._headerSuggestionHover.clear();
+		}
 	}
 
 	layout(_height: number, _width: number): void {
@@ -274,6 +299,10 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	focus(): void {
+		if (this._options?.compact) {
+			this._toolbar?.focus();
+			return;
+		}
 		if (this._collapsed) {
 			this._headerElement?.focus();
 			return;

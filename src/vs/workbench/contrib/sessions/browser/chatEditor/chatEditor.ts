@@ -1,0 +1,521 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { registerContentDropTarget } from '../../../../browser/dnd.js';
+import { $ } from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
+import { localize } from '../../../../../nls.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ViewEditorInput } from '../../../../browser/parts/editor/viewEditorInput.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { IViewEditorRegistry, IViewEditorView, ViewEditorExtensions } from '../../../../browser/parts/editor/viewEditorRegistry.js';
+import { IEditorPaneTitleMenu } from '../../../../browser/parts/editor/editor.js';
+import { IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { decideStackedChatInputOnlyWhileDragging } from '../../../chatWindow/common/chatWindowInputOnly.js';
+import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayout.js';
+import { AbstractChatView, ISessionViewHostOptions } from '../parts/chatView.js';
+import { ChatEditorContent, IChatEditorComposer } from './chatEditorContent.js';
+
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { EditorInputCapabilities, GroupIdentifier, Verbosity } from '../../../../common/editor.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsListModelService } from '../sessionsListModelService.js';
+import { getChatCompletedStateIcon, ISessionAgentMergeConfiguration } from '../sessionAgentMerge.js';
+import { getSessionChatAncestors } from '../parts/sessionHeaderBar.js';
+import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
+import { ISessionPaneContent } from '../../../../services/sessions/common/sessionPane.js';
+
+/** The view type of the chat of a session, shown as an editor: the chat part of a chat window shows it. */
+export const SESSION_CHAT_VIEW_TYPE = 'sessions.chat';
+
+/** The least size of the chat of a chat window. */
+export const SESSION_CHAT_VIEW_MINIMUM_WIDTH = 280;
+export const SESSION_CHAT_VIEW_MINIMUM_HEIGHT = 120;
+
+/** The most height the chat input, with what shows above it, grows to while the chat shows only its input. */
+export const SESSION_CHAT_VIEW_INPUT_ONLY_MAX_HEIGHT = 320;
+
+/** How the chat of a chat window shows its session: as the Sessions part does, with its pills and its Session Activity Bar. */
+export const SESSION_CHAT_VIEW_HOST_OPTIONS: ISessionViewHostOptions = {
+	showHeader: true,
+	showActivityBar: true,
+	input: { showPills: true },
+};
+
+/** What a chat editor needs of the window it shows in: how the window lays out its chat, and its main part. */
+export interface IChatEditorWindow {
+	readonly layoutMode: IObservable<ChatWindowLayoutMode>;
+	readonly inputOnly: IObservable<boolean>;
+	readonly resizing: IObservable<boolean>;
+	/** Its main part, whose active editor the chat reads, such as for the checked entries of its Session Activity Bar. */
+	readonly mainPart: IEditorPart;
+	toggleConversation(): void;
+}
+
+/** What a chat editor shows, and the window it shows in, as whoever opens its editor gives it. */
+export interface ISessionChatViewHost {
+	/**
+	 * What its pane shows, once the chat is known: the provider's session, the chat, and how its pane closes, which closes the
+	 * chat in the window it shows in.
+	 */
+	readonly content: IObservable<ISessionPaneContent | undefined>;
+	/** A new-session composer that its pane shows while {@link content} is undefined, until the composer's session is created. */
+	readonly composer?: IObservable<IChatEditorComposer | undefined>;
+	/** The window the view shows in, once it shows. */
+	readonly window: IObservable<IChatEditorWindow | undefined>;
+	/** Whether its chat is the active one of its window: only that one shows the Session Activity Bar, also beside its window's chat. */
+	readonly active: IObservable<boolean>;
+	/** Called with what the editor shows once it is created, until the returned disposable is disposed. */
+	attach(view: ChatEditorContent): IDisposable;
+	/**
+	 * Takes what is dropped on the view of the chat, `element`, and opens it, such as a session or chat that a chat window opens
+	 * beside `chat`, until the returned disposable is disposed. Without it, the view takes only what the chat input does.
+	 */
+	createDropTarget?(element: HTMLElement, chat: () => URI | undefined): IDisposable;
+	/**
+	 * What shows the chat: the last attached of those attached, such as the view where the chat moves to while the one it
+	 * moves from is still there.
+	 */
+	readonly view: IObservable<ChatEditorContent | undefined>;
+}
+
+const hosts = new Map<ViewEditorInput, ISessionChatViewHost>();
+
+/** Gives the session chat view of `input` what it shows; for as long as the returned disposable is not disposed. */
+export function registerSessionChatViewHost(input: ViewEditorInput, host: ISessionChatViewHost): IDisposable {
+	hosts.set(input, host);
+	return toDisposable(() => {
+		if (hosts.get(input) === host) {
+			hosts.delete(input);
+		}
+	});
+}
+
+/** What a chat editor shows, as far as its input-only state needs it. */
+export interface IInputOnlySessionView {
+	readonly primaryChatView: IObservable<Pick<AbstractChatView, 'inputOnly' | 'inputOnlyHeight' | 'canShowInputOnly' | 'enableInputOnly' | 'disableInputOnly' | 'setInputOnly'> | undefined>;
+	/** The top of {@link primaryChatView} while the chat shows only its input, which hides the session header. */
+	readonly inputOnlyChatViewTop: IObservable<number>;
+}
+
+/**
+ * Lets the chat of a chat window show only its input below the main part (Stacked), as its window's state says: the chat
+ * view collapses to its input, and the chat reports its input's height as its least and, but a pixel, its most height,
+ * which its part and the window respect. Dragged taller by the sash above it, it shows its conversation, and dragged
+ * back down to its input, only its input again. What the chat shows is what its view shows, which shows the conversation
+ * when it needs it, such as for a confirmation its input cannot show; what the user chose in the chat is kept for its window.
+ */
+export class SessionChatViewInputOnly extends Disposable {
+
+	/** Whether the chat shows only its input, below the main part. */
+	readonly shownInputOnly: IObservable<boolean>;
+
+	/** The height of the chat when it shows only its input, or 0 while that is not known. */
+	readonly collapsedHeight: IObservable<number>;
+
+	/**
+	 * The most height of the chat: about its collapsed height while it shows only its input, a pixel more so that the sash
+	 * above it can be dragged, which then lets it grow, to show its conversation (see {@link layout}).
+	 */
+	readonly maximumHeight: IObservable<number>;
+
+	/** The least height of the chat: its input while it shows only its input; down to its input while it is below the main part. */
+	readonly minimumHeight: IObservable<number>;
+
+	private readonly _window: IObservable<Pick<IChatEditorWindow, 'layoutMode' | 'inputOnly' | 'toggleConversation' | 'resizing'> | undefined>;
+	private _resizedHeight = 0;
+	private readonly _resizeScheduler = this._register(new RunOnceScheduler(() => this._showWhatResizeShows(), 0));
+
+	constructor(
+		sessionView: IInputOnlySessionView,
+		window: IObservable<Pick<IChatEditorWindow, 'layoutMode' | 'inputOnly' | 'toggleConversation' | 'resizing'> | undefined>,
+	) {
+		super();
+		this._window = window;
+
+		const stacked = derived(this, reader => window.read(reader)?.layoutMode.read(reader) === ChatWindowLayoutMode.Stacked);
+		const view = sessionView.primaryChatView;
+		this.shownInputOnly = derived(this, reader => stacked.read(reader) && !!view.read(reader)?.inputOnly.read(reader));
+		this.collapsedHeight = derived(this, reader => {
+			const inputHeight = view.read(reader)?.inputOnlyHeight.read(reader) ?? 0;
+			return inputHeight ? sessionView.inputOnlyChatViewTop.read(reader) + inputHeight : 0;
+		});
+		this.maximumHeight = derived(this, reader => {
+			const collapsed = this.collapsedHeight.read(reader);
+			if (!this.shownInputOnly.read(reader) || !collapsed || window.read(reader)?.resizing.read(reader)) {
+				return Number.POSITIVE_INFINITY;
+			}
+			return collapsed + 1;
+		});
+		this.minimumHeight = derived(this, reader => {
+			const collapsed = this.collapsedHeight.read(reader);
+			if (this.shownInputOnly.read(reader) && collapsed) {
+				return collapsed;
+			}
+			return stacked.read(reader) && collapsed ? Math.min(collapsed, SESSION_CHAT_VIEW_MINIMUM_HEIGHT) : SESSION_CHAT_VIEW_MINIMUM_HEIGHT;
+		});
+
+		const windowInputOnly = (reader: IReader | undefined) => !!window.read(reader)?.inputOnly.read(reader);
+		this._register(autorun(reader => {
+			const chatView = view.read(reader);
+			if (!chatView) {
+				return;
+			}
+			if (stacked.read(reader)) {
+				chatView.enableInputOnly({ maxHeight: SESSION_CHAT_VIEW_INPUT_ONLY_MAX_HEIGHT, inputOnly: windowInputOnly(undefined) });
+			} else {
+				chatView.disableInputOnly();
+			}
+		}));
+		this._register(autorun(reader => {
+			const inputOnly = windowInputOnly(reader);
+			if (stacked.read(reader)) {
+				view.read(reader)?.setInputOnly(inputOnly);
+			}
+		}));
+		// What the user chose in the chat, such as showing its conversation from it, is what its window shows next time;
+		// not the conversation the view shows while its input cannot show what it needs.
+		this._register(autorun(reader => {
+			const chatView = view.read(reader);
+			const chatWindow = window.read(reader);
+			if (!stacked.read(reader) || !chatView?.canShowInputOnly.read(reader) || !chatWindow) {
+				return;
+			}
+			if (chatView.inputOnly.read(reader) !== windowInputOnly(undefined)) {
+				chatWindow.toggleConversation();
+			}
+		}));
+		// What a resize showed is announced once it lets go, not at each snap while it drags
+		let inputOnlyBeforeResize: boolean | undefined;
+		this._register(autorun(reader => {
+			const chatWindow = window.read(reader);
+			const resizing = !!chatWindow?.resizing.read(reader);
+			if (resizing) {
+				inputOnlyBeforeResize ??= windowInputOnly(undefined);
+				return;
+			}
+			const before = inputOnlyBeforeResize;
+			inputOnlyBeforeResize = undefined;
+			const inputOnly = windowInputOnly(undefined);
+			if (before !== undefined && before !== inputOnly && stacked.read(undefined)) {
+				status(inputOnly ? localize('chatConversationHidden', "Chat conversation hidden") : localize('chatConversationShown', "Chat conversation shown"));
+			}
+		}));
+	}
+
+	/**
+	 * The chat is laid out at `height`. While the user drags the sash beside it, it shows its conversation once dragged up
+	 * past its input, and only its input once dragged back down to it: a snap, with a little room between the two so
+	 * that a height at either does not flicker. What shows changes once the layout is done.
+	 */
+	layout(height: number): void {
+		this._resizedHeight = height;
+		const window = this._window.get();
+		if (window?.layoutMode.get() === ChatWindowLayoutMode.Stacked && this.collapsedHeight.get() && window.resizing.get()) {
+			this._resizeScheduler.schedule();
+		}
+	}
+
+	private _showWhatResizeShows(): void {
+		const window = this._window.get();
+		const collapsedHeight = this.collapsedHeight.get();
+		if (!window?.resizing.get() || !collapsedHeight || window.layoutMode.get() !== ChatWindowLayoutMode.Stacked) {
+			return;
+		}
+		const inputOnly = window.inputOnly.get();
+		if (decideStackedChatInputOnlyWhileDragging({ groupHeight: this._resizedHeight, collapsedHeight, inputOnly }) !== inputOnly) {
+			window.toggleConversation();
+		}
+	}
+}
+
+/**
+ * A chat as an editor: one chat, with the header of its session, as the chat part of a chat window shows its chats. It
+ * brings its own title, the session header, at the top of its card, as the main window shows a session.
+ */
+export class ChatEditorView extends Disposable implements IViewEditorView {
+
+	readonly element: HTMLElement;
+	readonly sessionView: ChatEditorContent;
+	readonly providesTitle = true;
+
+	/** Whether the view shows: not while another editor of its group, as a tab, shows. */
+	private readonly _visible = observableValue(this, true);
+
+	/** Whether the view shows its title, the session header: not while its group shows its tabs, which show its actions. */
+	private readonly _providedTitleVisible = observableValue(this, true);
+
+	/** The session header drags the chat. */
+	get dragHandle(): HTMLElement { return this.sessionView.headerElement; }
+
+	/** The actions of the session header, which the tab bar of its group shows while the header hides. */
+	get titleMenu(): IEditorPaneTitleMenu { return this.sessionView.titleMenu; }
+
+	private readonly _onDidChange = this._register(new Emitter<{ width: number; height: number } | undefined>());
+	readonly onDidChange: Event<{ width: number; height: number } | undefined> = this._onDidChange.event;
+
+	private readonly _inputOnly: SessionChatViewInputOnly;
+
+	readonly minimumWidth = SESSION_CHAT_VIEW_MINIMUM_WIDTH;
+	readonly maximumWidth = Number.POSITIVE_INFINITY;
+	get minimumHeight(): number { return this._inputOnly.minimumHeight.get(); }
+	get maximumHeight(): number { return this._inputOnly.maximumHeight.get(); }
+
+	/** The services of the view's own scope, which what it shows is created with: disposed after it, see {@link dispose}. */
+	private readonly _scopedServices = new DisposableStore();
+
+	override dispose(): void {
+		super.dispose();
+		this._scopedServices.dispose();
+	}
+
+	constructor(
+		host: ISessionChatViewHost | undefined,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		// Styled as the session views of the Agents window are, which show in its sessions part or in a window of their own.
+		this.element = $('.session-chat-view-editor.sessions-window-host');
+		// The chat takes what is dropped on it, such as files to attach; editors dropped on the edges of its part split it.
+		this._register(registerContentDropTarget(this.element));
+		// What its host opens on a drop, such as a session or chat that a chat window opens beside it
+		if (host?.createDropTarget) {
+			this._register(host.createDropTarget(this.element, () => host.content.get()?.chat.get().resource));
+		}
+		// The active editor, for what the chat shows, such as the checked entries of its Session Activity Bar, is the one of
+		// its window's main part, as the main window's chat reads the one of its editor area.
+		const scopedContextKeyService = this._scopedServices.add(contextKeyService.createScoped(this.element));
+		const activeEditor = ActiveEditorContext.bindTo(scopedContextKeyService);
+		this._register(autorun(reader => {
+			const mainPart = host?.window.read(reader)?.mainPart;
+			if (!mainPart) {
+				activeEditor.reset();
+				return;
+			}
+			const groupListener = reader.store.add(new MutableDisposable());
+			const trackActiveGroup = () => {
+				const update = () => activeEditor.set(mainPart.activeGroup.activeEditorPane?.getId() ?? null);
+				groupListener.value = mainPart.activeGroup.onDidActiveEditorChange(update);
+				update();
+			};
+			reader.store.add(mainPart.onDidChangeActiveGroup(trackActiveGroup));
+			trackActiveGroup();
+		}));
+		const scopedInstantiationService = this._scopedServices.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		const sessionView = this.sessionView = this._register(scopedInstantiationService.createInstance(ChatEditorContent, SESSION_CHAT_VIEW_HOST_OPTIONS));
+		this.element.appendChild(sessionView.element);
+		// Styled as the active session of the grid is.
+		sessionView.element.classList.add('is-active');
+
+		const window = derived(this, reader => host?.window.read(reader));
+		this._inputOnly = this._register(new SessionChatViewInputOnly(sessionView, window));
+		// The command center of the window names the session while the chat shows only its input, and the tabs of its group
+		// name the chat while they show: its header hides.
+		this._register(autorun(reader => sessionView.setHeaderHidden(this._inputOnly.shownInputOnly.read(reader) || !this._providedTitleVisible.read(reader))));
+		this._register(autorun(reader => {
+			this._inputOnly.minimumHeight.read(reader);
+			this._inputOnly.maximumHeight.read(reader);
+			this._onDidChange.fire(undefined);
+		}));
+
+		if (!host) {
+			return;
+		}
+		// Without the chat, such as while its window shows only its main part, or while another editor beside it, as a tab,
+		// shows, its view is hidden; as with what hosts it hidden, its Session Activity Bar can still show outside of it. Its
+		// host sees it shown or hidden from the moment the view attaches, such as to mark its chat read only while it shows.
+		this._register(autorun(reader => {
+			const mode = host.window.read(reader)?.layoutMode.read(reader);
+			const visible = mode !== ChatWindowLayoutMode.EditorOnly && this._visible.read(reader);
+			sessionView.setVisible(visible, visible);
+		}));
+		this._register(host.attach(sessionView));
+		this._register(autorun(reader => sessionView.setComposer(host.composer?.read(reader))));
+		this._register(autorun(reader => sessionView.setContent(host.content.read(reader))));
+		this._register(autorun(reader => sessionView.setActive(host.active.read(reader))));
+	}
+
+	layout(width: number, height: number, top: number, left: number): void {
+		this.sessionView.layout(width, height, top, left);
+		this._inputOnly.layout(height);
+	}
+
+	focus(): void {
+		this.sessionView.focus();
+	}
+
+	/** Hides the chat while another editor of its group, as a tab, shows, and shows it again. */
+	setVisible(visible: boolean): void {
+		this._visible.set(visible, undefined);
+	}
+
+	setProvidedTitleVisible(visible: boolean): void {
+		this._providedTitleVisible.set(visible, undefined);
+	}
+
+	/** Saves what the chat shows, such as where it is scrolled to, before its editor moves: the view where it moves to shows the same. */
+	saveViewState(): void {
+		this.sessionView.primaryChatView.get()?.saveViewState();
+	}
+}
+
+let sessionChatViewEditorRegistration: { readonly registration: IDisposable; references: number } | undefined;
+
+/**
+ * Registers the view editor of the chat of a session ({@link SESSION_CHAT_VIEW_TYPE}), until every returned disposable is
+ * disposed: the Agents window and the chat part of an editor window share one registration.
+ */
+export function registerSessionChatViewEditor(): IDisposable {
+	if (!sessionChatViewEditorRegistration) {
+		sessionChatViewEditorRegistration = {
+			registration: Registry.as<IViewEditorRegistry>(ViewEditorExtensions.ViewEditors).register({
+				viewType: SESSION_CHAT_VIEW_TYPE,
+				name: localize('sessionChatViewEditor', "Chat"),
+				providesTitle: true,
+				createView: (instantiationService, input) => instantiationService.createInstance(ChatEditorView, hosts.get(input)),
+			}),
+			references: 0,
+		};
+	}
+	const entry = sessionChatViewEditorRegistration;
+	entry.references++;
+	let disposed = false;
+	return toDisposable(() => {
+		if (disposed) {
+			return;
+		}
+		disposed = true;
+		if (--entry.references === 0) {
+			entry.registration.dispose();
+			sessionChatViewEditorRegistration = undefined;
+		}
+	});
+}
+
+/**
+ * What the tab of the editor of `chat` of `session`, named `name`, shows of the chat besides its name: its status, as the
+ * sessions list shows it beside the chat, and its title with those of its session and parent chats, as its header does.
+ */
+export function getChatEditorInputDetails(session: ISession, chat: IChat, name: string, reader: IReader, sessionsListModelService: ISessionsListModelService, agentMergeConfiguration: () => IObservable<ISessionAgentMergeConfiguration | undefined>): IChatEditorInputDetails {
+	const status = chat.status.read(reader);
+	const isRead = chat.isRead.read(reader);
+	const isArchived = chat.isArchived.read(reader);
+	const statusIcon = sessionsListModelService.getStatusIcon(status, isRead, isArchived, getChatCompletedStateIcon(session, chat, reader, agentMergeConfiguration));
+	// A tab shows a chat in progress spinning, as other work in progress shows; it stands still while motion is reduced.
+	const icon = status === SessionStatus.InProgress ? { ...ThemeIcon.modify(Codicon.loading, 'spin'), color: statusIcon.color } : statusIcon;
+	const longTitle = [...getSessionChatAncestors(session, chat, reader), name].join(' / ');
+	const ariaLabel = localize('chatEditorInputAria', "{0}, {1}", longTitle, getSessionConversationStatusAriaLabel(status));
+	return { icon, longTitle, ariaLabel: !isRead && !isArchived ? localize('chatEditorInputUnreadAria', "{0}, unread", ariaLabel) : ariaLabel };
+}
+
+/** What the tab of a chat editor shows of its chat besides its name; see {@link ChatEditorInput.setDetails}. */
+export interface IChatEditorInputDetails {
+	/** The status of the chat, as the sessions list shows it beside the chat. */
+	readonly icon: ThemeIcon;
+	/** The title of the chat with those of its session and parent chats, such as for the tooltip of its tab. */
+	readonly longTitle: string;
+	/** The title of the chat with its session and its status, as screen readers read its tab. */
+	readonly ariaLabel: string;
+}
+
+/** Where a chat editor can move to ({@link ChatEditorInput.setMoveRestriction}). */
+export interface IChatEditorMoveRestriction {
+	/** Shown when a move is refused. */
+	readonly reason: string;
+	canMoveTo(group: GroupIdentifier): boolean;
+}
+
+/**
+ * The editor of a chat, keyed by the chat's resource: one per chat, in the chat part of a chat window. Its tab shows the
+ * title of the chat.
+ */
+export class ChatEditorInput extends ViewEditorInput {
+
+	private _name = '';
+	private _details: IChatEditorInputDetails | undefined;
+	private _cannotClose = false;
+	private _moveRestriction: IChatEditorMoveRestriction | undefined;
+
+	constructor(readonly chatResource: URI) {
+		super(SESSION_CHAT_VIEW_TYPE, chatResource);
+	}
+
+	/**
+	 * Keeps the editor in the groups `restriction` allows, such as those of its own window, with its reason elsewhere and
+	 * for a new window. A copy of it is a move, as for any editor of a view.
+	 */
+	setMoveRestriction(restriction: IChatEditorMoveRestriction | undefined): void {
+		if (this._moveRestriction !== restriction) {
+			this._moveRestriction = restriction;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
+
+	override canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		const restriction = this._moveRestriction;
+		return !restriction || restriction.canMoveTo(targetGroup) ? super.canMove(sourceGroup, targetGroup) : restriction.reason;
+	}
+
+	override canMoveToNewWindow(sourceGroup: GroupIdentifier): true | string {
+		return this._moveRestriction?.reason ?? super.canMoveToNewWindow(sourceGroup);
+	}
+
+	setName(name: string): void {
+		if (this._name !== name) {
+			this._name = name;
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	/** What its tab shows of the chat besides its name: its status, its session, and what screen readers read of it. */
+	setDetails(details: IChatEditorInputDetails | undefined): void {
+		const current = this._details;
+		const changed = !current || !details
+			? current !== details
+			: !ThemeIcon.isEqual(current.icon, details.icon) || current.longTitle !== details.longTitle || current.ariaLabel !== details.ariaLabel;
+		if (changed) {
+			this._details = details;
+			this._onDidChangeLabel.fire();
+		}
+	}
+
+	setCannotClose(cannotClose: boolean): void {
+		if (this._cannotClose !== cannotClose) {
+			this._cannotClose = cannotClose;
+			this._onDidChangeCapabilities.fire();
+		}
+	}
+
+	override getName(): string {
+		return this._name || super.getName();
+	}
+
+	override getTitle(verbosity?: Verbosity): string {
+		return verbosity === Verbosity.LONG && this._details ? this._details.longTitle : this.getName();
+	}
+
+	override getAriaLabel(): string {
+		return this._details?.ariaLabel ?? super.getAriaLabel();
+	}
+
+	override getIcon(): ThemeIcon {
+		return this._details?.icon ?? Codicon.commentDiscussion;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return super.capabilities | (this._cannotClose ? EditorInputCapabilities.CannotClose : 0);
+	}
+}

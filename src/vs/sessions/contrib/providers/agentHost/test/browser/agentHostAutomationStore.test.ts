@@ -24,7 +24,8 @@ import { withAgentHostAutomationHistoryState } from '../../../../../../platform/
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageAttachmentKind, MessageKind, type Message, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { AUTOMATION_CATALOG_URI, StateComponents, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -348,8 +349,8 @@ class TestActiveClientService extends mock<IAgentHostActiveClientService>() {
 		return undefined;
 	}
 
-	override acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
-		const scope = { sessionType, roots: roots.map(root => root.toString()), disposed: false };
+	override acquireScope(sessionType: string, roots: readonly URI[] | undefined): IAgentCustomizationScope {
+		const scope = { sessionType, roots: (roots ?? []).map(root => root.toString()), disposed: false };
 		this.scopes.push(scope);
 		return {
 			customizations: this.customizations,
@@ -405,6 +406,178 @@ suite('AgentHostAutomationStore', () => {
 			enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
 		};
 	}
+
+	for (const { name, resourceUris, toClient } of agentHostConnectionKinds) {
+		test(`one-time captured request round-trips through ${name} without losing attachments or metadata`, async () => {
+			const { store } = reconnectable(true, activeClientService, {
+				toHost: resource => resourceUris.toAgentHost(resource),
+				fromHost: resource => resourceUris.fromAgentHost(resource),
+				resourceSchemeForProvider: provider => provider,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
+			store.setConnection(connection);
+			const file = URI.file('/workspace/file.ts');
+			const request: Message = {
+				text: 'Captured request',
+				origin: { kind: MessageKind.Automation },
+				attachments: [
+					{ type: MessageAttachmentKind.Resource, label: 'file', uri: toClient(file).toString() },
+					{ type: MessageAttachmentKind.Simple, label: 'selection', modelRepresentation: 'immutable selection' },
+					{ type: MessageAttachmentKind.EmbeddedResource, label: 'image', data: 'aGVsbG8=', contentType: 'image/png' },
+				],
+				_meta: { capturedContext: { selection: 'context' } },
+			};
+			const schedule = { interval: 'once' as const, runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+			const created = await store.createAutomation({ ...createOptions(), prompt: request.text, request, purpose: 'scheduledChat', schedule });
+			const updated = await store.updateAutomation(created.id, { name: 'Renamed' });
+			const create = connection.dispatched[0].action;
+			assert.ok(create.type === ActionType.AutomationCreateRequested);
+			assert.deepStrictEqual({
+				supported: store.supportsOneTimeAutomation.get(),
+				schedule: updated.schedule,
+				purpose: updated.purpose,
+				request: updated.request,
+				hostAttachment: create.definition.message.attachments?.[0],
+			}, {
+				supported: true, schedule, purpose: 'scheduledChat', request,
+				hostAttachment: { type: MessageAttachmentKind.Resource, label: 'file', uri: file.toString() },
+			});
+		});
+	}
+
+	for (const { name, resourceUris, toClient } of agentHostConnectionKinds) {
+		test(`follow-up maps exact advertised opaque conversation identity through ${name}`, async () => {
+			const conversation = { sessionResource: URI.parse('client-session:/opaque'), chatResource: URI.parse('client-session:/opaque#second') };
+			const backend = { session: URI.parse('vendor-session:/unrelated-owner'), chat: URI.parse('ahp-chat:/arbitrary-conversation') };
+			const { store } = reconnectable(true, activeClientService, {
+				supportsExistingChatAutomation: true,
+				toHost: resource => resourceUris.toAgentHost(resource),
+				fromHost: resource => resourceUris.fromAgentHost(resource),
+				resourceSchemeForProvider: provider => provider,
+				resolveBackendSession: resource => resource.toString() === conversation.sessionResource.toString() ? backend.session : undefined,
+				resolveBackendChat: resource => resource.toString() === conversation.chatResource.toString() ? backend.chat : undefined,
+				conversationFromHost: (session, chat) => session.toString() === backend.session.toString() && chat.toString() === backend.chat.toString() ? conversation : undefined,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {}, existingConversation: {}, customizations: {} } }, undefined);
+			store.setConnection(connection);
+			const request: Message = {
+				text: 'Review changes', origin: { kind: MessageKind.Automation },
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: toClient(URI.file('/workspace/file.ts')).toString(), label: 'file' }],
+			};
+			const created = await store.createAutomation({
+				...createOptions(), conversation, purpose: 'scheduledChat', request,
+				sessionTemplate: { modelId: 'old-model', config: { autoApprove: 'all' } },
+				schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			});
+			const action = connection.dispatched[0].action;
+			assert.ok(action.type === ActionType.AutomationCreateRequested);
+			assert.deepStrictEqual({
+				supported: store.supportsExistingChatAutomation.get(), projected: created.conversation, template: created.sessionTemplate,
+				target: action.definition.conversation, model: action.definition.session.model, config: action.definition.session.config,
+				customizations: action.definition.session.customizations, request: created.request,
+			}, {
+				supported: true, projected: conversation, template: undefined,
+				target: { session: backend.session.toString(), chat: backend.chat.toString() },
+				model: undefined, config: undefined, customizations: undefined, request,
+			});
+			const rejectedAt = '2027-01-01T10:00:01.000Z';
+			connection.setAutomation({
+				resource: action.resource, definition: action.definition, operations: [AutomationOperation.Remove], runs: [],
+				createdAt: created.createdAt, modifiedAt: created.updatedAt, oneTimeRun: 'ahp-automation-run:/rejected', oneTimeDispatchRejectedAt: rejectedAt,
+			});
+			assert.deepStrictEqual({
+				rejectedAt: store.getAutomation(created.id)?.oneTimeDispatchRejectedAt,
+				dispatchedAt: store.getAutomation(created.id)?.oneTimeDispatchedAt,
+			}, { rejectedAt, dispatchedAt: undefined });
+		});
+	}
+
+	test('follow-up requires both an eligible local provider and explicit host capability', async () => {
+		for (const eligible of [false, true]) {
+			const { store } = reconnectable(true, activeClientService, {
+				supportsExistingChatAutomation: eligible,
+				toHost: resource => resource, fromHost: resource => resource, resourceSchemeForProvider: provider => provider,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.initializeResult.set({
+				...connection.initializeResult.get()!,
+				automations: { create: {}, oneTime: {}, ...(!eligible ? { existingConversation: {} } : {}) },
+			}, undefined);
+			store.setConnection(connection);
+			await assert.rejects(store.createAutomation({
+				...createOptions(), purpose: 'scheduledChat',
+				conversation: { sessionResource: URI.parse('client:/session'), chatResource: URI.parse('client:/session#peer') },
+				schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			}), /does not support scheduling/);
+			assert.deepStrictEqual({ supported: store.supportsExistingChatAutomation.get(), dispatches: connection.dispatched.length }, { supported: false, dispatches: 0 });
+		}
+	});
+	test('one-time dispatch receipt survives history eviction and uses the projected run identity', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
+		const { store } = reconnectable();
+		store.setConnection(connection);
+		const created = await store.createAutomation({
+			...createOptions(), purpose: 'scheduledChat',
+			schedule: { ...createOptions().schedule, interval: 'once', runAt: '2027-01-01T10:00:00.000Z' },
+		});
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		const oneTimeRun = 'ahp-automation-run:/once';
+		const oneTimeDispatchedAt = '2027-01-01T10:00:01.000Z';
+		const entry: AutomationEntry = {
+			resource: create.resource, definition: create.definition, operations: [AutomationOperation.Remove], oneTimeRun, oneTimeDispatchedAt,
+			createdAt: created.createdAt, modifiedAt: created.updatedAt,
+			runs: [{
+				resource: oneTimeRun, automation: create.resource, origin: { kind: AutomationRunOriginKind.Manual },
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: created.createdAt, startedAt: oneTimeDispatchedAt, completedAt: oneTimeDispatchedAt }, sessionCount: 1,
+			}],
+		};
+		connection.setAutomation(entry);
+		const projectedRun = store.runs.get()[0];
+		connection.setAutomation({ ...entry, runs: [] });
+		const descriptor = store.getAutomation(created.id)!;
+		assert.deepStrictEqual({ receipt: descriptor.oneTimeRunId, dispatchedAt: descriptor.oneTimeDispatchedAt }, {
+			receipt: projectedRun.id, dispatchedAt: oneTimeDispatchedAt,
+		});
+	});
+
+	test('one-time scheduling requires an explicit capability and rejects client-dependent attachments', async () => {
+		const { store } = reconnectable();
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const options = { ...createOptions(), schedule: { ...createOptions().schedule, interval: 'once' as const, runAt: '2027-01-01T10:00:00.000Z' } };
+		await assert.rejects(store.createAutomation(options), /does not support one-time/);
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
+		await assert.rejects(store.createAutomation({
+			...options,
+			request: { text: options.prompt, origin: { kind: MessageKind.Automation }, attachments: [{ type: MessageAttachmentKind.Resource, label: 'unsaved', uri: 'untitled:/buffer' }] },
+		}), /cannot be saved/);
+		assert.deepStrictEqual(connection.dispatched, []);
+	});
+
+	test('one-time creation retries use the same host identity and project the handoff receipt', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
+		const first = reconnectable().store;
+		first.setConnection(connection);
+		const creationId = 'c70b090b-6474-4081-a4b8-a7eb09e7054e';
+		const allocated: { id: string; dispatched: number }[] = [];
+		const options = {
+			...createOptions(), creationId, purpose: 'scheduledChat' as const,
+			onWillCreate: (id: string) => allocated.push({ id, dispatched: connection.dispatched.length }),
+			schedule: { ...createOptions().schedule, interval: 'once' as const, runAt: '2027-01-01T10:00:00.000Z' },
+		};
+		const created = await first.createAutomation(options);
+		first.dispose();
+		const second = reconnectable().store;
+		second.setConnection(connection);
+		const retry = await second.createAutomation(options);
+		assert.deepStrictEqual({ id: retry.id, receipt: retry.creationId, allocated, resources: connection.dispatched.map(entry => entry.action.type === ActionType.AutomationCreateRequested ? entry.action.resource : undefined) },
+			{ id: created.id, receipt: creationId, allocated: [{ id: created.id, dispatched: 0 }, { id: created.id, dispatched: 1 }], resources: [`ahp-automation:/scheduled-chat-${creationId}`, `ahp-automation:/scheduled-chat-${creationId}`] });
+	});
 
 	function customizationConnection() {
 		const connection = disposables.add(new TestAutomationConnection());

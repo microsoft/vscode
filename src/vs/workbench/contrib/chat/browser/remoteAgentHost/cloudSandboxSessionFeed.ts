@@ -13,6 +13,7 @@ import { computeReconnectDelay } from '../../../../../platform/agentHost/common/
 import { parse, SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { RequestError } from '../../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IPowerService } from '../../../../services/power/common/powerService.js';
 import { ICloudSandboxTelemetryService, type CloudSandboxSessionFeedOutcome, type CloudSandboxSessionFeedReason, type ICloudSandboxSessionFeedTelemetryData } from './cloudSandboxTelemetry.js';
 
 const LOG_PREFIX = '[CloudSandboxSessionFeed]';
@@ -30,11 +31,23 @@ export type CloudSandboxSessionFeedRefresh =
 	| { readonly reason: 'change'; readonly taskIds: readonly string[] }
 	| { readonly reason: 'renewal' | 'reconnect' };
 
-/** Account-scoped task invalidations, independent of the AHP relay. Renewals and connection gaps request inventory catch-up. */
+/** Account-scoped task invalidations, paused during OS suspend. Renewals and connection gaps request inventory catch-up. */
 export class CloudSandboxSessionFeed extends Disposable {
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _pending = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _reconnect = this._register(new RunOnceScheduler(() => void this._connect(true), reconnectPolicy.initialDelayMs));
+	private readonly _resume = this._register(new RunOnceScheduler(() => {
+		const resumed = this._whenResumed;
+		this._whenResumed = undefined;
+		void resumed?.complete();
+		if (this._resumeConnection) {
+			this._resumeConnection = false;
+			void this._connect(true);
+		}
+		if (this._taskIds.size || this._refreshReason) {
+			this._refresh.schedule();
+		}
+	}, reconnectPolicy.initialDelayMs));
 	private readonly _refresh = this._register(new RunOnceScheduler(() => {
 		const reason = this._refreshReason;
 		const taskIds = this.takePendingTaskIds();
@@ -52,27 +65,69 @@ export class CloudSandboxSessionFeed extends Disposable {
 	private _refreshReason: 'renewal' | 'reconnect' | undefined;
 	private _start: Promise<void> | undefined;
 	private _connecting: Promise<void> | undefined;
+	private _deferred = false;
 	/** Dropped sockets and failed attempts since the last healthy connection; drives both backoff policies. */
 	private _consecutiveFailures = 0;
 	private _connectionWatch: Pick<StopWatch, 'elapsed'> | undefined;
 	private _messageWatch: Pick<StopWatch, 'elapsed'> | undefined;
 	private _gapWatch: Pick<StopWatch, 'elapsed'> | undefined;
+	private _suspended = false;
+	private _suspendGeneration = 0;
+	private _whenResumed: DeferredPromise<void> | undefined;
+	private _resumeConnection = false;
+	private _retryNotBefore = 0;
 
 	get connected(): boolean { return !!this._active.value; }
+	get deferred(): boolean { return this._deferred; }
 
 	constructor(
 		private readonly _onInvalidate: (refresh: CloudSandboxSessionFeedRefresh) => void,
 		private readonly _webSocketFactory: (url: string, protocol: string) => SessionFeedSocket = (url, protocol) => new WebSocket(url, protocol),
 		private readonly _stopWatchFactory: () => Pick<StopWatch, 'elapsed'> = () => StopWatch.create(),
+		private readonly _canConnect: () => boolean = () => true,
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@ILogService private readonly _logService: ILogService,
 		@ICloudSandboxTelemetryService private readonly _telemetryService: ICloudSandboxTelemetryService,
+		@IPowerService private readonly _powerService: IPowerService,
 	) {
 		super();
+		this._register(this._powerService.onDidSuspend(() => this._suspend()));
+		this._register(this._powerService.onDidResume(() => {
+			if (this._suspended) {
+				this._suspended = false;
+				this._resume.schedule(Math.max(computeReconnectDelay(reconnectPolicy, 1), this._retryNotBefore - Date.now()));
+			}
+		}));
+		this._register(toDisposable(() => {
+			void this._whenResumed?.complete();
+		}));
+	}
+
+	private _suspend(): void {
+		if (this._suspended) {
+			return;
+		}
+		this._suspended = true;
+		this._suspendGeneration++;
+		this._whenResumed ??= new DeferredPromise<void>();
+		this._resumeConnection ||= !!this._active.value || !!this._pending.value || this._reconnect.isScheduled();
+		this._resume.cancel();
+		this._reconnect.cancel();
+		this._refresh.cancel();
+		if (this._active.value) {
+			this._gapWatch ??= this._stopWatchFactory();
+		}
+		this._pending.clear();
+		this._active.clear();
+		this._connectionWatch = this._messageWatch = undefined;
+		this._logService.debug(`${LOG_PREFIX} Paused task status feed for OS suspend.`);
 	}
 
 	/** Wait for the first connection attempt before the initial authoritative list read. */
 	start(): Promise<void> {
+		if (this._deferred) {
+			this._start = undefined;
+		}
 		return this._start ??= this._connect(false);
 	}
 
@@ -97,7 +152,42 @@ export class CloudSandboxSessionFeed extends Disposable {
 	}
 
 	private _connect(refresh: boolean): Promise<void> {
-		return this._connecting ??= this._doConnect(refresh).finally(() => this._connecting = undefined);
+		return this._connecting ??= this._connectWhenResumed(refresh).finally(() => this._connecting = undefined);
+	}
+
+	private async _connectWhenResumed(refresh: boolean): Promise<void> {
+		while (!this._store.isDisposed) {
+			if (this._whenResumed) {
+				await this._whenResumed.p;
+			}
+			if (this._store.isDisposed) {
+				return;
+			}
+			if (this._suspended) {
+				continue;
+			}
+			if (!this._canConnect()) {
+				this._deferConnection();
+				return;
+			}
+			this._deferred = false;
+			const generation = this._suspendGeneration;
+			await this._doConnect(refresh);
+			if (generation === this._suspendGeneration) {
+				return;
+			}
+			refresh = true;
+		}
+	}
+
+	private _deferConnection(): void {
+		this._deferred = true;
+		this._reconnect.cancel();
+		if (this._active.value) {
+			this._gapWatch ??= this._stopWatchFactory();
+			this._active.clear();
+			this._connectionWatch = this._messageWatch = undefined;
+		}
 	}
 
 	private async _doConnect(refresh: boolean): Promise<void> {
@@ -109,8 +199,8 @@ export class CloudSandboxSessionFeed extends Disposable {
 		let failureReason: CloudSandboxSessionFeedReason = 'negotiationError';
 		try {
 			const connectionTime = this._stopWatchFactory();
-			const connection = await this._apiService.connectSessionFeed(cancellation.token);
-			if (this._store.isDisposed) {
+			const connection = await raceCancellationError(this._apiService.connectSessionFeed(cancellation.token), cancellation.token);
+			if (this._store.isDisposed || cancellation.token.isCancellationRequested) {
 				return;
 			}
 			if (!connection) {
@@ -118,6 +208,10 @@ export class CloudSandboxSessionFeed extends Disposable {
 				this._active.clear();
 				this._reconnect.cancel();
 				this._report('unavailable', 'unavailable', undefined, undefined, diagnostics);
+				return;
+			}
+			if (!this._canConnect()) {
+				this._deferConnection();
 				return;
 			}
 			negotiated = true;
@@ -183,11 +277,13 @@ export class CloudSandboxSessionFeed extends Disposable {
 					this._gapWatch ??= this._stopWatchFactory();
 					if (reason !== 'invalidMessage') {
 						const delay = computeReconnectDelay(reconnectPolicy, ++this._consecutiveFailures);
+						this._retryNotBefore = Date.now() + delay;
 						this._logService.debug(`${LOG_PREFIX} Disconnected; reconnecting in ${delay}ms with discovery polling retained.`);
 						this._reconnect.schedule(delay);
 						this._report('disconnected', reason, delay, undefined, diagnostics);
 					} else {
 						this._logService.debug(`${LOG_PREFIX} Invalid or unsupported feed message; using discovery polling until the next account or feature lifetime.`);
+						this._deferred = false;
 						this._reconnect.cancel();
 						this._report('invalidMessage', reason, undefined, undefined, diagnostics);
 					}
@@ -198,7 +294,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 			socket.onerror = () => disconnected('socketError');
 			await raceCancellationError(ready.p, cancellation.token);
 			handshakeTimeout.dispose();
-			if (this._store.isDisposed) {
+			if (this._store.isDisposed || cancellation.token.isCancellationRequested) {
 				return;
 			}
 			if (closed) {
@@ -208,6 +304,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 			const diagnostics = this._connectionDiagnostics();
 			const gapDurationMs = this._gapWatch?.elapsed();
 			this._gapWatch = undefined;
+			this._retryNotBefore = 0;
 			store.add(disposableTimeout(() => this._consecutiveFailures = 0, healthyConnectionMs));
 			this._active.value = this._pending.clearAndLeak();
 			this._connectionWatch = this._stopWatchFactory();
@@ -217,13 +314,13 @@ export class CloudSandboxSessionFeed extends Disposable {
 				: Date.parse(connection.reconnect_after) - Date.now();
 			this._reconnect.schedule(Math.max(1_000, reconnectDelay));
 			this._logService.debug(`${LOG_PREFIX} Connected to task status feed.`);
-			this._report(continuous ? 'renewed' : 'connected', continuous ? 'renewal' : refresh ? 'recovery' : 'initial',
+			this._report(continuous ? 'renewed' : 'connected', continuous ? 'renewal' : refresh || gapDurationMs !== undefined ? 'recovery' : 'initial',
 				undefined, undefined, { ...diagnostics, gapDurationMs });
 			if (refresh) {
 				this._invalidate(continuous ? 'renewal' : 'reconnect');
 			}
 		} catch (error) {
-			if (!this._store.isDisposed) {
+			if (!this._store.isDisposed && !cancellation.token.isCancellationRequested) {
 				const diagnostics = this._connectionDiagnostics();
 				this._active.clear();
 				this._connectionWatch = this._messageWatch = undefined;
@@ -231,6 +328,7 @@ export class CloudSandboxSessionFeed extends Disposable {
 				const statusCode = error instanceof CloudSandboxRequestError ? error.statusCode : undefined;
 				const retryAfterMs = error instanceof CloudSandboxRequestError && error.retryAfterSeconds !== undefined ? error.retryAfterSeconds * 1000 : 0;
 				const delay = Math.max(computeReconnectDelay(retryPolicy, ++this._consecutiveFailures), retryAfterMs);
+				this._retryNotBefore = Date.now() + delay;
 				// Socket errors may contain the token-bearing URL.
 				this._logService.debug(`${LOG_PREFIX} Connection failed${statusCode !== undefined ? ` (HTTP ${statusCode})` : ''}; retrying in ${delay}ms with discovery polling retained.`);
 				this._reconnect.schedule(delay);

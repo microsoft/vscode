@@ -19,8 +19,9 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { WebContentsViewHost } from '../../../browserView/electron-browser/webContentsViewHost.js';
-import { ICanvas, ICanvasReference, ICanvasService } from '../../common/canvas.js';
+import { ICanvasService } from '../../common/canvas.js';
 import { CanvasView, ICanvasViewInput } from '../../electron-browser/canvasView.js';
+import { ICanvas, ICanvasReference } from '../../../../common/canvasReference.js';
 
 suite('CanvasView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

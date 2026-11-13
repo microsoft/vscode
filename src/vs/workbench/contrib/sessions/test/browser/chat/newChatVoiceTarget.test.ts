@@ -12,7 +12,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatViewModel } from '../../../../chat/common/model/chatViewModel.js';
-import { IChat } from '../../../common/session.js';
+import { IChat } from '../../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import { INewChatVoiceComposer, NEW_CHAT_VOICE_SENTINEL, NewChatVoiceTargetService } from '../../../browser/chat/newChatVoice.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, withCreatedStatus } from '../sessionHostTestUtils.js';

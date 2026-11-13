@@ -23,7 +23,7 @@ import { ChatBackgroundShellOutputAccessibleView } from '../../../browser/access
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { BackgroundShellOutputView } from '../../../browser/sessionBackgroundShellOutputView.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import type { ChatBackgroundShellOutput } from '../../../common/sessionChatPills.js';
+import type { ChatBackgroundShellOutput } from '../../../../../common/chatBackgroundShell.js';
 
 suite('ChatBackgroundShellOutputAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

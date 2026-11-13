@@ -14,7 +14,7 @@ import { ApiRequestOptions } from '../../../../../../platform/github/common/clie
 import { compareRequestPriority, RequestPriority } from '../../../../../../platform/github/common/types.js';
 import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequest, IGitHubPullRequestMergeability, IGitHubPullRequestReview } from '../../../common/github/types.js';
 import { computeMergeability, GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { IPullRequestIconCache } from '../pullRequestIconCache.js';
 
 const LOG_PREFIX = '[GitHubPullRequestModel]';

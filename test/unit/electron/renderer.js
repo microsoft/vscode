@@ -278,11 +278,16 @@ async function loadTests(opts) {
 	const { assertCleanState } = await loadFn('vs/workbench/test/common/utils');
 	const { installRegistryLeakCheck } = await loadFn('vs/platform/actions/test/common/registryLeakCheck');
 	installRegistryLeakCheck(mocha.suite);
-	const { installIsolationCheck, defaultIsolationDetectors, animationFrameQueueDetector } = await loadFn('vs/base/test/browser/isolationCheck');
+	const { installIsolationCheck, defaultIsolationDetectors, hoverDetector, animationFrameQueueDetector } = await loadFn('vs/base/test/browser/isolationCheck');
 	const { menuChangeListenerDetector } = await loadFn('vs/platform/actions/test/common/menuChangeListenerDetector');
 	// The animation frame probe changes when queued runners run, so only reporting runs use it.
 	const isolationProbes = process.env.VSCODE_TEST_ISOLATION_REPORT ? [animationFrameQueueDetector] : [];
-	installIsolationCheck(mocha.suite, [...defaultIsolationDetectors, menuChangeListenerDetector, ...isolationProbes]);
+	// Under Xvfb on Linux, the real pointer stays over the window once a suite activates it, so `:hover` applies to
+	// whatever a later suite renders there. Moving the pointer off the window after every top-level suite stops that.
+	const detectors = defaultIsolationDetectors.map(detector => process.platform === 'linux' && detector === hoverDetector
+		? { ...detector, reset: () => ipcRenderer.invoke('vscode:test-pointer-leave') }
+		: detector);
+	installIsolationCheck(mocha.suite, [...detectors, menuChangeListenerDetector, ...isolationProbes]);
 
 	suite('Tests are using suiteSetup and setup correctly', () => {
 		test('assertCleanState - check that registries are clean at the start of test running', () => {

@@ -62,6 +62,7 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import './services/workspaces/common/editSessionIdentityService.js';
+import './services/workspaces/common/workspaceFolderLocationService.js';
 import './services/extensions/browser/extensionUrlHandler.js';
 import './services/keybinding/common/keybindingEditing.js';
 import './services/decorations/browser/decorationsService.js';
@@ -142,6 +143,7 @@ import './services/inlineCompletions/common/inlineCompletionsUnification.js';
 import './services/chat/common/chatEntitlementService.js';
 import './services/agentHost/common/agentHostResourceService.js';
 import '../platform/agentHost/browser/agentHostConnectionsService.js';
+import '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
 import './services/log/common/defaultLogLevels.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
@@ -241,6 +243,9 @@ import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
+
+// Screenshot Tool
+import './contrib/screenshotTool/browser/screenshotTool.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
@@ -406,6 +411,7 @@ import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 import './contrib/onboarding/browser/onboarding.contribution.js';
 import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
 import './contrib/chat/browser/onboarding/chatInputSpotlightTour.js';
+import './contrib/chat/browser/onboarding/agentPickerSpotlight.contribution.js';
 import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy
@@ -454,6 +460,7 @@ import './contrib/workspace/browser/workspace.contribution.js';
 
 // Workspaces
 import './contrib/workspaces/browser/workspaces.contribution.js';
+import './contrib/workspaces/browser/folderLocationWorkingSets.contribution.js';
 
 // List
 import './contrib/list/browser/list.contribution.js';

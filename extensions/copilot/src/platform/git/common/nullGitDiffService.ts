@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, Uri } from 'vscode';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Change, Repository } from '../vscode/git';
 import { Diff, IGitDiffService } from './gitDiffService';
 

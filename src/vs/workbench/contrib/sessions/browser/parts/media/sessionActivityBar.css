@@ -19,19 +19,32 @@
  * fills the column from top to bottom, so the whole column is the activity bar and offers its context menu anywhere.
  * The column keeps the gap between cards to its left (`SessionActivityBarColumn`). */
 .monaco-workbench .session-activity-bar-column .session-activity-bar.docked {
-	top: 0;
-	bottom: 0;
+	top: var(--agents-session-frame-inset, 0px);
+	bottom: var(--agents-session-frame-inset, 0px);
 	right: 0;
 }
 
-/* Beside the chat while the side pane is closed, whose visible frame is inset within its part: moved toward it by as
- * much, so the gap between them is the gap between cards. */
-.monaco-workbench.noeditorpane .session-activity-bar-column .session-activity-bar.docked {
-	right: var(--agents-session-frame-inset);
+.monaco-workbench .menu-activity-bar.session-activity-bar:not(.floating) {
+	background-color: var(--vscode-agentsActivityBar-background, transparent);
+	border-color: var(--vscode-agentsActivityBar-border, transparent);
+}
+
+.monaco-workbench .menu-activity-bar.session-activity-bar.size-compact:not(.floating) {
+	--menu-activity-bar-gap: var(--vscode-spacing-size40);
+}
+
+/* Match the connected panel header's centerline, including its shared bottom stroke. */
+.monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs .menu-activity-bar.session-activity-bar.size-compact:not(.floating) {
+	padding-top: calc((var(--editor-group-tab-height, var(--vscode-spacing-size240)) + var(--vscode-spacing-size80) - var(--vscode-strokeThickness) - var(--menu-activity-bar-item-size)) / 2 - var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.editor-tabs-compact-height .menu-activity-bar.session-activity-bar.size-compact:not(.floating) {
+	--editor-group-tab-height: var(--vscode-spacing-size200);
 }
 
 .monaco-workbench .session-activity-bar.docked {
 	position: absolute;
+	top: 0;
 	/* With an equal gap on either side in its column (`SESSION_ACTIVITY_BAR_COLUMN_WIDTH`). */
 	right: var(--vscode-spacing-size20);
 	/* Above the chat transcript's layers (sticky scroll 13, scrollbar 14, prompt timeline rail 15, state indicator 16);
@@ -58,6 +71,49 @@
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-editorWidget-background);
 	box-shadow: var(--vscode-shadow-md);
+}
+
+/* The grip to drag a floating strip up and down; a strip in a column of its own has none. */
+.monaco-workbench .session-activity-bar-drag-handle {
+	display: none;
+}
+
+.monaco-workbench .menu-activity-bar.session-activity-bar.floating .session-activity-bar-drag-handle {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: grab;
+	touch-action: none;
+}
+
+/* The gripper's dots run vertically; turn them to run along the top of the vertical strip. Dimmed on the icon
+ * rather than the handle, so the hover feedback matches the actions'. */
+.monaco-workbench .session-activity-bar-drag-handle-icon {
+	transform: rotate(90deg);
+	opacity: 0.5;
+}
+
+.monaco-workbench.hc-black .session-activity-bar-drag-handle-icon,
+.monaco-workbench.hc-light .session-activity-bar-drag-handle-icon,
+.monaco-workbench .session-activity-bar-drag-handle:hover .session-activity-bar-drag-handle-icon,
+.monaco-workbench .session-activity-bar-drag-handle.dragging .session-activity-bar-drag-handle-icon {
+	opacity: 1;
+}
+
+/* Same hover and active feedback as the strip's actions. */
+.monaco-workbench .session-activity-bar-drag-handle:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .session-activity-bar-drag-handle.dragging {
+	cursor: grabbing;
+	background-color: var(--vscode-toolbar-activeBackground);
 }
 
 /* Like the title bar's toggles, the side panel toggle shows its state through its icon, not as a checked entry. */

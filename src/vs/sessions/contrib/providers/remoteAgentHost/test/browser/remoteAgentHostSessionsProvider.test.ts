@@ -58,14 +58,14 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService, type ChatSendResult, type IChatSendRequestData, type IChatSendRequestOptions, type IChatRequestAcceptedEvent } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import type { IChatModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type IChat, type IChatCheckpoints, type ISession, type ISessionFileChange } from '../../../../../../workbench/contrib/sessions/common/session.js';
-import { VisibleSessions } from '../../../../../../workbench/contrib/sessions/browser/visibleSessions.js';
+import { ChatInteractivity, ChatModelSource, getChatCapabilities, getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, SessionRemoteConnectionFailureReason, SessionStatus, type IChat, type IChatCheckpoints, type ISession, type ISessionFileChange } from '../../../../../../workbench/services/sessions/common/session.js';
+import { VisibleSessions } from '../../../../../../workbench/services/sessions/browser/visibleSessions.js';
 import { SessionPullRequestPresentationModel } from '../../../../../../workbench/contrib/sessions/browser/github/pullRequestIconStatus.js';
 import { buildSessionPullRequestSections } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbar.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -92,13 +92,14 @@ import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../../../.
 import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionHostService } from '../../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf, stubFocusedSessionHostFromSessionsService, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri, isEqual } from '../../../../../../base/common/resources.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -440,7 +441,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	stubFocusedSessionHostFromSessionsService(instantiationService);
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireSessionTools = () => new ImmortalReference(constObservable([]));
-		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
+		override acquireScope = (_sessionType: string, _roots: readonly URI[] | undefined) => ({
 			customizations: constObservable([]),
 			customAgents: constObservable([]),
 			tools: constObservable([]),
@@ -2015,6 +2016,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			resolvedWhileConnected: sessionResource.toString(),
 			connectCallsAfterResolve: 0,
 			connectCalls: 1,
+		});
+	});
+
+	test('declines to adopt a session until its cache is listed over the current connection, and then prompts the retry', async () => {
+		connection.addSession(createSession('handed-off'));
+		const provider = createProvider(disposables, connection, { noConnection: true });
+		// A cache restored from storage, which can lack the session's peer chats.
+		provider.seedSessions([createSession('handed-off')]);
+		const to = provider.getSessions()[0];
+		const from = new class extends mock<ISession>() {
+			override readonly mainChat = constObservable<IChat>({ ...to.mainChat.get(), resource: URI.parse('relay:/main') });
+		}();
+		const replacements: string[] = [];
+		disposables.add(provider.onDidReplaceSession(event => replacements.push(...[...event.chats ?? []].map(([chat, ownChat]) => `${chat.toString()} -> ${ownChat.toString()}`))));
+		const attempts: string[] = [];
+		const attempt = (when: string) => attempts.push(`${when}: ${provider.adoptSession(from, AgentSession.uri('copilotcli', 'handed-off'))}`);
+		attempt('offline');
+		provider.setConnection(connection);
+		attempt('listing');
+		// Like the handoff, retry on changes of sessions until adopted.
+		disposables.add(provider.onDidChangeSessions(() => {
+			if (!attempts.at(-1)?.endsWith('true')) {
+				attempt('listed');
+			}
+		}));
+		await timeout(0);
+
+		assert.deepStrictEqual({ attempts, replacements }, {
+			attempts: ['offline: false', 'listing: false', 'listed: true'],
+			replacements: [`relay:/main -> ${to.mainChat.get().resource.toString()}`],
 		});
 	});
 
@@ -4572,7 +4603,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
 			new NullRemoteAgentHostService(),
 			upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-			new NullLogService(),
+			upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 		));
 		let notifications = 0;
 		disposables.add(resolutions.onDidChangeSessionResolution(() => notifications++));

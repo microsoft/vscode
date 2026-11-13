@@ -19,6 +19,7 @@ import { createServiceIdentifier } from '../../../util/common/services';
 import { disposableTimeout } from '../../../util/vs/base/common/async';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import * as path from '../../../util/vs/base/common/path';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when Copilot started using VS Code's layers: a vscode-node file imports a browser file.
 import { windowsToGitBashPath } from '../../../util/vs/workbench/contrib/terminalContrib/suggest/browser/terminalGitBashHelpers';
 import { PythonTerminalService } from './copilotCLIPythonTerminalService';
 import { prepareCopilotCLINativeShim } from './copilotCLINativeShim';

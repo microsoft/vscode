@@ -56,6 +56,7 @@ import { resolveServerUrls } from './serverUrls.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { localProcessPathStyle } from '../common/agentHostPathStyle.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -336,6 +337,7 @@ async function main(): Promise<void> {
 		wsServer,
 		{
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
+			environment: { pathStyle: localProcessPathStyle },
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters: completions.triggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,

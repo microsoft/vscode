@@ -43,13 +43,13 @@ export class ArtifactAutopilotModel extends Disposable {
 					id: contribution.integrationId,
 					title: groups.length > 1 ? localize('artifactAutopilot.providerTitle', "{0} Autopilot", contribution.label) : localize('artifactAutopilot.title', "Autopilot"),
 					expanded: state.expandedAutopilot.has(contribution.integrationId),
-					checked: enabled > 0 && enabled === eligible.length,
+					checked: enabled > 0,
 					disabled: this.pendingGroups.has(contribution.integrationId) || !eligible.length,
 					summary: unavailable ? localize('artifactAutopilot.unavailable', "{0} on, {1} unavailable", enabled, unavailable)
 						: localize('artifactAutopilot.enabled', "{0} of {1} on", enabled, eligible.length),
 					toggleLabel: groups.length > 1 ? localize('artifactAutopilot.providerRules', "All Available Autopilot Rules: {0}", contribution.label)
 						: localize('artifactAutopilot.allRules', "All Available Autopilot Rules"),
-					description: localize('artifactAutopilot.masterHelp', "Enable all available rules for this provider using the policies shown in their dropdowns, or turn off all enabled rules. Unavailable rules are not enabled."),
+					description: localize('artifactAutopilot.masterHelp', "On while any rule is on. Turn on to enable all available rules for this provider using the policies shown in their dropdowns, or turn off to disable all enabled rules. Unavailable rules are not enabled."),
 					rules: options.map(option => this.rule(contribution, option, snapshot)),
 					setExpanded: expanded => {
 						if (expanded) {
@@ -100,6 +100,7 @@ export class ArtifactAutopilotModel extends Disposable {
 		const pending = this.pendingRules.has(id);
 		const disabled = pending || (!checked && !canEnableArtifactAutomationOption(contribution, option));
 		const available = contribution.view.automationAvailability.find(available => available.id === option.id);
+		const grant = contribution.configuration.grants?.[option.id];
 		const reason = contribution.configuration.disablements[option.id]?.reason ?? available?.unavailableReason
 			?? (!checked ? available?.enablement?.disabledReason : undefined)
 			?? (contribution.view.availability.kind !== 'available' && contribution.view.availability.kind !== 'loading' ? contribution.view.availability.reason : undefined)
@@ -109,7 +110,11 @@ export class ArtifactAutopilotModel extends Disposable {
 			description: [
 				...describeArtifactAutomationConsent(contribution, option, { location: this.location(contribution, snapshot) }),
 				option.kind === 'enum' ? localize('artifactPolicyPreparation', "Choosing a policy while this rule is off does not enable it. Turning it on uses the displayed policy.") : '',
-				checked && contribution.configuration.grants?.[option.id]?.kind === 'agent' ? localize('artifactAutopilot.agentGrant', "Turned on at the agent's request after you confirmed.") : '',
+				checked && grant?.kind === 'agent'
+					? grant.autoApproved
+						? localize('artifactAutopilot.agentAutoApprovedGrant', "Turned on by the agent (auto-approved).")
+						: localize('artifactAutopilot.agentGrant', "Turned on at the agent's request after you confirmed.")
+					: '',
 				reason,
 			].filter(Boolean).join(' '),
 			policy: option.kind === 'enum' ? {

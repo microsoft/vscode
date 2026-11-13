@@ -75,11 +75,11 @@ pub struct CodeServerArgs {
 	pub without_connection_token: bool,
 	// reconnection
 	pub reconnection_grace_time: Option<u32>,
-	// agent-host bridge: tells the spawned VS Code server where the
-	// canonical agent host is listening so it can register the
-	// `agentHostProxy` IPC channel and let renderers reach the agent
-	// host over the remote-agent connection. The server does NOT spawn
-	// an agent host of its own when these are set.
+	// agent-host bridge: tells a spawned VS Code server that predates
+	// registry discovery where the canonical agent host is listening, so
+	// it registers the `agentHostProxy` IPC channel against it instead of
+	// spawning an agent host of its own. Newer servers ignore these and
+	// discover the same agent host via the shared endpoint registry.
 	pub agent_host_bridge_host: Option<String>,
 	pub agent_host_bridge_port: Option<u16>,
 	pub agent_host_bridge_connection_token: Option<String>,

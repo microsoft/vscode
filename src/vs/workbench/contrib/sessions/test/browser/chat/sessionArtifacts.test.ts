@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../../base/common/observable.js';
 import { isMacintosh, isWeb, isWindows } from '../../../../../../base/common/platform.js';
 import { basename, extname } from '../../../../../../base/common/resources.js';
@@ -44,15 +44,15 @@ import { ToolDataSource } from '../../../../chat/common/tools/languageModelTools
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../../browser/chat/sessionArtifacts.js';
-import { type IChat, type IGitHubInfo, type ISession, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../common/session.js';
+import { type IChat, type IGitHubInfo, type ISession, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 import { IGitHubService as ISessionsGitHubService } from '../../../browser/github/githubService.js';
 import { OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../common/github/types.js';
 import { getSessionGitHubReferences } from '../../../common/github/sessionGitHubReferences.js';
-import { ISessionHost } from '../../../browser/sessionHost.js';
+import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ISessionGridPane } from '../../../browser/sessionGridPane.js';
+import { ISessionGridPane } from '../../../../../services/sessions/browser/sessionGridPane.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';
 
 suite('Session Artifacts', () => {
@@ -154,7 +154,7 @@ suite('Session Artifacts', () => {
 			chat,
 			browserUrls,
 			gitHubReferences,
-			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
+			{ id: 'test-artifact-details', selected: constObservable(undefined), activeSection: constObservable(undefined), toggle() { }, release() { }, suspend: () => Disposable.None },
 			new class extends mock<IClipboardService>() { }(),
 			configurationService,
 			new class extends mock<ILabelService>() {
@@ -1091,6 +1091,32 @@ suite('Session Artifacts', () => {
 				references: ['active', 'docs'],
 			},
 			inBrowser: { artifacts: ['step'], references: ['active', 'docs'] },
+		});
+	});
+
+	test('lists references in the references pill whatever their group ID, even when an artifact with a pill of its own presents the same resource', async () => {
+		const site = (id: string, isArtifact: boolean): ISessionArtifact => ({ id, kind: SessionArtifactKind.Website, label: id, isArtifact, link: URI.parse(`https://example.test/${id}`) });
+		const snapshots: Record<string, ArtifactSnapshot> = {
+			experiment: integratedSnapshot('experiment', 'experiments', { resourceKey: 'experiment' }),
+			experimentLink: integratedSnapshot('experimentLink', 'experiments', { resourceKey: 'experiment' }),
+			scorecard: integratedSnapshot('scorecard', 'experiments', { resourceKey: 'step' }),
+			otherScorecard: integratedSnapshot('otherScorecard', 'experiments', { resourceKey: 'step' }),
+			commit: integratedSnapshot('commit', undefined, { resourceKey: 'commit' }),
+		};
+		const { presentation } = createPresentation(Object.keys(snapshots).map(id => site(id, id === 'experiment')),
+			undefined, undefined, undefined, false, undefined, false, id => snapshots[id]);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			integrated: presentation.integratedEntries.get().map(entry => entry.id),
+			ownPills: derived(reader => Object.keys(snapshots).filter(id => presentation.hasOwnPill(id, reader))).get(),
+			...visibleEntries(presentation),
+		}, {
+			integrated: ['experiment'],
+			ownPills: ['experiment'],
+			artifacts: [],
+			// References bound to the same resource as each other show once.
+			references: ['experimentLink', 'scorecard', 'commit'],
 		});
 	});
 

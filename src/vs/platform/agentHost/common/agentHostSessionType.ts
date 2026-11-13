@@ -101,6 +101,25 @@ export function parseAgentHostHarness(sessionType: string): string | undefined {
 }
 
 /**
+ * Translates the session type of a window's own agent host to the session type
+ * of another window that connects to the same host as the remote agent host
+ * with `connectionAuthority`. An editor window of a VS Code remote reaches the
+ * agent host on its remote machine as its own agent host, while the Agents
+ * Window connects to that host as a remote agent host.
+ */
+export function toRemoteAgentHostSessionType(sessionType: string, connectionAuthority: string): string | undefined {
+	const provider = sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX) ? sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) : undefined;
+	return provider ? remoteAgentHostSessionTypeId(connectionAuthority, provider) : undefined;
+}
+
+/** The inverse of {@link toRemoteAgentHostSessionType}. */
+export function toLocalAgentHostSessionType(sessionType: string, connectionAuthority: string): string | undefined {
+	const prefix = remoteAgentHostSessionTypeAuthorityPrefix(connectionAuthority);
+	const provider = connectionAuthority && sessionType.startsWith(prefix) ? sessionType.slice(prefix.length) : undefined;
+	return provider ? `${LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX}${provider}` : undefined;
+}
+
+/**
  * Extracts the connection authority from a remote agent host session type when the provider is known.
  */
 export function parseRemoteAgentHostSessionTypeAuthority(sessionType: string, agentProvider: AgentProvider): string | undefined {

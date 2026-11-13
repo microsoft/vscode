@@ -18,7 +18,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AgentFeedbackEditorInputContribution, AgentFeedbackInputWidget } from '../../browser/agentFeedbackEditorInputContribution.js';
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
-import { ISession, ISessionFileChange } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';

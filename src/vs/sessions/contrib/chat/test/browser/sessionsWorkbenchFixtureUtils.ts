@@ -33,19 +33,22 @@ import { ComponentFixtureContext, createEditorServices, registerWorkbenchService
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from '../../../../browser/actions/vscodeActions.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
-import { SessionsPart } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsPart.js';
+import { AGENTS_CARD_SURFACE_CLASS, AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
+import { SessionsPart } from '../../../../../workbench/browser/parts/sessions/sessionsPart.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
+import '../../../../browser/parts/sessionsPartContent.registration.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVirtualContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { chatOfShown, focusedSessionHostServiceOf, ITestSessionsGridState, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ISessionGridPane } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
-import { IFocusedSessionHostService, ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
+import { IFocusedSessionHostService, ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { createSessionViewTestServices } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AccountWidgetContribution } from '../../../accountMenu/browser/account.contribution.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
@@ -123,6 +126,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		}
 		override isEditorPaneVisible() { return sidePaneVisible; }
 		override isModernUICompact() { return options.compactDensity === true; }
+		override getPanelSpacing() { return this.isModernUICompact() ? 0 : 4; }
 		override getPanelAlignment() { return 'justify' as const; }
 		override getContainer() { return container; }
 	}();
@@ -207,6 +211,9 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const blockedIndicator = new class extends mock<BlockedSessionsIndicatorModel>() {
 		override readonly onDidRequestBlink = Event.None;
 		override readonly blockedSessions = constObservable([]);
+		override readonly unacknowledgedBlockedSessions = constObservable([]);
+		override readonly reminderSessions = constObservable([]);
+		override readonly attentionSessionCount = constObservable(0);
 		override readonly requiresInputKind = constObservable(undefined);
 		override consumePendingBlink() { return false; }
 	}();
@@ -217,14 +224,15 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	disposableStore.add(instantiationService.createInstance(OpenInVSCodeWidgetContribution));
 	disposableStore.add(instantiationService.createInstance(AccountWidgetContribution));
 
-	const part = disposableStore.add(instantiationService.createInstance(SessionsPart));
+	const part = disposableStore.add(instantiationService.createInstance(SessionsPart, SessionsGridContent.ID));
+	const content = assertReturnsDefined(part.getContent(SessionsGridContent));
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-		override getSessionView(id: string | undefined) { return part.getSessionView(id); }
+		override getSessionView(id: string | undefined) { return content.getSessionView(id); }
 		// The pane commands resolve the view of the host their menu passes.
-		override getSessionViewOfHost(host: ISessionHost) { return part.getSessionViewOfHost(host); }
-		override getActiveSessionView() { return part.getActiveSessionView(); }
-		override toggleMaximizePane(pane: ISessionGridPane) { part.toggleMaximizePane(pane); }
-		override focusNewSessionSlot() { part.focusNewSessionSlot(); }
+		override getSessionViewOfHost(host: ISessionHost) { return content.getSessionViewOfHost(host); }
+		override getActiveSessionView() { return content.getActiveSessionView(); }
+		override toggleMaximizePane(pane: ISessionGridPane) { content.toggleMaximizePane(pane); }
+		override focusNewSessionSlot() { content.focusNewSessionSlot(); }
 	}());
 	part.create(host);
 	const titlebar = disposableStore.add(instantiationService.createInstance(TitlebarPart, Parts.TITLEBAR_PART, getWindow(container)));
@@ -239,5 +247,5 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	}
 	append(container, grid.element);
 	const workbenchGap = options.compactDensity ? 0 : AGENTS_FLOATING_PANEL_GAP;
-	return { ...services, part, grid, layout: () => grid.layout(width - workbenchGap, height - workbenchGap) };
+	return { ...services, part, content, grid, layout: () => grid.layout(width - workbenchGap, height - workbenchGap) };
 }

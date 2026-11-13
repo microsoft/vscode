@@ -6,6 +6,7 @@
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
 import type { CompactionTurnCorrelationOutcome, IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
@@ -54,6 +55,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"dev_device_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous device identifier supplied by the runtime." },
 		"is_staff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user is a GitHub or Microsoft staff member.", "isMeasurement": true },
 		"restricted": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the SDK marked the event as restricted telemetry.", "isMeasurement": true },
+		"initiatorClientType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Type of VS Code client (editor_window or agents_window) that started the Agent Host turn active in the SDK session when the host received the event; unknown when no turn was active, such as during session startup or background work between turns, or when the active turn was not started by a known VS Code window." },
 		"${wildcard}": [{
 			"${prefix}": "feature.",
 			"${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Feature flag value supplied by the Copilot CLI runtime." }
@@ -99,6 +101,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"completionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated completion tokens.", "isMeasurement": true },
 		"reasoningTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated reasoning tokens.", "isMeasurement": true },
 		"tokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total number of tokens used by the response.", "isMeasurement": true },
+		"totalNanoAiu": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "AI credit cost of this model call in nano AI units; absent when unreported. Already included in billedNanoAiu on agentHost.turnCompleted.", "isMeasurement": true },
 		"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tokens used by tool definitions.", "isMeasurement": true },
 		"availableToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tools available to the model.", "isMeasurement": true },
 		"numToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of tool calls returned by the model.", "isMeasurement": true },
@@ -263,6 +266,20 @@ type ModelCallTurnCorrelatedClassification = {
 		"user_decision": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded result of a person's decision." },
 		"rationale": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "The reviewer's rationale; restricted telemetry only." },
 		"user_feedback": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Optional feedback the user wrote with their decision on an Assisted permissions prompt; restricted telemetry only. VS Code offers the feedback field only while restricted telemetry is enabled for the account and never persists or logs it." }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/slash_command_invoked": {
+		"owner": "amunger",
+		"comment": "Counts runtime slash-command invocations, not successful command completions. Only standard SDK rows reach this sink; command arguments and restricted command names are not collected.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"command_name": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime-defined built-in slash-command name, including the leading slash (for example /security-review), or custom for user-defined commands and skills." },
+		"subcommand": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Optional normalized top-level subcommand matched against the runtime command's declared choices; never arbitrary command arguments." },
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime interaction context when available, not a unique user request identifier." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime engagement identifier that can span multiple requests." },
+		"unique_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Runtime-generated identifier for this telemetry envelope." }
 	}
 */
 
@@ -650,13 +667,13 @@ export class CopilotGitHubTelemetryForwarder {
 		});
 	}
 
-	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry, telemetryContext?: IAgentTelemetryContext): void {
+	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry, telemetryContext?: IAgentTelemetryContext, clientType = AgentHostClientType.Unknown): void {
 		if (notification.restricted) {
 			return;
 		}
 
 		const event = notification.event;
-		const data = this._toTelemetryData(notification, telemetryContext);
+		const data = this._toTelemetryData(notification, telemetryContext, clientType);
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (correlation) {
 				data.ahCorrelationOutcome = correlation.ahCorrelationOutcome;
@@ -696,12 +713,12 @@ export class CopilotGitHubTelemetryForwarder {
 	 * Forwards `session_compaction_start` / `session_compaction_complete`, replacing any runtime
 	 * turn identity with the Agent Host turn that owned the compaction, as response telemetry does.
 	 */
-	forwardCompaction(notification: GitHubTelemetryNotification, correlation: IForwardedCompactionCorrelation, telemetryContext?: IAgentTelemetryContext): void {
+	forwardCompaction(notification: GitHubTelemetryNotification, correlation: IForwardedCompactionCorrelation, telemetryContext?: IAgentTelemetryContext, clientType = AgentHostClientType.Unknown): void {
 		if (notification.restricted) {
 			return;
 		}
 
-		const data = this._toTelemetryData(notification, telemetryContext);
+		const data = this._toTelemetryData(notification, telemetryContext, clientType);
 		data.ahCompactionCorrelationOutcome = correlation.outcome;
 		if (correlation.waitMs !== undefined) {
 			data.ahCompactionCorrelationWaitMs = correlation.waitMs;
@@ -714,7 +731,7 @@ export class CopilotGitHubTelemetryForwarder {
 		this._publish(notification, data);
 	}
 
-	private _toTelemetryData(notification: GitHubTelemetryNotification, telemetryContext: IAgentTelemetryContext | undefined): ITelemetryData {
+	private _toTelemetryData(notification: GitHubTelemetryNotification, telemetryContext: IAgentTelemetryContext | undefined, clientType: AgentHostClientType): ITelemetryData {
 		const event = notification.event;
 		const data: ITelemetryData = {
 			...event.client,
@@ -729,6 +746,7 @@ export class CopilotGitHubTelemetryForwarder {
 			kind: event.kind,
 			restricted: notification.restricted,
 			...toCopilotTelemetryData(telemetryContext),
+			initiatorClientType: clientType,
 		};
 		delete data.secondary_assignment_context;
 		delete data.ahCorrelationOutcome;

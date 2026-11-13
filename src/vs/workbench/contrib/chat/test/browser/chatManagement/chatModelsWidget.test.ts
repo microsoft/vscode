@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { Separator } from '../../../../../../base/common/actions.js';
 import { ILanguageModelChatMetadata, ILanguageModelProviderDescriptor } from '../../../common/languageModels.js';
-import { buildAddModelsDropdownActions, getModelHoverContent } from '../../../browser/chatManagement/chatModelsWidget.js';
+import { buildAddModelsDropdownActions, getModelHoverContent, getModelNameHoverContent } from '../../../browser/chatManagement/chatModelsWidget.js';
 import { ILanguageModel } from '../../../browser/chatManagement/chatModelsViewModel.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 
@@ -43,7 +46,7 @@ function createVendor(vendor: string, displayName: string, deprecation?: { link?
 
 suite('ChatModelsWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('getModelHoverContent', () => {
 
@@ -139,6 +142,125 @@ suite('ChatModelsWidget', () => {
 
 			assert.ok(value.includes('Input Cost'));
 			assert.ok(value.includes('0 credits per 1M tokens'));
+		});
+	});
+
+	suite('getModelHoverContent with untrusted metadata', () => {
+
+		const commandLink = 'x [y](command:test.injected) z';
+		const commandAutolink = 'x <command:test.injected> z';
+		const bareLinks = 'x https://example.com www.example.org user@example.com z';
+		const themeIcon = 'x $(sync) z';
+		const lineBreaks = 'x\n\n[y](command:test.injected)\n\n# z';
+		const payloads = { commandLink, commandAutolink, bareLinks, themeIcon, lineBreaks };
+
+		function render(markdown: IMarkdownString) {
+			const element = store.add(renderMarkdown(markdown)).element;
+			return {
+				links: Array.from(element.getElementsByTagName('a'), link => link.dataset.href),
+				icons: element.getElementsByClassName('codicon').length,
+				headings: element.getElementsByTagName('h1').length,
+				text: element.textContent ?? '',
+			};
+		}
+
+		function literalText(value: string): string {
+			return value.replace(/\n/g, ' ');
+		}
+
+		const statusIcon = Codicon.info;
+
+		for (const [payloadName, payload] of Object.entries(payloads)) {
+			for (const field of ['name', 'id', 'version', 'tooltip'] as const) {
+				for (const [hoverName, getHover] of [['model hover', getModelHoverContent], ['name hover', getModelNameHoverContent]] as const) {
+					test(`${hoverName} renders ${payloadName} in ${field} as plain text`, () => {
+						const rendered = render(getHover(createModel({ tooltip: 'Tooltip', statusIcon, [field]: payload })));
+
+						assert.deepStrictEqual({
+							links: rendered.links,
+							icons: rendered.icons,
+							headings: rendered.headings,
+							showsPayload: rendered.text.includes(literalText(payload)),
+						}, {
+							links: [],
+							icons: 1,
+							headings: 0,
+							showsPayload: true,
+						});
+					});
+				}
+			}
+
+			test(`model hover renders ${payloadName} in pricing as plain text`, () => {
+				const rendered = render(getModelHoverContent(createModel({ pricing: payload })));
+
+				assert.deepStrictEqual({
+					links: rendered.links,
+					icons: rendered.icons,
+					headings: rendered.headings,
+					showsPayload: rendered.text.includes(literalText(payload)),
+				}, {
+					links: [],
+					icons: 0,
+					headings: 0,
+					showsPayload: true,
+				});
+			});
+
+			test(`model hover renders ${payloadName} in edit tools as plain text`, () => {
+				const rendered = render(getModelHoverContent(createModel({ capabilities: { editTools: [payload] } })));
+
+				assert.deepStrictEqual({
+					links: rendered.links,
+					icons: rendered.icons,
+					headings: rendered.headings,
+					showsPayload: rendered.text.includes(literalText(payload)),
+				}, {
+					links: [],
+					icons: 0,
+					headings: 0,
+					showsPayload: true,
+				});
+			});
+		}
+
+		test('renders the id of a model whose id and version are equal as plain text', () => {
+			const rendered = render(getModelNameHoverContent(createModel({ id: commandLink, version: commandLink })));
+
+			assert.deepStrictEqual({ links: rendered.links, showsPayload: rendered.text.includes(commandLink) }, { links: [], showsPayload: true });
+		});
+
+		test('does not turn an unusual status icon id into a link', () => {
+			const rendered = render(getModelNameHoverContent(createModel({ tooltip: 'Tooltip', statusIcon: { id: '[y](command:test.injected' } })));
+
+			assert.deepStrictEqual(rendered.links, []);
+		});
+
+		test('does not enable any command', () => {
+			assert.deepStrictEqual({
+				modelHover: getModelHoverContent(createModel()).isTrusted,
+				nameHover: getModelNameHoverContent(createModel()).isTrusted,
+			}, {
+				modelHover: { enabledCommands: [] },
+				nameHover: { enabledCommands: [] },
+			});
+		});
+
+		test('keeps rendering ordinary metadata', () => {
+			const model = createModel({ name: 'Llama 3.2 (Ollama)', id: 'llama3.2:latest', version: '2024-09-25', tooltip: 'Contributed by Ollama @ localhost', statusIcon, pricing: '1x' });
+
+			const hover = render(getModelHoverContent(model));
+			const nameHover = render(getModelNameHoverContent(model));
+
+			assert.deepStrictEqual({
+				links: [...hover.links, ...nameHover.links],
+				icons: [hover.icons, nameHover.icons],
+				text: [hover.text.includes('Llama 3.2 (Ollama)'), hover.text.includes('llama3.2:latest@2024-09-25'), hover.text.includes('Contributed by Ollama @ localhost'), hover.text.includes('Pricing: 1x')],
+			}, {
+				links: [],
+				icons: [1, 1],
+				text: [true, true, true, true],
+			});
 		});
 	});
 

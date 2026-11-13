@@ -21,8 +21,8 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CLOUD_SANDB
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { SessionStatus as ProtocolSessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { discoveredSessionProject } from '../../../../chat/browser/remoteAgentHost/cloudSandboxSessionContribution.js';
-import { getSessionApplication } from '../../../common/sessionApplication.js';
-import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionCapabilities, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionStatus } from '../../../common/session.js';
+import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
+import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionCapabilities, ISessionWorkspace, SessionRemoteConnectionFailureReason, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISendRequestOptions } from '../../../common/sessionsManagement.js';
 import { IChatMovedEvent, ISessionChangeEvent } from '../../../common/sessionsProvider.js';
 import { BaseAgentHostSessionsProvider } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -99,6 +99,12 @@ export function createCloudSandboxTaskSession(task: ICloudSandboxTask) {
 		interactivity: chatProperty(chat => chat.interactivity, () => ChatInteractivity.DraftOnly),
 		observeCanvases: () => autorun(reader => {
 			const disposable = runtime.read(reader)?.mainChat.read(reader).observeCanvases?.();
+			if (disposable) {
+				reader.store.add(disposable);
+			}
+		}),
+		observeChanges: () => autorun(reader => {
+			const disposable = runtime.read(reader)?.mainChat.read(reader).observeChanges?.();
 			if (disposable) {
 				reader.store.add(disposable);
 			}

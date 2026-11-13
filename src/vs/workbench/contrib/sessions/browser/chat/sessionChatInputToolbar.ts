@@ -46,9 +46,9 @@ import { getSessionGitHubReferences } from '../../common/github/sessionGitHubRef
 import { IGitHubService } from '../github/githubService.js';
 import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../github/pullRequestIconStatus.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../chat/common/sessionChatPills.js';
-import { ISessionHost } from '../sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, ISession, isWorkspacelessQuickChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../common/sessionsTelemetry.js';
@@ -59,8 +59,10 @@ import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { activateHostPane, IActionTarget, SessionActivatingActionRunner } from '../sessionActionRunner.js';
 import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
-import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../common/sessionChangesStatsCache.js';
-import { ISessionChangesService } from '../changes/sessionChangesService.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readLoadedChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
+import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
+import { getEditorTarget, getEditorTargetGroup, revealEditorTarget } from '../chatWindowEditorTarget.js';
+import { ISessionChangesService } from '../../../../services/sessions/common/sessionChangesService.js';
 import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SessionCanvasesControl } from '../sessionCanvasesControl.js';
@@ -72,7 +74,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ChatPillHoverCache, createChatPillHover } from '../../../../browser/chatPillHover.js';
 import { EditorsOrder } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { ISessionsHostLayoutService } from '../sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 
 const copiedLabel = localize('sessionChatPills.copied', "Copied");
 const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
@@ -307,7 +309,8 @@ export function computeSessionInputPillStats(session: ISession | undefined, chat
 	}
 	const mainChat = session?.mainChat?.read(reader);
 	const isMainChat = mainChat && chat && isEqual(mainChat.resource, chat.resource);
-	return (isMainChat && session ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
+	// A workspace-less quick chat reports no changes of its own: the session's are those of its chats that work in folders.
+	return (isMainChat && session && !isWorkspacelessQuickChat(session, chat, reader) ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
 }
 
 /**
@@ -483,6 +486,7 @@ export class SessionChatInputToolbar extends Disposable {
 		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ISessionsHostLayoutService hostLayoutService: ISessionsHostLayoutService,
+		@IChatWindowService chatWindowService: IChatWindowService,
 		@IOpenerService openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -703,8 +707,13 @@ export class SessionChatInputToolbar extends Disposable {
 						const existing = editors.find(({ editor }) => editor === editorService.activeEditor && matchesEditor(editor, entries))
 							?? editors.find(({ editor }) => matchesEditor(editor, entries));
 						if (existing) {
-							hostLayoutService.revealEditorPartExplicitly();
-							await editorService.openEditor(existing.editor, { revealIfOpened: true }, existing.groupId);
+							const target = getEditorTarget(chatWindowService, this._sessionHost);
+							if (!target) {
+								logService.trace('[SessionChatInputToolbar] The chat window of the chat is not available, not revealing its editor');
+								return;
+							}
+							revealEditorTarget(hostLayoutService, target);
+							await editorService.openEditor(existing.editor, { revealIfOpened: true }, getEditorTargetGroup(target, existing.groupId));
 							return;
 						}
 						entries[0].open();
@@ -768,13 +777,19 @@ export class SessionChatInputToolbar extends Disposable {
 					}
 					const chat = this._chat.get();
 					const workspace = chat?.workspace?.get() ?? session.workspace.get();
-					hostLayoutService.revealEditorPartExplicitly();
+					const target = getEditorTarget(chatWindowService, this._sessionHost);
+					if (!target) {
+						logService.trace('[SessionChatInputToolbar] The chat window of the chat is not available, not opening its changes');
+						return;
+					}
+					revealEditorTarget(hostLayoutService, target);
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
 							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined), session),
-						}
-					});
+						},
+						chatResource: target !== 'main' ? chat?.resource : undefined,
+					}, target !== 'main' ? target.mainPart.activeGroup : undefined);
 				},
 			},
 			pullRequests: pullRequestData,
@@ -817,7 +832,7 @@ export class SessionChatInputToolbar extends Disposable {
 	}
 
 	getChatPetPlatformElements(): readonly HTMLElement[] {
-		return this._inputPills.getPillElements();
+		return this._inputPills.getPillItemElements();
 	}
 
 	focusFirst(): boolean {

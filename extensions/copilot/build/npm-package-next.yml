@@ -36,8 +36,9 @@ extends:
         buildSteps:
           - task: NodeTool@0
             inputs:
-              versionSpec: 22.x
-            displayName: 🛠 Install Node.js (22.x)
+              versionSpec: 24.x
+              checkLatest: true
+            displayName: 🛠 Install Node.js
 
           - template: extensions/copilot/build/steps/setup-npm.yml@self
             parameters:
@@ -45,17 +46,18 @@ extends:
 
           - template: build/azure-pipelines/common/install-pnpm.yml@self
 
+          # Every platform build of VS Code ships the built-in Copilot extension with the
+          # version that the build stamped, so the Windows x64 server archive has it.
           - download: vscode
-            artifact: copilot_vsix
-            displayName: 📥 Download Copilot VSIX
+            artifact: vscode_server_win32_x64_archive
+            displayName: 📥 Download VS Code server (Windows x64)
             condition: and(succeeded(), ne(variables['resources.pipeline.vscode.runName'], ''))
 
           - bash: |
               set -e
-              if [ -f "$(Pipeline.Workspace)/vscode/copilot_vsix/copilot-chat.vsix" ]; then
-                unzip -o "$(Pipeline.Workspace)/vscode/copilot_vsix/copilot-chat.vsix" 'extension/package.json'
-                VERSION=$(node -p "require('./extension/package.json').version")
-                rm -rf extension
+              ARCHIVE="$(Pipeline.Workspace)/vscode/vscode_server_win32_x64_archive/vscode-server-win32-x64.zip"
+              if [ -f "$ARCHIVE" ]; then
+                VERSION=$(unzip -p "$ARCHIVE" 'vscode-server-win32-x64/extensions/copilot/package.json' | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
                 node -e "
                   const fs = require('fs');
                   const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -64,14 +66,23 @@ extends:
                 "
                 echo "Set extension version to $VERSION"
               else
-                echo "No Copilot VSIX found, using version from package.json"
+                echo "No VS Code server archive found, using version from package.json"
               fi
             displayName: 📋 Sync version from extension
             workingDirectory: extensions/copilot
 
-          # chat-lib is a member of the extensions/copilot pnpm workspace. The extraction sets its
-          # dependencies to Copilot's versions, in its package.json and in Copilot's pnpm-lock.yaml.
-          - bash: pnpm install --frozen-lockfile && pnpm run extract-chat-lib
+          # chat-lib and Copilot are members of the root pnpm workspace. pnpm runs the root install scripts,
+          # which install the whole repository, on every install that runs scripts, filtered or not: the
+          # install skips them, then builds Copilot's dependencies and runs its postinstall. The extraction
+          # sets chat-lib's dependencies to Copilot's versions, in its package.json and in the root
+          # pnpm-lock.yaml. The rebuild ignores the root .pnpmfile.mjs, which builds native modules for
+          # Electron: chat-lib runs in Node.js, and network isolation blocks the Electron headers.
+          - bash: |
+              set -e
+              pnpm install --frozen-lockfile --ignore-scripts --filter copilot-chat --filter @vscode/chat-lib
+              pnpm --ignore-pnpmfile --filter copilot-chat --filter @vscode/chat-lib rebuild
+              pnpm run postinstall
+              pnpm run extract-chat-lib
             displayName: 📂 Extract chat-lib
             workingDirectory: extensions/copilot
             env:
@@ -90,9 +101,12 @@ extends:
             displayName: 📋 Sync chat-lib version
             workingDirectory: extensions/copilot/chat-lib
 
-          # pnpm doesn't run chat-lib's postinstall again when the workspace is already up to date; it
-          # copies static files next to the extracted sources.
-          - script: pnpm install --frozen-lockfile && pnpm --dir chat-lib run postinstall
+          # Installs chat-lib's dependencies for the versions that the extraction set, without the root
+          # install scripts, then runs chat-lib's postinstall, which copies static files next to the
+          # extracted sources. Then removes the packages in the node_modules folders above
+          # extensions/copilot (every install adds the root project's), so that chat-lib only resolves
+          # its own dependencies and Copilot's.
+          - script: pnpm install --frozen-lockfile --ignore-scripts --filter @vscode/chat-lib && pnpm --dir chat-lib run postinstall && pnpm exec tsx script/build/isolateChatLib.ts
             displayName: 📦 Install chat-lib dependencies
             workingDirectory: extensions/copilot
             env:
@@ -103,11 +117,13 @@ extends:
             workingDirectory: extensions/copilot/chat-lib
         testPlatforms:
           - name: Linux
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
+            # chat-lib is consumed by other products, which don't share our GLIBC requirements.
+            useSysroot: false
           - name: MacOS
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
           - name: Windows
-            nodeVersions: [22.x]
+            nodeVersions: [24.x]
         workingDirectory: extensions/copilot/chat-lib
         testSteps:
           - template: extensions/copilot/build/steps/test-chat-lib.yml@self

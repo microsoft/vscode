@@ -7,10 +7,10 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { bindSessionActionContextKeys } from '../../../../workbench/contrib/sessions/browser/changes/sessionActionContextKeys.js';
+import { bindSessionActionContextKeys } from '../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
 
 /** Binds the session action context keys of the main window host's session on the global context key service. */
 class ActiveSessionActionContextKeysContribution extends Disposable implements IWorkbenchContribution {

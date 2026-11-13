@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { observableValue, transaction } from '../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -17,11 +17,11 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IChatDeletedEvent } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { IChat, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
-import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeQuickChatWithWorkspaceChild, makeSession, makeTestWorkspace, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import { ITestSessionWithChat, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
@@ -617,7 +617,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				await settle();
 				const isCreated = observableValue('created', quick);
 				const isQuickChat = observableValue('quick', quick);
-				const transient = { ...makeSession(URI.parse('session:conversion-transient')), ...withCreatedStatus(isCreated), isQuickChat };
+				const transient = { ...makeSession(URI.parse('session:conversion-transient'), { isQuickChat: quick }), ...withCreatedStatus(isCreated), isQuickChat };
 				harness.visibleSessionsObs.set(multiple ? [existing, transient] : [transient], undefined);
 				harness.activeSessionObs.set(transient, undefined);
 				await settle();
@@ -625,7 +625,10 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
 				await settle();
 				if (quick) {
-					isQuickChat.set(false, undefined);
+					transaction(tx => {
+						(transient.workspace as ISettableObservable<ISessionWorkspace | undefined>).set(makeTestWorkspace(), tx);
+						isQuickChat.set(false, tx);
+					});
 				} else {
 					isCreated.set(true, undefined);
 				}
@@ -635,6 +638,31 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				});
 			});
 		}
+	}
+
+	for (const mode of ['chat', 'chat-shared'] as const) {
+		test(`${mode}: switching between a workspace child of a quick chat and the quick chat swaps their own compositions`, async () => {
+			createDesktopController({ chatLayoutMode: mode });
+			harness.onApplyWorkingSet = () => harness.editorGroupsHaveContent = harness.activeGroupEditors.length > 0;
+			const { session, parent, child } = makeQuickChatWithWorkspaceChild();
+			setActiveChat(session, child);
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			openOrdinaryEditors('child');
+			setVisible(true, false);
+			await settle();
+
+			setActiveChat(session, parent);
+			await settle();
+			const parentShown = editorState();
+			setActiveChat(session, child);
+			await settle();
+
+			assert.deepStrictEqual({ parentShown, childShownAgain: editorState() }, {
+				parentShown: { resources: [], active: undefined, composition: { editor: false, auxiliaryBar: false }, panel: false },
+				childShownAgain: { resources: ['/child-one.txt', '/child-two.txt'], active: '/child-two.txt', composition: { editor: mode === 'chat', auxiliaryBar: false }, panel: false },
+			});
+		});
 	}
 
 	test('per-chat same-session switching captures ordinary editor resources and active tab without a shutdown save', async () => {

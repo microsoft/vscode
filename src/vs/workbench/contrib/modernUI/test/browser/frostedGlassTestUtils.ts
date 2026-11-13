@@ -13,6 +13,7 @@ import { ACTION_WIDGET_ANIMATED_CLASS } from '../../../../../platform/actionWidg
 import '../../../../../base/browser/ui/contextview/contextview.css';
 import '../../../../../base/browser/ui/dialog/dialog.css';
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
+import '../../../../../editor/contrib/hover/browser/hover.css';
 import '../../../../../platform/actionWidget/browser/actionWidget.css';
 import '../../../../../platform/hover/browser/hover.css';
 import '../../../../../platform/quickinput/browser/media/quickInput.css';
@@ -35,11 +36,17 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	for (const token of ['quickInput-background', 'menu-background', 'editorHoverWidget-background', 'editorWidget-background', 'notifications-background', 'editor-background', 'input-background']) {
 		root.style.setProperty(`--vscode-${token}`, background);
 	}
+	for (const token of ['widget-border', 'editorWidget-border', 'editorHoverWidget-border']) {
+		root.style.setProperty(`--vscode-${token}`, '#5a7b9d');
+	}
+	root.style.setProperty('--vscode-strokeThickness', '1px');
+	root.style.setProperty('--vscode-cornerRadius-small', '4px');
 	root.style.setProperty('--vscode-cornerRadius-large', '8px');
 	root.style.setProperty('--vscode-cornerRadius-xLarge', '12px');
 	root.style.setProperty('--vscode-list-hoverBackground', '#456789');
 	const quickInput = append(root, 'quick-input-widget');
 	quickInput.style.backgroundColor = 'var(--vscode-quickInput-background)';
+	quickInput.style.border = '1px solid var(--vscode-widget-border)';
 	quickInput.style.top = '100px';
 	const menuContainer = append(root, 'context-view');
 	menuContainer.style.left = '120px';
@@ -60,18 +67,33 @@ export function createFrostedGlassOverlays(store: Pick<DisposableStore, 'add'>, 
 	pickerRows.style.backgroundColor = 'var(--vscode-menu-background)';
 	const pickerFooter = append(picker, 'action-widget-action-bar');
 	const hover = append(root, 'monaco-hover workbench-hover');
+	const editor = append(root, 'monaco-editor');
+	const resizableHover = append(editor, 'monaco-resizable-hover');
+	resizableHover.style.position = 'absolute';
+	const resizableHoverContent = append(resizableHover, 'monaco-hover');
 	const dialog = append(root, 'monaco-dialog-box');
 	dialog.style.backgroundColor = 'var(--vscode-editorWidget-background)';
+	dialog.style.border = '1px solid var(--vscode-widget-border)';
 	const center = append(root, 'notifications-center visible');
 	const centerBackground = append(center, 'notifications-list-container');
 	const toasts = append(root, 'notifications-toasts visible');
 	const toast = append(append(toasts, 'notification-toast-container'), 'notification-toast notification-fade-in-done');
 	toast.style.background = 'var(--vscode-notifications-background)';
+	toast.style.border = '1px solid var(--vscode-widget-border)';
 	const toastList = append(toast, 'notifications-list-container');
 	return {
-		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, dialog, toast, toastList,
-		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, dialog, center, toast],
-		backgrounds: [quickInput, menuBackground, shadowMenuBackground, picker, pickerRows, hover, dialog, centerBackground, toast, toastList],
+		root, quickInput, menu, menuContainer, menubarMenuContainer, shadowMenuContainer, picker, pickerFilter, pickerRows, pickerFooter, hover, resizableHover, resizableHoverContent, dialog, center, toast, toastList,
+		geometrySurfaces: [
+			{ name: 'quick input', surface: quickInput },
+			{ name: 'action widget', surface: picker },
+			{ name: 'hover', surface: hover },
+			{ name: 'resizable hover', surface: resizableHover },
+			{ name: 'dialog', surface: dialog },
+			{ name: 'notification center', surface: center },
+			{ name: 'notification toast', surface: toast },
+		],
+		surfaces: [quickInput, menuContainer, shadowMenuContainer, picker, hover, resizableHover, dialog, center, toast],
+		backgrounds: [quickInput, menuBackground, shadowMenuBackground, picker, pickerRows, hover, resizableHover, resizableHoverContent, dialog, centerBackground, toast, toastList],
 	};
 }
 

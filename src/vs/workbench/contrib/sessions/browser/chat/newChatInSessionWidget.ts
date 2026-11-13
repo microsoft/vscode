@@ -21,12 +21,12 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ISessionsManagementService, shownChatOf } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsService } from '../sessionsService.js';
-import { ISessionHost } from '../sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../common/sessionsProvider.js';
-import { getChatHarness, IChat, isSessionCreated, SessionStatus, ISession } from '../../common/session.js';
+import { getChatHarness, IChat, isSessionCreated, SessionStatus, ISession } from '../../../../services/sessions/common/session.js';
 import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
 import { INestedChatFolderSources, isSameNestedChatWorkspace, NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
 import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
@@ -45,6 +45,7 @@ import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chat
 import { ChatInputNoticeLane } from '../../../chat/browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../chat/browser/widget/input/chatInputNoticeWidget.js';
 import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../chat/browser/widget/input/chatInputStack.js';
+import { shownChatOf } from '../../../../services/sessions/common/sessionPane.js';
 
 // #region --- New Chat In Session Widget ---
 

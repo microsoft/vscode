@@ -30,7 +30,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../../browser/chat/sessionTypePicker.js';
 import '../../../browser/chat/media/chatWidget.css';
@@ -416,6 +416,17 @@ suite('SessionTypePicker', () => {
 				{ expanded: 'false', focused: true },
 			]).flat(),
 		});
+	});
+
+	test('exposes the selected session type without a workspace', () => {
+		const copilot = sessionType('cloud', 'copilot', 'Copilot');
+		const claude = sessionType('remote', 'claude', 'Claude');
+		management.setSessionTypes([copilot, claude]);
+		const picker = createPicker(disposables, observableValue<ISession | undefined>('session', undefined), management, storage);
+		picker.setSessionWorkspaceFolderSource(constObservable(undefined));
+		picker.pick({ providerId: 'remote', sessionTypeId: 'claude' });
+
+		assert.deepStrictEqual(picker.selectedSessionType, claude);
 	});
 
 	for (const hostClass of ['new-chat-session-options', 'new-chat-bottom-container', 'new-session-quick-chat-header']) {

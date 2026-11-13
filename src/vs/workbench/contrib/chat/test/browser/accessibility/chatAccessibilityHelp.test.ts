@@ -26,6 +26,11 @@ suite('Chat Accessibility Help', () => {
 		].map(help => help.includes('<keybinding:editor.changePasteType>')), [true, true, true, false, false, true]);
 	});
 
+	test('documents showing files above the chat input only while chat resources are enabled', () => {
+		const help = (chatResourcesEnabled: boolean) => getAccessibilityHelpText('panelChat', new MockKeybindingService(), true, false, false, true, false, undefined, false, false, undefined, false, false, true, false, chatResourcesEnabled);
+		assert.deepStrictEqual([help(false), help(true)].map(text => text.includes('Show Above Chat Input')), [false, true]);
+	});
+
 	test('documents read-only remote sandbox certificate refresh and keyboard access', () => {
 		assert.deepStrictEqual([
 			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
@@ -36,6 +41,18 @@ suite('Chat Accessibility Help', () => {
 			&& help.includes('Enter or Space to activate it')
 			&& help.includes('without changing trust')
 			&& help.includes('leaves Refresh available to try again')), [true, true, false, true]);
+	});
+
+	test('explains sandbox scope storage and keyboard approval in both windows', () => {
+		assert.deepStrictEqual([false, true].map(sessionsWindow => {
+			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, sessionsWindow);
+			return {
+				sessionDefault: help.includes('Allow for This Session is the default'),
+				workspace: help.includes('Allow for This Workspace') && help.includes('privately on the agent host'),
+				noWorkspaceSettings: help.includes('without changing workspace settings'),
+				keyboard: help.includes('Enter or Space to open the approval dropdown') && help.includes('Escape closes the dropdown without approving'),
+			};
+		}), Array.from({ length: 2 }, () => ({ sessionDefault: true, workspace: true, noWorkspaceSettings: true, keyboard: true })));
 	});
 
 	test('documents the file chooser on chat surfaces with Add Context', () => {
@@ -643,7 +660,7 @@ suite('Chat Accessibility Help', () => {
 			disclosure: shown.includes('What Does "Archive" Do? is collapsed by default'),
 			disclosureKeyboard: shown.includes('Enter or Space to expand or collapse it'),
 			focus: shown.includes('Escape while it is focused, returns to the chat input'),
-			focusRemainingTasks: shown.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			focusRemainingTasks: shown.includes('Archiving the session sets it aside so you can focus on your remaining tasks'),
 			retained: shown.includes('The session is not deleted'),
 			agentRecovery: shown.includes('Ask your agent to find it'),
 			recovery: shown.includes('"Archived" section of the sessions list. You can unarchive it anytime'),
@@ -679,13 +696,14 @@ suite('Chat Accessibility Help', () => {
 			fallback: help.includes('Completed thinking headers show Finished thinking until a summary is available'),
 			singleHeader: help.includes('A single extracted reasoning heading is used directly without a model request'),
 			multipleHeaders: help.includes('Multiple headings remain in the details and are used as the input for a generated summary'),
-			allStyles: help.includes('in every thinking style and progress layout'),
+			allStyles: help.includes('in every thinking style, and in every progress layout except Conversation'),
+			conversation: help.includes('A Conversation section never uses a reasoning heading or a generated summary as its header'),
 			visibleOnly: help.includes('only when a live section finishes with its header in view'),
 			background: help.includes('Sections that finish off-screen or in background chats do not request titles'),
 			noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
 			details: help.includes('All reasoning headings and content remain available in the expandable details'),
 			setting: help.includes('chat.agent.thinking.generateTitles'),
-		}, { fallback: true, singleHeader: true, multipleHeaders: true, allStyles: true, visibleOnly: true, background: true, noBackfill: true, details: true, setting: true });
+		}, { fallback: true, singleHeader: true, multipleHeaders: true, allStyles: true, conversation: true, visibleOnly: true, background: true, noBackfill: true, details: true, setting: true });
 	});
 
 	test('uses the configured Mark as Done wording for nudge help', () => {
@@ -694,7 +712,7 @@ suite('Chat Accessibility Help', () => {
 			keyboard: help.includes('Tab or Shift+Tab to reach Mark as Done, Configure Automatic Cleanup, or Dismiss Mark as Done Suggestion'),
 			cleanupSettings: help.includes('Configure Automatic Cleanup opens the settings for automatically archiving inactive merged sessions and permanently deleting automatically archived merged sessions'),
 			disclosure: help.includes('What Does "Mark as Done" Do? is collapsed by default'),
-			focusRemainingTasks: help.includes('hides it from the sessions list so you can focus on your remaining tasks'),
+			focusRemainingTasks: help.includes('Marking the session as done sets it aside so you can focus on your remaining tasks'),
 			retained: help.includes('The session is not deleted'),
 			agentRecovery: help.includes('Ask your agent to find it'),
 			recovery: help.includes('"Done" section of the sessions list. You can restore it anytime'),

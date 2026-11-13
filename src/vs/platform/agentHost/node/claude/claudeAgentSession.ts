@@ -1069,14 +1069,9 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		// New turn: reset the per-turn credit accumulator so proxy reports
 		// for this turn's `/v1/messages` calls sum from zero.
 		this._currentTurnNanoAiu = 0;
-		if (this.toolDiff.hasDifference
-			|| this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))
-			|| this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision
-			|| this._pendingResumeSessionAt !== undefined
-			|| !areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)
-			|| this._pendingTransportSwitch
-			// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
-			|| (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get()))) {
+		const rebindReason = this._getRebindReason();
+		if (rebindReason) {
+			this._logService.info(`[Claude] session ${this.sessionId}: rebinding before turn ${turnId} for changed ${rebindReason}`);
 			await this._rebindForSyncedState();
 		} else {
 			await pipeline.setPermissionMode(resolveCurrentPermissionMode(this._configurationService, resource, this._chatChannelUri, this._inheritedPermissionMode, this._permissionModeFallback));
@@ -1124,6 +1119,37 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 			return;
 		}
 		this._desiredAdditionalDirectories = desiredAdditionalDirectories;
+	}
+
+	/**
+	 * Returns the first state that differs from what the running Claude
+	 * process was launched with, or `undefined` when the session can keep
+	 * its process for the next turn. Checks stop at the first difference.
+	 */
+	private _getRebindReason(): string | undefined {
+		if (this.toolDiff.hasDifference) {
+			return 'client tools';
+		}
+		if (this.clientCustomizationsDiff.hasDifferenceFrom(this._desiredClientPluginPaths(this._owner.get()))) {
+			return 'client customizations';
+		}
+		if (this._appliedMcpLaunchEnablementRevision !== this._mcpLaunchEnablementRevision) {
+			return 'MCP enablement';
+		}
+		if (this._pendingResumeSessionAt !== undefined) {
+			return 'resume point';
+		}
+		if (!areAdditionalWorkingDirectoriesEqual(this._appliedAdditionalDirectories, this._desiredAdditionalDirectories)) {
+			return 'additional directories';
+		}
+		if (this._pendingTransportSwitch) {
+			return 'transport switch';
+		}
+		// The chat changed owner since its process launched: relaunch with the new owner at this turn boundary.
+		if (this._materializedOwner !== undefined && !isEqual(this._materializedOwner, this._owner.get())) {
+			return 'owner';
+		}
+		return undefined;
 	}
 
 	/**
@@ -1313,22 +1339,42 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		/** Phase 12 step 5 — when the confirmation belongs to a subagent context, route it to the subagent session. */
 		readonly parentToolCallId?: string;
 	}): Promise<boolean> {
-		if (!this._pipeline || this._pipeline.isAborted) {
+		const pipeline = this._pipeline;
+		if (!pipeline || pipeline.isAborted) {
 			return Promise.resolve(false);
 		}
-		return this._pendingPermissions.registerAndFire(args.toolUseID, () => {
+		const fire = async () => {
+			let mcpServerName: string | undefined;
+			let mcpToolName: string | undefined;
+			if (args.permissionKind === AgentPermissionKind.Mcp) {
+				try {
+					const serverNames = await pipeline.getMcpServerNames();
+					const matches = [...new Set(serverNames)].filter(name => args.state.toolName.startsWith(`mcp__${toClaudeMcpToolServerName(name)}__`));
+					if (matches.length === 1) {
+						mcpServerName = matches[0];
+						mcpToolName = args.state.toolName.slice(`mcp__${toClaudeMcpToolServerName(mcpServerName)}__`.length);
+					}
+				} catch (error) {
+					this._logService.warn(`[Claude:${this.sessionId}] Failed to resolve MCP permission identity`, error);
+				}
+			}
+			if (!this._pendingPermissions.has(args.toolUseID)) {
+				return;
+			}
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
 				state: args.state,
 				permissionKind: args.permissionKind,
+				...(mcpServerName !== undefined ? { mcpServerName, mcpToolName } : {}),
 				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
 				...(args.permissionUrl !== undefined ? { permissionUrl: args.permissionUrl } : {}),
 				...(args.shellLanguage !== undefined ? { shellLanguage: args.shellLanguage } : {}),
 				...(args.shellCommand !== undefined ? { shellCommand: args.shellCommand } : {}),
 				...(args.parentToolCallId !== undefined ? { parentToolCallId: args.parentToolCallId } : {}),
 			});
-		});
+		};
+		return this._pendingPermissions.registerAndFire(args.toolUseID, () => { void fire(); });
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): boolean {

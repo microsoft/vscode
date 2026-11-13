@@ -372,7 +372,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const modelCatalogueStatus = observableFromEvent(this, this._agentHostService.rootState.onDidChange, () =>
 			readAgentModelCatalogStatus(this._agentHostService.rootState.value, agent.provider));
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, []));
+		const ambientScope = store.add(this._activeClientService.acquireScope(sessionType, undefined));
 
 		// Local mode IDs keep the ambient wrapping that predates connection resource mappers.
 		const itemProvider = store.add(this._instantiationService.createInstance(AgentCustomizationItemProvider, { clientId: ahService.clientId, resourceUris: this._isLocalAgentHost ? createAgentHostResourceUriMapper(LOCAL_AGENT_HOST_AUTHORITY) : ahService.resourceUris }, undefined,
@@ -456,7 +456,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
+		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, uri => this._agentHostService.resourceUris.fromAgentHost(uri)));
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));

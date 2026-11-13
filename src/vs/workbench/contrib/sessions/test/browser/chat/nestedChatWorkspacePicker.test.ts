@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ISessionWorkspaceBrowseAction } from '../../../common/session.js';
+import { ISessionWorkspaceBrowseAction } from '../../../../../services/sessions/common/session.js';
 import { INestedChatFolderInfo, INestedChatWorkspaceSupport } from '../../../common/sessionsProvider.js';
 import { getDefaultNestedChatFolder, getNestedChatFolderMark, getNestedChatFolderOptions, NestedChatFolderChoice, toNestedChatWorkspace } from '../../../browser/chat/nestedChatWorkspacePicker.js';
 

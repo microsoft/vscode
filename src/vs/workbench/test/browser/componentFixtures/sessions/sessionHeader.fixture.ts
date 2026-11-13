@@ -11,13 +11,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { SessionHeader } from '../../../../contrib/sessions/browser/parts/sessionHeader.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
-import { IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat, testPaneContentOf } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
-import { ISessionHost } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 interface IMockSessionOptions {
 	readonly title: string;
@@ -76,7 +76,7 @@ function createMockListModelService(): ISessionsListModelService {
 	}();
 }
 
-function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithChat, withBackground = false): void {
+function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithChat, withBackground = false, hovered = false): void {
 	const { container, disposableStore } = ctx;
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
@@ -109,6 +109,9 @@ function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithCha
 	const header = disposableStore.add(instantiationService.createInstance(SessionHeader));
 	header.setSession(testPaneContentOf(session, () => { }));
 	headerHost.appendChild(header.element);
+	if (hovered) {
+		header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')?.classList.add('hovered');
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
@@ -134,5 +137,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: ctx => renderHeader(ctx, createMockSession({
 			title: 'Investigate and fix the flaky integration test in the notebook editor viewport rendering pipeline',
 		})),
+	}),
+	SessionHeader_Hover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the editable chat title. In high contrast themes, a dashed active-contrast boundary surrounds the title without outlining the full header.'],
+		render: ctx => renderHeader(ctx, createMockSession({ title: 'Unclear message' }), false, true),
 	}),
 });

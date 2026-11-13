@@ -16,6 +16,7 @@ import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ExtensionPaths, IExtHostExtensionService } from './extHostExtensionService.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ExtHostGitHub, InternalGitHubModuleFactory } from './extHostGitHub.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 
 
@@ -45,6 +46,7 @@ export abstract class RequireInterceptor {
 		@IExtHostExtensionService private readonly _extHostExtensionService: IExtHostExtensionService,
 		@IExtHostInitDataService private readonly _initData: IExtHostInitDataService,
 		@ILogService private readonly _logService: ILogService,
+		@IExtHostRpcService private readonly _rpcService: IExtHostRpcService,
 	) {
 		this._factories = new Map<string, INodeModuleFactory>();
 		this._alternatives = [];
@@ -60,6 +62,7 @@ export abstract class RequireInterceptor {
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
 		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));
+		this.register(new InternalGitHubModuleFactory(extensionPaths, new ExtHostGitHub(this._rpcService.getProxy(MainContext.MainThreadGitHub))));
 		this.register(this._instaService.createInstance(NodeModuleAliasingModuleFactory));
 		if (this._initData.remote.isRemote) {
 			this.register(this._instaService.createInstance(OpenNodeModuleFactory, extensionPaths, this._initData.environment.appUriScheme));

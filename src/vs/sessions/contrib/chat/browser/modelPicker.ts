@@ -32,11 +32,11 @@ import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '..
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
-import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { resolveGridCommandView } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { ISessionHost } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { createChatPhoneInputSessionContext } from '../../../../workbench/contrib/sessions/browser/chatPhoneInputContext.js';
-import { SessionStatus } from '../../../../workbench/contrib/sessions/common/session.js';
+import { SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { reportNewChatPickerClosed } from '../../../../workbench/contrib/sessions/browser/newChatPickerTelemetry.js';

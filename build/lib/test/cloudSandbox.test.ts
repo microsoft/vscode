@@ -512,15 +512,15 @@ suite('Cloud Sandbox install setup', () => {
 			},
 		}, {
 			matching: {
-				calls: [{ command: 'pnpm', args: ['--version'] }],
+				calls: [{ command: 'pnpm', args: ['--pm-on-fail=ignore', '--version'] }],
 				installed: false,
 				hostBin: ['node', 'npm', 'npx'],
 			},
 			mismatching: {
 				calls: [
-					{ command: 'pnpm', args: ['--version'] },
+					{ command: 'pnpm', args: ['--pm-on-fail=ignore', '--version'] },
 					{ command: 'npm', args: ['install', '--prefix', directory, '--no-save', '--no-package-lock', '--no-audit', '--no-fund', 'pnpm@11.28.8'] },
-					{ command: 'pnpm', args: ['--version'] },
+					{ command: 'pnpm', args: ['--pm-on-fail=ignore', '--version'] },
 				],
 				link: installedPnpm,
 				hostBin: ['node', 'npm', 'npx', 'pnpm'],
@@ -530,7 +530,7 @@ suite('Cloud Sandbox install setup', () => {
 
 	test('checks browser downloads on cached installs without repeating Playwright OS setup', t => {
 		const root = fixture(t);
-		const playwright = path.join(root, 'node_modules', 'playwright');
+		const playwright = path.join(root, 'node_modules', '@playwright', 'test');
 		fs.mkdirSync(playwright, { recursive: true });
 		fs.writeFileSync(path.join(playwright, 'package.json'), '{"version":"1.56.0"}');
 		const calls: { command: string; args: readonly string[] }[] = [];
@@ -564,8 +564,8 @@ suite('Cloud Sandbox install setup', () => {
 		const root = fixture(t);
 		const versionFile = path.join(root, '.build/electron/version');
 		fs.mkdirSync(path.dirname(versionFile), { recursive: true });
-		fs.mkdirSync(path.join(root, 'node_modules/playwright'), { recursive: true });
-		fs.writeFileSync(path.join(root, 'node_modules/playwright/package.json'), '{"version":"1.56.0"}');
+		fs.mkdirSync(path.join(root, 'node_modules/@playwright/test'), { recursive: true });
+		fs.writeFileSync(path.join(root, 'node_modules/@playwright/test/package.json'), '{"version":"1.56.0"}');
 		const results = [];
 		for (const version of ['43.7.7', 'v43.7.7\n', '43.7.6', undefined]) {
 			if (version === undefined) {
@@ -597,8 +597,8 @@ suite('Cloud Sandbox install setup', () => {
 
 	test('retries Playwright OS setup after failure rather than caching success', t => {
 		const root = fixture(t);
-		fs.mkdirSync(path.join(root, 'node_modules', 'playwright'), { recursive: true });
-		fs.writeFileSync(path.join(root, 'node_modules', 'playwright', 'package.json'), '{"version":"1.56.0"}');
+		fs.mkdirSync(path.join(root, 'node_modules', '@playwright', 'test'), { recursive: true });
+		fs.writeFileSync(path.join(root, 'node_modules', '@playwright', 'test', 'package.json'), '{"version":"1.56.0"}');
 		const calls: string[][] = [];
 		const options = {
 			root, platform: 'linux' as const, env: { GITHUB_ENVIRONMENT_ID: 'environment' },
@@ -643,7 +643,7 @@ suite('Cloud Sandbox install setup', () => {
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'electronTypes.ts'), 'export async function ensureElectronTypes() {}');
 		fs.writeFileSync(path.join(npmDirectory, 'dirs.ts'), `
-			export const workspaceMembers = [''], separateRoots = [], separateRootMembers = {}, distroRoots = [], standaloneRoots = [], dirs = [''];
+			export const workspaceMembers = [''], separateRoots = [], separateRootMembers = {}, distroRoots = [], dirs = [''];
 		`);
 		fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({
 			name: 'sandbox-install-test', version: '1.0.0', type: 'module',

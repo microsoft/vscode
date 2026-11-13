@@ -10,7 +10,7 @@
 // overwrites the repo-root ThirdPartyNotices.txt BEFORE gulp packages it
 // (build/gulpfile.vscode.ts reads 'ThirdPartyNotices.txt' at package time).
 //
-// It clones the proven copilot VSIX background-download harness: a detached
+// It runs as a background download: a detached
 // `deemon` poller starts at compile start (maximum overlap) and the package
 // step attaches/blocks on it right before packaging. If the artifact is ready
 // by then the added wall-clock is near-zero; otherwise we block until the

@@ -82,7 +82,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@ISharedProcessLifecycleService sharedProcessLifecycleService: ISharedProcessLifecycleService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITunnelProcessCoordinator private readonly tunnelProcessCoordinator: ITunnelProcessCoordinator,
 	) {
@@ -147,8 +147,11 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		this.setTunnelStatus(TunnelStates.disconnected());
 	}
 
-	getTunnelName(): Promise<string | undefined> {
-		return Promise.resolve(this.tunnelProcessCoordinator.getIntendedTunnelName());
+	async getTunnelName(): Promise<string | undefined> {
+		// Callers in a window may have just written the host name setting. This
+		// process otherwise only sees that write after its file watcher fires.
+		await this.configurationService.reloadConfiguration();
+		return this.tunnelProcessCoordinator.getIntendedTunnelName();
 	}
 
 	private setMode(mode: TunnelMode): void {

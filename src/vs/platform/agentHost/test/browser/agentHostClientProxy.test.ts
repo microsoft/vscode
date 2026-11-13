@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IProcessEnvironment } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { IRequestService } from '../../../request/common/request.js';
+import { AuthInfo, IRequestService } from '../../../request/common/request.js';
 import { AgentHostClientProxy } from '../../browser/agentHostClientProxy.js';
 import { AgentHostSystemProxyEnabledSettingId } from '../../common/agentService.js';
 
@@ -34,11 +35,13 @@ suite('AgentHostClientProxy', () => {
 		readonly remoteSettings?: Record<string, unknown>;
 		readonly resolveProxy?: (url: string) => string | undefined;
 		readonly apiEndpoint?: string;
+		readonly environment?: IProcessEnvironment;
 		readonly logService?: ILogService;
 	}
 
 	function createProxy(options: IOptions) {
 		const resolvedUrls: string[] = [];
+		const authInfos: AuthInfo[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		const configurationService = new RemoteSettingsConfigurationService({ ...options.settings, ...options.remoteSettings }, new Set(Object.keys(options.remoteSettings ?? {})));
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -48,12 +51,16 @@ suite('AgentHostClientProxy', () => {
 				return options.resolveProxy?.(url);
 			},
 			lookupKerberosAuthorization: async (url: string) => `Negotiate token:${new URL(url).hostname}`,
+			lookupAuthorization: async (authInfo: AuthInfo) => {
+				authInfos.push(authInfo);
+				return { username: 'user', password: `secret:${authInfo.host}` };
+			},
 		});
 		instantiationService.stub(IDefaultAccountService, {
 			currentDefaultAccount: options.apiEndpoint ? { entitlementsData: { endpoints: { api: options.apiEndpoint } } } : null,
 		} as Partial<IDefaultAccountService>);
 		instantiationService.stub(ILogService, options.logService ?? new NullLogService());
-		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true), resolvedUrls, configurationService };
+		return { proxy: instantiationService.createInstance(AgentHostClientProxy, () => true, options.environment ?? {}), resolvedUrls, authInfos, configurationService };
 	}
 
 	async function lookUp(proxyUrls: readonly string[], options: IOptions) {
@@ -147,6 +154,105 @@ suite('AgentHostClientProxy', () => {
 			before: undefined,
 			resolved: 'PROXY pac.corp:8080; DIRECT',
 			after: 'Negotiate token:pac.corp',
+		});
+	});
+
+	test('only looks up Basic credentials for the proxies it points the agent host at', async () => {
+		async function lookUpBasic(proxyUrls: readonly string[], options: IOptions) {
+			const { proxy, authInfos } = createProxy(options);
+			const credentials: Record<string, string | undefined> = {};
+			for (const [index, proxyUrl] of proxyUrls.entries()) {
+				credentials[proxyUrl] = (await proxy.lookupBasicAuthorization(proxyUrl, index ? undefined : 'Corp', index + 1))?.password;
+			}
+			return { credentials, authInfos };
+		}
+
+		const results = {
+			systemProxy: await lookUpBasic(['http://proxy.corp:8080', 'https://secure.corp', 'http://secure.corp', 'http://proxy.corp:3128', 'http://intranet.corp:8080'], {
+				resolveProxy: () => 'PROXY proxy.corp:8080; HTTPS secure.corp; DIRECT',
+			}),
+			configuredProxy: await lookUpBasic(['http://configured.corp:3128', 'http://configured.corp', 'http://proxy.corp:8080'], {
+				settings: { 'http.proxy': 'http://user:pass@configured.corp:3128' },
+				resolveProxy: () => 'PROXY proxy.corp:8080',
+			}),
+			configuredPrincipal: await lookUpBasic(['http://other.corp:8080'], {
+				settings: { 'http.proxyKerberosServicePrincipal': 'HTTP@custom.corp@CORP.COM' },
+				resolveProxy: () => 'DIRECT',
+			}),
+			useLocalProxyConfigurationOff: await lookUpBasic(['http://proxy.corp:8080'], {
+				settings: { 'http.useLocalProxyConfiguration': false },
+				resolveProxy: () => 'PROXY proxy.corp:8080',
+			}),
+			resolvedBeforeConfiguredProxy: await (async () => {
+				const { proxy, configurationService } = createProxy({ resolveProxy: () => 'PROXY pac.corp:8080' });
+				await proxy.resolveProxy('https://github.example/api');
+				const before = (await proxy.lookupBasicAuthorization('http://pac.corp:8080', undefined, 1))?.password;
+				await configurationService.setUserConfiguration('http.proxy', 'http://user:pass@configured.corp:3128');
+				const after = (await proxy.lookupBasicAuthorization('http://pac.corp:8080', undefined, 1))?.password;
+				return { before, after };
+			})(),
+			environmentProxy: await lookUpBasic(['http://pac.corp:8080', 'http://envproxy.corp:3128'], {
+				environment: { HTTPS_PROXY: 'http://user:pass@envproxy.corp:3128' },
+				resolveProxy: () => 'PROXY pac.corp:8080; PROXY envproxy.corp:3128',
+			}),
+			unresolvedEnvironmentProxy: await lookUpBasic(['http://pac.corp:8080', 'http://envproxy.corp:3128'], {
+				environment: { HTTPS_PROXY: 'http://user:pass@envproxy.corp:3128' },
+				resolveProxy: () => 'PROXY pac.corp:8080',
+			}),
+			environmentProxyWithoutCredentials: await lookUpBasic(['http://pac.corp:8080'], {
+				environment: { HTTPS_PROXY: 'http://envproxy.corp:3128', HTTP_PROXY: 'http://user:pass@other.corp:3128' },
+				resolveProxy: () => 'PROXY pac.corp:8080',
+			}),
+			clearedConfiguredProxy: await (async () => {
+				const { proxy, configurationService } = createProxy({
+					settings: { 'http.proxy': 'http://configured.corp:3128' },
+					environment: { HTTPS_PROXY: 'http://user:pass@envproxy.corp:3128' },
+					resolveProxy: () => 'PROXY pac.corp:8080',
+				});
+				await proxy.resolveProxy('https://github.example/api');
+				const configured = (await proxy.lookupBasicAuthorization('http://configured.corp:3128', undefined, 1))?.password;
+				await configurationService.setUserConfiguration('http.proxy', '');
+				const pac = (await proxy.lookupBasicAuthorization('http://pac.corp:8080', undefined, 1))?.password;
+				return { configured, pac };
+			})(),
+		};
+
+		assert.deepStrictEqual(results, {
+			systemProxy: {
+				credentials: {
+					'http://proxy.corp:8080': 'secret:proxy.corp',
+					'https://secure.corp': 'secret:secure.corp',
+					'http://secure.corp': undefined,
+					'http://proxy.corp:3128': undefined,
+					'http://intranet.corp:8080': undefined,
+				},
+				authInfos: [
+					{ isProxy: true, scheme: 'basic', host: 'proxy.corp', port: 8080, realm: 'Corp', attempt: 1 },
+					{ isProxy: true, scheme: 'basic', host: 'secure.corp', port: 443, realm: '', attempt: 2 },
+				],
+			},
+			configuredProxy: {
+				credentials: { 'http://configured.corp:3128': 'secret:configured.corp', 'http://configured.corp': undefined, 'http://proxy.corp:8080': undefined },
+				authInfos: [{ isProxy: true, scheme: 'basic', host: 'configured.corp', port: 3128, realm: 'Corp', attempt: 1 }],
+			},
+			// Unlike Kerberos tickets, a configured principal does not release Basic credentials for other proxies.
+			configuredPrincipal: { credentials: { 'http://other.corp:8080': undefined }, authInfos: [] },
+			useLocalProxyConfigurationOff: { credentials: { 'http://proxy.corp:8080': undefined }, authInfos: [] },
+			// The native lookup would return the credentials of `http.proxy` for the proxy resolved before.
+			resolvedBeforeConfiguredProxy: { before: 'secret:pac.corp', after: undefined },
+			// Likewise, it would return the credentials of the environment's proxy for any other proxy.
+			environmentProxy: {
+				credentials: { 'http://pac.corp:8080': undefined, 'http://envproxy.corp:3128': 'secret:envproxy.corp' },
+				authInfos: [{ isProxy: true, scheme: 'basic', host: 'envproxy.corp', port: 3128, realm: '', attempt: 2 }],
+			},
+			unresolvedEnvironmentProxy: { credentials: { 'http://pac.corp:8080': undefined, 'http://envproxy.corp:3128': undefined }, authInfos: [] },
+			// The first proxy variable the native lookup reads has no credentials, so it returns none for any proxy.
+			environmentProxyWithoutCredentials: {
+				credentials: { 'http://pac.corp:8080': 'secret:pac.corp' },
+				authInfos: [{ isProxy: true, scheme: 'basic', host: 'pac.corp', port: 8080, realm: 'Corp', attempt: 1 }],
+			},
+			// Once `http.proxy` is cleared, the native lookup reads the environment's proxy.
+			clearedConfiguredProxy: { configured: 'secret:configured.corp', pac: undefined },
 		});
 	});
 

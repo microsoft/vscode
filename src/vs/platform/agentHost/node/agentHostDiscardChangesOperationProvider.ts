@@ -8,9 +8,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, isAhpChatChannel, type ChangesetOperation } from '../common/state/sessionState.js';
-import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
-import { getEffectiveWorkingDirectories, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler, getLastTurn } from './agentHostDiscardChangesOperationHandler.js';
 import { AgentHostFileEditRevert } from './agentHostFileEditRevert.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -59,13 +57,6 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 			case ChangesetKind.WorkingSet: {
 				const owner = parseChangesetUri(changesetUri)?.ownerUri;
 				if (owner === undefined) {
-					return [];
-				}
-				// The session's changeset covers every chat's folders, a chat's only its own.
-				const workingDirectories = isAhpChatChannel(owner)
-					? getEffectiveWorkingDirectories(this._stateManager, owner)
-					: getSessionSummaryWorkingDirectories(this._stateManager, owner);
-				if (isMultiRootSession(workingDirectories)) {
 					return [];
 				}
 				// Like undoing a file in the editing session's working set, discarding a Working Set file needs no confirmation,

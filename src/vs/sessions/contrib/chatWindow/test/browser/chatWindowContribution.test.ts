@@ -18,25 +18,25 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenuItem, isIMenuItem, ISubmenuItem, isISubmenuItem, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuItem, isIMenuItem, ISubmenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, LayoutModeContext, SplitLayoutContext } from '../../../../../workbench/common/contextkeys.js';
+import { EditorAreaFocusContext, EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, LayoutModeContext, SplitLayoutContext } from '../../../../../workbench/common/contextkeys.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import product from '../../../../../platform/product/common/product.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatWindowLayoutMode } from '../../../../../workbench/contrib/chatWindow/common/chatWindowLayout.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
-import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, SessionInChatEditorContext, SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { DesktopChangesTabAvailableContext, DesktopFilesTabAvailableContext, SessionsTitleBarNewSessionEnabledContext } from '../../../../common/agentsWindowContextKeys.js';
 import { CHAT_WINDOW_OPEN_BROWSER_COMMAND_ID, CHAT_WINDOW_OPEN_CHANGES_COMMAND_ID, CHAT_WINDOW_OPEN_FILES_COMMAND_ID, NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ISessionChangesService } from '../../../../../workbench/contrib/sessions/common/sessionChangesService.js';
+import { ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionChangesService } from '../../../../../workbench/services/sessions/common/sessionChangesService.js';
 import { NEW_BROWSER_TAB_COMMAND_ID, NEW_CHANGES_TAB_COMMAND_ID, NEW_SEARCH_TAB_COMMAND_ID, NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../../editor/browser/addTabActions.js';
 import '../../../../browser/layoutActions.js';
 import '../../../chat/browser/runScriptAction.js';
@@ -47,9 +47,20 @@ import { appendNewSessionTitleBarMenuItem } from '../../../chat/browser/newSessi
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import '../../browser/chatWindow.contribution.js';
+import '../../browser/chatWindowActions.js';
+import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
+import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { EmptyFileEditorSearchPickerFocusedContext } from '../../../editor/browser/emptyFileEditorSearch.js';
+import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { MOVE_CHAT_TO_MAIN_WINDOW_COMMAND_ID, OPEN_ACTIVE_CHAT_IN_WINDOW_COMMAND_ID, OPEN_CHAT_IN_WINDOW_COMMAND_ID, OPEN_SESSION_IN_WINDOW_COMMAND_ID, openChatInWindow } from '../../browser/openChatInWindow.js';
+import { ISessionEditorWorkingSetRestoreState, ISessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { ITestSessionsService, ITestSessionWithChat, LegacyFakePaneState, stubMissingSessionHostsFromSessionsService, testGridPanes, withCreatedStatus } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
+
+const noEditorWorkingSetOwner = constObservable<ISessionEditorWorkingSetRestoreState>({ owner: undefined, restoring: false, applying: false });
 
 function evaluate(expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>): boolean {
 	return expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
@@ -119,7 +130,7 @@ suite('Chat window contribution', () => {
 			off: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
 			on: offered({ [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
 			aiDisabled: offered({ [ChatContextKeys.enabled.key]: false, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
-		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'auto' }, off: false, on: true, aiDisabled: false });
+		}, { default: product.quality !== 'stable', scope: ConfigurationScope.APPLICATION, tags: ['preview', 'onExP'], experiment: { mode: 'startup' }, off: false, on: true, aiDisabled: false });
 	});
 
 	test('the session header offers Open in New Window in the main window and Move to Main Window in a chat window', () => {
@@ -176,7 +187,7 @@ suite('Chat window contribution', () => {
 		});
 	});
 
-	test('the title bar of a chat window shows the command center, with the session of its active chat, and the actions of its session, as the main window\'s does; not the main window\'s navigation, nor what applies to the whole app', () => {
+	test('the title bar of a chat window shows the command center, with the session of its active chat, the actions of its session and a New Session button that starts one in that window, as the main window\'s does; not the main window\'s navigation, nor what applies to the whole app', () => {
 		disposables.add(registerSessionsTitleBarMenus());
 		disposables.add(appendNewSessionTitleBarMenuItem());
 		const menus = {
@@ -197,13 +208,125 @@ suite('Chat window contribution', () => {
 			.map(titleOf)
 			.filter((title): title is string => !!title && entries.includes(title)))].sort()]));
 		const newSessionShows = { [SessionsTitleBarNewSessionEnabledContext.key]: true };
+		const chatWindow = { ...chatWindowKeys, ...newSessionShows, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true };
+		/** The commands of the New Session entries of the left of the title bar. */
+		const newSessionCommands = (values: Record<string, ContextKeyValue>) => [...new Set(MenuRegistry.getMenuItems(menus.left)
+			.filter((item): item is IMenuItem => isIMenuItem(item) && titleOf(item) === 'New Session' && evaluate(item.when, values))
+			.map(item => item.command.id))];
 
 		assert.deepStrictEqual({
 			mainWindow: shown({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, ...newSessionShows }),
-			chatWindow: shown({ ...chatWindowKeys, ...newSessionShows }),
+			chatWindow: shown(chatWindow),
+			commands: {
+				mainWindow: newSessionCommands({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, ...newSessionShows }),
+				chatWindow: newSessionCommands(chatWindow),
+				// In every layout mode, also with the layout actions in the window's strip
+				chatWindowLayouts: [ChatWindowLayoutMode.Stacked, ChatWindowLayoutMode.ChatOnly, ChatWindowLayoutMode.EditorOnly].map(mode => newSessionCommands({ ...chatWindow, [LayoutModeContext.key]: mode, [`config.${SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING}`]: true })),
+				chatWindowOutOfExperiment: newSessionCommands({ ...chatWindow, [SessionsTitleBarNewSessionEnabledContext.key]: false }),
+				chatWindowWelcome: newSessionCommands({ ...chatWindow, [SessionsWelcomeVisibleContext.key]: true }),
+				chatWindowAIDisabled: newSessionCommands({ ...chatWindow, [ChatContextKeys.enabled.key]: false }),
+				chatWindowsTurnedOff: newSessionCommands({ ...chatWindow, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
+			},
 		}, {
 			mainWindow: { left: ['New Session', 'Toggle Side Bar'], centerLeft: ['Go Back', 'Go Forward'], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: ['Agents Account and Status'] },
-			chatWindow: { left: [], centerLeft: [], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: [] },
+			chatWindow: { left: ['New Session'], centerLeft: [], commandCenter: ['Agent Sessions'], centerRight: ['Run'], right: [] },
+			commands: {
+				mainWindow: [NEW_SESSION_ACTION_ID],
+				// The window's own New Session, which starts the session in that window, as its key does
+				chatWindow: [NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID],
+				chatWindowLayouts: [[NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID], [NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID], [NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID]],
+				chatWindowOutOfExperiment: [],
+				chatWindowWelcome: [],
+				chatWindowAIDisabled: [],
+				chatWindowsTurnedOff: [],
+			},
+		});
+	});
+
+	test('in a chat window, Cmd/Ctrl+N starts a new session in that window while its chat, a new session there or its title bar has focus; not in its other editors, nor in the search picker of an empty file editor, nor with AI features disabled or chat windows turned off; in the main window it stays New Session there', () => {
+		// The main window's New Session, unless the test run registered it already
+		if (!CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID)) {
+			disposables.add(registerAction2(NewChatInSessionsWindowAction));
+		}
+		const chatWindow = { ...chatWindowKeys, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true };
+		const chat = { ...chatWindow, [EditorAreaFocusContext.key]: true, [SessionInChatEditorContext.key]: true, [ChatContextKeys.inChatSession.key]: true };
+		/** How the default keybindings of `os` resolve the key of New Session in a chat window in each context. */
+		const keyOn = (os: OperatingSystem) => {
+			const rules = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+			const ownRule = rules.find(rule => rule.command === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID)!;
+			const [ownKeybinding] = USLayoutResolvedKeybinding.resolveKeybinding(ownRule.keybinding!, os);
+			const resolver = new KeybindingResolver(rules.flatMap(rule => rule.keybinding && rule.command
+				? USLayoutResolvedKeybinding.resolveKeybinding(rule.keybinding, os).map(resolved => new ResolvedKeybindingItem(resolved, rule.command, rule.commandArgs, rule.when ?? undefined, true, null, false))
+				: []), [], () => { });
+			const resolve = (values: Record<string, ContextKeyValue>) => {
+				const result = resolver.resolve({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined }, [], ownKeybinding.getDispatchChords()[0]!);
+				return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+			};
+			const inWindow = (values: Record<string, ContextKeyValue>) => resolve(values) === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID;
+			return {
+				key: ownKeybinding.getUserSettingsLabel(),
+				chat: inWindow(chat),
+				newSession: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: true, [SessionInChatEditorContext.key]: true }),
+				titleBar: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: false }),
+				otherEditor: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: true }),
+				emptyFileEditorPicker: inWindow({ ...chatWindow, [EditorAreaFocusContext.key]: false, [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+				// Its rule does not claim the key there at all, whichever rule of the same weight registered last
+				ownRuleInEmptyFileEditorPicker: evaluate(ownRule.when ?? undefined, { ...chatWindow, [EditorAreaFocusContext.key]: false, [EmptyFileEditorSearchPickerFocusedContext.key]: true }),
+				aiDisabled: inWindow({ ...chat, [ChatContextKeys.enabled.key]: false }),
+				chatWindowsOff: inWindow({ ...chat, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
+				mainWindow: resolve({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true, [EditorAreaFocusContext.key]: false }),
+			};
+		};
+		const expected = (key: string) => ({
+			key,
+			chat: true,
+			newSession: true,
+			titleBar: true,
+			otherEditor: false,
+			emptyFileEditorPicker: false,
+			ownRuleInEmptyFileEditorPicker: false,
+			aiDisabled: false,
+			chatWindowsOff: false,
+			mainWindow: NEW_SESSION_ACTION_ID,
+		});
+
+		// Cmd+N on macOS and Ctrl+N elsewhere, whichever platform the tests run on
+		assert.deepStrictEqual({
+			macOS: keyOn(OperatingSystem.Macintosh),
+			linux: keyOn(OperatingSystem.Linux),
+			windows: keyOn(OperatingSystem.Windows),
+		}, {
+			macOS: expected('cmd+n'),
+			linux: expected('ctrl+n'),
+			windows: expected('ctrl+n'),
+		});
+	});
+
+	test('New Session in a chat window opens a new chat in the window it runs for, and is offered in the Command Palette only while chat windows are on and AI features are enabled', async () => {
+		const opened: string[] = [];
+		const window = upcastPartial<IChatWindow>({ windowId: 7 });
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			activeWindow: window,
+			openNewChat: async (target, options) => { opened.push(`${target.windowId}${options ? ' with options' : ''}`); },
+		}));
+		await CommandsRegistry.getCommand(NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID)!.handler(instantiationService);
+		const commandPalette = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).find(candidate => candidate.command.id === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID);
+		const offered = (values: Record<string, ContextKeyValue>) => !!commandPalette && evaluate(commandPalette.when, values) && evaluate(commandPalette.command.precondition, values);
+		const chatWindow = { ...chatWindowKeys, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true };
+
+		assert.deepStrictEqual({
+			opened,
+			chatWindow: offered(chatWindow),
+			chatWindowsOff: offered({ ...chatWindow, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: false }),
+			aiDisabled: offered({ ...chatWindow, [ChatContextKeys.enabled.key]: false }),
+			mainWindow: offered({ [IsSessionsWindowContext.key]: true, [ChatContextKeys.enabled.key]: true, [`config.${CHAT_WINDOWS_ENABLED_SETTING}`]: true }),
+		}, {
+			opened: ['7'],
+			chatWindow: true,
+			chatWindowsOff: false,
+			aiDisabled: false,
+			mainWindow: false,
 		});
 	});
 
@@ -246,6 +369,7 @@ suite('Chat window contribution', () => {
 			}));
 			stubMissingSessionHostsFromSessionsService(instantiationService);
 			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
+			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({ takeEditorsFor: () => undefined, restoreState: noEditorWorkingSetOwner }));
 			let whileOpening: number | undefined;
 			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
 				open: async () => {
@@ -263,6 +387,136 @@ suite('Chat window contribution', () => {
 			takesEditors: { suppressedWhileOpening: true, afterwards: 0 },
 			leavesEditors: { suppressedWhileOpening: false, afterwards: 0 },
 		});
+	});
+
+	test('a chat of the session the main window shows takes the session\'s editors along when the window shows another chat of it, as the main window keeps the chat it shows', async () => {
+		const run = async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			stubSessionsHostLayout(instantiationService);
+			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
+			const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
+			const pane = upcastPartial<ITestSessionWithChat>({ sessionId: 'alpha', resource: URI.parse('test:/alpha'), activeChat: constObservable(chat('shown')) as ITestSessionWithChat['activeChat'] });
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				gridShown: constObservable([pane]),
+				slotPanes: testGridPanes(constObservable([pane])),
+				mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(pane),
+			}));
+			stubMissingSessionHostsFromSessionsService(instantiationService);
+			const mainGroups = [upcastPartial<IEditorGroup>({ id: 1 })];
+			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: mainGroups }) }));
+			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({ takeEditorsFor: () => undefined, restoreState: noEditorWorkingSetOwner }));
+			let moveFrom: readonly IEditorGroup[] | undefined;
+			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+				open: async (_resource: URI, options?: { editors?: { moveFrom?: readonly IEditorGroup[] } }) => {
+					moveFrom = options?.editors?.moveFrom;
+					return undefined;
+				},
+			}));
+			await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, upcastPartial<ISession>({ sessionId: 'alpha', resource: pane.resource }), chat('other').resource));
+			return moveFrom?.length;
+		};
+
+		assert.strictEqual(await run(), 1);
+	});
+
+	test('with a working set per chat, opening another chat of the session the main window shows takes that chat\'s stash and leaves the shown chat\'s editors', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		stubSessionsHostLayout(instantiationService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
+		const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
+		const pane = upcastPartial<ITestSessionWithChat>({ sessionId: 'alpha', resource: URI.parse('test:/alpha'), activeChat: constObservable(chat('a')) as ITestSessionWithChat['activeChat'] });
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			gridShown: constObservable([pane]),
+			slotPanes: testGridPanes(constObservable([pane])),
+			mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(pane),
+		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [upcastPartial<IEditorGroup>({ id: 1 })] }) }));
+		const saved = [upcastPartial<EditorInput>({ typeId: 'saved' })];
+		instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({
+			restoreState: constObservable<ISessionEditorWorkingSetRestoreState>({ owner: { sessionResource: pane.resource, chatResource: chat('a').resource }, restoring: false, applying: false }),
+			takeEditorsFor: () => ({ editors: saved, activeEditor: saved[0], accept: () => { }, dispose: () => { } }),
+		}));
+		let opened: { moveFrom: number | undefined; takesSaved: boolean } | undefined;
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			open: async (_resource: URI, options?: { editors?: { moveFrom?: readonly IEditorGroup[]; editors?: readonly EditorInput[] } }) => {
+				opened = { moveFrom: options?.editors?.moveFrom?.length, takesSaved: options?.editors?.editors === saved };
+				return undefined;
+			},
+		}));
+		await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, upcastPartial<ISession>({ sessionId: 'alpha', resource: pane.resource }), chat('b').resource));
+
+		assert.deepStrictEqual(opened, { moveFrom: 0, takesSaved: true });
+	});
+
+	test('a session another pane shows takes the editors it has saved along, which stay saved unless the window has them, and the main window\'s editors stay', async () => {
+		const run = async (windowHasEditors: boolean) => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			stubSessionsHostLayout(instantiationService);
+			instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
+			const chat = (id: string) => ({ resource: URI.parse(`test:/chat/${id}`) });
+			const focused = upcastPartial<ITestSessionWithChat>({ sessionId: 'beta', resource: URI.parse('test:/beta'), activeChat: constObservable(chat('beta')) as ITestSessionWithChat['activeChat'] });
+			const other = upcastPartial<ITestSessionWithChat>({ sessionId: 'alpha', resource: URI.parse('test:/alpha'), activeChat: constObservable(chat('alpha')) as ITestSessionWithChat['activeChat'] });
+			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+				gridShown: constObservable([other, focused]),
+				slotPanes: testGridPanes(constObservable([other, focused])),
+				mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(focused),
+			}));
+			stubMissingSessionHostsFromSessionsService(instantiationService);
+			instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [upcastPartial<IEditorGroup>({ id: 1 })] }) }));
+			const saved = [upcastPartial<EditorInput>({ typeId: 'saved' })];
+			const events: string[] = [];
+			instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({
+				restoreState: noEditorWorkingSetOwner,
+				takeEditorsFor: (session: ISession) => session.sessionId === 'alpha' ? { editors: saved, activeEditor: saved[0], accept: () => events.push('accepted'), dispose: () => events.push('disposed') } : undefined,
+			}));
+			let opened: { moveFrom: number | undefined; editors: readonly EditorInput[] | undefined } | undefined;
+			instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+				open: async (_resource: URI, options?: { editors?: { moveFrom?: readonly IEditorGroup[]; editors?: readonly EditorInput[] } }) => {
+					opened = { moveFrom: options?.editors?.moveFrom?.length, editors: options?.editors?.editors };
+					return upcastPartial<IChatWindow>({ mainPart: upcastPartial<IChatWindow['mainPart']>({ groups: [upcastPartial<IEditorGroup>({ contains: () => windowHasEditors })] }) });
+				},
+			}));
+			await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, upcastPartial<ISession>({ sessionId: 'alpha', resource: other.resource })));
+			return { moveFrom: opened?.moveFrom, takesSaved: opened?.editors === saved, events };
+		};
+
+		assert.deepStrictEqual({ received: await run(true), notReceived: await run(false) }, {
+			received: { moveFrom: 0, takesSaved: true, events: ['accepted', 'disposed'] },
+			notReceived: { moveFrom: 0, takesSaved: true, events: ['disposed'] },
+		});
+	});
+
+	test('a chat opened in a window opens exactly that chat, also its session\'s main chat, which is named by the session, while a session opens the chat it shows', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		stubSessionsHostLayout(instantiationService);
+		const shown = { resource: URI.parse('test:/chat/nested') };
+		const pane = upcastPartial<ITestSessionWithChat>({ sessionId: 'alpha', activeChat: constObservable(shown) as ITestSessionWithChat['activeChat'] });
+		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			gridShown: constObservable([pane]),
+			slotPanes: testGridPanes(constObservable([pane])),
+			mainWindowActiveSession: constObservable<ITestSessionWithChat | undefined>(pane),
+		}));
+		stubMissingSessionHostsFromSessionsService(instantiationService);
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({ suppressEditorPartAutoVisibility: () => toDisposable(() => { }) }));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ mainPart: upcastPartial<IEditorGroupsService['mainPart']>({ groups: [] }) }));
+		instantiationService.stub(ISessionEditorWorkingSetService, upcastPartial<ISessionEditorWorkingSetService>({ takeEditorsFor: () => undefined, restoreState: noEditorWorkingSetOwner }));
+		const opened: { resource: string; exactChat: boolean | undefined }[] = [];
+		instantiationService.stub(IChatWindowService, upcastPartial<IChatWindowService>({
+			open: async (resource: URI, options?: { exactChat?: boolean }) => {
+				opened.push({ resource: resource.toString(), exactChat: options?.exactChat });
+				return undefined;
+			},
+		}));
+		const session = upcastPartial<ISession>({ sessionId: 'alpha', resource: URI.parse('test:/alpha') });
+
+		await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, session, session.resource));
+		await instantiationService.invokeFunction(accessor => openChatInWindow(accessor, session));
+
+		assert.deepStrictEqual(opened, [
+			{ resource: 'test:/alpha', exactChat: true },
+			{ resource: 'test:/chat/nested', exactChat: false },
+		]);
 	});
 
 	test('the keys of the Agents window\'s Add Tab commands and Run work in a chat window, Toggle Side Bar\'s does not; their menu entries stay in the main window', () => {

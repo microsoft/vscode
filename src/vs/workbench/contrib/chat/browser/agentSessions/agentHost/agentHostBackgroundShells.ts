@@ -11,7 +11,7 @@ import { canStopBackgroundWork } from '../../../../../../platform/agentHost/comm
 import { readCopilotShellAttachment, readCopilotShellId } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import { BackgroundWorkKind, TerminalLifecycleStatus, type BackgroundWork, type TerminalState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../../common/sessionChatPills.js';
+import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../../../../common/chatBackgroundShell.js';
 
 /** Projects a chat's background work onto the shells its Background Shells pill lists. */
 export function toChatBackgroundShells(work: readonly BackgroundWork[] | undefined, getOutput?: (terminal: string) => IObservable<ChatBackgroundShellOutput>, getStop?: (id: string) => () => Promise<boolean>): readonly IChatBackgroundShell[] {

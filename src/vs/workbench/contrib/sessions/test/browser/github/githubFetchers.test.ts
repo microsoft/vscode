@@ -29,7 +29,7 @@ import { GitHubPullRequestContextFetcher } from '../../../browser/github/fetcher
 import { GitHubPullRequestsFetcher } from '../../../browser/github/fetchers/githubPullRequestsFetcher.js';
 import { GitHubRecentUserWorkFetcher } from '../../../browser/github/fetchers/githubRecentUserWorkFetcher.js';
 import { GitHubRepositoryFetcher } from '../../../browser/github/fetchers/githubRepositoryFetcher.js';
-import { GitHubApiClient } from '../../../browser/github/githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestReview, MergeBlockerKind } from '../../../common/github/types.js';
 
 class MockApiClient extends mock<GitHubApiClient>() {

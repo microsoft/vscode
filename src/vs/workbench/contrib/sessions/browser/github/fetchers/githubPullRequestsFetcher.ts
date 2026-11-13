@@ -7,7 +7,7 @@ import { isDefined } from '../../../../../../base/common/types.js';
 import { PullRequestListItem } from '../../../../../../platform/github/common/core/pullRequests.js';
 import { GitHubRequestError } from '../../../../../../platform/github/common/githubTypes.js';
 import { IGitHubPullRequestSummary, IGitHubPullRequestsPage } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export class GitHubPullRequestsFetcher {
 	constructor(private readonly _client: GitHubApiClient) { }

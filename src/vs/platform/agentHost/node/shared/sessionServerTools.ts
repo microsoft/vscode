@@ -1970,10 +1970,13 @@ export async function applyGetSessionContextTool(accessor: ISessionServerToolAcc
 	const sessions = await accessor.listSessions();
 	const { session, chatId, detail, transcriptLimit, responseTurnId, responseOffset = 0 } = getSessionContextArgs(rawArgs, sessions);
 	const snapshot = await accessor.getChatContext(session, chatId);
+	if (!snapshot) {
+		throw new Error('The requested chat transcript is unavailable. Use list_sessions to check the session and chat target, then retry.');
+	}
 	const metadata = sessions.find(candidate => candidate.session.toString() === session.toString());
 	const harness = metadata && chatId !== undefined ? chatHarness(metadata, metadata.chats?.find(chat => chat.chat.toString() === chatId || getAgentHostChatId(chat.chat) === chatId)) : undefined;
 	if (responseTurnId !== undefined) {
-		const turn = snapshot?.turns.find(candidate => candidate.id === responseTurnId);
+		const turn = snapshot.turns.find(candidate => candidate.id === responseTurnId);
 		if (!turn) {
 			throw new Error(`The requested response turn is unavailable. Read the session context again for current responseTurnId values.`);
 		}
@@ -1994,19 +1997,6 @@ export async function applyGetSessionContextTool(accessor: ISessionServerToolAcc
 			...(end < assistant.length ? { nextResponseOffset: end } : {}),
 			truncated: end < assistant.length,
 		});
-	}
-	if (!snapshot) {
-		// No live conversation state (e.g. a cold/unsubscribed session): return the
-		// identity + an empty transcript. Metadata is available via list_sessions.
-		return JSON.stringify({
-			session: session.toString(),
-			openLink: buildOpenSessionLinkUri(session, chatId),
-			...(harness !== undefined ? { harness } : {}),
-			detail,
-			transcript: [],
-			hasMoreHistory: false,
-			truncated: false,
-		} satisfies ISerializedSessionContext);
 	}
 	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit, currentChannel ? URI.parse(currentChannel) : undefined, harness);
 }

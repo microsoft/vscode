@@ -18,6 +18,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -45,20 +46,20 @@ import { SessionsTitleBarNewSessionEnabledContext } from '../../../common/agents
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { getWindowHost, IFocusedSessionHostService, ISessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatHostOpenerService } from '../../../../workbench/contrib/sessions/browser/chatHostOpener.js';
+import { IChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ISessionCommandTarget, resolveCommandOriginHost, resolveGridCommandPane, resolveGridCommandView, resolvePaneCommandTarget, resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { WindowCanvasInput } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
-import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionsPartService } from '../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionPresentationWorkspace, getSessionWorkspaceKind, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus, SessionWorkspaceKind } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
-import { $, append, EventHelper, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
+import { $, append, EventHelper, EventLike, getWindow, isMouseEvent, ModifierKeyEmitter, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { isWeb, OS } from '../../../../base/common/platform.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -71,11 +72,12 @@ import { IWorkbenchAssignmentService } from '../../../../workbench/services/assi
 import { registerViewNavigationCommand } from '../../../../workbench/browser/actions/navigationActions.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../workbench/contrib/sessions/common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
-import { NEW_SESSION_ACTION_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { NEW_SESSION_ACTION_ID, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { IWindowCommandContext } from '../../../../workbench/common/windowCommandContext.js';
 import { groupSessionsForPicker } from './sessionsPicker.js';
 import { getSessionConversationActionId, SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../workbench/contrib/sessions/browser/sessionConversationGroups.js';
-import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { SessionsView, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMoveContext, SessionChatItemCanRenameContext, SessionChatItemHasMoveDestinationContext, SessionChatItemIsUntitledContext, SessionItemHasMoveDestinationContext, SessionItemInExternalSectionContext, SessionItemIsCloudContext, SessionsGrouping, SessionsList, SessionsListFocusedChatItemContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SessionsView, SessionsViewGroupingContext, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -111,6 +113,20 @@ export function getSessionsPickerChatWindow(target: ISessionCommandTarget | unde
  */
 export function openPickedSessionInChatWindow(accessor: ServicesAccessor, session: ISession, window: IChatWindow, options: { readonly preserveFocus: boolean; readonly toSide: boolean }): Promise<void> {
 	return openChatInWindow(accessor, session, undefined, { window, preserveFocus: options.preserveFocus, beside: options.toSide ? window.chat.get() : undefined });
+}
+
+/**
+ * Opens a new session, picked in the Sessions picker: in the chat window `window` it runs in, as a new session of that
+ * window, as a tab of its active chat or beside it to the side; elsewhere in the main window.
+ */
+export async function openPickedNewSession(accessor: ServicesAccessor, window: IChatWindow | undefined, options: { readonly preserveFocus: boolean; readonly toSide: boolean }): Promise<void> {
+	if (window) {
+		await accessor.get(IChatWindowService).openNewChat(window, { beside: options.toSide, preserveFocus: options.preserveFocus });
+		return;
+	}
+	const sessionsService = accessor.get(ISessionsService);
+	sessionsService.openNewSession();
+	sessionsService.focusActiveSession();
 }
 
 export const SHOW_SESSIONS_PICKER_COMMAND_ID = 'sessions.showSessionsPicker';
@@ -169,11 +185,11 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			// workspace icon under the title text (the status icon sits in the
 			// left gutter).
 			const detailParts: string[] = [];
-			if (workspace?.label) {
-				const presentationWorkspace = getSessionPresentationWorkspace(session, reader);
+			const presentationWorkspace = workspace?.label ? getSessionPresentationWorkspace(session, reader) : undefined;
+			if (presentationWorkspace?.label) {
 				const kind = getSessionWorkspaceKind(presentationWorkspace);
-				const workspaceIcon = presentationWorkspace?.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree);
-				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
+				const workspaceIcon = presentationWorkspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree);
+				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${presentationWorkspace.label}`);
 			} else {
 				detailParts.push(`$(${Codicon.blank.id})`);
 			}
@@ -194,6 +210,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
+		// Keep recency order and groups when filtering instead of re-sorting by label match.
+		picker.sortByLabel = false;
 
 		const disposables = new DisposableStore();
 		disposables.add(picker);
@@ -245,9 +263,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		const openSelected = (selected: ISessionPickItem, inBackground: boolean, toSide: boolean): void => {
 			composerService.notifyUserNavigation();
 			if (!selected.session) {
-				// A new session opens in the main window, also when picked in a chat window, for now
-				sessionsService.openNewSession();
-				sessionsService.focusActiveSession();
+				void instantiationService.invokeFunction(accessor => openPickedNewSession(accessor, chatWindow, { preserveFocus: inBackground, toSide })).catch(onUnexpectedError);
 				return;
 			}
 
@@ -416,19 +432,14 @@ registerAction2(class FocusActiveSessionAction extends Action2 {
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
-				// Must outrank the workbench `workbench.action.chat.open` binding
+				// Like Open Chat (Agent) in editor windows. Must outrank its binding
 				// (WorkbenchContrib) so that in the sessions window the chord
 				// focuses the active session. Using the normal open chat action will not work for new session views.
+				// The Open Chat and Toggle Chat chord opens the Sessions view instead.
 				weight: KeybindingWeight.SessionsContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-				secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI],
-				mac: {
-					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI]
-				},
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI,
 				linux: {
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
-					secondary: [KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI]
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI
 				},
 			},
 		});
@@ -1755,16 +1766,17 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 		super(action, keybindingService, hoverService, contextKeyService);
 	}
 
+	/** New Session, or New Session in a chat window, which starts the session in the window the button is in. */
 	protected override get commandId(): string {
-		return NEW_SESSION_ACTION_ID;
+		return this.action.id;
 	}
 
 	protected override get label(): string {
 		return localize('newCompact', "New");
 	}
 
-	protected override get onboardingTargetId(): string {
-		return 'sessions.newSession.button';
+	protected override get onboardingTargetId(): string | undefined {
+		return this.action.id === NEW_SESSION_ACTION_ID ? 'sessions.newSession.button' : undefined;
 	}
 
 	protected override configureButton(button: Button): void {
@@ -1792,11 +1804,51 @@ export class NewSessionActionViewItem extends CompactButtonActionViewItem {
 	}
 
 	protected override runAction(event: MouseEvent | undefined): void {
-		if (event?.altKey) {
+		if (this.action.id === NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID) {
+			this.runInWindow();
+		} else if (event?.altKey) {
 			this.commandService.executeCommand(NEW_SESSION_ACTION_ID, { toSide: true }).catch(onUnexpectedError);
 		} else {
 			super.runAction(event);
 		}
+	}
+
+	/** Also as the button is activated otherwise, such as by Ctrl+click on macOS or a tap, in the same window. */
+	override onClick(event: EventLike, preserveFocus?: boolean): void {
+		if (this.action.id !== NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID) {
+			super.onClick(event, preserveFocus);
+			return;
+		}
+		EventHelper.stop(event, true);
+		if (this.action.enabled) {
+			this.onRun();
+			this.runInWindow();
+		}
+	}
+
+	/** Also as the toolbar runs it, such as by Enter or Space while the toolbar has focused the item, in the same window. */
+	override getActionToRun(event: EventLike & { readonly altKey?: boolean; readonly shiftKey?: boolean }): IAction {
+		if (this.action.id !== NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID) {
+			return super.getActionToRun(event);
+		}
+		return toAction({
+			id: this.action.id,
+			label: this.action.label,
+			enabled: this.action.enabled,
+			run: () => {
+				this.onRun();
+				this.runInWindow();
+			},
+		});
+	}
+
+	/**
+	 * Starts the session in the window of the button, which may not have focus yet: the title bar's menu actions run
+	 * their commands without the arguments they are run with, so the command runs with the window directly.
+	 */
+	private runInWindow(): void {
+		const context: IWindowCommandContext = { windowId: getWindow(this.element).vscodeWindowId };
+		this.commandService.executeCommand(NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID, context).catch(onUnexpectedError);
 	}
 }
 
@@ -1836,12 +1888,16 @@ export class NewSessionActionViewItemContribution extends Disposable implements 
 		}));
 
 		const onDidRegister = this._register(new Emitter<void>());
-		const menus: MenuId[] = [Menus.SidebarSessionsHeader, AgentsWindowMenus.TitleBarLeftLayout];
-		for (const menu of menus) {
+		// The title bar of a chat window shows the window's own New Session, in place of the main window's.
+		const entries: [MenuId, string][] = [[Menus.SidebarSessionsHeader, NEW_SESSION_ACTION_ID], [AgentsWindowMenus.TitleBarLeftLayout, NEW_SESSION_ACTION_ID], [AgentsWindowMenus.TitleBarLeftLayout, NEW_SESSION_IN_CHAT_WINDOW_COMMAND_ID]];
+		for (const [menu, commandId] of entries) {
 			const source: SessionsInteractionSource = menu === AgentsWindowMenus.TitleBarLeftLayout ? 'titleBar' : 'sidebar';
-			this._register(actionViewItemService.register(menu, NEW_SESSION_ACTION_ID, (action, _options, instantiationService) => {
+			this._register(actionViewItemService.register(menu, commandId, (action, _options, instantiationService) => {
 				if (!(action instanceof MenuItemAction)) {
 					return undefined;
+				}
+				if (source === 'sidebar' && SessionsViewGroupingContext.getValue(contextKeyService) === SessionsGrouping.Inbox) {
+					return instantiationService.createInstance(MenuEntryActionViewItem, action, _options);
 				}
 				return instantiationService.createInstance(NewSessionActionViewItem, action, source, this.newSessionButtonStyle);
 			}, onDidRegister.event));
@@ -2246,7 +2302,8 @@ registerAction2(class CloseSessionAction extends Action2 {
 			}, ...SessionHeaderMenus.map(id => ({
 				id,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),
+					// Not a new session a chat editor shows, such as a chat window's, which its tab closes: it has no pane to close
+					ContextKeyExpr.or(SessionIsCreatedContext, ContextKeyExpr.and(MultipleSessionsVisibleContext, SessionInChatEditorContext.negate())),
 					SessionHeaderShowsChatContext.negate(),
 				),
 				group: 'secondary/0_pane',

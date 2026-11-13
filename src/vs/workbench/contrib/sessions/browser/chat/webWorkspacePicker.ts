@@ -29,7 +29,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../common/session.js';
+import { ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { ISessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
 import { IAgentHostFilterService } from '../../common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspacePickerOptions, MAX_NEW_PICKER_RECENT_WORKSPACES, WorkspacePicker } from './sessionWorkspacePicker.js';

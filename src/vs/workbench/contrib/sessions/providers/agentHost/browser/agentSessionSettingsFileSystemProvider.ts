@@ -12,7 +12,7 @@ import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ISession, toSessionId } from '../../../common/session.js';
+import { ISession, toSessionId } from '../../../../../services/sessions/common/session.js';
 import {
 	AbstractMultiProviderAgentHostConfigSchemaRegistrar,
 	AbstractSessionsAgentHostConfigFileSystemProvider,

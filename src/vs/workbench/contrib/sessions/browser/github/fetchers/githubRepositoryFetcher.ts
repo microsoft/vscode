@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Repository } from '../../../../../../platform/github/common/core/repositories.js';
 import { RepositorySearchItem } from '../../../../../../platform/github/common/core/search.js';
 import { IGitHubRepository } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export class GitHubRepositoryFetcher {
 	constructor(private readonly client: GitHubApiClient) { }

@@ -12,6 +12,7 @@
 	},
 	"include": [
 		"src/**/*",
+		"../../src/typings/internal-github.d.ts",
 		"../../src/vscode-dts/vscode.d.ts",
 		"../../src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.scmHistoryProvider.d.ts",

@@ -56,7 +56,7 @@ import { IResolvedFolderWorkspace, IWorkspacePickerItem, WorkspacePicker } from 
 import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../../../workbench/contrib/sessions/browser/chat/branchPicker.js';
 import { MobileSessionTypePicker } from '../../../../workbench/contrib/sessions/browser/chat/mobile/mobileSessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../../workbench/contrib/sessions/browser/mobile/mobilePickerSheet.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../workbench/contrib/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../workbench/services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -83,7 +83,7 @@ import { AutomationCronInput } from './automationCronInput.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
-import { createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
 import { SessionUsesCombinedConfigPickerContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
@@ -2247,7 +2247,7 @@ export function renderForm(
 		},
 		focusSaveError: focusDialogMessage,
 		getFocusableElements: () => {
-			// eslint-disable-next-line no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
+			// eslint-disable-next-line eslint-js/no-restricted-syntax -- the dialog owns this form subtree and supplies its dynamic focus order.
 			return Array.from(form.querySelectorAll<HTMLElement>('input, select, textarea, button, a[href], [tabindex]'));
 		},
 		acceptPromptSuggestion: () => {

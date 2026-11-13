@@ -19,8 +19,8 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ISessionChatSource } from '../../../browser/sessionHost.js';
-import { SessionStatus } from '../../../common/session.js';
+import { ISessionChatSource } from '../../../../../services/sessions/browser/sessionHost.js';
+import { SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { AgentHostSessionEnumPicker, IAgentHostSessionEnumPickerItem } from './agentHostModePicker.js';
 import { isWellKnownCodexApprovalsSchema } from './agentHostPermissionPickerDelegate.js';
 

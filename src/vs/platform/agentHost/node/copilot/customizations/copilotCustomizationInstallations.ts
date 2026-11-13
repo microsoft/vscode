@@ -1285,11 +1285,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& confirmation.review.review.target.configKey === plan.installation.identity.serverName
 				&& confirmation.review.review.policy.decision !== 'blocked'
 				&& confirmation.review.review.provenance.mediaType === installation.mediaType
-				&& isMatchingInstallationAuthority(
-					confirmation.review.review.provenance.authority,
-					plan.installation.identity.registryId,
-					installation.catalogue?.source,
-				)
+				// The uninstall plan carries no provenance to compare against, and the serving
+				// authority can differ from both the registry ID host and the catalogue source
+				// (e.g. upstream registry servers mirrored by GitHub's MCP service).
+				&& typeof confirmation.review.review.provenance.authority === 'string'
+				&& confirmation.review.review.provenance.authority.length > 0
 				&& confirmation.review.review.restoresPreviousConfiguration === plan.restoresPreviousConfiguration
 				&& confirmation.review.review.ownedSecretCount === plan.ownedSecretCount
 				&& confirmation.review.review.preservesSharedAuthentication === plan.preservesSharedAuthentication,
@@ -1633,9 +1633,13 @@ export class CopilotCustomizationInstallations extends Disposable {
 			if (sensitive || (action === 'install' && (outcome.kind === 'cancelled' || outcome.kind === 'declined' || outcome.kind === 'recovery-required'))) {
 				throw toInstallationFailure(typeof outcome.reason === 'string' ? outcome.reason : outcome.kind);
 			}
-			throw new Error(action === 'install'
+			const message = action === 'install'
 				? localize('copilot.customizationInstallation.installNotCompleted', "The customization installation did not complete.")
-				: localize('copilot.customizationInstallation.uninstallNotCompleted', "The customization removal did not complete."));
+				: localize('copilot.customizationInstallation.uninstallNotCompleted', "The customization removal did not complete.");
+			const detail = describeSdkOutcome(result);
+			throw new Error(detail
+				? localize('copilot.customizationInstallation.resultErrorDetail', "{0} ({1})", message, detail)
+				: message);
 		}
 		return outcome;
 	}
@@ -1707,11 +1711,6 @@ function isMatchingCatalogueAuthority(authority: string, source: string | undefi
 	} catch {
 		return source === authority;
 	}
-}
-
-function isMatchingInstallationAuthority(authority: string, registryId: string | undefined, source: string | undefined): boolean {
-	const registryAuthority = /^urn:air:(?<authority>[a-z0-9.-]+):/.exec(registryId ?? '')?.groups?.authority;
-	return registryAuthority ? authority === registryAuthority : isMatchingCatalogueAuthority(authority, source);
 }
 
 function isMatchingEffectiveMcpConfiguration(

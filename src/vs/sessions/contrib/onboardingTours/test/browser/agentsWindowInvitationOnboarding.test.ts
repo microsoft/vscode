@@ -42,7 +42,7 @@ import { TestChatEntitlementService, TestLifecycleService, TestStorageService } 
 import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { AgentHostSessionTypesAvailableContext, NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
 import { ISessionNavigationRequest } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { getSessionOnboardingTargetId, SessionsList } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';

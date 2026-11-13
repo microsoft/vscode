@@ -258,7 +258,7 @@ export const tsFormattingFilter = Object.freeze<string[]>([
 	'!extensions/copilot/**',
 ]);
 
-export const eslintFilter = Object.freeze<string[]>([
+export const lintFilter = Object.freeze<string[]>([
 	'**/*.{js,cjs,mjs}',
 	'**/*.{ts,tsx,mts,cts}',
 	'.eslint-plugin-local/**/*.ts',

@@ -434,6 +434,30 @@ suite('AgentSessionApprovalModel', () => {
 		assert.strictEqual(getApproval(approvalModel, chatModel), undefined);
 	});
 
+	test('carries where a terminal command runs, and updates when only that changes', () => {
+		const approvalModel = createModel();
+		const chatModel = addChatModel();
+
+		const stateObs = observableValue<IChatToolInvocation.State>('toolState', makeWaitingState());
+		let toolSpecificData = makeTerminalToolData({ executionTarget: { workingDirectory: '/work/web' } });
+		const part: IChatToolInvocation = {
+			...makeToolInvocationPart({ state: makeWaitingState(), toolSpecificData }),
+			state: stateObs,
+			get toolSpecificData() { return toolSpecificData; },
+		};
+		mockModelWithResponse(chatModel, [part]);
+		chatModel.requestNeedsInput.set({ title: 'Test' }, undefined);
+		const first = getApproval(approvalModel, chatModel)?.executionTarget;
+
+		toolSpecificData = makeTerminalToolData({ executionTarget: { workingDirectory: '/work/api' } });
+		stateObs.set(makeWaitingState(), undefined);
+
+		assert.deepStrictEqual({ first, second: getApproval(approvalModel, chatModel)?.executionTarget }, {
+			first: { workingDirectory: '/work/web' },
+			second: { workingDirectory: '/work/api' },
+		});
+	});
+
 	test('tracks multiple models independently', () => {
 		const approvalModel = createModel();
 		const chatModel1 = addChatModel(URI.parse('test://session/1'));

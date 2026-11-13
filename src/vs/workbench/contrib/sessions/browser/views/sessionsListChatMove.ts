@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, ChatOriginKind, getChatHarness, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SessionMoveRefusedError } from '../../common/sessionsProvider.js';
 

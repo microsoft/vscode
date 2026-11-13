@@ -20,6 +20,7 @@ import { IContextKey, IContextKeyService } from '../../../../../../platform/cont
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRenderer, openLinkFromMarkdown } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -46,6 +47,8 @@ export class ChatTipContentPart extends Disposable {
 
 	private readonly _inChatTipContextKey: IContextKey<boolean>;
 	private readonly _multipleChatTipsContextKey: IContextKey<boolean>;
+	private readonly _contextKeyService: IContextKeyService;
+	private readonly _instantiationService: IInstantiationService;
 
 	constructor(
 		tip: IChatTip,
@@ -53,8 +56,8 @@ export class ChatTipContentPart extends Disposable {
 		@IChatTipService private readonly _chatTipService: IChatTipService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
@@ -69,6 +72,8 @@ export class ChatTipContentPart extends Disposable {
 			ariaRoleDescription: localize('chatTipRoleDescription', "tip"),
 		}));
 
+		this._contextKeyService = this._register(contextKeyService.createScoped(this.domNode));
+		this._instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 		this._inChatTipContextKey = ChatContextKeys.inChatTip.bindTo(this._contextKeyService);
 		this._multipleChatTipsContextKey = ChatContextKeys.multipleChatTips.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this.domNode));

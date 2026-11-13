@@ -22,8 +22,9 @@ import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatModel } from '../../../chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
-import { CanvasInput, ICanvasContextService, ICanvas, ICanvasContext, ICanvasOwner } from '../../common/canvas.js';
+import { CanvasInput, ICanvasContextService, ICanvasContext } from '../../common/canvas.js';
 import { EditorCanvasContextService } from '../../electron-browser/editorCanvasContextService.js';
+import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
 class TestChatInput extends EditorInput {
 	constructor(override readonly resource: URI) { super(); }

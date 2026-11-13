@@ -16,6 +16,7 @@ import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { API, Repository } from '../../../platform/git/vscode/git';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';

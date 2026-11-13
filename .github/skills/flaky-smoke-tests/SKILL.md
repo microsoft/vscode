@@ -13,7 +13,12 @@ Use this skill for failures from the Azure DevOps **Flaky Smoke Tests** pipeline
 - Pipeline YAML: `build/azure-pipelines/product-smoke-flaky.yml`
 - Scheduled runs: twice daily on `main`
 
-The pipeline builds VS Code from source and runs the complete Electron smoke suite once per entry in the `iterations` parameter. Each platform runs its iterations sequentially in one job. The exception is Windows unit and integration tests, which are each split into two parallel jobs: `WindowsSmokeFlakyUnit_odd` / `WindowsSmokeFlakyIntegration_odd` run the odd iterations and `WindowsSmokeFlakyUnit_even` / `WindowsSmokeFlakyIntegration_even` run the even ones. Each shard has its own artifacts (`logs-windows-x64-<unit|integration>-<odd|even>-<attempt>`) and its own Slack tally line.
+The pipeline builds VS Code from source and runs the complete Electron smoke suite once per entry in the `iterations` parameter. Each platform runs its iterations sequentially in one job, with these exceptions, each split into two parallel jobs that run the odd and the even iterations:
+
+- Windows unit and integration tests: `WindowsSmokeFlakyUnit_<odd|even>` and `WindowsSmokeFlakyIntegration_<odd|even>`, with artifacts `logs-windows-x64-<unit|integration>-<odd|even>-<attempt>`.
+- Linux unit tests: `LinuxSmokeFlakyUnit_<odd|even>`, with artifacts `logs-linux-x64-unit-<odd|even>-<attempt>`.
+
+Each shard has its own Slack tally line.
 
 ## Important Pipeline Behavior
 

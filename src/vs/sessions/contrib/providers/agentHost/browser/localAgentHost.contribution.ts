@@ -15,7 +15,7 @@ import { AgentHostSignedOutCompatibilityContribution } from '../../../../../work
 import { AgentHostSdkSetupNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { AgentHostSignedOutModelsNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { LocalAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProvider.js';
 import './codexCustomizationSettings.contribution.js';

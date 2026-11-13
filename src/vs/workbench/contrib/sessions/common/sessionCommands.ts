@@ -31,6 +31,9 @@ export const ARCHIVE_SESSION_GROUP_COMMAND_ID = 'sessionsView.markAllInGroupAsDo
 /** Archives the given sessions and offers to undo it from the Sessions view. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.archiveSessionsWithUndo';
 
+export const RESUME_INBOX_SESSION_COMMAND_ID = 'sessionsViewPane.inboxResume';
+export const HOLD_INBOX_SESSION_COMMAND_ID = 'sessionsViewPane.inboxHold';
+
 /**
  * Deletes a custom group and its subgroups, offering to undo it from the Sessions
  * view when it deletes more than one group. Registered in `sessionsViewActions.ts`.
@@ -91,6 +94,8 @@ export const FOCUS_NEW_SESSION_BRANCH_PICKER_COMMAND_ID = 'sessions.focusNewSess
 export const FOCUS_NEW_SESSION_WORKTREE_PICKER_COMMAND_ID = 'sessions.focusNewSessionWorktreePicker';
 export const FOCUS_SESSION_SYNC_ACTION_COMMAND_ID = 'sessions.focusSessionSyncAction';
 export const COMPARE_SESSION_MODELS_COMMAND_ID = 'sessions.compareModels';
+
+export const SEND_IN_BACKGROUND_COMMAND_ID = 'sessions.sendInBackground';
 
 export const FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID = 'sessions.focusPreviousChatGroup';
 

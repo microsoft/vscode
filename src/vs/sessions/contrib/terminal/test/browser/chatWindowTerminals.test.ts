@@ -21,8 +21,8 @@ import { IChatWindow, IChatWindowService } from '../../../../../workbench/contri
 import { ICreateTerminalOptions, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalEditorInput } from '../../../../../workbench/contrib/terminal/browser/terminalEditorInput.js';
 import { IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatWindowTerminals, IChatWindowTerminalsSource } from '../../browser/chatWindowTerminals.js';
 import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';

@@ -46,8 +46,11 @@ suite('LocalModelSetupService', () => {
 			registerSharedNetworkClient: () => toDisposable(() => { }),
 			notifySharedNetworkClientChanged: () => { },
 			lookupClientKerberosAuthorization: async () => undefined,
+			lookupKerberosAuthorization: async () => undefined,
+			lookupBasicAuthorization: async () => undefined,
 			getConfigurationValue: () => undefined,
 			resolveProxy: async () => undefined,
+			resolveProxyByURL: async () => ({ url: undefined, type: 'DIRECT', source: 'remote', result: 'DIRECT' }),
 			fetch: () => Promise.reject(new Error('not used')),
 			createWebSocket: () => { throw new Error('not used'); },
 		};

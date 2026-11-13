@@ -477,7 +477,7 @@ export class ReleaseNotesTelemetry extends Disposable {
 	}
 }
 
-/* eslint-disable no-restricted-syntax -- These helpers inspect only the isolated release-notes document. */
+/* eslint-disable eslint-js/no-restricted-syntax -- These helpers inspect only the isolated release-notes document. */
 /** Assigns bounded identities after sanitization; labels are available only in the offline manifest. */
 export function indexReleaseNotesContent(container: HTMLElement): IReleaseNotesManifest {
 	for (const element of container.querySelectorAll('[data-release-notes-content-index], [data-release-notes-link-index]')) {
@@ -659,4 +659,4 @@ export function initializeReleaseNotesTelemetry(
 	targetWindow.addEventListener('pagehide', dispose, { ...options, once: true });
 	return dispose;
 }
-/* eslint-enable no-restricted-syntax */
+/* eslint-enable eslint-js/no-restricted-syntax */

@@ -12,7 +12,7 @@ import { aiCustomizationManagementSectionRegistry } from '../../../../../workben
 import { AHPAgentSettingsWidget, type IAgentGlobalConfigurationSettingsTarget } from '../../../../../workbench/contrib/chat/browser/aiCustomization/agentGlobalConfigurationSettingsWidget.js';
 import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
-import { IFocusedSessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 aiCustomizationManagementSectionRegistry.register({

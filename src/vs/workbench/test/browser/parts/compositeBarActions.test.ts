@@ -90,6 +90,9 @@ suite('CompositeBarActionViewItem', () => {
 				fontSize: style.fontSize,
 				spinning: content.classList.contains('codicon-modifier-spin'),
 				label: container.getAttribute('aria-label'),
+				decorativeCap: container.querySelector('.active-item-indicator > .tab-connected-edge')?.getAttribute('aria-hidden'),
+				decorativeDivider: container.querySelector('.tab-divider')?.getAttribute('aria-hidden'),
+				legacyDividerDisplay: mainWindow.getComputedStyle(container.querySelector('.tab-divider')!).display,
 			}, {
 				width: layout.size,
 				height: layout.size,
@@ -100,6 +103,9 @@ suite('CompositeBarActionViewItem', () => {
 				fontSize: '12px',
 				spinning: true,
 				label: 'Testing - Tests are running',
+				decorativeCap: 'true',
+				decorativeDivider: 'true',
+				legacyDividerDisplay: 'none',
 			});
 
 			action.activities = [{ badge: numberBadge }];

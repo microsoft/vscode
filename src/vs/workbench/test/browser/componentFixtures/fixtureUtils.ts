@@ -111,10 +111,10 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, IAgentFeedbackService } from '../.
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsManagementService } from '../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../contrib/sessions/browser/sessionsService.js';
-import { ISessionsHostLayoutService } from '../../../contrib/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsHostLayoutService } from '../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { SessionHost, SessionHostKind } from '../../../contrib/sessions/browser/sessionHost.js';
-import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../contrib/sessions/common/sessionChangesStatsCache.js';
+import { SessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../../contrib/sessions/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
@@ -781,6 +781,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		acceptFeedback: () => { },
 		addReply: () => { },
 		getFeedback: () => [],
+		getFeedbackObservable: () => constObservable([]),
 		isAgentHostSession: () => false,
 		showFeedbackInEditor: () => { },
 		hideFeedbackInEditor: () => { },
@@ -931,6 +932,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		getUriLabel: (uri: URI) => uri.path,
 		getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '',
 		getWorkspaceLabel: () => '',
+		getFolderLocationLabel: () => undefined,
+		registerWorkspaceLabelDecorator: () => ({ dispose: () => { } }),
 		getHostLabel: () => '',
 		getSeparator: () => '/',
 		registerFormatter: () => ({ dispose: () => { } }),
@@ -961,13 +964,13 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		setImpl: () => ({ dispose: () => { } }),
 	});
 
-	// Workspace trust stubs so chat-input fixtures can instantiate the model
-	// picker (ModelPickerWidget reads workspace trust to detect Restricted Mode).
-	// Reports the workspace as trusted so the picker renders normally.
+	// Chat-input fixtures use trusted workspace and folder state.
 	registration.defineInstance(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
 		override onDidChangeTrust = Event.None;
+		override onDidChangeTrustedFolders = Event.None;
 		override readonly workspaceTrustInitialized = Promise.resolve();
 		override isWorkspaceTrusted() { return true; }
+		override async getUriTrustInfo(uri: URI) { return { uri, trusted: true }; }
 	}());
 	registration.defineInstance(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() {
 		override async requestWorkspaceTrust() { return true; }

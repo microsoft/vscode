@@ -18,6 +18,8 @@ export const SessionActivityBarSizeContext = new RawContextKey<string>('sessionA
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 export const NewSessionComposerFocusContext = new RawContextKey<boolean>('newSessionComposerFocus', false, localize('newSessionComposerFocus', "Whether focus is within the new-session composer or its pickers"));
+export const ChatInputSupportsBackgroundContext = new RawContextKey<boolean>('sessionsChatInputSupportsBackground', false, localize('sessionsChatInputSupportsBackground', "Whether the chat input supports sending in the background"));
+export const ChatInputCanScheduleContext = new RawContextKey<boolean>('sessionsChatInputCanSchedule', false, localize('sessionsChatInputCanSchedule', "Whether the chat input supports sending later"));
 export const SessionIdContext = new RawContextKey<string>('sessionId', '', localize('sessionId', "The identifier of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionProviderIdContext = new RawContextKey<string>('sessionProviderId', '', localize('sessionProviderId', "The provider ID of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
 export const SessionTypeContext = new RawContextKey<string>('sessionType', '', localize('sessionType', "The session type of the session in scope (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
@@ -67,9 +69,9 @@ export const SessionsChatBackgroundAvailableContext = new RawContextKey<boolean>
 export const SessionWorktreeCleanupEditorFocusedContext = new RawContextKey<boolean>('sessionWorktreeCleanupEditorFocused', false, localize('sessionWorktreeCleanupEditorFocused', "Whether the Open worktree cleanup editor is focused"));
 export const SessionsChatBackgroundConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundConfigured', false, localize('sessionsChatBackgroundConfigured', "Whether a chat background is configured for the current color theme"));
 export const SessionsChatBackgroundImageConfiguredContext = new RawContextKey<boolean>('sessionsChatBackgroundImageConfigured', false, localize('sessionsChatBackgroundImageConfigured', "Whether a chat background image is configured for the current color theme"));
-export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat"));
+export const IsQuickChatSessionContext = new RawContextKey<boolean>('isQuickChatSession', false, localize('isQuickChatSession', "Whether the session in scope is a workspace-less quick chat, or, where a chat of the session is shown, whether that chat is one; a chat of a quick chat that works in a folder of its own is not"));
 
-/** Whether the session in scope has a workspace, as the Changes and Files tabs of a chat window need. */
+/** Whether the chat in scope has a workspace, as the Changes and Files tabs of a chat window need. */
 export const SessionWithWorkspaceContext = ContextKeyExpr.and(SessionHasWorkspaceContext, IsQuickChatSessionContext.negate())!;
 
 //#endregion
@@ -113,6 +115,13 @@ export const SessionAgentMergeEnabledContext = new RawContextKey<boolean>('sessi
  */
 export const SessionHasOpenPullRequestContext = new RawContextKey<boolean>('sessionHasOpenPullRequest', false, localize('sessionHasOpenPullRequest', "Whether the active session's branch has an open pull request"));
 
+/**
+ * Whether artifact integrations apply to the active session: they are enabled
+ * and its provider supports them. Pull request actions that a recorded pull
+ * request artifact offers, such as Fix Checks or Merge, are then left to it.
+ */
+export const SessionArtifactIntegrationsEnabledContext = new RawContextKey<boolean>('sessionArtifactIntegrationsEnabled', false, localize('sessionArtifactIntegrationsEnabled', "Whether artifact integrations are enabled and supported for the active session"));
+
 //#endregion
 
 //#region < --- Welcome --- >
@@ -155,9 +164,9 @@ export const SessionChatsPickerVisibleContext = new RawContextKey<boolean>('sess
 
 //#endregion
 
-//#region < --- Blocked Sessions --- >
+//#region < --- Command Center Sessions --- >
 
-export const SessionsBlockedSessionsVisibleContext = new RawContextKey<boolean>('sessionsBlockedSessionsVisible', false, localize('sessionsBlockedSessionsVisible', "Whether the blocked-sessions dropdown (surfacing sessions that require input) is open in the sessions titlebar"));
+export const SessionsCommandCenterDropdownVisibleContext = new RawContextKey<boolean>('sessionsCommandCenterDropdownVisible', false, localize('sessionsCommandCenterDropdownVisible', "Whether the sessions dropdown is open from the command center in the sessions titlebar"));
 
 //#endregion
 

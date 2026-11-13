@@ -19,7 +19,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { IAgentHostActiveClientService } from '../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { AgentHostCustomizationService } from '../../browser/agentHostCustomizationService.js';
-import { IChat, ISession } from '../../common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../browser/sessionsProvidersService.js';
 import { focusedSessionHostServiceOf, TestShown } from './sessionHostTestUtils.js';

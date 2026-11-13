@@ -9,21 +9,21 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/tabs.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../../workbench/contrib/sessions/browser/parts/agentsPartCard.js';
+import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../../workbench/browser/parts/sessions/agentsPartCard.js';
 import { AbstractChatView, ChatViewKind } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../../workbench/browser/parts/partGrid/partGridGap.js';
 import { ISessionsChatBackground } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionHost } from '../../../../../workbench/contrib/sessions/browser/sessionHost.js';
-import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ChatOriginKind, IChat, ISession, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../../workbench/contrib/sessions/common/layoutConstants.js';
 import { SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -213,6 +213,13 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		readonly activeSession = observableValue<ITestSessionWithChat | undefined>(this, left);
 		readonly gridShown = observableValue<readonly ITestSessionWithChat[]>(this, sessions);
 		override readonly slotPanes = testGridPanes(this.gridShown);
+		override readonly activePane = derived(this, reader => {
+			const activeSession = this.activeSession.read(reader);
+			return this.slotPanes.read(reader).find(pane => pane.session.read(reader) === activeSession);
+		});
+		override getRecentlyOpenedSessions() {
+			return { recent: sessions, other: [] };
+		}
 		/** Makes the pane of `session` the active one, as focusing it does. */
 		activate(session: ITestSessionWithChat | undefined): void {
 			this.activeSession.set(session, undefined);
@@ -269,7 +276,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	const sidePaneShowTabs = options.sidePaneShowTabs ?? 'multiple';
 	const sidePane = options.sidePanel ? createSidePaneFixture(context, sidePaneShowTabs) : undefined;
 	const bottomPanel = options.bottomPanel ? createBottomPanelFixture() : undefined;
-	const { part, grid, layout, instantiationService } = createSessionsWorkbenchFixture(context, 1440, 900, sessionsService, {
+	const { part, content, grid, layout, instantiationService } = createSessionsWorkbenchFixture(context, 1440, 900, sessionsService, {
 		sidePane: sidePane?.view,
 		sidePaneWidth: SIDE_PANE_WIDTH,
 		bottomPanel: bottomPanel?.view,
@@ -303,7 +310,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		];
 	context.disposableStore.add(autorun(reader => {
 		const visible = sessionsService.gridShown.read(reader);
-		renderTestPanes(part, visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
+		renderTestPanes(content, visible, sessionsService.activeSession.read(reader), slots.filter(slot => visible.some(session => session.sessionId === slot.id)));
 	}));
 	layout();
 	const sidePaneDivider = sidePane
@@ -319,24 +326,24 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		: undefined;
 	if (bottom) {
 		const sideBySideChats = options.multipleChats === 'sideBySide' || options.multipleChats === 'mixedRelated';
-		part.resizeSession(left.sessionId, sideBySideChats ? Direction.Right : Direction.Left, sideBySideChats ? 180 : 120);
-		part.resizeSession(top.sessionId, options.multipleChats === 'bottomRight' ? Direction.Up : Direction.Down, 40);
+		content.resizeSession(left.sessionId, sideBySideChats ? Direction.Right : Direction.Left, sideBySideChats ? 180 : 120);
+		content.resizeSession(top.sessionId, options.multipleChats === 'bottomRight' ? Direction.Up : Direction.Down, 40);
 	}
 	if (options.multipleChats === 'sideBySide') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
-		part.getSessionView(multipleChatsSession.sessionId)!.splitChatToSide(multipleChatsSession.chats.get()[1].resource);
+		content.getSessionView(multipleChatsSession.sessionId)!.splitChatToSide(multipleChatsSession.chats.get()[1].resource);
 		await Promise.resolve();
 	} else if (options.multipleChats === 'stackedLeft') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
-		part.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
+		content.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
 		await Promise.resolve();
 	} else if (options.multipleChats === 'bottomRight') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
-		part.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
+		content.getSessionView(multipleChatsSession.sessionId)!.splitActiveChat('bottom');
 		await Promise.resolve();
 	} else if (options.multipleChats === 'mixedRelated') {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
-		const sessionView = part.getSessionView(multipleChatsSession.sessionId)!;
+		const sessionView = content.getSessionView(multipleChatsSession.sessionId)!;
 		sessionView.splitActiveChat('right');
 		await Promise.resolve();
 		await sessionsService.openChat(multipleChatsSession, multipleChatsSession.chats.get()[2].resource);
@@ -401,12 +408,12 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			);
 		}
 	}
-	context.disposableStore.add(part.onDidFocusPane(id => sessionsService.activate(sessions.find(session => session.sessionId === id))));
+	context.disposableStore.add(content.onDidFocusPane(id => sessionsService.activate(sessions.find(session => session.sessionId === id))));
 	if (options.maximized) {
-		part.toggleMaximizePane(part.getSessionView(left.sessionId)!.pane.get()!);
+		content.toggleMaximizePane(content.getSessionView(left.sessionId)!.pane.get()!);
 	}
 	const sizes = sessions.map(session => {
-		const element = part.getSessionView(session.sessionId)!.element;
+		const element = content.getSessionView(session.sessionId)!.element;
 		return { width: element.offsetWidth, height: element.offsetHeight };
 	});
 	const expectedChatGroupCount = options.multipleChats ? options.multipleChats === 'mixedRelated' ? 3 : 2 : 0;
@@ -479,7 +486,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	if (options.multipleChats) {
 		assert(multipleChatsSession !== undefined, 'Expected a split-chat session');
 		const splitSession = multipleChatsSession;
-		const sessionView = part.getSessionView(splitSession.sessionId)!.element;
+		const sessionView = content.getSessionView(splitSession.sessionId)!.element;
 		const chatGroups = sessionView.querySelector<HTMLElement>('.chat-groups-view');
 		const groups = [...sessionView.querySelectorAll<HTMLElement>('.chat-group-view')];
 		const surfaces = [...sessionView.querySelectorAll<HTMLElement>('.chat-group-view-surface')];
@@ -533,7 +540,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 	}
 	if (sidePane) {
 		assert(sidePaneDivider !== undefined, 'Expected a Sessions/side-pane divider');
-		const bounds = sessions.map(session => part.getSessionView(session.sessionId)!.element.getBoundingClientRect());
+		const bounds = sessions.map(session => content.getSessionView(session.sessionId)!.element.getBoundingClientRect());
 		const left = bounds.reduce((candidate, current) => current.left < candidate.left ? current : candidate);
 		const right = bounds.reduce((candidate, current) => current.left > candidate.left ? current : candidate);
 		const internalGap = right.left - left.right;
@@ -547,7 +554,7 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		assert(Math.abs(dividerCenter - sideGapCenter) < 0.01 && grip.content === '""', 'Expected the side-pane gripper to be centered in the visible gap');
 	}
 	if (bottomPanel) {
-		const bounds = sessions.map(session => part.getSessionView(session.sessionId)!.element.getBoundingClientRect());
+		const bounds = sessions.map(session => content.getSessionView(session.sessionId)!.element.getBoundingClientRect());
 		const sessionBottom = Math.max(...bounds.map(bound => bound.bottom));
 		const panelBounds = bottomPanel.frame.getBoundingClientRect();
 		const panelGap = panelBounds.top - sessionBottom;

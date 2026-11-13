@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { AccountClient } from '../../../../../platform/github/common/account/accountClient.js';
+import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../../../../platform/github/common/client/request.js';
+import { parse } from '../../../../../platform/github/common/client/schema.js';
+import { GitHubAuthorizationContext } from '../../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
@@ -16,39 +20,38 @@ import { withCloudSandboxDraftModelConfig } from '../../../../contrib/chat/brows
 import { ICloudSandboxTelemetryService } from '../../../../contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { TestUserDataProfileService } from '../../../common/workbenchTestServices.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { renderPicker } from './tabbedModelPicker.fixture.js';
 
 async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' | 'pricing' | 'long' | 'unknown', connected = false): Promise<void> {
 	const details = view !== 'list';
 	const unknownLimits = view === 'unknown';
+	const requestProvider: IApiRequestProvider = {
+		request: async <T>(_request: ApiRequest, _signal: AbortSignal, parser?: parse.Parser<T>): Promise<ApiResponse<T | void>> => ({
+			status: 200,
+			data: parser?.(JSON.stringify({
+				data: [
+					{ id: 'auto', name: 'Auto', billing: { is_premium: true, multiplier: 0.9 } },
+					{
+						id: 'cloud-model', name: 'Cloud Model', model_picker_price_category: 'medium',
+						billing: {
+							token_prices: unknownLimits
+								? { batch_size: 1_000_000, input_price: 200_000_000_000, output_price: 1_000_000_000_000, cache_price: 10_000_000_000 }
+								: {
+									batch_size: 1_000_000,
+									default: { context_max: 272_000, input_price: 200, output_price: 1000, cache_price: 10, cache_write_price: 250 },
+									long_context: { context_max: 922_000, input_price: 400, output_price: 1500, cache_price: 20, cache_write_price: 500 },
+								}
+						},
+						capabilities: { supports: { reasoning_effort: ['low', 'medium', 'high', 'xhigh', 'max'] }, limits: { max_context_window_tokens: 1_050_000 } },
+					},
+				],
+			})),
+		}),
+	};
 	const api = context.disposableStore.add(new CloudSandboxApiService(
-		new class extends mock<IRequestService>() {
-			override async request() {
-				return {
-					res: { statusCode: 200, headers: {} },
-					stream: bufferToStream(VSBuffer.fromString(JSON.stringify({
-						data: [
-							{ id: 'auto', name: 'Auto', billing: { is_premium: true, multiplier: 0.9 } },
-							{
-								id: 'cloud-model', name: 'Cloud Model', model_picker_price_category: 'medium',
-								billing: {
-									token_prices: unknownLimits
-										? { batch_size: 1_000_000, input_price: 200_000_000_000, output_price: 1_000_000_000_000, cache_price: 10_000_000_000 }
-										: {
-											batch_size: 1_000_000,
-											default: { context_max: 272_000, input_price: 200, output_price: 1000, cache_price: 10, cache_write_price: 250 },
-											long_context: { context_max: 922_000, input_price: 400, output_price: 1500, cache_price: 20, cache_write_price: 500 },
-										}
-								},
-								capabilities: { supports: { reasoning_effort: ['low', 'medium', 'high', 'xhigh', 'max'] }, limits: { max_context_window_tokens: 1_050_000 } },
-							},
-						],
-					}))),
-				};
-			}
-		}(),
+		new class extends mock<IRequestService>() { }(),
 		new class extends mock<IAuthenticationService>() {
 			override readonly onDidChangeSessions = Event.None;
 			override readonly onDidRegisterAuthenticationProvider = Event.None;
@@ -62,10 +65,12 @@ async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' 
 		new class extends mock<ICloudSandboxTelemetryService>() {
 			override reportRequest(): void { }
 		}(),
-		new class extends mock<IWorkbenchGitHubService>() { }(),
-		new class extends mock<IUserDataProfileService>() {
-			override readonly onDidChangeCurrentProfile = Event.None;
+		new class extends mock<IWorkbenchGitHubService>() {
+			override async acquireAccountApiClient(authorization: GitHubAuthorizationContext) {
+				return new AccountClient(authorization, { rest: requestProvider, graphql: requestProvider, missionControl: requestProvider }, Disposable.None);
+			}
 		}(),
+		new TestUserDataProfileService(),
 	));
 	const catalog = await api.listModels(CancellationToken.None);
 	const provider = context.disposableStore.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));

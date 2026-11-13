@@ -16,14 +16,14 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ITestSessionWithChat } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../contrib/sessions/browser/parts/chatCompositeBar.js';
 import { applySessionViewThemeColors } from '../../../../contrib/sessions/browser/parts/sessionBarStyles.js';
-import { applyAgentsPartCardStyles } from '../../../../contrib/sessions/browser/parts/agentsPartCard.js';
+import { applyAgentsPartCardStyles } from '../../../../browser/parts/sessions/agentsPartCard.js';
 import { Menus } from '../../../../contrib/sessions/browser/menus.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.fixture.js';
@@ -32,9 +32,10 @@ import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../sessions/browser/media/workbench.css';
-import '../../../../contrib/sessions/browser/parts/media/sessionsPart.css';
+import '../../../../browser/parts/sessions/media/sessionsPart.css';
+import '../../../../contrib/sessions/browser/parts/media/sessionsGridContent.css';
 import '../../../../contrib/sessions/browser/parts/media/chatGroupsView.css';
-import { ISessionHost } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 // ============================================================================
 // Mock helpers
@@ -188,7 +189,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 async function renderStickyMessageFrame(ctx: ComponentFixtureContext, width: number): Promise<void> {
 	const chat = createMockChat({ title: 'Review panel edges' });
 	const content = renderBar(ctx, [chat], chat, { width });
-	const chatView = $('.chat-view');
+	const chatView = $('.chat-view.sessions-chat');
 	content.style.height = '320px';
 	content.appendChild(chatView);
 	let handle: IChatWidgetFixtureHandle | undefined;

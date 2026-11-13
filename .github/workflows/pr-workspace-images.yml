@@ -1,11 +1,11 @@
 name: Code OSS (workspace images)
 
-# Builds the workspace images for the test jobs of pull requests (pr-linux-test.yml and
-# pr-win32-test.yml): a disk image of a workspace of main, with its
-# dependencies, Electron and the Playwright browsers installed, at the path of the workspaces of the
-# jobs, and with a .git that their checkouts reuse. A job that mounts an image installs only what
-# changed since. The macOS job is commented out with the macOS test jobs of pr.yml, which never
-# adopted the images. See .github/workflows/workspace_image/README.md.
+# Builds the workspace images for the jobs that install the dependencies (the test jobs of
+# pr-linux-test.yml and pr-win32-test.yml, and jobs of pr.yml and component-fixtures.yml): a disk image
+# of a workspace of main, with its dependencies, Electron and the Playwright browsers installed, at the
+# path of the workspaces of the jobs, and with a .git that their checkouts reuse. A job that mounts an
+# image installs only what changed since. The macOS job is commented out with the macOS test jobs of
+# pr.yml, which never adopted the images. See .github/workflows/workspace_image/README.md.
 # The daily and manual runs also prepare the WSL distribution of the Windows smoke tests (the
 # wsl-distro job), and cache the apt packages of the Linux test jobs (the linux-packages job).
 on:
@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: node "$RUNNER_TEMP/workspace-image/image.ts" env
 
-      # The same packages as in pr-node-modules.yml, for the native modules
+      # The same packages as in pr-pnpm-store.yml, for the native modules
       - name: Install build tools
         run: |
           set -e

@@ -429,7 +429,7 @@ export function registerChatCopyActions() {
 
 			// Otherwise, fallback to querying from the active element
 			if (!selectedElement) {
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				selectedElement = activeElement?.querySelector(`.${katexContainerClassName}`) ?? null;
 			}
 

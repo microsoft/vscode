@@ -5,7 +5,7 @@
 
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatPhoneInputSessionContext } from '../../chat/browser/widget/input/chatPhoneInputPresenter.js';
-import { IChat, ISession } from '../common/session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 
 export interface IChatPhoneInputTarget {
 	readonly providerId: string;

@@ -3,24 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class ApiEventNaming implements eslint.Rule.RuleModule {
+export default new class ApiEventNaming implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			usage: 'Use the Thenable-type instead of the Promise type',
 		},
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 
 
 
 		return {
-			['TSTypeAnnotation TSTypeReference Identifier[name="Promise"]']: (node: ESTree.Identifier) => {
+			['TSTypeAnnotation TSTypeReference Identifier[name="Promise"]']: (node: ESTree.IdentifierReference) => {
 
 				context.report({
 					node,

@@ -41,7 +41,7 @@ import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/action
 import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from '../../../../workbench/browser/feedbackInputWidget.js';
 import { ICodeReviewService, IPRReviewCommentTarget } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
-import { IGitHubPullRequestRef } from '../../../../workbench/contrib/sessions/common/session.js';
+import { IGitHubPullRequestRef } from '../../../../workbench/services/sessions/common/session.js';
 
 const addFeedbackAtCurrentLineActionId = 'agentFeedbackEditor.action.addAtCurrentLine';
 const agentFeedbackHoverGlyphClassName = 'agent-feedback-glyph';

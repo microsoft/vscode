@@ -17,7 +17,7 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatSendResult, IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { resolveSessionCommandTarget } from '../../../browser/sessionCommandTarget.js';
 import { bindIsAgentHostSessionContextKey, IsAgentHostSession } from '../../../browser/sessionScopedContextKeys.js';
 import { ActiveSessionContextKeys, IsolationMode } from '../../../common/changes.js';

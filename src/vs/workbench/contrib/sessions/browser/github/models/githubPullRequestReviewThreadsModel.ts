@@ -12,7 +12,7 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ApiRequestOptions } from '../../../../../../platform/github/common/client/request.js';
 import { compareRequestPriority, RequestPriority } from '../../../../../../platform/github/common/types.js';
 import { IGitHubPRComment, IGitHubPullRequestReviewThread } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 import { GitHubPRFetcher } from '../fetchers/githubPRFetcher.js';
 
 const LOG_PREFIX = '[GitHubPullRequestReviewThreadsModel]';

@@ -32,7 +32,7 @@ import { automationTriggerChoices, canEditAutomationTriggers, hasAutomationEvent
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { AgentSessionProviders } from '../../../../chat/browser/agentSessions/agentSessions.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProviderAutomations } from '../../../common/sessionsProvider.js';
 import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
 

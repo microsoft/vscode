@@ -28,8 +28,8 @@ import { createEditorParts, registerTestEditor, TestEditorParts, TestFileEditorI
 import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IStatusbarService } from '../../../statusbar/browser/statusbar.js';
 import { EditorService } from '../../browser/editorService.js';
-import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { ACTIVE_GROUP, IEditorService } from '../../common/editorService.js';
+import { GroupDirection, GroupsOrder, IContentPart, IEditorGroup, IEditorGroupsService } from '../../common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../common/editorService.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -123,9 +123,10 @@ suite('View Editors', () => {
 	});
 
 	teardown(() => {
+		// What a test leaves open, such as after a failed assertion, closes before the logs reset, so that it does not log into the next test.
+		disposables.clear();
 		views.length = 0;
 		log.length = 0;
-		disposables.clear();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -271,6 +272,42 @@ suite('View Editors', () => {
 			createdBesideOthers: false,
 			aloneAgain: true,
 			untitled: undefined,
+		});
+	});
+
+	test('a view that stops rendering its title for now has its group show its title area, also alone, and is told not to show its title; rendering it again, it is as before; beside other editors nothing changes; editors opened from its group still go to the main part', async () => {
+		const { parts, part } = await createServices();
+		const group = groupViewOf(parts, part.activeGroup);
+		const titleShown = () => group.element.querySelector<HTMLElement>(':scope > .title')!.style.display !== 'none' && !group.element.classList.contains('title-provided-by-editor');
+		const read = () => ({ title: titleShown(), told: views[0].providedTitleVisible });
+		const titled = createViewInput('test.titled', '/chat/a');
+		titled.setRendersTitle(false);
+		await part.activeGroup.openEditor(titled, { pinned: true });
+		const aloneNotRendering = read();
+		titled.setRendersTitle(true);
+		const aloneRendering = read();
+		titled.setRendersTitle(false);
+		const aloneStopped = read();
+
+		const file = disposables.add(new TestFileEditorInput(URI.file('/beside.txt'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(file, { pinned: true });
+		await part.activeGroup.openEditor(titled);
+		const besideNotRendering = read();
+		titled.setRendersTitle(true);
+		const besideRendering = read();
+
+		titled.setRendersTitle(false);
+		const opened = disposables.add(new TestFileEditorInput(URI.file('/from-view.txt'), TEST_EDITOR_INPUT_ID));
+		await views[0].instantiationService.invokeFunction(accessor => accessor.get(IEditorService)).openEditor(opened);
+
+		assert.deepStrictEqual({ aloneNotRendering, aloneRendering, aloneStopped, besideNotRendering, besideRendering, capabilityKept: titled.hasCapability(EditorInputCapabilities.ProvidesTitle), openedInMainPart: parts.mainPart.groups.some(group => group.contains(opened)) }, {
+			aloneNotRendering: { title: true, told: false },
+			aloneRendering: { title: false, told: true },
+			aloneStopped: { title: true, told: false },
+			besideNotRendering: { title: true, told: false },
+			besideRendering: { title: true, told: false },
+			capabilityKept: true,
+			openedInMainPart: true,
 		});
 	});
 
@@ -445,6 +482,82 @@ suite('View Editors', () => {
 		});
 		await parts.mainPart.activeGroup.closeAllEditors();
 		await part.activeGroup.closeAllEditors();
+	});
+
+	test('opens to a group by its id, such as an extension\'s column, or to the side of the active group, do not put other editors into a group that holds a view with its own title: they go to the main part of its window; such a view, an explicit group and an editor already in the group still go there', async () => {
+		const { parts, editorService, part } = await createServices();
+		const where = (resource: URI) => parts.mainPart.groups.some(group => group.editors.some(editor => isEqual(editor.resource, resource))) ? 'main' : part.groups.some(group => group.editors.some(editor => isEqual(editor.resource, resource))) ? 'part' : 'none';
+		const file = (path: string) => disposables.add(new TestFileEditorInput(URI.file(path), TEST_EDITOR_INPUT_ID));
+		const viewGroup = part.activeGroup;
+		const focusIn = (element: HTMLElement) => {
+			const focusable = element.appendChild(mainWindow.document.createElement('div'));
+			focusable.tabIndex = 0;
+			focusable.focus();
+		};
+		const openAll = async (label: string) => {
+			const byId = file(`/${label}-id.txt`);
+			await editorService.openEditor(byId, { pinned: true }, viewGroup.id);
+			// As an extension's column names a group: by its place among the groups of all parts
+			const byColumn = file(`/${label}-column.txt`);
+			const groupsByAppearance = parts.getGroups(GroupsOrder.GRID_APPEARANCE);
+			await editorService.openEditor(byColumn, { pinned: true }, groupsByAppearance[groupsByAppearance.findIndex(group => group.id === viewGroup.id)].id);
+			focusIn(part.element as HTMLElement);
+			const viewGroupActive = parts.activeGroup.id === viewGroup.id;
+			const toSide = file(`/${label}-side.txt`);
+			await editorService.openEditor(toSide, { pinned: true }, SIDE_GROUP);
+			return { byId: where(byId.resource), byColumn: where(byColumn.resource), viewGroupActive, toSide: where(toSide.resource), partGroups: part.groups.length };
+		};
+
+		await viewGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+		const oneView = await openAll('one');
+		await viewGroup.openEditor(createViewInput('test.titled', '/chat/b'), { pinned: true });
+		const twoViews = await openAll('two');
+
+		const view = createViewInput('test.titled', '/chat/c');
+		await editorService.openEditor(view, { pinned: true }, viewGroup.id);
+		const explicit = file('/explicit.txt');
+		await editorService.openEditor(explicit, { pinned: true }, viewGroup);
+		const reopened = await editorService.openEditor(explicit, { pinned: true }, viewGroup.id);
+
+		const untitledGroup = part.addGroup(viewGroup, GroupDirection.DOWN);
+		await untitledGroup.openEditor(createViewInput('test.untitled', '/chat/d'), { pinned: true });
+		const besideUntitled = file('/beside-untitled.txt');
+		await editorService.openEditor(besideUntitled, { pinned: true }, untitledGroup.id);
+
+		assert.deepStrictEqual({
+			oneView, twoViews,
+			view: viewGroup.contains(view),
+			explicit: where(explicit.resource),
+			reopenedInItsGroup: reopened?.group.id === viewGroup.id,
+			besideUntitled: where(besideUntitled.resource),
+		}, {
+			oneView: { byId: 'main', byColumn: 'main', viewGroupActive: true, toSide: 'main', partGroups: 1 },
+			twoViews: { byId: 'main', byColumn: 'main', viewGroupActive: true, toSide: 'main', partGroups: 1 },
+			view: true,
+			explicit: 'part',
+			reopenedInItsGroup: true,
+			besideUntitled: 'part',
+		});
+		for (const group of [...parts.mainPart.groups, ...part.groups]) {
+			await group.closeAllEditors();
+		}
+	});
+
+	test('an editor opened by the id of a group that holds a view with its own title does not go into a locked group of the main part it is handed off to', async () => {
+		const { parts, editorService, part } = await createServices();
+		const viewGroup = part.activeGroup;
+		await viewGroup.openEditor(createViewInput('test.titled', '/chat/a'), { pinned: true });
+		const lockedGroup = parts.mainPart.activeGroup;
+		lockedGroup.lock(true);
+
+		const input = disposables.add(new TestFileEditorInput(URI.file('/locked.txt'), TEST_EDITOR_INPUT_ID));
+		await editorService.openEditor(input, { pinned: true }, viewGroup.id);
+
+		const target = parts.mainPart.groups.find(group => group.contains(input));
+		assert.deepStrictEqual({ inLocked: lockedGroup.contains(input), inMainPart: !!target, targetLocked: target?.isLocked }, { inLocked: false, inMainPart: true, targetLocked: false });
+		for (const group of [...parts.mainPart.groups, ...part.groups]) {
+			await group.closeAllEditors();
+		}
 	});
 
 	test('a view saves its state before its editor moves to another group, where it is created again, and before its pane clears its input', async () => {
@@ -638,5 +751,23 @@ suite('View Editors', () => {
 			reachedContainer: 2, // the cancelled drag from the text field, and the handle's drag
 			transferAfterEnd: false
 		});
+	});
+
+	test('the view\'s drag handle does not start a drag that something in front of it cancelled', async () => {
+		const { part } = await createServices();
+		await part.activeGroup.openEditor(createViewInput('test.titled', '/chat/a'));
+		const handle = views[0].dragHandle!;
+
+		const veto = (e: globalThis.Event) => e.preventDefault();
+		handle.addEventListener('dragstart', veto, true);
+		dispatch(handle, 'dragstart');
+		const transferWhenCancelled = editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+		handle.removeEventListener('dragstart', veto, true);
+
+		dispatch(handle, 'dragstart');
+		const transferWhenNot = editorTransfer.hasData(DraggedEditorIdentifier.prototype);
+		dispatch(handle, 'dragend');
+
+		assert.deepStrictEqual({ transferWhenCancelled, transferWhenNot }, { transferWhenCancelled: false, transferWhenNot: true });
 	});
 });

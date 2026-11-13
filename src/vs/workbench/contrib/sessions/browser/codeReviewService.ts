@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IGitHubPullRequestReview } from '../common/github/types.js';
-import { IGitHubPullRequestRef } from '../common/session.js';
+import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 
 // --- Types -------------------------------------------------------------------
 

@@ -10,7 +10,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { getSessionAgentMergeConfigurationObservable } from './sessionAgentMerge.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ISession, SessionStatus } from '../common/session.js';
+import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { IGitHubService } from './github/githubService.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState } from '../common/github/types.js';

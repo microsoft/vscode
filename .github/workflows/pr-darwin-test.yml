@@ -66,7 +66,7 @@ env:
 # checks are not limited by the size of one pool. Each group runs about a third of the runner
 # minutes of a pull request, and the two Electron smoke test shards run in different groups:
 # - 0: Remote, Electron-Unit, Browser-Unit, chat-lib - Test (macOS) of pr.yml, and the macOS cache
-#   warming job of pr-node-modules.yml
+#   warming job of pr-pnpm-store.yml
 # - 1: Electron, Electron-Smoke (shard 1/2)
 # - 2: Electron-Smoke (shard 2/2), Browser
 jobs:
@@ -93,15 +93,12 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      - name: Restore pnpm store cache
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-macos
-          key-args: "darwin ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+          key-prefix: pnpm-store-macos
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
           c++ --version
@@ -164,7 +161,7 @@ jobs:
         working-directory: test/integration/browser
         run: pnpm run compile
 
-      # pr-node-modules.yml fills this cache on main, so pull requests don't download the browsers.
+      # pr-pnpm-store.yml fills this cache on main, so pull requests don't download the browsers.
       - name: Restore Playwright browsers
         if: ${{ env.BROWSER_TESTS == 'true' }}
         uses: ./.github/actions/restore-playwright
@@ -343,6 +340,11 @@ jobs:
         if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == env.SMOKE_SHARD_TOTAL }}
         timeout-minutes: 40
         run: bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos
+
+      - name: 🧪 Run Agents Window smoke tests through Basic-authenticated proxy from the http.proxy setting
+        if: ${{ env.ELECTRON_TESTS == 'true' && env.SMOKE_TESTS == 'true' && env.SMOKE_SHARD_INDEX == env.SMOKE_SHARD_TOTAL }}
+        timeout-minutes: 40
+        run: bash test/smoke/scripts/run-agents-window-network-proxy.sh --basic
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ env.BROWSER_TESTS == 'true' && env.SMOKE_TESTS == 'true' }}

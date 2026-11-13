@@ -60,7 +60,7 @@ env:
   # Skip binary downloads during `pnpm install` (they hang intermittently on hosted
   # runners inside the nested postinstall installs). Electron and Playwright are
   # fetched explicitly later via `Download Electron` and `Install Playwright
-  # Chromium`, which ignore these flags. Mirrors pr-node-modules.yml.
+  # Chromium`, which ignore these flags. Mirrors pr-pnpm-store.yml.
   ELECTRON_SKIP_BINARY_DOWNLOAD: 1
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
@@ -122,7 +122,7 @@ jobs:
         run: |
           set -e
           # Retry with a per-attempt timeout to survive transient npm registry
-          # hangs/failures on hosted runners (mirrors pr-node-modules.yml).
+          # hangs/failures on hosted runners (mirrors pr-pnpm-store.yml).
           for i in {1..5}; do
             timeout 900 pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then

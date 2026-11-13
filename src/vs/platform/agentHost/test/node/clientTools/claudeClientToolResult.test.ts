@@ -37,6 +37,14 @@ suite('claudeClientToolResult / convertToolCallResult', () => {
 		assert.strictEqual(out.isError, true);
 	});
 
+	test('error result without content surfaces the error message as text', () => {
+		const out = convertToolCallResult(makeResult({
+			success: false,
+			error: { message: 'boom' },
+		}), 'tu_2b');
+		assert.deepStrictEqual(out, { content: [{ type: 'text', text: 'boom' }], isError: true });
+	});
+
 	test('image embedded resource → MCP image block (field rename + repackage)', () => {
 		const out = convertToolCallResult(makeResult({
 			content: [{

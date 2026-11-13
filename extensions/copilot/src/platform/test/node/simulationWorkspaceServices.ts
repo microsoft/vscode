@@ -28,6 +28,7 @@ import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { FileType, RelativePattern } from '../../filesystem/common/fileTypes';
 import { NodeFileSystemService } from '../../filesystem/node/fileSystemServiceImpl';
 import { IGitService, RepoContext } from '../../git/common/gitService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../../git/vscode/git';
 import { AbstractLanguageDiagnosticsService } from '../../languages/common/languageDiagnosticsService';
 import { ILanguageFeaturesService } from '../../languages/common/languageFeaturesService';

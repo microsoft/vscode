@@ -426,7 +426,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		});
 		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
 			template.actionBar.clear();
 		}

@@ -21,7 +21,9 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { Event } from '../../../../util/vs/base/common/event';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { AutomaticInstructionsCollector, InstructionsCollectionEvent } from '../../node/automaticInstructionsCollector';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { InstructionFileIdPrefix, isCustomizationsIndex, isInstructionFile } from '../../../../extension/prompt/common/chatVariablesCollection';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { ToolName } from '../../../../extension/tools/common/toolNames';
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { NullNativeEnvService } from '../../../env/common/nullEnvService';

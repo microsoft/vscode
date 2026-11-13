@@ -8,7 +8,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { linkKey } from '../sessionLinks.js';
-import { getChatSessionArtifacts, getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../session.js';
+import { getChatSessionArtifacts, getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 
 export interface ISessionGitHubReferences {
 	readonly pullRequests: readonly IGitHubPullRequestRef[];

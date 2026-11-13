@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,10 +18,10 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { AbstractCustomView, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../../customView/browser/customViewService.js';
-import { ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../../../../workbench/contrib/sessions/common/session.js';
+import { ICreateNewSessionOptions, INewSessionDraftSlot, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ChatInteractivity, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionsNavigation } from '../../../../../workbench/contrib/sessions/browser/sessionNavigation.js';
-import { getRecencyEntryKey, SessionsRecencyHistory } from '../../../../../workbench/contrib/sessions/browser/sessionsRecencyHistory.js';
+import { getRecencyEntryKey, SessionsRecencyHistory } from '../../../../../workbench/services/sessions/browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { INestedChatWorkspace, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { TestWindowCanvasService } from '../../../canvas/test/browser/testWindowCanvasService.js';
@@ -98,6 +100,12 @@ function stubSession(id: string, status: SessionStatus = SessionStatus.Completed
 }
 
 class MockSessionStore implements ISessionsManagementService {
+	savedDraftOpener: ((draftId: string, token: CancellationToken) => Promise<boolean>) | undefined;
+
+	async openSavedDraft(draftId: string, token: CancellationToken): Promise<boolean> {
+		return this.savedDraftOpener?.(draftId, token) ?? false;
+	}
+
 	readonly archivedSessionItems = constObservable({ available: false, state: 'loaded' as const });
 	acquireArchivedSessionItems() { return toDisposable(() => { }); }
 
@@ -124,10 +132,14 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidInvokeChangesetOperation = Event.None;
 	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidReplaceNewDraftSession = Event.None;
+	readonly onDidAcceptNewSessionRequest = Event.None;
+	readonly onDidEndNewSessionRequest = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
 
 	readonly newSession: IObservable<ISession | undefined> = constObservable(undefined);
 	readonly automationSession: IObservable<ISession | undefined> = constObservable(undefined);
+	readonly defaultNewSessionSlot: INewSessionDraftSlot = this;
+	readonly id = 'composer';
 
 	private readonly _sessions = new Map<string, ISession>();
 	private _openedResource: URI | undefined;
@@ -239,6 +251,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
 	createNewSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
+	async configureNewSessionDraft(_session: ISession, _options: ICreateNewSessionOptions, _token?: CancellationToken): Promise<void> { }
 	createAutomationSession(_folderUri: URI, _options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	createAutomationQuickChat(_options?: ICreateNewSessionOptions): ISession { throw new Error('not implemented'); }
 	getAutomationSessionConfiguration(): Promise<undefined> { return Promise.resolve(undefined); }
@@ -250,6 +263,8 @@ class MockSessionStore implements ISessionsManagementService {
 	forkChatInSession(_session: ISession, _sourceChat: URI, _turnId: string): Promise<IChat> { throw new Error('not implemented'); }
 	createSideChatInSession(_session: ISession, _sourceChat: URI, _turnId: string, _selection?: ISideChatSelection): Promise<IChat> { throw new Error('not implemented'); }
 	discardNewSession(): void { throw new Error('not implemented'); }
+	createNewSessionSlot(): INewSessionDraftSlot & IDisposable { throw new Error('not implemented'); }
+	getNewSessionOwner(): INewSessionDraftSlot | undefined { return undefined; }
 	discardAutomationSession(): void { throw new Error('not implemented'); }
 	unsetNewSession(): void { throw new Error('not implemented'); }
 	sendNewChatRequest(_session: ISession, _options: ISendRequestOptions): Promise<void> { throw new Error('not implemented'); }
@@ -267,6 +282,7 @@ class MockSessionStore implements ISessionsManagementService {
 	setActive(_session: ISession): void { throw new Error('not implemented'); }
 	cancelCurrentRequest(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
+	prepareSessionWorktreeCleanup(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	importSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	unarchiveSession(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	archiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
@@ -938,6 +954,138 @@ suite('SessionsNavigation', () => {
 		store.setActiveSession(s2);
 
 		assert.deepStrictEqual(recency.entries.map(entry => entry.kind), ['session', 'session', 'newSession']);
+	});
+
+	test('saved drafts retain distinct Back/Forward identities without changing MRU order', async () => {
+		const session = stubSession('session');
+		store.addSession(session);
+		const opened: string[] = [];
+		store.savedDraftOpener = async id => {
+			opened.push(id);
+			nav.setCurrentDraftId(id);
+			await store.openNewSession();
+			return true;
+		};
+		nav.setCurrentDraftId('first');
+		store.setActiveSession(session);
+		nav.setCurrentDraftId('second');
+		await store.openNewSession();
+		const before = recency.entries.map(getRecencyEntryKey);
+
+		await nav.goBack();
+		await nav.goBack();
+		const afterBack = store.activeSession.get()?.sessionId;
+		await nav.goForward();
+		await nav.goForward();
+
+		assert.deepStrictEqual({
+			opened, afterBack, afterForward: store.activeSession.get()?.sessionId,
+			orderPreserved: recency.entries.map(getRecencyEntryKey),
+			canGoForward: canGoForward(),
+		}, { opened: ['first', 'second'], afterBack: undefined, afterForward: undefined, orderPreserved: before, canGoForward: false });
+	});
+
+	test('picker recreation preserves a saved draft entry and clearing restores legacy composer identity', () => {
+		nav.setCurrentDraftId('saved');
+		const before = recency.entries.map(getRecencyEntryKey);
+		store.setActiveSession(stubSession('provider-one', SessionStatus.Untitled));
+		store.setActiveSession(stubSession('provider-two', SessionStatus.Untitled));
+		nav.recordNewSessionOpened();
+		const after = recency.entries.map(getRecencyEntryKey);
+		nav.setCurrentDraftId(undefined);
+		assert.deepStrictEqual({ before, after, cleared: recency.entries }, {
+			before: ['["newSession","saved"]'],
+			after: ['["newSession","saved"]'],
+			cleared: [{ kind: 'newSession' }],
+		});
+	});
+
+	test('unavailable saved drafts are skipped without opening the composer or disturbing the remaining order', async () => {
+		const first = stubSession('first');
+		const last = stubSession('last');
+		store.addSession(first);
+		store.addSession(last);
+		store.setActiveSession(first);
+		nav.setCurrentDraftId('deleted');
+		await store.openNewSession();
+		store.setActiveSession(last);
+
+		await nav.goBack();
+		const afterBack = store.lastOpenedResource?.toString();
+		await nav.goForward();
+		assert.deepStrictEqual({
+			afterBack, afterForward: store.lastOpenedResource?.toString(),
+			composerOpened: store.lastOpenedNewSession,
+			drafts: recency.entries.filter(entry => entry.kind === 'newSession'),
+		}, {
+			afterBack: first.resource.toString(), afterForward: last.resource.toString(),
+			composerOpened: false, drafts: [{ kind: 'newSession' }],
+		});
+	});
+
+	test('a newer explicit navigation cancels pending saved draft restoration', async () => {
+		const first = stubSession('first');
+		const last = stubSession('last');
+		store.addSession(first);
+		store.addSession(last);
+		nav.setCurrentDraftId('saved');
+		store.setActiveSession(first);
+		const restore = new DeferredPromise<void>();
+		let cancelled = false;
+		store.savedDraftOpener = async (id, token) => {
+			await restore.p;
+			cancelled = token.isCancellationRequested;
+			if (cancelled) {
+				return false;
+			}
+			nav.setCurrentDraftId(id);
+			await store.openNewSession();
+			return true;
+		};
+		const back = nav.goBack();
+		const explicit = nav.beginSessionOpen('explicit', CancellationToken.None);
+		store.setActiveSession(last);
+		explicit.complete();
+		await restore.complete();
+		await back;
+		assert.deepStrictEqual({
+			cancelled, active: store.activeSession.get()?.sessionId,
+			drafts: recency.entries.filter(entry => entry.kind === 'newSession'),
+		}, { cancelled: true, active: 'last', drafts: [{ kind: 'newSession', draftId: 'saved' }] });
+	});
+
+	test('typing replaces the composer entry and navigation retains the stowed draft', async () => {
+		const previous = stubSession('previous');
+		store.addSession(previous);
+		store.setActiveSession(previous);
+		await store.openNewSession();
+		nav.setCurrentDraftId('typed');
+		const afterTyping = recency.entries.map(getRecencyEntryKey);
+		nav.setCurrentDraftId(undefined, true);
+		store.setActiveSession(previous);
+		const afterStowing = recency.entries.map(getRecencyEntryKey);
+		await store.openNewSession();
+		nav.setCurrentDraftId('second');
+		assert.deepStrictEqual({ afterTyping, afterStowing, afterSecond: recency.entries.map(getRecencyEntryKey) }, {
+			afterTyping: ['["newSession","typed"]', getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource })],
+			afterStowing: [getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource }), '["newSession","typed"]'],
+			afterSecond: ['["newSession","second"]', getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource }), '["newSession","typed"]'],
+		});
+	});
+
+	test('failed saved draft restoration leaves the current destination and history intact', async () => {
+		const session = stubSession('session');
+		store.addSession(session);
+		nav.setCurrentDraftId('saved');
+		store.setActiveSession(session);
+		const before = recency.entries.map(getRecencyEntryKey);
+		store.savedDraftOpener = async () => { throw new Error('Draft unavailable'); };
+		await nav.goBack();
+		assert.deepStrictEqual({
+			active: store.activeSession.get()?.sessionId,
+			order: recency.entries.map(getRecencyEntryKey),
+			back: canGoBack(), forward: canGoForward(),
+		}, { active: 'session', order: before, back: true, forward: false });
 	});
 
 	test('go to new-session, goBack, go to new-session again still enables back', async () => {

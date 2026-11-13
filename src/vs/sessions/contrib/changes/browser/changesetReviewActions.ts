@@ -11,10 +11,10 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { getChangesOfSession, IChangesViewService } from '../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { findChangesEditorFileChange, getChangesEditorFileResource } from '../../../../workbench/contrib/sessions/browser/changes/changesEditorLabels.js';
-import { SessionChangesFileResourceContext } from '../../../../workbench/contrib/sessions/browser/changes/changesMultiDiffSourceResolver.js';
-import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext, mainWindowChangesOwner } from '../../../../workbench/contrib/sessions/browser/changes/changesViewService.js';
-import { CHANGESET_REVIEW_ACTION_ID, getFileActionEditorPane, SessionChangesEditor } from '../../../../workbench/contrib/sessions/browser/changes/sessionChangesEditor.js';
+import { findChangesEditorFileChange, getChangesEditorFileResource } from '../../../../workbench/contrib/sessionChanges/browser/changesEditorLabels.js';
+import { SessionChangesFileResourceContext } from '../../../../workbench/contrib/sessionChanges/browser/changesMultiDiffSourceResolver.js';
+import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext, mainWindowChangesOwner } from '../../../../workbench/contrib/sessionChanges/browser/changesViewService.js';
+import { CHANGESET_REVIEW_ACTION_ID, getFileActionEditorPane, SessionChangesEditor } from '../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 
 export class ChangesetReviewAction extends Action2 {
 	constructor() {

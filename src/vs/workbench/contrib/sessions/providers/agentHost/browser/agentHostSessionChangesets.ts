@@ -21,11 +21,11 @@ import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, Change
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChangesetStatus, Changeset, isHostNoticeTurn, lastAttributableTurnId, MessageKind, StateComponents, TurnState, type ChangesetState, type ChatState, type ChatSummary, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../common/session.js';
-import { isIChatSessionFileChange2 } from '../../../../chat/common/chatSessionsService.js';
+import { ISessionChangeset, ISessionChangesetCapabilities, ISessionChangesetOperation, ISessionChangesetOperationTarget, ISessionFileChange, ISessionTurnFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, sessionFileChangesEqual } from '../../../../../services/sessions/common/session.js';
 import { changesetFileToChange } from './agentHostDiffs.js';
 import { AgentHostPullRequestCreation } from './agentHostPullRequestCreation.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
+import { isIChatSessionFileChange2 } from '../../../../../common/chatSessionFileChange.js';
 
 export interface IAgentHostChangeset extends Changeset {
 	/** Provider-neutral identity when it differs from the protocol change kind. */

@@ -39,7 +39,7 @@ export class TestSessionsList extends SessionsList {
 	/** Moves the tree focus to the referenced row, revealing it. Returns `false` when the row is not in the list. */
 	setFocusedItem(item: SessionsListItemReference | undefined): boolean {
 		if (!item) {
-			this.tree.setFocus([]);
+			this.getFocusedTree().setFocus([]);
 			return true;
 		}
 		const element = this.findItem(item);
@@ -47,13 +47,13 @@ export class TestSessionsList extends SessionsList {
 			return false;
 		}
 		this.revealElement(element);
-		this.tree.setFocus([element]);
+		this.getTree(element).setFocus([element]);
 		return true;
 	}
 
-	/** Selects the referenced session and chat rows. Returns `false` when a row is missing or is a header. */
+	/** Selects the referenced content rows. Returns `false` when a row is missing or is a header. */
 	setSelectedItems(items: readonly SessionsListItemReference[]): boolean {
-		if (!items.every(item => hasKey(item, { session: true }))) {
+		if (!items.every(item => hasKey(item, { session: true }) || hasKey(item, { pendingSession: true }))) {
 			return false;
 		}
 		const elements = items.map(item => this.findItem(item));
@@ -61,23 +61,29 @@ export class TestSessionsList extends SessionsList {
 			return false;
 		}
 		for (const element of elements) {
-			this.tree.expandTo(element);
+			this.getTree(element).expandTo(element);
 		}
-		this.tree.setSelection(elements);
+		for (const tree of this.trees) {
+			tree.setSelection([]);
+		}
+		for (const tree of this.trees) {
+			tree.setSelection(elements.filter(element => this.getTree(element) === tree), new MouseEvent('click', { ctrlKey: true }));
+		}
 		return true;
 	}
 
 	/** Collapses or expands the referenced row. Returns `false` when the row is missing or not collapsible. */
 	setItemCollapsed(item: SessionsListItemReference, collapsed: boolean): boolean {
 		const element = this.findItem(item);
-		if (!element || !this.tree.isCollapsible(element)) {
+		if (!element || !this.getTree(element).isCollapsible(element)) {
 			return false;
 		}
-		this.tree.expandTo(element);
+		const tree = this.getTree(element);
+		tree.expandTo(element);
 		if (collapsed) {
-			this.tree.collapse(element);
+			tree.collapse(element);
 		} else {
-			this.tree.expand(element);
+			tree.expand(element);
 		}
 		return true;
 	}
@@ -98,18 +104,20 @@ export class TestSessionsList extends SessionsList {
 		if (!element) {
 			return undefined;
 		}
-		const navigator = this.tree.navigate();
+		const tree = this.getTree(element);
+		const navigator = tree.navigate();
 		for (let current = navigator.first(), index = 0; current; current = navigator.next(), index++) {
 			if (current === element) {
-				return this.tree.getHTMLElement().querySelector<HTMLElement>(`.monaco-list-rows > .monaco-list-row[data-index="${index}"]`) ?? undefined;
+				return tree.getHTMLElement().querySelector<HTMLElement>(`.monaco-list-rows > .monaco-list-row[data-index="${index}"]`) ?? undefined;
 			}
 		}
 		return undefined;
 	}
 
 	private revealElement(element: SessionListItem): void {
-		if (this.tree.getRelativeTop(element) === null) {
-			this.tree.reveal(element, 0.5);
+		const tree = this.getTree(element);
+		if (tree.getRelativeTop(element) === null) {
+			tree.reveal(element, 0.5);
 		}
 	}
 }

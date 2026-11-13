@@ -6,7 +6,7 @@
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { equals } from '../../../base/common/objects.js';
+import { equals, stableStringify } from '../../../base/common/objects.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { autorun, type IReader } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
@@ -28,14 +28,15 @@ import { AUTOMATION_CATALOG_URI, type AutomationState, type ErrorInfo, type Mess
 import { automationReducer } from '../common/state/sessionReducers.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry, type AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationConversation, type AutomationDefinition, type AutomationEntry, type AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunLifecycle, type AutomationRunOrigin, type AutomationRunState, type AutomationRunSummary } from '../common/state/protocol/channels-automation-run/state.js';
-import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
+import { MessageKind, PendingMessageKind } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { nextAutomationCronOccurrence, validateAutomationCron } from '../common/automationCron.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
+import { validateAutomationRunAt, validateDurableAutomationMessage } from '../common/automationRequest.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
@@ -94,10 +95,15 @@ interface IStoredAutomations {
 	readonly sessionCreations?: readonly IStoredSessionCreation[];
 	readonly historyDeletions?: readonly IStoredHistoryDeletion[];
 	readonly historyDeletionReceipts?: readonly IStoredHistoryDeletionReceipt[];
+	readonly oneTimeCreationResources?: readonly string[];
 }
 
 /** Host-side session operations for executing an Automation's saved template. */
 export interface IAgentHostAutomationExecution {
+	readonly supportsOneTimeAutomation?: boolean;
+	readonly supportsExistingConversation?: boolean;
+	/** Resolves the exact existing target without submitting; the returned callback performs normal queue admission. */
+	prepareConversation?(conversation: AutomationConversation, message: Message, messageId: string): Promise<() => void>;
 	isSessionTemplateAvailable(template: AutomationSessionTemplate, reader?: IReader): boolean;
 	/** Chooses an unused session identity without reserving resources; callers may discard it without cleanup. */
 	allocateSession(template: AutomationSessionTemplate): Promise<{ readonly session: URI; readonly provider: string }>;
@@ -144,9 +150,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private _sessionCreations = new Map<string, IStoredSessionCreation>();
 	private _historyDeletions = new Map<string, IStoredHistoryDeletion>();
 	private _historyDeletionReceipts = new Map<string, IStoredHistoryDeletionReceipt>();
+	private _oneTimeCreationResources = new Set<string>();
 	private readonly _historyDeletionPromises = new Map<string, Promise<readonly string[]>>();
 	private readonly _runsToRecover = new Set<string>();
 	private readonly _recoveringRuns = new Set<string>();
+	private readonly _startingRuns = new Set<string>();
 	private readonly _recoveringHistoryDeletions = new Set<string>();
 	private _mutationTail: Promise<void> = Promise.resolve();
 	private readonly _executionAvailabilityWatcher = this._register(new MutableDisposable());
@@ -182,6 +190,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._customizations = new AgentHostAutomationCustomizations(pluginManager.hostPluginsPath, fileService, this._logService, environmentService.userHome);
 		this._register(toDisposable(() => this._mcpAuthenticationChallenges.clear()));
 		const stored = this._load();
+		this._oneTimeCreationResources = new Set([
+			...stored?.oneTimeCreationResources ?? [],
+			...stored?.catalog.automations.filter(entry => entry.definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.OneTime)).map(entry => entry.resource) ?? [],
+		]);
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
 		this._runProviders = new Map(Object.entries(stored?.runProviders ?? {}));
 		this._sessionCreations = new Map(stored?.sessionCreations?.map(creation => [creation.run, creation]));
@@ -251,6 +263,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		return this.isAvailable ? {
 			create: {},
 			schedules: {},
+			...(this._execution.supportsOneTimeAutomation !== false ? { oneTime: {} } : {}),
+			...(this._execution.supportsExistingConversation ? { existingConversation: {} } : {}),
 			customizations: {},
 			runCancellation: {},
 			runHistoryLimit: RUN_HISTORY_PAGE_SIZE,
@@ -262,8 +276,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (historyState) {
 			return historyState === 'retained' ? [AutomationOperation.Remove] : [];
 		}
+		if (automation.definition.purpose === 'scheduledChat' && !automation.definition.enabled) {
+			return [AutomationOperation.Remove];
+		}
 		return [
-			AutomationOperation.Update,
+			...(automation.oneTimeRun ? [] : [AutomationOperation.Update]),
 			...(automation.runs.some(run => !isTerminalLifecycle(run.lifecycle)) ? [] : [AutomationOperation.Remove]),
 			...(this._isAutomationsEnabled() ? [AutomationOperation.Run] : []),
 		];
@@ -305,7 +322,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			const owner = this._runProviders.get(run.resource);
 			if ((owner === undefined || owner === provider) && (run.primarySession === session || run.sessions.includes(session))
 				|| creation?.session === session && creation.provider === provider) {
-				return { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource };
+				return { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource, ...(run.purpose ? { purpose: run.purpose } : {}) };
 			}
 		}
 		return undefined;
@@ -321,16 +338,22 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const definition = action.definition;
 		this._validateDefinition(definition);
 		const existing = catalog.entries.find(automation => automation.resource === action.resource);
-		if (existing && equals(existing.definition, definition)) {
+		if (existing && stableStringify(existing.definition) === stableStringify(definition)) {
 			this._stateManager.dispatchServerAction(AUTOMATION_CATALOG_URI, { type: ActionType.AutomationSet, automation: existing });
 			return;
 		}
 		if (existing) {
 			throw new Error(`Automation already exists: ${action.resource}`);
 		}
+		if (this._oneTimeCreationResources.has(action.resource)) {
+			throw new Error(`One-time automation identity has already been used: ${action.resource}`);
+		}
+		if (definition.purpose === 'scheduledChat' && !definition.enabled) {
+			throw new Error('A scheduled chat must be enabled when created.');
+		}
 
 		const timestamp = new Date().toISOString();
-		const customizations = await this._customizations.capture(clientId, definition.session.customizations, undefined, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
+		const customizations = definition.conversation ? [] : await this._customizations.capture(clientId, definition.session.customizations, undefined, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		const automation = this._withInitialScheduleState({
 			resource: action.resource,
 			definition,
@@ -363,6 +386,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			throw new Error(`Automation not found: ${action.resource}`);
 		}
 		this._requireOperation(existing, AutomationOperation.Update);
+		if (existing.oneTimeRun) {
+			throw new Error(`One-time automation has already started: ${existing.oneTimeRun}`);
+		}
+		if (action.expectedModifiedAt !== undefined && action.expectedModifiedAt !== existing.modifiedAt) {
+			throw new Error(`Automation changed before the update was applied: ${action.resource}`);
+		}
 
 		let automation: AutomationEntry = {
 			...existing,
@@ -370,10 +399,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				...existing.definition,
 				...action.changes,
 			},
-			modifiedAt: new Date().toISOString(),
+			modifiedAt: new Date(Math.max(Date.now(), Date.parse(existing.modifiedAt) + 1)).toISOString(),
 		};
+		if (!equals(existing.definition.conversation, automation.definition.conversation)) {
+			throw new Error('An automation cannot change its existing conversation target.');
+		}
 		this._validateDefinition(automation.definition);
-		if (action.changes.session !== undefined) {
+		if (!automation.definition.conversation && action.changes.session !== undefined) {
 			automation.customizations = await this._customizations.capture(clientId, action.changes.session.customizations, existing, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		}
 		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
@@ -441,6 +473,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			const receipt = requestId ? this._historyDeletionReceipts.get(requestId) : undefined;
 			return receipt?.automation === resource ? receipt.sessions : [];
 		}
+		if (existing.definition.conversation) {
+			legacySessions = [];
+		}
 		if (this._historyDeletions.has(resource)) {
 			if (!deleteHistory) {
 				throw new Error(`Automation history deletion is already in progress: ${resource}`);
@@ -474,7 +509,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const deletions = new Map(this._historyDeletions);
 		if (deleteHistory) {
 			const sessions = new Map<string, { session: string; provider?: string }>();
-			for (const run of runs) {
+			for (const run of existing.definition.conversation ? [] : runs) {
 				for (const session of new Set([...run.sessions, ...(run.primarySession ? [run.primarySession] : [])])) {
 					sessions.set(session, { session, provider: this._runProviders.get(run.resource) });
 				}
@@ -787,6 +822,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		historyDeletionReceipts: ReadonlyMap<string, IStoredHistoryDeletionReceipt> = this._historyDeletionReceipts,
 	): Promise<void> {
 		const nextRunProviders = new Map([...runProviders].filter(([resource]) => runs.has(resource)));
+		const oneTimeCreationResources = new Set([
+			...this._oneTimeCreationResources,
+			...catalog.entries.filter(entry => entry.definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.OneTime)).map(entry => entry.resource),
+		]);
 		await this._storageService.setAndFlush<IStoredAutomations>(STORAGE_KEY, {
 			version: 1,
 			catalog: {
@@ -796,6 +835,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			runs: [...runs.values()],
 			...(nextRunProviders.size > 0 ? { runProviders: Object.fromEntries(nextRunProviders) } : {}),
 			manualRunRequests: [...manualRunRequests.values()],
+			...(oneTimeCreationResources.size ? { oneTimeCreationResources: [...oneTimeCreationResources] } : {}),
 			...(sessionCreations.size > 0 ? { sessionCreations: [...sessionCreations.values()] } : {}),
 			...(historyDeletions.size > 0 ? { historyDeletions: [...historyDeletions.values()] } : {}),
 			...(historyDeletionReceipts.size > 0 ? { historyDeletionReceipts: [...historyDeletionReceipts.values()] } : {}),
@@ -804,6 +844,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._sessionCreations = new Map(sessionCreations);
 		this._historyDeletions = new Map(historyDeletions);
 		this._historyDeletionReceipts = new Map(historyDeletionReceipts);
+		this._oneTimeCreationResources = oneTimeCreationResources;
 	}
 
 	private _requireCatalog(): AutomationState {
@@ -831,6 +872,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			for (const trigger of automation.definition.triggers) {
 				if (trigger.kind === AutomationTriggerKind.Schedule) {
 					cursors[trigger.id] = nextAutomationCronOccurrence(trigger.schedule.expression, trigger.schedule.timeZone, now).toISOString();
+				} else if (trigger.kind === AutomationTriggerKind.OneTime && !automation.oneTimeRun) {
+					cursors[trigger.id] = validateAutomationRunAt(trigger.runAt);
 				}
 			}
 		}
@@ -849,7 +892,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const catalog = this._catalog;
 		this._executionAvailabilityWatcher.value = autorun(reader => {
-			const available = catalog.entries.filter(automation => this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
+			const available = catalog.entries.filter(automation => automation.definition.conversation
+				? this._execution.supportsExistingConversation
+				: this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
 			this._scheduleTimer.clear();
 			if (!this._isAutomationsEnabled()) {
 				return;
@@ -909,6 +954,21 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			let automation = current;
 			let claimedForAutomation = false;
 			for (const trigger of current.definition.triggers) {
+				if (trigger.kind === AutomationTriggerKind.OneTime) {
+					if (!current.oneTimeRun && Date.parse(trigger.runAt) <= nowTimestamp) {
+						const run = this._createRunState(automation.resource, {
+							kind: AutomationRunOriginKind.Trigger,
+							triggerId: trigger.id,
+							scheduledFor: trigger.runAt,
+							...(nowTimestamp - Date.parse(trigger.runAt) >= 60_000 ? { catchUp: true } : {}),
+						}, createdAt);
+						nextRuns.set(run.resource, run);
+						automation = withRunSummary(this._consumeOneTime(automation, run), nextRuns);
+						claimed.push({ run, definition: automation.definition });
+						delete cursors[trigger.id];
+					}
+					continue;
+				}
 				if (trigger.kind !== AutomationTriggerKind.Schedule) {
 					continue;
 				}
@@ -1046,6 +1106,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			throw new Error(`Automation not found: ${params.automation}`);
 		}
 		this._requireOperation(automation, AutomationOperation.Run);
+		if (automation.oneTimeRun) {
+			const run = this._runs.get(automation.oneTimeRun);
+			if (!run) {
+				throw new Error(`One-time automation was already admitted: ${automation.oneTimeRun}`);
+			}
+			if (run.lifecycle.status === AutomationRunStatus.Pending) {
+				this._manuallyRequestedRuns.add(run.resource);
+				return { run, definition: automation.definition };
+			}
+			return { run };
+		}
 		const activeRun = this._activeRunFor(automation.resource);
 		if (activeRun) {
 			if (activeRun.lifecycle.status !== AutomationRunStatus.Pending) {
@@ -1081,12 +1152,18 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			resource: URI.from({ scheme: 'ahp-automation-run', path: `/${generateUuid()}` }).toString(),
 			automation,
 			origin,
+			...(this._catalog?.entries.find(entry => entry.resource === automation)?.definition.purpose ? { purpose: 'scheduledChat' as const } : {}),
 			lifecycle: { status: AutomationRunStatus.Pending, createdAt },
 			sessions: [],
 		};
 	}
 
 	private async _startRun(initialRun: AutomationRunState, definition: AutomationDefinition): Promise<void> {
+		if (this._startingRuns.has(initialRun.resource)) {
+			return;
+		}
+		this._startingRuns.add(initialRun.resource);
+		let dispatchAttempted = false;
 		try {
 			await this._startup;
 			const entry = this._catalog?.entries.find(candidate => candidate.resource === initialRun.automation);
@@ -1094,6 +1171,36 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				throw new Error(`Automation not found: ${initialRun.automation}`);
 			}
 			definition = entry.definition;
+			if (definition.conversation) {
+				if (!this._execution.supportsExistingConversation || !this._execution.prepareConversation) {
+					throw new Error('Scheduling follow-ups in an existing conversation is unavailable.');
+				}
+				const running = await this._enqueueMutation(() => this._markRunRunning(initialRun.resource));
+				if (!running) {
+					return;
+				}
+				const submit = await this._execution.prepareConversation(definition.conversation, definition.message, running.resource);
+				await this._enqueueMutation(async () => {
+					if (isTerminalLifecycle(this._runs.get(running.resource)!.lifecycle)) {
+						await this._recordOneTimeDispatch(running, true);
+						return;
+					}
+					dispatchAttempted = true;
+					submit();
+					await this._recordOneTimeDispatch(running);
+					const current = this._runs.get(running.resource)!;
+					if (!isTerminalLifecycle(current.lifecycle)) {
+						const lifecycle: AutomationRunLifecycle = {
+							status: AutomationRunStatus.Completed,
+							createdAt: current.lifecycle.createdAt,
+							startedAt: running.lifecycle.status === AutomationRunStatus.Running ? running.lifecycle.startedAt : current.lifecycle.createdAt,
+							completedAt: new Date().toISOString(),
+						};
+						await this._commitRun({ ...current, lifecycle }, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }]);
+					}
+				});
+				return;
+			}
 			const sessionTemplate = getExecutionSessionTemplate(definition);
 			const agent = this._customizations.resolveAgent({
 				...sessionTemplate,
@@ -1123,7 +1230,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				...(definition.message.model === undefined && template.model !== undefined ? { model: template.model } : {}),
 				...(template.agent !== undefined ? { agent: template.agent } : {}),
 			};
+			dispatchAttempted = true;
 			await this._execution.startSession(session, message);
+			await this._enqueueMutation(() => this._recordOneTimeDispatch(running));
 		} catch (error) {
 			try {
 				await this._enqueueMutation(async () => {
@@ -1133,14 +1242,19 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 					} else {
 						await this._failRun(initialRun.resource, error);
 					}
+					if (!dispatchAttempted) {
+						await this._recordOneTimeDispatch(initialRun, true);
+					}
 				});
 			} catch (persistError) {
 				this._logService.error(`[AgentHostAutomationService] Failed to persist automation run failure: run=${initialRun.resource}, error=${toErrorMessage(persistError)}`);
 			}
+		} finally {
+			this._startingRuns.delete(initialRun.resource);
 		}
 	}
 
-	private async _markRunRunning(resource: string, allocation: { readonly session: URI; readonly provider: string }): Promise<AutomationRunState | undefined> {
+	private async _markRunRunning(resource: string, allocation?: { readonly session: URI; readonly provider: string }): Promise<AutomationRunState | undefined> {
 		const run = this._runs.get(resource);
 		if (!run || run.lifecycle.status !== AutomationRunStatus.Pending) {
 			return undefined;
@@ -1152,8 +1266,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		};
 		const next = { ...run, lifecycle };
 		const creations = new Map(this._sessionCreations);
-		creations.set(resource, { run: resource, session: allocation.session.toString(), provider: allocation.provider });
-		await this._commitRun(next, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }], undefined, allocation.provider, creations);
+		if (allocation) {
+			creations.set(resource, { run: resource, session: allocation.session.toString(), provider: allocation.provider });
+		}
+		await this._commitRun(next, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }], undefined, allocation?.provider, creations);
 		return next;
 	}
 
@@ -1458,8 +1574,29 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const nextRuns = new Map(this._runs);
 		nextRuns.set(run.resource, run);
-		const automation = withRunSummary(existing, nextRuns);
+		const automation = withRunSummary(this._consumeOneTime(existing, run), nextRuns);
 		return automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+	}
+
+	private _consumeOneTime(automation: AutomationEntry, run: AutomationRunState): AutomationEntry {
+		if (automation.oneTimeRun || !automation.definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.OneTime)) {
+			return automation;
+		}
+		const consumed = { ...automation, oneTimeRun: run.resource, nextRunAt: undefined, _meta: withScheduleCursors(automation._meta, {}) };
+		return { ...consumed, operations: this._operationsForItem(consumed) };
+	}
+
+	private async _recordOneTimeDispatch(run: AutomationRunState, rejected = false): Promise<void> {
+		const catalog = this._requireCatalog();
+		const existing = catalog.entries.find(entry => entry.resource === run.automation);
+		if (!existing || existing.oneTimeRun !== run.resource || existing.oneTimeDispatchedAt || existing.oneTimeDispatchRejectedAt) {
+			return;
+		}
+		const automation = { ...existing, ...(rejected ? { oneTimeDispatchRejectedAt: new Date().toISOString() } : { oneTimeDispatchedAt: new Date().toISOString() }) };
+		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
+		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations);
+		this._catalog = next;
+		this._publishAutomation(next, automation.resource);
 	}
 
 	private _configurationTelemetry(template: AutomationSessionTemplate): IAutomationConfigurationTelemetry {
@@ -1523,6 +1660,23 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (definition.message.origin.kind !== MessageKind.Automation) {
 			throw new Error('Automation message must have an automation origin.');
 		}
+		const oneTime = definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.OneTime);
+		if (oneTime && this._execution.supportsOneTimeAutomation === false) {
+			throw new Error('One-time scheduling is unavailable on this host.');
+		}
+		if (oneTime && definition.triggers.length !== 1) {
+			throw new Error('A one-time automation must have exactly one trigger.');
+		}
+		if (definition.purpose !== undefined && (definition.purpose !== 'scheduledChat' || !oneTime)) {
+			throw new Error('A scheduled chat requires a one-time trigger.');
+		}
+		if (definition.conversation && (!this._execution.supportsExistingConversation || !oneTime || definition.purpose !== 'scheduledChat'
+			|| !definition.conversation.session || !definition.conversation.chat)) {
+			throw new Error('An existing conversation requires supported one-time scheduled-chat execution and exact session and chat resources.');
+		}
+		if (oneTime) {
+			validateDurableAutomationMessage(definition.message);
+		}
 		const triggerIds = new Set<string>();
 		for (const trigger of definition.triggers) {
 			if (trigger.id.trim().length === 0 || triggerIds.has(trigger.id)) {
@@ -1532,7 +1686,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			if (trigger.kind === AutomationTriggerKind.Event) {
 				throw new Error(`Automation event trigger type is not available: ${trigger.type}`);
 			}
-			validateAutomationCron(trigger.schedule.expression, trigger.schedule.timeZone);
+			if (trigger.kind === AutomationTriggerKind.OneTime) {
+				validateAutomationRunAt(trigger.runAt);
+			} else if (trigger.kind === AutomationTriggerKind.Schedule) {
+				validateAutomationCron(trigger.schedule.expression, trigger.schedule.timeZone);
+			} else {
+				throw new Error('Unsupported automation trigger.');
+			}
 		}
 	}
 
@@ -1567,6 +1727,21 @@ function getExecutionSessionTemplate(definition: AutomationDefinition): Automati
 	return definition.message.model === undefined
 		? definition.session
 		: { ...definition.session, model: definition.message.model };
+}
+
+/** Revalidates exact ownership immediately before handing the request to the ordinary queue. */
+export function enqueueAutomationConversation(stateManager: AgentHostStateManager, chatOwnership: IAgentHostChatOwnershipService, conversation: AutomationConversation, message: Message, messageId: string): void {
+	if (!stateManager.getSessionState(conversation.session) || !stateManager.getChatState(conversation.chat)
+		|| chatOwnership.getChatOwner(conversation.chat) !== conversation.session) {
+		throw new Error('The scheduled conversation was deleted, moved, or is unavailable.');
+	}
+	const { model: _model, agent: _agent, ...currentConversationMessage } = message;
+	stateManager.dispatchServerAction(conversation.chat, {
+		type: ActionType.ChatPendingMessageSet,
+		kind: PendingMessageKind.Queued,
+		id: messageId,
+		message: currentConversationMessage,
+	});
 }
 
 function isStoredAutomationCatalog(value: unknown): value is IStoredAutomationCatalog {
@@ -1610,6 +1785,7 @@ function isStoredAutomations(value: unknown): value is IStoredAutomations {
 		&& (stored['sessionCreations'] === undefined || Array.isArray(stored['sessionCreations']) && stored['sessionCreations'].every(isStoredSessionCreation))
 		&& (stored['historyDeletions'] === undefined || Array.isArray(stored['historyDeletions']) && stored['historyDeletions'].every(isStoredHistoryDeletion))
 		&& (stored['historyDeletionReceipts'] === undefined || Array.isArray(stored['historyDeletionReceipts']) && stored['historyDeletionReceipts'].every(isStoredHistoryDeletionReceipt))
+		&& (stored['oneTimeCreationResources'] === undefined || Array.isArray(stored['oneTimeCreationResources']) && stored['oneTimeCreationResources'].every(resource => typeof resource === 'string'))
 		&& (stored['manualRunRequests'] === undefined || Array.isArray(stored['manualRunRequests']) && stored['manualRunRequests'].every(isStoredManualRunRequest));
 }
 

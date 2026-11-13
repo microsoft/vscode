@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { coalesce } from '../../../../../../../base/common/arrays.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
@@ -414,7 +415,7 @@ export class AgentCompletions extends Disposable {
 				}
 
 				const agentHostSession = isAgentHostBackedWidget(widget);
-				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService) || ChatContextKeys.inSessionsChat.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
 
@@ -456,7 +457,7 @@ export class AgentCompletions extends Disposable {
 				}
 
 				const agentHostSession = isAgentHostBackedWidget(widget);
-				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService) || ChatContextKeys.inSessionsChat.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
 				if (widget.lockedAgentId && !agentHostSession) {

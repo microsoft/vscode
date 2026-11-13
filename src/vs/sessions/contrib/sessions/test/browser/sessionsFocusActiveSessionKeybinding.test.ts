@@ -17,25 +17,25 @@ suite('Sessions - Focus Active Session keybinding', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function getRule(os: OperatingSystem, keybinding: number) {
-		const hash = decodeKeybinding(keybinding, os)!.getHashCode();
+	function getKeybindings(os: OperatingSystem) {
 		return KeybindingsRegistry.getDefaultKeybindingsForOS(os)
-			.find(item => item.command === FOCUS_ACTIVE_SESSION_COMMAND_ID && item.keybinding?.getHashCode() === hash);
+			.filter(item => item.command === FOCUS_ACTIVE_SESSION_COMMAND_ID)
+			.map(item => ({ keybinding: item.keybinding?.getHashCode(), weight: item.weight1 }));
 	}
 
-	test('aliases the platform Open Chat (Agent) keybinding', () => {
-		const windowsRule = getRule(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI);
-		const macRule = getRule(OperatingSystem.Macintosh, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI);
-		const linuxRule = getRule(OperatingSystem.Linux, KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI);
+	function expected(keybinding: number, os: OperatingSystem) {
+		return [{ keybinding: decodeKeybinding(keybinding, os)!.getHashCode(), weight: KeybindingWeight.SessionsContrib }];
+	}
 
+	test('aliases the platform Open Chat (Agent) keybinding, leaving the Open Chat keybinding to the Sessions view', () => {
 		assert.deepStrictEqual({
-			windows: { weight: windowsRule?.weight1, secondary: windowsRule?.weight2 },
-			mac: { weight: macRule?.weight1, secondary: macRule?.weight2 },
-			linux: { weight: linuxRule?.weight1, secondary: linuxRule?.weight2 },
+			windows: getKeybindings(OperatingSystem.Windows),
+			mac: getKeybindings(OperatingSystem.Macintosh),
+			linux: getKeybindings(OperatingSystem.Linux),
 		}, {
-			windows: { weight: KeybindingWeight.SessionsContrib, secondary: -1 },
-			mac: { weight: KeybindingWeight.SessionsContrib, secondary: -1 },
-			linux: { weight: KeybindingWeight.SessionsContrib, secondary: -1 },
+			windows: expected(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI, OperatingSystem.Windows),
+			mac: expected(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI, OperatingSystem.Macintosh),
+			linux: expected(KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyI, OperatingSystem.Linux),
 		});
 	});
 

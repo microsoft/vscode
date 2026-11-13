@@ -47,7 +47,7 @@ import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatS
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
-import { AICustomizationManagementSection, AICustomizationScopes } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
@@ -504,19 +504,25 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 			if (progress.kind === 'beginToolInvocation') {
 				// Begin a streaming tool invocation
-				this._languageModelToolsService.beginToolCall({
-					toolCallId: progress.toolCallId,
-					toolId: progress.toolName,
-					chatRequestId: requestId,
-					sessionResource: chatSession?.sessionResource,
-					subagentInvocationId: progress.subagentInvocationId,
-				});
+				try {
+					this._languageModelToolsService.beginToolCall({
+						toolCallId: progress.toolCallId,
+						toolId: progress.toolName,
+						chatRequestId: requestId,
+						sessionResource: chatSession?.sessionResource,
+						subagentInvocationId: progress.subagentInvocationId,
+					});
+				} catch (error) {
+					this._logService.error(`MainThreadChatAgents2#$handleProgressChunk: Failed to begin tool invocation ${progress.toolCallId}`, error);
+				}
 				continue;
 			}
 
 			if (progress.kind === 'updateToolInvocation') {
 				// Update the streaming data for an existing tool invocation
-				this._languageModelToolsService.updateToolStream(progress.toolCallId, progress.streamData?.partialInput, CancellationToken.None);
+				this._languageModelToolsService.updateToolStream(progress.toolCallId, progress.streamData?.partialInput, CancellationToken.None).catch(error => {
+					this._logService.error(`MainThreadChatAgents2#$handleProgressChunk: Failed to update tool invocation ${progress.toolCallId}`, error);
+				});
 				continue;
 			}
 
@@ -793,7 +799,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					type: item.type,
 					name: item.name,
 					source: item.source,
-					scope: AICustomizationScopes.is(item.scope) ? item.scope : undefined,
 					description: item.description,
 					groupKey: item.groupKey,
 					badge: item.badge,

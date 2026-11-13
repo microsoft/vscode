@@ -29,6 +29,7 @@ import { ConfigKey, ConfigTarget, IConfigurationService } from '../../../configu
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
 import { RelativePattern } from '../../../filesystem/common/fileTypes';
 import { IGitService, ResolvedRepoRemoteInfo } from '../../../git/common/gitService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Change } from '../../../git/vscode/git';
 import { logExecTime, LogExecTime } from '../../../log/common/logExecTime';
 import { ILogService } from '../../../log/common/logService';

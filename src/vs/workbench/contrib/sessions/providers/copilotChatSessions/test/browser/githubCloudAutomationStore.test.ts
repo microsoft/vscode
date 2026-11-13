@@ -34,7 +34,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AutomationMutationUncertainError, AutomationRepositoryOwnershipUnavailableError } from '../../../../../chat/common/automations/automationService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../browser/sessionsRecentWorkspacesService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../../services/sessions/common/session.js';
 import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
 import { GitHubCloudAutomationStore } from '../../browser/githubCloudAutomationStore.js';
 import { RepositoryRef } from '../../../../../../../platform/github/common/client/types.js';

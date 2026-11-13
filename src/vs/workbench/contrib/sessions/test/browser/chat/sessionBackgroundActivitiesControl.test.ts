@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { SessionChatPillVisibility } from '../../../../chat/common/sessionChatPills.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
-import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../common/session.js';
+import { ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionBackgroundActivitiesControl } from '../../../browser/chat/sessionBackgroundActivitiesControl.js';
 import { isNonNegativeIntegerInput, weightedRandomDebugIncrement } from '../../../browser/chat/sessionChatInputToolbarDebug.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';

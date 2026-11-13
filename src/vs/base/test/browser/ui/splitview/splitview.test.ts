@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getWindow } from '../../../../browser/dom.js';
 import { Orientation, Sash, SashState } from '../../../../browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../browser/ui/splitview/splitview.js';
+import { Color } from '../../../../common/color.js';
 import { Emitter } from '../../../../common/event.js';
+import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 class TestView implements IView<number> {
@@ -143,6 +146,39 @@ suite('Splitview', () => {
 		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
 		assert.strictEqual(sashQuery.length, 0, 'split view should have no sashes');
 	});
+
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		test(`separators only appear between visible views (${orientation === Orientation.HORIZONTAL ? 'horizontal' : 'vertical'})`, () => {
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const splitview = store.add(new SplitView(container, { orientation, styles: { separatorBorder: Color.red } }));
+			splitview.layout(200);
+			for (let i = 0; i < 3; i++) {
+				splitview.addView(store.add(new TestView(20, Number.POSITIVE_INFINITY)), 60);
+			}
+
+			const readSeparators = () => Array.from(container.querySelectorAll('.split-view-view'), view => {
+				const style = getWindow(container).getComputedStyle(view, '::before');
+				return style.content === 'none' ? null : orientation === Orientation.HORIZONTAL ? style.width : style.height;
+			});
+			const initial = readSeparators();
+			splitview.setViewVisible(0, false);
+			const firstHidden = readSeparators();
+			splitview.setViewVisible(1, false);
+			const lastMaximized = readSeparators();
+			splitview.setViewVisible(0, true);
+			const middleHidden = readSeparators();
+			splitview.setViewVisible(1, true);
+
+			assert.deepStrictEqual({ initial, firstHidden, lastMaximized, middleHidden, restored: readSeparators() }, {
+				initial: [null, '1px', '1px'],
+				firstHidden: [null, null, '1px'],
+				lastMaximized: [null, null, null],
+				middleHidden: [null, null, '1px'],
+				restored: [null, '1px', '1px']
+			});
+		});
+	}
 
 	test('calls view methods on addView and removeView', () => {
 		const view = store.add(new TestView(20, 20));

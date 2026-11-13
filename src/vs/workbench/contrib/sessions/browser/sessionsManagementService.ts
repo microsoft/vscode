@@ -11,7 +11,8 @@ import { isErrorWithActions, toErrorMessage } from '../../../../base/common/erro
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -22,16 +23,64 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../chat/common/widget/chatWidgetHistoryService.js';
 import { dedupeMigratedCopilotCliSessions } from '../../chat/browser/copilotCliEventsUri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../common/session.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, type ISessionReplacedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 
 /** Storage key for the last session type used to create a quick chat. */
 const LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY = 'sessions.quickChat.lastUsedSessionType';
+
+/** The operations of {@link SessionsManagementService} a {@link NewSessionDraftSlot} delegates to. */
+interface INewSessionDraftSlotOperations {
+	createNewSession(slot: NewSessionDraftSlot, folderUri: URI, options: ICreateNewSessionOptions | undefined): ISession;
+	createQuickChat(slot: NewSessionDraftSlot, options: ICreateNewSessionOptions | undefined): ISession;
+	discardNewSession(slot: NewSessionDraftSlot, session: ISession | undefined): void;
+	disposeSlot(slot: NewSessionDraftSlot): void;
+}
+
+class NewSessionDraftSlot implements INewSessionDraftSlot, IDisposable {
+
+	constructor(
+		readonly id: string,
+		readonly newSession: ISettableObservable<ISession | undefined>,
+		readonly readoptOnFailure: ((session: ISession) => boolean) | undefined,
+		private readonly _operations: INewSessionDraftSlotOperations,
+	) { }
+
+	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
+		return this._operations.createNewSession(this, folderUri, options);
+	}
+
+	createQuickChat(options?: ICreateNewSessionOptions): ISession {
+		return this._operations.createQuickChat(this, options);
+	}
+
+	discardNewSession(session?: ISession): void {
+		this._operations.discardNewSession(this, session);
+	}
+
+	dispose(): void {
+		this._operations.disposeSlot(this);
+	}
+}
+
+/**
+ * Who owns a session: a draft of a slot, or a request accepted from a slot until it ends. Kept by session id and moved
+ * with the session's replacements.
+ */
+interface INewSessionOwnership {
+	readonly owner: NewSessionDraftSlot;
+	session: ISession;
+	state: 'draft' | 'dispatched';
+	/** Whether a failed dispatched request may become its owner's draft again; foreground requests only. */
+	retry: boolean;
+	/** Whether the provider removed the session while it was dispatched. */
+	removed: boolean;
+}
 
 export class SessionsManagementService extends Disposable implements ISessionsManagementService {
 
@@ -71,8 +120,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
-	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
+	private readonly _onDidReplaceSession = this._register(new Emitter<ISessionReplacedEvent>());
+	readonly onDidReplaceSession: Event<ISessionReplacedEvent> = this._onDidReplaceSession.event;
 	private readonly _onDidMoveChat = this._register(new Emitter<IChatMovedEvent>());
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._onDidMoveChat.event;
 	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
@@ -89,6 +138,24 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	/** Tracks the in-progress new session (composed but not yet sent). */
 	private readonly _newSession = observableValue<ISession | undefined>(this, undefined);
 	readonly newSession: IObservable<ISession | undefined> = this._newSession;
+
+	private readonly _slotOperations: INewSessionDraftSlotOperations = {
+		createNewSession: (slot, folderUri, options) => this._createNewSession(slot, folderUri, options),
+		createQuickChat: (slot, options) => this._createQuickChat(slot, options),
+		discardNewSession: (slot, session) => this._discardNewSession(slot, session),
+		disposeSlot: slot => this._disposeSlot(slot),
+	};
+	private readonly _defaultSlot = new NewSessionDraftSlot('composer', this._newSession, undefined, this._slotOperations);
+	readonly defaultNewSessionSlot: INewSessionDraftSlot = this._defaultSlot;
+	/** The live slots: the default slot and the independent slots not yet disposed. */
+	private readonly _slots = new Set<NewSessionDraftSlot>([this._defaultSlot]);
+	/** Owners of drafts and of accepted requests, by session id. */
+	private readonly _ownership = new Map<string, INewSessionOwnership>();
+
+	private readonly _onDidAcceptNewSessionRequest = this._register(new Emitter<INewSessionRequestAcceptedEvent>());
+	readonly onDidAcceptNewSessionRequest: Event<INewSessionRequestAcceptedEvent> = this._onDidAcceptNewSessionRequest.event;
+	private readonly _onDidEndNewSessionRequest = this._register(new Emitter<INewSessionRequestEndedEvent>());
+	readonly onDidEndNewSessionRequest: Event<INewSessionRequestEndedEvent> = this._onDidEndNewSessionRequest.event;
 
 	/** Tracks the Automation dialog's in-progress session draft. */
 	private readonly _automationSession = observableValue<ISession | undefined>(this, undefined);
@@ -175,7 +242,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
-				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
+				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e)));
 			}
 			if (provider.onDidInvokeChangesetOperation) {
 				disposables.add(provider.onDidInvokeChangesetOperation(e => this._onDidInvokeChangesetOperation.fire(e)));
@@ -187,11 +254,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return added;
 	}
 
-	private _handleDidReplaceSession(from: ISession, to: ISession): void {
+	private _handleDidReplaceSession(event: ISessionReplacedEvent): void {
+		const { from, to } = event;
+		this._moveOwnership(from, to);
 		this._explicitlyMarkedUnreadChats.delete(from.resource);
 		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
 		// Notify the view service so it can update the visible grid slot.
-		this._onDidReplaceSession.fire({ from, to });
+		this._onDidReplaceSession.fire(event);
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
@@ -206,9 +275,18 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		// Clear stale new session if the provider removed it. The provider
 		// already disposed it, so just drop the pointer (do not dispose again).
 		if (e.removed.length) {
-			const current = this._newSession.get();
-			if (current && e.removed.some(r => r.sessionId === current.sessionId)) {
-				this._newSession.set(undefined, undefined);
+			const removedIds = new Set(e.removed.map(r => r.sessionId));
+			for (const slot of this._slots) {
+				const current = slot.newSession.get();
+				if (current && removedIds.has(current.sessionId)) {
+					slot.newSession.set(undefined, undefined);
+					this._deleteOwnership(current.sessionId, 'draft');
+				}
+			}
+			for (const ownership of this._ownership.values()) {
+				if (ownership.state === 'dispatched' && removedIds.has(ownership.session.sessionId)) {
+					ownership.removed = true;
+				}
 			}
 			const automationSession = this._automationSession.get();
 			if (automationSession && e.removed.some(r => r.sessionId === automationSession.sessionId)) {
@@ -469,7 +547,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	discardNewSession(session?: ISession): void {
-		const current = this._newSession.get();
+		this._discardNewSession(this._defaultSlot, session);
+	}
+
+	private _discardNewSession(slot: NewSessionDraftSlot, session: ISession | undefined): void {
+		const current = slot.newSession.get();
 		if (!current) {
 			return;
 		}
@@ -478,9 +560,75 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (session && session.sessionId !== current.sessionId) {
 			return;
 		}
-		this._newSession.set(undefined, undefined);
+		slot.newSession.set(undefined, undefined);
 		this._getProvider(current)?.deleteNewSession(current.sessionId);
+		// The owner stays known while listeners handle the discard.
 		this._onDidDiscardNewSession.fire(current);
+		this._deleteOwnership(current.sessionId, 'draft', slot);
+	}
+
+	createNewSessionSlot(options?: ICreateNewSessionSlotOptions): INewSessionDraftSlot & IDisposable {
+		const slot = new NewSessionDraftSlot(generateUuid(), observableValue<ISession | undefined>(this, undefined), options?.readoptOnFailure, this._slotOperations);
+		this._slots.add(slot);
+		return slot;
+	}
+
+	getNewSessionOwner(sessionId: string): INewSessionDraftSlot | undefined {
+		return this._ownership.get(sessionId)?.owner;
+	}
+
+	/** A disposed slot can no longer hold a draft, which nothing would release; for example after an asynchronous trust prompt. */
+	private _assertLiveSlot(slot: NewSessionDraftSlot): void {
+		if (!this._slots.has(slot)) {
+			throw new Error('The new-session draft slot is disposed');
+		}
+	}
+
+	private _disposeSlot(slot: NewSessionDraftSlot): void {
+		if (slot === this._defaultSlot || !this._slots.has(slot)) {
+			return;
+		}
+		this._discardNewSession(slot, undefined);
+		this._slots.delete(slot);
+	}
+
+	/** Makes `session` the draft of `slot`, replacing (and deleting) the slot's previous draft. */
+	private _setSlotDraft(slot: NewSessionDraftSlot, session: ISession): void {
+		const previousNewSession = slot.newSession.get();
+		this._ownership.set(session.sessionId, { owner: slot, session, state: 'draft', retry: false, removed: false });
+		// Providers no longer dispose the previous new session implicitly, so
+		// dispose the one this composer just replaced. Use its own provider
+		// because switching workspace can switch providers. Done after a
+		// successful create so a throw leaves the previous one intact.
+		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
+			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
+			// Terminal ownership must move before the replacement is published:
+			// publishing eagerly ensures a terminal for the new draft.
+			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
+			this._deleteOwnership(previousNewSession.sessionId, 'draft', slot);
+		}
+		slot.newSession.set(session, undefined);
+	}
+
+	/** Deletes the ownership of `sessionId` when it is in `state` (and owned by `owner`, when given). */
+	private _deleteOwnership(sessionId: string, state: INewSessionOwnership['state'], owner?: NewSessionDraftSlot): void {
+		const ownership = this._ownership.get(sessionId);
+		if (ownership?.state === state && (!owner || ownership.owner === owner)) {
+			this._ownership.delete(sessionId);
+		}
+	}
+
+	/** Moves the ownership of a replaced session to its replacement. */
+	private _moveOwnership(from: ISession, to: ISession): void {
+		const ownership = this._ownership.get(from.sessionId);
+		if (!ownership) {
+			return;
+		}
+		ownership.session = to;
+		if (from.sessionId !== to.sessionId) {
+			this._ownership.set(to.sessionId, ownership);
+			this._ownership.delete(from.sessionId);
+		}
 	}
 
 	discardAutomationSession(session?: ISession): void {
@@ -565,22 +713,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	createNewSession(folderUri: URI, options?: ICreateNewSessionOptions): ISession {
+		return this._createNewSession(this._defaultSlot, folderUri, options);
+	}
+
+	private _createNewSession(slot: NewSessionDraftSlot, folderUri: URI, options: ICreateNewSessionOptions | undefined): ISession {
+		this._assertLiveSlot(slot);
 		const { provider, sessionTypeId } = this._resolveProviderForNewSession(folderUri, options);
-
-		const previousNewSession = this._newSession.get();
 		const session = provider.createNewSession(folderUri, sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
-
-		// Providers no longer dispose the previous new session implicitly, so
-		// dispose the one this composer just replaced. Use its own provider
-		// because switching workspace can switch providers. Done after a
-		// successful create so a throw above leaves the previous one intact.
-		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
-			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
-			// Terminal ownership must move before the replacement is published:
-			// publishing eagerly ensures a terminal for the new draft.
-			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
-		}
-		this._newSession.set(session, undefined);
+		this._setSlotDraft(slot, session);
 		return session;
 	}
 
@@ -655,20 +795,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	createQuickChat(options?: ICreateNewSessionOptions): ISession {
-		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
+		return this._createQuickChat(this._defaultSlot, options);
+	}
 
-		const previousNewSession = this._newSession.get();
+	private _createQuickChat(slot: NewSessionDraftSlot, options: ICreateNewSessionOptions | undefined): ISession {
+		this._assertLiveSlot(slot);
+		const { provider, sessionTypeId } = this._resolveProviderForQuickChat(options);
 		const session = provider.createQuickChat(sessionTypeId, this._providerCreateSessionOptions(provider, sessionTypeId, options));
 		this.storageService.store(LAST_USED_QUICK_CHAT_SESSION_TYPE_STORAGE_KEY, sessionTypeId, StorageScope.PROFILE, StorageTarget.USER);
-
-		// Mirror `createNewSession`: dispose the previous new session this
-		// composer just replaced, using its own provider, after a successful
-		// create so a throw above leaves the previous one intact.
-		if (previousNewSession && previousNewSession.sessionId !== session.sessionId) {
-			this._getProvider(previousNewSession)?.deleteNewSession(previousNewSession.sessionId);
-			this._onDidReplaceNewDraftSession.fire({ from: previousNewSession, to: session });
-		}
-		this._newSession.set(session, undefined);
+		this._setSlotDraft(slot, session);
 		return session;
 	}
 
@@ -690,6 +825,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const sessionTemplate = options?.sessionTemplate ?? options?.automationConfiguration?.sessionTemplate;
 		if (sessionTemplate && provider.supportsAutomationSessionConfiguration !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support Automation session templates.`);
+		}
+		if (options?.draftConfiguration && !provider.getDraftSessionConfiguration) {
+			throw new Error(`Sessions provider '${provider.id}' does not support saved draft configuration.`);
 		}
 		if (options?.modelConfiguration && !options.modelId) {
 			throw new Error('Session model configuration requires a model identifier.');
@@ -714,6 +852,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			...(options?.modeId ? { modeId: options.modeId } : {}),
 			...(options?.pullRequestUrl ? { pullRequestUrl: options.pullRequestUrl } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
+			...(options?.draftConfiguration ? { draftConfiguration: options.draftConfiguration } : {}),
 		};
 	}
 
@@ -771,7 +910,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return provider.forkChat(session.sessionId, sourceChat, turnId, options);
 	}
 
-	async createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
+	async createSideChatInSession(session: ISession, sourceChat: URI, turnId: string, selection?: ISideChatSelection, includeSourceContext?: boolean): Promise<IChat> {
 		const provider = this._getProvider(session);
 		if (!provider) {
 			throw new Error(`Provider '${session.providerId}' not found for session '${session.sessionId}'`);
@@ -779,7 +918,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!session.capabilities.get().supportsSideChat) {
 			throw new Error(`Session '${session.sessionId}' does not support side chats`);
 		}
-		return provider.createSideChat(session.sessionId, sourceChat, turnId, selection);
+		return provider.createSideChat(session.sessionId, sourceChat, turnId, selection, includeSourceContext);
 	}
 
 	async sendNewChatRequest(session: ISession, options: ISendRequestOptions): Promise<void> {
@@ -789,32 +928,51 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const isNewSessionRequest = session.status.get() === SessionStatus.Untitled;
+		if (isNewSessionRequest && !provider.sessionTypes.some(type => type.id === session.sessionType)) {
+			throw new Error(localize('newSession.typeUnavailable', "{0} is no longer available for new sessions. Choose an available agent to try again.", provider.label));
+		}
 		const inFlightRequest = isNewSessionRequest ? this.trackInFlightNewSessionRequest(session, options) : undefined;
 
 		if (options.background) {
-			this._newSession.set(undefined, undefined);
+			const ownership = this._acceptNewSessionRequest(session, session, true);
+			let started: ISession | undefined;
+			let error: unknown;
 			void this._prepareAndSendNewChatRequestInBackground(provider, session, options)
+				.then(startedSession => { started = startedSession; })
 				.catch(e => {
+					error = e;
 					if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 						this.logService.error('[SessionsManagement] Failed to send background request:', e);
-						this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+						// An independent slot's host reports its own failures (onDidEndNewSessionRequest).
+						if (!ownership || ownership.owner === this._defaultSlot) {
+							this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+						}
 					}
 				})
-				.finally(() => inFlightRequest?.dispose());
+				.finally(() => {
+					inFlightRequest?.dispose();
+					if (ownership) {
+						this._endNewSessionRequest(ownership, true, started, error);
+					}
+				});
 			return;
 		}
 
 		const requestActivity = new MutableDisposable<IDisposable>();
+		let ownership: INewSessionOwnership | undefined;
+		let started: ISession | undefined;
+		let error: unknown;
 		try {
 			requestActivity.value = provider.startNewSessionRequest?.(session.sessionId);
 			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
+			const draft = session;
 			({ provider, session } = await this._prepareNewSessionForSend(provider, session, requestActivity, true, options.query));
 
 			// The session is graduating into the list (being sent),
 			// so the provider keeps owning it — just drop the pointer, do not delete.
 			// Clearing the new session recomputes the isNewChatSession context key
 			// via the view service's active-session autorun.
-			this._newSession.set(undefined, undefined);
+			ownership = this._acceptNewSessionRequest(draft, session, false);
 
 			// Foreground send: notify listeners that a send is starting. Listeners
 			// (e.g., telemetry) can use this to prewarm caches whose result is
@@ -837,12 +995,91 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			if (updatedSession.sessionId !== session.sessionId) {
 				this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
 			}
+			started = updatedSession;
 			this._onDidStartSession.fire(updatedSession);
 			this._onDidSendRequest.fire({ session: updatedSession, chat, isNewSession: true, isNewChat: true, newSessionConfig, options });
+		} catch (e) {
+			error = e;
+			throw e;
 		} finally {
 			requestActivity.dispose();
 			inFlightRequest?.dispose();
+			if (ownership) {
+				this._endNewSessionRequest(ownership, false, started, error);
+			}
 		}
+	}
+
+	/**
+	 * Accepts the request for `session` (the draft `draft` after its preparation): a slot's draft becomes a dispatched
+	 * request of that slot, {@link onDidAcceptNewSessionRequest} fires, and then the slot lets go of the draft. The
+	 * default slot lets go of its draft for any request, as the main composer always has.
+	 */
+	private _acceptNewSessionRequest(draft: ISession, session: ISession, background: boolean): INewSessionOwnership | undefined {
+		const ownership = this._ownership.get(session.sessionId);
+		const accepted = ownership?.state === 'draft' ? ownership : undefined;
+		if (accepted) {
+			accepted.state = 'dispatched';
+			accepted.retry = !background && !!accepted.owner.readoptOnFailure;
+			this._onDidAcceptNewSessionRequest.fire({ session, owner: accepted.owner, background });
+		}
+		const owner = accepted?.owner ?? this._defaultSlot;
+		if (owner === this._defaultSlot) {
+			// The main composer lets go of any draft it holds, as it always has. A displaced draft other than the accepted
+			// one is not deleted, but it is no longer the composer's.
+			const displaced = this._newSession.get();
+			this._newSession.set(undefined, undefined);
+			if (displaced) {
+				this._deleteOwnership(displaced.sessionId, 'draft', this._defaultSlot);
+			}
+		} else {
+			const current = owner.newSession.get();
+			if (current && (current.sessionId === draft.sessionId || current.sessionId === session.sessionId)) {
+				owner.newSession.set(undefined, undefined);
+			}
+		}
+		return accepted;
+	}
+
+	/**
+	 * Ends an accepted request. A failed foreground request of a live slot that holds no other draft becomes the slot's
+	 * draft again when the slot accepts it ({@link ICreateNewSessionSlotOptions.readoptOnFailure}); otherwise an
+	 * independent slot's uncreated session is deleted. The default slot keeps its behavior.
+	 */
+	private _endNewSessionRequest(ownership: INewSessionOwnership, background: boolean, started: ISession | undefined, error: unknown): void {
+		const { owner } = ownership;
+		if (started) {
+			ownership.session = started;
+		}
+		const session = ownership.session;
+		let readopted = false;
+		const uncreated = !ownership.removed && session.status.get() === SessionStatus.Untitled;
+		if (!started && ownership.retry && uncreated && this._slots.has(owner) && !owner.newSession.get() && owner.readoptOnFailure?.(session)) {
+			ownership.state = 'draft';
+			ownership.retry = false;
+			owner.newSession.set(session, undefined);
+			readopted = true;
+		} else {
+			for (const [sessionId, candidate] of this._ownership) {
+				if (candidate === ownership) {
+					this._ownership.delete(sessionId);
+				}
+			}
+			// A background request deletes its own session when it fails.
+			if (!started && !background && uncreated && owner !== this._defaultSlot && !this._isSlotDraft(session)) {
+				this._getProvider(session)?.deleteNewSession(session.sessionId);
+			}
+		}
+		this._onDidEndNewSessionRequest.fire({ session, owner, started: !!started, readopted, error });
+	}
+
+	private _isSlotDraft(session: ISession): boolean {
+		for (const slot of this._slots) {
+			if (slot.newSession.get()?.sessionId === session.sessionId) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private async _prepareNewSessionForSend(
@@ -857,6 +1094,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const originalSession = session;
+		// The slot whose draft this is; the default slot for a session no slot holds, as before slots.
+		const originalOwnership = this._ownership.get(originalSession.sessionId);
+		const draftSlot = originalOwnership?.state === 'draft' ? originalOwnership.owner : this._defaultSlot;
 		const preparationTokenSource = new CancellationTokenSource(this._disposeCts.token);
 		const preparationListeners = new DisposableStore();
 		preparationListeners.add(this.onDidReplaceNewDraftSession(({ from }) => {
@@ -887,7 +1127,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			await prepared.discard?.();
 			throw new Error(`Sessions provider '${preparedSession.providerId}' not found after preparing the new session`);
 		}
-		if (replaceCurrentDraft && this._newSession.get()?.sessionId !== originalSession.sessionId) {
+		if (replaceCurrentDraft && draftSlot.newSession.get()?.sessionId !== originalSession.sessionId) {
 			if (prepared.discard) {
 				await prepared.discard();
 			} else {
@@ -903,6 +1143,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (requestActivity) {
 			requestActivity.value = preparedRequestActivity;
 		}
+		// The owner follows the replacement before listeners see it.
+		this._moveOwnership(originalSession, preparedSession);
 		this._onDidReplaceNewDraftSession.fire({ from: originalSession, to: preparedSession });
 		return { provider: preparedProvider, session: preparedSession };
 	}
@@ -1006,6 +1248,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
+	async configureNewSessionDraft(session: ISession, options: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || this._ownership.get(session.sessionId)?.state !== 'draft') {
+			throw new Error('The saved draft is no longer available for configuration.');
+		}
+		if ((options.isolationMode && !provider.setWorktreeConfiguration && !provider.setIsolationMode) || (options.branch && !provider.setWorktreeConfiguration && !provider.setBranch)) {
+			throw new Error('The provider cannot restore the saved draft workspace configuration.');
+		}
+		await this._configureNewSession(provider, session, options, true, token, session.workspace.get()?.folders[0]?.root);
+	}
+
 	private async _configureNewSession(
 		provider: ISessionsProvider,
 		session: ISession,
@@ -1105,13 +1358,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		super.dispose();
 	}
 
-	private async _prepareAndSendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions): Promise<void> {
+	private async _prepareAndSendNewChatRequestInBackground(provider: ISessionsProvider, session: ISession, options: ISendRequestOptions): Promise<ISession | undefined> {
 		let graduatingProvider = provider;
 		let graduatingSession = session;
 		try {
 			const newSessionConfig = provider.getNewSessionConfig ? await provider.getNewSessionConfig(session.sessionId) : undefined;
 			({ provider: graduatingProvider, session: graduatingSession } = await this._prepareNewSessionForSend(provider, session, undefined, false, options.query));
-			await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options, newSessionConfig);
+			return await this._sendNewChatRequestInBackground(graduatingProvider, graduatingSession, options, newSessionConfig);
 		} catch (error) {
 			graduatingProvider.deleteNewSession(graduatingSession.sessionId);
 			throw error;
@@ -1218,7 +1471,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (!provider) {
 			throw new Error(`Sessions provider '${session.providerId}' not found`);
 		}
-		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true });
+		await this._sendRequestInBackground(provider, session, chat, { ...options, background: true, requireConnected: true });
 	}
 
 	/**
@@ -1290,6 +1543,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	canForceWorktreeCleanup(owner: ISession | IManagedSessionWorktree): boolean {
 		const provider = hasKey(owner, { sessionId: true }) ? this._getProvider(owner) : this.sessionsProvidersService.getProvider(owner.providerId);
 		return provider?.supportsForceWorktreeCleanup === true;
+	}
+
+	async prepareSessionWorktreeCleanup(session: ISession): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider?.prepareSessionWorktreeCleanup) {
+			throw new Error(localize('worktreeCleanupPreparationUnavailable', "This session provider does not support preparing worktree cleanup."));
+		}
+		await provider.prepareSessionWorktreeCleanup(session.sessionId);
 	}
 
 	async sessionWorktreeCleanup(session: ISession, retry: boolean, force?: boolean) {

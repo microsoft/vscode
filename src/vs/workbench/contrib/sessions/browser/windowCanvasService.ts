@@ -21,7 +21,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ICanvasWorkingSets } from '../../canvases/common/canvas.js';
 import { ICustomViewService } from './customView.js';
-import { createMainWindowInstantiationService } from './sessionHost.js';
+import { createMainWindowInstantiationService } from '../../../services/sessions/browser/sessionHost.js';
 import { IWindowCanvas, IWindowCanvasDescriptor, IWindowCanvasPresentation, IWindowCanvasOpenRequest, IWindowCanvasService, WindowCanvasInput } from './windowCanvas.js';
 
 interface ICanvasEntry {

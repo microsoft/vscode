@@ -14,6 +14,7 @@ import { isEqual, isEqualOrParent, joinPath } from '../../../base/common/resourc
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod } from './agentHostExtensionProtocol.js';
 import { AHP_CANVAS_SCHEME } from './canvasUri.js';
 import { redactAgentPermissionFeedback } from './meta/agentPermissionResponseMeta.js';
 
@@ -440,6 +441,9 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		if (typeof value.authorization === 'string') {
 			return { ...value, authorization: '<redacted>' };
 		}
+		if (typeof value.password === 'string') {
+			return { ...value, password: '<redacted>' };
+		}
 		// Assisted permissions feedback is restricted telemetry, wherever a confirmation carries it.
 		const redactedMeta = isRecord(value._meta) ? redactAgentPermissionFeedback(value._meta, REDACTED_PERMISSION_FEEDBACK) : undefined;
 		if (redactedMeta) {
@@ -454,6 +458,14 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 		if (value.method === 'authenticate' && isRecord(value.params) && value.params.token !== undefined
 			&& value.params.token !== '<redacted>' && value.params.token !== '[REDACTED]') {
 			return { ...value, params: { ...value.params, token: '<redacted>' } };
+		}
+		if (value.method === RegisterGitHubEnvironmentExtensionMethod && isRecord(value.params) && value.params.credential !== undefined
+			&& value.params.credential !== '<redacted>') {
+			return { ...value, params: { ...value.params, credential: '<redacted>' } };
+		}
+		if (value.method === AnswerShellAuthenticationExtensionMethod && isRecord(value.params) && value.params.answer !== undefined
+			&& value.params.answer !== '<redacted>') {
+			return { ...value, params: { ...value.params, answer: '<redacted>' } };
 		}
 		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && value.canvas.url !== undefined) {
 			return { ...value, canvas: { ...value.canvas, url: REDACTED_CANVAS_SOURCE } };

@@ -56,15 +56,15 @@ jobs:
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      - name: Restore pnpm store cache
+        # Copilot runs these steps from main against the pull request head. A head from before
+        # this action existed, or a release branch without it, installs without the cached store.
+        if: hashFiles('.github/actions/restore-pnpm-store/action.yml') != ''
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-linux
-          key-args: "linux x64 $(node -p process.arch)"
+          key-prefix: pnpm-store-linux
 
       - name: Install build dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         working-directory: build
         run: |
           set -e
@@ -81,7 +81,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
 

@@ -46,6 +46,7 @@ suite('AnythingQuickAccess - links', () => {
 	let sourceGroup: IEditorGroup;
 	let otherGroup: IEditorGroup;
 	let allowActiveGroupAccess: boolean;
+	let supportsSplitting: boolean;
 	let linkHandlers: ILinkHandler[];
 
 	class TestAnythingQuickAccessProvider extends AnythingQuickAccessProvider {
@@ -67,6 +68,7 @@ suite('AnythingQuickAccess - links', () => {
 		handled = true;
 		openError = undefined;
 		allowActiveGroupAccess = true;
+		supportsSplitting = true;
 		linkHandlers = [];
 		sourceGroup = new class extends mock<IEditorGroup>() { override readonly id = 1; };
 		otherGroup = new class extends mock<IEditorGroup>() { override readonly id = 2; };
@@ -76,6 +78,9 @@ suite('AnythingQuickAccess - links', () => {
 			get activeGroup() {
 				assert.ok(allowActiveGroupAccess, 'This picker must not access the active editor group');
 				return activeGroup;
+			},
+			get supportsSplitting() {
+				return supportsSplitting;
 			},
 			getGroup: id => id === sourceGroup.id ? sourceGroup : otherGroup,
 			activateGroup: group => {
@@ -242,6 +247,22 @@ suite('AnythingQuickAccess - links', () => {
 		provider = store.add(instantiationService.createInstance(TestAnythingQuickAccessProvider));
 		const pick = await getLinkPick('https://example.com');
 		assert.strictEqual(pick.buttons?.[0].tooltip, openToSideTooltip.replace('Side', 'Bottom'));
+	});
+
+	test('does not offer or open to the side when the editor part does not support splitting', async () => {
+		supportsSplitting = false;
+		const pick = await getLinkPick('https://example.com');
+		await pick.accept?.({ ...NO_KEY_MODS, alt: true }, { inBackground: false });
+		await pick.trigger?.(0, NO_KEY_MODS);
+		assert.deepStrictEqual({
+			buttons: pick.buttons,
+			activatedGroups,
+			openToSide: opened.map(entry => entry.options?.openToSide)
+		}, {
+			buttons: undefined,
+			activatedGroups: [],
+			openToSide: [false, false]
+		});
 	});
 
 	test('renders the link icon inline rather than applying icon font classes to the row', async () => {

@@ -451,6 +451,8 @@ function preseedSettings(userDataDir: string | undefined, mockServerUrl: string)
 		'chat.disableAIFeatures': false,
 		'chat.tools.riskAssessment.enabled': false,
 		'github.copilot.chat.backgroundAgent.enabled': true,
+		// The extension-host Copilot CLI provider is being retired; run as after its removal.
+		'github.copilot.chat.cli.legacyProvider.enabled': false,
 		'window.menuStyle': 'custom',
 		'workbench.browser.experimentalUserTools.enabled': true,
 		'workbench.editorAssociations': {

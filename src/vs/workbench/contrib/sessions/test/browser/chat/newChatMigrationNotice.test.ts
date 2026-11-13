@@ -33,7 +33,7 @@ import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomization
 import { ICustomizationMigrationTelemetryService } from '../../../../chat/common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../../chat/common/promptSyntax/service/promptsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../common/session.js';
+import { ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { NewChatMigrationNotice } from '../../../browser/chat/newChatMigrationNotice.js';
 import { NEW_SESSION_BANNERS_MIN_CREATED_SESSIONS, NewSessionBannerPriority, NewSessionBanners } from '../../../common/newSessionBanners.js';
 import { ITestSessionWithChat } from '../sessionHostTestUtils.js';

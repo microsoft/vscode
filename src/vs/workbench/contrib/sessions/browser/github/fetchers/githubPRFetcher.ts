@@ -24,7 +24,7 @@ import {
 	IGitHubPullRequestReviewThread,
 	IGitHubUser, IMergeBlocker, MergeBlockerKind,
 } from '../../../common/github/types.js';
-import { GitHubApiClient } from '../githubApiClient.js';
+import { GitHubApiClient } from '../../../../../services/github/browser/githubApiClient.js';
 
 export class GitHubPRFetcher {
 	constructor(readonly client: GitHubApiClient) { }

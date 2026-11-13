@@ -312,11 +312,15 @@
 	box-sizing: border-box;
 }
 
-/* Keep the separator underneath the active fill without changing the tab,
- * scrollbar, pinned-tab or drag-and-drop stacking order. */
+/* Keep the separator below connected caps and the existing sticky, scrollbar and drag layers. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container::after {
 	z-index: 0;
 	background-color: var(--modern-ui-connected-tab-border);
+}
+
+/* Add Tab clipping creates a stacking context, so lift the active tab as well as its fill. */
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active.connected-tab-add-clipped {
+	z-index: 1;
 }
 
 /* Wrapped scrolling does not add the pill-style bottom gutter. */

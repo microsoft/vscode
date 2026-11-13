@@ -23,7 +23,7 @@ import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVar
 import { IChatModelReference, IChatService } from '../../chat/common/chatService/chatService.js';
 import { aggregateChatUsage } from '../../chat/common/chatUsage.js';
 import { setChatNotificationResource } from '../../chat/common/chatNotification.js';
-import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
+import { ChatInteractivity, ChatOriginKind, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonChat, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonLaunchError, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
@@ -34,10 +34,11 @@ interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonPar
 	readonly chatResource?: string;
 }
 
-interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'sessionResource' | 'attachedContext' | 'participants'> {
+interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'sessionResource' | 'originatingChatResource' | 'attachedContext' | 'participants'> {
 	readonly version?: number;
 	readonly workspace?: string;
 	readonly sessionResource?: string;
+	readonly originatingChatResource?: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly participants: readonly IStoredSessionComparisonParticipant[];
 }
@@ -157,6 +158,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		let comparison: ISessionComparison = {
 			id,
 			groupId: group.id,
+			originatingChatResource: options.originatingChatResource,
 			title,
 			createdAt: Date.now(),
 			workspace: options.workspace,
@@ -766,10 +768,15 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			if (this._reportedAttemptTelemetry.has(key) || completion.elapsedMs === undefined) {
 				continue;
 			}
+			const firstTurnUsage = aggregateChatUsage([requests[0]?.response?.usage]);
 			logSessionComparisonAttemptCompleted(this.telemetryService, {
 				comparisonId: hashSessionIdForTelemetry(comparison.id),
 				attemptIndex,
 				elapsedMs: completion.elapsedMs,
+				inputTokens: firstTurnUsage?.inputTokens,
+				cachedTokens: firstTurnUsage?.cachedTokens,
+				outputTokens: firstTurnUsage?.outputTokens,
+				tokenCountIsComplete: firstTurnUsage?.isComplete ?? false,
 			});
 			this._reportedAttemptTelemetry.add(key);
 			telemetryChanged = true;
@@ -1246,6 +1253,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				launching: undefined,
 				workspace: comparison.workspace ? URI.parse(comparison.workspace) : undefined,
 				sessionResource: comparison.sessionResource ? URI.parse(comparison.sessionResource) : undefined,
+				originatingChatResource: comparison.originatingChatResource ? URI.parse(comparison.originatingChatResource) : undefined,
 				attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.fromExport),
 				participants: comparison.participants.map(participant => ({
 					...participant,
@@ -1269,6 +1277,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			version: 1,
 			workspace: comparison.workspace?.toString(),
 			sessionResource: comparison.sessionResource?.toString(),
+			originatingChatResource: comparison.originatingChatResource?.toString(),
 			attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.toExport),
 			participants: comparison.participants.map(participant => ({
 				...participant,

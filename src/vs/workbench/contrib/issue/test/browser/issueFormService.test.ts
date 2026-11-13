@@ -21,9 +21,11 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { IGitHubAnonymousClient } from '../../../../../platform/github/common/anonymous/anonymous.js';
 import { ApiRequestOptions } from '../../../../../platform/github/common/client/request.js';
-import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { Issue } from '../../../../../platform/github/common/core/issues.js';
+import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
@@ -37,6 +39,7 @@ import { IssueWebReporter } from '../../browser/issueReporterService.js';
 import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueReporterScreenshot, IIssueSubmissionHost, IssueReporterAttachment, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { internalIssueReporterUrl, parseGitHubRepository } from '../../common/issueReporterTarget.js';
 import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures, issueReporterWebpFixture } from '../common/issueReporterMediaFixtures.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('IssueFormService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -498,6 +501,17 @@ suite('IssueFormService', () => {
 		});
 	});
 
+	test('uploads an image file that was marked up under its name, and numbers only the other screenshots', async () => {
+		const attachments = [
+			capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'first'),
+			capturedScreenshot({ dataUrl: issueReporterGifFixture, annotatedDataUrl: issueReporterImageFixture, name: 'diagram.gif' }, 'diagram'),
+			capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'second'),
+		];
+		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { attachments });
+		await service.submitIssue(host, data, 'Marked-up image file', 'Description');
+		assert.deepStrictEqual(mediaUploads.map(upload => upload.name), ['screenshot-1.png', 'diagram.png', 'screenshot-2.png']);
+	});
+
 	test('keeps mixed file, capture and recording order through cached retries', async () => {
 		const attachments = [
 			attachedFile({ filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' }),
@@ -838,11 +852,78 @@ suite('IssueFormService', () => {
 		assert.deepStrictEqual(leases, { acquired: 0, released: 0 });
 	});
 
+	suite('GitHub creation', () => {
+		const authorization: GitHubAuthorizationContext = {
+			providerId: 'github', sessionId: 'selected-session', accountId: 'selected-account', scopes: ['public_repo'],
+		};
+		const repository = { owner: 'publisher', repo: 'extension' };
+		const request = { title: 'Title', body: 'Body' };
+		const issueUrl = 'https://github.com/publisher/extension/issues/42';
+
+		function createService(create: IGitHubAccountClient['issues']['create'], acquire?: () => Promise<void>) {
+			const instantiationService = createInstantiationService();
+			const grants: GitHubAuthorizationContext[] = [];
+			const signals: AbortSignal[] = [];
+			const leases = { released: 0 };
+			instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+				override async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal) {
+					grants.push(authorization);
+					signals.push(signal);
+					await acquire?.();
+					return upcastPartial<IGitHubAccountClient>({
+						issues: upcastPartial<IGitHubAccountClient['issues']>({ create }),
+						dispose: () => { leases.released++; },
+					});
+				}
+			}());
+			return { service: store.add(instantiationService.createInstance(IssueFormService)), grants, signals, leases };
+		}
+
+		test('uses a disposable typed account client and preserves the destination and payload', async () => {
+			const calls: Parameters<IGitHubAccountClient['issues']['create']>[] = [];
+			const { service, grants, signals, leases } = createService(async (...args) => {
+				calls.push(args);
+				return upcastPartial<Issue>({ html_url: issueUrl });
+			});
+			const result = await service.createGitHubIssue(authorization, repository, request, new AbortController().signal);
+			assert.deepStrictEqual({ result, grants, calls: calls.map(([repository, request, , options]) => ({ repository, request, options })), sameSignal: calls[0][2] === signals[0], leases }, {
+				result: issueUrl, grants: [authorization],
+				calls: [{ repository, request, options: { caller: 'issueReporter', priority: 'mutation' } }],
+				sameSignal: true, leases: { released: 1 },
+			});
+		});
+
+		test('releases the client and propagates a failed write without retrying', async () => {
+			let calls = 0;
+			const error = new GitHubRequestError('Connection lost', 'network');
+			const { service, grants, leases } = createService(async () => { calls++; throw error; });
+			await assert.rejects(service.createGitHubIssue(authorization, repository, request, new AbortController().signal), candidate => candidate === error);
+			assert.deepStrictEqual({ calls, grants, leases }, { calls: 1, grants: [authorization], leases: { released: 1 } });
+		});
+
+		test('cancellation during acquisition releases the late client without creating an issue', async () => {
+			const started = new DeferredPromise<void>();
+			const pending = new DeferredPromise<void>();
+			const { service, signals, leases } = createService(
+				async () => assert.fail('Unexpected issue creation'),
+				() => { void started.complete(); return pending.p; },
+			);
+			const controller = new AbortController();
+			const rejected = assert.rejects(service.createGitHubIssue(authorization, repository, request, controller.signal), isCancellationError);
+			await started.p;
+			controller.abort(new CancellationError());
+			await pending.complete();
+			await rejected;
+			assert.deepStrictEqual({ aborted: signals[0].aborted, leases }, { aborted: true, leases: { released: 1 } });
+		});
+	});
+
 	test('disposes the legacy web reporter when its auxiliary window closes', async () => {
 		const instantiationService = createInstantiationService();
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const targetWindow = iframe.contentWindow as CodeWindow;
 		const events: string[] = [];
 		instantiationService.stub(IAuxiliaryWindowService, {

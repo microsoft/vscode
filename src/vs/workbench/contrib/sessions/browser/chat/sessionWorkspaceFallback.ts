@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ISession, ISessionWorkspace } from '../../common/session.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../sessionsRecentWorkspacesService.js';
 

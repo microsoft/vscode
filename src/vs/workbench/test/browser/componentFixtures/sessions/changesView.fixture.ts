@@ -20,7 +20,6 @@ import { IListService, ListService } from '../../../../../platform/list/browser/
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewPaneOptions } from '../../../../browser/parts/views/viewPane.js';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../common/views.js';
-import { isIChatSessionFileChange2 } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
@@ -34,16 +33,18 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 
 import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesSessionObservables, IChangesViewSectionCollapseState, IChangesViewService } from '../../../../contrib/sessions/common/changesViewService.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewMode, IsolationMode } from '../../../../contrib/sessions/common/changes.js';
-import { DesktopChangesViewPane } from '../../../../contrib/sessions/browser/changes/changesView.js';
+import { DesktopChangesViewPane } from '../../../../contrib/sessionChanges/browser/changesView.js';
 import '../../../../../sessions/contrib/changes/browser/changesView.contribution.js';
-import { ISessionChangesService, SessionChangesService } from '../../../../contrib/sessions/browser/changes/sessionChangesService.js';
+import { ISessionChangesService, SessionChangesService } from '../../../../contrib/sessionChanges/browser/sessionChangesService.js';
 import { GitHubPullRequestCIModel } from '../../../../contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { IGitHubService } from '../../../../contrib/sessions/browser/github/githubService.js';
 import { GitHubCheckConclusion, GitHubCheckStatus, GitHubCIOverallStatus, IGitHubCICheck } from '../../../../contrib/sessions/common/github/types.js';
-import { IFocusedSessionHostService } from '../../../../contrib/sessions/browser/sessionHost.js';
+import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../contrib/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, IChat, IGitHubInfo, ISessionCapabilities, ISessionChangeset, ISessionChangesetOperation, ISessionChangesSummary, ISessionFileChange, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { isIChatSessionFileChange2 } from '../../../../common/chatSessionFileChange.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 interface IChangesViewFixtureOptions {
 	readonly viewMode: ChangesViewMode;
@@ -426,7 +427,7 @@ function renderChangesView(ctx: ComponentFixtureContext, options: IChangesViewFi
 			}());
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: 'fixture', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'fixture', folders: [], configuration: undefined }); } }());
 			reg.defineInstance(IWorkspaceFolderLabelService, new class extends mock<IWorkspaceFolderLabelService>() {
 				override getWorkspaceFolderLabel(): string {
 					return 'vscode (feature/changes-view-fixtures)';

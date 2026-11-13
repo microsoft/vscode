@@ -250,9 +250,10 @@ export interface ISessionsListFindControllerDelegate {
 	getResults(): ISessionsListSearchResults;
 }
 
-export interface ISessionsListFindControllerOptions {
+export interface ISessionsListFindControllerOptions<T> {
 	readonly findWidgetContainer?: HTMLElement;
 	readonly styles?: IFindWidgetStyles;
+	readonly additionalTrees?: readonly AbstractTree<T, FuzzyScore, unknown>[];
 }
 
 /**
@@ -274,13 +275,13 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 		filter: IFindFilter<T>,
 		contextViewProvider: IContextViewProvider,
 		private readonly delegate: ISessionsListFindControllerDelegate,
-		options: ISessionsListFindControllerOptions,
+		private readonly findOptions: ISessionsListFindControllerOptions<T>,
 	) {
-		super(tree, filter, contextViewProvider, { ...options, placeholder: localize('sessionsList.searchPlaceholder', "Search sessions") });
+		super(tree, filter, contextViewProvider, { ...findOptions, placeholder: localize('sessionsList.searchPlaceholder', "Search sessions"), focusTree: () => this.focusedTree.domFocus() });
 		this.disposables.add(this._onDidSearch);
 		this.disposables.add(this._onDidChangeResults);
 		// Sessions change while the widget is open: keep its "no sessions found" message current.
-		this.disposables.add(tree.onDidChangeModel(() => {
+		this.disposables.add(Event.any(...this.trees.map(tree => tree.onDidChangeModel))(() => {
 			if (this.isOpened()) {
 				const results = this.renderResults(false);
 				if (results) {
@@ -290,15 +291,39 @@ export class SessionsListFindController<T> extends AbstractFindController<T, Fuz
 		}));
 	}
 
+	private get trees(): readonly AbstractTree<T, FuzzyScore, unknown>[] {
+		return [this.tree, ...this.findOptions.additionalTrees ?? []];
+	}
+
+	private get focusedTree(): AbstractTree<T, FuzzyScore, unknown> {
+		return this.trees.find(tree => tree.getFocus().length > 0) ?? this.tree;
+	}
+
+	override close(): void {
+		if (!this.isOpened()) {
+			return;
+		}
+		const focusedTree = this.focusedTree;
+		super.close();
+		focusedTree.domFocus();
+	}
+
 	protected applyPattern(): void {
-		this.tree.refilter();
+		for (const tree of this.trees) {
+			tree.refilter();
+		}
 		this.delegate.didFilter();
 		const searching = this.delegate.isSearching();
 		if (searching) {
-			this.tree.focusNext(0, true, undefined, node => node.filterData !== undefined);
-			const [focus] = this.tree.getFocus();
-			if (focus !== undefined && this.tree.getRelativeTop(focus) === null) {
-				this.tree.reveal(focus, 0.5);
+			for (const tree of this.trees) {
+				tree.focusNext(0, true, undefined, node => node.filterData !== undefined);
+				const [focus] = tree.getFocus();
+				if (focus !== undefined && tree.getNode(focus).filterData !== undefined) {
+					if (tree.getRelativeTop(focus) === null) {
+						tree.reveal(focus, 0.5);
+					}
+					break;
+				}
 			}
 		}
 		this._onDidSearch.fire(this.renderResults(searching));

@@ -3,5 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const OPEN_SESSION_COMPARISON_COMMAND_ID = 'sessions.openComparison';
+export { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../common/sessionComparisonConstants.js';
 export const HIDE_INACTIVE_COMPARISON_INPUTS_SETTING = 'sessions.chat.compareAgents.hideInactiveInputs';

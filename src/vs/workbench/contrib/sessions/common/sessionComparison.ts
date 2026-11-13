@@ -11,7 +11,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { localize } from '../../../../nls.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { getReasoningEffortLabel, isReasoningEffortLevel, ReasoningEffortConfigKey } from '../../../../platform/agentHost/common/reasoningEffort.js';
-import { IChat, ISession } from './session.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
 
 export const enum SessionComparisonParticipantRole {
 	Coordinator = 'coordinator',
@@ -136,6 +136,8 @@ export interface ISessionComparisonSynthesisPlan {
 export interface ISessionComparison {
 	readonly id: string;
 	readonly groupId: string;
+	/** Exact initiating chat for agent-created comparisons; absent for manual and older comparisons. */
+	readonly originatingChatResource?: URI;
 	/** Legacy owning session for comparisons persisted with nested participants. */
 	readonly sessionResource?: URI;
 	readonly title: string;
@@ -159,6 +161,7 @@ export interface ISessionComparison {
 }
 
 export interface IStartSessionComparisonOptions {
+	readonly originatingChatResource?: URI;
 	readonly workspace?: URI;
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];

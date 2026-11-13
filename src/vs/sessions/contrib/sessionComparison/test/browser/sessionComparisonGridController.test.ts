@@ -17,12 +17,12 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsHostLayoutService } from '../../../../../workbench/contrib/sessions/browser/sessionsHostLayoutService.js';
-import { ISessionsPartService } from '../../../../../workbench/contrib/sessions/browser/sessionsPartService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { IChat, ISession } from '../../../../../workbench/contrib/sessions/common/session.js';
-import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/contrib/sessions/browser/sessionGridPane.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { SessionComparisonGridController } from '../../browser/sessionComparisonGridController.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';

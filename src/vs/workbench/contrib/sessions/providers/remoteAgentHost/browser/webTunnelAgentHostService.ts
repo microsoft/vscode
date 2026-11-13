@@ -26,6 +26,7 @@ import {
 	type ITunnelDiscoveryOptions,
 	type ITunnelVisibility,
 	type TunnelAutoConnectMode,
+	type TunnelGatewayServerType,
 } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -334,6 +335,11 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 	async disconnect(address: string): Promise<void> {
 		this._connectionFactory.unstageTunnel(address);
 		await this._remoteAgentHostService.removeRemoteAgentHost(address);
+	}
+
+	getSelectedServerType(_address: string): TunnelGatewayServerType | 'unknown' | undefined {
+		// The embedder's discovery provider connects without reporting the gateway's selection.
+		return undefined;
 	}
 
 	// Auth

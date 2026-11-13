@@ -29,6 +29,7 @@ import { Target } from './promptSyntax/promptTypes.js';
 import { localize } from '../../../../nls.js';
 import type { ICanvasContext } from '../../canvases/common/canvas.js';
 import type { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../common/chatSessionFileChange.js';
 
 export const NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.sessions.newChat';
 
@@ -321,23 +322,6 @@ export interface IChatSessionItemMetadata {
 	//#endregion
 
 	readonly [key: string]: unknown;
-}
-
-export interface IChatSessionFileChange {
-	readonly modifiedUri: URI;
-	readonly originalUri?: URI;
-	readonly insertions: number;
-	readonly deletions: number;
-	readonly reviewed?: boolean;
-}
-
-export interface IChatSessionFileChange2 {
-	readonly uri: URI;
-	readonly originalUri?: URI;
-	readonly modifiedUri?: URI;
-	readonly insertions: number;
-	readonly deletions: number;
-	readonly reviewed?: boolean;
 }
 
 export type IChatSessionHistoryItem = {
@@ -662,8 +646,8 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => Promise<IChatSessionItem>;
-	/** Creates a side chat anchored to the given source turn, without adding to the source conversation. */
-	createSideChat?: (turnId: string, token: CancellationToken, selection?: IChatSideChatSelection) => Promise<IChatSessionItem>;
+	/** Creates a side chat with source context by default; set `includeSourceContext` to false for a fresh chat. */
+	createSideChat?: (turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean) => Promise<IChatSessionItem>;
 	/**
 	 * Renames the session.
 	 * @param title The new title for the session.
@@ -1013,7 +997,6 @@ export interface IChatSessionCustomizationsProvider {
 	provideCustomizations(token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined>;
 }
 
-
 export interface IChatSessionCommitEvent {
 	/** The original (untitled) session resource. */
 	readonly original: URI;
@@ -1202,8 +1185,8 @@ export interface IChatSessionsService {
 	/** Observes a loaded session's origin, including subsequent loading and disposal. */
 	observeSideChatOrigin(sessionResource: URI): IObservable<IChatSideChatOrigin | undefined>;
 
-	/** Creates a side chat anchored to a turn in the source conversation. */
-	createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection): Promise<IChatSessionItem>;
+	/** Creates a side chat with source context by default; set `includeSourceContext` to false for a fresh chat. */
+	createSideChat(sessionResource: URI, turnId: string, token: CancellationToken, selection?: IChatSideChatSelection, includeSourceContext?: boolean): Promise<IChatSessionItem>;
 
 	/**
 	 * Forks a contributed chat session from the given request point.
@@ -1313,9 +1296,4 @@ export interface IChatSessionsService {
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {
 	return state === ChatSessionStatus.InProgress || state === ChatSessionStatus.NeedsInput;
-}
-
-export function isIChatSessionFileChange2(obj: unknown): obj is IChatSessionFileChange2 {
-	const candidate = obj as IChatSessionFileChange2;
-	return candidate && candidate.uri instanceof URI && typeof candidate.insertions === 'number' && typeof candidate.deletions === 'number';
 }

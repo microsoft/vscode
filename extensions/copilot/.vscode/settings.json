@@ -111,8 +111,11 @@
 	"git.diagnosticsCommitHook.sources": {
 		"*": "error",
 		"ts": "warning",
-		"eslint": "warning"
+		"oxc": "warning"
 	},
+	// The oxc extension (oxc.oxc-vscode) runs the lint rules with oxlint, like CI does.
+	"eslint.enable": false,
+	"oxc.enable.oxfmt": false,
 	"githubPullRequests.codingAgent.enabled": true,
 	"githubPullRequests.codingAgent.uiIntegration": true,
 	"python-envs.defaultEnvManager": "ms-python.python:system",

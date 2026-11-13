@@ -212,6 +212,33 @@ suite('Sessions - List notification', () => {
 		assert.deepStrictEqual({ mentionsBar, shown: !!test.element() }, { mentionsBar: false, shown: false });
 	}));
 
+	test('hiding the countdown bar preserves Undo and the ten-second expiry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const test = setup();
+		let undone = 0;
+		const dismissed = { ...notice('1 dismissed from inbox', async () => { undone++; }), showCountdown: false };
+		test.notification.show(dismissed);
+		const help = store.add(test.notification.getAccessibilityHelp()!);
+		const initial = {
+			bar: !!test.container.querySelector('.sessions-list-notification-progress-clip'),
+			helpMentionsBar: help.provideContent().includes('bar'),
+			helpMentionsUndo: help.provideContent().includes('Undo'),
+		};
+		help.dispose();
+		test.undoButton().click();
+		await timeout(0);
+		const afterUndo = { undone, shown: !!test.element() };
+		test.notification.show(dismissed);
+		await timeout(9999);
+		const beforeExpiry = !!test.element();
+		await timeout(1);
+		assert.deepStrictEqual({ initial, afterUndo, beforeExpiry, expired: !test.element() }, {
+			initial: { bar: false, helpMentionsBar: false, helpMentionsUndo: true },
+			afterUndo: { undone: 1, shown: false },
+			beforeExpiry: true,
+			expired: true,
+		});
+	}));
+
 	test('a long message wraps to at most two lines instead of being cut off, and its full text stays in the label', () => {
 		const test = setup();
 		test.container.style.width = '240px';

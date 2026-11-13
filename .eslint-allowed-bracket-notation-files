@@ -234,7 +234,7 @@ src/vs/workbench/services/chat/common/chatEntitlementService.ts
 
 # Agents Window (11 files)
 src/vs/sessions/contrib/automations/browser/automationService.ts
-src/vs/workbench/contrib/sessions/browser/github/githubApiClient.ts
+src/vs/workbench/services/github/browser/githubApiClient.ts
 src/vs/workbench/contrib/sessions/common/github/utils.ts
 src/vs/workbench/contrib/sessions/providers/agentHost/browser/agentHostAutomationStore.ts
 src/vs/sessions/contrib/providers/agentHost/test/browser/agentHostAutomationStore.test.ts

@@ -15,7 +15,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { ISessionChatSource } from '../../../browser/sessionHost.js';
+import { ISessionChatSource } from '../../../../../services/sessions/browser/sessionHost.js';
 import { AgentHostSessionEnumPicker, IAgentHostSessionEnumPickerItem } from './agentHostModePicker.js';
 import { isWellKnownClaudePermissionModeSchema } from './agentHostPermissionPickerDelegate.js';
 

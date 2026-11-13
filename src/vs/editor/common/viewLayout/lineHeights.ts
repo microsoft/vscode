@@ -280,7 +280,7 @@ export class LineHeightsManager {
 				}
 			}
 		} else {
-			startIndexOfDeletion = candidateStartIndexOfDeletion === -(numberOfCustomLines + 1) && candidateStartIndexOfDeletion !== -1 ? numberOfCustomLines - 1 : - (candidateStartIndexOfDeletion + 1);
+			startIndexOfDeletion = candidateStartIndexOfDeletion === -(numberOfCustomLines + 1) && candidateStartIndexOfDeletion !== -1 ? numberOfCustomLines - 1 : -(candidateStartIndexOfDeletion + 1);
 		}
 		const candidateEndIndexOfDeletion = this._binarySearchOverOrderedCustomLinesArray(toLineNumber);
 		let endIndexOfDeletion: number;
@@ -294,7 +294,7 @@ export class LineHeightsManager {
 				}
 			}
 		} else {
-			endIndexOfDeletion = candidateEndIndexOfDeletion === -(numberOfCustomLines + 1) && candidateEndIndexOfDeletion !== -1 ? numberOfCustomLines - 1 : - (candidateEndIndexOfDeletion + 1);
+			endIndexOfDeletion = candidateEndIndexOfDeletion === -(numberOfCustomLines + 1) && candidateEndIndexOfDeletion !== -1 ? numberOfCustomLines - 1 : -(candidateEndIndexOfDeletion + 1);
 		}
 		const isEndIndexBiggerThanStartIndex = endIndexOfDeletion > startIndexOfDeletion;
 		const isEndIndexEqualToStartIndexAndCoversCustomLine = endIndexOfDeletion === startIndexOfDeletion

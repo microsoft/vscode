@@ -5,6 +5,13 @@ on:
     branches:
       - main
       - 'release/*'
+  # Only main has a merge queue (see .github/rulesets/main-merge-queue.json): pull requests to
+  # release branches merge without one, and run every check.
+  merge_group:
+    types:
+      - checks_requested
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,11 +28,31 @@ jobs:
   # The workflow is: Detect Changes (the plan) -> the jobs that run what the plan
   # selects -> PR Gate, which reports their results as a single check.
   #
-  # Lists the files changed by the pull request so that jobs can skip checks the
-  # changes cannot affect (see .github/actions/detect-changes/detect.ts).
+  # It runs for pull requests and for the merge groups of the merge queue of main. Pull
+  # requests to main run every job except the Windows ones ("Windows / *", "Copilot - Test
+  # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs. Pull requests to
+  # release branches, which have no merge queue, run them too. The merge queue and the pull
+  # requests to release branches run every job on dedicated runners, so that the pull
+  # requests to main cannot hold up the merges:
+  #
+  # |         | Pull requests to main               | Merge queue, pull requests to release branches  |
+  # | ------- | ----------------------------------- | ----------------------------------------------- |
+  # | Linux   | vscode-large-runners-ubuntu-8-core  | vscode-large-runners-ubuntu-8-core-merge-queue  |
+  # | Windows | vscode-large-runners-windows-8-core | vscode-large-runners-windows-8-core-merge-queue |
+  #
+  # Each job picks its runner with the expression of *linux-runner (on Detect Changes)
+  # or *windows-runner (on the Windows test jobs), and passes it on to the reusable test
+  # workflows. The dedicated runners need the image and size of the other runners, so
+  # that the workspace images work on them (see
+  # .github/workflows/workspace_image/README.md). Windows / Electron-Smoke (WSL) runs on
+  # its 1ES pool in either case. .github/rulesets/main-merge-queue.json configures the
+  # merge queue.
+  #
+  # Lists the files changed by the pull request, or in the merge queue by the merge group, so that
+  # jobs can skip checks the changes cannot affect (see .github/actions/detect-changes/detect.ts).
   # Jobs also run when change detection fails.
   #
-  # Also plans the unit and integration test files the pull request can affect (see
+  # Also plans the unit and integration test files the changes can affect (see
   # build/ripple/README.md). The unit test jobs download the test-plan artifact and run only the
   # listed files, and are skipped when the plan selects no file; the Browser ones also when it
   # selects no browser test. The node.js integration tests and Agent Host E2E run only the listed
@@ -34,8 +61,10 @@ jobs:
   # job: the Ripple job reports a broken ripple.
   changes:
     name: Detect Changes
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: &linux-runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
     outputs:
+      # The commit of the base branch that a merge group forks from (see the Find the base step).
+      merge-group-base: ${{ steps.base.outputs.merge-group-base }}
       cli: ${{ steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
       copilot: ${{ steps.detect.outputs.copilot }}
@@ -69,6 +98,30 @@ jobs:
           # first parent) with the merge result. ripple reads every file of both commits, so this
           # cannot be a sparse (blobless) checkout.
           fetch-depth: 2
+
+      # PLAN_BASE is the commit that the test plan compares with the changes. For a pull request, the
+      # base branch, which is the first parent of its merge commit. For a merge group, the commit of
+      # the base branch that it forks from, so that the plan covers its pull request and those ahead
+      # of it in the queue that haven't merged yet: when only the head of a group needs to pass (see
+      # the top of the workflow), the group merges them on the strength of its run. The parent of the
+      # commit of a merge group is the merge group ahead of it, which merge_group.base_sha may name.
+      # Detect changes compares the same commits. Without PLAN_BASE, planning fails and every test runs.
+      - name: Find the base of the changes
+        id: base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != merge_group ]; then
+            echo "PLAN_BASE=HEAD^1" >> "$GITHUB_ENV"
+          elif base=$(gh api "repos/$GITHUB_REPOSITORY/compare/${MERGE_GROUP_BASE_REF#refs/heads/}...$MERGE_GROUP_HEAD_SHA" --jq .merge_base_commit.sha) \
+            && { git cat-file -e "$base^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$base"; }; then
+            echo "PLAN_BASE=$base" >> "$GITHUB_ENV"
+            echo "merge-group-base=$base" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Could not find the commit of $MERGE_GROUP_BASE_REF that the merge group forks from, so every unit and integration test runs."
+          fi
 
       - name: Detect changes
         id: detect
@@ -117,8 +170,25 @@ jobs:
         timeout-minutes: 5
         run: |
           set -e
-          build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base HEAD^1 --head HEAD --out-dir .build/test-plan > /dev/null
-          echo "Linux and Windows run the selected files, and skip their unit test jobs, the node.js integration tests and Agent Host E2E when there are none. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
+          build/ripple/target/release/ripple plan --config build/ripple/vscode.jsonc --base "$PLAN_BASE" --head HEAD --out-dir .build/test-plan > /dev/null
+          echo "The test jobs run the selected files, and skip their unit test jobs, the node.js integration tests and Agent Host E2E when there are none. See build/ripple/README.md." >> "$GITHUB_STEP_SUMMARY"
+
+      # The selected unit test files that the changes add, modify or rename, which the Linux
+      # Electron unit test job also runs each alone in a fresh window (see --isolate in
+      # test/unit/README.md): a full run loads every test file before running any, so a test file can
+      # pass there only because another one registers what it reads.
+      - name: List changed unit test files
+        if: steps.plan.outputs.select == 'true'
+        continue-on-error: true
+        run: |
+          if [ -f .build/test-plan/unit.txt ]; then
+            git diff --name-only --diff-filter=AMR "$PLAN_BASE" HEAD -- 'src/*.test.ts' | grep -Fx -f .build/test-plan/unit.txt > .build/test-plan/isolate.txt || true
+            if [ -s .build/test-plan/isolate.txt ]; then
+              echo "Linux runs the $(wc -l < .build/test-plan/isolate.txt | tr -d ' ') changed unit test file(s) each alone in a fresh window too." >> "$GITHUB_STEP_SUMMARY"
+            else
+              rm -f .build/test-plan/isolate.txt
+            fi
+          fi
 
       - name: Upload test plan
         if: steps.plan.outputs.select == 'true'
@@ -148,7 +218,7 @@ jobs:
           AGENT_HOST_E2E: '^src/vs/platform/agentHost/test/node/e2e/(providers/[^/]*AgentHostE2E|conformance/[^/]*)\.integrationTest\.ts$'
         run: |
           changed=false
-          if [ -n "$(git diff --name-only HEAD^1 HEAD -- build/ripple)" ]; then
+          if [ -n "$(git diff --name-only "$PLAN_BASE" HEAD -- build/ripple)" ]; then
             changed=true
           fi
           failed=false
@@ -209,23 +279,91 @@ jobs:
     name: Compile & Hygiene
     needs: changes
     if: ${{ !cancelled() }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
+    # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       checks-failed: ${{ steps.failed-checks.outputs.failed }}
     env:
-      # Hygiene and ESLint check only the files that changed since this commit, unless
-      # a change can affect other files (see build/lib/changedFiles.ts). The full checks
-      # run in the scheduled and manual product builds.
-      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      # Hygiene and oxlint check only the files that changed since this commit, the base of the
+      # pull request or the commit of the base branch that a merge group forks from, unless a
+      # change can affect other files (see build/lib/changedFiles.ts). The full checks run in the
+      # scheduled and manual product builds.
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha || needs.changes.outputs.merge-group-base }}
     steps:
+      # The jobs of this workflow that install the dependencies start from a workspace image of main,
+      # like the test jobs (see pr-linux-test.yml and .github/workflows/workspace_image/README.md): its
+      # dependencies are installed, and its .git holds the commit it was built at, so the checkout
+      # writes and the install steps install only what changed since. Its scripts run before the
+      # checkout, so they come from the API, at the commit that the job tests, as in
+      # pr-workspace-images.yml. Without an image, or on any error, the install steps install
+      # everything, without the pnpm store cache. The other jobs reuse these steps.
+      - &image-scripts
+        name: Download the workspace image scripts
+        id: image-scripts
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          # The scripts keep their folders below workspace_image, such as win32/vhd.ps1
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,win32/vhd.ps1,win32/Vhd.cs})
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file#.github/workflows/workspace_image/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel --create-dirs -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          for file in "${files[@]}"; do
+            [ -s "$dir/${file#.github/workflows/workspace_image/}" ]
+          done
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
+
+      - &image-node
+        name: Setup Node.js
+        if: steps.image-scripts.outcome == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      # An ext4 volume on Linux and a Dev Drive in a VHDX on Windows, mounted at the parent of the
+      # workspace. Only the larger runners of pr-workspace-images.yml have the path of its workspace.
+      # image.ts gives up before the timeout of the step, and then unmounts the image, so that the job
+      # sets up as without an image. Pull requests to release branches look for images of their own
+      # branch, which pr-workspace-images.yml doesn't build.
+      - &image-restore
+        name: Restore the workspace image
+        id: image
+        if: steps.image-scripts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name "$WORKSPACE_IMAGE_NAME" --branch "$WORKSPACE_IMAGE_BRANCH" --timeout-seconds 240
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKSPACE_IMAGE_NAME: ${{ runner.os == 'Windows' && 'workspace-image-win32-x64.img' || 'workspace-image-linux-x64.img' }}
+          WORKSPACE_IMAGE_BRANCH: ${{ github.base_ref || 'main' }}
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
-      # Without the base commit, hygiene and ESLint check every file.
+      # Without the base commit, hygiene and oxlint check every file.
       - name: Fetch pull request base
-        run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" || echo "::warning::Could not fetch $PR_BASE_SHA; hygiene and ESLint will check every file."
+        run: git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" || echo "::warning::Could not fetch $PR_BASE_SHA; hygiene and oxlint will check every file."
 
-      - name: Setup Node.js
+      - &node-without-image
+        name: Setup Node.js
+        if: steps.image-scripts.outcome != 'success'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
@@ -233,23 +371,13 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
-        with:
-          key-prefix: node_modules-compile
-          key-args: "compile $(node -p process.arch)"
-
-      - name: Install build tools
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       - name: Install Electron headers
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm run preinstall
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
 
@@ -299,12 +427,19 @@ jobs:
           pnpm -C extensions/markdown-language-features run test-markdown-editor-package-json
           pnpm -C extensions/markdown-language-features run test-markdown-editor-clipboard
 
-      # Hygiene and ESLint check only the changed files, so they take seconds and fail the job
+      # Hygiene and oxlint check only the changed files, so they take seconds and fail the job
       # before the compilation checks start. --continue-on-error reports both when both fail.
-      # ESLint stays out of the compilation checks so that its worker memory doesn't overlap theirs.
-      - name: Hygiene & ESLint
+      # oxlint runs the rules of eslint.config.js (see oxlint.config.ts). It stays out of the
+      # compilation checks so that the memory of its processes doesn't overlap theirs. A merge
+      # group has no base when Detect Changes failed, and then they check every file.
+      - name: Hygiene & oxlint
         id: hygiene
-        run: pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "eslint --changed-since $PR_BASE_SHA"
+        run: |
+          if [ -n "$PR_BASE_SHA" ]; then
+            pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "oxlint --changed-since $PR_BASE_SHA"
+          else
+            pnpm exec npm-run-all2 -lp --continue-on-error hygiene oxlint
+          fi
 
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
@@ -313,13 +448,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Without a base (see Hygiene & oxlint), it checks the client whether or not its inputs changed.
       - name: Check Codex protocol client is in sync
         id: codex-sync
         run: |
-          git fetch --no-tags --depth=1 origin "$CODEX_SYNC_BASE" || true
-          node build/codex/check-protocol-sync.ts --if-changed --base "$CODEX_SYNC_BASE"
+          if [ -n "$CODEX_SYNC_BASE" ]; then
+            git fetch --no-tags --depth=1 origin "$CODEX_SYNC_BASE" || true
+            node build/codex/check-protocol-sync.ts --if-changed --base "$CODEX_SYNC_BASE"
+          else
+            node build/codex/check-protocol-sync.ts
+          fi
         env:
-          CODEX_SYNC_BASE: ${{ github.event.pull_request.base.sha }}
+          CODEX_SYNC_BASE: ${{ github.event.pull_request.base.sha || needs.changes.outputs.merge-group-base }}
 
       - name: Check cyclic dependencies
         id: cyclic-dependencies
@@ -335,43 +475,35 @@ jobs:
     name: Monaco Editor
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.monaco-editor == 'true') }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
     timeout-minutes: 40
-    permissions: {}
+    # actions: read finds and downloads the workspace image (see Compile & Hygiene)
+    permissions:
+      contents: read
+      actions: read
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      - *image-scripts
+      - *image-node
+      - *image-restore
+
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
+      - *node-without-image
 
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      # Reuse the node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
-      # `main`. Never save: PR-scoped caches are not shared with other PRs and only evict the
-      # shared ones.
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
-        with:
-          key-prefix: node_modules-compile
-          key-args: "compile $(node -p process.arch)"
-
-      - name: Install system dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: |
-          sudo apt update
-          sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -424,7 +556,7 @@ jobs:
     name: Telemetry
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.telemetry == 'true') }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
     permissions: {}
     steps:
       - name: Checkout microsoft/vscode
@@ -460,7 +592,7 @@ jobs:
     name: Ripple
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ripple-changed == 'true' }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
     steps:
       - name: Check that ripple builds, passes its tests and plans the tests
         env:
@@ -473,9 +605,11 @@ jobs:
           echo "ripple built, passed its tests and planned the tests in Detect Changes."
 
   # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit", whether
-  # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names and skip
-  # when the changes cannot affect them (the *_affected inputs). The calling jobs always run, as
-  # GitHub reports a skipped calling job under its own name only.
+  # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names, run on
+  # the runner that the calling job passes, and skip when the changes cannot affect them (the
+  # *_affected inputs). The calling jobs always run, as GitHub reports a skipped calling job under its
+  # own name only, except the Windows one, which pull requests to main skip, as the merge queue runs
+  # it: they report a single skipped Windows check.
   linux-rust-tests:
     name: Linux
     needs: changes
@@ -485,6 +619,7 @@ jobs:
       rustup_toolchain: 1.88
       cli_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
       copilot_shim_affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.copilot-shim == 'true' }}
+      runner: *linux-runner
 
   linux-tests:
     name: Linux
@@ -511,15 +646,17 @@ jobs:
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
-      # Pull requests to release branches find no images of their branch, and install everything.
-      workspace_image_branch: ${{ github.base_ref }}
+      # Pull requests to release branches find no images of their branch, and install everything. The
+      # merge queue, which has no base_ref, uses the images of main.
+      workspace_image_branch: ${{ github.base_ref || 'main' }}
+      runner: *linux-runner
 
   # The macOS jobs are commented out, so that pull requests don't wait for macOS runners: the Linux,
   # Windows and Compile & Hygiene jobs catch almost every failure that they caught, and the Azure
   # product build still runs the macOS tests on main (see
   # build/azure-pipelines/darwin/steps/product-build-darwin-test.yml). To run them again, uncomment
   # this job and chat-lib-macos-tests, their entries in the needs of PR Gate, the electron-tests output
-  # of Detect Changes, the macOS jobs of pr-node-modules.yml and pr-workspace-images.yml, and the
+  # of Detect Changes, the macOS jobs of pr-pnpm-store.yml and pr-workspace-images.yml, and the
   # macOS entries of .github/actions/detect-missing-caches, and add the macOS checks back to the tests
   # in build/lib/test.
   # macos-tests:
@@ -545,7 +682,7 @@ jobs:
   windows-tests:
     name: Windows
     needs: changes
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main') }}
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
@@ -567,22 +704,33 @@ jobs:
       # The provider integration tests and the Agent Host E2E tests read the profile.
       agent_host_test_profile: ${{ needs.changes.outputs.agent-host-test-profile || 'full' }}
       agent_host_test_profile_reason: ${{ needs.changes.outputs.agent-host-test-profile-reason || 'Change detection unavailable' }}
-      # Pull requests to release branches find no images of their branch, and install everything.
-      workspace_image_branch: ${{ github.base_ref }}
+      # Pull requests to release branches find no images of their branch, and install everything. The
+      # merge queue, which has no base_ref, uses the images of main.
+      workspace_image_branch: ${{ github.base_ref || 'main' }}
+      runner: &windows-runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-windows-8-core-merge-queue' || 'vscode-large-runners-windows-8-core' }}
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
+    # actions: read finds and downloads the workspace image (see Compile & Hygiene)
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     steps:
+      # Copilot and chat-lib are members of the root workspace, which an image holds installed
+      - *image-scripts
+      - *image-node
+      - *image-restore
+
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -591,22 +739,16 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
-        with:
-          key-prefix: copilot-node_modules-linux
-          key-args: "$(node -p process.platform) $(node -p process.arch)"
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
-      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
-      - name: Install root dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+      - name: Build copilot dependencies
+        run: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
 
-      - name: Install copilot dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      - name: Run copilot postinstall
         working-directory: extensions/copilot
-        run: pnpm install --frozen-lockfile
+        run: pnpm run postinstall
 
       - name: Ensure no duplicate cache keys
         working-directory: extensions/copilot
@@ -625,7 +767,7 @@ jobs:
     name: Copilot - Check Telemetry
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
     permissions:
       contents: read
     steps:
@@ -649,14 +791,22 @@ jobs:
     name: Copilot - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
+    # actions: read finds and downloads the workspace image (see Compile & Hygiene)
     permissions:
       contents: read
+      actions: read
     steps:
+      - *image-scripts
+      - *image-node
+      - *image-restore
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -689,22 +839,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb libgtk-3-0 libgbm1
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
-        with:
-          key-prefix: copilot-node_modules-linux
-          key-args: "$(node -p process.platform) $(node -p process.arch)"
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
-      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
-      - name: Install root dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+      - name: Build copilot dependencies
+        run: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
 
-      - name: Install copilot dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      - name: Run copilot postinstall
         working-directory: extensions/copilot
-        run: pnpm install --frozen-lockfile
+        run: pnpm run postinstall
 
       - name: TypeScript type checking
         working-directory: extensions/copilot
@@ -756,15 +900,28 @@ jobs:
   copilot-windows-tests:
     name: Copilot - Test (Windows)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: vscode-large-runners-windows-8-core
+    # Pull requests to main skip the Windows checks, which the merge queue runs (see the top of the workflow).
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    runs-on: *windows-runner
+    # actions: read finds and downloads the workspace image (see Compile & Hygiene)
     permissions:
       contents: read
+      actions: read
+    env:
+      # The workspace image is mounted at the parent of the workspace without a drive letter, so
+      # esbuild needs the volume paths of pnpm's junctions (see pr-win32-test.yml)
+      GODEBUG: winreadlinkvolume=1
     steps:
+      - *image-scripts
+      - *image-node
+      - *image-restore
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -788,22 +945,16 @@ jobs:
       - name: Install setuptools
         run: pip install setuptools
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
-        with:
-          key-prefix: copilot-node_modules-windows
-          key-args: "$(node -p process.platform) $(node -p process.arch)"
+      # Same commands as the Copilot jobs of pr-pnpm-store.yml.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
 
-      # Same commands as the Copilot jobs of pr-node-modules.yml, which save this cache on main.
-      - name: Install root dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
+      - name: Build copilot dependencies
+        run: pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
 
-      - name: Install copilot dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      - name: Run copilot postinstall
         working-directory: extensions/copilot
-        run: pnpm install --frozen-lockfile
+        run: pnpm run postinstall
 
       - name: Compile
         working-directory: extensions/copilot
@@ -836,16 +987,28 @@ jobs:
     name: chat-lib - Test (Linux)
     needs: changes
     if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
     timeout-minutes: 30
+    # actions: read finds and downloads the workspace image (see Compile & Hygiene)
     permissions:
       contents: read
+      actions: read
     steps:
+      - *image-scripts
+      - *image-node
+      - *image-restore
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
+        with:
+          # Installs on top of the workspace image, or everything without an image
+          restore-pnpm-store: 'false'
 
   # Commented out with the macOS test jobs (see macos-tests).
   # chat-lib-macos-tests:
@@ -863,32 +1026,51 @@ jobs:
   #     - name: Test chat-lib
   #       uses: ./.github/actions/test-chat-lib
 
+  # Runs on the larger runners, whose workspaces have the path of the workspace images
   chat-lib-windows-tests:
     name: chat-lib - Test (Windows)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
-    runs-on: windows-2025
+    # Pull requests to main skip the Windows checks, which the merge queue runs (see the top of the workflow).
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    runs-on: *windows-runner
     timeout-minutes: 30
+    # actions: read finds and downloads the workspace image (see Compile & Hygiene)
     permissions:
       contents: read
+      actions: read
+    env:
+      # The workspace image is mounted at the parent of the workspace without a drive letter, so
+      # esbuild needs the volume paths of pnpm's junctions (see pr-win32-test.yml)
+      GODEBUG: winreadlinkvolume=1
     steps:
+      - *image-scripts
+      - *image-node
+      - *image-restore
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
 
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
+        with:
+          # Installs on top of the workspace image, or everything without an image
+          restore-pnpm-store: 'false'
 
   # When Compile & Hygiene finds a problem in the change, which has to be fixed and pushed again
   # anyway, this job cancels the run so that the test jobs free their machines for other pull
-  # requests, above all the scarce Windows ones. It does not cancel when the setup of
+  # requests or merge groups, above all the scarce Windows ones. It does not cancel when the setup of
   # Compile & Hygiene fails, as a rerun of that job fixes it. It runs apart from Compile & Hygiene so
   # that the code of the pull request never runs with a token that can cancel workflow runs, and the
-  # token of a pull request from a fork cannot cancel the run.
+  # token of a pull request from a fork cannot cancel the run. Merge groups are branches of this
+  # repository.
   cancel-run:
     name: Cancel Run
     needs: compile
-    if: ${{ failure() && needs.compile.outputs.checks-failed == 'true' && github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    if: ${{ failure() && needs.compile.outputs.checks-failed == 'true' && (github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: *linux-runner
     permissions:
       actions: write
     steps:
@@ -901,11 +1083,13 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           REPOSITORY: ${{ github.repository }}
 
-  # The only check of this workflow that branch protection requires:
-  # Detect Changes plans the pull request, the jobs above run what the plan
+  # The only check of this workflow that branch protection requires, of pull
+  # requests and of the merge groups of the merge queue:
+  # Detect Changes plans the changes, the jobs above run what the plan
   # selects, and this gate passes when every job succeeded or was skipped
-  # because the changes cannot affect it. Detect Changes fails open: when it
-  # fails, every job runs, so its failure does not fail the gate (yet).
+  # because the changes cannot affect it, or because the merge queue runs it.
+  # Detect Changes fails open: when it fails, every job runs, so its failure
+  # does not fail the gate (yet).
   # Uses always() so that the gate also reports when a job failed or the run
   # was cancelled, as a skipped required check would pass.
   # Every job of this workflow must be listed in needs.
@@ -930,7 +1114,7 @@ jobs:
       - chat-lib-windows-tests
       - cancel-run
     if: ${{ always() }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: *linux-runner
     steps:
       - name: Check job results
         env:
@@ -947,7 +1131,7 @@ jobs:
               *:success)
                 echo "$job succeeded." ;;
               *:skipped)
-                echo "$job was skipped because the changes cannot affect it." ;;
+                echo "$job was skipped because the changes cannot affect it, or the merge queue runs it." ;;
               changes:failure)
                 echo "::warning::Detect Changes failed, so every job ran." ;;
               *)

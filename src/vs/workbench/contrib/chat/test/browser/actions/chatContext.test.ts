@@ -15,7 +15,7 @@ import { IFileDialogService, IOpenDialogOptions } from '../../../../../../platfo
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentContextValuePick, ClipboardImageContextValuePick, FileContextValuePick, GitHubContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
+import { AgentContextValuePick, ClipboardImageContextValuePick, FileContextValuePick, GitHubContextValuePick, ScreenshotContextValuePick, shouldShowOpenEditorsContext } from '../../../browser/actions/chatContext.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { ChatContextPickService } from '../../../browser/attachments/chatContextPickService.js';
 import { IChatWidget } from '../../../browser/chat.js';
@@ -23,6 +23,10 @@ import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { AUTO_RAW_MODEL_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IGitRepository, IGitService } from '../../../../git/common/gitService.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
+import { createTestScreenshotToolService } from '../../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 
 function widget(overrides: Partial<Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>>): Pick<IChatWidget, 'viewModel' | 'lockedAgentId'> {
 	return {
@@ -162,6 +166,62 @@ suite('ChatContext', () => {
 		test('clipboard read errors propagate to the context picker', async () => {
 			const { pick } = createPick(false, async () => { throw new Error('Clipboard access denied'); });
 			await assert.rejects(pick.asAttachment(), /Clipboard access denied/);
+		});
+	});
+
+	suite('Screenshot', () => {
+		const windowScreenshot = VSBuffer.wrap(new Uint8Array([255, 216, 255]));
+		const capturedImage = { dataUrl: 'data:image/png;base64,iVBORw0K', width: 2, height: 1 };
+
+		function createScreenshotPick(supported = true) {
+			const { service, telemetry } = createTestScreenshotToolService(disposables, supported);
+			const host = new class extends mock<IHostService>() {
+				override async getScreenshot() { return windowScreenshot; }
+			}();
+			let focused = 0;
+			const widget = upcastPartial<IChatWidget>({ domNode: mainWindow.document.body, focusInput: () => { focused++; } });
+			return { pick: new ScreenshotContextValuePick(host, service), service, telemetry, widget, focusCount: () => focused };
+		}
+
+		test('attaches what the host captures where the screenshot tool is not supported, as on the web', async () => {
+			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick(false);
+			const attachment = await pick.asAttachment(widget);
+			assert.deepStrictEqual({ attachment, tool: service.requests, focused: focusCount(), captures: telemetry.captures, editable: !!attachment && !!service.getEditableAttachment(attachment) }, {
+				attachment: { id: 'screenshot-focused-window', name: 'Screenshot', value: windowScreenshot.buffer, kind: 'image' },
+				tool: [], focused: 0,
+				captures: [],
+				editable: false,
+			});
+		});
+
+		test('attaches each capture of the screenshot tool to the chat input, where it can be edited', async () => {
+			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick();
+			service.result = { kind: 'captured', mode: 'area', image: capturedImage };
+			const attachment = await pick.asAttachment(widget);
+			const next = await pick.asAttachment(widget);
+			const capture = { entryPoint: 'chatAddContext', outcome: 'attached', mode: 'area' };
+			assert.deepStrictEqual({
+				attachment: attachment && { ...attachment, id: 'unique', value: [...attachment.value as Uint8Array] },
+				// Neither capture is dropped as a duplicate of the other, or of a screenshot from the web.
+				distinctIds: new Set([attachment?.id, next?.id, 'screenshot-focused-window']).size,
+				editable: attachment && service.getEditableAttachment(attachment),
+				tool: service.requests, focused: focusCount(), captures: telemetry.captures,
+			}, {
+				attachment: { id: 'unique', name: 'Screenshot', value: [137, 80, 78, 71, 13, 10], kind: 'image', mimeType: 'image/png' },
+				distinctIds: 3,
+				editable: { original: capturedImage, annotationState: undefined },
+				tool: ['capture', 'capture'], focused: 2,
+				captures: [capture, capture],
+			});
+		});
+
+		test('attaches nothing when the screenshot tool is cancelled', async () => {
+			const { pick, service, telemetry, widget, focusCount } = createScreenshotPick();
+			service.result = { kind: 'cancelled', mode: 'none' };
+			assert.deepStrictEqual({ attachment: await pick.asAttachment(widget), focused: focusCount(), captures: telemetry.captures }, {
+				attachment: undefined, focused: 1,
+				captures: [{ entryPoint: 'chatAddContext', outcome: 'cancelled', mode: 'none' }],
+			});
 		});
 	});
 

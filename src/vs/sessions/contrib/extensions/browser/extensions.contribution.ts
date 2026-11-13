@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { EXTENSION_IDENTIFIER_PATTERN } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -15,10 +17,11 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
+import { AgentsWindowExtensionAutoEnablementExperiment } from './agentsWindowExtensionAutoEnablementExperiment.js';
 import { AgentsWindowExtensionAutoEnablementTelemetry } from './agentsWindowExtensionAutoEnablementTelemetry.js';
 import { AgentsWindowExtensionsAccessibilityHelp } from './agentsWindowExtensionsAccessibilityHelp.js';
-import { AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING, AgentsWindowExtensionSuggestionsService, getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
-import { AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING, AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
+import { AGENTS_WINDOW_EXTENSION_SUGGESTIONS_SETTING, AgentsWindowExtensionSuggestionsService, getExtensionSuggestionsSectionBadge, IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
+import { AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING, AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID, AgentsWindowExtensionPageContext, AgentsWindowExtensionsWidget } from './agentsWindowExtensionsWidget.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'extensions',
@@ -54,6 +57,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			// Takes effect on startup, so assignment changes do not start or stop extensions while the window is open.
 			experiment: { mode: 'startup' },
 		},
+		[EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS]: {
+			type: 'object',
+			patternProperties: {
+				[EXTENSION_IDENTIFIER_PATTERN]: { type: 'boolean' },
+			},
+			additionalProperties: false,
+			default: {},
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('extensions.experimental.agentsWindowAutoEnableExtensions', "Controls, for each extension identifier, such as `publisher.name`, whether an installed extension that hasn't declared support for the Agents window is enabled there automatically. Set an extension to `true` to enable it, even if it relies on features that are unavailable in the Agents window, or to `false` to never enable it automatically. Other extensions follow `#{0}#`. You can still enable or disable extensions from the Extensions section of Agent Customizations. Requires `#{1}#`.", EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
+			tags: ['experimental'],
+			// Each extension's value is assigned by its own treatment, so that each extension can be tested in its own
+			// experiment. Takes effect on startup, so assignment changes do not start or stop extensions while the window is open.
+			experiment: { mode: 'startup', keyed: true },
+		},
 		[AGENTS_WINDOW_CONFIRM_UNINSTALL_SETTING]: {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
@@ -65,7 +82,22 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerSingleton(IAgentsWindowExtensionSuggestionsService, AgentsWindowExtensionSuggestionsService, InstantiationType.Delayed);
+// Requests the experiment values of extensions as early as possible, so that extensions start with their experiment value.
+registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementExperiment.ID, AgentsWindowExtensionAutoEnablementExperiment, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(AgentsWindowExtensionAutoEnablementTelemetry.ID, AgentsWindowExtensionAutoEnablementTelemetry, WorkbenchPhase.AfterRestored);
+
+// Like Go Back, which returns to the previous editor from the Extensions editor in editor windows, with its keybindings. The
+// keybindings run from the page's webviews, which forward their keys to the window, and the section runs them elsewhere on
+// the page, as Agent Customizations is a modal that stops the keys of most workbench commands.
+KeybindingsRegistry.registerKeybindingRule({
+	id: AGENTS_WINDOW_EXTENSIONS_BACK_COMMAND_ID,
+	// Higher than Go Back and Sessions: Go Back.
+	weight: KeybindingWeight.SessionsContrib + 1,
+	when: AgentsWindowExtensionPageContext,
+	win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack] },
+	mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack] },
+	linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack] },
+});
 
 aiCustomizationManagementSectionRegistry.register({
 	id: AICustomizationManagementSection.Extensions,
@@ -75,8 +107,9 @@ aiCustomizationManagementSectionRegistry.register({
 	enablementSettings: [EXTENSIONS_AGENTS_WINDOW_MANAGEMENT],
 	separatorBefore: true,
 	supportsHarness: () => true,
-	getBadge: accessor => accessor.get(IAgentsWindowExtensionSuggestionsService).showBadge.map(show => show ? getExtensionSuggestionsBadgeDescription() : undefined),
-	create: (instantiationService, container) => instantiationService.createInstance(AgentsWindowExtensionsWidget, container),
+	create: (instantiationService, container, group) => instantiationService.createInstance(AgentsWindowExtensionsWidget, container, group),
 });
+
+aiCustomizationManagementSectionRegistry.registerBadge(AICustomizationManagementSection.Extensions, getExtensionSuggestionsSectionBadge);
 
 AccessibleViewRegistry.register(new AgentsWindowExtensionsAccessibilityHelp());

@@ -15,7 +15,7 @@ import { runWithFakedTimers } from '../../../base/test/common/timeTravelSchedule
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { SubmenuFlyout } from '../../../workbench/contrib/sessions/browser/parts/submenuFlyout.js';
+import { SubmenuFlyout } from '../../../workbench/browser/parts/sessions/submenuFlyout.js';
 import { TestContextViewService } from './testContextViewService.js';
 
 suite('Sessions - Submenu flyout', () => {

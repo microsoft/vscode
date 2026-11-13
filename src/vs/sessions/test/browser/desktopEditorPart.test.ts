@@ -35,7 +35,7 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
-import { IEmptyEditorGroup } from '../../../workbench/contrib/sessions/browser/parts/emptyEditorGroupAddTab.js';
+import { IEmptyEditorGroup } from '../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
 import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import '../../browser/parts/media/editorPart.css';
 import { TestContextViewService } from './testContextViewService.js';
