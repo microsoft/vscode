@@ -12,6 +12,7 @@ import { hasKey } from '../../../../base/common/types.js';
 
 export class RemotePty extends BasePty implements ITerminalChildProcess {
 	private readonly _startBarrier: Barrier;
+	private _startRequested = false;
 
 	constructor(
 		id: number,
@@ -25,6 +26,7 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 	}
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
+		this._startRequested = true;
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
 		if (!env) {
@@ -46,8 +48,14 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 	}
 
 	async detach(forcePersist?: boolean): Promise<void> {
-		await this._startBarrier.wait();
+		if (this._startRequested) {
+			await this._startBarrier.wait();
+		}
 		return this._remoteTerminalChannel.detachFromProcess(this.id, forcePersist);
+	}
+
+	cancelBeforeStart(): Promise<void> {
+		return this._remoteTerminalChannel.shutdown(this.id, true);
 	}
 
 	shutdown(immediate: boolean): void {

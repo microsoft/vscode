@@ -6,15 +6,20 @@
 import * as assert from 'assert';
 import { DeferredPromise, Sequencer, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
 import { TerminalTaskSystem } from '../../browser/terminalTaskSystem.js';
 import { assertTaskWorkspaceTrust, ITaskResolver, ITaskSummary } from '../../common/taskSystem.js';
-import { ContributedTask, DependsOrder, ITaskEvent, PanelKind, PresentationOptions, RuntimeType, Task, TaskScope, TaskSourceKind } from '../../common/tasks.js';
+import { ContributedTask, DependsOrder, ITaskEvent, PanelKind, PresentationOptions, RuntimeType, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind } from '../../common/tasks.js';
+import { ApplyToKind, FileLocationKind, ProblemMatcher } from '../../common/problemMatcher.js';
 
 suite('TerminalTaskSystem workspace trust', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -109,6 +114,96 @@ suite('TerminalTaskSystem workspace trust', () => {
 		await rejected;
 		assert.strictEqual(emitter.hasListeners(), false);
 	});
+
+	test('balances background activity and rejects readiness when terminal preparation is cancelled', async () => {
+		const trust = store.add(new TestWorkspaceTrustManagementService());
+		const emitter = store.add(new Emitter<ITaskEvent>());
+		const events: TaskEventKind[] = [];
+		const observer = store.add(emitter.event(event => events.push(event.kind)));
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const task = createTask('background');
+		const matcher: ProblemMatcher = {
+			owner: 'test', applyTo: ApplyToKind.allDocuments, fileLocation: FileLocationKind.Relative, filePrefix: '/workspace',
+			pattern: { regexp: /^(.*):(\d+): (.*)$/, file: 1, line: 2, message: 3 },
+			watching: { activeOnStart: true, beginsPattern: { regexp: /^begin$/ }, endsPattern: { regexp: /^end$/ } }
+		};
+		task.configurationProperties.isBackground = true;
+		task.configurationProperties.problemMatchers = [matcher];
+		const system = Object.assign(Object.create(TerminalTaskSystem.prototype), {
+			_workspaceTrustManagementService: trust,
+			_onDidStateChange: emitter,
+			_activeTasks: {},
+			_busyTasks: {},
+			_taskDependencies: {},
+			_taskErrors: {},
+			_getInstances: () => [],
+			_showTaskLoadErrors: () => { },
+			_logService: store.add(new NullLogService()),
+			_markerService: store.add(new MarkerService()),
+			_modelService: new class extends mock<IModelService>() {
+				override readonly onModelAdded = Event.None;
+				override readonly onModelRemoved = Event.None;
+				override getModels() { return []; }
+			},
+			_resolveMatchers: async () => [matcher, { ...matcher, owner: 'second' }],
+			_executeCommand: () => system._executeInTerminal(task, 'command', { values: new Map() }, folder),
+			_createTerminal: async () => {
+				await entered.complete();
+				await pending.p;
+				assertTaskWorkspaceTrust(trust);
+				throw new Error('Expected task cancellation');
+			}
+		}) as {
+			getBusyTasks(): Task[];
+			_executeInTerminal(task: Task, trigger: string, resolver: { values: Map<string, string> }, folder: WorkspaceFolder): Promise<ITaskSummary>;
+			_executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, liveDependencies: Set<string>, encounteredTasks: Map<string, Promise<ITaskSummary>>): Promise<ITaskSummary>;
+			_getDependencyPromise(task: { task: Task; state: TaskEventKind; promise: Promise<ITaskSummary> }): Promise<ITaskSummary>;
+		};
+		const execution = system._executeDependencyTask(task, { resolve: async () => undefined }, 'command', new Set(), new Map());
+		const rejected = assert.rejects(execution, /workspace is no longer trusted/);
+		await entered.p;
+		assert.deepStrictEqual(system.getBusyTasks(), [task]);
+		const alreadyActiveRejected = assert.rejects(system._getDependencyPromise({ task, state: TaskEventKind.Active, promise: execution }), /workspace is no longer trusted/);
+		await trust.setWorkspaceTrust(false);
+		await pending.complete();
+		await Promise.all([rejected, alreadyActiveRejected]);
+		observer.dispose();
+		assert.deepStrictEqual({
+			busyTasks: system.getBusyTasks(), events, hasListeners: emitter.hasListeners()
+		}, {
+			busyTasks: [],
+			events: [TaskEventKind.Active, TaskEventKind.Active, TaskEventKind.End, TaskEventKind.Inactive, TaskEventKind.Inactive],
+			hasListeners: false
+		});
+	});
+
+	for (const outcome of ['ready', 'exit successfully', 'exit unsuccessfully'] as const) {
+		test(`preserves background dependency completion when tasks ${outcome}`, async () => {
+			const emitter = store.add(new Emitter<ITaskEvent>());
+			const pending = new DeferredPromise<ITaskSummary>();
+			const task = createTask('background');
+			task.configurationProperties.isBackground = true;
+			task.configurationProperties.problemMatchers = ['$test'];
+			const system = Object.assign(Object.create(TerminalTaskSystem.prototype), {
+				_onDidStateChange: emitter
+			}) as {
+				_getDependencyPromise(task: { task: Task; state: TaskEventKind; promise: Promise<ITaskSummary> }): Promise<ITaskSummary>;
+			};
+			const readiness = system._getDependencyPromise({ task, state: TaskEventKind.Active, promise: pending.p });
+			emitter.fire(outcome === 'ready' ? TaskEvent.inactive(task, 1) : TaskEvent.general(TaskEventKind.End, task));
+			if (outcome !== 'ready') {
+				await pending.complete({ exitCode: outcome === 'exit successfully' ? 0 : 7 });
+			}
+			const summary = await readiness;
+			if (outcome === 'ready') {
+				await pending.complete({ exitCode: 7 });
+			}
+			assert.deepStrictEqual({ summary, hasListeners: emitter.hasListeners() }, {
+				summary: { exitCode: outcome === 'exit unsuccessfully' ? 7 : 0 }, hasListeners: false
+			});
+		});
+	}
 
 	test('observes pending parallel dependency failures after parent cancellation', async () => {
 		const trust = store.add(new TestWorkspaceTrustManagementService());

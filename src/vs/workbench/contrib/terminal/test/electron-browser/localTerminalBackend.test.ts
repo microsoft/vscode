@@ -78,7 +78,7 @@ suite('LocalTerminalBackend', () => {
 			if (pty instanceof LocalPty) {
 				store.add(pty);
 			}
-			return { attachedId: pty?.id, requests: [...attachRequests] };
+			return { attachedId: pty?.id, isRevived: pty?.isRevived, requests: [...attachRequests] };
 		}
 
 		deepStrictEqual({
@@ -92,15 +92,15 @@ suite('LocalTerminalBackend', () => {
 			originalMissing: await attach(() => backend.attachToRevivedProcess(4, 404)),
 			attachById: await attach(() => backend.attachToProcess(3)),
 		}, {
-			revivedWithNewId: { attachedId: 1, requests: [[1, undefined]] },
-			revivedWithSameId: { attachedId: 2, requests: [[2, undefined]] },
-			revivedButMissing: { attachedId: undefined, requests: [[5, undefined]] },
-			originalWithSavedPid: { attachedId: 3, requests: [[3, 303]] },
-			originalWithOtherPid: { attachedId: undefined, requests: [[3, 9009]] },
-			originalWithUnknownPid: { attachedId: 3, requests: [[3, undefined]] },
-			originalWithNegativePid: { attachedId: 3, requests: [[3, undefined]] },
-			originalMissing: { attachedId: undefined, requests: [[4, 404]] },
-			attachById: { attachedId: 3, requests: [[3, undefined]] },
+			revivedWithNewId: { attachedId: 1, isRevived: true, requests: [[1, undefined]] },
+			revivedWithSameId: { attachedId: 2, isRevived: true, requests: [[2, undefined]] },
+			revivedButMissing: { attachedId: undefined, isRevived: undefined, requests: [[5, undefined]] },
+			originalWithSavedPid: { attachedId: 3, isRevived: false, requests: [[3, 303]] },
+			originalWithOtherPid: { attachedId: undefined, isRevived: undefined, requests: [[3, 9009]] },
+			originalWithUnknownPid: { attachedId: 3, isRevived: false, requests: [[3, undefined]] },
+			originalWithNegativePid: { attachedId: 3, isRevived: false, requests: [[3, undefined]] },
+			originalMissing: { attachedId: undefined, isRevived: undefined, requests: [[4, 404]] },
+			attachById: { attachedId: 3, isRevived: false, requests: [[3, undefined]] },
 		});
 	});
 

@@ -13,13 +13,15 @@ import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../.
 import { URI } from '../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EnvironmentVariableMutatorType, type IEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
 import { ITerminalChildProcess, TitleEventSource, type IProcessReadyEvent, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
+import { RemotePty } from '../../browser/remotePty.js';
+import { RemoteTerminalChannelClient } from '../../common/remote/remoteTerminalChannel.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -215,6 +217,79 @@ suite('Workbench - TerminalProcessManager', () => {
 			shutdownCalls
 		}, { cancelled: true, startCalls: [], shutdownCalls: [false] });
 	});
+
+	for (const remote of [false, true]) {
+		for (const attachment of ['new', 'live', 'live with revival lookup', 'revived', 'unstarted'] as const) {
+			for (const cancellation of ['trust', 'disposal'] as const) {
+				test(`releases a ${remote ? 'remote' : 'local'} ${attachment} process safely after ${cancellation}`, async () => {
+					const trust = instantiationService.get(IWorkspaceTrustManagementService);
+					const entered = new DeferredPromise<void>();
+					const pending = new DeferredPromise<void>();
+					const calls: string[] = [];
+					const allocations = new Set([1]);
+					const isLiveAttachment = attachment === 'live' || attachment === 'live with revival lookup';
+					const channel = new class extends mock<RemoteTerminalChannelClient>() {
+						override async start() { calls.push('start'); return undefined; }
+						override async shutdown(id: number, immediate: boolean) {
+							calls.push(`shutdown ${immediate}`);
+							allocations.delete(id);
+						}
+						override async detachFromProcess() { calls.push('detach'); }
+					};
+					const child = remote
+						? store.add(instantiationService.createInstance(RemotePty, 1, true, channel))
+						: Object.assign(new TestTerminalChildProcess(true), {
+							isRevived: attachment === 'revived',
+							async detach() { calls.push('detach'); },
+							shutdown(immediate: boolean) { calls.push(`shutdown ${immediate}`); allocations.delete(1); },
+							async start() { calls.push('start'); return undefined; }
+						});
+					const backend = await terminalInstanceService.getBackend();
+					const attach = async () => {
+						await entered.complete();
+						await pending.p;
+						return child;
+					};
+					backend.attachToProcess = attach;
+					backend.attachToRevivedProcess = attach;
+					backend.createProcess = attach;
+					instantiationService.stub(ITerminalInstanceService, { getBackend: async () => backend });
+					if (remote) {
+						instantiationService.stub(IRemoteAgentService, {
+							getEnvironment: async () => upcastPartial<IRemoteAgentEnvironment>({ os: OperatingSystem.Linux, userHome: URI.file('/home/test') })
+						});
+					}
+					const taskManager = store.add(instantiationService.createInstance(TerminalProcessManager, 2,
+						remote ? URI.from({ scheme: Schemas.vscodeRemote, authority: 'test-remote', path: '/workspace' }) : undefined, undefined, undefined));
+					const execution = taskManager.createProcess({
+						type: 'Task',
+						attachPersistentProcess: attachment === 'new' ? undefined : {
+							id: 1, pid: attachment === 'unstarted' || (remote && attachment === 'revived') ? -1 : 123,
+							findRevivedId: attachment === 'revived' || attachment === 'live with revival lookup', title: 'task', titleSource: TitleEventSource.Process, cwd: '', shellIntegrationNonce: ''
+						}
+					}, 80, 24, false);
+					await entered.p;
+					if (cancellation === 'trust') {
+						await trust.setWorkspaceTrust(false);
+					} else {
+						taskManager.dispose();
+					}
+					await pending.complete();
+					const result = await execution;
+					taskManager.dispose();
+					deepStrictEqual({
+						cancelled: !!(result && hasKey(result, { message: true }) && result.message.includes('workspace is no longer trusted')),
+						calls,
+						allocations: [...allocations]
+					}, {
+						cancelled: cancellation === 'trust',
+						calls: [isLiveAttachment ? 'detach' : `shutdown ${remote}`],
+						allocations: isLiveAttachment ? [1] : []
+					});
+				});
+			}
+		}
+	}
 
 	test('does not start a custom task terminal after trust is revoked', async () => {
 		const trust = instantiationService.get(IWorkspaceTrustManagementService);

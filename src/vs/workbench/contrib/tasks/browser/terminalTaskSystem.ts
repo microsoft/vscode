@@ -628,16 +628,19 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return promise;
 	}
 
-	private _createInactiveDependencyPromise(task: Task, disposables?: DisposableStore): Promise<ITaskSummary> {
-		return new Promise<ITaskSummary>(resolve => {
-			const taskInactiveDisposable = this.onDidStateChange(taskEvent => {
-				if ((taskEvent.kind === TaskEventKind.Inactive) && (taskEvent.__task === task)) {
-					taskInactiveDisposable.dispose();
+	private _createInactiveDependencyPromise(task: Task, execution: Promise<ITaskSummary>): Promise<ITaskSummary> {
+		const disposables = new DisposableStore();
+		const inactivePromise = new Promise<ITaskSummary>(resolve => {
+			disposables.add(this.onDidStateChange(taskEvent => {
+				if (taskEvent.kind === TaskEventKind.End && taskEvent.__task === task) {
+					disposables.dispose();
+				} else if (taskEvent.kind === TaskEventKind.Inactive && taskEvent.__task === task) {
+					disposables.dispose();
 					resolve({ exitCode: 0 });
 				}
-			});
-			disposables?.add(taskInactiveDisposable);
+			}));
 		});
+		return Promise.race([inactivePromise, execution]).finally(() => disposables.dispose());
 	}
 
 	private _taskHasErrors(task: Task): boolean {
@@ -686,7 +689,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (task.state === TaskEventKind.Inactive) {
 			return { exitCode: 0 };
 		}
-		return this._createInactiveDependencyPromise(task.task);
+		return this._createInactiveDependencyPromise(task.task, task.promise);
 	}
 
 	private async _executeDependencyTask(task: Task, resolver: ITaskResolver, trigger: string, liveDependencies: Set<string>, encounteredTasks: Map<string, Promise<ITaskSummary>>, alreadyResolved?: Map<string, string>): Promise<ITaskSummary> {
@@ -696,9 +699,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
 		}
 
-		const disposables = new DisposableStore();
-		const inactivePromise = this._createInactiveDependencyPromise(task, disposables);
-		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved)]).finally(() => disposables.dispose());
+		const execution = this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
+		return this._createInactiveDependencyPromise(task, execution);
 	}
 
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
@@ -956,18 +958,26 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let delayer: Async.Delayer<void> | undefined = undefined;
 			try {
 				[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
+				if (error) {
+					throw new Error(error.message);
+				}
+				if (!terminal) {
+					throw new Error(`Failed to create terminal for task ${task._label}`);
+				}
 			} catch (error) {
 				watchingProblemMatcher.dispose();
 				toDispose.dispose();
+				delete this._busyTasks[mapKey];
+				this._cleanupTaskTracking(task);
+				// End must precede cleanup Inactive events so dependencies cannot interpret failure as readiness.
+				this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
+				while (eventCounter > 0) {
+					eventCounter--;
+					this._fireTaskEvent(TaskEvent.inactive(task));
+				}
 				throw error;
 			}
 
-			if (error) {
-				return Promise.reject(new Error((<TaskError>error).message));
-			}
-			if (!terminal) {
-				return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
-			}
 			this._terminalStatusManager.addTerminal(task, terminal, watchingProblemMatcher);
 			this._taskProblemMonitor.addTerminal(terminal, watchingProblemMatcher);
 			let processStartedSignaled = false;

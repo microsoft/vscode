@@ -276,6 +276,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dimensions.rows = rows;
 
 		let newProcess: ITerminalChildProcess | undefined;
+		let isLiveAttachment = false;
 
 		if (shellLaunchConfig.customPtyImplementation) {
 			this._processType = ProcessType.PsuedoTerminal;
@@ -315,6 +316,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
 						newProcess = result;
+						isLiveAttachment = !result.isRevived && shellLaunchConfig.attachPersistentProcess.pid > 0;
 						if (this._extEnvironmentVariableCollection) {
 							this._onEnvironmentVariableCollectionChange();
 						}
@@ -375,6 +377,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					const result = findRevivedId ? await backend.attachToRevivedProcess(id, pid) : await backend.attachToProcess(id);
 					if (result) {
 						newProcess = result;
+						isLiveAttachment = !(result.isRevived ?? findRevivedId) && pid > 0;
 						if (this._extEnvironmentVariableCollection) {
 							this._onEnvironmentVariableCollectionChange();
 						}
@@ -397,10 +400,19 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			await this._resolveParentWindowHandle();
 		}
 
-		// If the process was disposed during its creation, shut it down and return failure
 		if (this._isDisposed) {
-			newProcess.shutdown(false);
+			await this._releaseProcessBeforeStart(newProcess, isLiveAttachment);
 			return undefined;
+		}
+
+		// No awaits between this check and start(), so cancellation cannot dispose a live attachment.
+		if (shellLaunchConfig.type === 'Task') {
+			try {
+				assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
+			} catch (error) {
+				await this._releaseProcessBeforeStart(newProcess, isLiveAttachment);
+				throw error;
+			}
 		}
 
 		this._process = newProcess;
@@ -463,14 +475,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, ProcessConstants.ErrorLaunchThresholdDuration);
 
-		if (shellLaunchConfig.type === 'Task') {
-			try {
-				assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
-			} catch (error) {
-				newProcess.shutdown(false);
-				throw error;
-			}
-		}
 		const result = await newProcess.start();
 		if (result) {
 			// Error
@@ -485,6 +489,20 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		});
 
 		return undefined;
+	}
+
+	private async _releaseProcessBeforeStart(process: ITerminalChildProcess, isLiveAttachment: boolean): Promise<void> {
+		if (isLiveAttachment) {
+			if (process.detach) {
+				await process.detach();
+			} else {
+				this._logService.warn('Cannot detach an existing terminal process without detach support');
+			}
+		} else if (process.cancelBeforeStart) {
+			await process.cancelBeforeStart();
+		} else {
+			process.shutdown(false);
+		}
 	}
 
 	async relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
