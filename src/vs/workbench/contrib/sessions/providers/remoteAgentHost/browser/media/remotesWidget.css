@@ -225,6 +225,10 @@
 .remotes-widget .remotes-connection-warning {
 	display: flex;
 	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-connection-warning .codicon,
+.remotes-widget .remotes-github-environment.remotes-github-environment-error .codicon {
 	color: var(--vscode-editorWarning-foreground);
 }
 
@@ -240,9 +244,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.remotes-widget .remotes-github-environment.remotes-github-environment-error {
-	color: var(--vscode-editorWarning-foreground);
-}
 
 .remotes-widget .remotes-gutter-column,
 .remotes-widget .remotes-actions-column {
