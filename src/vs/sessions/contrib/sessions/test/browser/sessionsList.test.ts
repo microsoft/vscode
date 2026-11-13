@@ -91,7 +91,7 @@ import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, Sessio
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionArtifact, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
-import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ICreateNewSessionOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionChangeEvent, ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -197,6 +197,46 @@ suite('Sessions - SessionsList', () => {
 	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
 		upcastPartial<IAutomationDescriptor>({ id, ownership });
+
+	test('an unscoped list orders and shows its sections by the listed sessions only, as before listing scopes; a scoped one also keeps the saved order of other sections', () => {
+		const run = (scoped: boolean) => {
+			const kept = createTestSession('Kept', { workspaceLabel: 'kept' }).session;
+			const removed = createTestSession('Removed', { workspaceLabel: 'removed' }).session;
+			// Outside the scope, such as the hidden twin of a migrated legacy Copilot CLI session, here in its own workspace
+			const hidden = createTestSession('Hidden twin', { workspaceLabel: 'hidden' }).session;
+			const changes = disposables.add(new Emitter<ISessionsChangeEvent>());
+			let managementService: TestSessionsManagementService | undefined;
+			const retained: string[][] = [];
+			const harness = createListHarness(disposables, [kept, removed], instantiationService => {
+				managementService = new class extends TestSessionsManagementService {
+					override readonly onDidChangeSessions = changes.event;
+				}([kept, removed]);
+				instantiationService.stub(ISessionsManagementService, managementService);
+				instantiationService.stub(ISessionSectionOrderService, new class extends mock<ISessionSectionOrderService>() {
+					override readonly onDidChange = Event.None;
+					override resolveOrder(ids: readonly string[]) { return [...ids]; }
+					override isPromoted() { return false; }
+					override retain(ids: ReadonlySet<string>): void { retained.push([...ids].filter(id => id.startsWith('workspace:') || id.startsWith('group:')).sort()); }
+					// The saved order, which the Agents window shares, has the section of a session outside the scope and of a deleted group
+					override capturePositions() { return { ids: [], order: ['workspace:hidden', 'group:deleted'], promoted: [] }; }
+				});
+			});
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				scoped: scoped ? constObservable(true) : undefined,
+			}));
+			list.layout(400, 400);
+			managementService!.sessions = [kept];
+			changes.fire({ added: [], removed: [removed], changed: [] });
+			list.update();
+			return { retained, rows: { kept: !!list.getItemRow({ session: kept.resource }), hidden: !!list.getItemRow({ session: hidden.resource }) } };
+		};
+
+		assert.deepStrictEqual({ unscoped: run(false), scoped: run(true) }, {
+			unscoped: { retained: [['workspace:kept']], rows: { kept: true, hidden: false } },
+			scoped: { retained: [['workspace:hidden', 'workspace:kept']], rows: { kept: true, hidden: false } },
+		});
+	});
 
 	test('lazy archive discovery follows section expansion, not the filter or local refresh', () => {
 		const harness = createListHarness(disposables, []);
