@@ -136,8 +136,10 @@ suite('Menubar', () => {
 				// Where the menubar placed the holder before alignment: the title's bottom, scaled by the title's zoom.
 				// Aligning must keep the holder's top at the device pixel the title's bottom is painted at, neither covering the title nor leaving a gap.
 				const unalignedTop = getTitleDivFromButtonDiv(button)!.getBoundingClientRect().bottom * titleZoom;
+				// Chromium lays out in 1/64 device pixels, so an aligned edge is only on a device pixel to within that
+				const precision = Math.max(dpr, 1) / 64 * 1.05;
 				result[name] = {
-					aligned: misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64,
+					aligned: misalignment(rect.left) <= precision && misalignment(rect.top) <= precision,
 					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
 					meetsTitle: Math.round(rect.top * dpr) === Math.round(unalignedTop * dpr)
 				};
@@ -256,6 +258,8 @@ suite('Menubar', () => {
 			compactContainer.style.top = '20.7px';
 			const dpr = getWindow(compactContainer).devicePixelRatio;
 			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+			// Chromium lays out in 1/64 device pixels, so an aligned edge is only on a device pixel to within that
+			const precision = Math.max(dpr, 1) / 64 * 1.05;
 			const result: Record<string, unknown> = {};
 			for (const [name, horizontal] of [['expandsRight', HorizontalDirection.Right], ['expandsLeft', HorizontalDirection.Left]] as const) {
 				const menubar = new MenuBar(compactContainer, {
@@ -283,7 +287,7 @@ suite('Menubar', () => {
 					: getWindow(holder).visualViewport!.width - getWindow(holder).innerWidth + button.left;
 				const paintedFacingEdge = horizontal === HorizontalDirection.Right ? Math.round(rect.left * dpr) : Math.round(rect.left * dpr) + Math.round(rect.width * dpr);
 				result[name] = {
-					aligned: misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64,
+					aligned: misalignment(rect.left) <= precision && misalignment(rect.top) <= precision,
 					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
 					meetsTitle: paintedFacingEdge === Math.round(unaligned * dpr)
 				};

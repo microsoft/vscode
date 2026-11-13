@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, alignToDevicePixels, IDevicePixelAlignment } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, alignToDevicePixels, getDevicePixelAlignmentOffset, IDevicePixelAlignment } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -764,12 +764,17 @@ suite('dom', () => {
 			host.remove();
 		});
 
-		/** Whether the element starts on a whole device pixel, within Chromium's layout precision (positions are floored to 1/64 CSS px). */
+		/** Chromium lays out in 1/64 device pixels and reports client rects as floats, so an aligned position is only on a device pixel to within the helper's tolerance. */
+		function precision(dpr: number): number {
+			return Math.max(dpr, 1) / 64 * 1.05;
+		}
+
+		/** Whether the element starts on a whole device pixel, within Chromium's layout precision. */
 		function isDeviceAligned(element: HTMLElement): boolean {
 			const rect = element.getBoundingClientRect();
 			const dpr = getWindow(element).devicePixelRatio;
 			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
-			return misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64;
+			return misalignment(rect.left) <= precision(dpr) && misalignment(rect.top) <= precision(dpr);
 		}
 
 		function createPositioned(parent: HTMLElement, insets: Partial<Record<'left' | 'top' | 'right' | 'bottom', string>>, zoom = 1): HTMLElement {
@@ -833,7 +838,7 @@ suite('dom', () => {
 
 		test('rounds in the requested direction', () => {
 			const dpr = getWindow(host).devicePixelRatio;
-			const near = (actual: number, expected: number) => Math.abs(actual - expected) <= dpr / 64;
+			const near = (actual: number, expected: number) => Math.abs(actual - expected) <= precision(dpr);
 			const position = (direction: IDevicePixelAlignment) => {
 				const element = createPositioned(host, { left: '10px', top: '20px' });
 				const before = element.getBoundingClientRect();
@@ -868,6 +873,40 @@ suite('dom', () => {
 				downRight: [true, true],
 				nearestEnd: { aligned: true, endsWhereUnaligned: [true, true], movedTowardStart: [true, true] }
 			});
+		});
+
+		test('keeps an aligned start when rounding the far edge again', () => {
+			// Chromium lays out in 1/64 device pixels and reports client rects as floats, so an aligned start can read just short of its device pixel
+			const read = (position: number, dpr: number) => Math.fround(Math.floor(position * dpr * 64 + 1e-6) / 64 / dpr);
+			// A position is only written, and so laid out again, when it moves
+			const align = (position: number, dpr: number, size: number) => {
+				const offset = getDevicePixelAlignmentOffset(position, dpr, 'nearestEnd', size);
+				return offset === 0 ? position : read(position + offset, dpr);
+			};
+			// A 17px view is 25.5 device pixels at DPR 1.5, so its far edge rounds to the device pixel before it when read just short
+			const first = align(3.375, 1.5, 17);
+			let unstable = 0;
+			for (const dpr of [0.5, 1, 1.25, 1.32, 1.5, 1.75, 2, 2.5, 3]) {
+				for (let unit = 0; unit < 4 * 64 * dpr; unit++) {
+					for (let size = 10; size < 30; size += 7 / 64) {
+						if (getDevicePixelAlignmentOffset(align(read(unit / 64 / dpr, dpr), dpr, read(size, dpr)), dpr, 'nearestEnd', read(size, dpr)) !== 0) {
+							unstable++;
+						}
+					}
+				}
+			}
+
+			assert.deepStrictEqual({ first, second: getDevicePixelAlignmentOffset(first, 1.5, 'nearestEnd', 17), unstable }, { first: Math.fround(10 / 3), second: 0, unstable: 0 });
+		});
+
+		test('treats a position floored by layout as aligned below a device pixel ratio of 1', () => {
+			// Chromium floors a position on device pixel 40 to as little as 1/64 device pixel short of it, which must not round down a whole device pixel
+			const offsets = [0.5, 0.67, 0.75, 0.9].map(dpr => {
+				const position = Math.fround((40 - 1 / 64) / dpr);
+				return (['start', 'end', 'nearest', 'nearestEnd'] as const).map(rounding => getDevicePixelAlignmentOffset(position, dpr, rounding, 10));
+			});
+
+			assert.deepStrictEqual(offsets, [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
 		});
 	});
 

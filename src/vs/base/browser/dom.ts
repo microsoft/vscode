@@ -896,7 +896,7 @@ export interface IDevicePixelAlignment {
  *
  * Horizontally, `left` is adjusted when it is a pixel value, otherwise `right` when that is;
  * vertically the same applies to `top` and `bottom`. Other insets are left unchanged. Offsets
- * within Chromium's layout precision (positions are floored to 1/64 CSS pixel) are ignored, so
+ * within Chromium's layout precision (positions are floored to 1/64 device pixel) are ignored, so
  * repeated calls are stable.
  */
 export function alignToDevicePixels(element: HTMLElement, direction: IDevicePixelAlignment = {}): void {
@@ -911,15 +911,23 @@ export function alignToDevicePixels(element: HTMLElement, direction: IDevicePixe
 /**
  * Returns how far, in CSS pixels, to move a client position so that it lands on a whole device
  * pixel, rounding as {@link alignToDevicePixels} does. `size` is the rendered size of the element,
- * which `'nearestEnd'` rounds from. Offsets within Chromium's layout precision are returned as 0.
+ * which `'nearestEnd'` rounds from. Offsets within Chromium's layout precision are returned as 0,
+ * and `'nearestEnd'` leaves a position already on a whole device pixel in place, so repeated calls
+ * are stable.
  */
 export function getDevicePixelAlignmentOffset(position: number, devicePixelRatio: number, rounding: DevicePixelRounding = 'nearest', size = 0): number {
 	if (rounding === 'none') {
 		return 0;
 	}
-	// Chromium floors positions to 1/64 CSS pixel, so a whole device pixel can only be reached to within that
-	const tolerance = devicePixelRatio / 64 * 1.05;
+	// Chromium floors positions to 1/64 device pixel, so a whole device pixel can only be reached to within that. Above a ratio of 1,
+	// the 1/64 CSS pixel already allowed is at least that. The small margin absorbs float32 client rects.
+	const tolerance = Math.max(devicePixelRatio, 1) / 64 * 1.05;
 	const device = position * devicePixelRatio;
+	// An aligned start already paints the far edge its rounded size further on. Recomputing that edge from a start floored just short of
+	// its device pixel can round it a device pixel earlier, and so move an aligned element again.
+	if (rounding === 'nearestEnd' && Math.abs(Math.round(device) - device) <= tolerance) {
+		return 0;
+	}
 	let target: number;
 	switch (rounding) {
 		case 'start': target = Math.floor(device + tolerance); break;

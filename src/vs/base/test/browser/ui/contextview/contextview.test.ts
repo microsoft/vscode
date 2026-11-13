@@ -32,6 +32,15 @@ function stubWindowControlsOverlay(targetWindow: Window, stub: { readonly visibl
 	});
 }
 
+/**
+ * The whole CSS pixel at which a view laid out at `value` is shown once aligned to the nearest device
+ * pixel. Below a device pixel ratio of 1, that can be a CSS pixel past `value`.
+ */
+function alignedPosition(value: number): number {
+	const dpr = mainWindow.devicePixelRatio;
+	return Math.round(Math.round(value * dpr) / dpr);
+}
+
 suite('ContextView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -228,8 +237,8 @@ suite('ContextView', () => {
 			left: Math.round(position.left),
 			top: Math.round(position.top)
 		}, {
-			left: 100,
-			top: 101
+			left: alignedPosition(100),
+			top: alignedPosition(101)
 		});
 
 		contextView.dispose();
@@ -278,8 +287,8 @@ suite('ContextView', () => {
 		}, {
 			scrollLeft: 30,
 			scrollTop: 40,
-			left: Math.round(anchor.x),
-			top: Math.round(anchor.y + anchor.height)
+			left: alignedPosition(anchor.x),
+			top: alignedPosition(anchor.y + anchor.height)
 		});
 
 		contextView.dispose();
@@ -310,8 +319,8 @@ suite('ContextView', () => {
 			left: Math.round(position.left),
 			top: Math.round(position.top)
 		}, {
-			left: 100,
-			top: 201
+			left: alignedPosition(100),
+			top: alignedPosition(201)
 		});
 
 		contextView.dispose();
@@ -320,19 +329,24 @@ suite('ContextView', () => {
 
 	test('places views at fractional anchors on whole device pixels, meeting the anchor\'s painted edge (#347796)', () => {
 		const dpr = getWindow(document.body).devicePixelRatio;
-		// Chromium floors positions to 1/64 CSS px
-		const precision = dpr / 64;
+		// Chromium floors positions to 1/64 device px, and client rects are float32
+		const precision = Math.max(dpr, 1) / 64 * 1.05;
 		const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
 		// Chromium paints an edge at the device pixel nearest to it, and the far edge of a device-aligned view its rounded size further on
 		const painted = (value: number) => Math.round(value * dpr);
 		const innerHeight = mainWindow.innerHeight;
-		// Ends 0.75 device pixels past a whole one, so rounding the view below it to the nearest device pixel would push it past the viewport.
+		// Ends over half a device pixel past a whole one, so rounding the view below it to the nearest device pixel would push it past the viewport.
 		// Layout places views by their integer height, so the anchor ends over half a CSS pixel past a whole one for the view to fit below it.
-		let pinnedDevicePixel = Math.floor(20 * dpr);
-		while ((pinnedDevicePixel + 0.75) / dpr % 1 <= 0.55) {
-			pinnedDevicePixel++;
+		// Some ratios (e.g. 0.5) never reach that with a fixed device pixel phase, so the phase is varied too.
+		let pinnedAnchorBottom: number | undefined;
+		for (const phase of [0.75, 0.65, 0.8, 0.7, 0.85, 0.6, 0.9]) {
+			for (let devicePixel = Math.floor(20 * dpr); pinnedAnchorBottom === undefined && devicePixel < Math.floor(20 * dpr) + 64; devicePixel++) {
+				if ((devicePixel + phase) / dpr % 1 > 0.55) {
+					pinnedAnchorBottom = (devicePixel + phase) / dpr;
+				}
+			}
 		}
-		const pinnedAnchorBottom = (pinnedDevicePixel + 0.75) / dpr;
+		assert.ok(pinnedAnchorBottom !== undefined, `No pinned anchor found at DPR ${dpr}`);
 		const cases = {
 			below: { anchor: { x: 100.3, y: 50, width: 1, height: 0.2 }, height: 10 },
 			// Layout places views by their integer height, so this is whole to meet the anchor
@@ -384,7 +398,7 @@ suite('ContextView', () => {
 
 	test('aligns zoomed views in rendered space, including across a shadow root (#347796)', () => {
 		const dpr = getWindow(document.body).devicePixelRatio;
-		const precision = dpr / 64;
+		const precision = Math.max(dpr, 1) / 64 * 1.05;
 		const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
 		const innerHeight = mainWindow.innerHeight;
 		const zoom = 1.25;
@@ -1297,8 +1311,9 @@ suite('ContextView', () => {
 			contextView.layout();
 			const after = position();
 
+			// The view is laid out below the anchor point, which is 2px tall
 			assert.deepStrictEqual({ moved: { left: after.left - before.left, top: after.top - before.top }, delegateLayouts, hides: hides.length, open: isOpen(view) }, {
-				moved: { left: 30, top: 50 },
+				moved: { left: alignedPosition(60) - alignedPosition(30), top: alignedPosition(152) - alignedPosition(102) },
 				delegateLayouts: 1,
 				hides: 0,
 				open: true
@@ -1478,15 +1493,15 @@ suite('ContextView', () => {
 					titlebarArea: [measure({ x: 200, y: 0 }, withOverlay), measure({ x: 200, y: 0 }, none)],
 					belowBand: [measure({ x: 10, y: 100 }, withOverlay), measure({ x: 10, y: 100 }, none)],
 				}, {
-					leftCorner: [{ top: 30, left: 10, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
-					rightCorner: [{ top: 30, left: width - 60, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
+					leftCorner: [{ top: alignedPosition(30), left: alignedPosition(10), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
+					rightCorner: [{ top: alignedPosition(30), left: alignedPosition(width - 60), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
 					titlebarArea: [
-						{ top: 1, left: 200, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
-						{ top: 1, left: 200, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
+						{ top: alignedPosition(1), left: alignedPosition(200), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
+						{ top: alignedPosition(1), left: alignedPosition(200), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
 					],
 					belowBand: [
-						{ top: 101, left: 10, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
-						{ top: 101, left: 10, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
+						{ top: alignedPosition(101), left: alignedPosition(10), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
+						{ top: alignedPosition(101), left: alignedPosition(10), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
 					],
 				});
 			});
@@ -1505,7 +1520,7 @@ suite('ContextView', () => {
 				const { view, read } = layout(domPosition, { x: mainWindow.scrollX + 10, y: mainWindow.scrollY }, () => overlay);
 
 				assert.deepStrictEqual({ scrolled: mainWindow.scrollX > 0 && mainWindow.scrollY > 0, ...read(), ...clearance(view, overlay, mainWindow) }, {
-					scrolled: true, top: 30, left: 10, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
+					scrolled: true, top: alignedPosition(30), left: alignedPosition(10), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
 				});
 			});
 		}
@@ -1558,7 +1573,7 @@ suite('ContextView', () => {
 			}, {
 				otherWindow: true,
 				viewport: [400, 300],
-				top: 30, left: 340, classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
+				top: alignedPosition(30), left: alignedPosition(340), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
 			});
 		});
 
@@ -1573,9 +1588,9 @@ suite('ContextView', () => {
 			contextView.layout();
 
 			assert.deepStrictEqual({ before, shown, after: read() }, {
-				before: { top: 1, left: 10, classes: ['bottom', 'left'] },
-				shown: { top: 30, left: 10, classes: ['bottom', 'left'] },
-				after: { top: 1, left: 10, classes: ['bottom', 'left'] },
+				before: { top: alignedPosition(1), left: alignedPosition(10), classes: ['bottom', 'left'] },
+				shown: { top: alignedPosition(30), left: alignedPosition(10), classes: ['bottom', 'left'] },
+				after: { top: alignedPosition(1), left: alignedPosition(10), classes: ['bottom', 'left'] },
 			});
 		});
 
