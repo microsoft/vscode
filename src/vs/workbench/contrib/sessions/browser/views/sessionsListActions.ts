@@ -35,7 +35,7 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, SessionsViewWorktreeGroupingContext } from './sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -1766,20 +1766,9 @@ export function registerSessionsListActions(): IDisposable {
 		}));
 	}
 
-	return store;
-}
-
-/**
- * Registers what a Sessions view that offers {@link SessionsGrouping.Worktree} (see `allowWorktreeGrouping`) needs on top of
- * {@link registerSessionsListActions}: its Grouping entry, and the Show submenu and its entries while it groups by worktree,
- * until the returned disposable is disposed. The Agents window does not register it.
- *
- * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
- * global, and registering them twice throws or duplicates them.
- */
-export function registerSessionsListWorktreeGroupingActions(): IDisposable {
-	const store = new DisposableStore();
-	const GroupedByWorktreeContext = SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree);
+	// Worktree grouping is offered only outside the Agents window, which shares the stored grouping and never shows it
+	const OffersWorktreeGroupingContext = IsSessionsWindowContext.negate();
+	const GroupedByWorktreeContext = ContextKeyExpr.and(OffersWorktreeGroupingContext, SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree));
 
 	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
 		constructor() {
@@ -1788,8 +1777,8 @@ export function registerSessionsListWorktreeGroupingActions(): IDisposable {
 				title: localize2('groupByWorktree', "Worktree"),
 				category: SessionsCategories.Sessions,
 				toggled: GroupedByWorktreeContext,
-				precondition: SessionsViewWorktreeGroupingContext,
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: SessionsViewWorktreeGroupingContext }],
+				precondition: OffersWorktreeGroupingContext,
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: OffersWorktreeGroupingContext }],
 			});
 		}
 		override run(accessor: ServicesAccessor) {

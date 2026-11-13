@@ -94,18 +94,6 @@ export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsVi
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
-/** Whether the Sessions view offers {@link SessionsGrouping.Worktree}; no view does unless it is created with `allowWorktreeGrouping`. */
-export const SessionsViewWorktreeGroupingContext = new RawContextKey<boolean>('sessionsViewPane.worktreeGrouping', false);
-
-/**
- * The grouping a stored value names, or `undefined` for a value this build does not know or this view does not offer:
- * {@link SessionsGrouping.Worktree} is offered only by views that allow it, so a view that does not, such as the Agents
- * window's, which shares the stored grouping, keeps its default.
- */
-export function getStoredSessionsGrouping(stored: string | undefined, allowWorktreeGrouping: boolean): SessionsGrouping | undefined {
-	const grouping = Object.values(SessionsGrouping).find(value => value === stored);
-	return grouping === SessionsGrouping.Worktree && !allowWorktreeGrouping ? undefined : grouping;
-}
 
 export interface ISessionsHeaderElements {
 	readonly row: HTMLElement;
@@ -168,12 +156,6 @@ class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
 	}
 }
 
-/** The options of the Sessions view. */
-export interface ISessionsViewOptions extends IViewPaneOptions {
-	/** Whether it offers {@link SessionsGrouping.Worktree}; it does not by default. */
-	readonly allowWorktreeGrouping?: boolean;
-}
-
 export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
@@ -212,7 +194,7 @@ export class SessionsView extends ViewPane {
 	private readonly _mainWindowHost: ISessionHost;
 
 	constructor(
-		options: ISessionsViewOptions,
+		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -246,8 +228,9 @@ export class SessionsView extends ViewPane {
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
-		this.allowWorktreeGrouping = !!options.allowWorktreeGrouping;
-		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.allowWorktreeGrouping);
+		// The Agents window, which shares the stored grouping, does not offer Worktree grouping: it keeps its default instead
+		this.allowWorktreeGrouping = contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true;
+		this.currentGrouping = this.readStoredGrouping();
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -258,7 +241,6 @@ export class SessionsView extends ViewPane {
 		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
-		SessionsViewWorktreeGroupingContext.bindTo(contextKeyService).set(this.allowWorktreeGrouping);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -1160,6 +1142,12 @@ export class SessionsView extends ViewPane {
 
 	get compact(): boolean {
 		return this.currentCompact;
+	}
+
+	/** The stored grouping, unless this build does not know it or this view does not offer it, such as Worktree in the Agents window. */
+	private readStoredGrouping(): SessionsGrouping | undefined {
+		const grouping = Object.values(SessionsGrouping).find(value => value === this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE));
+		return grouping === SessionsGrouping.Worktree && !this.allowWorktreeGrouping ? undefined : grouping;
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {

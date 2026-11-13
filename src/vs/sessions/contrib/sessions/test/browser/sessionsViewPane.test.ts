@@ -21,7 +21,7 @@ import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -103,7 +103,7 @@ suite('Sessions - SessionsViewPane', () => {
 		});
 	});
 
-	test('applies and restores Worktree grouping only in a view that offers it; the Agents window keeps its default and its stored grouping', () => {
+	test('applies and restores Worktree grouping only outside the Agents window, which keeps its default and its stored grouping', () => {
 		const setWorktreeGrouping = (allowWorktreeGrouping: boolean) => {
 			const configurationService = new TestConfigurationService();
 			disposables.add(configurationService.onDidChangeConfigurationEmitter);
@@ -122,15 +122,24 @@ suite('Sessions - SessionsViewPane', () => {
 			return { grouping: host.currentGrouping, stored: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE) };
 		};
 
+		const restore = (stored: string | undefined, allowWorktreeGrouping: boolean) => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			if (stored !== undefined) {
+				storageService.store('sessionsViewPane.grouping', stored, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const readStoredGrouping = Reflect.get(SessionsView.prototype, 'readStoredGrouping') as (this: object) => SessionsGrouping | undefined;
+			return readStoredGrouping.call({ storageService, allowWorktreeGrouping });
+		};
+
 		assert.deepStrictEqual({
 			editorWindow: setWorktreeGrouping(true),
 			agentsWindow: setWorktreeGrouping(false),
 			restored: {
-				editorWindow: getStoredSessionsGrouping(SessionsGrouping.Worktree, true),
-				agentsWindow: getStoredSessionsGrouping(SessionsGrouping.Worktree, false),
-				unknown: getStoredSessionsGrouping('unknown-grouping', true),
-				none: getStoredSessionsGrouping(undefined, false),
-				known: Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree).map(grouping => getStoredSessionsGrouping(grouping, false)),
+				editorWindow: restore(SessionsGrouping.Worktree, true),
+				agentsWindow: restore(SessionsGrouping.Worktree, false),
+				unknown: restore('unknown-grouping', true),
+				none: restore(undefined, false),
+				known: Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree).map(grouping => restore(grouping, false)),
 			},
 		}, {
 			editorWindow: { grouping: SessionsGrouping.Worktree, stored: SessionsGrouping.Worktree },
