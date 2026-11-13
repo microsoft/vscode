@@ -1834,6 +1834,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.list.setChildren(null);
 		}
 		this.list.setChildren(null, children);
+		this.moveFocusOutOfCollapsedGroups();
 		this.updateAddButton();
 		this.updateEmptyState();
 	}
@@ -2200,6 +2201,23 @@ export class AICustomizationListWidget extends Disposable {
 		if (firstItem) {
 			this.list.setFocus([firstItem]);
 		}
+	}
+
+	/**
+	 * Moves focus from an entry hidden inside a collapsed group (for example a
+	 * search result once the search is cleared) to its nearest visible ancestor,
+	 * so a focused row and active descendant remain.
+	 */
+	private moveFocusOutOfCollapsedGroups(): void {
+		const [focused] = this.list.getFocus();
+		if (!focused || !this.list.hasElement(focused) || this.isEntryVisible(focused)) {
+			return;
+		}
+		let ancestor = this.list.getParentElement(focused);
+		while (ancestor && !this.isEntryVisible(ancestor)) {
+			ancestor = this.list.getParentElement(ancestor);
+		}
+		this.list.setFocus(ancestor ? [ancestor] : []);
 	}
 
 	/**

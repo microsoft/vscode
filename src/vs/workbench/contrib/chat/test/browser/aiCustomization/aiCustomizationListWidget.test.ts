@@ -1585,6 +1585,49 @@ suite('aiCustomizationListWidget', () => {
 			});
 		});
 
+		test('moves focus to the group header when clearing the search hides the focused item', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant') ?? '')?.querySelector('.item-name, .group-label')?.textContent;
+			[...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'User')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.setSearchQuery('user-one');
+			widget.focusList();
+			const whileSearching = focused();
+			widget.clearSearch();
+			const afterClearingSearch = focused();
+			list.dispatchEvent(new FocusEvent('focus'));
+
+			assert.deepStrictEqual({ whileSearching, afterClearingSearch, onTab: focused() }, {
+				whileSearching: 'user-one',
+				afterClearingSearch: 'User',
+				onTab: 'User',
+			});
+		});
+
 		test('announces updated item count when the model changes after section load', async () => {
 			const ariaHost = document.createElement('div');
 			document.body.appendChild(ariaHost);
