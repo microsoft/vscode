@@ -39,7 +39,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { ChatContentMarkdownRenderer } from '../../../chat/browser/widget/chatContentMarkdownRenderer.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
 import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../chat/browser/widget/chatOptions.js';
-import { IChatRespondent, isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../chat/browser/chat.js';
+import { IChatRespondent, IChatWidget, isResponseSelectionSupported, setModelPreservingInputTypedWhileLoading } from '../../../chat/browser/chat.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../chat/common/chatOpenDiagnosticsService.js';
 import { ChatSendResult, ElicitationState, IChatModelReference, IChatService, IChatToolInvocation, ResponseModelState } from '../../../chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
@@ -290,6 +290,10 @@ export class NewChatView extends AbstractChatView {
 
 	override selectNoWorkspace(options?: ISelectNoWorkspaceOptions): WorkspaceSelectionResult {
 		return this._widget instanceof NewChatWidget ? this._widget.applyNoWorkspace(options) : 'notReady';
+	}
+
+	override get chatWidget(): IChatWidget | undefined {
+		return this._widget.chatWidget;
 	}
 
 	override prefillInput(text: string): void {
@@ -850,6 +854,10 @@ export class ChatView extends AbstractChatView {
 
 	/** The underlying chat widget. */
 	get widget(): ChatWidget {
+		return this._widget;
+	}
+
+	override get chatWidget(): IChatWidget | undefined {
 		return this._widget;
 	}
 
