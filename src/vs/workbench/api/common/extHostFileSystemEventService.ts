@@ -64,9 +64,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			this._config += 0b100;
 		}
 
-		const ignoreCase = typeof globPattern === 'string' ?
-			!((fileSystemInfo.getCapabilities(Schemas.file) ?? 0) & FileSystemProviderCapabilities.PathCaseSensitive) :
-			fileSystemInfo.extUri.ignorePathCasing(URI.revive(globPattern.baseUri));
+		const baseUri = typeof globPattern === 'string' ? undefined : URI.revive(globPattern.baseUri);
+		const ignoreCase = baseUri ?
+			fileSystemInfo.extUri.ignorePathCasing(baseUri) :
+			!((fileSystemInfo.getCapabilities(Schemas.file) ?? 0) & FileSystemProviderCapabilities.PathCaseSensitive);
 
 		// Performance: pre-lowercase pattern and paths to use fast case-sensitive
 		// matching instead of repeated case-insensitive comparisons in the hot loop.
@@ -86,7 +87,9 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		// pattern is provided to avoid sending events to extensions that are
 		// unexpected.
 		// https://github.com/microsoft/vscode/issues/3025
-		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
+		const isMatchingLocation = (uri: URI) => baseUri
+			? uri.scheme === baseUri.scheme && fileSystemInfo.extUri.isEqualAuthority(uri.authority, baseUri.authority)
+			: !!workspace.getWorkspaceFolder(uri);
 
 		// 1.84.x introduces new proposed API for a watcher to set exclude
 		// rules. In these cases, we turn the file watcher into correlation
@@ -107,21 +110,21 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 
 			if (!options.ignoreCreateEvents) {
 				for (const { uri, lowerCaseFsPath } of events.created) {
-					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
+					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && isMatchingLocation(uri)) {
 						this._onDidCreate.fire(uri);
 					}
 				}
 			}
 			if (!options.ignoreChangeEvents) {
 				for (const { uri, lowerCaseFsPath } of events.changed) {
-					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
+					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && isMatchingLocation(uri)) {
 						this._onDidChange.fire(uri);
 					}
 				}
 			}
 			if (!options.ignoreDeleteEvents) {
 				for (const { uri, lowerCaseFsPath } of events.deleted) {
-					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
+					if (parsedPattern(ignoreCase ? lowerCaseFsPath : uri.fsPath) && isMatchingLocation(uri)) {
 						this._onDidDelete.fire(uri);
 					}
 				}
