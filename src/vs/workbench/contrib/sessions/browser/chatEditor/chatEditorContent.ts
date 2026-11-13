@@ -77,8 +77,8 @@ export class ChatEditorContent extends Disposable {
 	readonly primaryChatView: IObservable<AbstractChatView | undefined>;
 	/** The top of {@link primaryChatView} while it shows only its input: below the bar of its group, as the session header hides then. */
 	readonly inputOnlyChatViewTop: IObservable<number>;
-	/** The title of the session header. */
-	get headerTitleElement(): HTMLElement { return this._header.titleElement; }
+	/** The session header. */
+	get headerElement(): HTMLElement { return this._header.element; }
 	/** The menu of the actions of the session header, with the context and the arguments they show and run with there. */
 	readonly titleMenu: IEditorPaneTitleMenu;
 
@@ -122,7 +122,7 @@ export class ChatEditorContent extends Disposable {
 		this._header = this._register(scopedInstantiationService.createInstance(SessionHeader));
 		this._showHeader = _hostOptions?.showHeader ?? true;
 		this._header.setVisible(this._showHeader);
-		// Its title drags the editor that shows the chat (see `ChatEditorView.dragHandle`), which carries the session.
+		// It drags the editor that shows the chat (see `ChatEditorView.dragHandle`), which carries the session.
 		this._header.setDragsEditor(true);
 		this._headerContainer.appendChild(this._header.element);
 		this.titleMenu = { menuId: Menus.SessionBarToolbar, contextKeyService: scopedContextKeyService, options: this._header.menuActionOptions };

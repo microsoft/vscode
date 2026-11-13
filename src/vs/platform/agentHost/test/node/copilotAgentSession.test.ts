@@ -49,6 +49,7 @@ import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { readShellAuthentication } from '../../common/meta/agentShellAuthenticationMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { readMcpRoutingServers, readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
@@ -10111,6 +10112,42 @@ suite('CopilotAgentSession', () => {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'wait-what' }],
 			sendRequests: [{ prompt: 'Loaded skill instructions for wait-what.', attachments: undefined, displayPrompt: '/wait-what' }],
+		});
+	});
+
+	test('a bare skill name restores as the sent text instead of the qualified plugin skill name', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'VS Code Synced Data:act-on-feedback', kind: 'skill', description: 'Act on feedback', allowDuringAgentExecution: true }],
+		};
+		mockSession.commandInvokeResult = {
+			kind: 'agent-prompt',
+			prompt: 'Loaded act-on-feedback instructions.',
+			displayPrompt: '/VS Code Synced Data:act-on-feedback for #1',
+		};
+
+		await session.send('/act-on-feedback for #1', [{
+			type: MessageAttachmentKind.Annotations,
+			label: '1 comment',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-1'],
+		}], 'turn-act-on-feedback');
+
+		// The runtime persists `displayPrompt` as the message content and the model prompt as `transformedContent`.
+		const request = mockSession.sendRequests[0] as MessageOptions;
+		const data = { interactionId: 'message-1', content: request.displayPrompt ?? request.prompt, transformedContent: request.prompt, attachments: request.attachments } as SessionEventPayload<'user.message'>['data'];
+		mockSession.messages = [{ type: 'user.message', id: 'event-1', parentId: null, timestamp: '2026-07-29T10:00:00.000Z', data }];
+		const restored = (await session.getMessages())[0].message;
+
+		assert.deepStrictEqual({
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sent: { prompt: request.prompt, displayPrompt: request.displayPrompt },
+			restored: { text: restored.text, attachments: restored.attachments?.map(attachment => attachment.label) },
+		}, {
+			commandInvokeCalls: [{ name: 'VS Code Synced Data:act-on-feedback', input: 'for #1' }],
+			sent: { prompt: 'Loaded act-on-feedback instructions.', displayPrompt: '/act-on-feedback for #1' },
+			restored: { text: '/act-on-feedback for #1', attachments: ['1 comment'] },
 		});
 	});
 
@@ -28763,6 +28800,119 @@ Use the attached image as context.
 
 			assert.deepStrictEqual({ result, signals }, {
 				result: { action: 'decline' },
+				signals: [],
+			});
+		});
+	});
+
+	suite('shell authentication', () => {
+
+		const sudoPrompt = { requestId: 'sdk-prompt-1', program: 'sudo', prompt: '[sudo] password for dev: ', inputKind: 'secret', command: 'sudo -A true', cwd: '/work' } as const;
+
+		test('asks with a cancel-only question and delivers the answer only through answerShellAuthentication', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-shell-auth');
+
+			const resultPromise = runtime.handleShellAuthenticationRequest(sudoPrompt, { sessionId: 'test-session-1', signal: new AbortController().signal });
+			const request = getInputRequest(signals[0]);
+			const delivered = session.answerShellAuthentication(request.id, 'secret-answer');
+
+			assert.deepStrictEqual({
+				delivered,
+				result: await resultPromise,
+				purpose: readChatInputRequestPurpose(request),
+				prompt: readShellAuthentication(request),
+				questions: request.questions?.map(question => ({ kind: question.kind, freeform: question.kind === ChatInputQuestionKind.SingleSelect ? question.allowFreeformInput : undefined, options: question.kind === ChatInputQuestionKind.SingleSelect ? question.options.map(option => option.id) : undefined })),
+				actions: getActions(signals).map(action => action.type === ActionType.ChatInputCompleted ? { type: action.type, response: action.response, answers: action.answers } : { type: action.type }),
+				leaked: JSON.stringify(signals).includes('secret-answer'),
+			}, {
+				delivered: true,
+				result: { action: 'accept', value: 'secret-answer' },
+				purpose: ChatInputRequestPurpose.ShellAuthentication,
+				prompt: { program: 'sudo', prompt: '[sudo] password for dev: ', inputKind: 'secret', command: 'sudo -A true' },
+				questions: [{ kind: ChatInputQuestionKind.SingleSelect, freeform: false, options: ['cancel'] }],
+				actions: [
+					{ type: ActionType.ChatInputRequested },
+					{ type: ActionType.ChatInputCompleted, response: ChatInputResponseKind.Accept, answers: undefined },
+				],
+				leaked: false,
+			});
+		});
+
+		test('a chat input completion cancels the prompt without passing on its answers', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-shell-auth');
+
+			const resultPromise = runtime.handleShellAuthenticationRequest(sudoPrompt, { sessionId: 'test-session-1', signal: new AbortController().signal });
+			const request = getInputRequest(signals[0]);
+			const responded = session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				shellAuthentication: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'typed-into-chat' } },
+			});
+
+			assert.deepStrictEqual({
+				responded,
+				result: await resultPromise,
+				lateAnswerDelivered: session.answerShellAuthentication(request.id, 'late-answer'),
+				actions: getActions(signals).map(action => action.type),
+			}, {
+				responded: true,
+				result: { action: 'cancel' },
+				lateAnswerDelivered: false,
+				actions: [ActionType.ChatInputRequested],
+			});
+		});
+
+		test('closes the request when the SDK no longer needs the answer', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-shell-auth');
+			const controller = new AbortController();
+
+			const resultPromise = runtime.handleShellAuthenticationRequest(sudoPrompt, { sessionId: 'test-session-1', signal: controller.signal });
+			const request = getInputRequest(signals[0]);
+			controller.abort();
+
+			assert.deepStrictEqual({
+				result: await resultPromise,
+				completed: getActions(signals).slice(1).map(action => action.type === ActionType.ChatInputCompleted ? { requestId: action.requestId, response: action.response } : action.type),
+				answerDelivered: session.answerShellAuthentication(request.id, 'too-late'),
+			}, {
+				result: { action: 'cancel' },
+				completed: [{ requestId: request.id, response: ChatInputResponseKind.Cancel }],
+				answerDelivered: false,
+			});
+		});
+
+		test('cancels the prompt when its turn ends, since the question closes with the turn', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-shell-auth');
+
+			const resultPromise = runtime.handleShellAuthenticationRequest(sudoPrompt, { sessionId: 'test-session-1', signal: new AbortController().signal });
+			const request = getInputRequest(signals[0]);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				result: await resultPromise,
+				answerDelivered: session.answerShellAuthentication(request.id, 'too-late'),
+			}, {
+				hasActiveTurn: false,
+				result: { action: 'cancel' },
+				answerDelivered: false,
+			});
+		});
+
+		test('cancels without asking when nobody can answer', async () => {
+			const autopilot = await createAgentSession(disposables, { configValues: { [SessionConfigKey.Mode]: 'autopilot' } });
+			autopilot.session.resetTurnState('turn-shell-auth');
+			const idle = await createAgentSession(disposables);
+
+			assert.deepStrictEqual({
+				autopilot: await autopilot.runtime.handleShellAuthenticationRequest(sudoPrompt, { sessionId: 'test-session-1', signal: new AbortController().signal }),
+				withoutTurn: await idle.runtime.handleShellAuthenticationRequest(sudoPrompt, { sessionId: 'test-session-1', signal: new AbortController().signal }),
+				signals: [...autopilot.signals, ...idle.signals],
+			}, {
+				autopilot: { action: 'cancel' },
+				withoutTurn: { action: 'cancel' },
 				signals: [],
 			});
 		});

@@ -17,7 +17,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, MissionControlOwnerMismatchError, MissionControlUseLocalCredentialsConfigKey, MissionControlUseLocalCredentialsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostDefaultCloneDirectorySettingId, AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentSharingError, GitHubEnvironmentSharingFailureReason, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, MissionControlOwnerMismatchError, MissionControlUseLocalCredentialsConfigKey, MissionControlUseLocalCredentialsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { AgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
@@ -26,7 +26,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
-import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
+import { createFileSystemProviderError, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -105,6 +105,10 @@ suite('Cloud sandbox configuration', () => {
 suite('Mission Control sharing service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
+
+	function sharingFailure(reason: GitHubEnvironmentSharingFailureReason, message: RegExp) {
+		return (error: unknown) => error instanceof GitHubEnvironmentSharingError && error.reason === reason && message.test(error.message);
+	}
 
 	function fixture(options: {
 		backend?: AgentHostRemoteConnectionsBackend;
@@ -526,7 +530,7 @@ suite('Mission Control sharing service', () => {
 			override affectsConfiguration(section: string) { return section === GitHubEnvironmentsEnabledSettingId; }
 		}());
 		await timeout(0);
-		await assert.rejects(sharing.setEnabled(true), /unavailable/);
+		await assert.rejects(sharing.setEnabled(true), sharingFailure('unavailable', /unavailable/));
 		assert.deepStrictEqual({ calls, state: sharing.state.get() }, {
 			calls: [
 				{ options: expectedOptions, withdrawingAccountId: undefined },
@@ -679,10 +683,13 @@ suite('Mission Control sharing service', () => {
 	test('reports unexpected drive enumeration failures instead of granting a partial filesystem', () => runWithFakedTimers({}, async () => {
 		const { sharing, calls } = fixture({
 			windows: true,
-			stat: async () => { throw new Error('Filesystem unavailable'); },
+			stat: async () => { throw createFileSystemProviderError('Filesystem unavailable', FileSystemProviderErrorCode.NoPermissions); },
 		});
-		await assert.rejects(sharing.setEnabled(true), /Filesystem unavailable/);
-		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
+		const error = await sharing.setEnabled(true).then(() => undefined, (error: unknown) => error);
+		assert.ok(error instanceof GitHubEnvironmentSharingError);
+		assert.deepStrictEqual({ message: error.message, reason: error.reason, fileErrorCode: error.fileErrorCode, state: sharing.state.get(), calls }, {
+			message: 'Filesystem unavailable', reason: 'fileSystemRoot', fileErrorCode: FileSystemProviderErrorCode.NoPermissions, state: 'disabled', calls: [],
+		});
 	}));
 
 	test('does not reconfigure when removed settings change', () => runWithFakedTimers({}, async () => {
@@ -939,7 +946,7 @@ suite('Mission Control sharing service', () => {
 			const { sharing, calls } = fixture({
 				configure: async options => { if (options) { throw error; } },
 			});
-			await assert.rejects(sharing.setEnabled(true), status === 401 ? /Sign in to GitHub again/ : /Check your account and organization settings/);
+			await assert.rejects(sharing.setEnabled(true), sharingFailure('connection', status === 401 ? /Sign in to GitHub again/ : /Check your account and organization settings/));
 			assert.deepStrictEqual({ state: sharing.state.get(), attempts: calls.filter(call => call.options).length }, {
 				state: 'disabled', attempts: 1,
 			});
@@ -954,7 +961,7 @@ suite('Mission Control sharing service', () => {
 				}
 			},
 		});
-		await assert.rejects(sharing.setEnabled(true), /Restart VS Code to share it with another account/);
+		await assert.rejects(sharing.setEnabled(true), sharingFailure('ownerMismatch', /Restart VS Code to share it with another account/));
 		assert.deepStrictEqual({ state: sharing.state.get(), attempts: calls.filter(call => call.options).length }, {
 			state: 'disabled', attempts: 1,
 		});
@@ -1213,10 +1220,10 @@ suite('Mission Control sharing service', () => {
 
 	test('does not register an ambiguous account or bypass disabled AI', () => runWithFakedTimers({}, async () => {
 		const ambiguous = fixture({ getSessions: async () => [session, { ...session, account: { id: 'second', label: 'Second' } }] });
-		await assert.rejects(ambiguous.sharing.setEnabled(true), /Select a GitHub account for Copilot/);
+		await assert.rejects(ambiguous.sharing.setEnabled(true), sharingFailure('multipleAccounts', /Select a GitHub account for Copilot/));
 		const hidden = fixture();
 		hidden.disableAI();
-		await assert.rejects(hidden.sharing.setEnabled(true), /sharing is unavailable/);
+		await assert.rejects(hidden.sharing.setEnabled(true), sharingFailure('unavailable', /sharing is unavailable/));
 		assert.deepStrictEqual({ ambiguous: ambiguous.calls, hidden: hidden.calls }, { ambiguous: [], hidden: [] });
 	}));
 
@@ -1267,12 +1274,12 @@ suite('Mission Control sharing service', () => {
 			getSessions: async (_providerId, scopes) => scopes ? [] : [copilotSession],
 			createSession: async () => otherSession,
 		});
-		await assert.rejects(sharing.setEnabled(true), /Sign in with the selected Copilot account/);
+		await assert.rejects(sharing.setEnabled(true), sharingFailure('accountMismatch', /Sign in with the selected Copilot account/));
 		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
 	}));
 
-	for (const error of [new Error('Cancelled'), 'Cancelled']) {
-		test(`normalizes GitHub sign-in cancellation (${typeof error})`, () => runWithFakedTimers({}, async () => {
+	for (const [error, label] of [[new Error('Cancelled'), 'object'], ['Cancelled', 'string'], [new CancellationError(), 'CancellationError']] as const) {
+		test(`normalizes GitHub sign-in cancellation (${label})`, () => runWithFakedTimers({}, async () => {
 			const { sharing, calls, storage } = fixture({
 				defaultAccount: copilotAccount,
 				getSessions: async (_providerId, scopes) => scopes ? [] : [copilotSession],
@@ -1287,13 +1294,13 @@ suite('Mission Control sharing service', () => {
 		}));
 	}
 
-	for (const defaultAccount of [
-		{ ...copilotAccount, sessionId: 'missing' },
-		{ ...copilotAccount, authenticationProvider: { id: 'github-enterprise', name: 'GitHub Enterprise', enterprise: true } },
-	]) {
+	for (const [defaultAccount, reason] of [
+		[{ ...copilotAccount, sessionId: 'missing' }, 'accountUnavailable'],
+		[{ ...copilotAccount, authenticationProvider: { id: 'github-enterprise', name: 'GitHub Enterprise', enterprise: true } }, 'nonGitHubAccount'],
+	] as const) {
 		test(`does not fall back to another account when the Copilot account is unavailable (${defaultAccount.authenticationProvider.id}, ${defaultAccount.sessionId})`, () => runWithFakedTimers({}, async () => {
 			const { sharing, calls } = fixture({ defaultAccount });
-			await assert.rejects(sharing.setEnabled(true), /Copilot account/);
+			await assert.rejects(sharing.setEnabled(true), sharingFailure(reason, /Copilot account/));
 			assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
 		}));
 	}

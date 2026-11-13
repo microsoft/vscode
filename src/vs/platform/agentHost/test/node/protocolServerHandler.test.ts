@@ -55,7 +55,7 @@ import { TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentModelInfo, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ListAgentExtensionsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, StopBackgroundWorkExtensionMethod, AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod, UnregisterGitHubEnvironmentExtensionMethod, GitHubEnvironmentChangedNotification, supportsAgentHostArtifactRemoval, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostCopilotExtensions } from '../../common/meta/agentHostCopilotExtensionsMeta.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -273,6 +273,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	readonly getSessionStateFileCalls: { session: string; chat: string | undefined }[] = [];
 	readonly removeSessionArtifactCalls: { session: string; artifactId: string }[] = [];
 	readonly stopBackgroundWorkCalls: { chat: string; id: string }[] = [];
+	readonly answerShellAuthenticationCalls: { chat: string; requestId: string; answer: string | undefined }[] = [];
 	installSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
@@ -451,6 +452,10 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		this.stopBackgroundWorkCalls.push({ chat: chat.toString(), id });
+		return true;
+	}
+	async answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		this.answerShellAuthenticationCalls.push({ chat: chat.toString(), requestId, answer });
 		return true;
 	}
 	async importSession(session: URI): Promise<URI> {
@@ -3097,6 +3102,50 @@ suite('ProtocolServerHandler', () => {
 			assert.ok(isJsonRpcResponse(response) && hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams, JSON.stringify(params));
 		}
 		assert.deepStrictEqual(agentService.stopBackgroundWorkCalls, []);
+	});
+
+	test('routes shell authentication answers and cancellations through the extension request', async () => {
+		const transport = connectClient('client-shell-authentication');
+		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
+		const answered = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, AnswerShellAuthenticationExtensionMethod, { chat, requestId: 'prompt-1', answer: 'secret' }));
+		const cancelled = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, AnswerShellAuthenticationExtensionMethod, { chat, requestId: 'prompt-2' }));
+
+		assert.deepStrictEqual({
+			answered: await answered,
+			cancelled: await cancelled,
+			calls: agentService.answerShellAuthenticationCalls,
+		}, {
+			answered: { jsonrpc: '2.0', id: 20, result: { delivered: true } },
+			cancelled: { jsonrpc: '2.0', id: 21, result: { delivered: true } },
+			calls: [
+				{ chat: URI.parse(chat).toString(), requestId: 'prompt-1', answer: 'secret' },
+				{ chat: URI.parse(chat).toString(), requestId: 'prompt-2', answer: undefined },
+			],
+		});
+	});
+
+	test('rejects invalid shell authentication params before routing', async () => {
+		const transport = connectClient('client-shell-authentication-invalid');
+		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
+		const invalidParams = [
+			undefined, null, [], {},
+			{ chat },
+			{ chat, requestId: 1 },
+			{ chat, requestId: ' ' },
+			{ chat, requestId: 'prompt-1', answer: 1 },
+			{ chat: 'not a uri', requestId: 'prompt-1' },
+			{ chat: 'copilotcli:/session-1', requestId: 'prompt-1' },
+		];
+		for (const [index, params] of invalidParams.entries()) {
+			const id = index + 20;
+			const responsePromise = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, AnswerShellAuthenticationExtensionMethod, params));
+			const response = await responsePromise;
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams, JSON.stringify(params));
+		}
+		assert.deepStrictEqual(agentService.answerShellAuthenticationCalls, []);
 	});
 
 	test('creates a detached worktree through the extension request', async () => {

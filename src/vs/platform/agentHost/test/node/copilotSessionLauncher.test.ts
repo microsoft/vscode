@@ -4671,6 +4671,18 @@ suite('CopilotSessionLauncher resume config', () => {
 		);
 		store.dispose();
 	});
+
+	test('registers the shell authentication handler only when its setting is on', async () => {
+		const store = new DisposableStore();
+		const registered = async (values: SchemaValues<typeof copilotCliConfigSchema.definition>) =>
+			(await buildResumeConfig(createLauncher(store, values), undefined)).onShellAuthenticationRequest !== undefined;
+
+		assert.deepStrictEqual(
+			[await registered({ shellAuthentication: true }), await registered({ shellAuthentication: false }), await registered({})],
+			[true, false, false],
+		);
+		store.dispose();
+	});
 });
 
 /** Resume preserves runtime-owned routing state; a turn's selection is applied through setModel. */

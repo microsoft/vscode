@@ -97,7 +97,7 @@ export function getArtifactStatusButtons(presentation: ArtifactIntegrationPresen
 	if (buttons.length === 0) {
 		const main = getArtifactMainContribution(snapshot)?.view.main;
 		buttons.push({
-			id: 'artifact-details', label: localize('artifactDetails', "Details"), icon: Codicon.chevronDown, iconOnly: true,
+			id: 'artifact-details', label: localize('artifactDetails', "Details"), icon: Codicon.info, iconOnly: true,
 			description: localize('artifactDetailsDescription', "Show Details"),
 			ariaLabel: localize('artifactShowDetails', "Show artifact details: {0}", main?.description ?? main?.label ?? snapshot.artifact.label),
 			expanded, controls,

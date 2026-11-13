@@ -30,6 +30,7 @@ import { createTestArtifactRequestPresentation } from '../../../../../../platfor
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
@@ -38,7 +39,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ElicitationState, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, createShellAuthenticationCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
 import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
@@ -808,6 +809,51 @@ suite('stateToProgressAdapter', () => {
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: `Open \\*Calculator\\*\n\n${explanation}`, state: ElicitationState.Accepted },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
 				{ kind: 'elicitationSerialized', title: 'Turn on Computer Use?', message: explanation, state: ElicitationState.Rejected },
+			]);
+		});
+
+		test('restores a shell authentication prompt as a settled password question that says only whether it was answered', () => {
+			const prompt = (id: string, response: ChatInputResponseKind) => ({
+				kind: ResponsePartKind.InputRequest,
+				request: createShellAuthenticationRequest(id, { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command: 'sudo -A true' }),
+				response,
+			} as const);
+			const turn = createTurn({ responseParts: [prompt('answered', ChatInputResponseKind.Accept), prompt('cancelled', ChatInputResponseKind.Cancel)] });
+			const parts = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant').find(item => item.type === 'response')?.parts ?? [];
+			assert.deepStrictEqual(parts.map(part => part.kind === 'questionCarousel'
+				? { resolveId: part.resolveId, isUsed: part.isUsed, answeredExternally: part.answeredExternally, data: part.data, questions: part.questions.map(question => ({ type: question.type, password: question.password, title: question.title })) }
+				: { kind: part.kind }), [
+				{ resolveId: 'answered', isUsed: true, answeredExternally: true, data: {}, questions: [{ type: 'text', password: true, title: 'sudo needs a password' }] },
+				{ resolveId: 'cancelled', isUsed: true, answeredExternally: false, data: {}, questions: [{ type: 'text', password: true, title: 'sudo needs a password' }] },
+			]);
+		});
+
+		test('keeps a shell authentication command as written, in plain text rather than Markdown', () => {
+			const command = 'sudo -A chown $(whoami) /tmp/x <<\'EOF\'\n\n# Approved by your admin\n[details](https://example.com)\nEOF';
+			const carousel = createShellAuthenticationCarousel('shell-auth', { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command });
+			const [question] = carousel.questions;
+			assert.deepStrictEqual({
+				context: question.context,
+				message: carousel.message,
+				questionMessage: question.message,
+				detailedMessage: question.detailedMessage,
+			}, {
+				context: `Command:\n${command}`,
+				message: undefined,
+				questionMessage: undefined,
+				detailedMessage: undefined,
+			});
+		});
+
+		test('says the same thing about where the answer goes for every kind of prompt', () => {
+			const notes = (['secret', 'text', 'confirm'] as const).map(inputKind => {
+				const [question] = createShellAuthenticationCarousel('shell-auth', { program: 'git', prompt: 'Username for \'https://example.com\': ', inputKind, command: 'git fetch' }).questions;
+				return question.note && { icon: question.note.icon?.id, text: question.note.text };
+			});
+			assert.deepStrictEqual(notes, [
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
 			]);
 		});
 
