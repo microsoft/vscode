@@ -1278,8 +1278,8 @@ suite('Mission Control sharing service', () => {
 		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
 	}));
 
-	for (const error of [new Error('Cancelled'), 'Cancelled']) {
-		test(`normalizes GitHub sign-in cancellation (${typeof error})`, () => runWithFakedTimers({}, async () => {
+	for (const [error, label] of [[new Error('Cancelled'), 'object'], ['Cancelled', 'string'], [new CancellationError(), 'CancellationError']] as const) {
+		test(`normalizes GitHub sign-in cancellation (${label})`, () => runWithFakedTimers({}, async () => {
 			const { sharing, calls, storage } = fixture({
 				defaultAccount: copilotAccount,
 				getSessions: async (_providerId, scopes) => scopes ? [] : [copilotSession],

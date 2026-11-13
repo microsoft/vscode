@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
-import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
 import { getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { GitHubEnvironmentSharingError } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
@@ -52,7 +52,7 @@ export async function getGitHubEnvironmentSessions(authentication: IAuthenticati
 	}
 	if (!sessions.length && canPrompt()) {
 		const session = await authentication.createSession(providerId, [...scopes], sessionOptions).catch(error => {
-			if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
+			if (isCancellationError(error) || error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
 				throw new CancellationError();
 			}
 			throw new GitHubEnvironmentSharingError(getErrorMessage(error), 'signInFailed', { cause: error, diagnostic: getConnectionDiagnosticError(error) });
