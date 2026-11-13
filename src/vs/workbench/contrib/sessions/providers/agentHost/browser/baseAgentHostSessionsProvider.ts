@@ -5542,9 +5542,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * every session.
 	 */
 	setListingScope(scope: ISessionsListingScope): void {
+		const previous = this.getSessions();
 		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions);
 		this._listingScope.value = filter;
 		this._listedSessionChanges.input = filter.onDidChangeSessions;
+		// Who listens already learns how the listing changed, also the first time
+		filter.announceFrom(previous);
 	}
 
 	/** The sessions it lists: those of {@link getAllSessions}, or of them those in its listing scope. Subclasses that list sessions their own way override {@link getAllSessions}, not this. */

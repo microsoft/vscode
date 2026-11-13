@@ -1369,9 +1369,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * and {@link onDidChangeSessions}. Lookups, such as {@link getAllSessions}, still find every session.
 	 */
 	setListingScope(scope: ISessionsListingScope): void {
+		const previous = this.getSessions();
 		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions);
 		this._listingScope.value = filter;
 		this._listedSessionChanges.input = filter.onDidChangeSessions;
+		// Who listens already learns how the listing changed, also the first time
+		filter.announceFrom(previous);
 	}
 
 	getSessions(): ISession[] {

@@ -1630,6 +1630,23 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('tells who listens already how its listing changes as a listing scope is set', () => {
+		const repository = (name: string) => URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/owner/${name}` });
+		const session = (name: string) => createMockAgentSession(URI.from({ scheme: AgentSessionProviders.Cloud, path: `/${name}` }), { title: name, metadata: { owner: 'owner', name } });
+		model.addSession(session('here'));
+		model.addSession(session('elsewhere'));
+		const provider = createProvider(disposables, model);
+		provider.getSessions();
+		const titles = (sessions: readonly ISession[]) => sessions.map(session => session.title.get()).sort().join(',');
+		const changes: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${titles(e.added)} removed=${titles(e.removed)} changed=${titles(e.changed)}`)));
+
+		provider.setListingScope({ folders: constObservable([repository('here')]), repositories: constObservable([]) });
+		provider.setListingScope({ folders: constObservable([repository('elsewhere')]), repositories: constObservable([]) });
+
+		assert.deepStrictEqual(changes, ['added= removed= changed=elsewhere', 'added=elsewhere removed= changed=here']);
+	});
+
 	test('onDidChangeSessions fires when agent model changes', () => {
 		const provider = createProvider(disposables, model);
 		provider.getSessions(); // Initialize cache

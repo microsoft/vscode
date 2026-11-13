@@ -97,6 +97,8 @@ export class SessionsListingScopeFilter extends Disposable {
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
 	private _listed = new Map<string, ISession>();
+	/** Every session as of the last match to the scope, which the scope follows: a different object of an ID, such as a replacement, is matched again. */
+	private _known = new Map<string, ISession>();
 	private _initialized = false;
 	private readonly _pendingChanges: ISessionChangeEvent[] = [];
 	private readonly _allSessionsChanged = observableSignal(this);
@@ -109,7 +111,7 @@ export class SessionsListingScopeFilter extends Disposable {
 		super();
 
 		this._register(onDidChangeAllSessions(e => {
-			if (this._initialized && !this._pendingChanges.length && !e.added.length && !e.removed.length && e.changed.length) {
+			if (this._initialized && !this._pendingChanges.length && !e.added.length && !e.removed.length && e.changed.length && e.changed.every(session => this._known.get(session.sessionId) === session)) {
 				// Changes of sessions only, such as of their status as they stream: what they are listed by, their workspaces,
 				// the scope follows itself, so the sessions it lists stay as they are
 				const changed = e.changed.flatMap(session => this._listed.get(session.sessionId) ?? []);
@@ -127,6 +129,7 @@ export class SessionsListingScopeFilter extends Disposable {
 			const repositories = scope.repositories.read(reader);
 			const gitHubRepositories = scope.gitHubRepositories?.read(reader) ?? [];
 			const sessions = getAllSessions();
+			this._known = new Map(sessions.map(session => [session.sessionId, session]));
 			const inScope = folders.length ? getSessionsInScopeFolders(sessions, folders, reader, repositories, gitHubRepositories) : undefined;
 			const listed = new Map<string, ISession>();
 			for (const session of sessions) {
@@ -141,6 +144,20 @@ export class SessionsListingScopeFilter extends Disposable {
 	/** The sessions the scope lists. */
 	getSessions(): ISession[] {
 		return [...this._listed.values()];
+	}
+
+	/**
+	 * Reports how the sessions it lists differ from `previous`, those listed before it, such as without a scope or in an
+	 * earlier one: a session it lists that was not listed as added, and one no longer listed as changed, as when it leaves
+	 * the scope.
+	 */
+	announceFrom(previous: readonly ISession[]): void {
+		const previousIds = new Set(previous.map(session => session.sessionId));
+		const added = [...this._listed.values()].filter(session => !previousIds.has(session.sessionId));
+		const changed = previous.filter(session => !this._listed.has(session.sessionId));
+		if (added.length || changed.length) {
+			this._onDidChangeSessions.fire({ added, removed: [], changed });
+		}
 	}
 
 	private _update(listed: Map<string, ISession>, changes: readonly ISessionChangeEvent[]): void {
