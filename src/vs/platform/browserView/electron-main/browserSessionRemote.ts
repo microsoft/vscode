@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Iterable } from '../../../base/common/iterator.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import type { BrowserSession } from './browserSession.js';
 
@@ -22,11 +23,16 @@ export interface IBrowserSessionRemote {
 	 */
 	readonly whenReady: Promise<void>;
 	/**
-	 * Hold {@link proxyInfo} on behalf of {@link viewId} and apply it to the
-	 * Electron session. Calling again for the same view replaces its proxy
+	 * The window of a live view on this session. It is connected to the session's remote, because it
+	 * supplied the proxy, so remote file reads go through it. `undefined` while no view holds a proxy.
+	 */
+	readonly hostWindowId: number | undefined;
+	/**
+	 * Hold {@link proxyInfo} on behalf of {@link viewId}, hosted in window {@link windowId}, and apply it
+	 * to the Electron session. Calling again for the same view replaces its proxy
 	 * (e.g. after its window's extension host restarted).
 	 */
-	acquire(viewId: string, proxyInfo: ITunnelProxyInfo): void;
+	acquire(viewId: string, proxyInfo: ITunnelProxyInfo, windowId: number): void;
 	/**
 	 * Release the proxy held for {@link viewId}. When other views still hold
 	 * a different proxy, switches to one of theirs; clears the proxy and
@@ -37,7 +43,7 @@ export interface IBrowserSessionRemote {
 }
 
 /**
- * Owns the tunnel-proxy lifecycle for a {@link BrowserSession} bound to a
+ * Owns the tunnel-proxy lifecycle and host windows for a {@link BrowserSession} bound to a
  * remote network: tracks which views use the session and the proxy each was
  * given, applies a proxy to the underlying Electron session, and clears it
  * when no view uses it anymore.
@@ -54,8 +60,8 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 	private _proxy: ITunnelProxyInfo | undefined;
 	private _readyPromise: Promise<void> = Promise.resolve();
 
-	/** Proxy given to each live view; the proxy is cleared when this is empty. */
-	private readonly _viewProxies = new Map<string, ITunnelProxyInfo>();
+	/** Proxy and host window of each live view; the proxy is cleared when this is empty. */
+	private readonly _views = new Map<string, { readonly proxyInfo: ITunnelProxyInfo; readonly windowId: number }>();
 
 	constructor(
 		private readonly _session: BrowserSession,
@@ -70,16 +76,20 @@ export class BrowserSessionRemote implements IBrowserSessionRemote {
 		return this._readyPromise;
 	}
 
-	acquire(viewId: string, proxyInfo: ITunnelProxyInfo): void {
-		this._viewProxies.set(viewId, proxyInfo);
+	get hostWindowId(): number | undefined {
+		return Iterable.first(this._views.values())?.windowId;
+	}
+
+	acquire(viewId: string, proxyInfo: ITunnelProxyInfo, windowId: number): void {
+		this._views.set(viewId, { proxyInfo, windowId });
 		this._setProxy(proxyInfo);
 	}
 
 	release(viewId: string): void {
-		if (!this._viewProxies.delete(viewId)) {
+		if (!this._views.delete(viewId)) {
 			return;
 		}
-		const remaining = [...this._viewProxies.values()];
+		const remaining = [...this._views.values()].map(view => view.proxyInfo);
 		if (remaining.length === 0) {
 			this._setProxy(undefined);
 		} else if (!remaining.some(info => sameProxyInfo(info, this._proxy))) {
