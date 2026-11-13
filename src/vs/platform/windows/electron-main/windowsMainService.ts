@@ -41,7 +41,7 @@ import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, I
 import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
-import { FolderLocationMemory, statFolderLocation, validateStartupFolderLocation } from './folderLocationMemory.js';
+import { IFolderLocationsMainService, IValidatedFolderLocation } from './folderLocationsMainService.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -226,7 +226,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly windows = new Map<number, ICodeWindow>();
 
 	private readonly windowsStateHandler: WindowsStateHandler;
-	private readonly folderLocationMemory: FolderLocationMemory;
 
 	constructor(
 		private readonly machineId: string,
@@ -250,11 +249,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
-		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService
 	) {
 		super();
 
-		this.folderLocationMemory = new FolderLocationMemory(stateService);
 		this.windowsStateHandler = this._register(new WindowsStateHandler(this, stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
 		this.registerListeners();
@@ -852,25 +851,21 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return undefined;
 		}
 
-		return this.folderLocationMemory.get(workspace.uri);
-	}
-
-	rememberFolderLocation(primary: URI, location: IWindowFolderLocation | undefined): void {
-		this.folderLocationMemory.set(primary, location);
+		return this.folderLocationsMainService.getFolderLocation(workspace.uri);
 	}
 
 	/**
 	 * Like a missing folder of the last session, a missing alternate location never blocks the opening:
-	 * the window opens at the primary location and tells the user.
+	 * the window opens at the workspace's own location and tells the user.
 	 */
-	private async validateFolderLocation(folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen): Promise<{ readonly folderLocation?: IWindowFolderLocation; readonly folderLocationMissing?: { readonly label: string } }> {
+	private async validateFolderLocation(folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen): Promise<IValidatedFolderLocation> {
 		const candidate = folderOrWorkspace.folderLocation ?? this.getRememberedFolderLocation(folderOrWorkspace);
 		const workspace = folderOrWorkspace.workspace;
 		if (!candidate || !workspace || !isSingleFolderWorkspaceIdentifier(workspace) || folderOrWorkspace.remoteAuthority) {
 			return {};
 		}
 
-		return validateStartupFolderLocation(workspace.uri, candidate, this.folderLocationMemory, path => statFolderLocation(path, error => this.logService.warn(`Could not determine whether the folder location ${path} exists`, error)));
+		return this.folderLocationsMainService.validateFolderLocation(workspace.uri, candidate);
 	}
 
 	private async doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): Promise<ICodeWindow> {

@@ -40,7 +40,7 @@ import { IWorkspacesManagementMainService } from '../../workspaces/electron-main
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
 import { IPolicyService } from '../../policy/common/policy.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
-import { statFolderLocation, validateStartupFolderLocation } from './folderLocationMemory.js';
+import { IFolderLocationsMainService } from './folderLocationsMainService.js';
 import { IStateService } from '../../state/node/state.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
@@ -839,6 +839,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -1478,12 +1479,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// An alternate location that is gone is not reloaded, and a notice is only shown once
 		delete configuration.folderLocationMissing;
 		if (configuration.folderLocation && isSingleFolderWorkspaceIdentifier(configuration.workspace) && !configuration.remoteAuthority) {
-			const validated = await validateStartupFolderLocation(
-				configuration.workspace.uri,
-				configuration.folderLocation,
-				{ set: (primary, location) => this.windowsMainService.rememberFolderLocation(primary, location) },
-				path => statFolderLocation(path, error => this.logService.warn(`Could not determine whether the folder location ${path} exists`, error))
-			);
+			const validated = await this.folderLocationsMainService.validateFolderLocation(configuration.workspace.uri, configuration.folderLocation);
 			configuration.folderLocation = validated.folderLocation;
 			configuration.folderLocationMissing = validated.folderLocationMissing;
 		}
