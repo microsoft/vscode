@@ -39,7 +39,8 @@
 }
 
 /* Body: inset each row box, leaving the scrollbar pinned to the pane edge. */
-.modern-ui .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
+.modern-ui .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row,
+.modern-ui .multi-diff-editor-with-file-list-files .monaco-list-row {
 	left: var(--vscode-spacing-size40);
 	right: var(--vscode-spacing-size40);
 	width: auto;
@@ -67,7 +68,8 @@
 	padding-left: var(--vscode-spacing-size40);
 }
 
-.modern-ui.modern-ui-compact .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row {
+.modern-ui.modern-ui-compact .monaco-pane-view .pane-body:not(.chat-viewpane) .monaco-list-row,
+.modern-ui.modern-ui-compact .multi-diff-editor-with-file-list-files .monaco-list-row {
 	left: var(--vscode-spacing-size20);
 	right: var(--vscode-spacing-size20);
 }
@@ -355,7 +357,8 @@
 	gap: var(--vscode-spacing-size20);
 }
 
-.modern-ui.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
+.modern-ui.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
+.modern-ui.monaco-workbench .scm-view .scm-structural-change-status {
 	margin-right: var(--vscode-spacing-size40);
 }
 

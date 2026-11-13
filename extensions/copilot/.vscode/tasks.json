@@ -4,7 +4,7 @@
 		{
 			"label": "Install dependencies",
 			"type": "shell",
-			"command": "npm ci",
+			"command": "pnpm install --frozen-lockfile",
 			"inAgents": true,
 			"runOptions": {
 				"runOn": "worktreeCreated"
@@ -13,13 +13,13 @@
 		{
 			"label": "Compile & Launch Extension Host",
 			"type": "shell",
-			"command": "npm run compile && COPILOT_LOG_TELEMETRY=true VSCODE_DEV_DEBUG=1 code-insiders --extensionDevelopmentPath=$(pwd)",
+			"command": "pnpm run compile && COPILOT_LOG_TELEMETRY=true VSCODE_DEV_DEBUG=1 code-insiders --extensionDevelopmentPath=$(pwd)",
 			"inAgents": true
 		},
 		{
 			"label": "Typecheck",
 			"type": "shell",
-			"command": "npm run typecheck",
+			"command": "pnpm run typecheck",
 			"inAgents": true
 		},
 		{
@@ -37,7 +37,7 @@
 			"label": "ensure-deps",
 			"type": "shell",
 			"windows": {
-				"command": "if not exist node_modules npm ci",
+				"command": "if not exist node_modules pnpm install --frozen-lockfile",
 				"options": {
 					"shell": {
 						"executable": "cmd.exe",
@@ -48,10 +48,10 @@
 				}
 			},
 			"linux": {
-				"command": "test -d node_modules || npm ci"
+				"command": "test -d node_modules || pnpm install --frozen-lockfile"
 			},
 			"osx": {
-				"command": "test -d node_modules || npm ci"
+				"command": "test -d node_modules || pnpm install --frozen-lockfile"
 			},
 			"group": "build",
 			"presentation": {

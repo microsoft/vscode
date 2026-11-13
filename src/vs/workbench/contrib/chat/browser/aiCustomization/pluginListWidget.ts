@@ -12,13 +12,15 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { getManagedSupportUrl, IManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { appendContactAdministratorLink } from '../../../../services/policies/browser/organizationSupportLink.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -28,32 +30,46 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { Action, IAction, Separator } from '../../../../../base/common/actions.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../../common/plugins/agentPluginService.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../common/enablement.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { getInstalledPluginContextMenuActions, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
+import { getInstalledPluginContextMenuActions, getPluginManagedByOrganizationMessage, getPluginPolicyEnablement, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
+import { OrganizationManagedTag, withOrganizationManagedAriaLabel } from './customizationOrganizationPolicy.js';
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
+import { MiddleEllipsisPathLabel } from './aiCustomizationListWidgetUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
-import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
+import { CustomizationGroupHeaderRenderer, getCustomizationGroupAriaLabel, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
+import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, isSyncedFromClientCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { AICustomizationScope, AICustomizationScopes, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, focusFirstCustomizationTreeItem, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, stopListRowActionKeyDownPropagation, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
-import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { getCustomizationContributionSourceLabel } from './customizationContributionSource.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup, isCustomizationTreeEntryVisible } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
+import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
+import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
+import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../actions/chatPluginActions.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const $ = DOM.$;
 
@@ -249,10 +265,11 @@ interface IPluginInstalledItemTemplateData {
 	readonly container: HTMLElement;
 	readonly syncToggleContainer: HTMLElement;
 	readonly name: HTMLElement;
-	readonly source: HTMLElement;
-	readonly description: HTMLElement;
+	readonly managedTag: OrganizationManagedTag;
+	readonly location: MiddleEllipsisPathLabel;
 	readonly metadata: HTMLElement;
 	readonly actions: HTMLElement;
+	readonly templateDisposables: DisposableStore;
 	readonly disposables: DisposableStore;
 	currentItemId: string | undefined;
 }
@@ -264,6 +281,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 
 	constructor(
 		private readonly _harnessService: ICustomizationHarnessService,
+		private readonly _hoverService: IHoverService,
 		private readonly _renderActions: (item: IInstalledPluginItem, container: HTMLElement, actions: HTMLElement, disposables: DisposableStore) => void,
 		private readonly _showSyncToggle = true,
 	) { }
@@ -275,12 +293,15 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		const details = DOM.append(container, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
-		const source = DOM.append(nameRow, $('.inline-badge.plugin-source-badge'));
-		const description = DOM.append(details, $('.plugin-list-item-description'));
+		const templateDisposables = new DisposableStore();
+		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
+		const location = templateDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(syncToggleContainer));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, syncToggleContainer, name, source, description, metadata, actions, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, syncToggleContainer, name, managedTag, location, metadata, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -290,16 +311,12 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 		templateData.currentItemId = element.item.plugin.uri.toString();
 
 		templateData.name.textContent = formatDisplayName(element.item.name);
-		templateData.source.textContent = element.item.marketplace ? '' : localize('pluginLocalSourceBadge', "Local");
-		templateData.source.title = element.item.marketplace ? '' : localize('pluginLocalSourceTooltip', "Installed from a local source");
-		templateData.source.style.display = element.item.marketplace ? 'none' : '';
+		templateData.disposables.add(autorun(reader => {
+			const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
+			templateData.managedTag.update(policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
+		}));
 
-		if (element.item.description) {
-			templateData.description.textContent = truncateToFirstLine(element.item.description);
-			templateData.description.style.display = '';
-		} else {
-			templateData.description.style.display = 'none';
-		}
+		templateData.location.set(element.item.location ?? '');
 		templateData.metadata.textContent = getInstalledPluginMetadata(element.item);
 		templateData.metadata.style.display = templateData.metadata.textContent ? '' : 'none';
 
@@ -344,6 +361,7 @@ class PluginInstalledItemRenderer implements IListRenderer<IPluginInstalledItemE
 	disposeTemplate(templateData: IPluginInstalledItemTemplateData): void {
 		this._templates.delete(templateData);
 		templateData.disposables.dispose();
+		templateData.templateDisposables.dispose();
 	}
 }
 
@@ -355,12 +373,22 @@ interface IPluginRemoteItemTemplateData {
 	readonly container: HTMLElement;
 	readonly name: HTMLElement;
 	readonly badge: HTMLElement;
+	readonly managedTag: OrganizationManagedTag;
 	readonly description: HTMLElement;
 	readonly metadata: HTMLElement;
-	readonly status: HTMLElement;
+	readonly statusIcon: HTMLElement;
 	readonly actions: HTMLElement;
+	readonly templateDisposables: DisposableStore;
 	readonly disposables: DisposableStore;
 	currentItemId: string | undefined;
+}
+
+function getRemotePluginDescription(item: ICustomizationItem): string | undefined {
+	if (item.origin?.kind !== 'account') {
+		return item.description;
+	}
+	const sourceLabel = item.origin.label ?? localize('pluginOrganizationSource', "Organization");
+	return getCustomizationContributionSourceLabel('organization', sourceLabel);
 }
 
 class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, IPluginRemoteItemTemplateData> {
@@ -370,6 +398,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 
 	constructor(
 		private readonly _renderActions: (item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore) => void,
+		private readonly _hoverService: IHoverService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IPluginRemoteItemTemplateData {
@@ -379,12 +408,15 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('span.plugin-list-item-name'));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
+		const templateDisposables = new DisposableStore();
+		const managedTag = templateDisposables.add(new OrganizationManagedTag(nameRow, this._hoverService));
 		const description = DOM.append(details, $('.plugin-list-item-description'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		const status = DOM.append(container, $('.plugin-list-item-status'));
+		const statusIcon = DOM.append(container, $('.plugin-list-item-status-icon', { 'aria-hidden': 'true' }));
 		const actions = DOM.append(container, $('.plugin-list-item-action'));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actions));
 
-		const template = { container, name, badge, description, metadata, status, actions, disposables: new DisposableStore(), currentItemId: undefined };
+		const template = { container, name, badge, managedTag, description, metadata, statusIcon, actions, templateDisposables, disposables: new DisposableStore(), currentItemId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -403,9 +435,11 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 			templateData.badge.style.display = 'none';
 			templateData.badge.title = '';
 		}
+		templateData.managedTag.update(element.item.organizationControl);
 
-		if (element.item.description) {
-			templateData.description.textContent = truncateToFirstLine(element.item.description);
+		const description = getRemotePluginDescription(element.item);
+		if (description) {
+			templateData.description.textContent = truncateToFirstLine(description);
 			templateData.description.style.display = '';
 		} else {
 			templateData.description.textContent = '';
@@ -413,34 +447,8 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 		}
 
 		templateData.container.classList.toggle('disabled', element.item.enabled === false);
-		templateData.metadata.textContent = localize('remotePluginMetadata', "Remote agent host");
-		templateData.status.className = 'plugin-list-item-status';
-		if (element.item.enabled === false) {
-			templateData.status.textContent = getRemotePluginDisabledLabel(element.item);
-			templateData.status.classList.add('disabled');
-		} else {
-			switch (element.item.status) {
-				case 'loading':
-					templateData.status.textContent = getRemotePluginStatusLabel(element.item);
-					templateData.status.classList.add('running');
-					break;
-				case 'loaded':
-					templateData.status.textContent = getRemotePluginStatusLabel(element.item);
-					templateData.status.classList.add('running');
-					break;
-				case 'degraded':
-					templateData.status.textContent = getRemotePluginStatusLabel(element.item);
-					templateData.status.classList.add('disabled');
-					break;
-				case 'error':
-					templateData.status.textContent = getRemotePluginStatusLabel(element.item);
-					templateData.status.classList.add('disabled');
-					break;
-				default:
-					templateData.status.textContent = '';
-					break;
-			}
-		}
+		templateData.metadata.textContent = localize('sessionPluginMetadata', "Agent host");
+		renderRemotePluginStatusIcon(templateData.statusIcon, element.item, this._hoverService, templateData.disposables);
 		DOM.clearNode(templateData.actions);
 		this._renderActions(element.item, templateData.actions, templateData.disposables);
 		setVirtualizedRowActionsTabbable(templateData.actions, templateData.currentItemId === this._focusedItemId);
@@ -456,6 +464,7 @@ class PluginRemoteItemRenderer implements IListRenderer<IPluginRemoteItemEntry, 
 	disposeTemplate(templateData: IPluginRemoteItemTemplateData): void {
 		this._templates.delete(templateData);
 		templateData.disposables.dispose();
+		templateData.templateDisposables.dispose();
 	}
 }
 
@@ -506,12 +515,16 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		const publisher = DOM.append(details, $('.plugin-list-item-source'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actionContainer = DOM.append(container, $('.plugin-list-item-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, secondary: true });
+		const installButton = new Button(actionContainer, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+		});
 		installButton.element.classList.add('plugin-list-item-install-button');
 
 		const templateDisposables = new DisposableStore();
 		templateDisposables.add(installButton);
 		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(installButton.element, event => DOM.EventHelper.stop(event, true)));
+		templateDisposables.add(stopListRowActionKeyDownPropagation(actionContainer));
 
 		const template = { container, name, recommendedBadge, publisher, description, metadata, installButton, elementDisposables: new DisposableStore(), templateDisposables, currentItemId: undefined };
 		this._templates.add(template);
@@ -606,14 +619,22 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 
 //#region Helpers
 
-function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
+export function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
 	// Use `||` (not `??`) so an empty `label` also falls back to the URI basename.
 	// The items model's `getPluginCount` dedupes against this same fallback; using
 	// `??` here would silently break dedup for plugins whose label is `''`.
 	const name = plugin.label || basename(plugin.uri);
-	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
+	const location = labelService.getUriLabel(dirname(plugin.uri), { relative: true });
+	const description = plugin.fromMarketplace?.description ?? location;
 	const marketplace = plugin.fromMarketplace?.marketplace;
-	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
+	return { kind: AgentPluginItemKind.Installed, name, description, location, marketplace, plugin };
+}
+
+/**
+ * Returns whether an installed plugin's name, description, or location matches a query.
+ */
+export function installedPluginMatchesQuery(item: IInstalledPluginItem, query: string): boolean {
+	return customizationSearchMatchesAny(query, [item.name, item.description, item.location]);
 }
 
 function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
@@ -690,7 +711,8 @@ function formatContributionLabel(count: number, singular: string, plural: string
 }
 
 function getRemotePluginStatusLabel(item: ICustomizationItem): string {
-	if (item.enabled === false) {
+	const hasEnablementToggle = item.actions?.some(action => action.checked !== undefined);
+	if (item.enabled === false && !hasEnablementToggle) {
 		return getRemotePluginDisabledLabel(item);
 	}
 
@@ -698,7 +720,7 @@ function getRemotePluginStatusLabel(item: ICustomizationItem): string {
 		case 'loading':
 			return localize('remotePluginLoading', "Loading");
 		case 'loaded':
-			return localize('remotePluginLoaded', "Loaded");
+			return hasEnablementToggle ? '' : localize('remotePluginLoaded', "Loaded");
 		case 'degraded':
 			return localize('remotePluginDegraded', "Warning");
 		case 'error':
@@ -706,6 +728,54 @@ function getRemotePluginStatusLabel(item: ICustomizationItem): string {
 		default:
 			return '';
 	}
+}
+
+function getRemotePluginStatusDescription(item: ICustomizationItem): string {
+	if (item.statusMessage && item.actions?.some(action => action.checked !== undefined)) {
+		return item.statusMessage;
+	}
+	const label = getRemotePluginStatusLabel(item);
+	return label && item.statusMessage
+		? localize('remotePluginStatusWithMessage', "{0}: {1}", label, item.statusMessage)
+		: label;
+}
+
+function renderRemotePluginStatusIcon(statusIcon: HTMLElement, item: ICustomizationItem, hoverService: IHoverService, disposables: DisposableStore): void {
+	statusIcon.className = 'plugin-list-item-status-icon';
+	statusIcon.style.display = 'none';
+	if (item.enabled === false && !item.actions?.some(action => action.checked !== undefined)) {
+		return;
+	}
+
+	switch (item.status) {
+		case 'loading':
+			statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'loading', 'codicon-modifier-spin');
+			break;
+		case 'degraded':
+			statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning), 'warning');
+			break;
+		case 'error':
+			statusIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.error), 'error');
+			break;
+		default:
+			return;
+	}
+
+	statusIcon.style.display = '';
+	disposables.add(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), statusIcon, getRemotePluginStatusDescription(item)));
+}
+
+function getRemotePluginAriaLabel(item: ICustomizationItem): string {
+	const name = formatDisplayName(item.name);
+	const description = getRemotePluginDescription(item);
+	const nameAndDescription = description ? localize('pluginItemAriaLabel', "{0}. {1}", name, truncateToFirstLine(description)) : name;
+	const statusDescription = getRemotePluginStatusDescription(item);
+	const label = statusDescription
+		? localize('pluginSessionItemAriaLabelWithStatus', "{0}. Agent host. Status: {1}", nameAndDescription, statusDescription)
+		: localize('pluginSessionItemAriaLabel', "{0}. Agent host", nameAndDescription);
+	const reason = item.actions?.find(action => action.checked !== undefined && action.enabled === false)?.tooltip;
+	const enablementLabel = reason ? localize('pluginEnablementUnavailableAria', "{0}. {1}", label, reason) : label;
+	return withOrganizationManagedAriaLabel(enablementLabel, item.organizationControl);
 }
 
 function getInstalledPluginContributionSummary(item: IInstalledPluginItem): string | undefined {
@@ -725,9 +795,9 @@ export function getToggledPluginEnablementState(state: ContributionEnablementSta
 	}
 }
 
-export function setPluginEnablementAndReadEffective(model: IEnablementModel, key: string, state: ContributionEnablementState): ContributionEnablementState {
-	model.setEnabled(key, state);
-	return model.readEnabled(key);
+export async function setPluginEnablementAndReadEffective(model: IEnablementModel, plugin: IAgentPlugin, state: ContributionEnablementState): Promise<ContributionEnablementState> {
+	await setAgentPluginEnablement(plugin, model, state);
+	return plugin.copilotCliInstallation ? plugin.enablement.get() : model.readEnabled(plugin.uri.toString());
 }
 
 //#endregion
@@ -746,8 +816,13 @@ export class PluginListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
+	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
+	readonly onDidRequestBrowse = this._onDidRequestBrowse.event;
+
 	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
+	private browseCustomizationsButton!: Button;
+	private marketplaceActionsButton!: Button;
 	private marketplaceBackContainer!: HTMLElement;
 	private searchAndButtonContainer!: HTMLElement;
 	private searchInput!: InputBox;
@@ -764,12 +839,15 @@ export class PluginListWidget extends Disposable {
 	private disabledIcon!: HTMLElement;
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
+	/** Identifies the message in `disabledMessage`, so unchanged state doesn't rebuild it and drop focus. */
+	private renderedDisabledMessage: string | undefined;
 	private backButtonContainer!: HTMLElement;
 	private backButton!: Button;
 	private installedCreateButton: Button | undefined;
 	private readonly cardDisposables = this._register(new DisposableStore());
 	private readonly pendingSectionLayout = this._register(new MutableDisposable());
 	private readonly cardListControllers = new WeakMap<HTMLElement, CustomizationCardListController>();
+	private _pendingPluginScopeChanges: ISettableObservable<ReadonlySet<string>> | undefined;
 	private sectionLists: IPluginSectionList[] = [];
 
 	private installedItems: IInstalledPluginItem[] = [];
@@ -779,6 +857,8 @@ export class PluginListWidget extends Disposable {
 	private searchQuery: string = '';
 	private currentTreeGroups: readonly ICustomizationTreeGroup<IPluginListEntry>[] = [];
 	private browseMode: boolean = false;
+	/** Groups the user collapsed, restored whenever the tree is re-rendered without a search or browsing the marketplace. */
+	private readonly collapsedGroups = new Set<string>();
 	private visible = false;
 	private firstCardFocusElement: HTMLElement | undefined;
 	private narrowLayout = false;
@@ -807,10 +887,15 @@ export class PluginListWidget extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -822,11 +907,13 @@ export class PluginListWidget extends Disposable {
 		));
 		this._register(resizeObserver.observe(this.element));
 		this.updateAccessState();
+		this._register(this.managedSettingsService.onDidChangeManagedSettings(() => this.updateAccessState()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
 			}
-			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+			if (affectsCustomizationDiscoveryAvailability(e, this.customizationMarketplaceService)) {
+				this.updateHeaderActions();
 				this.marketplaceCts?.dispose(true);
 				this.marketplaceSnapshotCts?.dispose(true);
 				this.marketplaceSnapshot.reset();
@@ -837,6 +924,13 @@ export class PluginListWidget extends Disposable {
 				void this.refresh();
 			}
 		}));
+		if (this.customizationMarketplaceService.onDidChangeSources) {
+			this._register(this.customizationMarketplaceService.onDidChangeSources(() => {
+				this.updateHeaderActions();
+				void this.refresh();
+			}));
+		}
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.renderPluginTree()));
 		this._register({
 			dispose: () => {
 				this.delayedFilter.cancel();
@@ -855,6 +949,32 @@ export class PluginListWidget extends Disposable {
 		const titleRow = DOM.append(this.sectionTitleHeader, $('.section-title-row'));
 		const sectionTitle = DOM.append(titleRow, $('h2.section-title'));
 		sectionTitle.textContent = localize('plugins', "Plugins");
+		const titleActions = DOM.append(titleRow, $('.section-title-actions'));
+		const browseLabel = localize('browsePlugins', "Browse");
+		this.browseCustomizationsButton = this._register(new Button(titleActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			title: browseLabel,
+			ariaLabel: browseLabel,
+		}));
+		this.browseCustomizationsButton.label = browseLabel;
+		this._register(this.browseCustomizationsButton.onDidClick(() => this._onDidRequestBrowse.fire()));
+		const moreLabel = localize('moreMarketplaceActions', "More Marketplace Actions");
+		this.marketplaceActionsButton = this._register(new Button(titleActions, {
+			...defaultButtonStyles,
+			secondary: true,
+			small: true,
+			supportIcons: true,
+			title: moreLabel,
+			ariaLabel: moreLabel,
+		}));
+		this.marketplaceActionsButton.element.classList.add('section-title-more-action');
+		this.marketplaceActionsButton.element.setAttribute('aria-haspopup', 'menu');
+		this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'false');
+		this.marketplaceActionsButton.icon = Codicon.ellipsis;
+		this._register(this.marketplaceActionsButton.onDidClick(() => this.showMarketplaceActions()));
+		this.updateHeaderActions();
 		const sectionTitleDescription = DOM.append(this.sectionTitleHeader, $('p.section-title-description'));
 		const sectionTitleDescriptionText = DOM.append(sectionTitleDescription, $('span.section-title-description-text'));
 		sectionTitleDescriptionText.textContent = localize('pluginsDescription', "Extend your AI agent with plugins that add commands, skills, agents, hooks, and MCP servers from reusable packages.");
@@ -918,7 +1038,8 @@ export class PluginListWidget extends Disposable {
 		// Search container
 		const searchContainer = DOM.append(this.searchAndButtonContainer, $('.list-search-container'));
 		this.searchInput = this._register(new InputBox(searchContainer, this.contextViewService, {
-			placeholder: localize('searchPluginsPlaceholder', "Type to search..."),
+			placeholder: localize('searchPluginsPlaceholder', "Search plugins..."),
+			ariaLabel: localize('searchPluginsAriaLabel', "Search plugins..."),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
 
@@ -985,8 +1106,8 @@ export class PluginListWidget extends Disposable {
 			(entry, container, disposables) => this.renderPluginTreeGroupActions(entry, container, disposables),
 		);
 		const searchHeaderRenderer = new PluginSearchHeaderRenderer();
-		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
-		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables));
+		const installedRenderer = new PluginInstalledItemRenderer(this.harnessService, this.hoverService, (item, container, actions, disposables) => this.renderInstalledListActions(item, container, actions, disposables), false);
+		const remoteRenderer = new PluginRemoteItemRenderer((item, actions, disposables) => this.renderRemoteListActions(item, actions, disposables), this.hoverService);
 		const marketplaceRenderer = new PluginMarketplaceItemRenderer(this.pluginInstallService, this.agentPluginService, this.pluginMarketplaceService, this.notificationService);
 
 		this.list = this._register(this.instantiationService.createInstance(
@@ -1041,6 +1162,19 @@ export class PluginListWidget extends Disposable {
 			installedRenderer.setFocusedItemId(entry?.type === 'plugin-item' ? entry.item.plugin.uri.toString() : undefined);
 			remoteRenderer.setFocusedItemId(entry?.type === 'remote-item' ? getRemotePluginEntryId(entry) : undefined);
 			marketplaceRenderer.setFocusedItemId(entry?.type === 'marketplace-item' ? getMarketplacePluginEntryId(entry) : undefined);
+		}));
+		this._register(this.list.onDidChangeCollapseState(event => {
+			const entry = event.node.element;
+			if (entry?.type === 'group-header' && !this.isFilteringPluginTree()) {
+				if (event.node.collapsed) {
+					this.collapsedGroups.add(entry.group);
+				} else {
+					this.collapsedGroups.delete(entry.group);
+				}
+			}
+		}));
+		this._register(this.list.onDidFocus(() => {
+			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header', entry => isCustomizationTreeEntryVisible(this.list, entry));
 		}));
 
 		// Handle context menu
@@ -1119,21 +1253,39 @@ export class PluginListWidget extends Disposable {
 			this.disabledIcon.className = 'empty-icon';
 			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : Codicon.plug));
 
-			DOM.clearNode(this.disabledMessage);
-			this.disabledLinkListener.clear();
-			if (policyLocked) {
-				this.disabledMessage.textContent = localize('pluginsDisabledByPolicy', "Plugin integration in chat is disabled by your organization. Contact your organization administrator for more information.");
-			} else {
-				this.disabledMessage.appendChild(document.createTextNode(localize('pluginsDisabledBySettingPrefix', "Plugins are disabled in settings. ")));
-				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
-				link.textContent = localize('pluginsDisabledSettingLink', "Configure in settings.");
-				link.href = '#';
-				link.setAttribute('role', 'button');
-				this.disabledLinkListener.value = DOM.addDisposableListener(link, 'click', (e) => {
-					e.preventDefault();
-					this.commandService.executeCommand('workbench.action.openSettings', `@id:${ChatConfiguration.PluginsEnabled}`);
-				});
+			const supportUrl = policyLocked ? getManagedSupportUrl(this.managedSettingsService) : undefined;
+			const messageKey = `${policyLocked}:${supportUrl ?? ''}`;
+			if (this.renderedDisabledMessage !== messageKey) {
+				this.renderedDisabledMessage = messageKey;
+				const hadFocus = DOM.isAncestorOfActiveElement(this.disabledMessage);
+				DOM.clearNode(this.disabledMessage);
+				this.disabledLinkListener.clear();
+				let link: HTMLElement | undefined;
+				if (supportUrl) {
+					this.disabledMessage.appendChild(document.createTextNode(localize('pluginsDisabledByPolicyPrefix', "Plugin integration in chat is disabled by your organization. ")));
+					const supportLink = appendContactAdministratorLink(this.disabledMessage, 'mcp-disabled-settings-link', supportUrl, this.openerService, this.hoverService);
+					this.disabledLinkListener.value = supportLink;
+					link = supportLink.element;
+				} else if (policyLocked) {
+					this.disabledMessage.textContent = localize('pluginsDisabledByPolicy', "Plugin integration in chat is disabled by your organization. Contact your administrator for more information.");
+				} else {
+					this.disabledMessage.appendChild(document.createTextNode(localize('pluginsDisabledBySettingPrefix', "Plugins are disabled in settings. ")));
+					const settingsLink = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
+					settingsLink.textContent = localize('pluginsDisabledSettingLink', "Configure in settings.");
+					settingsLink.href = '#';
+					settingsLink.setAttribute('role', 'button');
+					this.disabledLinkListener.value = DOM.addDisposableListener(settingsLink, 'click', (e) => {
+						e.preventDefault();
+						this.commandService.executeCommand('workbench.action.openSettings', `@id:${ChatConfiguration.PluginsEnabled}`);
+					});
+					link = settingsLink;
+				}
+				if (hadFocus) {
+					link?.focus();
+				}
 			}
+		} else {
+			this.renderedDisabledMessage = undefined;
 		}
 	}
 
@@ -1190,7 +1342,7 @@ export class PluginListWidget extends Disposable {
 		return this.marketplaceBrowsingAvailable;
 	}
 
-	private buildAddActions(): readonly ICustomizationItemAction[] {
+	getAddActions(): readonly ICustomizationItemAction[] {
 		return [
 			...this.pluginActions,
 			{
@@ -1232,6 +1384,7 @@ export class PluginListWidget extends Disposable {
 
 	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
 		const primaryAction = createCustomizationCardPrimaryAction(surface, label, ...classNames);
+		trackCustomizationCardPrimaryActionFocus(primaryAction, surface.closest<HTMLElement>('.plugin-home-row') ?? surface, this.cardDisposables);
 		this.rememberCardFocusElement(primaryAction);
 		this.cardDisposables.add(DOM.addDisposableListener(primaryAction, 'click', callback));
 		return primaryAction;
@@ -1239,27 +1392,28 @@ export class PluginListWidget extends Disposable {
 
 	private getPluginEntryAriaLabel(element: IPluginListEntry): string | IObservable<string> {
 		if (element.type === 'group-header') {
-			return localize('pluginGroupAriaLabel', "{0}, {1} items", element.label, element.count);
+			return getCustomizationGroupAriaLabel(element.label, element.count, element.description);
 		}
 		if (element.type === 'search-header') {
 			return element.label;
 		}
 		const name = formatDisplayName(element.item.name);
-		const description = element.item.description ? truncateToFirstLine(element.item.description) : undefined;
-		const nameAndDescription = description ? localize('pluginItemAriaLabel', "{0}. {1}", name, description) : name;
 		if (element.type === 'plugin-item') {
-			const metadata = getInstalledPluginMetadata(element.item);
-			const withMetadata = metadata ? localize('pluginInstalledItemAriaLabelWithMetadata', "{0}. {1}", nameAndDescription, metadata) : nameAndDescription;
-			return derived(this, reader => isContributionEnabled(element.item.plugin.enablement.read(reader))
-				? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withMetadata)
-				: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withMetadata));
+			const details = [element.item.location, getInstalledPluginMetadata(element.item)].filter(detail => !!detail);
+			const withDetails = details.reduce((label, detail) => localize('pluginInstalledItemAriaLabelWithDetail', "{0}. {1}", label, detail), name);
+			return derived(this, reader => {
+				const label = isContributionEnabled(element.item.plugin.enablement.read(reader))
+					? localize('pluginInstalledItemAriaLabelEnabled', "{0}. Enabled", withDetails)
+					: localize('pluginInstalledItemAriaLabelDisabled', "{0}. Disabled", withDetails);
+				const policyEnablement = getPluginPolicyEnablement(element.item.plugin, reader);
+				return withOrganizationManagedAriaLabel(label, policyEnablement === undefined ? undefined : { requiredEnabled: policyEnablement });
+			});
 		}
 		if (element.type === 'remote-item') {
-			const statusLabel = getRemotePluginStatusLabel(element.item);
-			return statusLabel
-				? localize('pluginRemoteItemAriaLabelWithStatus', "{0}. Remote agent host. Status: {1}", nameAndDescription, statusLabel)
-				: localize('pluginRemoteItemAriaLabel', "{0}. Remote agent host", nameAndDescription);
+			return getRemotePluginAriaLabel(element.item);
 		}
+		const description = element.item.description ? truncateToFirstLine(element.item.description) : undefined;
+		const nameAndDescription = description ? localize('pluginItemAriaLabel', "{0}. {1}", name, description) : name;
 		const marketplaceLabel = localize('pluginMarketplaceItemAriaLabel', "{0}. From {1}", nameAndDescription, element.item.marketplace);
 		return this.pluginMarketplaceService.recommendedPlugins.get().has(getMarketplaceRecommendationKey(element.item))
 			? localize('pluginMarketplaceItemAriaLabelRecommended', "{0}. Recommended for this workspace", marketplaceLabel)
@@ -1280,47 +1434,62 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderInstalledListActions(item: IInstalledPluginItem, row: HTMLElement, actions: HTMLElement, disposables: DisposableStore): void {
-		let renderedState = item.plugin.enablement.get();
-		const toggle = disposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: item.name, checked: isContributionEnabled(renderedState) }));
-		DOM.append(actions, toggle.domNode);
-		disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
-		const update = (state: ContributionEnablementState, policyEnablement: boolean | undefined) => {
-			renderedState = state;
-			const checked = isContributionEnabled(state);
-			const managed = policyEnablement !== undefined;
-			const workspaceScope = state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
-			const toggleLabel = checked
-				? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
-				: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
-			toggle.disabled = managed;
-			toggle.checked = checked;
-			toggle.setAriaLabel(
-				managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel,
-				managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel,
-			);
-			row.classList.toggle('disabled', !checked);
-		};
-		disposables.add(autorun(reader => update(item.plugin.enablement.read(reader), getPluginPolicyEnablement(item.plugin, reader))));
-		disposables.add(toggle.onChange(() => {
-			const policyEnablement = getPluginPolicyEnablement(item.plugin);
-			if (policyEnablement !== undefined) {
-				update(renderedState, policyEnablement);
-				return;
-			}
-			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
-		}));
+		const sessionItem = this.getSessionPluginItem(item);
+		if (sessionItem) {
+			this.renderRemotePluginToggle(sessionItem, actions, disposables);
+		} else {
+			let renderedState = item.plugin.enablement.get();
+			const toggle = disposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: item.name, checked: isContributionEnabled(renderedState) }));
+			DOM.append(actions, toggle.domNode);
+			disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
+			const update = (state: ContributionEnablementState, policyEnablement: boolean | undefined) => {
+				renderedState = state;
+				const checked = isContributionEnabled(state);
+				const managed = policyEnablement !== undefined;
+				const workspaceScope = state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
+				const toggleLabel = checked
+					? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
+					: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
+				toggle.disabled = managed;
+				toggle.checked = checked;
+				toggle.setAriaLabel(
+					managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel,
+					managed ? getPluginManagedByOrganizationMessage() : toggleLabel,
+				);
+				row.classList.toggle('disabled', !checked);
+			};
+			disposables.add(autorun(reader => update(item.plugin.enablement.read(reader), getPluginPolicyEnablement(item.plugin, reader))));
+			disposables.add(toggle.onChange(async () => {
+				const policyEnablement = getPluginPolicyEnablement(item.plugin);
+				if (policyEnablement !== undefined) {
+					update(renderedState, policyEnablement);
+					return;
+				}
+				const nextState = getToggledPluginEnablementState(renderedState);
+				toggle.disabled = true;
+				try {
+					await setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin, nextState);
+					status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+				} catch (error) {
+					this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+				} finally {
+					update(item.plugin.enablement.get(), getPluginPolicyEnablement(item.plugin));
+				}
+			}));
+		}
 
 		const more = disposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			supportIcons: true,
 			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
 		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		disposables.add(DOM.addDisposableGenericMouseDownListener(more.element, event => DOM.EventHelper.stop(event, true)));
 		disposables.add(more.onDidClick(event => {
 			DOM.EventHelper.stop(event, true);
@@ -1334,19 +1503,121 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 		actions.style.display = '';
+		this.renderRemotePluginToggle(item, actions, disposables);
 		const more = disposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			supportIcons: true,
 			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
 		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		disposables.add(DOM.addDisposableGenericMouseDownListener(more.element, event => DOM.EventHelper.stop(event, true)));
 		disposables.add(more.onDidClick(event => {
 			DOM.EventHelper.stop(event, true);
 			this.showRemotePluginActions(item, more.element);
 		}));
+	}
+
+	private renderRemotePluginToggle(item: ICustomizationItem, actions: HTMLElement, disposables: DisposableStore, scopeBadges?: HTMLElement[]): HTMLElement | undefined {
+		const action = item.actions?.find(action => action.checked !== undefined);
+		if (!action) {
+			return undefined;
+		}
+		const label = action.scope === 'workspace'
+			? localize('pluginWorkspaceEnablementAria', "Plugin enablement for {0}. Workspace scope. {1}", item.name, action.tooltip ?? action.label)
+			: localize('pluginEnablementAria', "Plugin enablement for {0}. {1}", item.name, action.tooltip ?? action.label);
+		let scopeBadge: Button | undefined;
+		const scopeAction = item.actions?.find(candidate => candidate.checked === undefined && candidate.scope === 'global');
+		if (action.scope === 'workspace') {
+			const badge = disposables.add(new Button(actions, {
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
+				secondary: true,
+				ariaLabel: localize('pluginWorkspaceScopeAria', "Manage enablement scope for {0}. Current scope: this workspace.", item.name),
+				title: false,
+			}));
+			scopeBadge = badge;
+			badge.element.classList.add('inline-badge', 'plugin-scope-badge');
+			scopeBadges?.push(badge.element);
+			badge.element.setAttribute('aria-haspopup', 'menu');
+			badge.element.setAttribute('aria-expanded', 'false');
+			badge.label = localize('pluginWorkspaceScopeBadge', "This Workspace");
+			badge.enabled = scopeAction !== undefined && scopeAction.enabled !== false;
+			disposables.add(this.hoverService.setupDelayedHover(badge.element, {
+				content: scopeAction?.enabled === false && scopeAction.tooltip ? scopeAction.tooltip
+					: localize('pluginWorkspaceScopeDescription', "Enablement is managed separately for this workspace."),
+				style: HoverStyle.Pointer,
+			}));
+			disposables.add(DOM.addDisposableGenericMouseDownListener(badge.element, event => DOM.EventHelper.stop(event, true)));
+			disposables.add(badge.onDidClick(event => {
+				DOM.EventHelper.stop(event, true);
+				if (!scopeAction) {
+					return;
+				}
+				const menuDisposables = new DisposableStore();
+				badge.element.setAttribute('aria-expanded', 'true');
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => badge.element,
+					getActions: () => this.getRemotePluginActions({ ...item, actions: [scopeAction] }).map(action => menuDisposables.add(action)),
+					onHide: () => {
+						menuDisposables.dispose();
+						badge.element.setAttribute('aria-expanded', 'false');
+						if (badge.element.isConnected) {
+							badge.focus();
+						}
+					},
+				});
+			}));
+		}
+		const progress = DOM.append(actions, $('span.plugin-scope-progress', { 'aria-hidden': 'true' }));
+		progress.classList.add(...ThemeIcon.asClassNameArray(ThemeIcon.modify(Codicon.loading, 'spin')));
+		disposables.add(this.hoverService.setupDelayedHover(progress, {
+			content: localize('pluginScopeChanging', "Changing scope..."),
+			style: HoverStyle.Pointer,
+		}));
+		const toggle = disposables.add(new CustomizationToggle({
+			ariaLabel: label,
+			checked: action.checked,
+			disabled: action.enabled === false,
+			title: false,
+		}));
+		DOM.append(actions, toggle.domNode);
+		const pending = this.getPendingPluginScopeChanges();
+		const key = this.getPluginScopeChangeKey(item);
+		disposables.add(autorun(reader => {
+			const busy = pending.read(reader).has(key);
+			progress.style.display = busy ? '' : 'none';
+			actions.setAttribute('aria-busy', String(busy));
+			toggle.disabled = busy || action.enabled === false;
+			if (scopeBadge) {
+				scopeBadge.enabled = !busy && scopeAction !== undefined && scopeAction.enabled !== false;
+			}
+		}));
+		disposables.add(this.hoverService.setupDelayedHover(toggle.domNode, {
+			content: action.tooltip ?? action.label,
+			style: HoverStyle.Pointer,
+		}));
+		disposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
+		disposables.add(toggle.onChange(async () => {
+			toggle.disabled = true;
+			try {
+				await action.run();
+			} catch (error) {
+				toggle.checked = action.checked ?? false;
+				toggle.disabled = action.enabled === false;
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			}
+		}));
+		return toggle.domNode;
 	}
 
 	private layoutPluginSectionLists(): void {
@@ -1380,24 +1651,48 @@ export class PluginListWidget extends Disposable {
 		}
 
 		const partitionedInstalledItems = partitionInstalledPluginItemsByScope(this.installedItems);
-		const workspaceEntries = partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item }));
-		const userEntries = partitionedInstalledItems.user.map(item => ({ type: 'plugin-item' as const, item }));
+		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
-		const remoteEntries = this.remoteItems
-			.filter(item => item.groupKey !== 'remote-client' && (!item.name || !installedNames.has(item.name.toLowerCase())))
+		// Plugins the agent host reports itself belong to the scope they apply to
+		// (a host-level install is the user's), not to a separate "remote" group.
+		const hostItems = this.remoteItems
+			.filter(item => !isSyncedFromClientCustomizationItem(item) && (!item.name || !installedNames.has(item.name.toLowerCase())));
+		const hostEntriesFor = (scope: AICustomizationScope) => hostItems
+			.filter(item => (item.scope ?? AICustomizationScopes.user) === scope)
 			.map(item => ({ type: 'remote-item' as const, item }));
+		const workspaceHostEntries = hostEntriesFor(AICustomizationScopes.workspace);
+		const builtinEntries = hostEntriesFor(AICustomizationScopes.application);
+		const workspaceDefinitions = workspaceGroups.length > 0
+			? workspaceGroups.map(group => ({
+				id: group.key,
+				label: localize('workspaceFolderPluginsGroup', "Workspace · {0}", group.label),
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: partitionedInstalledItems.workspace
+					.filter(item => getAICustomizationWorkspaceGroupForResource(item.plugin.uri, this.workspaceContextService)?.key === group.key)
+					.map(item => ({ type: 'plugin-item' as const, item })),
+			}))
+			: [{
+				id: 'workspace',
+				label: localize('workspacePluginsGroup', "Workspace"),
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: [...partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item })), ...workspaceHostEntries],
+			}];
+		const userEntries = [...partitionedInstalledItems.user.map(item => ({ type: 'plugin-item' as const, item })), ...hostEntriesFor(AICustomizationScopes.user)];
 		const showLegacyMarketplace = shouldShowLegacyPluginMarketplace(this.configurationService);
 		const availableItems = !showLegacyMarketplace ? [] : this.browseMode || this.searchQuery.trim()
 			? this.marketplaceItems : this.getUninstalledMarketplaceItems(this.marketplaceSnapshot.items);
 		const availableEntries = availableItems.map(item => ({ type: 'marketplace-item' as const, item }));
 		const definitions = [
-			{
+			...workspaceDefinitions,
+			...(workspaceGroups.length > 0 ? [{
 				id: 'workspace',
 				label: localize('workspacePluginsGroup', "Workspace"),
 				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
 				icon: Codicon.folder,
-				children: workspaceEntries,
-			},
+				children: workspaceHostEntries,
+			}] : []),
 			{
 				id: 'user',
 				label: localize('userPluginsGroup', "User"),
@@ -1405,13 +1700,13 @@ export class PluginListWidget extends Disposable {
 				icon: Codicon.account,
 				children: userEntries,
 			},
-			{
-				id: 'remote',
-				label: localize('remotePluginsSection', "Remote Session"),
-				description: localize('remotePluginsSectionDescription', "Plugins configured directly on the active remote agent host."),
-				icon: Codicon.remote,
-				children: remoteEntries,
-			},
+			...(builtinEntries.length > 0 ? [{
+				id: 'builtin',
+				label: localize('builtinPluginsGroup', "Built-in"),
+				description: localize('builtinPluginsGroupDescription', "Plugins built into the agent."),
+				icon: Codicon.vscode,
+				children: builtinEntries,
+			}] : []),
 			{
 				id: 'available',
 				label: localize('availablePluginsSection', "Available"),
@@ -1421,7 +1716,7 @@ export class PluginListWidget extends Disposable {
 			},
 		].filter(group => group.id === 'available'
 			? showLegacyMarketplace
-			: group.id === 'user' || group.id === 'workspace' || group.children.length > 0);
+			: group.id === 'user' || (group.id === 'workspace' && workspaceGroups.length === 0) || workspaceGroups.some(workspace => workspace.key === group.id) || group.children.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IPluginListEntry> => {
 			const element: IPluginGroupHeaderEntry = {
@@ -1446,25 +1741,34 @@ export class PluginListWidget extends Disposable {
 		});
 
 		this.cardScrollableNode.style.display = 'none';
+		const isFiltering = this.isFilteringPluginTree();
 		const children: IObjectTreeElement<IPluginListEntry>[] = this.currentTreeGroups.map(group => ({
 			element: group.element,
 			collapsible: true,
-			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			collapsed: !isFiltering && this.collapsedGroups.has(group.id),
 			children: group.children.map(element => ({ element })),
 		}));
-		this.list.setChildren(null);
 		this.list.setChildren(null, children);
 		this.updateToolbarActions();
 		this.updatePluginTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
 	}
 
+	/**
+	 * Whether the tree shows search or marketplace results, which are shown
+	 * with every group expanded.
+	 */
+	private isFilteringPluginTree(): boolean {
+		return this.browseMode || !!this.searchQuery.trim();
+	}
+
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
-		if (entry.group === 'user' || entry.group === 'workspace') {
-			this.renderPluginAddAction(actions, disposables);
+		const isMultiRootWorkspaceFallback = entry.group === 'workspace' && getAICustomizationWorkspaceGroups(this.workspaceContextService).length > 0;
+		if (entry.group === 'user' || (entry.group === 'workspace' && !isMultiRootWorkspaceFallback) || isAICustomizationWorkspaceGroupKey(entry.group)) {
 			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
 				this.renderPluginUpdateAction(actions, disposables);
 			}
+			this.renderPluginAddAction(actions, disposables);
 		} else if (entry.group === 'available') {
 			this.renderPluginAddAction(actions, disposables);
 			if (this.isBrowseMarketplaceAvailable()) {
@@ -1474,12 +1778,12 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private renderPluginAddAction(container: HTMLElement, disposables: DisposableStore): void {
-		const actions = this.buildAddActions();
+		const actions = this.getAddActions();
 		const [primary, ...secondary] = actions;
 		if (!primary) {
 			return;
 		}
-		const label = this.formatActionLabel(primary);
+		const actionLabel = primary.tooltip ?? primary.label;
 		if (secondary.length > 0) {
 			const secondaryActions = secondary.map((action, index) => disposables.add(new Action(
 				`plugin_tree_add_${index}`,
@@ -1489,28 +1793,45 @@ export class PluginListWidget extends Disposable {
 				() => this.runPluginAction(action),
 			)));
 			const button = disposables.add(new ButtonWithDropdown(container, {
-				...defaultButtonStyles,
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
 				secondary: true,
+				supportIcons: true,
 				contextMenuProvider: this.contextMenuService,
 				addPrimaryActionToDropdown: false,
 				actions: { getActions: () => secondaryActions },
-				title: primary.tooltip ?? label,
-				ariaLabel: primary.tooltip ?? label,
+				title: actionLabel,
+				ariaLabel: actionLabel,
 			}));
-			button.element.classList.add('plugin-installed-action');
-			button.label = label;
+			button.element.classList.add('plugin-installed-action', 'plugin-card-split-button');
+			button.primaryButton.element.classList.add('plugin-card-ghost-button');
+			button.dropdownButton.element.classList.add('plugin-card-ghost-button');
+			button.primaryButton.element.classList.add('plugin-card-icon-button');
+			button.dropdownButton.element.classList.add('plugin-card-icon-button');
+			button.dropdownButton.icon = Codicon.chevronDownCompact;
+			button.icon = Codicon.add;
 			button.enabled = primary.enabled !== false;
 			disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 			return;
 		}
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			title: primary.tooltip ?? label,
-			ariaLabel: primary.tooltip ?? label,
+			supportIcons: true,
+			title: actionLabel,
+			ariaLabel: actionLabel,
 		}));
-		button.element.classList.add('plugin-installed-action');
-		button.label = label;
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
+		button.icon = Codicon.add;
 		button.enabled = primary.enabled !== false;
 		disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 	}
@@ -1518,29 +1839,69 @@ export class PluginListWidget extends Disposable {
 	private renderPluginUpdateAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('checkForAndApplyPluginUpdates', "Check for and Apply Updates");
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
 			supportIcons: true,
 			title: label,
 			ariaLabel: label,
 		}));
-		button.element.classList.add('plugin-card-icon-button', 'plugin-update-button');
-		button.label = `$(${Codicon.refresh.id})`;
+		button.element.classList.add('plugin-card-icon-button', 'plugin-card-ghost-button', 'plugin-update-button');
+		if (this.workspaceService.isSessionsWindow) {
+			button.icon = Codicon.refresh;
+		} else {
+			button.label = `$(${Codicon.refresh.id})`;
+		}
 		disposables.add(button.onDidClick(() => this.runUpdatePluginsAction(button)));
 	}
 
 	private renderBrowseMarketplaceAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('browseMarketplace', "Browse Marketplace");
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
 			supportIcons: true,
 			title: label,
 			ariaLabel: label,
 		}));
-		button.element.classList.add('plugin-installed-action');
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
 		button.label = `$(${Codicon.library.id}) ${label}`;
 		disposables.add(button.onDidClick(() => this.toggleBrowseMode(true)));
+	}
+
+	private updateHeaderActions(): void {
+		const visible = isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService);
+		this.browseCustomizationsButton.element.style.display = visible ? '' : 'none';
+		this.marketplaceActionsButton.element.style.display = visible ? '' : 'none';
+	}
+
+	private showMarketplaceActions(): void {
+		const disposables = new DisposableStore();
+		const configure = disposables.add(new Action(
+			'plugin.configureMarketplaces',
+			localize('configureMarketplaces', "Configure Marketplaces"),
+			undefined,
+			true,
+			() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID),
+		));
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.marketplaceActionsButton.element,
+			getActions: () => [configure],
+			onHide: () => {
+				this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'false');
+				disposables.dispose();
+			},
+		});
+		this.marketplaceActionsButton.element.setAttribute('aria-expanded', 'true');
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {
@@ -1578,34 +1939,43 @@ export class PluginListWidget extends Disposable {
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(item.name);
 		name.title = item.name;
-		if (!item.marketplace) {
-			const source = DOM.append(nameRow, $('.inline-badge.plugin-source-badge'));
-			source.textContent = localize('pluginLocalSourceBadge', "Local");
-			source.title = localize('pluginLocalSourceTooltip', "Installed from a local source");
-		}
 
-		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
+		const location = this.cardDisposables.add(new MiddleEllipsisPathLabel(DOM.append(details, $('.plugin-list-item-location'))));
+		location.set(item.location ?? '');
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		metadata.textContent = getInstalledPluginMetadata(item);
 		metadata.style.display = metadata.textContent ? '' : 'none';
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const toggle = this.appendInstalledPluginToggle(actions, row, primaryAction, item);
-		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
+		const scopeBadges: HTMLElement[] = [];
+		const toggle = this.appendInstalledPluginToggle(actions, row, primaryAction, item, scopeBadges);
+		const more = this.cardDisposables.add(new Button(actions, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
+		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		this.cardDisposables.add(more.onDidClick(() => this.showInstalledPluginActions(item, more.element)));
 		this.cardListControllers.get(parent)?.addItem({
 			row,
 			primaryAction,
 			label: item.name,
-			actions: [toggle, more.element],
+			actions: [...scopeBadges, toggle, more.element],
 			contextMenuAction: more.element,
 		});
 	}
 
-	private appendInstalledPluginToggle(parent: HTMLElement, row: HTMLElement, primaryAction: HTMLElement, item: IInstalledPluginItem): HTMLElement {
+	private appendInstalledPluginToggle(parent: HTMLElement, row: HTMLElement, primaryAction: HTMLElement, item: IInstalledPluginItem, scopeBadges?: HTMLElement[]): HTMLElement {
+		const sessionItem = this.getSessionPluginItem(item);
+		if (sessionItem) {
+			return this.renderRemotePluginToggle(sessionItem, parent, this.cardDisposables, scopeBadges)!;
+		}
 		let renderedState = item.plugin.enablement.get();
 		const toggle = this.cardDisposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: item.name }));
 		const switchElement = toggle.domNode;
@@ -1621,7 +1991,7 @@ export class PluginListWidget extends Disposable {
 			const accessibleLabel = managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel;
 			toggle.disabled = managed;
 			toggle.checked = checked;
-			toggle.setAriaLabel(accessibleLabel, managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel);
+			toggle.setAriaLabel(accessibleLabel, managed ? getPluginManagedByOrganizationMessage() : toggleLabel);
 			row.classList.toggle('disabled', !checked);
 			primaryAction.setAttribute('aria-label', localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)));
 		};
@@ -1629,16 +1999,22 @@ export class PluginListWidget extends Disposable {
 			const state = item.plugin.enablement.read(reader);
 			update(state, getPluginPolicyEnablement(item.plugin, reader));
 		}));
-		this.cardDisposables.add(toggle.onChange(() => {
+		this.cardDisposables.add(toggle.onChange(async () => {
 			const policyEnablement = getPluginPolicyEnablement(item.plugin);
 			if (policyEnablement !== undefined) {
 				update(renderedState, policyEnablement);
 				return;
 			}
 			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			toggle.disabled = true;
+			try {
+				await setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin, nextState);
+				status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
+			} catch (error) {
+				this.notificationService.error(localize('pluginEnablementFailed', "Unable to change plugin enablement: {0}", getErrorMessage(error)));
+			} finally {
+				update(item.plugin.enablement.get(), getPluginPolicyEnablement(item.plugin));
+			}
 		}));
 		return switchElement;
 	}
@@ -1646,44 +2022,50 @@ export class PluginListWidget extends Disposable {
 	protected appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void {
 		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-remote-item'));
 		row.setAttribute('role', 'listitem');
-		row.setAttribute('aria-label', localize('pluginRemoteCardAria', "{0}. Remote plugin", item.name));
+		row.setAttribute('aria-label', getRemotePluginAriaLabel(item));
 		row.classList.toggle('disabled', item.enabled === false);
 
 		const details = DOM.append(row, $('.plugin-list-item-details'));
 		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
 		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
 		name.textContent = formatDisplayName(item.name);
-		const source = DOM.append(nameRow, $('.inline-badge.plugin-source-badge'));
-		source.textContent = localize('remotePluginSource', "Remote");
-		source.title = localize('remotePluginMetadata', "Remote agent host");
 		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = item.description || localize('pluginNoDescription', "No description provided.");
+		description.textContent = getRemotePluginDescription(item) || localize('pluginNoDescription', "No description provided.");
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = localize('remotePluginConfigurationSource', "Configured on the active remote agent host");
+		metadata.textContent = localize('sessionPluginConfigurationSource', "Configured on the active agent host");
 
-		const status = DOM.append(row, $('.plugin-list-item-status'));
-		const statusLabel = getRemotePluginStatusLabel(item);
-		if (statusLabel) {
-			status.textContent = statusLabel;
-			status.classList.toggle('disabled', item.enabled === false || item.status === 'degraded' || item.status === 'error');
-		} else {
-			status.style.display = 'none';
-		}
+		const statusIcon = DOM.append(row, $('.plugin-list-item-status-icon', { 'aria-hidden': 'true' }));
+		renderRemotePluginStatusIcon(statusIcon, item, this.hoverService, this.cardDisposables);
 		let more: Button | undefined;
+		const rowActions: HTMLElement[] = [];
 		if (item.actions?.length) {
 			const actions = DOM.append(row, $('.plugin-list-item-action'));
-			const moreButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
+			const toggle = this.renderRemotePluginToggle(item, actions, this.cardDisposables, rowActions);
+			if (toggle) {
+				rowActions.push(toggle);
+			}
+			const moreButton = this.cardDisposables.add(new Button(actions, {
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
+				secondary: true,
+				ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
+			}));
 			moreButton.element.classList.add('plugin-card-icon-button');
-			moreButton.label = `$(${Codicon.ellipsis.id})`;
+			moreButton.icon = Codicon.ellipsis;
 			this.rememberCardFocusElement(moreButton.element);
 			this.cardDisposables.add(moreButton.onDidClick(() => this.showRemotePluginActions(item, moreButton.element)));
 			more = moreButton;
+			rowActions.push(moreButton.element);
 		}
 		this.cardListControllers.get(parent)?.addItem({
 			row,
 			primaryAction: row,
 			label: item.name,
-			actions: more ? [more.element] : [],
+			actions: rowActions,
 			contextMenuAction: more?.element,
 		});
 	}
@@ -1701,7 +2083,11 @@ export class PluginListWidget extends Disposable {
 		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
+		const install = this.cardDisposables.add(new Button(actions, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+			ariaLabel: localize('installPluginAria', "Install {0}", item.name),
+		}));
 		install.element.classList.add('plugin-list-item-install-button');
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));
@@ -1738,17 +2124,23 @@ export class PluginListWidget extends Disposable {
 		button.label = localize('installing', "Installing...");
 		button.enabled = false;
 		try {
-			await this.pluginInstallService.installPlugin({
-				name: item.name,
-				description: item.description,
-				version: item.version ?? '',
-				sourceDescriptor: item.sourceDescriptor,
-				source: item.source,
-				marketplace: item.marketplace,
-				marketplaceReference: item.marketplaceReference,
-				marketplaceType: item.marketplaceType,
-				readmeUri: item.readmeUri,
-			});
+			await runCustomizationMarketplaceInstallWithTelemetry(
+				this.telemetryService,
+				getAvailableCustomizationMarketplaceInstallTelemetryContext('plugin'),
+				async () => {
+					await this.pluginInstallService.installPlugin({
+						name: item.name,
+						description: item.description,
+						version: item.version ?? '',
+						sourceDescriptor: item.sourceDescriptor,
+						source: item.source,
+						marketplace: item.marketplace,
+						marketplaceReference: item.marketplaceReference,
+						marketplaceType: item.marketplaceType,
+						readmeUri: item.readmeUri,
+					});
+				},
+			);
 			button.label = localize('installed', "Installed");
 			void this.refresh();
 		} catch (error) {
@@ -1817,10 +2209,11 @@ export class PluginListWidget extends Disposable {
 
 		this.updateToolbarActions();
 
-		this.searchInput.setPlaceHolder(browse
+		const searchLabel = browse
 			? localize('searchMarketplacePlaceholder', "Search plugin marketplace...")
-			: localize('searchPluginsPlaceholder', "Type to search...")
-		);
+			: localize('searchPluginsPlaceholder', "Search plugins...");
+		this.searchInput.setPlaceHolder(searchLabel);
+		this.searchInput.setAriaLabel(searchLabel);
 
 		if (browse) {
 			void this.queryMarketplace();
@@ -1860,7 +2253,7 @@ export class PluginListWidget extends Disposable {
 				const allPlugins = this.agentPluginService.plugins.get();
 				const installedItems = allPlugins
 					.map(p => installedPluginToItem(p, this.labelService))
-					.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
+					.filter(item => installedPluginMatchesQuery(item, query))
 					.sort(compareInstalledPluginItems);
 				const remoteItems = [...await this.getRemotePluginItems(query)];
 				if (!this.isCurrentMarketplaceRequest(cts, query, browseMode)) {
@@ -1870,7 +2263,7 @@ export class PluginListWidget extends Disposable {
 				this.remoteItems = remoteItems;
 			}
 			const filtered = query
-				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
+				? plugins.filter(p => customizationSearchMatchesAny(query, [p.name, p.description, p.marketplace]))
 				: plugins;
 
 			// Filter out already-installed plugins
@@ -1917,14 +2310,14 @@ export class PluginListWidget extends Disposable {
 			}
 			const installedItems = this.agentPluginService.plugins.get()
 				.map(p => installedPluginToItem(p, this.labelService))
-				.filter(item => item.name.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
+				.filter(item => installedPluginMatchesQuery(item, query))
 				.sort(compareInstalledPluginItems);
 			const remoteItems = [...await this.getRemotePluginItems(query)];
 			if (!this.isCurrentMarketplaceRequest(cts, query, false)) {
 				return;
 			}
 			const filtered = query
-				? plugins.filter(p => p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query) || p.marketplace.toLowerCase().includes(query))
+				? plugins.filter(p => customizationSearchMatchesAny(query, [p.name, p.description, p.marketplace]))
 				: plugins;
 			const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
 			const marketplaceItems = filtered
@@ -1986,10 +2379,7 @@ export class PluginListWidget extends Disposable {
 			const provided = await this.itemsModel.getActiveItemSource().fetchProviderItems();
 			return provided.filter(item =>
 				isPluginCustomizationItem(item)
-				&& (!query
-					|| item.name.toLowerCase().includes(query)
-					|| item.description?.toLowerCase().includes(query)
-					|| item.badge?.toLowerCase().includes(query))
+				&& customizationSearchMatchesAny(query, [item.name, item.description, item.badge])
 			);
 		} catch {
 			return [];
@@ -2009,10 +2399,7 @@ export class PluginListWidget extends Disposable {
 
 		this.installedItems = allPlugins
 			.map(p => installedPluginToItem(p, this.labelService))
-			.filter(item => !query ||
-				item.name.toLowerCase().includes(query) ||
-				item.description.toLowerCase().includes(query)
-			)
+			.filter(item => !query || installedPluginMatchesQuery(item, query))
 			.sort(compareInstalledPluginItems);
 
 		if (!query) {
@@ -2034,7 +2421,7 @@ export class PluginListWidget extends Disposable {
 	get itemCount(): number {
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const uniqueRemote = this.remoteItems.filter(item => {
-			if (item.groupKey === 'remote-client') {
+			if (isSyncedFromClientCustomizationItem(item)) {
 				return false;
 			}
 			if (item.name && installedNames.has(item.name.toLowerCase())) {
@@ -2110,6 +2497,10 @@ export class PluginListWidget extends Disposable {
 		this.searchInput.focus();
 	}
 
+	setSearchQuery(query: string): void {
+		this.searchInput.value = query;
+	}
+
 	revealLastItem(): void {
 		if (this.cardScrollableNode.style.display !== 'none') {
 			const reveal = () => {
@@ -2130,6 +2521,30 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
+	async revealAndSelectItemByUri(uri: URI): Promise<boolean> {
+		if (this.browseMode) {
+			this.toggleBrowseMode(false);
+		}
+		if (this.searchQuery) {
+			this.searchInput.value = '';
+			this.searchQuery = '';
+			this.delayedFilter.cancel();
+		}
+		await this.filterPlugins();
+		const entry = this.getVisiblePluginEntries().find(entry =>
+			entry.type === 'plugin-item' && isEqual(entry.item.plugin.uri, uri)
+			|| entry.type === 'remote-item' && isEqual(entry.item.uri, uri)
+		);
+		if (!entry) {
+			return false;
+		}
+		this.list.reveal(entry);
+		this.list.setFocus([entry]);
+		this.list.setSelection([entry]);
+		this.list.domFocus();
+		return true;
+	}
+
 	focus(): void {
 		if (this.cardScrollableNode.style.display !== 'none') {
 			if (this.firstCardFocusElement) {
@@ -2147,17 +2562,28 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			this.list.domFocus();
-			const firstItem = entries.find(entry => entry.type !== 'group-header');
+			const firstItem = entries.find(entry => entry.type !== 'group-header' && isCustomizationTreeEntryVisible(this.list, entry)) ?? entries[0];
 			if (firstItem) {
 				this.list.setFocus([firstItem]);
 			}
 		}
 	}
 
+	private getSessionPluginItem(item: IInstalledPluginItem): ICustomizationItem | undefined {
+		if (!item.plugin.copilotCliInstallation) {
+			return undefined;
+		}
+		const matches = this.remoteItems.filter(remote => remote.name.toLowerCase() === item.name.toLowerCase()
+			&& !isSyncedFromClientCustomizationItem(remote) && remote.actions?.some(action => action.checked !== undefined));
+		return matches.length === 1 ? matches[0] : undefined;
+	}
+
 	private getInstalledPluginActions(item: IInstalledPluginItem, disposables: DisposableStore): IAction[] {
 		const actions: IAction[] = [];
 		const removePlugin = () => removePluginWithMarketplaceOwnership(item.plugin, this.marketplaceInstallService);
-		const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService, removePlugin);
+		const sessionItem = this.getSessionPluginItem(item);
+		const runtimeActions = sessionItem ? this.getRemotePluginActions(sessionItem).map(action => disposables.add(action)) : undefined;
+		const groups = getInstalledPluginContextMenuActions(item.plugin, this.instantiationService, removePlugin, runtimeActions);
 		for (const menuActions of groups) {
 			for (const menuAction of menuActions) {
 				actions.push(menuAction);
@@ -2173,18 +2599,57 @@ export class PluginListWidget extends Disposable {
 		return actions;
 	}
 
-	private getRemotePluginActions(item: ICustomizationItem): IAction[] {
-		const actions: IAction[] = [];
+	private getRemotePluginActions(item: ICustomizationItem): Action[] {
+		const actions: Action[] = [];
+		const busy = this.getPendingPluginScopeChanges().get().has(this.getPluginScopeChangeKey(item));
 		for (const itemAction of item.actions ?? []) {
-			actions.push(new Action(
+			const action = new Action(
 				itemAction.id,
 				itemAction.label,
 				itemAction.icon ? ThemeIcon.asClassName(itemAction.icon) : undefined,
-				itemAction.enabled !== false,
-				() => itemAction.run(),
-			));
+				!busy && itemAction.enabled !== false,
+				() => {
+					if (this.getPendingPluginScopeChanges().get().has(this.getPluginScopeChangeKey(item))) {
+						throw new Error(localize('pluginScopeUnavailable', "Plugin scope cannot be changed right now."));
+					}
+					return itemAction.scope !== undefined && itemAction.checked === undefined
+						? this.runPluginScopeAction(item, itemAction)
+						: itemAction.run();
+				},
+			);
+			action.tooltip = itemAction.tooltip ?? '';
+			actions.push(action);
 		}
 		return actions;
+	}
+
+	private getPendingPluginScopeChanges(): ISettableObservable<ReadonlySet<string>> {
+		return this._pendingPluginScopeChanges ??= observableValue<ReadonlySet<string>>(this, new Set());
+	}
+
+	private getPluginScopeChangeKey(item: ICustomizationItem): string {
+		return JSON.stringify([this.harnessService.activeSessionResource.get().toString(), item.itemKey ?? item.uri.toString()]);
+	}
+
+	private async runPluginScopeAction(item: ICustomizationItem, action: NonNullable<ICustomizationItem['actions']>[number]): Promise<void> {
+		const pending = this.getPendingPluginScopeChanges();
+		const key = this.getPluginScopeChangeKey(item);
+		if (pending.get().has(key) || action.enabled === false) {
+			throw new Error(localize('pluginScopeUnavailable', "Plugin scope cannot be changed right now."));
+		}
+		pending.set(new Set([...pending.get(), key]), undefined);
+		status(localize('pluginScopeChangingStatus', "Changing scope for {0}...", item.name));
+		try {
+			await action.run();
+			await this.filterPlugins();
+			status(localize('pluginScopeChangedStatus', "Scope changed for {0}.", item.name));
+		} catch (error) {
+			this.notificationService.error(localize('pluginScopeChangeFailed', "Unable to change plugin scope: {0}", getErrorMessage(error)));
+		} finally {
+			const remaining = new Set(pending.get());
+			remaining.delete(key);
+			pending.set(remaining, undefined);
+		}
 	}
 
 	private showInstalledPluginActions(item: IInstalledPluginItem, anchor: HTMLElement): void {
@@ -2197,9 +2662,11 @@ export class PluginListWidget extends Disposable {
 	}
 
 	private showRemotePluginActions(item: ICustomizationItem, anchor: HTMLElement): void {
+		const disposables = new DisposableStore();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
-			getActions: () => this.getRemotePluginActions(item),
+			getActions: () => this.getRemotePluginActions(item).map(action => disposables.add(action)),
+			onHide: () => disposables.dispose(),
 		});
 	}
 
@@ -2212,7 +2679,7 @@ export class PluginListWidget extends Disposable {
 		const disposables = new DisposableStore();
 		const actions = entry.type === 'plugin-item'
 			? this.getInstalledPluginActions(entry.item, disposables)
-			: this.getRemotePluginActions(entry.item);
+			: this.getRemotePluginActions(entry.item).map(action => disposables.add(action));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,

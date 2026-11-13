@@ -150,7 +150,7 @@
 }
 
 /* Active item: inset, rounded background box behind the icon. */
-.modern-ui .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) .active-item-indicator {
+.modern-ui:where(:not(.modern-ui-connected-editor-tabs), .agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon.checked:not(:active) .active-item-indicator {
 	z-index: 0;
 	top: 50%;
 	left: var(--vscode-spacing-size20);
@@ -165,7 +165,7 @@
  * shows the box) and while dragging (the action-item `::before`/`::after` are
  * reused for the drop-line indicators).
  */
-.modern-ui .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .active-item-indicator {
+.modern-ui:where(:not(.modern-ui-connected-editor-tabs), .agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked):not(:active):hover .active-item-indicator {
 	z-index: 0;
 	top: 50%;
 	left: var(--vscode-spacing-size20);
@@ -271,21 +271,21 @@
 	overflow: visible;
 }
 
-.modern-ui.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+.modern-ui.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	bottom: 8px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
-.modern-ui.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
+.modern-ui.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
 	bottom: 0;
 }
 
-.modern-ui.monaco-workbench .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+.modern-ui.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	border-radius: var(--vscode-cornerRadius-small);
 	top: 3px;
 }
 
-.modern-ui.monaco-workbench .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
+.modern-ui.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
 	top: 0;
 }
 .modern-ui.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {

@@ -104,6 +104,12 @@ declare module 'vscode' {
 		 * Due to port forwarding, this may not match the `resolvedUri` passed to `openExternalUri`.
 		 */
 		readonly sourceUri: Uri;
+
+		/**
+		 * The preferred column for openers that display the resource in an editor, defaulting to {@link ViewColumn.Active}.
+		 * Use {@link ViewColumn.Beside} to open beside the active editor.
+		 */
+		readonly viewColumn?: ViewColumn;
 	}
 
 	/**

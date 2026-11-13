@@ -265,6 +265,18 @@ export interface IInputOptions {
 	 * an optional function that is used to validate user input.
 	 */
 	validateInput?: (input: string) => Promise<string | null | undefined | { content: string; severity: Severity }>;
+
+	/**
+	 * an optional anchor for the input.
+	 */
+	anchor?: unknown /* HTMLElement */ | { x: number; y: number };
+
+	/**
+	 * Placement of the quick input relative to {@link anchor}.
+	 * `'overlay'` positions the input box directly on top of the anchor (which must be an HTMLElement)
+	 * and auto-sizes its width to match. Defaults to `'above'`.
+	 */
+	anchorPosition?: 'above' | 'overlay';
 }
 
 export enum QuickInputHideReason {
@@ -303,7 +315,6 @@ export const enum QuickInputType {
  * Represents a quick input control that allows users to make selections or provide input quickly.
  */
 export interface IQuickInput extends IDisposable {
-
 	/**
 	 * The type of the quick input.
 	 */
@@ -510,7 +521,6 @@ export enum QuickPickFocus {
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
 export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators: boolean } = { useSeparators: false }> extends IQuickInput {
-
 	/**
 	 * The type of the quick input.
 	 */

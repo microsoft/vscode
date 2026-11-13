@@ -242,3 +242,10 @@ export const EDITOR_FONT_DEFAULTS = {
 	lineHeight: 0,
 	letterSpacing: 0,
 };
+
+// \p{L}, \p{M}, and \p{N} match any Unicode letter, combining mark, or number; the remaining characters are punctuation commonly used in CSS font-family lists.
+const allowedFontFamilyPattern = /^[\p{L}\p{M}\p{N} _+'",.-]+$/u;
+
+export function sanitizeFontFamily(fontFamily: string): string {
+	return allowedFontFamilyPattern.test(fontFamily) ? fontFamily : EDITOR_FONT_DEFAULTS.fontFamily;
+}

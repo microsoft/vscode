@@ -25,6 +25,18 @@ suite('htmlToMarkdown', () => {
 		);
 	});
 
+	test('drops the text of non-content elements', () => {
+		assert.strictEqual(
+			convertHtmlToMarkdown('<div><p>Kept</p><style>.list:focus { color: red; }</style><script>alert(1)</script><template>Template</template><noscript>Noscript</noscript></div>'),
+			'Kept'
+		);
+	});
+
+	test('separates disclosure labels and table cells in readable document text', () => {
+		assert.strictEqual(convertHtmlToMarkdown('<details><summary>Risks</summary><p>Offline only.</p></details><table><tr><th>Area</th><th>Status</th></tr><tr><td>Preview</td><td>Ready</td></tr></table>'),
+			'Risks\n\nOffline only.\n\nArea | Status\n\nPreview | Ready');
+	});
+
 	test('strips dangerous schemes from links', () => {
 		assert.strictEqual(
 			convertHtmlToMarkdown('<a href="javascript:alert(1)">click</a>'),

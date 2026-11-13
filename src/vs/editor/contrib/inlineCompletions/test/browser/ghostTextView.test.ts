@@ -9,6 +9,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEditorWidget.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../common/config/fontInfo.js';
 import { TextEdit, TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -18,6 +19,66 @@ import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { InlineCompletionEditorType } from '../../browser/model/provideInlineCompletions.js';
 import { InlineEditTabAction } from '../../browser/view/inlineEdits/inlineEditsViewInterface.js';
 import { InlineEditsInsertionView } from '../../browser/view/inlineEdits/inlineEditsViews/inlineEditsInsertionView.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
+
+suite('InlineSuggestionsView font family', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createView(fontFamily: string) {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const instantiationService = createCodeEditorServices(store);
+		const editor = store.add(instantiationService.createInstance(
+			CodeEditorWidget,
+			container,
+			{ inlineSuggest: { fontFamily } },
+			{ contributions: [] },
+		));
+		editor.setModel(store.add(createTextModel('')));
+
+		const existingStyles = new Set(document.head.querySelectorAll('style'));
+		store.add(instantiationService.createInstance(
+			InlineSuggestionsView,
+			editor,
+			constObservable(undefined),
+			observableValue('focusIsInMenu', false),
+		));
+		const style = Array.from(document.head.querySelectorAll('style')).find(style =>
+			!existingStyles.has(style) && style.textContent?.includes('.ghost-text-decoration-preview'));
+		assert.ok(style);
+		return { editor, style };
+	}
+
+	function expectedStyles(fontFamily: string): string {
+		return `.monaco-editor .ghost-text-decoration,
+.monaco-editor .ghost-text-decoration-preview,
+.monaco-editor .ghost-text {
+	font-family: ${fontFamily};
+}`;
+	}
+
+	test('sanitizes the initial configured font family', () => {
+		const { style } = createView('monospace; } .inline-font-injection { color: red; } /*');
+		assert.strictEqual(style.textContent?.trim(), expectedStyles(EDITOR_FONT_DEFAULTS.fontFamily));
+	});
+
+	test('preserves valid font lists and sanitizes configuration updates', () => {
+		const fontFamily = '"Fira Code", monospace';
+		const { editor, style } = createView(fontFamily);
+		const styles = [style.textContent?.trim()];
+		editor.updateOptions({ inlineSuggest: { fontFamily: 'monospace; color: red' } });
+		styles.push(style.textContent?.trim());
+		const unicodeFontFamily = '"\u6e90\u30ce\u89d2\u30b4\u30b7\u30c3\u30af", monospace';
+		editor.updateOptions({ inlineSuggest: { fontFamily: unicodeFontFamily } });
+		styles.push(style.textContent?.trim());
+		assert.deepStrictEqual(styles, [
+			expectedStyles(fontFamily),
+			expectedStyles(EDITOR_FONT_DEFAULTS.fontFamily),
+			expectedStyles(unicodeFontFamily),
+		]);
+	});
+});
 
 suite('GhostTextView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

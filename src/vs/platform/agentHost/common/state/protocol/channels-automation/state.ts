@@ -12,8 +12,9 @@ import type { AutomationRunSummary, AutomationTriggeredRunOrigin } from '../chan
 import type { ResolveSessionConfigResult } from '../channels-root/commands.js';
 import type { AgentInfo, ModelSelection, SessionModelInfo } from '../channels-root/state.js';
 import type { CreateSessionParams } from '../channels-session/commands.js';
-import type { AgentSelection } from '../channels-session/state.js';
-import type { AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from './actions.js';
+import type { AgentSelection, ClientPluginCustomization, PluginCustomization, SessionActiveClient, SessionState } from '../channels-session/state.js';
+import type { AutomationCapabilities } from '../common/commands.js';
+import type { AutomationCreateRequestedAction, AutomationRemovedAction, AutomationSetAction, AutomationUpdateRequestedAction } from './actions.js';
 import type { FetchAutomationRunsParams, ListAutomationTriggerDefinitionsParams, RunAutomationParams } from './commands.js';
 
 /**
@@ -104,6 +105,27 @@ export const enum AutomationTriggerKind {
 	Schedule = 'schedule',
 	/** A host-defined external event discovered from trigger definitions. */
 	Event = 'event',
+	/** One run at an absolute UTC instant, including catch-up after unavailability. */
+	OneTime = 'oneTime',
+}
+
+/**
+ * Admits one run at an absolute instant. Requires {@link AutomationCapabilities.oneTime}.
+ *
+ * This MUST be the definition's only trigger. The host atomically records
+ * {@link AutomationEntry.oneTimeRun} before dispatch, including for manual
+ * execution before the due time. Missed occurrences catch up once. Failed or
+ * interrupted execution never rearms the occurrence. Once admitted, edits are
+ * rejected and repeated manual requests return the existing run.
+ *
+ * @category Automation State
+ */
+export interface AutomationOneTimeTrigger {
+	/** Identifier unique and stable within this automation definition. */
+	id: string;
+	kind: AutomationTriggerKind.OneTime;
+	/** Absolute ISO 8601 UTC timestamp ending in `Z`. */
+	runAt: string;
 }
 
 /**
@@ -177,7 +199,8 @@ export interface AutomationEventTrigger {
  */
 export type AutomationTrigger =
 	| AutomationScheduleTrigger
-	| AutomationEventTrigger;
+	| AutomationEventTrigger
+	| AutomationOneTimeTrigger;
 
 /**
  * Discriminant for an {@link AutomationDisableCondition}.
@@ -296,21 +319,65 @@ export interface AutomationSessionTemplate {
 	 * {@link ResolveSessionConfigResult.values}.
 	 */
 	config?: Record<string, unknown>;
+	/**
+	 * Client plugins to make available in every run session, in the same
+	 * published shape as
+	 * {@link SessionActiveClient.customizations | `activeClients[].customizations`}.
+	 * Entries are keyed by `id`.
+	 *
+	 * Runs usually start when no client is connected, so the host does not
+	 * resolve these URIs at run time. Instead, when it accepts a
+	 * {@link AutomationCreateRequestedAction | `automation/createRequested`} or
+	 * {@link AutomationUpdateRequestedAction | `automation/updateRequested`}
+	 * that adds an entry or changes an entry's `uri` or `nonce`, the host
+	 * captures a host-owned copy of the plugin. For client-served URIs such as
+	 * `virtual://…`, it reads the contents from the dispatching client with
+	 * server→client `resource*` requests. If a capture fails, the host rejects
+	 * the whole action. Entries whose `id`, `uri`, and `nonce` are unchanged keep
+	 * their existing copy, so any client can re-submit a template it received
+	 * without being able to serve the plugin itself. The resulting copies are
+	 * reported in {@link AutomationEntry.customizations}.
+	 *
+	 * The host MAY share one stored copy between entries with equal `uri` and
+	 * `nonce`, including across automations; this is not observable to clients.
+	 *
+	 * Clients MUST NOT set this field unless the host advertises
+	 * {@link AutomationCapabilities.customizations}.
+	 */
+	customizations?: ClientPluginCustomization[];
+}
+
+/** Exact existing execution target, without session creation or ownership. */
+export interface AutomationConversation {
+	/** Exact advertised owner session URI. */
+	session: URI;
+	/** Exact advertised chat URI; it need not be the session's default chat. */
+	chat: URI;
 }
 
 /**
- * Durable, client-editable definition of an automation.
- *
- * A definition combines the initial automation message, the session template
- * used for each run, and zero or more automatic triggers. Run history,
- * timestamps, and currently allowed operations live on
- * {@link AutomationEntry} rather than in the definition.
- *
+ * Durable client-editable definition. Runtime history, timestamps and allowed
+ * operations belong to {@link AutomationEntry}.
  * @category Automation State
  */
 export interface AutomationDefinition {
 	/** Human-readable automation name. */
 	title: string;
+	/**
+	 * A captured user request scheduled for later; requires a one-time trigger
+	 * and enabled creation. Disabling it before admission permanently cancels
+	 * it: the host MUST reject subsequent updates and manual runs.
+	 */
+	purpose?: 'scheduledChat';
+	/**
+	 * Existing conversation receiving a one-time scheduled-chat request.
+	 * Requires `automations.existingConversation`; immutable after creation.
+	 * The host MUST NOT create a conversation, apply the session template or
+	 * message model/agent, or acquire ownership of the existing session.
+	 * Delivery joins the ordinary message queue without steering or cancelling
+	 * another turn. Completion means accepted queue handoff, not turn completion.
+	 */
+	conversation?: AutomationConversation;
 	/**
 	 * Initial message sent to every newly created run session. Its
 	 * {@link Message.origin} kind MUST be {@link MessageKind.Automation}.
@@ -366,6 +433,21 @@ export interface AutomationEntry {
 	definition: AutomationDefinition;
 	/** Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending. */
 	nextRunAt?: string;
+	/** Durable one-time admission receipt, retained independently of the run-history window. */
+	oneTimeRun?: URI;
+	/**
+	 * When the one-time run's initial request was accepted for dispatch.
+	 * Retained independently of run history. Admission or session allocation
+	 * alone MUST NOT set this receipt; absence does not prove non-dispatch
+	 * after an interrupted or uncertain execution.
+	 */
+	oneTimeDispatchedAt?: string;
+	/**
+	 * Positive confirmation that a consumed occurrence failed before submission
+	 * was attempted. Only this receipt permits explicit recovery as a sendable
+	 * draft; failure plus absent `oneTimeDispatchedAt` can be uncertain.
+	 */
+	oneTimeDispatchRejectedAt?: string;
 	/**
 	 * Host-owned count of scheduled runs consumed against the current
 	 * {@link AutomationAfterRunsCondition} allowance. Authoritative usage for the
@@ -390,6 +472,22 @@ export interface AutomationEntry {
 	runsNextCursor?: string;
 	/** Operations currently permitted for this automation. */
 	operations: AutomationOperation[];
+	/**
+	 * Host-owned copies of the plugins in
+	 * {@link AutomationSessionTemplate.customizations}, one per template entry
+	 * with the same `id`. Absent when the template has no customizations.
+	 *
+	 * Each copy's `uri` identifies the captured contents, which clients can
+	 * browse with `resourceRead`. `children` and `load` report what the host
+	 * found in that copy, independent of whether the originating client is
+	 * connected. `clientId` is absent because the copy no longer depends on a
+	 * client.
+	 *
+	 * Every run session receives these plugins in
+	 * {@link SessionState.customizations}, with the enablement from the
+	 * matching template entry.
+	 */
+	customizations?: PluginCustomization[];
 	/** Creation timestamp in ISO 8601 format. */
 	createdAt: string;
 	/** Last definition modification timestamp in ISO 8601 format. */

@@ -482,10 +482,13 @@
     "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
     "watch-bundle-web": "node ./esbuild.browser.mts --watch",
     "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch",
-    "deps": "npm install @vscode/emmet-helper"
+    "deps": "pnpm add @vscode/emmet-helper"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "mocha": "^10.8.2",
+    "util": "^0.12.4"
   },
   "dependencies": {
     "@emmetio/css-parser": "^0.4.1",

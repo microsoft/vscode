@@ -22,7 +22,7 @@ suite('DefaultSettings', () => {
 		configurationService = new TestConfigurationService();
 	});
 
-	test('preserves deprecation message severity', () => {
+	test('preserves deprecation message presentation', () => {
 		const config: IConfigurationNode = {
 			id: 'deprecatedSettings',
 			title: 'Deprecated Settings',
@@ -32,7 +32,8 @@ suite('DefaultSettings', () => {
 					type: 'boolean',
 					default: false,
 					deprecationMessage: 'Use the replacement setting.',
-					deprecationMessageSeverity: 'info'
+					deprecationMessageSeverity: 'info',
+					deprecationMessageShowInSettings: true
 				}
 			}
 		};
@@ -46,7 +47,10 @@ suite('DefaultSettings', () => {
 			.flatMap(section => section.settings)
 			.find(setting => setting.key === 'test.deprecatedSetting');
 
-		assert.strictEqual(setting?.deprecationMessageSeverity, 'info');
+		assert.deepStrictEqual({
+			severity: setting?.deprecationMessageSeverity,
+			showInSettings: setting?.deprecationMessageShowInSettings,
+		}, { severity: 'info', showInSettings: true });
 	});
 
 	test('groups settings by title when they share the same extension id', () => {

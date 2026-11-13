@@ -14,11 +14,13 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema } from '../common/agentHostSchema.js';
+import { MissionControlUseLocalCredentialsConfigKey } from '../common/missionControlEnvironment.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -30,32 +32,44 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	private callbacks: IAgentServiceCallbacks | undefined;
 
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
+		getCredentialSource: chat => this.value.sessionServerToolAccessor.getCredentialSource(chat),
 		getAutomaticTitleGenerationStrategy: session => this.value.sessionServerToolAccessor.getAutomaticTitleGenerationStrategy(session),
+		startedWorkspaceless: session => this.value.sessionServerToolAccessor.startedWorkspaceless(session),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
 		supportsChatWorkingDirectories: session => this.value.sessionServerToolAccessor.supportsChatWorkingDirectories(session),
+		getChatHarnesses: session => this.value.sessionServerToolAccessor.getChatHarnesses(session),
+		canCreateSessions: provider => this.value.sessionServerToolAccessor.canCreateSessions(provider),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
 		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
 		createSession: config => this.value.sessionServerToolAccessor.createSession(config),
 		getModels: () => this.value.sessionServerToolAccessor.getModels(),
 		getCreationDefaults: source => this.value.sessionServerToolAccessor.getCreationDefaults(source),
-		startPrompt: (session, chat, prompt, delegation) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation),
-		createChat: (session, chat, options) => this.value.sessionServerToolAccessor.createChat(session, chat, options),
+		startPrompt: (session, chat, prompt, delegation, credentials) => this.value.sessionServerToolAccessor.startPrompt(session, chat, prompt, delegation, credentials),
+		createChat: (session, chat, options, credentials) => this.value.sessionServerToolAccessor.createChat(session, chat, options, credentials),
 		prepareChatWorkingDirectory: (session, directory, options) => this.value.sessionServerToolAccessor.prepareChatWorkingDirectory(session, directory, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
+		archiveSession: session => this.value.sessionServerToolAccessor.archiveSession(session),
+		archiveChat: chat => this.value.sessionServerToolAccessor.archiveChat(chat),
 		deleteSession: session => this.value.sessionServerToolAccessor.deleteSession(session),
 		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
 		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
 		setSessionSpawnDepth: (session, depth) => this.value.sessionServerToolAccessor.setSessionSpawnDepth(session, depth),
+		isChatMoveEnabled: () => this.value.sessionServerToolAccessor.isChatMoveEnabled(),
+		supportsChatMoves: session => this.value.sessionServerToolAccessor.supportsChatMoves(session),
+		checkChatMove: move => this.value.sessionServerToolAccessor.checkChatMove(move),
+		applyChatMove: move => this.value.sessionServerToolAccessor.applyChatMove(move),
+		isKnownSessionLink: (session, chatId) => this.value.sessionServerToolAccessor.isKnownSessionLink(session, chatId),
 	};
 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
+		isChatResourcesEnabled: () => this.value.artifactServerToolAccessor.isChatResourcesEnabled?.() === true,
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
 		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
 		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
-		removePendingPullRequest: (session, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, url) ?? Promise.resolve(),
+		removePendingPullRequest: (session, chat, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, chat, url) ?? Promise.resolve(),
 		reportAssociationError: error => this.value.artifactServerToolAccessor.reportAssociationError?.(error),
 	};
 
@@ -110,6 +124,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			canEvict: changeset => callbackAdapter.canEvictChangeset(changeset),
 		},
 	}));
+	const managedSettingsService = options.owned.add(new AgentHostManagedSettingsService());
 	const configurationService = options.owned.add(new AgentConfigurationService(
 		stateManager,
 		options.logService,
@@ -121,14 +136,20 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			Object.values(AgentHostProxyConfigKey).map(key => [key, undefined])
 		));
 	}
-	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService));
+	configurationService.publishRootTransientValues({ [MissionControlUseLocalCredentialsConfigKey]: undefined });
 	const gitHubEndpointService = options.owned.add(new AgentHostGitHubEndpointService(configurationService, options.logService));
 	const proxyResolver = options.proxyResolver ?? options.owned.add(new AgentHostProxyResolver(configurationService, options.logService));
 	const requestService = options.owned.add(new AgentHostRequestService(options.logService, proxyResolver));
 	const fetchFn = options.fetchFn ?? proxyResolver.fetch.bind(proxyResolver);
+	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService, fetchFn, {
+		isEnabled: () => configurationService.getRootValue(platformRootSchema, MissionControlUseLocalCredentialsConfigKey) === true,
+		getResources: () => [gitHubEndpointService.getCopilotResource(), gitHubEndpointService.getRepoResource()],
+		onDidChange: configurationService.onDidRootConfigChange,
+	}));
 
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
+	options.services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
 	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);

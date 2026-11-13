@@ -12,6 +12,7 @@ import { DisposableStore } from '../../../common/lifecycle.js';
 export interface IResizeEvent {
 	dimension: Dimension;
 	done: boolean;
+	reset?: 'width' | 'height';
 	north?: boolean;
 	east?: boolean;
 	south?: boolean;
@@ -104,13 +105,13 @@ export class ResizableHTMLElement {
 		this._sashListener.add(Event.any(this._eastSash.onDidReset, this._westSash.onDidReset)(e => {
 			if (this._preferredSize) {
 				this.layout(this._size.height, this._preferredSize.width);
-				this._onDidResize.fire({ dimension: this._size, done: true });
+				this._onDidResize.fire({ dimension: this._size, done: true, reset: 'width' });
 			}
 		}));
 		this._sashListener.add(Event.any(this._northSash.onDidReset, this._southSash.onDidReset)(e => {
 			if (this._preferredSize) {
 				this.layout(this._preferredSize.height, this._size.width);
-				this._onDidResize.fire({ dimension: this._size, done: true });
+				this._onDidResize.fire({ dimension: this._size, done: true, reset: 'height' });
 			}
 		}));
 	}

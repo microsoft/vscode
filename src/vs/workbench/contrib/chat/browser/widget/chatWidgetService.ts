@@ -16,7 +16,7 @@ import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../s
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from '../chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -74,8 +74,15 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return this._widgets.find(w => isEqual(w.input.inputUri, uri));
 	}
 
-	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined {
-		return this._widgets.find(w => isEqual(w.viewModel?.sessionResource, sessionResource));
+	getWidgetBySessionResource(sessionResource: URI, options?: { readonly preferInputRequests?: boolean }): IChatWidget | undefined {
+		const matches = (widget: IChatWidget) => isEqual(widget.viewModel?.sessionResource, sessionResource);
+		if (options?.preferInputRequests) {
+			const widget = this._widgets.find(widget => matches(widget) && widget.supportsInputRequests !== false);
+			if (widget) {
+				return widget;
+			}
+		}
+		return this._widgets.find(matches);
 	}
 
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
@@ -101,6 +108,16 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				view?.focus();
 			}
 			return !!view;
+		}
+
+		// A chat widget that is hosted outside of the chat view and chat editors,
+		// such as the session chat of the Agents window, has nothing to open when
+		// it is already showing.
+		if (widget.visible && widget.location === ChatAgentLocation.Chat && isIChatResourceViewContext(widget.viewContext) && !widget.viewContext.isQuickChat && !widget.viewContext.isInlineChat) {
+			if (!preserveFocus) {
+				widget.focusInput();
+			}
+			return true;
 		}
 
 		return false;

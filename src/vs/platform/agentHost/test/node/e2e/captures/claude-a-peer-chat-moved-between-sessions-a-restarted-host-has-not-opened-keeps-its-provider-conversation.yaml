@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Do not use any tools. Reply with only the word OK.
+    response:
+      content: OK
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Do not use any tools. Reply with only the word OK.
+    response:
+      content: OK
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word PELICAN. Do not use any tools. Reply with only the word OK.
+    response:
+      content: OK
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the code word PELICAN. Do not use any tools. Reply with only the word OK.
+        - role: assistant
+          content: OK
+        - role: user
+          content: What was the code word I asked you to remember? Do not use any tools. Reply with only the word.
+    response:
+      content: PELICAN
+      stopReason: end_turn

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Sash, SashState } from '../../../../browser/ui/sash/sash.js';
+import { getWindow } from '../../../../browser/dom.js';
+import { Orientation, Sash, SashState } from '../../../../browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../browser/ui/splitview/splitview.js';
+import { Color } from '../../../../common/color.js';
 import { Emitter } from '../../../../common/event.js';
+import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 class TestView implements IView<number> {
@@ -77,6 +80,10 @@ class TestView implements IView<number> {
 	}
 }
 
+class PathIndependentTestView extends TestView {
+	readonly pathIndependentLayout = true;
+}
+
 function getSashes(splitview: SplitView): Sash[] {
 	return splitview.sashItems.map((i: any) => i.sash) as Sash[];
 }
@@ -139,6 +146,39 @@ suite('Splitview', () => {
 		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
 		assert.strictEqual(sashQuery.length, 0, 'split view should have no sashes');
 	});
+
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		test(`separators only appear between visible views (${orientation === Orientation.HORIZONTAL ? 'horizontal' : 'vertical'})`, () => {
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const splitview = store.add(new SplitView(container, { orientation, styles: { separatorBorder: Color.red } }));
+			splitview.layout(200);
+			for (let i = 0; i < 3; i++) {
+				splitview.addView(store.add(new TestView(20, Number.POSITIVE_INFINITY)), 60);
+			}
+
+			const readSeparators = () => Array.from(container.querySelectorAll('.split-view-view'), view => {
+				const style = getWindow(container).getComputedStyle(view, '::before');
+				return style.content === 'none' ? null : orientation === Orientation.HORIZONTAL ? style.width : style.height;
+			});
+			const initial = readSeparators();
+			splitview.setViewVisible(0, false);
+			const firstHidden = readSeparators();
+			splitview.setViewVisible(1, false);
+			const lastMaximized = readSeparators();
+			splitview.setViewVisible(0, true);
+			const middleHidden = readSeparators();
+			splitview.setViewVisible(1, true);
+
+			assert.deepStrictEqual({ initial, firstHidden, lastMaximized, middleHidden, restored: readSeparators() }, {
+				initial: [null, '1px', '1px'],
+				firstHidden: [null, null, '1px'],
+				lastMaximized: [null, null, null],
+				middleHidden: [null, null, '1px'],
+				restored: [null, '1px', '1px']
+			});
+		});
+	}
 
 	test('calls view methods on addView and removeView', () => {
 		const view = store.add(new TestView(20, 20));
@@ -348,6 +388,103 @@ suite('Splitview', () => {
 		assert.deepStrictEqual([view1.size, view3.size], [100, 100]);
 	});
 
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		for (const sizing of [Sizing.Distribute, Sizing.Auto(0)]) {
+			test(`${sizing.type} sizing only lays out final sizes when adding and removing views (${orientation})`, () => {
+				const views = [0, 1, 2].map(() => store.add(new PathIndependentTestView(220, Number.POSITIVE_INFINITY)));
+				const splitview = store.add(new SplitView(container, { orientation }));
+				const layouts: number[][] = [[], [], []];
+				views.forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+				const takeLayouts = () => layouts.map(calls => calls.splice(0));
+				splitview.layout(1200);
+				splitview.addView(views[0], 1200);
+				takeLayouts();
+
+				splitview.addView(views[1], sizing);
+				const addedSecond = takeLayouts();
+				splitview.addView(views[2], sizing);
+				const addedThird = takeLayouts();
+				splitview.removeView(2, sizing);
+				const removedThird = takeLayouts();
+				splitview.layout(600);
+
+				assert.deepStrictEqual({ addedSecond, addedThird, removedThird, resized: takeLayouts() }, {
+					addedSecond: [[600], [600], []],
+					addedThird: [[400], [400], [400]],
+					removedThird: [[600], [600], []],
+					resized: [[300], [300], []],
+				});
+			});
+		}
+	}
+
+	test('distribution retains the intermediate layout unless every view is path independent', () => {
+		const first = store.add(new PathIndependentTestView(220, Number.POSITIVE_INFINITY));
+		const second = store.add(new TestView(220, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(1200);
+		splitview.addView(first, 1200);
+		const layouts: number[][] = [[], []];
+		[first, second].forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+
+		splitview.addView(second, Sizing.Distribute);
+
+		assert.deepStrictEqual(layouts, [[980, 600], [220, 600]]);
+	});
+
+	test('distributed additions preserve fixed, capped, hidden and prioritized sizes', () => {
+		const fixed = store.add(new PathIndependentTestView(100, 100));
+		const capped = store.add(new PathIndependentTestView(100, 200));
+		const flexible = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY, LayoutPriority.High));
+		const hidden = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY));
+		const added = store.add(new PathIndependentTestView(100, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(1000);
+		splitview.addView(fixed, 100);
+		splitview.addView(capped, 200);
+		splitview.addView(flexible, 700);
+		splitview.addView(hidden, Sizing.Invisible(250));
+		const layouts: number[][] = [[], [], [], [], []];
+		[fixed, capped, flexible, hidden, added].forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+
+		splitview.addView(added, Sizing.Distribute);
+
+		assert.deepStrictEqual({
+			layouts,
+			sizes: [0, 1, 2, 3, 4].map(index => splitview.getViewSize(index)),
+			hiddenVisible: splitview.isViewVisible(3),
+			hiddenCachedSize: splitview.getViewCachedVisibleSize(3),
+			contentSize: splitview.contentSize,
+		}, {
+			layouts: [[100], [200], [400], [0], [300]],
+			sizes: [100, 200, 400, 0, 300],
+			hiddenVisible: false,
+			hiddenCachedSize: 250,
+			contentSize: 1000,
+		});
+	});
+
+	test('skipLayout defers a distributed addition without notifying views', () => {
+		const first = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const second = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(200);
+		splitview.addView(first, 200);
+		const calls: number[] = [];
+		store.add(first.onDidLayout(event => calls.push(event.size)));
+		store.add(second.onDidLayout(event => calls.push(event.size)));
+
+		splitview.addView(second, Sizing.Distribute, 1, true);
+		const deferredCalls = [...calls];
+		splitview.layout(200);
+
+		assert.deepStrictEqual({ deferredCalls, calls, contentSize: splitview.contentSize }, {
+			deferredCalls: [],
+			calls: [180, 20],
+			contentSize: 200,
+		});
+	});
+
 	test('add views before layout', () => {
 		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
 		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
@@ -408,6 +545,22 @@ suite('Splitview', () => {
 
 		splitview.layout(100);
 		assert.deepStrictEqual([view1.size, view2.size], [50, 50]);
+	});
+
+	test('proportional layout keeps a view that keeps its size within its bounds, such as one restored at a size out of them', () => {
+		class FixedView extends TestView {
+			readonly proportionalLayout = false;
+		}
+		const fixed = store.add(new FixedView(30, 30));
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container, { descriptor: { size: 300, views: [{ view: fixed, size: 100 }, { view: view1, size: 100 }, { view: view2, size: 100 }] } }));
+
+		splitview.layout(300);
+		const sizes = [fixed.size, view1.size, view2.size];
+		splitview.layout(600);
+
+		assert.deepStrictEqual({ sizes, grown: [fixed.size, view1.size, view2.size] }, { sizes: [30, 135, 135], grown: [30, 285, 285] });
 	});
 
 	test('disable proportional layout', () => {

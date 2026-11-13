@@ -9,10 +9,17 @@ import { localize } from '../../nls.js';
 import { Color } from '../../base/common/color.js';
 import { darken, lighten, registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
 import { contrastBorder, focusBorder } from '../../platform/theme/common/colorRegistry.js';
-import { editorWidgetBackground, editorWidgetBorder, editorBackground, toolbarHoverBackground } from '../../platform/theme/common/colors/editorColors.js';
+import { editorWidgetBackground, editorWidgetBorder, editorBackground, editorWarningForeground, toolbarHoverBackground } from '../../platform/theme/common/colors/editorColors.js';
 import { foreground } from '../../platform/theme/common/colors/baseColors.js';
 import { buttonBackground, buttonSecondaryBorder, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground } from '../../platform/theme/common/colors/inputColors.js';
+import { listWarningForeground } from '../../platform/theme/common/colors/listColors.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from './theme.js';
+
+export const agentSessionNeedsInputForeground = registerColor(
+	'agentSessionNeedsInput.foreground',
+	{ dark: listWarningForeground, light: '#B36B00', hcDark: editorWarningForeground, hcLight: '#806600' },
+	localize('agentSessionNeedsInput.foreground', 'Foreground color of agent session indicators that need input, including row markers in high contrast themes.')
+);
 
 // ============================================================================
 // Shell background (used by the gradient system)
@@ -58,6 +65,16 @@ export const agentsCardBorder = registerColor(
 export const agentsBottomPanelBorder = registerColor(
 	'agentsBottomPanel.border', agentsPanelBorder,
 	localize('agentsBottomPanel.border', 'Border color of the bottom panel in the agent sessions window.')
+);
+
+export const agentsActivityBarBackground = registerColor(
+	'agentsActivityBar.background', Color.transparent,
+	localize('agentsActivityBar.background', 'Background color of the docked Session Activity Bar in the Agents window.')
+);
+
+export const agentsActivityBarBorder = registerColor(
+	'agentsActivityBar.border', Color.transparent,
+	localize('agentsActivityBar.border', 'Border color of the docked Session Activity Bar in the Agents window.')
 );
 
 // ============================================================================
@@ -204,4 +221,15 @@ export const activeSessionViewForeground = registerColor(
 export const inactiveSessionViewForeground = registerColor(
 	'inactiveSessionView.foreground', agentsPanelForeground,
 	localize('inactiveSessionView.foreground', 'Foreground color of an inactive session view in the agent sessions window.')
+);
+
+// ============================================================================
+// Agents window graphic (Welcome page)
+// ============================================================================
+
+// `charts.orange` falls back to the translucent find match highlight, which disappears in high contrast.
+export const agentsWindowGraphicOrange = registerColor(
+	'agentsWindowGraphic.orange',
+	{ dark: '#D18616', light: '#C26E00', hcDark: '#FFB04D', hcLight: '#A34D00' },
+	localize('agentsWindowGraphic.orange', 'Orange used for a project and for code in the graphic that explains the Agents window on the Welcome page.')
 );

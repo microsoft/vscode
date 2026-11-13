@@ -94,7 +94,7 @@ export class ChatUserInteraction extends Disposable {
 				this.cancel('hidden');
 			}
 		}));
-		this._logService.trace('[ChatTTFP] start', { interactionId: this.id, interactionKind: 'turn' });
+		this._logService.trace('[ChatTTFP] start', { interactionId: this.id, interactionKind: 'turn', epochMs: performance.timeOrigin + this.startedAt });
 		if (!_options.visible || _options.window.document.visibilityState !== 'visible') {
 			this.cancel('hidden');
 		}
@@ -237,7 +237,7 @@ export class ChatUserInteraction extends Disposable {
 			windowVisible: this._options.window.document.visibilityState === 'visible',
 			windowFocused: this._options.window.document.hasFocus(),
 		};
-		this._logService.trace('[ChatTTFP] end', { interactionId: this.id, ...data });
+		this._logService.trace('[ChatTTFP] end', { interactionId: this.id, ...data, epochMs: performance.timeOrigin + this._now() });
 		this._telemetryService.publicLog2<ChatUserPerceivedTimeToFirstProgressEvent, ChatUserPerceivedTimeToFirstProgressClassification>('chat.userPerceivedTimeToFirstProgress', data);
 		this._otelService.report({
 			schemaVersion: 1,

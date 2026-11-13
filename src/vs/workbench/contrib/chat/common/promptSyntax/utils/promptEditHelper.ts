@@ -11,11 +11,11 @@ const isSimpleNameRegex = /^[\w\/\.-]+$/;
 export function formatArrayValue(name: string, quotePreference?: QuotePreference) {
 	switch (quotePreference) {
 		case '\'':
-			return `'${name}'`;
+			return `'${name.replace(/'/g, '\'\'')}'`;
 		case '"':
-			return `"${name}"`;
+			return JSON.stringify(name);
 	}
-	return isSimpleNameRegex.test(name) ? name : `'${name}'`;
+	return isSimpleNameRegex.test(name) ? name : `'${name.replace(/'/g, '\'\'')}'`;
 }
 
 export type QuotePreference = '\'' | '\"' | '';

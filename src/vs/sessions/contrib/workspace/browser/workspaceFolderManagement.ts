@@ -5,8 +5,8 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ensureSessionWorktreesTrusted } from '../../../services/sessions/browser/worktreeTrust.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ensureSessionWorktreesTrusted } from '../../../../workbench/services/sessions/browser/worktreeTrust.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -15,8 +15,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { Queue } from '../../../../base/common/async.js';
-import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
 import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
+import { IHistoryService } from '../../../../workbench/services/history/common/history.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -24,17 +25,22 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	private queue = this._register(new Queue<void>());
 
 	constructor(
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
+		@IHistoryService private readonly historyService: IHistoryService,
 	) {
 		super();
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(event => {
+			if (event.removed.length > 0) {
+				this.historyService.clearRecentlyOpened();
+			}
+		}));
 		this._register(autorun(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			const activeChat = activeSession?.activeChat.read(reader);
+			const activeChat = this._focusedSessionHostService.focusedHost.read(reader).chat.read(reader);
 			const workspace = activeChat?.workspace.read(reader);
 			this.queue.queue(() => this.updateWorkspaceFolders(workspace));
 		}));
@@ -72,7 +78,9 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}
 
 		const foldersMatch = currentFolders.length === activeSessionFolders.length
-			&& currentFolders.every((folder, index) => this.uriIdentityService.extUri.isEqual(folder.uri, activeSessionFolders[index].uri));
+			&& currentFolders.every((folder, index) =>
+				this.uriIdentityService.extUri.isEqual(folder.uri, activeSessionFolders[index].uri)
+				&& folder.name === activeSessionFolders[index].name);
 		if (foldersMatch) {
 			return;
 		}
@@ -90,8 +98,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			return {
 				uri: folder.workingDirectory,
 				name: this.workspaceFolderLabelService.getWorkspaceFolderLabel(
-					new WorkspaceFolder({ uri: folder.workingDirectory, name, index }),
-					true
+					new WorkspaceFolder({ uri: folder.workingDirectory, name, index })
 				) ?? name
 			};
 		});

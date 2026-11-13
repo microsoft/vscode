@@ -55,21 +55,23 @@ suite('File Edit Attribution', () => {
 		});
 	});
 
-	test('accepts optional chat identity but rejects malformed chat metadata', () => {
-		const results = [undefined, 'hashed-chat-id', 42].map(chatSessionId => {
-			const content = {
-				type: ToolResultContentType.FileEdit,
-				[FILE_EDIT_ATTRIBUTION_PROPERTY]: {
-					version: 1,
-					editId: 'edit-1',
-					sequence: 1,
-					beforeDigest: 'before',
-					afterDigest: 'after',
-					source: { conversationId: 'session-1', chatSessionId, requestId: 'turn-1', harness: 'copilotcli' },
-				},
-			} as const;
-			return !!getFileEditAttributionMarker(content);
+	for (const key of ['chatSessionId', 'agentSessionId']) {
+		test(`accepts optional ${key} but rejects malformed metadata`, () => {
+			const results = [undefined, 'session-id', 42].map(value => {
+				const content = {
+					type: ToolResultContentType.FileEdit,
+					[FILE_EDIT_ATTRIBUTION_PROPERTY]: {
+						version: 1,
+						editId: 'edit-1',
+						sequence: 1,
+						beforeDigest: 'before',
+						afterDigest: 'after',
+						source: { conversationId: 'session-1', [key]: value, requestId: 'turn-1', harness: 'copilotcli' },
+					},
+				} as const;
+				return !!getFileEditAttributionMarker(content);
+			});
+			assert.deepStrictEqual(results, [true, true, false]);
 		});
-		assert.deepStrictEqual(results, [true, true, false]);
-	});
+	}
 });

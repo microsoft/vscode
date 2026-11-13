@@ -94,6 +94,8 @@ If you believe the bot got something wrong, please open a new issue and let us k
 
 If you are interested in writing code to fix issues, please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
 
+This repository installs its dependencies with [pnpm](https://pnpm.io). Install pnpm 11 or newer (for example `npm install -g pnpm`), then run `pnpm install` at the repository root. pnpm commands in the repository run with the pnpm version that the `packageManager` field of [package.json](package.json) pins: pnpm downloads that version the first time and switches to it. Installing with npm or yarn is not supported.
+
 ## Thank You
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.

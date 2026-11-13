@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
+import type { IAgentHostByokLmHandler, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo, IByokLmStreamDelta } from '../../common/agentHostByokLm.js';
 import { AgentHostClientByokLmChannel, createAgentHostClientByokLmConnection } from '../../common/agentHostClientByokLmChannel.js';
 
 suite('agentHostClientByokLmChannel', () => {
@@ -19,8 +19,9 @@ suite('agentHostClientByokLmChannel', () => {
 		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
 		listModels: () => Promise<IByokLmModelInfo[]> = async () => [],
 		onDidChangeModels?: Event<void>,
+		onDidDelta?: Event<IByokLmStreamDelta>,
 	): IAgentHostByokLmHandler {
-		return { _serviceBrand: undefined, chat: (request) => chat(request), listModels: () => listModels(), onDidChangeModels };
+		return { _serviceBrand: undefined, chat: (request) => chat(request), listModels: () => listModels(), onDidChangeModels, onDidDelta: onDidDelta ?? Event.None };
 	}
 
 	/** Resolves once the channel's async snapshot publish has settled. */
@@ -89,6 +90,17 @@ suite('agentHostClientByokLmChannel', () => {
 		assert.strictEqual(result.error, 'no model');
 	});
 
+	test('streams handler deltas tagged with the request they belong to', async () => {
+		const delta = store.add(new Emitter<IByokLmStreamDelta>());
+		const connection = bridge(handlerOf(async () => ({ output: [] }), undefined, undefined, delta.event));
+		const received: IByokLmStreamDelta[] = [];
+		store.add(connection.onDidDelta(d => received.push(d)));
+
+		delta.fire({ requestId: 'req-1', kind: 'text', delta: 'hello' });
+
+		assert.deepStrictEqual(received, [{ requestId: 'req-1', kind: 'text', delta: 'hello' }]);
+	});
+
 	test('pushes the current model snapshot on subscribe and re-pushes on change', async () => {
 		const onDidChange = store.add(new Emitter<void>());
 		let models: IByokLmModelInfo[] = [{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 128000 }];
@@ -130,6 +142,24 @@ suite('agentHostClientByokLmChannel', () => {
 
 		sub.dispose();
 		assert.deepStrictEqual(pushed.at(-1), [{ vendor: 'acme', id: 'v3' }]);
+	});
+
+	test('pushes the first snapshot, even an empty one, and later only snapshots that differ', async () => {
+		const onDidChange = store.add(new Emitter<void>());
+		let models: IByokLmModelInfo[] = [];
+		const connection = bridge(handlerOf(async () => ({ output: [] }), async () => models, onDidChange.event));
+
+		const pushed: IByokLmModelInfo[][] = [];
+		const sub = connection.onDidChangeModels(snapshot => pushed.push(snapshot));
+		await flush();
+		for (const next of [[], [{ vendor: 'acme', id: 'v1' }], [{ vendor: 'acme', id: 'v1' }]]) {
+			models = next;
+			onDidChange.fire();
+			await flush();
+		}
+
+		sub.dispose();
+		assert.deepStrictEqual(pushed, [[], [{ vendor: 'acme', id: 'v1' }]]);
 	});
 
 	test('rejects unknown channel commands', async () => {

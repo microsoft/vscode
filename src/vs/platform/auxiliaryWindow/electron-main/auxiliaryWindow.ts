@@ -14,6 +14,7 @@ import { IStateService } from '../../state/node/state.js';
 import { hasNativeTitlebar, TitlebarStyle } from '../../window/common/window.js';
 import { IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
 import { BaseWindow } from '../../windows/electron-main/windowImpl.js';
+import { getClaimedAuxiliaryWindowMode, isHiddenWindowMode } from '../../windows/electron-main/windows.js';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
 	readonly parentId: number;
@@ -37,6 +38,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	constructor(
 		private readonly webContents: WebContents,
 		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
+		private readonly windowMode: WindowMode | undefined,
 		private readonly disableMaximize: boolean,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
@@ -69,12 +71,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				y: effectiveOptions.y,
 				width: effectiveOptions.width,
 				height: effectiveOptions.height,
-				// We currently do not support restoring fullscreen state for auxiliary
-				// windows because we do not get hold of the original `features` string
-				// that contains that info in `window-fullscreen`. However, we can
-				// probe the `options.show` value for whether the window should be maximized
-				// or not because we never show maximized windows initially to reduce flicker.
-				mode: effectiveOptions.show === false ? WindowMode.Maximized : WindowMode.Normal
+				mode: getClaimedAuxiliaryWindowMode(this.windowMode, effectiveOptions)
 			});
 		}
 	}
@@ -90,6 +87,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 			// Remember
 			this.setWin(window, options);
+
+			// The popup WebContents predates this window and ignores its `backgroundThrottling` option
+			if (isHiddenWindowMode(this.environmentMainService)) {
+				window.webContents.setBackgroundThrottling(false);
+			}
 
 			// Disable Menu
 			window.setMenu(null);

@@ -9,8 +9,8 @@ import { transaction } from '../../../../../base/common/observable.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
+import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { renderSessionsListFixture } from './sessionsListFixtureUtils.js';
 
 function addReplayButton({ container, disposableStore }: ComponentFixtureContext, show: () => void): void {
@@ -30,7 +30,7 @@ function renderNotification(context: ComponentFixtureContext, width: number, mes
 	container.style.background = 'var(--vscode-sideBar-background)';
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
 	const notification = disposableStore.add(instantiationService.createInstance(SessionsListNotification, container, () => { }));
-	const show = () => notification.show(message, async () => { });
+	const show = () => notification.show({ message, help: '', undo: async () => { } });
 	show();
 	if (animated) {
 		addReplayButton(context, show);
@@ -77,7 +77,7 @@ async function renderNotificationOverSessions(context: ComponentFixtureContext, 
 	};
 	const show = () => {
 		setDone(true);
-		notification.show('3 marked done', async () => setDone(false));
+		notification.show({ message: '3 marked done', help: '', undo: async () => setDone(false) });
 	};
 	show();
 	if (animated) {

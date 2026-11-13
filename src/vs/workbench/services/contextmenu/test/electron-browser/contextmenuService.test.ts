@@ -4,17 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getZoomFactor, setZoomFactor } from '../../../../../base/browser/browser.js';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Action, ActionRunner, SubmenuAction } from '../../../../../base/common/actions.js';
+import { Action, ActionRunner, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IContextMenuItem } from '../../../../../base/parts/contextmenu/common/contextmenu.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
+import { IContextMenuItem, IPopupOptions } from '../../../../../base/parts/contextmenu/common/contextmenu.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { NativeContextMenuService } from '../../electron-browser/contextmenuService.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('Native ContextMenuService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,14 +33,17 @@ suite('Native ContextMenuService', () => {
 	let focusMode: FocusMode | undefined;
 	let menu: IContextMenuItem[];
 	let closeMenu: (() => void) | undefined;
+	let popupOptions: IPopupOptions | undefined;
 
 	setup(() => {
+		ModifierKeyEmitter.getInstance().resetKeyStatus();
 		calls = [];
 		focus = new DeferredPromise<void>();
 		focusedWindow = undefined;
 		focusMode = undefined;
 		menu = [];
 		closeMenu = undefined;
+		popupOptions = undefined;
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IHostService, {
 			focus: async (targetWindow, options) => {
@@ -42,10 +53,73 @@ suite('Native ContextMenuService', () => {
 				await focus.p;
 			},
 		});
-		service = store.add(instantiationService.createInstance(NativeContextMenuService, (items, _options, onHide) => {
+		service = store.add(instantiationService.createInstance(NativeContextMenuService, (items, options, onHide) => {
 			menu = items;
+			popupOptions = options;
 			closeMenu = onHide;
 		}));
+	});
+
+	teardown(() => ModifierKeyEmitter.getInstance().resetKeyStatus());
+
+	for (const [selection, expected] of [
+		[undefined, undefined],
+		[false, undefined],
+		[true, 0],
+		[0, 0],
+		[2, 2],
+		[-1, undefined],
+		[NaN, undefined],
+		[Infinity, undefined],
+		[-Infinity, undefined],
+		[0.5, undefined],
+		[3, undefined],
+	] as const) {
+		test(`normalizes native menu selection ${selection} to ${expected}`, () => {
+			const actions = [store.add(new Action('first', 'First')), new Separator(), store.add(new Action('second', 'Second'))];
+			service.showContextMenu({
+				getAnchor: () => mainWindow.document.body,
+				getActions: () => actions,
+				autoSelectItem: selection,
+			});
+
+			assert.strictEqual(popupOptions?.positioningItem, expected);
+		});
+	}
+
+	test('shows group titles as disabled items at the start of each group', () => {
+		const action = (id: string, title: string, groupTitle?: string) => new MenuItemAction({ id, title }, undefined, { groupTitle }, undefined, undefined, new MockContextKeyService(), NullCommandService);
+		const actions = [
+			// The first group's title, from its first action
+			action('open', 'Open', 'Recent'),
+			new Separator(),
+			action('browse', 'Browse', 'Discover More'),
+			// A separator with a label
+			new Separator('Help'),
+			action('about', 'About'),
+		];
+		service.showContextMenu({
+			getAnchor: () => mainWindow.document.body,
+			getActions: () => actions,
+			autoSelectItem: 2,
+		});
+
+		assert.deepStrictEqual({
+			menu: menu.map(item => ({ type: item.type, label: item.label, enabled: item.enabled })),
+			positioningItem: popupOptions?.positioningItem,
+		}, {
+			menu: [
+				{ type: undefined, label: 'Recent', enabled: false },
+				{ type: undefined, label: 'Open', enabled: true },
+				{ type: 'separator', label: undefined, enabled: undefined },
+				{ type: undefined, label: 'Discover More', enabled: false },
+				{ type: undefined, label: 'Browse', enabled: true },
+				{ type: 'separator', label: undefined, enabled: undefined },
+				{ type: undefined, label: 'Help', enabled: false },
+				{ type: undefined, label: 'About', enabled: true },
+			],
+			positioningItem: 4,
+		});
 	});
 
 	for (const mouseAnchor of [false, true]) {
@@ -54,6 +128,7 @@ suite('Native ContextMenuService', () => {
 				const frame = mainWindow.document.createElement('iframe');
 				mainWindow.document.body.appendChild(frame);
 				store.add(toDisposable(() => frame.remove()));
+				store.add(registerTestIframe(frame));
 				const targetWindow = frame.contentWindow!;
 				const didRun = new DeferredPromise<void>();
 				const action = store.add(new Action('test', 'Test', undefined, true, async () => {
@@ -97,6 +172,82 @@ suite('Native ContextMenuService', () => {
 		closeMenu!();
 
 		assert.deepStrictEqual(calls, ['hide']);
+	});
+
+	for (const submenu of [false, true]) {
+		for (const withRunner of [false, true]) {
+			test(`freezes the label and command at creation in a ${submenu ? 'submenu' : 'menu'} ${withRunner ? 'with' : 'without'} an action runner`, async () => {
+				await focus.complete();
+				const runs: unknown[] = [];
+				const context = { source: 'test' };
+				const runner = withRunner ? store.add(new ActionRunner()) : undefined;
+				if (runner) {
+					store.add(runner.onWillRun(e => runs.push(e.action.id)));
+				}
+				const alternative = toAction({ id: 'alternative', label: 'Alternative', run: (value: unknown) => runs.push(['alternative', value]) });
+				const action = toAction({ id: 'primary', label: 'Primary', alt: alternative, run: (value: unknown) => runs.push(['primary', value]) });
+				const labels: (string | undefined)[] = [];
+				const expectedIds: string[] = [];
+				for (const modifier of ['Alt', 'Shift'] as const) {
+					for (const heldAtOpen of [false, true]) {
+						ModifierKeyEmitter.getInstance().resetKeyStatus();
+						if (heldAtOpen) {
+							mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: modifier, keyCode: modifier === 'Alt' ? 18 : 16, altKey: modifier === 'Alt', shiftKey: modifier === 'Shift' }));
+						}
+						service.showContextMenu({
+							getAnchor: () => mainWindow.document.body,
+							getActions: () => submenu ? [new SubmenuAction('submenu', 'Submenu', [action])] : [action],
+							getActionsContext: () => context,
+							actionRunner: runner
+						});
+						const item = submenu ? menu[0].submenu![0] : menu[0];
+						labels.push(item.label);
+						expectedIds.push(heldAtOpen && (modifier === 'Alt' || isWindows || isLinux) ? 'alternative' : 'primary');
+						item.click!({ altKey: !heldAtOpen && modifier === 'Alt', shiftKey: !heldAtOpen && modifier === 'Shift' });
+						await Promise.resolve();
+						await Promise.resolve();
+					}
+				}
+				assert.deepStrictEqual({ labels, runs }, {
+					labels: expectedIds.map(id => id === 'alternative' ? 'Alternative' : 'Primary'),
+					runs: expectedIds.flatMap(id => withRunner ? [id, [id, context]] : [[id, context]])
+				});
+			});
+		}
+	}
+
+	test('scales native menu popup coordinates by window zoom without double-counting CSS zoom', () => {
+		const initialZoom = getZoomFactor(mainWindow);
+		store.add(toDisposable(() => setZoomFactor(initialZoom, mainWindow)));
+		setZoomFactor(0.8, mainWindow);
+
+		const counterZoomed = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		counterZoomed.style.cssText = 'position: fixed; top: 0; left: 0; zoom: 1.25;';
+		store.add(toDisposable(() => counterZoomed.remove()));
+		const anchor = counterZoomed.appendChild(mainWindow.document.createElement('div'));
+		anchor.style.cssText = 'position: absolute; top: 8px; left: 20px; width: 40px; height: 20px;';
+
+		const action = store.add(new Action('test', 'Test'));
+		const measure = (anchorAlignment: AnchorAlignment) => {
+			service.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => [action],
+				anchorAlignment,
+			});
+			const result = { x: popupOptions?.x, y: popupOptions?.y };
+			closeMenu?.();
+			return result;
+		};
+
+		const rect = anchor.getBoundingClientRect();
+		const expectedY = Math.floor(rect.bottom * 0.8 + (isMacintosh ? 4 : 0));
+		assert.deepStrictEqual({
+			left: measure(AnchorAlignment.LEFT),
+			right: measure(AnchorAlignment.RIGHT),
+		}, {
+			left: { x: Math.floor(rect.left * 0.8), y: expectedY },
+			right: { x: Math.floor(rect.right * 0.8), y: expectedY },
+		});
 	});
 
 });

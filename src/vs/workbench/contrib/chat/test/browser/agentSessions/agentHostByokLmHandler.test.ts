@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import type { IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import type { IByokLmChatRequest, IByokLmStreamDelta } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -374,6 +374,79 @@ suite('AgentHostByokLmHandler', () => {
 		});
 	});
 
+	test('streams a delta for every part it folds into the result, in fold order', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'considered ', id: 'rs_1' },
+				{ type: 'thinking', value: ['options'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
+				{ type: 'thinking', value: '', id: 'thinking_2', metadata: { signature: 'sig', _completeThinking: 'full thought' } },
+				{ type: 'text', value: 'hello ' },
+				{ type: 'text', value: 'world' },
+				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
+				{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } },
+				{ type: 'data', mimeType: 'stateful_marker', data: VSBuffer.fromString('claude\\resp_provider') },
+			]),
+		);
+		const handler = createHandler(service);
+		const deltas: IByokLmStreamDelta[] = [];
+		store.add(handler.onDidDelta(delta => deltas.push(delta)));
+
+		const result = await handler.chat(
+			{
+				requestId: 'req-1',
+				vendor: 'acme',
+				modelId: 'claude',
+				input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+				tools: [
+					{ type: 'function', name: 'getWeather' },
+					{ type: 'custom', name: 'apply_patch' },
+				],
+			},
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual({
+			deltas,
+			output: result.output,
+		}, {
+			deltas: [
+				{ requestId: 'req-1', kind: 'reasoning', id: 'rs_1', delta: 'considered ', newSummaryPart: true },
+				{ requestId: 'req-1', kind: 'reasoning', id: 'rs_1', delta: 'options', newSummaryPart: true, encryptedContent: 'opaque' },
+				{ requestId: 'req-1', kind: 'reasoning', id: 'thinking_2', delta: '', newSummaryPart: true, encryptedContent: 'vscode-reasoning-metadata:{"signature":"sig","_completeThinking":"full thought"}' },
+				{ requestId: 'req-1', kind: 'text', delta: 'hello ' },
+				{ requestId: 'req-1', kind: 'text', delta: 'world' },
+				{ requestId: 'req-1', kind: 'toolCall', callId: 't1', name: 'getWeather', isCustom: false, value: '{"city":"NYC"}' },
+				{ requestId: 'req-1', kind: 'toolCall', callId: 't2', name: 'apply_patch', isCustom: true, value: 'patch' },
+			],
+			// The deltas above describe exactly these items, in this order.
+			output: [
+				{ type: 'reasoning', id: 'rs_1', summary: ['considered ', 'options'], encryptedContent: 'opaque', metadata: { encrypted_content: 'opaque' } },
+				{ type: 'reasoning', id: 'thinking_2', summary: [''], encryptedContent: 'vscode-reasoning-metadata:{"signature":"sig","_completeThinking":"full thought"}', metadata: { signature: 'sig', _completeThinking: 'full thought' } },
+				{ type: 'message', content: [{ type: 'text', text: 'hello world' }] },
+				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
+				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
+			],
+		});
+	});
+
+	test('emits no deltas for a request that does not ask to be streamed', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+		const deltas: IByokLmStreamDelta[] = [];
+		store.add(handler.onDidDelta(delta => deltas.push(delta)));
+
+		const result = await handler.chat({ vendor: 'acme', modelId: 'claude', input: [] }, CancellationToken.None);
+
+		assert.deepStrictEqual({ deltas, output: result.output }, {
+			deltas: [],
+			output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }],
+		});
+	});
+
 	test('combines streamed thinking chunks into one summary entry', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id-deepseek', byokModel('customendpoint', 'deepseek')]]),
@@ -443,7 +516,7 @@ suite('AgentHostByokLmHandler', () => {
 				instructions: 'be helpful',
 				previousResponseId: 'resp_previous',
 				reasoningEffort: 'high',
-				modelOptions: { temperature: 0.5 },
+				modelOptions: { temperature: 0.5, _conversationId: 'sess-1' },
 				tools: [
 					{ type: 'function', name: 'getWeather', parametersSchema: { type: 'object' } },
 					{ type: 'custom', name: 'apply_patch' },
@@ -501,7 +574,7 @@ suite('AgentHostByokLmHandler', () => {
 				},
 			],
 			options: {
-				modelOptions: { temperature: 0.5 },
+				modelOptions: { temperature: 0.5, _conversationId: 'sess-1' },
 				includeEncryptedThinking: true,
 				configuration: { reasoningEffort: 'high' },
 				tools: [
@@ -510,6 +583,69 @@ suite('AgentHostByokLmHandler', () => {
 				],
 			},
 		});
+	});
+
+	test('forwards tool-result images as ordered data parts of the tool result', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [
+				{ type: 'function_call', callId: 't1', name: 'view', argumentsJson: '{"path":"/work/a.png"}' },
+				{
+					type: 'function_call_output', callId: 't1', output: 'caption Acaption B', content: [
+						{ type: 'text', text: 'caption A' },
+						{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2VB' },
+						{ type: 'text', text: 'caption B' },
+						{ type: 'image', mimeType: 'image/jpeg', data: 'aW1hZ2VC' },
+					]
+				},
+			],
+		}, CancellationToken.None);
+
+		const toolResult = service.captured?.messages.at(-1)?.content[0];
+		assert.deepStrictEqual(toolResult?.type === 'tool_result' && toolResult.value.map(part => part.type === 'data' ? { ...part, data: part.data.toString() } : part), [
+			{ type: 'text', value: 'caption A' },
+			{ type: 'data', mimeType: 'image/png', data: 'imageA' },
+			{ type: 'text', value: 'caption B' },
+			{ type: 'data', mimeType: 'image/jpeg', data: 'imageB' },
+		]);
+	});
+
+	test('keeps omitted-file notes distinct when merging adjacent text parts', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+
+		// Mirrors what the node proxy produces for a prompt with two PDF attachments.
+		await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [{
+				type: 'message', role: 'user', content: [
+					{ type: 'text', text: 'summarize these' },
+					{ type: 'text', text: 'Document file "a.pdf" at path "/work/a.pdf"' },
+					{ type: 'text', text: '\n[a.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+					{ type: 'text', text: 'Document file "b.pdf" at path "/work/b.pdf"' },
+					{ type: 'text', text: '\n[b.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+				]
+			}],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(service.captured?.messages, [{
+			role: ChatMessageRole.User,
+			content: [{
+				type: 'text',
+				value: 'summarize theseDocument file "a.pdf" at path "/work/a.pdf"\n[a.pdf (application/pdf) omitted: this model does not accept file inputs]\nDocument file "b.pdf" at path "/work/b.pdf"\n[b.pdf (application/pdf) omitted: this model does not accept file inputs]\n',
+			}],
+		}]);
 	});
 
 	test('returns an error result when no BYOK model matches', async () => {

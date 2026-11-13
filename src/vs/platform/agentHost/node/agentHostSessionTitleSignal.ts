@@ -13,7 +13,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateM
 export const IAgentHostSessionTitleSignal = createDecorator<IAgentHostSessionTitleSignal>('agentHostSessionTitleSignal');
 
 export interface IAgentHostSessionTitleChangeEvent {
-	/** Provider owning `session`, derived from the session URI scheme. */
+	/** Registered provider owning `session`. */
 	readonly provider: AgentProvider;
 	readonly session: URI;
 	/** Provider-facing conversation id ({@link AgentSession.id}), precomputed so consumers don't re-derive it. */
@@ -31,6 +31,8 @@ export interface IAgentHostSessionTitleSignal {
 
 	/** Fires for any session; filter on {@link IAgentHostSessionTitleChangeEvent.provider} for own sessions. */
 	readonly onDidChangeSessionTitle: Event<IAgentHostSessionTitleChangeEvent>;
+	/** Current host-owned title, including known sessions that have not been restored. */
+	getSessionTitle(session: URI): string | undefined;
 }
 
 export class AgentHostSessionTitleSignal extends Disposable implements IAgentHostSessionTitleSignal {
@@ -41,11 +43,11 @@ export class AgentHostSessionTitleSignal extends Disposable implements IAgentHos
 	readonly onDidChangeSessionTitle = this._onDidChangeSessionTitle.event;
 
 	constructor(
-		@IAgentHostStateManager stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly stateManager: AgentHostStateManager,
 	) {
 		super();
 		this._register(stateManager.onDidChangeSessionTitle(({ session, title }) => {
-			const provider = AgentSession.provider(session);
+			const provider = stateManager.getSessionSummary(session)?.provider ?? AgentSession.provider(session);
 			if (!provider) {
 				return;
 			}
@@ -56,5 +58,9 @@ export class AgentHostSessionTitleSignal extends Disposable implements IAgentHos
 				title,
 			});
 		}));
+	}
+
+	getSessionTitle(session: URI): string | undefined {
+		return (this.stateManager.getSessionSummary(session.toString()) ?? this.stateManager.getSurfacedSessionSummary(session.toString()))?.title;
 	}
 }

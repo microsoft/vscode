@@ -11,6 +11,7 @@ import * as path from 'path';
 import { suite, test, type TestContext } from 'node:test';
 import { create } from 'tar';
 import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from '../npmPackage.ts';
+import { writePnpmLockfile } from './pnpmLockfileFixture.ts';
 
 const packageName = '@github/copilot-darwin-arm64';
 const version = '1.0.73';
@@ -33,9 +34,7 @@ function createFixture(t: TestContext, fromLockfile: boolean) {
 		targetDir,
 		materialize: (options: EnsureNpmPackageOptions, expectedIntegrity = integrity) => {
 			if (fromLockfile) {
-				fs.writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({
-					packages: { [`node_modules/${packageName}`]: { version, integrity: expectedIntegrity } }
-				}));
+				writePnpmLockfile(path.join(root, 'pnpm-lock.yaml'), { [packageName]: { version, integrity: expectedIntegrity } });
 				ensureNpmPackage(packageName, nodeModulesRoot, options);
 			} else {
 				materializeNpmPackageVersion(packageName, version, targetDir, expectedIntegrity, options);
@@ -281,4 +280,22 @@ suite('npmPackage', () => {
 			});
 		});
 	}
+
+	test('ensureNpmPackage links the installed version from pnpm\'s virtual store', t => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-npm-package-test-'));
+		t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+		const nodeModulesRoot = path.join(root, 'node_modules');
+		writePnpmLockfile(path.join(root, 'pnpm-lock.yaml'), { [packageName]: { version, integrity: 'sha512-unused' } });
+		// With the isolated linker, a package that isn't a direct dependency is only in the store, and
+		// linked from its hoisting folder.
+		const installed = path.join(nodeModulesRoot, '.pnpm', `@github+copilot-darwin-arm64@${version}`, 'node_modules', ...packageName.split('/'));
+		fs.mkdirSync(installed, { recursive: true });
+		fs.writeFileSync(path.join(installed, 'package.json'), JSON.stringify({ version }));
+		fs.mkdirSync(path.join(nodeModulesRoot, '.pnpm', 'node_modules', '@github'), { recursive: true });
+		fs.symlinkSync(installed, path.join(nodeModulesRoot, '.pnpm', 'node_modules', ...packageName.split('/')), 'junction');
+
+		ensureNpmPackage(packageName, nodeModulesRoot, { packPackage: () => { throw new Error('The installed version must not be downloaded.'); } });
+
+		assert.strictEqual(fs.realpathSync(path.join(nodeModulesRoot, ...packageName.split('/'))), fs.realpathSync(installed));
+	});
 });

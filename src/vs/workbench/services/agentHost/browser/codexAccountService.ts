@@ -48,6 +48,14 @@ export function hasSignedInCodexChatGPTAccount(account: ICodexAccountInfo, visib
 	return visible && account.status === 'signedIn';
 }
 
+/**
+ * An unknown account may already be signed in. Let explicit Codex selection
+ * resolve it without requiring GitHub first; this is not proof of sign-in.
+ */
+export function canInitializeCodexWithoutGitHub(account: Pick<ICodexAccountInfo, 'status'>): boolean {
+	return account.status === 'unknown' || account.status === 'signedIn';
+}
+
 export function getCodexAccountPlanName(account: Pick<ICodexAccountInfo, 'planType'>): string {
 	return account.planType
 		? localize('chatGPTPlan', "ChatGPT {0}", account.planType.charAt(0).toUpperCase() + account.planType.slice(1))
@@ -79,7 +87,8 @@ export function createCodexAccountMenuActions(service: ICodexAccountService, vis
 	if (account.status === 'downloading') {
 		return [new Action('codex.downloadingAgent', localize('downloadingCodexAgent', "Downloading Codex Agent…"), undefined, false)];
 	}
-	if (account.status === 'unknown' || account.status === 'signedOut' || account.status === 'error') {
+	// Unknown is passive until explicit Codex use resolves the account.
+	if (account.status === 'signedOut' || account.status === 'error') {
 		return [new Action('codex.signInToChatGPT', localize('signInToChatGPT', "Sign in to ChatGPT"), undefined, true, () => service.signIn())];
 	}
 	return [];

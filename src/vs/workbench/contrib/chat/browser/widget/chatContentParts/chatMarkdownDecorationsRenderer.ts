@@ -7,9 +7,12 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { escape } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -33,6 +36,7 @@ import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { InlineAnchorWidget, renderFileAnchor } from './chatInlineAnchorWidget.js';
 import { ChatRichLinkDecorator } from './chatRichLink.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKindFromValue } from '../../../common/attachments/chatVariableEntries.js';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -79,7 +83,16 @@ interface ISlashCommandWidgetArgs {
 
 export interface IDecorationWidgetArgs {
 	title?: string;
+	/** The index of the request part whose attachment is shown as a pill in place of the decoration. */
+	inlineAttachment?: number;
 }
+
+/**
+ * Renders the attachment of a request part as a pill inline with the request's
+ * text, see {@link ChatMarkdownDecorationsRenderer.convertParsedRequestToMarkdown}.
+ * Returns `undefined` when the part has no pill, so it shows as a decoration.
+ */
+export type ChatInlineAttachmentRenderer = (partIndex: number, store: DisposableStore) => HTMLElement | undefined;
 
 export class ChatMarkdownDecorationsRenderer extends Disposable {
 	private readonly richLinkDecorator: Lazy<ChatRichLinkDecorator>;
@@ -104,22 +117,37 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 		this.richLinkDecorator = new Lazy(() => this._register(new ChatRichLinkDecorator(linkPresentationService, hoverService, sessionSummaryHoverService)));
 	}
 
-	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
+	/**
+	 * @param inlineAttachmentParts The indices of the parts whose attachments are
+	 * shown as pills inline with the text, by a {@link ChatInlineAttachmentRenderer}.
+	 */
+	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest, inlineAttachmentParts?: ReadonlySet<number>): MarkdownString {
+		const markdown = new MarkdownString();
 		let result = '';
-		for (const part of parsedRequest.parts) {
+		parsedRequest.parts.forEach((part, index) => {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
 				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, sessionResource, false, accessor));
 			} else {
-				result += this.genericDecorationToMarkdown(part);
+				result += this.genericDecorationToMarkdown(part, inlineAttachmentParts?.has(index) ? index : undefined, markdown);
 			}
-		}
+		});
 
-		return result;
+		markdown.value = result;
+		return markdown;
 	}
 
-	private genericDecorationToMarkdown(part: IParsedChatRequestPart): string {
+	private genericDecorationToMarkdown(part: IParsedChatRequestPart, inlineAttachment: number | undefined, markdown: MarkdownString): string {
+		const text = escapeMarkdownSyntaxTokens(escape(part.text));
+		if (part instanceof ChatRequestDynamicVariablePart && getAgentHostCompletionReferenceKindFromValue(part.data) === AgentHostCompletionReferenceKind.Skill && !isUUID(part.id)) {
+			const uri = URI.parse(part.id, true);
+			const query = `vscodeLinkType=skill${uri.query ? `&${uri.query}` : ''}`;
+			const href = `${contentRefUrl}/skill-${encodeURIComponent(uri.toString()).replace(/\(/g, '%28').replace(/\)/g, '%29')}`;
+			// Use markdown's resource map so custom schemes retain the normal sanitization path.
+			(markdown.uris ??= {})[href] = uri.with({ query });
+			return `[${text}](${href})`;
+		}
 		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 			part.data :
 			undefined;
@@ -130,21 +158,29 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
-		const args: IDecorationWidgetArgs = { title };
-		const text = part.text;
-		return `[${text}](${decorationRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
+		const args: IDecorationWidgetArgs = inlineAttachment === undefined ? { title } : { title, inlineAttachment };
+		const encodedArgs = encodeURIComponent(JSON.stringify(args)).replace(/\(/g, '%28').replace(/\)/g, '%29');
+		return `[${text}](${decorationRefUrl}?${encodedArgs})`;
 	}
 
-	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
+	/**
+	 * @param renderInlineAttachment Renders the pills of decorations that stand
+	 * for an attachment shown inline with a request's text.
+	 */
+	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement, renderInlineAttachment?: ChatInlineAttachmentRenderer): IDisposable {
 		const store = new DisposableStore();
 		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
+		const skillWidgetOptions = { linkTypes: ['skill'] };
+		const skillLinks = new Set(Object.entries(content.content.uris ?? {})
+			.filter(([key]) => key.startsWith(`${contentRefUrl}/skill-`))
+			.map(([, uri]) => URI.revive(uri).toString()));
 		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
-			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, fileWidgetOptions)) {
+			const href = a.getAttribute('data-href');
+			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, href && skillLinks.has(href) ? skillWidgetOptions : fileWidgetOptions)) {
 				return;
 			}
-			const href = a.getAttribute('data-href');
 			if (href) {
 				if (href.startsWith(agentRefUrl)) {
 					let args: IAgentWidgetArgs | undefined;
@@ -174,7 +210,8 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 						args = JSON.parse(decodeURIComponent(href.slice(decorationRefUrl.length + 1)));
 					} catch (e) { }
 
-					a.replaceWith(this.renderResourceWidget(a.textContent!, args, store));
+					const pill = typeof args?.inlineAttachment === 'number' ? renderInlineAttachment?.(args.inlineAttachment, store) : undefined;
+					a.replaceWith(pill ?? this.renderResourceWidget(a.textContent!, args, store));
 				} else if (href.startsWith(contentRefUrl)) {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {

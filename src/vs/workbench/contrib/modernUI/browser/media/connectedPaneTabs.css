@@ -1,0 +1,289 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) {
+	--modern-ui-connected-tab-cap-radius: calc(var(--vscode-cornerRadius-medium, var(--vscode-cornerRadius-small)) + var(--vscode-strokeThickness));
+	--modern-ui-connected-tab-shoulder-radius: calc(var(--vscode-cornerRadius-medium) + var(--vscode-strokeThickness));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part {
+	overflow: clip;
+	overflow-clip-margin: border-box;
+}
+
+/* The inset clip also keeps hit testing within the card in browsers without overflow-clip-margin. */
+@supports (clip-path: inset(0 round 0)) and (not (overflow-clip-margin: border-box)) {
+	.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part {
+		overflow: visible;
+		clip-path: inset(0 round
+			var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius, var(--vscode-cornerRadius-large)))
+			var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius, var(--vscode-cornerRadius-large)))
+			var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius, var(--vscode-cornerRadius-large))))
+			var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius, var(--vscode-cornerRadius-large)))));
+	}
+
+	.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels.modern-ui-compact:not(.agent-sessions-workbench) .pane-composite-part {
+		clip-path: inset(0);
+	}
+
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part {
+	--modern-ui-connected-pane-radius: var(--vscode-cornerRadius-large);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part.panel {
+	--modern-ui-connected-pane-radius: var(--vscode-toolsPanel-cornerRadius, var(--vscode-cornerRadius-large));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part.sidebar {
+	--modern-ui-connected-pane-radius: var(--vscode-primarySideBar-cornerRadius, var(--vscode-cornerRadius-large));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part.auxiliarybar {
+	--modern-ui-connected-pane-radius: var(--vscode-secondarySideBar-cornerRadius, var(--vscode-cornerRadius-large));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact):not(.noactivitybar) .pane-composite-part.sidebar.left {
+	--modern-ui-connected-pane-frame-radius: 0px;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.noactivitybar) .pane-composite-part.sidebar.right {
+	--modern-ui-connected-pane-right-radius: 0px;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-left.floating-part-outer-bottom {
+	--modern-ui-connected-pane-bottom-left-radius: var(--modern-ui-window-corner-radius);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-right.floating-part-outer-bottom {
+	--modern-ui-connected-pane-bottom-right-radius: var(--modern-ui-window-corner-radius);
+}
+
+/* Content-box offsets and border-box translations align the repaint with the native frame at any scale. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part:not(.has-footer) {
+	position: relative;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part:not(.has-footer)::before,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part:not(.has-footer)::after {
+	content: '';
+	position: absolute;
+	z-index: 4;
+	box-sizing: content-box;
+	border: inherit;
+	border-top: 0;
+	pointer-events: none;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part:not(.has-footer)::before {
+	left: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))));
+	bottom: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))));
+	width: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))));
+	height: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))));
+	border-right: 0;
+	border-radius: 0 0 0 var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius)));
+	translate: -100% 100%;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part:not(.has-footer)::after {
+	right: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))));
+	bottom: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))));
+	width: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))));
+	height: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))));
+	border-left: 0;
+	border-radius: 0 0 var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius)));
+	translate: 100% 100%;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-left.floating-part-outer-bottom > .footer {
+	--modern-ui-connected-pane-frame-radius: var(--modern-ui-window-corner-radius);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part > :is(.title:first-child, .header) {
+	border-top-left-radius: inherit;
+	border-top-right-radius: inherit;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part > .footer {
+	border-bottom-left-radius: inherit;
+	border-bottom-right-radius: inherit;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .composite-bar-container > .composite-bar > .monaco-action-bar > .actions-container > .action-item > .tab-divider {
+	top: 50%;
+	left: 0;
+	z-index: 9;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size160);
+	background-color: var(--vscode-tab-divider, transparent);
+	transform: translateY(-50%);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .composite-bar-container:not(.dragged-over):not(.dragged-over-head):not(.dragged-over-tail) > .composite-bar > .monaco-action-bar > .actions-container > .action-item:not(.checked):not([aria-haspopup]) + .action-item:not(.checked):not([aria-haspopup]) > .tab-divider {
+	display: block;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) :is(.part.sidebar, .part.auxiliarybar) {
+	--modern-ui-connected-tab-surface: var(--vscode-sideBar-background);
+	--modern-ui-connected-tab-border: var(--vscode-modernPanel-border, var(--vscode-sideBar-border, transparent));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .part.panel {
+	--modern-ui-connected-tab-surface: var(--vscode-panel-background);
+	--modern-ui-connected-tab-border: var(--vscode-modernPanel-border, var(--vscode-panel-border, transparent));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench):is(.hc-black, .hc-light) :is(.part.sidebar, .part.auxiliarybar, .part.panel) {
+	--modern-ui-connected-tab-border: var(--vscode-contrastBorder);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title.has-composite-bar, .header-or-footer) {
+	padding-left: 0;
+	background-image: linear-gradient(var(--modern-ui-connected-tab-strip-background), var(--modern-ui-connected-tab-strip-background));
+	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--modern-ui-connected-tab-border);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > .header-or-footer.footer {
+	overflow: visible;
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--modern-ui-connected-tab-border);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > :is(.title-actions, .global-actions, .global-actions-left) {
+	background-color: transparent;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
+	border-block-width: 0;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:not(.icon) {
+	padding-inline: var(--vscode-spacing-size160);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not([aria-haspopup]) {
+	flex-basis: var(--vscode-spacing-size360);
+	width: var(--vscode-spacing-size360);
+	min-width: var(--vscode-spacing-size360);
+	max-width: var(--vscode-spacing-size360);
+	padding-inline: var(--vscode-spacing-size100);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:not(.checked) > .active-item-indicator {
+	top: 50%;
+	bottom: auto;
+	left: 50%;
+	right: auto;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	transform: translate(-50%, -50%);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	--modern-ui-tab-active-background: var(--modern-ui-connected-tab-surface);
+	z-index: 1;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator {
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: auto;
+	box-sizing: border-box;
+	background-color: var(--modern-ui-connected-tab-surface);
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-bottom: 0;
+	border-radius: var(--modern-ui-connected-tab-cap-radius) var(--modern-ui-connected-tab-cap-radius) 0 0;
+	transform: none;
+	overflow: visible;
+	pointer-events: none;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator {
+	top: calc(-1 * var(--modern-ui-floating-card-stroke-width));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar:first-child > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator {
+	border-left-width: 0;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+}
+
+/* Keep the frame's curved corner visible without clipping the cap's straight perimeter. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar:first-child > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator {
+	background-clip: padding-box;
+	border-top-left-radius: max(0px, calc(var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius)) - var(--modern-ui-floating-card-stroke-width))) var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius));
+}
+
+/* Straight cap strokes stop at the tangents; the shoulders own the curved join. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator > .tab-connected-edge {
+	display: block;
+	position: absolute;
+	inset: calc(-1 * var(--modern-ui-floating-card-stroke-width, var(--vscode-strokeThickness))) calc(-1 * var(--modern-ui-floating-card-stroke-width, var(--vscode-strokeThickness))) 0;
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-bottom: 0;
+	border-radius: inherit;
+	clip-path: inset(0 0 var(--modern-ui-connected-tab-shoulder-radius));
+	pointer-events: none;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar:first-child > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator > .tab-connected-edge {
+	left: 0;
+	border-left-width: 0;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar:first-child > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator > .tab-connected-edge {
+	clip-path: inset(0 0 var(--modern-ui-connected-tab-shoulder-radius) max(0px, calc(var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius)) - var(--modern-ui-floating-card-stroke-width))));
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator::before,
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator::after {
+	content: '';
+	display: block;
+	position: absolute;
+	top: auto;
+	bottom: 0;
+	width: var(--modern-ui-connected-tab-shoulder-radius);
+	height: var(--modern-ui-connected-tab-shoulder-radius);
+	box-sizing: border-box;
+	border: 0;
+	border-radius: 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	clip-path: inset(0);
+	pointer-events: none;
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator::before {
+	right: 100%;
+	left: auto;
+	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-bottom-right-radius: var(--modern-ui-connected-tab-shoulder-radius);
+	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator::after {
+	left: 100%;
+	border-left: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	border-bottom-left-radius: var(--modern-ui-connected-tab-shoulder-radius);
+	box-shadow: calc(var(--modern-ui-connected-tab-shoulder-radius) / -2) calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) 0 calc(var(--modern-ui-connected-tab-shoulder-radius) / 2) var(--modern-ui-connected-tab-surface);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > :is(.title, .header-or-footer) > .composite-bar-container > .composite-bar:first-child > .monaco-action-bar .action-item.checked:first-child > .active-item-indicator::before {
+	content: none;
+}
+
+/* Footer tabs open upward; their labels and badges keep their normal orientation. */
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench:not(.agent-sessions-workbench) .pane-composite-part > .footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator {
+	top: 0;
+	bottom: 0;
+	transform: scaleY(-1);
+}
+
+.modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench) .pane-composite-part > .footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked > .active-item-indicator {
+	top: 0;
+	bottom: calc(-1 * var(--modern-ui-floating-card-stroke-width));
+}

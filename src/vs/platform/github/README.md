@@ -5,128 +5,164 @@ Licensed under the MIT License. See License.txt in the project root for license 
 
 # GitHub service
 
-Reusable GitHub engine and cross-target architecture.
+The GitHub service provides typed clients backed by shared request scheduling, rate-limit handling, credentials, caching, and cancellation. New integrations should use these clients instead of constructing their own HTTP or Octokit stack.
 
-> **Status:** Draft consolidation design. The target architecture below is not yet implemented.
+Consolidation is incremental. Some workbench, extension, and SDK callers still use separate networking; this service does not intercept all GitHub traffic. Git transport, GitHub MCP tool traffic, and build tooling are outside its scope.
 
-## Current implementation
+## Runtime ownership
 
-[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, and PR subscriptions.
+Portable clients share contracts and execution policies, but engine state belongs to the process hosting it.
 
-- The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
-- The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Its service graph still has independent legacy GitHub and CAPI clients awaiting migration.
-- The [legacy Sessions service](../../sessions/contrib/github/browser/githubService.ts) and extension clients still own independent requests and polling.
+| Consumer | Execution |
+| --- | --- |
+| Desktop workbench and internal extension module | The [workbench binding](../../workbench/services/github/electron-browser/githubService.ts) routes portable clients to the [shared-process service](electron-utility/githubService.ts). |
+| Web workbench and internal extension module | The [browser binding](../../workbench/services/github/browser/githubService.ts) executes locally with browser fetch. |
+| Standalone Agent Host | The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) uses host-owned credentials and networking, without requiring an attached workbench. |
 
-These instances do not currently share application-wide request state.
+Legacy renderer clients can still execute locally. Independent engines and browser tabs do not share application-wide request state. Within the shared process, connections share admission and verified-account cooldowns, but private caches and credential callbacks remain connection- and grant-scoped.
 
-The [client inventory](client-inventory.md) maps runtime callers, migration boundaries, and remaining gaps.
+The main implementation layers are:
 
-### Authorization clients
+- [GitHubService](common/githubService.ts): client pooling and ownership of shared queue, cooldown, and telemetry state.
+- [Account](common/account/account.ts) and [anonymous](common/anonymous/anonymous.ts) facades: disposable, typed domain clients.
+- [Request providers](common/client/request.ts): serialization, response parsing, and cancellation shared by local and remote execution.
+- [IPC client](common/remote/ipcClient.ts), [server](common/remote/ipcServer.ts), and [credential provider](common/remote/credentialProvider.ts): connection-scoped leases and credential callbacks.
 
-The hosting binding selects provider/session/scopes and endpoints and supplies a context-specific credential bridge. The engine does not select accounts, prompt for sign-in, or fall back to another session. A missing repository-scoped session surfaces an authentication error; existing explicit sign-in actions remain responsible for consent. Account selection and credential resolution each have a cancellable five-minute deadline, including stalled authentication providers.
+## Authorization clients
 
-Consumers retain a disposable reference from `acquireClient`. Equivalent grants share one client, including resources and coalesced reads. Different sessions, scope sets, issuers or endpoints have separate private caches and subscriptions, even when they resolve to the same GitHub account. They still share account/host/caller limits and stable-account cooldowns within the engine.
+Account selection and sign-in UX belong to the caller or host binding, not the engine. The [workbench service](../../workbench/services/github/common/githubService.ts) offers:
 
-At most 64 authorization contexts are retained. Releasing the last reference cancels only that client's work and disposes its resources; bounded identity-backoff bookkeeping remains for up to five minutes so reacquisition cannot reset repeated-failure backoff. Unused bookkeeping can be evicted for a new client. Grant changes retire only affected session clients; same-session token-only renewals preserve the client, and default-account selection changes do not revoke explicit clients for other accounts. Live server quota and identity-bootstrap cooldowns survive client release/recreation until expiry. A resolved account's core or secondary cooldown also gates subsequent identity bootstrap; a search-only limit does not block identity lookup.
+- `acquireAccountApiClient(authorization, signal)`: bind an explicit provider/session/account/scopes/issuer grant.
+- `acquireDefaultAccountApiClient(signal)`: use the selected default account's existing repository grant.
+- `acquireAnonymousApiClient(signal)`: read GitHub.com data without selecting an account or obtaining credentials.
 
-Each workbench/Agent Host binding retains one reference for its selected default/repository client so short-lived consumers reuse identity, ETags and capability observations. Selection changes and binding disposal release that reference. Other explicit clients remain caller-owned.
-
-Existing consumers use these clients directly; there is no compatibility singleton API for queries or mutations. Agent Merge captures its authorized client with the turn. Host token refresh preserves the client and rotates credentials on the next request; revocation, endpoint changes and a resolved account change reset the dependent runtime. Async consumers release references that arrive after their owning scope has ended and do not install subscriptions with invalidated credentials.
-
-VS Code forwards optional account provenance through the standard authentication `_meta` bag under `vscode.authentication.account`. The Agent Host uses the provider/account/issuer tuple to separate client and bootstrap quota ownership before `/user` resolves a new token; GitHub still establishes the authoritative account identity. Token expiry alone does not reset that selection. The binding reconciles provenance during token lookup and acquisition as well as authentication events, so scoped-token fallback and expired-token pruning notify dependent consumers. Hosts and clients without this metadata remain supported with a conservative per-resource bootstrap cooldown. Sealed-token adapters that substitute a different credential omit the original token's provenance.
-
-### Request execution
-
-Internal requests carry caller attribution and a deadline. Current transport defaults, not public API guarantees:
-
-- At most 256 retained requests, including queued and cooldown-waiting work; 64 per account or caller. Up to eight slots in each limit are reserved for interactive/mutation work.
-- At most four active requests, two per host or caller, and one per account. Equal-priority callers share scheduling fairly; parked requests consume no active slot.
-- A five-minute request deadline includes queueing, cooldowns, retries, and body reads. Callers can tighten it; deadlines are rechecked before wire attempts and successful settlement even if timer callbacks are delayed. Responses are capped at 16 MiB; JSON overflow fails explicitly, while bounded downloads report truncation.
-- Equivalent reads share a request with at most 64 waiters and independent cancellation/deadlines; detached waiters are released immediately. Credential invalidation preserves live cooldowns and reclaims inactive account state once they expire.
-- Reads receive at most one transient-failure retry when not rate-limited. Writes are not automatically retried by the transport; mutation services reconcile ambiguous writes, but never a request that timed out before network dispatch.
-- Server cooldowns also gate repeated identity lookups and authenticated download redirects. Download error classification inspects at most an 8 KiB diagnostic prefix, without exposing it in errors or telemetry.
-- Credential resolution has a separate five-minute caller deadline covering token acquisition, identity backoff and shared identity lookup. A caller timing out does not erase server cooldowns or cancel another caller's identity lookup.
-- Long server cooldowns use bounded native timer chunks. Queue drains also expire overdue active requests after wall-clock jumps; rejected unique reads never retain coalescing entries or waiter timers.
-
-### Request identification
-
-Bindings supply trusted product/channel/version and originating component/version metadata. Configured GitHub endpoints receive `X-Client-Application`, `X-Client-Source`, an allowlisted `X-Client-Feature`, and `X-Is-Retry` on Node egress. Shared reads retain the initiating caller's attribution; arbitrary caller strings are never sent.
-
-`X-Is-Retry` is `"true"` only for an engine-controlled retry and `"false"` for an initial attempt. New polls, pages, refreshes, and redirect hops are not retries. Higher-layer authentication or feature retries are not currently labeled, and these headers do not introduce retries or mutation replay.
-
-Browser fetch, including desktop renderers, sends only `X-Client-Application` to `https://api.github.com`. The other headers are not in GitHub.com's CORS allowlist. Enterprise browser endpoints receive no identification headers until their allowlists are established; CAPI requires its own endpoint policy. This is an explicit egress policy, not a fallback after failed requests. Cross-origin download storage hops receive no identification or retry headers.
-
-### Telemetry
-
-[Request telemetry](common/githubRequestTelemetry.ts) uses the existing product telemetry service and usage-telemetry controls. Active five-minute windows emit one `githubRequestSummary` with traffic, outcome, rejection and queue counters, plus at most ten reservoir-sampled `githubRequestTiming` events. Disposal flushes completed observations best-effort; idle engines emit nothing.
-
-Bindings notify the collector immediately when usage telemetry is disabled, discarding buffered aggregates and invalidating completion handles even if no request or timer callback runs during the opt-out.
-
-Timing samples separate queue, cooldown and execution time and include their sample population. Categories are allowlisted; payloads contain no account/repository identifiers, hostnames, URLs, headers, request/response content, GraphQL text, or raw errors. The summary distinguishes logical callers from wire attempts and GraphQL partial-error responses.
-
-## Consolidation scope
-
-Consolidate VS Code, built-in extensions, and [GitHub Pull Requests](https://github.com/microsoft/vscode-pull-request-github) behind a governed service and public extension API. Include REST/GraphQL, Copilot API (CAPI), and content transfers. Exclude GitHub MCP server/tool traffic, git transport, build tooling, and arbitrary browser URLs; track SDK-owned exceptions. REST/CAPI requests for MCP registry and connector management remain in scope.
-
-Keep portable contracts and mechanisms in [common](common). Adapters own hosting, credentials, and networking; the engine must not depend on workbench UI.
-
-### Common guarantees
-
-Every target uses the **complete engine**, not merely the same HTTP client:
-
-- **Identity:** Explicit account/session selection, extension consent, and authorization-scoped caches for GitHub.com, GHE.com, GHES, and anonymous access. No background sign-in prompts or authentication bootstrap cycles.
-- **Admission:** Bound active, queued, and rate-parked work with deadlines, request-rate budgets, fairness, and reserved interactive capacity.
-- **Cooldowns:** Honor primary/secondary limits and `Retry-After` across callers and credential rotation. Account for every attempt, including pages and retries.
-- **Resources:** Share compatible caches, in-flight reads, and polling plans. Bound retention/subscriptions; use freshness, conditional requests, cancellation, backoff, jitter, and consumer interest.
-- **Operations:** Bound pagination, bytes, and time; never automatically replay mutations. Separate CAPI/streaming/bulk policies from repository metadata, preserving entitlement and policy enforcement.
-- **Results:** Explicit overload, timeout, and incomplete-result states; cancellation and backpressure across process boundaries; diagnostics without credentials or private content.
-
-Cache hits need no network admission; every wire request does. Credentials and arbitrary authenticated URLs are not exposed by the new extension API.
-
-## Target hosting
-
-### Desktop
-
-```mermaid
-flowchart LR
-	Clients["Workbench features / extension API"] --> Facade["Per-window renderer facade"]
-	subgraph Engine["Shared process: complete engine"]
-		Resources["Accounts, caches, deduplication, polling"] --> Admission["Admission, cooldowns, service policies"]
-	end
-	Facade --> Resources
-	Admission --> Executor["Local / approved remote executor"]
-	Executor --> GitHub["GitHub / CAPI"]
+```ts
+const client = await gitHubService.acquireAccountApiClient(authorization, signal);
+try {
+	const repository = await client.repositories.get(
+		{ owner: 'microsoft', repo: 'vscode' },
+		signal,
+		{ caller: 'repositoryPicker' },
+	);
+	// Use repository.
+} finally {
+	client.dispose();
+}
 ```
 
-Facades own consent, visibility, and consumer lifetimes; the existing shared process shares engine state across windows. Electron main only handles lifecycle and connection setup.
+These portable clients are directly disposable. The older `IGitHubService.acquireClient` and `acquireDefaultAccountClient` return references whose clients are accessed through `.object`; do not mix the two ownership models.
 
-### Web
+Important lifetime rules:
 
-```mermaid
-flowchart LR
-	Clients["Web workbench / extension API"] --> Facade["Web facade"]
-	subgraph Engine["Web runtime: complete engine"]
-		Resources["Accounts, caches, deduplication, polling"] --> Admission["Admission, cooldowns, service policies"]
-	end
-	Facade --> Resources
-	Admission --> Executor["Browser / approved remote executor"]
-	Executor --> GitHub["GitHub / CAPI"]
+- The acquisition signal controls acquisition, not the acquired client's lifetime. Dispose the client when its owning operation or feature ends.
+- Grant changes invalidate affected clients. Consumers retaining clients must discard account-bound state when invalidated.
+- Same-session token renewal retains the lease while replacing credentials; it does not replay interrupted writes.
+- Different grants and endpoints have separate private state. Releasing a client does not reset live server cooldowns.
+- Authenticated failures do not automatically fall back to anonymous access or another account.
+
+The [credential broker](../../workbench/services/github/browser/githubCredentialProvider.ts) silently resolves the exact selected grant and derives approved endpoints. Credentials stay in the broker and execution engine, not in domain-client results or ordinary request messages. IPC leases belong to a physical connection; disconnect, disposal, and cancelled acquisitions release them, including when acquisition replies arrive late.
+
+Anonymous clients expose only content reads, `gist.get`, and `search.issues`. They omit authorization, cookies, and referrers, and cannot perform mutations or GraphQL operations. Internal bootstrap clients are reserved for trusted host authentication flows; checking a supplied credential does not make it an accepted host credential.
+
+## Typed domains
+
+The [account interface](common/account/account.ts) is the authoritative list of available domains.
+
+| Domain | Contract |
+| --- | --- |
+| Repositories, PRs, issues, reviews, search, users, organizations, notifications, Actions, checks | [Core domains](common/core/) |
+| Repository files, refs, trees, and blobs | [Content](common/content/content.ts) |
+| Gist retrieval and creation | [Gists](common/gists/gists.ts) |
+| Mission Control | [Automations](common/missionControl/automations.ts), [tasks](common/missionControl/tasks.ts), [environments](common/missionControl/environments.ts) |
+| Copilot Connector catalog and connection management | [Connectors](common/connectors/connectors.ts) |
+
+Repository operations use `RepositoryRef` (`{ owner, repo }`). Typed request methods take an `AbortSignal` and optional trailing request options. They normally return parsed domain data or `void`, not transport objects, ETags, or header collections. Domain-specific counts, cursors, nullable values, and acceptance states remain meaningful; HTTP success does not necessarily mean an asynchronous operation has completed.
+
+### Domain-specific boundaries
+
+- **Mission Control:** bindings approve service endpoints; individual calls cannot choose a host or supply authentication. Environment connection and task-feed credentials are not cached or coalesced. Feed negotiation uses a separately approved GitHub gateway. Feed renewal prefers server-relative lifetimes to avoid client-clock skew, retaining the timestamp fallback for older servers. Dispatched mutations with uncertain outcomes require reconciliation, not blind retries. See the [execution provider](common/client/localMissionControlRequestProvider.ts).
+- **Connectors:** the [workbench consumer](../../workbench/contrib/chat/browser/aiCustomization/copilotConnectorsService.ts) owns account selection, consent, and polling. Catalog status does not grant runtime MCP access. The [provider](common/client/localConnectorsRequestProvider.ts) enforces its response-size bound, no redirects, and no automatic replay.
+- **Raw repository content:** reads are anonymous and confined to the configured raw origin and pinned repository/commit path. The text-download limit is 1 MiB; mutable refs must first be resolved to a full SHA-1 or SHA-256 commit. Raw files are not fetched through arbitrary response-provided URLs. See the [content client](common/content/contentClient.ts).
+- **Legacy resources and guarded mutations:** existing [subscriptions](common/githubQueryService.ts) and [compound mutations](common/githubPullRequestMutationService.ts) retain their own polling, reconciliation, and authorization rules. A raw endpoint call is not a replacement for guarded merging or reply-and-resolve behavior; an unpublished review reply must not be treated as a published comment.
+- **Issue reporter:** classic web and desktop issue creation uses the existing selected GitHub session through the [form-service bridge](../../workbench/contrib/issue/browser/issueFormService.ts), without selecting the default account or requesting additional scopes. The reporter captures the selected session ID, account, scopes, and issuer alongside its credential, so token renewal retains the same authorization. Unavailable or changed grants fail rather than substituting credentials. Similar-issue search uses the anonymous client. Browser previews and the separate attachment-upload pipeline retain their existing behavior and authentication.
+
+The workbench's [session feed](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionFeed.ts) uses exponential reconnect backoff with jitter (one-second base, 60-second cap), resetting only after a connection stays healthy for 60 seconds. A failed HTTP negotiation still stops feed retries for that lifetime; discovery polling remains available.
+
+## Request execution
+
+The [transport](common/githubTransport.ts), [queue](common/requestQueue.ts), and [rate-limit coordinator](common/githubRateLimitCoordinator.ts) provide shared execution policy:
+
+- **Bounded admission:** active, queued, and cooldown-waiting work is limited by engine, host, account, and caller. Priorities provide fair scheduling and preserve interactive capacity.
+- **Deadlines and size limits:** operations include queueing, retries, and body reads in their deadline. Credential resolution has its own bounded wait. Oversized responses fail explicitly rather than silently becoming partial JSON.
+- **Read sharing:** compatible reads can coalesce, with independent cancellation for each waiter. One cancelled caller does not cancel peers.
+- **Conditional caching:** eligible REST reads use grant-scoped ETags. A revalidated response retains its original success status. `noCache` bypasses cache reads/writes; server `no-store` also removes retained bodies and validators.
+- **Retries:** eligible reads may retry once for transient network/server failures. Writes are not automatically replayed. Domain policies can further restrict retries or sharing.
+- **Cooldowns:** primary/secondary quota evidence and service `Retry-After` hints govern admission. Healthy observations and client recreation do not erase live waits.
+
+Current numeric defaults are defined in the queue and transport, not promised as public API or server quotas.
+
+[ApiRequestOptions](common/client/request.ts) carries `caller`, an absolute millisecond `deadline`, `priority`, and `noCache`. Query parameters belong under `query`; request metadata must not become URL parameters, GraphQL variables, or request-body fields. Use background/enrichment priorities for passive work rather than giving every request interactive priority.
+
+Lists fetch one page by default. `maxPages` opts into bounded collection; reaching the bound with more results available throws `PaginationLimitError` unless `pageLimitBehavior: 'returnPartial'` was explicitly requested. Collection follows validated REST links or GraphQL cursors, preserves server order and totals, and does not implicitly collect nested connections. `returnPartial` does not add a completeness flag to plain arrays.
+
+Request and response bodies cross IPC as buffered text; domain parsers run beside the caller. Parsers, `Headers`, and `Response` objects do not cross the boundary. Portable GraphQL clients reject error-bearing responses, including partial-data responses; legacy GraphQL consumers retain their existing fallback behavior. Streaming and general binary transfer are not portable request-provider capabilities.
+
+## Host networking
+
+Bindings own their fetch implementation. There is no automatic move to another machine or executor after a failed request.
+
+- **Browser:** CORS and browser/OS proxy and certificate behavior apply. A restricted repository-read fallback can follow browser-opaque redirects; it validates the final destination but cannot guarantee that no intermediate origin was contacted.
+- **Shared process:** [createFetch](electron-utility/githubFetch.ts) uses local-machine proxy/PAC, authentication, shell environment, and certificate integration. Remote-workspace settings do not select its proxy.
+- **Agent Host:** the binding reuses the host's existing network implementation.
+
+Certificate verification remains enabled by default. The shared-process helper does not turn `http.proxyStrictSSL: false` into a verification bypass and does not promise full Chromium parity for SOCKS4/4a, native NTLM, ordered PAC failover, or certificate exceptions. Identification headers follow binding-specific egress/CORS policy and are not forwarded to cross-origin download storage.
+
+Operations needing redirect status and headers, such as Actions log-URL retrieval, are unsupported through the local browser provider because browser fetch exposes opaque redirects.
+
+## Internal extension module
+
+The extension-host-provided `@vscode/internal-github` module ([typings](../../../typings/internal-github.d.ts)) is not part of the `vscode` API. It is resolved through the extension host's `require` interception, only for the allowlisted built-in extensions in [extHostGitHub.ts](../../workbench/api/common/extHostGitHub.ts), and binds the importing extension's identity. Node ESM consumers use `createRequire(import.meta.url)`; native ESM imports are not supported. The consumers are [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts) and [GitHub](../../../../extensions/github/src/auth.ts).
+
+- `getClient(sessionId, token?)`: a disposable GitHub.com client with typed Gist, repository, user, repository-search and pull-request operations. Repository queries also cover viewer permissions, inherited rulesets, assignable users and commit authors.
+- `getAnonymousClient(token?)`: a disposable client with `gists.get` only.
+
+Ruleset reads support shared page collection through `maxPages`. The GitHub extension collects at most 1,000 pages; exceeding the limit fails rather than returning partial branch-protection rules.
+
+The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The module does not accept GitHub Enterprise sessions, raw credentials, arbitrary HTTP requests or caller-provided GraphQL. A retained authenticated client reports an unusable authorization or lease through `onDidInvalidate` when a request fails; callers release it and acquire a fresh client rather than automatically replaying mutations.
+
+The [main-thread bridge](../../workbench/api/browser/mainThreadGitHub.ts) enforces extension account access, rechecks it after acquisition and before requests, and invalidates pending/active authenticated clients when the provider is removed. The [extension-host facade](../../workbench/api/common/extHostGitHub.ts) provides cancellation and disposable handles. Desktop calls reach the shared-process service; web calls use the local service, and remote extension hosts reach the same main-thread bridge through RPC. Caller attribution is `extension.<extensionId>`.
+
+Gist results contain only the ID, browser URL, and inline file content with binary/truncation flags. Configuration Editing rejects a truncated or binary first file; raw Gist downloads are not part of this module. Creation accepts visibility and named text files; secret gists are unlisted, not private to their creator. Errors use `GitHubError` and cancellation uses `CancellationError`; the internal typings define their shape.
+
+## Extending the service
+
+1. Add the smallest required contract and implementation to the relevant domain. Keep account choice, consent, feature gates, polling cadence, and workflow reconciliation in the consumer.
+2. Reuse request providers, routing helpers, and execution policy. Do not add another fetch stack, credential path, or arbitrary authenticated URL escape hatch.
+3. Verify response fields against the service contract. Preserve meaningful omission and null values; do not replace unavailable data with success-shaped defaults.
+4. Choose [schema parsers](common/client/schema.ts) deliberately: `parse.object` retains extra fields and reuses unchanged inputs; `parse.copyObject` projects declared fields, with nested filtering composed explicitly. `parse.optional(parser, defaultValue)` defaults only `undefined`, not `null`.
+5. Supply the fixed API domain for telemetry, forward caller/signal/options, and add focused contract tests. Exercise serialized IPC when changing the execution boundary.
+
+## Telemetry
+
+[Request telemetry](common/githubRequestTelemetry.ts) uses the existing product consent controls:
+
+- `githubRequestSummary`: engine-level request, cache, cancellation, rejection, and queue counters.
+- `githubRequestTiming`: bounded, sampled queue/cooldown/execution timings.
+- `githubRequestDomainSummary`: unsampled completed-operation and rejection counts by fixed API domain.
+
+Categories are allowlisted. Events do not contain credentials, raw caller IDs, account/repository identifiers, hosts, URLs, headers, request/response content, GraphQL text, or raw errors.
+
+Domain outcomes describe transport completion, not subsequent schema validation or application-level success. Coalesced followers and wire retries are not additional admitted operations. Divide domain time totals by `admittedCompleted`, not by reporting windows; use timing samples' population weights when estimating distributions.
+
+## Testing
+
+Reuse current compiled output. If it is stale, refresh the client output from the repository root before running focused tests:
+
+```powershell
+pnpm run build-fast --client-only
+.\scripts\test.bat --run src\vs\platform\github\test\common\githubChannel.test.ts
 ```
 
-Web uses all the same protections. Core and extensions share the engine; cross-tab coordination remains open. Shared code does not imply shared runtime state.
+On macOS/Linux, use `./scripts/test.sh` with forward-slash paths. Select tests nearest the change: [schemas](test/common/schema.test.ts), [API compatibility](test/common/apiCompatibility.test.ts), [IPC](test/common/githubChannel.test.ts), or [transport](test/node/githubTransport.test.ts). Changes to the internal module also have [main-thread](../../workbench/api/test/browser/mainThreadGitHub.test.ts), [extension-host](../../workbench/api/test/common/extHostGitHub.test.ts), and [profile integration](../../../../extensions/configuration-editing/src/test/importExportProfiles.test.ts) tests.
 
-### Standalone Agent Host
-
-```mermaid
-flowchart LR
-	Clients["Agent Host features"] --> Resources
-	subgraph Engine["Agent Host process: complete engine"]
-		Resources["Accounts, caches, deduplication, polling"] --> Admission["Admission, cooldowns, service policies"]
-	end
-	Admission --> Executor["Host network executor"]
-	Executor --> GitHub["GitHub / CAPI"]
-```
-
-Host-owned credentials and lifetimes require no attached workbench. Coordination with other engines must be explicit.
-
-Preserve reachability, proxies, certificates, and CORS in every deployment. Remote execution must return rate-limit feedback to the admitting engine, not bypass it.
+Use targeted lint/type checks appropriate to the change; see the [contributor instructions](../../../../.github/copilot-instructions.md) for the repository's validation workflow.

@@ -4,22 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { derived, IObservable, observableValue, ISettableObservable } from '../../../../base/common/observable.js';
-import { relativePath } from '../../../../base/common/resources.js';
+import { relativePath, basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IAICustomizationTargetLabels } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { getHarnessPresentationOrDefault } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { INewSessionComposerService, INewSessionTargetLabels } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { getChatHarness, IChat, ISession, ISessionFolder, ISessionWorkspace } from '../../../../workbench/services/sessions/common/session.js';
+
+type ActiveCustomizationTarget =
+	| { readonly kind: 'chat'; readonly session: ISession; readonly chat: IChat }
+	| { readonly kind: 'composer'; readonly labels: INewSessionTargetLabels };
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -36,6 +45,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 	readonly activeProjectLabel: IObservable<string | undefined>;
+	readonly activeTargetLabels: IObservable<IAICustomizationTargetLabels>;
 	readonly hasOverrideProjectRoot: IObservable<boolean>;
 
 	/**
@@ -43,41 +53,90 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * returns this value instead of the session-derived root.
 	 */
 	private readonly _overrideRoot: ISettableObservable<URI | undefined>;
+	private readonly _activeSessionResource: ISettableObservable<URI | undefined>;
+	private readonly _activeTarget: IObservable<ActiveCustomizationTarget | undefined>;
 
 	constructor(
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ICommandService private readonly commandService: ICommandService,
+		@IGitService private readonly gitService: IGitService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@INewSessionComposerService private readonly newSessionComposerService: INewSessionComposerService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 	) {
 		this._overrideRoot = observableValue(this, undefined);
+		this._activeSessionResource = observableValue(this, undefined);
 
-		this.activeProjectRoot = derived(reader => {
+		this._activeTarget = derived(this, reader => {
+			const explicitResource = this._activeSessionResource.read(reader);
+			if (explicitResource) {
+				const ownedChat = this.sessionsManagementService.getSessionForChatResource(explicitResource);
+				if (ownedChat) {
+					return { kind: 'chat', ...ownedChat };
+				}
+				const explicitSession = this.sessionsManagementService.getSession(explicitResource);
+				if (explicitSession) {
+					return { kind: 'chat', session: explicitSession, chat: explicitSession.mainChat.read(reader) };
+				}
+			}
+
+			const host = this._focusedSessionHostService.focusedHost.read(reader);
+			const focusedSession = host.session.read(reader);
+			if (focusedSession) {
+				return { kind: 'chat', session: focusedSession, chat: host.chat.read(reader) ?? focusedSession.mainChat.read(reader) };
+			}
+			const labels = this.newSessionComposerService.getComposer(host, reader)?.targetLabels?.read(reader);
+			return labels ? { kind: 'composer', labels } : undefined;
+		});
+
+		this.activeProjectRoot = derived(this, reader => {
 			const override = this._overrideRoot.read(reader);
 			if (override) {
 				return override;
 			}
-			const session = this.sessionsService.activeSession.read(reader);
-			const folder = session?.activeChat.read(reader).workspace.read(reader)?.folders[0];
-			const root = folder?.workingDirectory;
+			const target = this._activeTarget.read(reader);
+			if (!target) {
+				return undefined;
+			}
+			const root = target.kind === 'composer' ? target.labels.projectRoot : target.chat.workspace.read(reader)?.folders[0]?.workingDirectory;
 			if (root?.scheme === AGENT_HOST_SCHEME) {
 				return undefined;
 			}
 			return root;
 		});
 
-		this.activeProjectLabel = derived(reader => {
+		this.activeProjectLabel = derived(this, reader => {
 			const override = this._overrideRoot.read(reader);
 			if (override) {
 				return this.labelService.getUriBasenameLabel(override);
 			}
-			const session = this.sessionsService.activeSession.read(reader);
-			const workspace = session?.activeChat.read(reader).workspace.read(reader);
-			return workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name;
+			const target = this._activeTarget.read(reader);
+			if (!target) {
+				return undefined;
+			}
+			return target.kind === 'composer' ? target.labels.workspace : this.getWorkspaceLabel(target.chat.workspace.read(reader));
+		});
+
+		this.activeTargetLabels = derived(this, reader => {
+			const target = this._activeTarget.read(reader);
+			if (!target) {
+				return {};
+			}
+			if (target.kind === 'composer') {
+				const { harness, workspace, environment } = target.labels;
+				return { harness, workspace, environment };
+			}
+			const provider = this.sessionsProvidersService.getProvider(target.session.providerId, target.session.sessionId);
+			return {
+				harness: getHarnessPresentationOrDefault(provider, getChatHarness(target.session, target.chat), reader).label,
+				workspace: this.getWorkspaceLabel(target.chat.workspace.read(reader)),
+				environment: provider?.environment.label ?? target.session.environment,
+			};
 		});
 
 		this.hasOverrideProjectRoot = derived(reader => {
@@ -86,17 +145,11 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	}
 
 	getActiveProjectRoot(): URI | undefined {
-		const override = this._overrideRoot.get();
-		if (override) {
-			return override;
-		}
-		const session = this.sessionsService.activeSession.get();
-		const folder = session?.activeChat.get().workspace.get()?.folders[0];
-		const root = folder?.workingDirectory;
-		if (root?.scheme === AGENT_HOST_SCHEME) {
-			return undefined;
-		}
-		return root;
+		return this.activeProjectRoot.get();
+	}
+
+	setActiveSessionResource(resource: URI | undefined): void {
+		this._activeSessionResource.set(resource, undefined);
 	}
 
 	setOverrideProjectRoot(root: URI): void {
@@ -107,14 +160,34 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		this._overrideRoot.set(undefined, undefined);
 	}
 
+	private getWorkspaceLabel(workspace: ISessionWorkspace | undefined): string | undefined {
+		return workspace?.isVirtualWorkspace ? workspace.label : workspace?.folders[0]?.name;
+	}
+
+	private getActiveFolder(): Pick<ISessionFolder, 'root' | 'workingDirectory'> | undefined {
+		const target = this._activeTarget.get();
+		if (!target) {
+			return undefined;
+		}
+		if (target.kind === 'chat') {
+			return target.chat.workspace.get()?.folders[0];
+		}
+		return target.labels.repositoryRoot ? {
+			root: target.labels.repositoryRoot,
+			workingDirectory: target.labels.projectRoot ?? target.labels.repositoryRoot,
+		} : undefined;
+	}
+
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.Extensions,
 		AICustomizationManagementSection.Automations,
 		AICustomizationManagementSection.HarnessSettings,
 	];
@@ -130,16 +203,15 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * so the change persists across worktrees. When a worktree is active
 	 * the file is also committed there so the session sees it immediately.
 	 */
-	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
-		const session = this.sessionsService.activeSession.get();
-		const folder = session?.activeChat.get().workspace.get()?.folders[0];
-		if (!folder?.root) {
-			return;
-		}
-
+	async commitFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean> {
+		const folder = this.getActiveFolder();
+		const repositoryRoot = folder?.root ?? projectRoot;
+		const workingDirectory = folder?.workingDirectory ?? projectRoot;
+		let succeeded = true;
 		for (const fileUri of fileUris) {
-			await this.commitFileToRepos(fileUri, folder.root, folder.workingDirectory);
+			succeeded = await this.commitFileToRepos(fileUri, repositoryRoot, workingDirectory) && succeeded;
 		}
+		return succeeded;
 	}
 
 	/**
@@ -147,16 +219,15 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * Always stages + commits the removal in the main repository, and also
 	 * in the worktree if one is active.
 	 */
-	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
-		const session = this.sessionsService.activeSession.get();
-		const folder = session?.activeChat.get().workspace.get()?.folders[0];
-		if (!folder?.root) {
-			return;
-		}
-
+	async deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<boolean> {
+		const folder = this.getActiveFolder();
+		const repositoryRoot = folder?.root ?? projectRoot;
+		const workingDirectory = folder?.workingDirectory ?? projectRoot;
+		let succeeded = true;
 		for (const fileUri of fileUris) {
-			await this.commitDeletionToRepos(fileUri, folder.root, folder.workingDirectory);
+			succeeded = await this.commitDeletionToRepos(fileUri, repositoryRoot, workingDirectory) && succeeded;
 		}
+		return succeeded;
 	}
 
 	/**
@@ -176,15 +247,19 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	/**
 	 * Commits a single file to the main repository and optionally the worktree.
-	 * Copies the file content between trees when needed.
+	 * Copies the file content between trees when needed. Both trees are attempted
+	 * even if the first fails.
+	 *
+	 * @returns `false` if any commit failed.
 	 */
-	private async commitFileToRepos(fileUri: URI, repositoryUri: URI, worktreeUri: URI | undefined): Promise<void> {
+	private async commitFileToRepos(fileUri: URI, repositoryUri: URI, worktreeUri: URI | undefined): Promise<boolean> {
 		const relPath = this.getRelativePath(fileUri, repositoryUri, worktreeUri);
 		if (!relPath) {
-			return;
+			return true;
 		}
 
 		const repoFileUri = URI.joinPath(repositoryUri, relPath);
+		let succeeded = true;
 
 		// 1. Always commit to main repository
 		try {
@@ -192,18 +267,17 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				const content = await this.fileService.readFile(fileUri);
 				await this.fileService.writeFile(repoFileUri, content.value);
 			}
-			await this.commandService.executeCommand(
-				'github.copilot.cli.sessions.commitToRepository',
-				{ repositoryUri, fileUri: repoFileUri }
-			);
+			await this.commitToGit(repositoryUri, repoFileUri);
 		} catch (error) {
+			succeeded = false;
 			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit to repository:', error);
-			if (worktreeUri) {
-				this.notificationService.notify({
-					severity: Severity.Warning,
-					message: localize('commitToRepoFailed', "Your customization was saved to this session's worktree, but we couldn't apply it to the default branch. You may need to apply it manually."),
-				});
-			}
+			this.notificationService.notify(worktreeUri ? {
+				severity: Severity.Warning,
+				message: localize('commitToRepoFailed', "Your customization was saved to this session's worktree, but we couldn't apply it to the default branch. You may need to apply it manually."),
+			} : {
+				severity: Severity.Error,
+				message: localize('commitToRepoOnlyFailed', "Your customization was saved, but we couldn't commit it to the repository."),
+			});
 		}
 
 		// 2. Also commit to the worktree if active
@@ -214,46 +288,53 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 					const content = await this.fileService.readFile(fileUri);
 					await this.fileService.writeFile(worktreeFileUri, content.value);
 				}
-				await this.commandService.executeCommand(
-					'github.copilot.cli.sessions.commitToWorktree',
-					{ worktreeUri, fileUri: worktreeFileUri }
-				);
+				await this.commitToGit(worktreeUri, worktreeFileUri);
 			} catch (error) {
+				succeeded = false;
 				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit to worktree:', error);
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('commitToWorktreeFailed', "Your customization was saved, but we couldn't commit it to this session's worktree."),
+				});
 			}
 		}
+
+		return succeeded;
 	}
 
 	/**
 	 * Commits the deletion of a file to the main repository and optionally
 	 * the worktree. The file is already deleted from disk before this is called;
-	 * `git add` on a deleted path stages the removal.
+	 * `git add` on a deleted path stages the removal. Both trees are attempted
+	 * even if the first fails.
+	 *
+	 * @returns `false` if any commit failed.
 	 */
-	private async commitDeletionToRepos(fileUri: URI, repositoryUri: URI, worktreeUri: URI | undefined): Promise<void> {
+	private async commitDeletionToRepos(fileUri: URI, repositoryUri: URI, worktreeUri: URI | undefined): Promise<boolean> {
 		const relPath = this.getRelativePath(fileUri, repositoryUri, worktreeUri);
 		if (!relPath) {
-			return;
+			return true;
 		}
 
 		const repoFileUri = URI.joinPath(repositoryUri, relPath);
+		let succeeded = true;
 
 		// 1. Delete from main repository if it exists there, then commit
 		try {
 			if (await this.fileService.exists(repoFileUri)) {
 				await this.fileService.del(repoFileUri, { useTrash: true, recursive: true });
 			}
-			await this.commandService.executeCommand(
-				'github.copilot.cli.sessions.commitToRepository',
-				{ repositoryUri, fileUri: repoFileUri }
-			);
+			await this.commitToGit(repositoryUri, repoFileUri);
 		} catch (error) {
+			succeeded = false;
 			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit deletion to repository:', error);
-			if (worktreeUri) {
-				this.notificationService.notify({
-					severity: Severity.Warning,
-					message: localize('deleteFromRepoFailed', "Your customization was removed from this session's worktree, but we couldn't apply the change to the default branch. You may need to remove it manually."),
-				});
-			}
+			this.notificationService.notify(worktreeUri ? {
+				severity: Severity.Warning,
+				message: localize('deleteFromRepoFailed', "Your customization was removed from this session's worktree, but we couldn't apply the change to the default branch. You may need to remove it manually."),
+			} : {
+				severity: Severity.Error,
+				message: localize('deleteFromRepoOnlyFailed', "Your customization was removed, but we couldn't commit the removal to the repository."),
+			});
 		}
 
 		// 2. Also commit the deletion in the worktree if active
@@ -261,19 +342,42 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			const worktreeFileUri = URI.joinPath(worktreeUri, relPath);
 			try {
 				// The file may already be deleted from the worktree by the caller
-				await this.commandService.executeCommand(
-					'github.copilot.cli.sessions.commitToWorktree',
-					{ worktreeUri, fileUri: worktreeFileUri }
-				);
+				await this.commitToGit(worktreeUri, worktreeFileUri);
 			} catch (error) {
+				succeeded = false;
 				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit deletion to worktree:', error);
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('deleteFromWorktreeFailed', "Your customization was removed, but we couldn't commit the removal to this session's worktree."),
+				});
 			}
 		}
+
+		return succeeded;
 	}
 
-	async generateCustomization(type: PromptsType): Promise<void> {
+	/**
+	 * Stages and commits a single customization file (or its deletion) in the
+	 * git repository rooted at `repositoryRoot`. Does nothing when the folder
+	 * is not a git repository or the file has no changes to commit.
+	 */
+	private async commitToGit(repositoryRoot: URI, fileUri: URI): Promise<void> {
+		const repository = await this.gitService.openRepository(repositoryRoot);
+		if (!repository) {
+			this.logService.debug(`[SessionsAICustomizationWorkspaceService] Not a git repository, skipping commit: ${repositoryRoot.toString()}`);
+			return;
+		}
+
+		await repository.commitFiles(
+			[fileUri],
+			localize('commitCustomizationMessage', "Update customization: {0}", basename(fileUri)),
+			{ noVerify: true, signCommit: false }
+		);
+	}
+
+	async generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		const creator = this.instantiationService.createInstance(CustomizationCreatorService);
-		await creator.createWithAI(type);
+		await creator.createWithAI(type, workspaceFolder);
 	}
 
 	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {

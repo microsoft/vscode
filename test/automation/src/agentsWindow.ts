@@ -5,25 +5,29 @@
 
 import { Code } from './code';
 import { acceptToolConfirmationIfPresent } from './chat';
-import { IModelConfigSection, readModelConfigSections } from './modelConfigPicker';
+import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
 import { QuickAccess } from './quickaccess';
 
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
-const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
+const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger .action-label`;
+const ENVIRONMENT_PICKER = `${NEW_SESSION_VIEW} [data-session-picker-id="sessions.focusNewSessionEnvironmentPicker"] .action-label`;
 const WORKSPACE_PICKER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action';
 const WORKSPACE_PICKER_DEV_CONTAINER_ROW = `${WORKSPACE_PICKER_ROW}:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])`;
 const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
-const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
-const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
+// The new-session composer hosts the workbench `ChatInputPart`, like the active session.
+const NEW_SESSION_COMPOSER = `${NEW_SESSION_VIEW} .sessions-shared-chat-input`;
+const NEW_CHAT_EDITOR = `${NEW_SESSION_COMPOSER} .interactive-input-part .monaco-editor[role="code"]`;
+const SEND_BUTTON_ENABLED = `${NEW_SESSION_COMPOSER} .chat-execute-toolbar .action-item.chat-submit-button:not(.disabled) > .action-label`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
 const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
 const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
+const REMOTES_WIDGET = '.remotes-widget:visible';
 
 // The Agents Window active session input reuses the workbench `ChatInputPart`,
 // so its model picker renders the same `.model-picker-name` / `.model-picker-config`
@@ -198,7 +202,10 @@ export class AgentsWindow {
 		await this.selectRemoteFolder(name, workspacePath);
 	}
 
-	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
+	/**
+	 * @param expectedFolderEntry an entry of `workspacePath` whose listing shows that the folder picker has loaded it.
+	 */
+	async connectWSLHost(distro: string, workspacePath: string, expectedFolderEntry = '.devcontainer'): Promise<void> {
 		const page = this.code.driver.currentPage;
 		this.code.logger.log(`[agentsWindow] WSL connection: executing Connect via WSL for ${distro}`);
 		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
@@ -212,8 +219,25 @@ export class AgentsWindow {
 			}).click({ timeout: 30_000 });
 		}
 		this.code.logger.log(`[agentsWindow] WSL connection: selecting folder on ${distro}`);
-		await this.selectRemoteFolder(distro, workspacePath);
+		await this.selectRemoteFolder(distro, workspacePath, expectedFolderEntry);
 		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
+	}
+
+	/**
+	 * Opens the Remote Environments editor, connects the remote `name` unless it is connected, and waits for an enabled
+	 * action of its row labeled `actionLabel`.
+	 */
+	async waitForRemoteAction(name: string, actionLabel: string, timeoutMs: number = 60_000): Promise<void> {
+		await this.quickaccess.runCommand('sessions.openRemotes');
+		const widget = this.code.driver.currentPage.locator(REMOTES_WIDGET);
+		const connect = widget.getByLabel(`Connect to ${name}`, { exact: true });
+		const disconnect = widget.getByLabel(`Disconnect ${name}`, { exact: true });
+		await connect.or(disconnect).first().waitFor({ timeout: 30_000 });
+		if (await connect.isVisible()) {
+			this.code.logger.log(`[agentsWindow] Remote Environments: connecting ${name}`);
+			await connect.click();
+		}
+		await widget.locator('.action-label:not(.disabled)').and(widget.getByLabel(actionLabel, { exact: true })).waitFor({ timeout: timeoutMs });
 	}
 
 	async getRemoteConnectionDiagnostics(): Promise<string> {
@@ -235,6 +259,79 @@ export class AgentsWindow {
 				dialogs: Array.from(document.querySelectorAll('.monaco-dialog-box')).filter(element => element.checkVisibility()).slice(0, 5).map(element => element.textContent?.slice(0, 2000)),
 			};
 		}));
+	}
+
+	/**
+	 * Logs in with `username` and `password` to every proxy login dialog until stopped, in any window, as the main
+	 * process shows it in the focused or last active one, leaving "Remember my credentials" unchanged. `whenIdle`
+	 * resolves once a later check of all windows finds no proxy login dialog, so keyboard input that follows cannot
+	 * reach one already shown. `stop` returns the details of the dialogs filled, which name the proxy.
+	 */
+	fillProxyAuthenticationDialogs(username: string, password: string): { whenIdle(): Promise<void>; stop(): Promise<string[]> } {
+		const details: string[] = [];
+		let stopped = false;
+		let passesStarted = 0;
+		const idleWaiters: { readonly minPass: number; readonly resolve: () => void }[] = [];
+		const resolveIdleWaiters = (pass: number) => {
+			for (let i = idleWaiters.length - 1; i >= 0; i--) {
+				if (pass >= idleWaiters[i].minPass) {
+					idleWaiters.splice(i, 1)[0].resolve();
+				}
+			}
+		};
+		const loop = (async () => {
+			while (!stopped) {
+				const pass = passesStarted++;
+				let detail: string | undefined;
+				let failed = false;
+				try {
+					detail = await this.tryFillProxyAuthenticationDialog(username, password);
+				} catch (error) {
+					failed = true;
+					this.code.logger.log(`[agentsWindow] Failed to log in to a proxy login dialog: ${error}`);
+				}
+				if (detail !== undefined) {
+					details.push(detail);
+				} else {
+					if (!failed) {
+						resolveIdleWaiters(pass);
+					}
+					await new Promise(resolve => setTimeout(resolve, 250));
+				}
+			}
+			resolveIdleWaiters(Number.MAX_SAFE_INTEGER);
+		})();
+		return {
+			whenIdle: () => stopped ? Promise.resolve() : new Promise<void>(resolve => idleWaiters.push({ minPass: passesStarted, resolve })),
+			stop: async () => {
+				stopped = true;
+				await loop;
+				return details;
+			}
+		};
+	}
+
+	/**
+	 * Logs in to a visible proxy login dialog of any window, returning its detail, or `undefined` if no window shows one.
+	 */
+	private async tryFillProxyAuthenticationDialog(username: string, password: string): Promise<string | undefined> {
+		for (const page of this.code.driver.getAllWindows()) {
+			if (page.isClosed()) {
+				continue;
+			}
+			const dialog = page.locator('.monaco-dialog-box').filter({ hasText: 'Proxy Authentication Required' });
+			if (!await dialog.isVisible().catch(() => false)) {
+				continue;
+			}
+			const detail = (await dialog.locator('.dialog-message-detail').textContent()) ?? '';
+			this.code.logger.log(`[agentsWindow] Proxy login dialog in ${page.url()}: ${detail}`);
+			await dialog.getByPlaceholder('Username', { exact: true }).fill(username);
+			await dialog.getByPlaceholder('Password', { exact: true }).fill(password);
+			await dialog.getByRole('button', { name: 'Log In', exact: true }).click();
+			await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
+			return detail;
+		}
+		return undefined;
 	}
 
 	private async fillQuickInput(title: string, value: string): Promise<void> {
@@ -279,7 +376,7 @@ export class AgentsWindow {
 		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input after running ${commandId}`);
 	}
 
-	private async selectRemoteFolder(hostName: string, workspacePath: string): Promise<void> {
+	private async selectRemoteFolder(hostName: string, workspacePath: string, expectedFolderEntry = '.devcontainer'): Promise<void> {
 		const page = this.code.driver.currentPage;
 		const widget = page.locator('.quick-input-widget:visible').filter({
 			has: page.locator('.quick-input-title', { hasText: `Select Folder on ${hostName}` }),
@@ -287,16 +384,20 @@ export class AgentsWindow {
 		const input = widget.locator('.quick-input-box input');
 		await widget.locator('.quick-input-list .monaco-list-row').first().waitFor({ timeout: 30_000 });
 		await input.fill(workspacePath.replace(/\\/g, '/') + '/', { timeout: 120_000 });
-		await widget.getByText('.devcontainer', { exact: true }).waitFor({ timeout: 30_000 });
+		await widget.getByText(expectedFolderEntry, { exact: true }).waitFor({ timeout: 30_000 });
 		await widget.locator('.quick-input-progress[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 30_000 });
 		await input.press('Enter');
 		await widget.waitFor({ state: 'hidden', timeout: 30_000 });
-		await page.locator(WORKSPACE_PICKER).filter({ hasText: hostName }).waitFor({ timeout: 30_000 });
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const picker = await environmentPicker.isVisible() ? environmentPicker : page.locator(WORKSPACE_PICKER);
+		await picker.filter({ hasText: hostName }).waitFor({ timeout: 30_000 });
 	}
 
 	async selectDevContainer(workspaceLabel?: string): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const picker = page.locator(WORKSPACE_PICKER).first();
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const usesEnvironmentPicker = await environmentPicker.isVisible();
+		const picker = usesEnvironmentPicker ? environmentPicker : page.locator(WORKSPACE_PICKER).first();
 		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
 		const recentDevContainerRow = page.locator(WORKSPACE_PICKER_ROW).filter({
 			has: page.locator('.title', { hasText: / Dev Container$/ }),
@@ -310,29 +411,35 @@ export class AgentsWindow {
 			}
 			try {
 				await picker.click();
-				if (workspaceLabel) {
-					const remoteRow = page.locator('.action-widget .sessions-new-chat-picker-list .monaco-list-row.action[aria-label="Remote"]');
-					if (await remoteRow.isVisible()) {
-						await remoteRow.locator('.action-list-submenu-indicator.has-submenu').click();
+				if (usesEnvironmentPicker) {
+					const container = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('Dev Container', { exact: true }) });
+					await container.waitFor({ state: 'visible', timeout: 5_000 });
+					await container.click();
+				} else {
+					if (workspaceLabel) {
+						const remoteRow = page.locator('.action-widget .sessions-new-chat-picker-list .monaco-list-row.action[aria-label="Remote"]');
+						if (await remoteRow.isVisible()) {
+							await remoteRow.locator('.action-list-submenu-indicator.has-submenu').click();
+						}
 					}
-				}
-				const workspaceRow = workspaceLabel
-					? page.locator('.action-widget .monaco-list-row.action, .action-list-submenu-panel .monaco-list-row.action').filter({ has: page.getByText(workspaceLabel, { exact: true }) }).first()
-					: page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
-				try {
-					await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
-					await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
-					await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
-					await devContainerRow.click();
-				} catch (error) {
-					if (workspaceLabel || !await recentDevContainerRow.isVisible()) {
-						throw error;
+					const workspaceRow = workspaceLabel
+						? page.locator('.action-widget .monaco-list-row.action, .action-list-submenu-panel .monaco-list-row.action').filter({ has: page.getByText(workspaceLabel, { exact: true }) }).first()
+						: page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
+					try {
+						await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
+						await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
+						await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
+						await devContainerRow.click();
+					} catch (error) {
+						if (workspaceLabel || !await recentDevContainerRow.isVisible()) {
+							throw error;
+						}
+						await recentDevContainerRow.click();
 					}
-					await recentDevContainerRow.click();
 				}
 				await page.waitForFunction(
 					selector => document.querySelector(selector)?.textContent?.includes('Dev Container') === true,
-					WORKSPACE_PICKER,
+					usesEnvironmentPicker ? ENVIRONMENT_PICKER : WORKSPACE_PICKER,
 					{ timeout: 15_000 },
 				);
 				return;
@@ -344,7 +451,44 @@ export class AgentsWindow {
 				await new Promise(resolve => setTimeout(resolve, 500));
 			}
 		}
-		throw new Error(`Timed out selecting Use Dev Container from the workspace picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+		throw new Error(`Timed out selecting Dev Container. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Switches the new-session environment from Cloud to This Computer.
+	 *
+	 * The workspace handoff of a window opened with a folder can switch the
+	 * environment to This Computer on its own after startup. That re-renders the
+	 * composer and closes an open Environment picker, so each attempt is bounded
+	 * and the loop ends as soon as the picker no longer shows Cloud.
+	 */
+	private async selectLocalEnvironment(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const cloudEnvironment = environmentPicker.filter({ hasText: /^Cloud$/ });
+		const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
+		const deadline = Date.now() + 60_000;
+		let lastError: unknown;
+		while (await cloudEnvironment.isVisible()) {
+			if (Date.now() >= deadline) {
+				throw new Error(`Timed out selecting This Computer in the Environment picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+			}
+			try {
+				await cloudEnvironment.click({ timeout: 5_000 });
+				if (await localEnvironment.isVisible()) {
+					await localEnvironment.click({ timeout: 5_000 });
+					await environmentPicker.filter({ hasText: 'This Computer' }).waitFor({ timeout: 15_000 });
+					return;
+				}
+				lastError = new Error('This Computer is not listed in the Environment picker');
+			} catch (error) {
+				lastError = error;
+			}
+			if (await environmentPicker.getAttribute('aria-expanded', { timeout: 5_000 }).catch(() => undefined) === 'true') {
+				await page.keyboard.press('Escape');
+			}
+			await new Promise(resolve => setTimeout(resolve, 500));
+		}
 	}
 
 	private async isSessionTypeSelected(label: string): Promise<boolean> {
@@ -372,6 +516,7 @@ export class AgentsWindow {
 	 * absent) instead of relying on {@link selectSessionType} throwing.
 	 */
 	async isSessionTypeAvailable(label: string, timeoutMs: number = 30_000): Promise<boolean> {
+		await this.selectLocalEnvironment();
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
 		if (await this.isSessionTypeSelected(label)) {
@@ -434,6 +579,9 @@ export class AgentsWindow {
 	 * the requested label to appear before committing.
 	 */
 	async selectSessionType(label: string, options?: { providerLabel?: string }): Promise<void> {
+		if (!options?.providerLabel) {
+			await this.selectLocalEnvironment();
+		}
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
 		if (await this.isSessionTypeSelected(label) && (!options?.providerLabel || await this.isSessionTypePickerDisabled())) {
@@ -613,7 +761,30 @@ export class AgentsWindow {
 			}
 		}
 
-		await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+		await this.clickActiveSessionSendButton();
+	}
+
+	/**
+	 * Clicks the enabled send button of the active session. A modal dialog, such as a proxy login dialog opened by a
+	 * concurrent request, swallows the click, so this waits for it to close first, and clicks again if one opened in the
+	 * meantime and the prompt was not sent, which disables the send button or replaces it with the stop button.
+	 */
+	private async clickActiveSessionSendButton(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const modalDialog = page.locator('.monaco-dialog-modal-block').first();
+		const sendButton = page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).first();
+		for (let attempt = 1; ; attempt++) {
+			await modalDialog.waitFor({ state: 'hidden', timeout: 2 * 60_000 });
+			await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+			if (attempt === 3 || !await modalDialog.isVisible().catch(() => false)) {
+				return;
+			}
+			await modalDialog.waitFor({ state: 'hidden', timeout: 2 * 60_000 });
+			if (await sendButton.waitFor({ state: 'detached', timeout: 5_000 }).then(() => true, () => false)) {
+				return;
+			}
+			this.code.logger.log('[agentsWindow] A modal dialog swallowed the click on the send button, clicking it again');
+		}
 	}
 
 	private async _activeSessionContainsResponse(label: string): Promise<boolean> {
@@ -922,112 +1093,43 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Open the combined model configuration dropdown (Thinking Effort / Context
-	 * Size) by clicking the active session model picker's configuration button.
-	 * The button is only visible when the selected model advertises configurable
-	 * options, so this waits for it to become visible before clicking.
-	 *
-	 * The config popup is shown through the singleton action-widget service and
-	 * its rows are built once at open (rebuilt only on selection), so a popup
-	 * observed mid-teardown of a previous open never self-heals. Waiting only for
-	 * the popup container would therefore race a half-open / tearing-down popup
-	 * that has no rows. To absorb that, this waits for actual option rows to
-	 * render and re-opens (Escape + re-click) until they do — mirroring
-	 * {@link selectModel}.
+	 * Open the selected model's details page, which holds its configuration
+	 * (Effort Level / Context Size), by clicking the active session model
+	 * picker's configuration readout. The readout is only visible when the
+	 * selected model advertises configurable options, so this waits for it before
+	 * clicking.
 	 */
 	async openModelConfig(timeoutMs: number = 30_000): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const configButton = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
-		const anyRow = page.locator(`${ACTION_WIDGET_ROW}:visible`).first();
-		const deadline = Date.now() + timeoutMs;
-		let lastError: unknown;
 
 		// A context-usage details hover from a prior `readContextUsageTokenLabel`
-		// can linger as a body-level overlay over the model-config button; a forced
-		// click would then land on the popup instead of opening the dropdown,
-		// wedging it open without rows. Park the pointer away and wait for the
-		// overlay to detach before clicking.
+		// can linger as a body-level overlay over the model-config readout; a forced
+		// click would then land on the popup instead of opening the picker. Park the
+		// pointer away and wait for the overlay to detach before clicking.
 		await this.dismissContextUsageDetails();
 
-		while (Date.now() < deadline) {
-			try {
-				await configButton.waitFor({ state: 'visible', timeout: 15_000 });
-				await configButton.click({ force: true });
-				await this.code.waitForElement(ACTION_WIDGET);
-				// Wait for the option rows to actually render, not just the popup
-				// container, so callers don't race a half-open / tearing-down popup.
-				await anyRow.waitFor({ state: 'visible', timeout: 5_000 });
-				return;
-			} catch (error) {
-				lastError = error;
-				// Dismiss the (possibly empty / stale) popup so the next attempt
-				// re-opens a freshly-built one.
-				try {
-					await page.keyboard.press('Escape');
-				} catch { /* popup already gone */ }
-				await new Promise(r => setTimeout(r, 250));
-			}
-		}
-		throw new Error(`Timed out opening the model configuration dropdown. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+		await openModelConfigDetails(page, page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first(), timeoutMs);
 	}
 
 	/**
-	 * Click the option whose label contains `label` in the open model
-	 * configuration dropdown, then wait until that option reads back as checked
-	 * (the dropdown stays open and rebuilds in place after each selection, so the
-	 * checked state confirms the underlying async configuration write resolved).
-	 *
-	 * The config picker only rebuilds its rows on selection, so a popup that
-	 * opened without this option's row (e.g. mid-teardown of a previous open)
-	 * never gains it. If the row doesn't appear, re-open the popup and retry;
-	 * prior selections persist as configuration writes, so re-opening is safe.
+	 * Select the option labelled `label` on the open model details page, then wait
+	 * until the configuration readout shows it, which confirms the underlying async
+	 * configuration write resolved.
 	 */
 	async selectModelConfigOption(label: string, timeoutMs: number = 30_000): Promise<void> {
-		const page = this.code.driver.currentPage;
-		const row = page.locator(ACTION_WIDGET_ROW, { hasText: label }).first();
-		const deadline = Date.now() + timeoutMs;
-		let lastError: unknown;
-
-		while (Date.now() < deadline) {
-			try {
-				await row.waitFor({ state: 'visible', timeout: 5_000 });
-				await row.click({ force: true });
-				await row.locator('.codicon-check').waitFor({ state: 'visible', timeout: 15_000 });
-				return;
-			} catch (error) {
-				lastError = error;
-				// Re-open the popup so the next attempt sees a freshly-built list
-				// containing this option's row.
-				try {
-					await this.openModelConfig(Math.max(5_000, deadline - Date.now()));
-				} catch { /* will retry until the outer deadline */ }
-			}
-		}
-		throw new Error(`Timed out selecting model config option "${label}". Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+		await selectModelConfigDetailsOption(this.code.driver.currentPage, ACTIVE_SESSION_MODEL_PICKER_CONFIG, label, remaining => this.openModelConfig(remaining), timeoutMs);
 	}
 
 	/**
-	 * Dismiss the open model configuration dropdown.
+	 * Dismiss the open model details page.
 	 */
 	async closeModelConfig(): Promise<void> {
-		const page = this.code.driver.currentPage;
-		await page.keyboard.press('Escape');
-		await page.waitForFunction(
-			(sel: string) => { const c = document.querySelector(sel); return !c || c.getAttribute('aria-expanded') !== 'true'; },
-			ACTIVE_SESSION_MODEL_PICKER_CONFIG,
-			{ timeout: 15_000 },
-		);
-		// Also wait for the popup's option rows to detach so a subsequent open
-		// starts from a clean state rather than racing this teardown. Best-effort:
-		// the rows may already be gone (the locator then resolves immediately).
-		await page.locator(`${ACTION_WIDGET_ROW}:visible`).first()
-			.waitFor({ state: 'hidden', timeout: 5_000 })
-			.catch(() => { /* already detached */ });
+		await closeModelConfigDetails(this.code.driver.currentPage, ACTIVE_SESSION_MODEL_PICKER_CONFIG);
 	}
 
 	/**
-	 * Return the active session's model-configuration button label (the combined
-	 * "Effort Context" summary, e.g. "High 1M").
+	 * Return the active session's model-configuration readout label (the combined
+	 * "Effort · Context" summary, e.g. "High · 1M").
 	 *
 	 * The label is (re-)rendered when the selected model and its configuration
 	 * resolve, so this polls until it carries text rather than returning an empty
@@ -1053,8 +1155,8 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Return the section headers and option rows of the open model configuration
-	 * dropdown. Call after {@link openModelConfig}.
+	 * Return each setting of the open model details page and its options. Call
+	 * after {@link openModelConfig}.
 	 */
 	async getModelConfigSections(): Promise<IModelConfigSection[]> {
 		return readModelConfigSections(this.code.driver.currentPage);

@@ -15,6 +15,20 @@ import { ConfigurationTarget } from '../../../../platform/configuration/common/c
 import { IShellLaunchConfig } from '../../../../platform/terminal/common/terminal.js';
 import { IMarkerData } from '../../../../platform/markers/common/markers.js';
 import type { SingleOrMany } from '../../../../base/common/types.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { localize } from '../../../../nls.js';
+
+export class TaskWorkspaceTrustError extends Error {
+	constructor() {
+		super(localize('task.workspaceTrustRevoked', "Task execution was cancelled because the workspace is no longer trusted."));
+	}
+}
+
+export function assertTaskWorkspaceTrust(workspaceTrustManagementService: IWorkspaceTrustManagementService): void {
+	if (!workspaceTrustManagementService.isWorkspaceTrusted()) {
+		throw new TaskWorkspaceTrustError();
+	}
+}
 
 export const enum TaskErrors {
 	NotConfigured,

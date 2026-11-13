@@ -9,6 +9,7 @@ import { derived, observableValue } from '../../../../../base/common/observable.
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -33,6 +34,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 // Ensure color registrations are loaded
 import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // ============================================================================
 // Mock helpers
@@ -135,7 +137,7 @@ function createMockWorkspaceContextService(): IWorkspaceContextService {
 	return new class extends mock<IWorkspaceContextService>() {
 		override readonly onDidChangeWorkspaceFolders = Event.None;
 		override getWorkspace(): IWorkspace {
-			return { id: 'test', folders: [] };
+			return testIWorkspace({ id: 'test', folders: [] });
 		}
 	}();
 }
@@ -177,6 +179,10 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = Event.None;
 				override readonly installations = observableValue('marketplaceInstallations', emptyCustomizationMarketplaceInstallationSnapshot);
+			}());
+			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override readonly onDidChangeSources = Event.None;
 			}());
 			reg.defineInstance(IWorkspaceContextService, createMockWorkspaceContextService());
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {

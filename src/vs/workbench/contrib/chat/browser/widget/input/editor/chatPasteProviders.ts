@@ -5,13 +5,14 @@
 import { alert, status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
+import { createStringDataTransferItem, IDataTransferFile, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
 import { convertHtmlToMarkdown } from '../../../../../../../base/browser/htmlToMarkdown.js';
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
 import { Mimes } from '../../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { extname } from '../../../../../../../base/common/path.js';
 import { basename, joinPath } from '../../../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../../../base/common/uri.js';
 import { Position } from '../../../../../../../editor/common/core/position.js';
@@ -32,6 +33,7 @@ import { IExtensionService, isProposedApiEnabled } from '../../../../../../servi
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry, toPasteVariableEntry, ChatPasteAttachmentMetadata } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
+import { fromRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
 import { chatInputSchemes, isChatInputModel, ChatConfiguration } from '../../../../common/constants.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
@@ -104,7 +106,8 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		if (!imageItem || !mimeType) {
 			return;
 		}
-		const currClipboard = await imageItem.asFile()?.data();
+		const imageFile = imageItem.asFile();
+		const currClipboard = await imageFile?.data();
 		if (token.isCancellationRequested || !currClipboard) {
 			return;
 		}
@@ -114,13 +117,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const attachedVariables = target.attachments;
-		const displayName = localize('pastedImageName', 'Pasted Image');
-		let tempDisplayName = displayName;
-
-		for (let appendValue = 2; attachedVariables.some(attachment => attachment.name === tempDisplayName); appendValue++) {
-			tempDisplayName = `${displayName} ${appendValue}`;
-		}
+		const tempDisplayName = getPastedImageName(imageFile, target.attachments.map(attachment => attachment.name));
 
 		const fileReference = await createFileForMedia(this.fileService, this.imagesFolder, currClipboard, mimeType);
 		if (token.isCancellationRequested || !fileReference) {
@@ -146,6 +143,26 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 		const edit = createCustomPasteEdit(model, [scaledImageContext], mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.pasteTargetService);
 		return createEditSession(edit);
 	}
+}
+
+/**
+ * Names a pasted image after the file it was pasted from (e.g. a file copied in the OS file
+ * manager or a screenshot tool that saves to disk), or "Pasted Image" for raw clipboard data.
+ * A counter before the extension keeps the name unique among the existing attachments.
+ */
+export function getPastedImageName(file: IDataTransferFile | undefined, existingNames: readonly string[]): string {
+	// Raw clipboard images have a generic name such as "image.png" and no uri. Use the name rather than
+	// the uri's basename: the uri is parsed from a native path, so it breaks on Windows paths and on '#'.
+	const fileName = file?.uri ? file.name : '';
+	const baseName = fileName || localize('pastedImageName', 'Pasted Image');
+	const extension = extname(fileName);
+	const stem = baseName.slice(0, baseName.length - extension.length);
+
+	let candidate = baseName;
+	for (let counter = 2; existingNames.includes(candidate); counter++) {
+		candidate = `${stem} ${counter}${extension}`;
+	}
+	return candidate;
 }
 
 async function getImageAttachContext(data: Uint8Array, mimeType: string, token: CancellationToken, displayName: string, resource: URI): Promise<IChatRequestVariableEntry | undefined> {
@@ -260,19 +277,24 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			return undefined;
 		}
 
-		const dynamicVariables = target.inlineReferences;
+		// A copy with inline attachment pills carries references relative to the copied
+		// prompt text, which is what the clipboard receives, so they apply wherever it is pasted.
+		const copiedInlinePrompt = target.getCopiedInlinePrompt?.(_ranges);
+		const dynamicVariables = copiedInlinePrompt?.references ?? target.inlineReferences;
 		const referencedIds = new Set(dynamicVariables.map(variable => variable.id));
 		// A ranged attachment whose reference is not carried along would be pruned
 		// as an orphan by the receiving input, so send it as a plain attachment.
-		const attachments = target.attachments.map(attachment =>
-			attachment.range && !referencedIds.has(attachment.id) ? { ...attachment, range: undefined } : attachment);
+		// Attachments shown inline only go along with their pills.
+		const attachments = target.attachments
+			.filter(attachment => !copiedInlinePrompt?.excludedAttachmentIds.has(attachment.id))
+			.map(attachment => attachment.range && !referencedIds.has(attachment.id) ? { ...attachment, range: undefined } : attachment);
 
 		if (attachments.length === 0 && dynamicVariables.length === 0) {
 			return undefined;
 		}
 
 		const result = new VSDataTransfer();
-		result.append(CHAT_ATTACHMENT_MIME_TYPE, createStringDataTransferItem(JSON.stringify({ attachments, dynamicVariables })));
+		result.append(CHAT_ATTACHMENT_MIME_TYPE, createStringDataTransferItem(JSON.stringify(copiedInlinePrompt ? { attachments, dynamicVariables, relativeReferences: true } : { attachments, dynamicVariables })));
 		return result;
 	}
 
@@ -296,7 +318,7 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		let pastedData: { attachments: IChatRequestVariableEntry[]; dynamicVariables: IDynamicVariable[] } | undefined;
+		let pastedData: { attachments: IChatRequestVariableEntry[]; dynamicVariables: IDynamicVariable[]; relativeReferences?: boolean } | undefined;
 		try {
 			pastedData = revive(JSON.parse(rawData));
 		} catch {
@@ -306,6 +328,14 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 		if (!Array.isArray(pastedData?.attachments) && !Array.isArray(pastedData?.dynamicVariables)) {
 			return;
 		}
+
+		// References relative to the pasted text start where it is inserted.
+		const pasteStart = _ranges.length === 1 ? Range.lift(_ranges[0]).getStartPosition() : undefined;
+		const dynamicVariables = !pastedData.relativeReferences
+			? pastedData.dynamicVariables
+			: pasteStart
+				? pastedData.dynamicVariables.map(variable => ({ ...variable, range: fromRelativeRange(variable.range, pasteStart) }))
+				: [];
 
 		const edit: DocumentPasteEdit = {
 			insertText: textdata,
@@ -317,16 +347,18 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 			}
 		};
 
+		// Attachments that a copy of inline attachment pills brings along, but that the input already has, stay on undo.
+		const existingIds = pastedData.relativeReferences ? new Set(target.attachments.map(attachment => attachment.id)) : undefined;
 		edit.additionalEdit?.edits.push({
 			resource: model.uri,
 			redo: () => {
 				target.addAttachments(pastedData.attachments);
-				for (const dynamicVariable of pastedData.dynamicVariables) {
+				for (const dynamicVariable of dynamicVariables) {
 					target.addInlineReference(dynamicVariable);
 				}
 			},
 			undo: () => {
-				target.removeAttachments(pastedData.attachments.map(c => c.id));
+				target.removeAttachments(pastedData.attachments.map(c => c.id).filter(id => !existingIds?.has(id)));
 			}
 		});
 

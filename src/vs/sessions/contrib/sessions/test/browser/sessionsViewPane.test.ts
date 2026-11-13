@@ -4,16 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ISessionGridPane } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { Workbench } from '../../../../browser/workbench.js';
-import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
-import '../../browser/media/sessionsViewPane.css';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
+import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { SessionViewFloatingToolbar } from '../../../../../workbench/contrib/sessions/browser/parts/sessionHeaderBar.js';
+import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IMenuService, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ChatCustomizationsLocation } from '../../../../../workbench/contrib/chat/common/customizationsLocation.js';
+import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
 	readonly mainContainer: HTMLElement;
@@ -23,30 +44,233 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 	};
 	_register<T extends IDisposable>(disposable: T): T;
 }) => void;
+const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
+	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
+	readonly sessionsService: { readonly slotPanes: IObservable<readonly ISessionGridPane[]> };
+	readonly layoutService: { mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
+	readonly hostLayoutService: { readonly sidePane?: { hideSidePane(): void } };
+}, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
 	readonly sessionsHeaders: ReadonlySet<{
 		readonly row: HTMLElement;
 		readonly label: HTMLElement;
 		readonly actions: HTMLElement;
-		readonly treeHeader: boolean;
 	}>;
-	readonly sessionsContent: HTMLElement | undefined;
-	readonly customizationsPresentation: string;
 	readonly layoutService: { readonly mainContainer: HTMLElement };
-	readonly isFindWidgetOpen: boolean;
-	updateFindHeaderPosition(): void;
-}) => void;
-const updateFindHeaderPosition = Reflect.get(SessionsView.prototype, 'updateFindHeaderPosition') as (this: {
-	readonly sessionsHeaders: ReadonlySet<{ readonly row: HTMLElement; readonly treeHeader: boolean }>;
-	readonly sessionsContent: HTMLElement | undefined;
-	readonly sessionsHeaderContainer: HTMLElement | undefined;
-	readonly sessionsControlContainer: HTMLElement | undefined;
-	readonly customizationsPresentation: string;
 	readonly isFindWidgetOpen: boolean;
 }) => void;
 
 suite('Sessions - SessionsViewPane', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps global customization actions operable before a draft session is bound', async () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService,
+			contextKeyService: () => disposables.add(new ContextKeyService(configurationService)),
+		}, disposables);
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+		const calls: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(id: string): Promise<T | undefined> { calls.push(id); return undefined; }
+		});
+		instantiationService.stub(IMenuService, disposables.add(instantiationService.createInstance(MenuService)));
+		for (const menu of [Menus.NewSessionGlobalToolbar, Menus.SessionBarToolbar]) {
+			disposables.add(MenuRegistry.appendMenuItem(menu, {
+				command: { id: 'test.globalCustomization', title: 'Customizations', icon: Codicon.extensions },
+				group: 'navigation',
+			}));
+		}
+		const toolbar = disposables.add(instantiationService.createInstance(SessionViewFloatingToolbar));
+		mainWindow.document.body.appendChild(toolbar.element);
+		disposables.add(toDisposable(() => toolbar.element.remove()));
+		toolbar.setSession(undefined);
+		const visibleButtons = () => [...toolbar.element.querySelectorAll<HTMLElement>('.codicon-extensions')]
+			.filter(button => button.closest<HTMLElement>('.chat-composite-bar-toolbar')!.style.display !== 'none');
+		const button = visibleButtons()[0];
+		assert.ok(button, toolbar.element.outerHTML);
+		button.click();
+		await timeout(0);
+		const unbound = visibleButtons().length;
+		toolbar.setSession(upcastPartial<ISession>({ resource: URI.parse('agent-host-copilot:/draft'), status: constObservable(SessionStatus.Untitled) }));
+		const bound = visibleButtons().length;
+		visibleButtons()[0].click();
+		await timeout(0);
+		toolbar.setSession(undefined);
+		assert.deepStrictEqual({ calls, unbound, bound, unboundAgain: visibleButtons().length }, {
+			calls: ['test.globalCustomization', 'test.globalCustomization'], unbound: 1, bound: 1, unboundAgain: 1,
+		});
+	});
+
+	test('layout refresh keeps the chosen placement independent of navigation and phone transitions', () => {
+		const container = mainWindow.document.createElement('div');
+		const location = observableValue<ChatCustomizationsLocation>(disposables, 'chatInput');
+		const navigation = observableValue(disposables, true);
+		const customizationsAtBottom = observableValue(disposables, false);
+		const calls: Array<[string, boolean]> = [];
+		const host = {
+			layoutService: { mainContainer: container },
+			scopedContextKeyService: { contextMatchesRules: () => true },
+			chatEntitlementService: { sentimentObs: constObservable({ hidden: false }) },
+			separateNavigation: navigation,
+			customizationsAtBottom,
+			customizationsLocation: location,
+			updateCustomizationsPresentation: (presentation: string, shortcuts: boolean) => calls.push([presentation, shortcuts]),
+		};
+		const refresh = Reflect.get(SessionsView.prototype, 'refreshCustomizationsPresentation') as (this: typeof host) => void;
+		refresh.call(host);
+		container.classList.add('phone-layout');
+		refresh.call(host);
+		container.classList.remove('phone-layout');
+		refresh.call(host);
+		location.set('sessionsHeader', undefined);
+		navigation.set(false, undefined);
+		refresh.call(host);
+		location.set('sidebar', undefined);
+		navigation.set(true, undefined);
+		refresh.call(host);
+		location.set('auto', undefined);
+		refresh.call(host);
+		customizationsAtBottom.set(true, undefined);
+		refresh.call(host);
+		navigation.set(false, undefined);
+		refresh.call(host);
+		assert.deepStrictEqual(calls, [['hidden', true], ['hidden', false], ['hidden', true], ['treatment', false], ['control', true], ['treatment', true], ['control', true], ['control', false]]);
+	});
+
+	test('floating toolbar view items follow their own draft rather than the focused session', () => {
+		const host = {
+			_session: undefined as ISession | undefined,
+			_sessionDisposables: disposables.add(new MutableDisposable<DisposableStore>()),
+			_sessionHost: upcastPartial<ISessionHost>({}),
+			_menuActionArgs: [] as unknown[],
+			_toolbar: { context: undefined as ISession | undefined },
+			_toolbarContainer: { style: { display: '' } },
+			_globalToolbarContainer: { style: { display: '' } },
+			_setVisible: () => { },
+		};
+		const setSession = SessionViewFloatingToolbar.prototype.setSession as (this: typeof host, session: ISession | undefined) => void;
+		const contexts: Array<string | undefined> = [];
+		for (const resource of [URI.parse('agent-host-copilot:/draft'), URI.parse('agent-host-claude:/draft'), undefined]) {
+			setSession.call(host, resource ? upcastPartial<ISession>({ resource, status: constObservable(SessionStatus.Untitled) }) : undefined);
+			contexts.push(host._toolbar.context?.resource.toString());
+		}
+		assert.deepStrictEqual(contexts, ['agent-host-copilot:/draft', 'agent-host-claude:/draft', undefined]);
+	});
+
+	test('offers and selects environment grouping in the mobile sheet', async () => {
+		const container = mainWindow.document.createElement('div');
+		const selected = new DeferredPromise<SessionsGrouping>();
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const host = {
+			layoutService: { mainContainer: container },
+			grouping: SessionsGrouping.Environment,
+			currentSorting: SessionsSorting.Created,
+			configurationService,
+			chatEntitlementService: { sentiment: { hidden: false } },
+			setGrouping: (grouping: SessionsGrouping) => selected.complete(grouping),
+			setSorting: () => assert.fail('Expected grouping selection'),
+		};
+		const openSheet = Reflect.get(SessionsView.prototype, 'openSortGroupSheet') as (this: typeof host) => void;
+		openSheet.call(host);
+		const option = [...container.querySelectorAll<HTMLButtonElement>('.mobile-sort-group-sheet-item')]
+			.find(row => row.textContent?.trim() === 'Group by Environment');
+		assert.ok(option);
+		const checked = option.getAttribute('aria-selected');
+		option.click();
+
+		assert.deepStrictEqual({ checked, selected: await selected.p }, { checked: 'true', selected: SessionsGrouping.Environment });
+	});
+
+	test('uses the setting as the grouping default until an explicit choice is saved', async () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const host = {
+			currentGrouping: undefined as SessionsGrouping | undefined,
+			configurationService,
+			storageService,
+			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+			updateHeaderLayout: () => { },
+		};
+		const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
+		const initial = host.grouping;
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		const enabled = host.grouping;
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
+		const disabled = host.grouping;
+		setGrouping.call(host, SessionsGrouping.Inbox);
+		const saved = storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE);
+		const selected = host.grouping;
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		const restored = host.grouping;
+		setGrouping.call(host, SessionsGrouping.Workspace);
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
+		await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, true);
+		assert.deepStrictEqual({ initial, enabled, disabled, saved, selected, restored, changed: host.grouping }, {
+			initial: SessionsGrouping.Workspace,
+			enabled: SessionsGrouping.Inbox,
+			disabled: SessionsGrouping.Workspace,
+			saved: SessionsGrouping.Inbox,
+			selected: SessionsGrouping.Inbox,
+			restored: SessionsGrouping.Inbox,
+			changed: SessionsGrouping.Workspace,
+		});
+	});
+
+	for (const enabled of [false, true]) {
+		test(`persists an explicit selection of the default grouping (${enabled})`, async () => {
+			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: enabled });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const storageService = disposables.add(new InMemoryStorageService());
+			const host = {
+				currentGrouping: undefined as SessionsGrouping | undefined,
+				configurationService,
+				storageService,
+				get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+				updateHeaderLayout: () => { },
+			};
+			const initial = host.grouping;
+			const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
+			setGrouping.call(host, initial);
+			await configurationService.setUserConfiguration(SESSIONS_LIST_INBOX_ENABLED_SETTING, !enabled);
+			const saved = storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE);
+			assert.deepStrictEqual({ selected: host.grouping, saved }, {
+				selected: enabled ? SessionsGrouping.Inbox : SessionsGrouping.Workspace,
+				saved: enabled ? SessionsGrouping.Inbox : SessionsGrouping.Workspace,
+			});
+		});
+	}
+
+	for (const { enabled, hidden } of [{ enabled: false, hidden: false }, { enabled: true, hidden: false }, { enabled: true, hidden: true }]) {
+		test(`mobile inbox option ignores default setting (${enabled}) and respects hidden AI (${hidden})`, async () => {
+			const container = mainWindow.document.createElement('div');
+			const selected = new DeferredPromise<SessionsGrouping>();
+			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: enabled });
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const host = {
+				layoutService: { mainContainer: container },
+				grouping: SessionsGrouping.Workspace,
+				currentSorting: SessionsSorting.Created,
+				configurationService,
+				chatEntitlementService: { sentiment: { hidden } },
+				setGrouping: (grouping: SessionsGrouping) => selected.complete(grouping),
+				setSorting: () => assert.fail('Expected grouping selection'),
+			};
+			const openSheet = Reflect.get(SessionsView.prototype, 'openSortGroupSheet') as (this: typeof host) => void;
+			openSheet.call(host);
+			const options = [...container.querySelectorAll<HTMLButtonElement>('.mobile-sort-group-sheet-item')];
+			const inbox = options.find(row => row.textContent?.trim() === 'Inbox Mode');
+			const workspace = options.find(row => row.textContent?.trim() === 'Group by Workspace')!;
+			(inbox ?? workspace).click();
+			assert.deepStrictEqual({ offered: !!inbox, selected: await selected.p }, {
+				offered: !hidden,
+				selected: !hidden ? SessionsGrouping.Inbox : SessionsGrouping.Workspace,
+			});
+		});
+	}
 
 	test('selects control and treatment presentations only when AI UI is visible on desktop', () => {
 		assert.deepStrictEqual({
@@ -62,6 +286,19 @@ suite('Sessions - SessionsViewPane', () => {
 			aiDisabled: 'hidden',
 			aiHidden: 'hidden',
 		});
+	});
+
+	test('explicit customization locations override either sidebar arrangement', () => {
+		assert.deepStrictEqual([false, true].map(navigation => ({
+			sidebar: getCustomizationsPresentation(false, true, false, navigation, 'sidebar'),
+			header: getCustomizationsPresentation(false, true, false, navigation, 'sessionsHeader'),
+			toolbar: getCustomizationsPresentation(false, true, false, navigation, 'chatToolbar'),
+			input: getCustomizationsPresentation(false, true, false, navigation, 'chatInput'),
+			hidden: getCustomizationsPresentation(false, true, true, navigation, 'sidebar'),
+		})), [
+			{ sidebar: 'control', header: 'treatment', toolbar: 'hidden', input: 'hidden', hidden: 'hidden' },
+			{ sidebar: 'control', header: 'treatment', toolbar: 'hidden', input: 'hidden', hidden: 'hidden' },
+		]);
 	});
 
 	test('preserves Customizations and Automations focus while switching presentations', () => {
@@ -85,9 +322,12 @@ suite('Sessions - SessionsViewPane', () => {
 				focusAutomations: () => calls.push('focusControlAutomations'),
 				focus: () => calls.push('focusSessions'),
 			};
+			const rearrangeContextValues: boolean[] = [];
 			const host = {
+				configurationService: new TestConfigurationService(),
 				customizationsPresentation: presentation,
 				customizationsNavigationVisible: { set: () => { } },
+				sessionsListRearrangeContext: { set: (value: boolean) => rearrangeContextValues.push(value) },
 				_customizationsWidget: presentation === 'control' ? widget : undefined,
 				sessionsControl,
 				updateHeaderLayout: () => calls.push('updateHeader'),
@@ -101,6 +341,7 @@ suite('Sessions - SessionsViewPane', () => {
 				},
 				layoutSidebarSplitView: () => calls.push('layout'),
 				calls,
+				rearrangeContextValues,
 			};
 			return host;
 		}
@@ -116,6 +357,11 @@ suite('Sessions - SessionsViewPane', () => {
 			controlCustomizations: controlCustomizations.calls,
 			treatmentAutomations: treatmentAutomations.calls,
 			hiddenCustomizations: hiddenCustomizations.calls,
+			rearrangeContextValues: [
+				controlCustomizations.rearrangeContextValues,
+				treatmentAutomations.rearrangeContextValues,
+				hiddenCustomizations.rearrangeContextValues,
+			],
 		}, {
 			controlCustomizations: [
 				'updateHeader',
@@ -139,6 +385,7 @@ suite('Sessions - SessionsViewPane', () => {
 				'focusSessions',
 				'layout',
 			],
+			rearrangeContextValues: [[true], [false], [false]],
 		});
 	});
 
@@ -172,6 +419,7 @@ suite('Sessions - SessionsViewPane', () => {
 		const host = {
 			layoutService: { mainContainer },
 			instantiationService,
+			configurationService: new TestConfigurationService(),
 			sidebarSplitViewContainer: container,
 			sidebarSplitView: splitView,
 			customizationsPaneDisposables,
@@ -256,42 +504,94 @@ suite('Sessions - SessionsViewPane', () => {
 			_register: <T extends IDisposable>(disposable: T) => disposables.add(disposable),
 		};
 
-		try {
-			registerEditorTabHeightClass.call(host);
-			const defaultHeight = mainWindow.getComputedStyle(headerRow).height;
+		disposables.add(toDisposable(() => workbench.remove()));
+		registerEditorTabHeightClass.call(host);
+		const defaultHeight = mainWindow.getComputedStyle(headerRow).height;
 
-			tabHeight = 'compact';
-			editorPartOptionsChanged.fire();
-			const compactHeight = mainWindow.getComputedStyle(headerRow).height;
+		tabHeight = 'compact';
+		editorPartOptionsChanged.fire();
+		const compactHeight = mainWindow.getComputedStyle(headerRow).height;
 
-			tabHeight = 'default';
-			editorPartOptionsChanged.fire();
-			const restoredHeight = mainWindow.getComputedStyle(headerRow).height;
+		tabHeight = 'default';
+		editorPartOptionsChanged.fire();
+		const restoredHeight = mainWindow.getComputedStyle(headerRow).height;
 
-			assert.deepStrictEqual({
-				defaultHeight,
-				compactHeight,
-				restoredHeight,
-				flexShrink: mainWindow.getComputedStyle(headerRow).flexShrink,
-				hasCompactClass: workbench.classList.contains('editor-tabs-compact-height'),
-			}, {
-				defaultHeight: '32px',
-				compactHeight: '28px',
-				restoredHeight: '32px',
-				flexShrink: '0',
-				hasCompactClass: false,
-			});
-		} finally {
-			workbench.remove();
-		}
+		assert.deepStrictEqual({
+			defaultHeight,
+			compactHeight,
+			restoredHeight,
+			flexShrink: mainWindow.getComputedStyle(headerRow).flexShrink,
+			hasCompactClass: workbench.classList.contains('editor-tabs-compact-height'),
+		}, {
+			defaultHeight: '32px',
+			compactHeight: '28px',
+			restoredHeight: '32px',
+			flexShrink: '0',
+			hasCompactClass: false,
+		});
 	});
 
-	test('keeps the Sessions title visible during a zero-width sticky header handoff', () => {
+	test('hides session details only when an active comparison participant is opened', () => {
+		const attempt = upcastPartial<ISession>({ sessionId: 'attempt', resource: URI.parse('test:/attempt') });
+		const judge = upcastPartial<ISession>({ sessionId: 'judge', resource: URI.parse('test:/judge') });
+		const comparison: ISessionComparison = {
+			id: 'comparison',
+			groupId: 'group',
+			title: 'Compare',
+			createdAt: 1,
+			workspace: URI.file('/workspace'),
+			prompt: 'Implement',
+			participants: [
+				{
+					id: 'attempt',
+					role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test' },
+					sessionResource: attempt.resource,
+				},
+				{
+					id: 'judge',
+					role: SessionComparisonParticipantRole.Judge,
+					harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test' },
+					sessionResource: judge.resource,
+				},
+			],
+		};
+		let hideSidePaneCalls = 0;
+		let currentComparison: ISessionComparison | undefined = comparison;
+		const visibleSessions = observableValue<readonly ISession[]>('visibleSessions', [attempt, judge]);
+		const host = {
+			sessionComparisonService: {
+				getComparisonForSession: () => currentComparison,
+			},
+			sessionsService: { slotPanes: visibleSessions.map(sessions => sessions.map(session => upcastPartial<ISessionGridPane>({ session: constObservable(session) }))) },
+			layoutService: {
+				mainContainer: mainWindow.document.createElement('div'),
+				setPartHidden: () => { },
+			},
+			hostLayoutService: {
+				sidePane: { hideSidePane: () => hideSidePaneCalls++ },
+			},
+		};
+
+		handleSessionOpened.call(host, attempt);
+		handleSessionOpened.call(host, judge);
+		// A cancelled or superseded open leaves the participant hidden, so the side pane stays.
+		visibleSessions.set([], undefined);
+		handleSessionOpened.call(host, attempt);
+		visibleSessions.set([attempt, judge], undefined);
+		currentComparison = { ...comparison, archivedAt: 1 };
+		handleSessionOpened.call(host, attempt);
+		currentComparison = undefined;
+		handleSessionOpened.call(host, attempt);
+
+		assert.strictEqual(hideSidePaneCalls, 2);
+	});
+
+	test('keeps the Sessions title visible while measuring a narrow header', () => {
 		const mainContainer = mainWindow.document.createElement('div');
 		const headerRow = mainWindow.document.createElement('div');
 		const headerLabel = mainWindow.document.createElement('div');
 		const headerActions = mainWindow.document.createElement('div');
-		const sessionsContent = mainWindow.document.createElement('div');
 		headerLabel.style.display = 'none';
 		headerRow.append(headerLabel, headerActions);
 		Object.defineProperty(headerRow, 'clientWidth', { configurable: true, value: 0 });
@@ -302,13 +602,9 @@ suite('Sessions - SessionsViewPane', () => {
 				label: headerLabel,
 				actions: headerActions,
 				toolbar: undefined,
-				treeHeader: true,
 			}]),
-			sessionsContent,
-			customizationsPresentation: 'treatment',
 			layoutService: { mainContainer },
 			isFindWidgetOpen: false,
-			updateFindHeaderPosition: () => { },
 		};
 
 		updateHeaderLayout.call(host);
@@ -323,84 +619,5 @@ suite('Sessions - SessionsViewPane', () => {
 			transientDisplay: '',
 			narrowDisplay: 'none',
 		});
-	});
-
-	test('aligns Find with the visible Sessions header and follows the sticky handoff', () => {
-		const sessionsContent = mainWindow.document.createElement('div');
-		const sessionsHeaderContainer = mainWindow.document.createElement('div');
-		const sessionsControlContainer = mainWindow.document.createElement('div');
-		const stableHeaderRow = mainWindow.document.createElement('div');
-		const sourceHeader = mainWindow.document.createElement('div');
-		const stickyRow = mainWindow.document.createElement('div');
-		const stickyHeader = mainWindow.document.createElement('div');
-		stickyRow.classList.add('monaco-tree-sticky-row');
-		stickyRow.appendChild(stickyHeader);
-		sessionsHeaderContainer.appendChild(stableHeaderRow);
-
-		const setVerticalBounds = (element: HTMLElement, top: number, bottom: number) => {
-			Object.defineProperty(element, 'getBoundingClientRect', {
-				configurable: true,
-				value: () => ({ top, bottom, height: bottom - top }),
-			});
-		};
-		setVerticalBounds(sessionsContent, 100, 600);
-		setVerticalBounds(sessionsHeaderContainer, 100, 140);
-		setVerticalBounds(stableHeaderRow, 101, 133);
-		setVerticalBounds(sessionsControlContainer, 110, 500);
-		setVerticalBounds(sourceHeader, 180, 212);
-		setVerticalBounds(stickyHeader, 120, 152);
-
-		const host = {
-			sessionsContent,
-			sessionsHeaderContainer,
-			sessionsControlContainer,
-			sessionsHeaders: new Set([
-				{ row: stableHeaderRow, treeHeader: false },
-				{ row: sourceHeader, treeHeader: true },
-				{ row: stickyHeader, treeHeader: true },
-			]),
-			customizationsPresentation: 'treatment',
-			isFindWidgetOpen: true,
-		};
-
-		updateFindHeaderPosition.call(host);
-		const stickyPosition = sessionsHeaderContainer.style.top;
-		setVerticalBounds(stickyHeader, 600, 632);
-		updateFindHeaderPosition.call(host);
-		const sourcePosition = sessionsHeaderContainer.style.top;
-		setVerticalBounds(sourceHeader, 600, 632);
-		updateFindHeaderPosition.call(host);
-
-		assert.deepStrictEqual({
-			stickyPosition,
-			sourcePosition,
-			retainedPositionWithoutVisibleHeader: sessionsHeaderContainer.style.top,
-		}, {
-			stickyPosition: '19px',
-			sourcePosition: '79px',
-			retainedPositionWithoutVisibleHeader: '79px',
-		});
-	});
-
-	test('positions the Find header only while open in treatment', () => {
-		const sessionsContent = mainWindow.document.createElement('div');
-		const host = {
-			sessionsHeaders: new Set<{ readonly row: HTMLElement; readonly label: HTMLElement; readonly actions: HTMLElement; readonly treeHeader: boolean }>(),
-			sessionsContent,
-			customizationsPresentation: 'treatment',
-			layoutService: { mainContainer: mainWindow.document.createElement('div') },
-			isFindWidgetOpen: true,
-			updateFindHeaderPosition: () => { },
-		};
-
-		updateHeaderLayout.call(host);
-		const findOpen = sessionsContent.classList.contains('sessions-find-header-open');
-		host.isFindWidgetOpen = false;
-		updateHeaderLayout.call(host);
-
-		assert.deepStrictEqual([
-			findOpen,
-			sessionsContent.classList.contains('sessions-find-header-open'),
-		], [true, false]);
 	});
 });

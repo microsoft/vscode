@@ -10,8 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../log/common/log.js';
+import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { readCodexRolloutMetadata } from '../../../node/codex/codexRolloutMetadata.js';
 
@@ -19,8 +18,7 @@ suite('codexRolloutMetadata', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createFileService(testDisposables: DisposableStore): FileService {
-		const fileService = testDisposables.add(new FileService(new NullLogService()));
-		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		const fileService = createInMemoryFileService(testDisposables, Schemas.file);
 		return fileService;
 	}
 

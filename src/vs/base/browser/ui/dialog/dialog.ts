@@ -64,6 +64,8 @@ export interface IDialogOptions {
 	readonly renderBody?: (container: HTMLElement) => void;
 	readonly renderFooter?: (container: HTMLElement) => void;
 	readonly icon?: ThemeIcon;
+	/** Renders an icon of the owner's, such as an app's image, in place of {@link icon} and the {@link type}'s codicon. */
+	readonly renderIcon?: (container: HTMLElement) => void;
 	readonly buttonOptions?: Array<undefined | { sublabel?: string; styleButton?: (button: IButton) => void }>;
 	readonly primaryButtonDropdown?: IButtonWithDropdownOptions;
 	readonly disableCloseAction?: boolean;
@@ -159,7 +161,7 @@ export class Dialog extends Disposable {
 			const customFooter = this.footerContainer.appendChild($('#monaco-dialog-footer.dialog-footer'));
 			this.options.renderFooter(customFooter);
 
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const el of this.footerContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 				this.footerActionToFocus ??= el;
@@ -183,6 +185,10 @@ export class Dialog extends Disposable {
 		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
 		this.iconElement = messageRowElement.appendChild($('#monaco-dialog-icon.dialog-icon'));
 		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
+		if (this.options.renderIcon) {
+			this.iconElement.classList.add('custom-icon');
+			this.options.renderIcon(this.iconElement);
+		}
 		this.messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
 		const hasDetail = !!this.options.detail || !!this.options.detailElement;
@@ -207,7 +213,7 @@ export class Dialog extends Disposable {
 		}
 
 		if (this.options.renderBody || this.options.detailElement) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const el of this.messageContainer.querySelectorAll('a')) {
 				el.tabIndex = 0;
 			}
@@ -416,7 +422,7 @@ export class Dialog extends Disposable {
 					let focusedIndex = -1;
 
 					if (this.messageContainer) {
-						// eslint-disable-next-line no-restricted-syntax
+						// eslint-disable-next-line eslint-js/no-restricted-syntax
 						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -461,7 +467,7 @@ export class Dialog extends Disposable {
 					}
 
 					if (this.footerContainer) {
-						// eslint-disable-next-line no-restricted-syntax
+						// eslint-disable-next-line eslint-js/no-restricted-syntax
 						const links = this.footerContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
@@ -469,6 +475,12 @@ export class Dialog extends Disposable {
 								focusedIndex = focusableElements.length - 1;
 							}
 						}
+					}
+
+					if (focusableElements.length === 0) {
+						// Nothing to move focus to, so it stays inside the dialog
+						EventHelper.stop(e, true);
+						return;
 					}
 
 					// Focus next element (with wrapping)
@@ -533,7 +545,9 @@ export class Dialog extends Disposable {
 
 			this.iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.dialogError), ...ThemeIcon.asClassNameArray(Codicon.dialogWarning), ...ThemeIcon.asClassNameArray(Codicon.dialogInfo), ...ThemeIcon.asClassNameArray(Codicon.loading), spinModifierClassName);
 
-			if (this.options.icon) {
+			if (this.options.renderIcon) {
+				// The owner rendered the icon.
+			} else if (this.options.icon) {
 				this.iconElement.classList.add(...ThemeIcon.asClassNameArray(this.options.icon));
 			} else {
 				switch (this.options.type) {
@@ -616,7 +630,7 @@ export class Dialog extends Disposable {
 		this.element.style.border = border;
 
 		if (linkFgColor) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const el of [...this.messageContainer.getElementsByTagName('a'), ...this.footerContainer?.getElementsByTagName('a') ?? []]) {
 				if (el.classList.contains('monaco-button')) {
 					continue;

@@ -16,12 +16,13 @@ import { IAgentSessionsService, AgentSessionsService } from './agentSessionsServ
 import { LocalAgentsSessionsController } from './localAgentSessionsController.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction, getAgentSessionArchiveActionConstructors } from './agentSessionsActions.js';
+import { OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, OpenAgentSessionCustomizationsAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction, getAgentSessionArchiveActionConstructors } from './agentSessionsActions.js';
 import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissionUiContribution.js';
 import { registerExternalSessionsFilterMenu } from './externalSessionsFilterMenu.js';
 import './agentHost/agentHostChatInputPicker.contribution.js';
 import './agentHost/agentHostModeSynchronizer.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 //#region Actions and Menus
 
@@ -34,16 +35,31 @@ registerAction2(UnpinAgentSessionAction);
 registerAction2(RenameAgentSessionAction);
 registerAction2(DeleteAgentSessionAction);
 registerAction2(DeleteAllLocalSessionsAction);
-registerAction2(MarkAgentSessionUnreadAction);
-registerAction2(MarkAgentSessionReadAction);
 registerAction2(OpenAgentSessionInNewWindowAction);
 registerAction2(OpenAgentSessionInEditorGroupAction);
 registerAction2(OpenAgentSessionInNewEditorGroupAction);
+registerAction2(OpenAgentSessionCustomizationsAction);
 registerAction2(RefreshAgentSessionsViewerAction);
 registerAction2(FindAgentSessionInViewerAction);
 registerExternalSessionsFilterMenu(MenuId.AgentSessionsViewerFilterSubMenu, MenuId.AgentSessionsExternalFilterSubMenu, '2_external');
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
+
+class AgentSessionReadActionsContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.agentSessionReadActions';
+
+	constructor(
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+	) {
+		super();
+		if (!environmentService.isSessionsWindow) {
+			this._register(registerAction2(MarkAgentSessionUnreadAction));
+			this._register(registerAction2(MarkAgentSessionReadAction));
+		}
+	}
+}
+
+registerWorkbenchContribution2(AgentSessionReadActionsContribution.ID, AgentSessionReadActionsContribution, WorkbenchPhase.BlockStartup);
 
 class AgentSessionArchiveActionsContribution extends Disposable implements IWorkbenchContribution {
 

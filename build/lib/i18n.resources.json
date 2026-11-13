@@ -147,6 +147,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/mediaPreview",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/mergeEditor",
 			"project": "vscode-workbench"
 		},
@@ -156,6 +160,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/logs",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/opener",
 			"project": "vscode-workbench"
 		},
 		{
@@ -191,6 +199,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/chatWindow",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/quickaccess",
 			"project": "vscode-workbench"
 		},
@@ -212,6 +224,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/scm",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/screenshotTool",
 			"project": "vscode-workbench"
 		},
 		{
@@ -615,6 +631,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/canvases",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/dropOrPasteInto",
 			"project": "vscode-workbench"
 		},
@@ -647,10 +667,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcomeAgentSessions",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/services/accounts",
 			"project": "vscode-workbench"
 		},
@@ -673,7 +689,27 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/workbench/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/workbench/contrib/sessionChanges",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/workbench/services/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/workbench/browser/parts/sessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/openAgentsWindow",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/agentsLauncher",
 			"project": "vscode-sessions"
 		},
 		{
@@ -710,6 +746,14 @@
 		},
 		{
 			"name": "vs/sessions/contrib/chat",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chatEditor",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/chatWindow",
 			"project": "vscode-sessions"
 		},
 		{
@@ -777,6 +821,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/sessionComparison",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/sessionInputBanners",
 			"project": "vscode-sessions"
 		},
@@ -810,6 +858,14 @@
 		},
 		{
 			"name": "vs/sessions/contrib/onboardingTours",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/getStarted",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/worktreeSuggestion",
 			"project": "vscode-sessions"
 		}
 	]

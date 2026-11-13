@@ -223,7 +223,7 @@ async function onReady() {
 			resolveNlsConfiguration()
 		]);
 
-		await startup(codeCachePath, nlsConfig);
+		await startup(codeCachePath, { ...nlsConfig, regionalLocale: app.getSystemLocale().toLowerCase() });
 	} catch (error) {
 		console.error(error);
 	}
@@ -361,22 +361,21 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// `EarlyEstablishGpuChannel` - Refs https://issues.chromium.org/issues/40208065
 	// `EstablishGpuChannelAsync` - Refs https://issues.chromium.org/issues/40208065
 	// `GlobalShortcutsPortal` - Enables Electron's `globalShortcut` (system-wide keybindings) on Linux Wayland via the XDG global shortcuts portal (no-op elsewhere)
+	// `UpdateCompositorMemoryPolicyOnScreenChange` - Recompute the compositor memory budget on display changes (https://chromium-review.googlesource.com/c/chromium/src/+/8594621)
 	const featuresToEnable =
-		`NetAdapterMaxBufSizeFeature:NetAdapterMaxBufSize/8192,DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync${process.platform === 'linux' ? ',GlobalShortcutsPortal' : ''},${app.commandLine.getSwitchValue('enable-features')}`;
+		`NetAdapterMaxBufSizeFeature:NetAdapterMaxBufSize/8192,DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,UpdateCompositorMemoryPolicyOnScreenChange${process.platform === 'linux' ? ',GlobalShortcutsPortal' : ''},${app.commandLine.getSwitchValue('enable-features')}`;
 	app.commandLine.appendSwitch('enable-features', featuresToEnable);
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	// `HideCursorWhileTyping` - Disable hiding the cursor while typing (https://chromium-review.googlesource.com/c/chromium/src/+/7916752)
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,HideCursorWhileTyping,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
 	// `FontMatchingCTMigration` - Siwtch font matching on macOS to Appkit (Refs https://github.com/microsoft/vscode/issues/224496#issuecomment-2270418470).
-	// `StandardizedBrowserZoom` - Disable zoom adjustment for bounding box (https://github.com/microsoft/vscode/issues/232750#issuecomment-2459495394)
 	const blinkFeaturesToDisable =
-		`FontMatchingCTMigration,StandardizedBrowserZoom,${app.commandLine.getSwitchValue('disable-blink-features')}`;
+		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
 	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
 
 	// Support JS Flags

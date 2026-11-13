@@ -75,6 +75,9 @@ export interface SessionChatRemovedAction {
  * SHOULD then wait for a {@link SessionChatAddedAction | `session/chatAdded`}.
  *
  * Mirrors the root-channel `root/sessionSummaryChanged` notification.
+ * When `changes.status` changes, the host MUST project that exact value into
+ * the matching `SessionChatSummary.status` field and publish
+ * the updated compact chat catalog through `root/sessionSummaryChanged`.
  *
  * @category Session Actions
  * @version 1
@@ -86,7 +89,7 @@ export interface SessionChatUpdatedAction {
 	/**
 	 * Mutable summary fields that changed; omitted fields are unchanged.
 	 *
-	 * Identity fields (`resource`) never change and MUST be omitted by
+	 * Identity fields (`resource`, `provider`) never change and MUST be omitted by
 	 * senders; receivers SHOULD ignore them if present.
 	 */
 	changes: Partial<ChatSummary>;
@@ -102,6 +105,24 @@ export interface SessionDefaultChatChangedAction {
 	type: ActionType.SessionDefaultChatChanged;
 	/** New default chat URI, or `undefined` to clear the hint. */
 	defaultChat?: URI;
+}
+
+/**
+ * The owning session's authoritative chat catalog order changed.
+ *
+ * Host-emitted convergence signal; it never originates from a client
+ * dispatch. `chats` is the complete resulting order and MUST contain every
+ * chat currently in the session exactly once. Reducers replace the catalog
+ * order while preserving each matching summary. Invalid or incomplete orders
+ * are ignored.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionChatsReorderedAction {
+	type: ActionType.SessionChatsReordered;
+	/** Every chat URI in authoritative catalog order. */
+	chats: URI[];
 }
 
 /**
@@ -392,8 +413,9 @@ export interface SessionCustomizationsChangedAction {
  *
  * Matches `id` against every top-level customization first — a plugin or
  * directory container, or a bare top-level MCP server — then against the
- * children inside each container (a skill, agent, or other entry). Plugins
- * and MCP servers retain the matched entry's explicit decisions; other
+ * children inside each container (a skill, agent, or other entry), including
+ * skills served by top-level or container-child MCP servers. Plugins and
+ * MCP servers retain the matched entry's explicit decisions; other
  * entries update their `enabled` flag. Disabling a plugin still disables all
  * of its children — the effective state of a plugin child is the plugin's
  * derived enabled value and `(child.enabled ?? true)` — so toggling a child

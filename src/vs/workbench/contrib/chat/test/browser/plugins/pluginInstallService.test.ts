@@ -19,13 +19,18 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { PluginInstallService } from '../../../browser/pluginInstallService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IMarketplaceInstalledPlugin, IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
+import { AgentPluginEnablementService, IAgentPluginEnablementService } from '../../../common/plugins/agentPluginEnablement.js';
+import { IFetchMarketplacePluginsOptions, IMarketplaceInstalledPlugin, IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../../../common/plugins/pluginSource.js';
+import { isMarketplaceReferenceAllowed, StrictKnownMarketplaces } from '../../../common/plugins/strictKnownMarketplaces.js';
+import { TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 
 suite('PluginInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -56,7 +61,7 @@ suite('PluginInstallService', () => {
 
 	interface MockState {
 		notifications: { severity: number; message: string }[];
-		addedPlugins: { uri: string; plugin: IMarketplacePlugin }[];
+		addedPlugins: { uri: string; plugin: IMarketplacePlugin; previousPluginUri?: string }[];
 		dialogConfirmResult: boolean;
 		fileExistsResult: boolean | ((uri: URI) => Promise<boolean>);
 		ensureRepositoryResult: URI;
@@ -73,10 +78,14 @@ suite('PluginInstallService', () => {
 		terminalCompletes: boolean;
 		pullRepositoryCalls: { marketplace: IMarketplaceReference; options?: IPullRepositoryOptions }[];
 		updatePluginSourceCalls: { plugin: IMarketplacePlugin; options?: IPullRepositoryOptions }[];
+		updatePluginSourceResult: boolean;
+		onUpdatePluginSource?: () => Promise<boolean>;
+		onEnsurePluginSource?: () => Promise<URI>;
 		/** Whether the marketplace is already trusted */
 		marketplaceTrusted: boolean;
 		/** Whether the strict-marketplace enterprise policy is active */
 		strictMarketplacePolicyActive?: boolean;
+		strictMarketplaces?: StrictKnownMarketplaces;
 		installedPlugins: IMarketplaceInstalledPlugin[];
 		durablePluginUris: URI[];
 		removedPluginUris: string[];
@@ -86,6 +95,7 @@ suite('PluginInstallService', () => {
 		singlePluginManifestDirectories: URI[];
 		fetchedMarketplacePlugins: IMarketplacePlugin[];
 		fetchMarketplaceCalls: string[][];
+		fetchMarketplaceOptions: (IFetchMarketplacePluginsOptions | undefined)[];
 		autoUpdateByMarketplace: Map<string, boolean>;
 		clearUpdatesAvailableCalls: number;
 		/** Canonical IDs that were trusted via trustMarketplace() */
@@ -129,6 +139,7 @@ suite('PluginInstallService', () => {
 			terminalCompletes: true,
 			pullRepositoryCalls: [],
 			updatePluginSourceCalls: [],
+			updatePluginSourceResult: false,
 			marketplaceTrusted: true,
 			strictMarketplacePolicyActive: false,
 			installedPlugins: [],
@@ -140,6 +151,7 @@ suite('PluginInstallService', () => {
 			singlePluginManifestDirectories: [],
 			fetchedMarketplacePlugins: [],
 			fetchMarketplaceCalls: [],
+			fetchMarketplaceOptions: [],
 			autoUpdateByMarketplace: new Map(),
 			clearUpdatesAvailableCalls: 0,
 			trustedMarketplaces: [],
@@ -158,12 +170,14 @@ suite('PluginInstallService', () => {
 		};
 	}
 
-	function createService(stateOverrides?: Partial<MockState>): { service: PluginInstallService; state: MockState } {
+	function createService(stateOverrides?: Partial<MockState>): { service: PluginInstallService; state: MockState; enablementService: IAgentPluginEnablementService } {
 		const state: MockState = { ...createDefaults(), ...stateOverrides };
 		if (stateOverrides?.durablePluginUris === undefined) {
 			state.durablePluginUris = state.installedPlugins.map(candidate => candidate.pluginUri);
 		}
 		const instantiationService = store.add(new TestInstantiationService());
+		const enablementService = store.add(new AgentPluginEnablementService(store.add(new InMemoryStorageService()), new TestUserDataProfileService()));
+		instantiationService.stub(IAgentPluginEnablementService, enablementService);
 
 		// IFileService
 		instantiationService.stub(IFileService, {
@@ -311,10 +325,11 @@ suite('PluginInstallService', () => {
 			},
 			ensurePluginSource: async (plugin: IMarketplacePlugin) => {
 				state.ensurePluginSourceDescriptors.push(plugin.sourceDescriptor);
-				return state.ensurePluginSourceResult;
+				return state.onEnsurePluginSource ? state.onEnsurePluginSource() : state.ensurePluginSourceResult;
 			},
 			updatePluginSource: async (plugin: IMarketplacePlugin, options?: IPullRepositoryOptions) => {
 				state.updatePluginSourceCalls.push({ plugin, options });
+				return state.onUpdatePluginSource ? state.onUpdatePluginSource() : state.updatePluginSourceResult;
 			},
 			getPluginSource: (kind: PluginSourceKind) => mockSourceRepos.get(kind)!,
 			cleanupPluginSource: async (plugin: IMarketplacePlugin, otherInstalledDescriptors?: readonly IPluginSourceDescriptor[]) => {
@@ -326,8 +341,8 @@ suite('PluginInstallService', () => {
 		const installedPlugins = observableValue('test.installedPlugins', state.installedPlugins);
 		instantiationService.stub(IPluginMarketplaceService, {
 			installedPlugins,
-			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin) => {
-				state.addedPlugins.push({ uri: uri.toString(), plugin });
+			addInstalledPlugin: (uri: URI, plugin: IMarketplacePlugin, previousPluginUri?: URI) => {
+				state.addedPlugins.push({ uri: uri.toString(), plugin, ...(previousPluginUri ? { previousPluginUri: previousPluginUri.toString() } : {}) });
 				state.durablePluginUris = [...state.durablePluginUris, uri];
 				if (state.recordInstalledPlugins) {
 					state.installedPlugins = [...state.installedPlugins, { pluginUri: uri, plugin }];
@@ -344,11 +359,12 @@ suite('PluginInstallService', () => {
 				installedPlugins.set(state.installedPlugins, undefined);
 				return true;
 			},
-			isMarketplaceTrusted: () => state.marketplaceTrusted,
-			isStrictMarketplacePolicyActive: () => state.strictMarketplacePolicyActive ?? false,
+			isMarketplaceTrusted: (ref: IMarketplaceReference) => state.strictMarketplaces !== undefined ? isMarketplaceReferenceAllowed(state.strictMarketplaces, ref) : state.marketplaceTrusted,
+			isStrictMarketplacePolicyActive: () => state.strictMarketplaces !== undefined || (state.strictMarketplacePolicyActive ?? false),
 			isMarketplaceAutoUpdateEnabled: (ref: IMarketplaceReference) => state.autoUpdateByMarketplace.get(ref.canonicalId) ?? true,
-			fetchMarketplacePlugins: async (_token: CancellationToken, marketplaceIds?: ReadonlySet<string>) => {
+			fetchMarketplacePlugins: async (_token: CancellationToken, marketplaceIds?: ReadonlySet<string>, options?: IFetchMarketplacePluginsOptions) => {
 				state.fetchMarketplaceCalls.push([...marketplaceIds ?? []]);
+				state.fetchMarketplaceOptions.push(options);
 				return state.fetchedMarketplacePlugins.filter(plugin => !marketplaceIds || marketplaceIds.has(plugin.marketplaceReference.canonicalId));
 			},
 			clearUpdatesAvailable: () => state.clearUpdatesAvailableCalls++,
@@ -410,7 +426,7 @@ suite('PluginInstallService', () => {
 		} as unknown as IQuickInputService);
 
 		const service = instantiationService.createInstance(PluginInstallService);
-		return { service, state };
+		return { service, state, enablementService };
 	}
 
 	// =========================================================================
@@ -845,6 +861,150 @@ suite('PluginInstallService', () => {
 
 	suite('updatePlugin', () => {
 
+		test('serializes overlapping revision updates before looking up the installed URI', async () => {
+			const first = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', sha: 'first' } });
+			const second = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', sha: 'second' } });
+			const oldUri = URI.file('/cache/old');
+			const firstUri = URI.file('/cache/first');
+			const secondUri = URI.file('/cache/second');
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const { service, state } = createService({
+				installedPlugins: [{ pluginUri: oldUri, plugin: first }],
+				pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, firstUri], [PluginSourceKind.GitUrl, secondUri]]),
+				recordInstalledPlugins: true,
+				onUpdatePluginSource: async () => {
+					started.complete();
+					await release.p;
+					return false;
+				},
+			});
+
+			const firstUpdate = service.updatePlugin(first, true);
+			await started.p;
+			const secondUpdate = service.updatePlugin(second, true);
+			const updatesBeforeRelease = state.updatePluginSourceCalls.length;
+			release.complete();
+			await Promise.all([firstUpdate, secondUpdate]);
+
+			assert.deepStrictEqual({
+				updatesBeforeRelease,
+				installed: state.installedPlugins,
+				removed: state.removedPluginUris,
+			}, {
+				updatesBeforeRelease: 1,
+				installed: [{ pluginUri: secondUri, plugin: second }],
+				removed: [oldUri.toString(), firstUri.toString()],
+			});
+		});
+
+		test('preserves disabled profile and workspace decisions when the installed URI changes', async () => {
+			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', sha: 'new-sha' } });
+			const oldUri = URI.file('/cache/old-sha');
+			const newUri = URI.file('/cache/new-sha');
+			const { service, enablementService } = createService({
+				installedPlugins: [{ pluginUri: oldUri, plugin }],
+				pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, newUri]]),
+			});
+			enablementService.setEnabled(oldUri.toString(), ContributionEnablementState.DisabledProfile);
+			enablementService.setEnabled(oldUri.toString(), ContributionEnablementState.EnabledWorkspace);
+
+			await service.updatePlugin(plugin, true);
+
+			assert.deepStrictEqual({
+				profileEnabled: enablementService.readProfileEnabled(newUri.toString()),
+				effective: enablementService.readEnabled(newUri.toString()),
+			}, { profileEnabled: false, effective: ContributionEnablementState.EnabledWorkspace });
+		});
+
+		for (const sourceDescriptor of [
+			{ kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', sha: 'new-sha', path: 'plugins/test' },
+			{ kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', ref: 'main', path: 'plugins/test' },
+		] satisfies IPluginSourceDescriptor[]) {
+			test(`moves the installed ${sourceDescriptor.kind} plugin when its cache location changes`, async () => {
+				const plugin = createPlugin({ sourceDescriptor });
+				const oldUri = URI.file('/cache/old-revision/plugins/test');
+				const newUri = URI.file('/cache/new-revision/plugins/test');
+				const { service, state } = createService({
+					installedPlugins: [{ pluginUri: oldUri, plugin }],
+					pluginSourceInstallUris: new Map([[sourceDescriptor.kind, newUri]]),
+					ensurePluginSourceResult: newUri,
+					recordInstalledPlugins: true,
+				});
+
+				const updated = await service.updatePlugin(plugin, true);
+
+				assert.deepStrictEqual({
+					updated,
+					ensured: state.ensurePluginSourceDescriptors,
+					added: state.addedPlugins,
+					removed: state.removedPluginUris,
+					installed: state.installedPlugins,
+					silent: state.updatePluginSourceCalls[0].options?.silent,
+				}, {
+					updated: true,
+					ensured: [sourceDescriptor],
+					added: [{ uri: newUri.toString(), plugin, previousPluginUri: oldUri.toString() }],
+					removed: [oldUri.toString()],
+					installed: [{ pluginUri: newUri, plugin }],
+					silent: true,
+				});
+			});
+		}
+
+		test('keeps the old installation if provisioning the new revision fails', async () => {
+			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', sha: 'new-sha' } });
+			const installed = { pluginUri: URI.file('/cache/old-sha'), plugin };
+			const { service, state } = createService({
+				installedPlugins: [installed],
+				onEnsurePluginSource: async () => { throw new Error('Clone failed'); },
+			});
+
+			await assert.rejects(service.updatePlugin(plugin), /Clone failed/);
+
+			assert.deepStrictEqual({
+				installed: state.installedPlugins,
+				added: state.addedPlugins,
+				removed: state.removedPluginUris,
+				updated: state.updatePluginSourceCalls,
+			}, { installed: [installed], added: [], removed: [], updated: [] });
+		});
+
+		test('keeps the old installation if the new plugin directory is missing', async () => {
+			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'missing' } });
+			const installed = { pluginUri: URI.file('/cache/old-path'), plugin };
+			const { service, state } = createService({ installedPlugins: [installed], fileExistsResult: false });
+
+			await assert.rejects(service.updatePlugin(plugin), /not found after updating/);
+
+			assert.deepStrictEqual({
+				installed: state.installedPlugins,
+				added: state.addedPlugins,
+				removed: state.removedPluginUris,
+			}, { installed: [installed], added: [], removed: [] });
+		});
+
+		test('does not replace an installed entry when cancelled during provisioning', async () => {
+			const cancellation = store.add(new CancellationTokenSource());
+			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', sha: 'new-sha' } });
+			const installed = { pluginUri: URI.file('/cache/old-sha'), plugin };
+			const { service, state } = createService({
+				installedPlugins: [installed],
+				onEnsurePluginSource: async () => {
+					cancellation.cancel();
+					return URI.file('/cache/new-sha');
+				},
+			});
+
+			await assert.rejects(service.updatePlugin(plugin, true, cancellation.token), isCancellationError);
+
+			assert.deepStrictEqual({
+				added: state.addedPlugins,
+				removed: state.removedPluginUris,
+				updated: state.updatePluginSourceCalls,
+			}, { added: [], removed: [], updated: [] });
+		});
+
 		test('calls updatePluginSource for relative-path plugins', async () => {
 			const { service, state } = createService();
 			const plugin = createPlugin({
@@ -897,7 +1057,7 @@ suite('PluginInstallService', () => {
 			}, {
 				updated: false,
 				updateCalls: 0,
-				notifications: ['Updates from \'microsoft/vscode\' are blocked by your organization\'s policy.'],
+				notifications: ['Updates from \'microsoft/vscode\' are blocked by your organization.'],
 			});
 		});
 
@@ -968,6 +1128,155 @@ suite('PluginInstallService', () => {
 	});
 
 	suite('updateAllPlugins', () => {
+
+		for (const sourceDescriptor of [
+			{ kind: PluginSourceKind.GitHub, repo: 'owner/repo', path: 'plugins/test' },
+			{ kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test' },
+			{ kind: PluginSourceKind.GitUrl, url: 'https://example.com/private.git', ref: 'main', path: 'plugins/test' },
+		] satisfies IPluginSourceDescriptor[]) {
+			for (const force of [false, true]) {
+				test(`refreshes unchanged ${JSON.stringify(sourceDescriptor)} sources (force=${force})`, async () => {
+					const plugin = createPlugin({ sourceDescriptor });
+					const pluginUri = URI.file('/cache/plugin');
+					const { service, state } = createService({
+						installedPlugins: [{ pluginUri, plugin }],
+						fetchedMarketplacePlugins: [plugin],
+						pluginSourceInstallUris: new Map([[sourceDescriptor.kind, pluginUri]]),
+						updatePluginSourceResult: true,
+					});
+
+					const result = await service.updateAllPlugins({ silent: true, force }, CancellationToken.None);
+
+					assert.deepStrictEqual({
+						result,
+						updated: state.updatePluginSourceCalls.map(call => call.plugin),
+						added: state.addedPlugins,
+						ensured: state.ensurePluginSourceDescriptors,
+					}, {
+						result: { updatedNames: [plugin.name], failedNames: [] },
+						updated: [plugin],
+						added: [{ uri: pluginUri.toString(), plugin }],
+						ensured: [],
+					});
+				});
+			}
+		}
+
+		test('does not report an unchanged Git checkout as updated', async () => {
+			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main' } });
+			const { service, state } = createService({
+				installedPlugins: [{ pluginUri: URI.file('/cache/agentPlugins/github/default'), plugin }],
+				fetchedMarketplacePlugins: [plugin],
+			});
+
+			const result = await service.updateAllPlugins({ silent: true }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result,
+				updated: state.updatePluginSourceCalls.map(call => call.plugin),
+				added: state.addedPlugins,
+			}, { result: { updatedNames: [], failedNames: [] }, updated: [plugin], added: [] });
+		});
+
+		test('uses the refreshed Git descriptor and replaces the old installed URI', async () => {
+			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test' } });
+			const livePlugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test', sha: 'new-sha' } });
+			const oldUri = URI.file('/cache/ref_main/plugins/test');
+			const newUri = URI.file('/cache/sha_new-sha/plugins/test');
+			const { service, state } = createService({
+				installedPlugins: [{ pluginUri: oldUri, plugin }],
+				fetchedMarketplacePlugins: [livePlugin],
+				pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, newUri]]),
+				ensurePluginSourceResult: newUri,
+				recordInstalledPlugins: true,
+			});
+
+			const result = await service.updateAllPlugins({ silent: true }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result,
+				ensured: state.ensurePluginSourceDescriptors,
+				installed: state.installedPlugins,
+				removed: state.removedPluginUris,
+				fetchOptions: state.fetchMarketplaceOptions,
+			}, {
+				result: { updatedNames: [plugin.name], failedNames: [] },
+				ensured: [livePlugin.sourceDescriptor],
+				installed: [{ pluginUri: newUri, plugin: livePlugin }],
+				removed: [oldUri.toString()],
+				fetchOptions: [{ refresh: true }],
+			});
+		});
+
+		for (const kind of [PluginSourceKind.Npm, PluginSourceKind.Pip] as const) {
+			for (const force of [false, true]) {
+				test(`${force ? 'reinstalls' : 'skips'} unchanged unversioned ${kind} packages`, async () => {
+					const plugin = createPlugin({ sourceDescriptor: { kind, package: 'test-package' } });
+					const { service, state } = createService({
+						installedPlugins: [{ pluginUri: URI.file('/cache/package'), plugin }],
+						fetchedMarketplacePlugins: [plugin],
+					});
+
+					const result = await service.updateAllPlugins({ silent: true, force }, CancellationToken.None);
+
+					assert.deepStrictEqual({
+						result,
+						commands: state.terminalCommands.length,
+					}, {
+						result: { updatedNames: force ? [plugin.name] : [], failedNames: [] },
+						commands: force ? 1 : 0,
+					});
+				});
+			}
+		}
+
+		test('reports a Git update failure without replacing the installed entry', async () => {
+			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main' } });
+			const installed = { pluginUri: URI.file('/cache/agentPlugins/github/default'), plugin };
+			const { service, state } = createService({
+				installedPlugins: [installed],
+				fetchedMarketplacePlugins: [plugin],
+				onUpdatePluginSource: async () => { throw new Error('Pull failed'); },
+			});
+
+			const result = await service.updateAllPlugins({ silent: true }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result,
+				installed: state.installedPlugins,
+				added: state.addedPlugins,
+				removed: state.removedPluginUris,
+				notifications: state.notifications.map(notification => notification.message),
+			}, {
+				result: { updatedNames: [], failedNames: [plugin.name] },
+				installed: [installed],
+				added: [],
+				removed: [],
+				notifications: [`Failed to update: ${plugin.name}`],
+			});
+		});
+
+		test('does not update independent Git sources blocked by strict marketplace policy', async () => {
+			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main' } });
+			const { service, state } = createService({
+				installedPlugins: [{ pluginUri: URI.file('/cache/plugin'), plugin }],
+				fetchedMarketplacePlugins: [plugin],
+				strictMarketplacePolicyActive: true,
+				marketplaceTrusted: false,
+			});
+
+			const result = await service.updateAllPlugins({ silent: true, force: true }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result,
+				updated: state.updatePluginSourceCalls,
+				ensured: state.ensurePluginSourceDescriptors,
+			}, {
+				result: { updatedNames: [], failedNames: [plugin.marketplaceReference.displayLabel] },
+				updated: [],
+				ensured: [],
+			});
+		});
 
 		function installedPlugin(name: string, marketplace: string): IMarketplaceInstalledPlugin {
 			const marketplaceReference = makeMarketplaceRef(marketplace);
@@ -1142,14 +1451,47 @@ suite('PluginInstallService', () => {
 
 	suite('installPluginFromSource', () => {
 
-		test('keeps legacy source handling for repository-root plugins', async () => {
+		for (const [source, descriptor] of [
+			['owner/collection#feature/beta', { kind: PluginSourceKind.GitHub, repo: 'owner/collection', ref: 'feature/beta' }],
+			['https://example.com/collection.git#release/v1', { kind: PluginSourceKind.GitUrl, url: 'https://example.com/collection.git', ref: 'release/v1' }],
+		] as const) {
+			test(`uses the requested revision for marketplace discovery: ${source}`, async () => {
+				const { service, state } = createService();
+				await service.installPluginFromSource(source, { plugin: 'my-plugin' });
+				assert.deepStrictEqual(state.ensurePluginSourceDescriptors, [descriptor]);
+			});
+		}
+
+		test('rejects marketplace traversal before cloning a pinned source', async () => {
 			const { service, state } = createService({
-				singlePluginManifestResult: createPlugin({
-					sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
-				}),
+				strictMarketplaces: [{ source: 'github', repo: 'microsoft/vscode', ref: 'marketplace' }],
+			});
+			const result = await service.installPluginFromSource('https://github.com/microsoft/vscode/../../example/unapproved.git#marketplace');
+			assert.deepStrictEqual({
+				success: result.success,
+				invalidSource: result.message?.includes('is not a valid plugin source'),
+				cloned: state.ensurePluginSourceDescriptors,
+				installed: state.addedPlugins,
+				trusted: state.trustedMarketplaces,
+			}, {
+				success: false,
+				invalidSource: true,
+				cloned: [],
+				installed: [],
+				trusted: [],
+			});
+		});
+
+		test('keeps the requested revision for repository-root plugins', async () => {
+			const singlePlugin = createPlugin({
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
+			});
+			const { service, state } = createService({
+				singlePluginManifestResult: singlePlugin,
 			});
 			const result = await service.installPluginFromSource('owner/catalog#release/v1', { plugin: 'test-plugin' });
 
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(singlePlugin)));
 			assert.deepStrictEqual({
 				success: result.success,
 				sources: state.ensurePluginSourceDescriptors,
@@ -1157,10 +1499,10 @@ suite('PluginInstallService', () => {
 			}, {
 				success: true,
 				sources: [
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 				],
-				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 			});
 		});
 
@@ -1178,6 +1520,7 @@ suite('PluginInstallService', () => {
 
 			const result = await service.installPluginFromSource('owner/collection#release/v1', { path: 'plugins/selected-plugin' });
 
+			assert.ok(isEqual(result.installedUri, installUri));
 			assert.deepStrictEqual({
 				success: result.success,
 				name: result.matchedPlugin?.name,
@@ -1213,6 +1556,7 @@ suite('PluginInstallService', () => {
 
 			const result = await service.installPluginFromSource('owner/collection#release/v1', { path: 'plugins/spark' });
 
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(plugin)));
 			assert.deepStrictEqual({
 				success: result.success,
 				name: result.matchedPlugin?.name,
@@ -1314,8 +1658,9 @@ suite('PluginInstallService', () => {
 				readPluginsResult: [discoveredPlugin],
 			});
 
-			await service.installPluginFromSource('file:///some/marketplace');
+			const result = await service.installPluginFromSource('file:///some/marketplace');
 
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(discoveredPlugin)));
 			assert.strictEqual(state.notifications.length, 0);
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'local-marketplace-plugin');
@@ -1351,8 +1696,9 @@ suite('PluginInstallService', () => {
 				isPluginDirectoryResult: true,
 			});
 
-			await service.installPluginFromSource('/abs/my-plugin');
+			const result = await service.installPluginFromSource('/abs/my-plugin');
 
+			assert.ok(isEqual(result.installedUri, URI.file('/abs/my-plugin')));
 			assert.strictEqual(state.notifications.length, 0);
 			assert.strictEqual(state.addedPlugins.length, 0);
 			assert.deepStrictEqual(state.updatedPluginLocations, { '/abs/my-plugin': true });
@@ -1366,8 +1712,9 @@ suite('PluginInstallService', () => {
 				userHome: '/home/user',
 			});
 
-			await service.installPluginFromSource('~/my-plugin');
+			const result = await service.installPluginFromSource('~/my-plugin');
 
+			assert.ok(isEqual(result.installedUri, URI.file('/home/user/my-plugin')));
 			assert.deepStrictEqual(state.updatedPluginLocations, { '~/my-plugin': true });
 		});
 
@@ -1377,8 +1724,9 @@ suite('PluginInstallService', () => {
 				isPluginDirectoryResult: true,
 			});
 
-			await service.installPluginFromSource('file:///some/plugin');
+			const result = await service.installPluginFromSource('file:///some/plugin');
 
+			assert.ok(isEqual(result.installedUri, URI.file('/some/plugin')));
 			assert.strictEqual(state.addedPlugins.length, 0);
 			assert.ok(state.updatedPluginLocations);
 			assert.deepStrictEqual(Object.values(state.updatedPluginLocations!), [true]);
@@ -1427,8 +1775,9 @@ suite('PluginInstallService', () => {
 				readPluginsResult: [discoveredPlugin],
 			});
 
-			await service.installPluginFromSource('owner/my-plugin');
+			const result = await service.installPluginFromSource('owner/my-plugin');
 
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(discoveredPlugin)));
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'my-discovered-plugin');
 		});
@@ -1444,6 +1793,23 @@ suite('PluginInstallService', () => {
 			assert.strictEqual(result.success, false);
 			assert.ok(result.message?.includes('No plugins found'));
 			assert.strictEqual(state.addedPlugins.length, 0);
+		});
+
+		test('returns the installed URI when selecting a marketplace plugin by name', async () => {
+			const plugin = createPlugin({
+				name: 'selected',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/selected' },
+				marketplaceReference: makeMarketplaceRef('owner/marketplace'),
+			});
+			const { service } = createService({ readPluginsResult: [plugin] });
+
+			const result = await service.installPluginFromSource('owner/marketplace', { plugin: 'selected' });
+
+			assert.deepStrictEqual({
+				success: result.success,
+				name: result.matchedPlugin?.name,
+				installedAtExpectedUri: isEqual(result.installedUri, service.getPluginInstallUri(plugin)),
+			}, { success: true, name: 'selected', installedAtExpectedUri: true });
 		});
 
 		test('shows quick pick for multi-plugin repos', async () => {
@@ -1468,8 +1834,9 @@ suite('PluginInstallService', () => {
 				quickPickResult: { label: 'plugin-b' },
 			});
 
-			await service.installPluginFromSource('owner/multi-repo');
+			const result = await service.installPluginFromSource('owner/multi-repo');
 
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(pluginB)));
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'plugin-b');
 			assert.ok(state.addedPlugins[0].uri.includes('plugins/b'));
@@ -1619,8 +1986,9 @@ suite('PluginInstallService', () => {
 				singlePluginManifestResult: singlePlugin,
 			});
 
-			await service.installPluginFromSource('owner/single-plugin-repo');
+			const result = await service.installPluginFromSource('owner/single-plugin-repo');
 
+			assert.ok(isEqual(result.installedUri, service.getPluginInstallUri(singlePlugin)));
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.addedPlugins[0].plugin.name, 'single-plugin-repo');
 			assert.strictEqual(state.notifications.length, 0);

@@ -129,7 +129,7 @@ suite('Strings', () => {
 			let actual = strings.compareSubstringIgnoreCase(a, b, aStart, aEnd, bStart, bEnd);
 			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
 
-			let expected = strings.compare(a.toLowerCase().substring(aStart, aEnd), b.toLowerCase().substring(bStart, bEnd));
+			let expected = strings.compare(a.substring(aStart, aEnd).toLowerCase(), b.substring(bStart, bEnd).toLowerCase());
 			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
 			assert.strictEqual(actual, expected, `${a} <> ${b}`);
 
@@ -142,6 +142,7 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('abc', 'ABC', 0, 1, 0, 1);
 		assertCompareIgnoreCase('abc', 'Aabc', 0, 3, 1, 4);
 		assertCompareIgnoreCase('abcABc', 'ABcd', 3, 6, 0, 4);
+		assertCompareIgnoreCase('fluentui', 'fluentu\u0130', 0, 8, 0, 8);
 	});
 
 	test('format', () => {
@@ -236,6 +237,18 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape('foo bar'), 'foo bar');
 		assert.strictEqual(strings.escape('<foo bar>'), '&lt;foo bar&gt;');
 		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
+	});
+
+	test('escapeControlAndFormatCharacters', () => {
+		assert.deepStrictEqual([
+			'C:\\Users\\me\\My Project',
+			'/work/api\n\nWorking directory: /work/web',
+			'root-\u202ea-toor\u200b\t\u2028end\u{e0001}',
+		].map(strings.escapeControlAndFormatCharacters), [
+			'C:\\Users\\me\\My Project',
+			'/work/api\\u{a}\\u{a}Working directory: /work/web',
+			'root-\\u{202e}a-toor\\u{200b}\\u{9}\\u{2028}end\\u{e0001}',
+		]);
 	});
 
 	test('ltrim', () => {

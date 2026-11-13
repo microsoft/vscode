@@ -7,13 +7,15 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { NewSessionViewTourTrigger } from './newSessionViewTourTrigger.js';
 import { resolveNewSessionViewV2TourVariation } from './newSessionViewV2TourVariation.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from './tours/newSessionViewV2Tour.js';
@@ -25,19 +27,23 @@ class NewSessionViewV2TourContribution extends Disposable implements IWorkbenchC
 	constructor(
 		@IOnboardingScenarioService onboardingScenarioService: IOnboardingScenarioService,
 		@ISessionsService sessionsService: ISessionsService,
+		@ISessionHostService sessionHostService: ISessionHostService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
 		@ILogService logService: ILogService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 
+		const enabledByDefault = productService.quality === 'insider';
 		const trigger = this._register(new NewSessionViewTourTrigger(
 			NEW_SESSION_VIEW_V2_TOUR_ID,
 			onboardingScenarioService,
 			sessionsService,
+			getMainWindowHost(sessionHostService).session,
 			storageService,
 			configurationService,
 			contextKeyService,
@@ -45,7 +51,11 @@ class NewSessionViewV2TourContribution extends Disposable implements IWorkbenchC
 		));
 		this._register(onboardingScenarioRegistry.register(createNewSessionViewV2Tour(
 			trigger.signal,
-			() => resolveNewSessionViewV2TourVariation(configurationService, assignmentService, logService),
+			() => resolveNewSessionViewV2TourVariation(configurationService, assignmentService, logService, {
+				defaultVariation: enabledByDefault ? 'workspaceAndModel' : 'default',
+				useTreatment: !enabledByDefault,
+			}),
+			{ enabledByDefault },
 		)));
 	}
 }

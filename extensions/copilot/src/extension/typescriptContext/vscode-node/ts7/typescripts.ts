@@ -6,24 +6,31 @@
 import { createHash } from 'node:crypto';
 import type * as vscode from 'vscode';
 
-import { Symbol as NativeSymbol, SymbolFlags, type NodeHandle, type Program, type Project, type Type, type DocumentPosition } from '@typescript/native/unstable/async';
+import { Symbol as NativeSymbol, SymbolFlags, type NodeHandle, type Program, type Project, type Type, type DocumentPosition } from '@typescript/native/async';
 import {
 	findPrecedingToken,
 	getTokenAtPosition,
+	isAsExpression,
 	isBlock,
 	isClassDeclaration,
 	isInterfaceDeclaration,
 	isModuleBlock,
+	isNonNullExpression,
+	isParenthesizedExpression,
+	isPartiallyEmittedExpression,
+	isSatisfiesExpression,
 	isSourceFile,
 	isTypeAliasDeclaration,
+	isTypeAssertion,
 	isTypeReferenceNode,
 	isExpressionWithTypeArguments,
 	SyntaxKind,
+	type Expression,
 	type Node,
 	type SourceFile,
 	type TypeNode,
 	type DeclarationBase
-} from '@typescript/native/unstable/ast';
+} from '@typescript/native/ast';
 
 export class OperationCanceledException extends Error {
 	constructor() {
@@ -255,8 +262,7 @@ export class Symbols {
 
 	public async createKey(symbol: NativeSymbol): Promise<string | undefined>;
 	public async createKey(declaration: DeclarationBase): Promise<string | undefined>;
-	public async createKey(arg: NativeSymbol | DeclarationBase): Promise<string | undefined>
-	{
+	public async createKey(arg: NativeSymbol | DeclarationBase): Promise<string | undefined> {
 		if (arg instanceof NativeSymbol) {
 			const symbol = arg;
 			const declarations = await this.getDeclarations(symbol);
@@ -465,6 +471,15 @@ namespace tss {
 				current = current.parent;
 			}
 			return undefined;
+		}
+
+		export function skipOuterExpressions(expression: Expression): Expression {
+			let current = expression;
+			while (isParenthesizedExpression(current) || isAsExpression(current) || isSatisfiesExpression(current) || isTypeAssertion(current)
+				|| isNonNullExpression(current) || isExpressionWithTypeArguments(current) || isPartiallyEmittedExpression(current)) {
+				current = current.expression;
+			}
+			return current;
 		}
 	}
 

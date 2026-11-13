@@ -6,12 +6,11 @@
 import { toAction } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -19,15 +18,12 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { bindHasWorktreeAndRepositoryContextKey, hasWorktreeAndRepositoryContextKey } from '../../../../workbench/contrib/sessions/browser/sessionScopedContextKeys.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
-import { SessionIsArchivedContext } from '../../../common/contextkeys.js';
-
-const hasWorktreeAndRepositoryContextKey = new RawContextKey<boolean>('agentSessionHasWorktreeAndRepository', false, {
-	type: 'boolean',
-	description: localize('agentSessionHasWorktreeAndRepository', "True when the active agent session has both a worktree and a parent repository.")
-});
+import { SessionIsArchivedContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 
 class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbenchContribution {
 
@@ -35,18 +31,11 @@ class ApplyChangesToParentRepoContribution extends Disposable implements IWorkbe
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 
-		const worktreeAndRepoKey = hasWorktreeAndRepositoryContextKey.bindTo(contextKeyService);
-
-		this._register(autorun(reader => {
-			const activeSession = sessionsService.activeSession.read(reader);
-			const folder = activeSession?.workspace.read(reader)?.folders[0];
-			const hasWorktreeAndRepo = !!folder?.gitRepository?.workTreeUri;
-			worktreeAndRepoKey.set(hasWorktreeAndRepo);
-		}));
+		this._register(bindHasWorktreeAndRepositoryContextKey(contextKeyService, getFocusedSessionChatSource(focusedSessionHostService).session));
 	}
 }
 
@@ -78,15 +67,14 @@ class ApplyChangesToParentRepoAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsService = accessor.get(ISessionsService);
+	override async run(accessor: ServicesAccessor, sessionArg?: unknown): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		const notificationService = accessor.get(INotificationService);
 		const logService = accessor.get(ILogService);
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 
-		const activeSession = sessionsService.activeSession.get();
+		const activeSession = resolveSessionCommandTarget(accessor, [sessionArg])?.session;
 		const folder = activeSession?.workspace.get()?.folders[0];
 		if (!activeSession || !folder?.gitRepository?.workTreeUri) {
 			return;

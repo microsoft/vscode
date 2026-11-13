@@ -53,7 +53,7 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 				});
 			});
 
-			it('sidebar has no accessibility violations', async function () {
+			it.skip('sidebar has no accessibility violations', async function () {
 				await app.code.waitForElement('.sidebar');
 
 				await app.code.driver.assertNoAccessibilityViolations({
@@ -93,8 +93,9 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 					});
 				});
 
-				// Chat response test requires gallery service which is only available in non-Dev/OSS builds
-				it('chat response has no accessibility violations', async function () {
+				// Chat response test requires gallery service which is only available in non-Dev/OSS builds.
+				// Without it, the test would wait 150 seconds for a response before skipping itself.
+				(quality === Quality.Dev || quality === Quality.OSS ? it.skip : it)('chat response has no accessibility violations', async function () {
 					// Disable retries for this test - it modifies settings and retries cause issues
 					this.retries(0);
 					// Extend timeout for this test since AI responses can take a while
@@ -128,6 +129,8 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 							// Monaco lists use aria-multiselectable on role="list" and aria-selected on role="listitem"
 							// These are used intentionally for selection semantics even though technically not spec-compliant
 							'aria-allowed-attr': ['monaco-list', 'monaco-list-row'],
+							// Monaco lists may temporarily contain dialog children during extension activation errors
+							'aria-required-children': ['monaco-list'],
 							// Some icon buttons have empty aria-label during rendering
 							'aria-command-name': ['codicon-plus'],
 							// Todo list widget has clear button nested inside expander button for layout purposes

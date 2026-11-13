@@ -28,14 +28,14 @@ Start with `src/vs/sessions/README.md`, then read only the specifications releva
 | Automations ownership, routing, migration, persistence, and run lifecycle | `src/vs/sessions/AUTOMATIONS.md` |
 | Workbench parts, grid, title bar, editor presentation | `src/vs/sessions/LAYOUT.md` |
 | Session-aware layout state and restoration | `src/vs/sessions/LAYOUT_CONTROLLER.md` |
-| Single-pane behavior and expected compositions | `src/vs/sessions/SINGLE_PANE_SCENARIOS.md` |
+| Desktop layout scenarios and expected compositions | `src/vs/sessions/DESKTOP.md` |
 | Sessions sidebar list, grouping, filtering, and persistence | `src/vs/sessions/SESSIONS_LIST.md` |
 | Phone layout and mobile components | `src/vs/sessions/MOBILE.md` |
 | AI customizations | `src/vs/sessions/AI_CUSTOMIZATIONS.md` |
 | Copilot customizations | `src/vs/sessions/copilot-customizations-spec.md` |
-| Copilot Chat provider | `src/vs/sessions/contrib/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md` |
-| Agent Host provider | `src/vs/sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md` |
-| Remote Agent Host provider | `src/vs/sessions/contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md` |
+| Copilot Chat provider | `src/vs/workbench/contrib/sessions/providers/copilotChatSessions/COPILOT_CHAT_SESSIONS_PROVIDER.md` |
+| Agent Host provider | `src/vs/workbench/contrib/sessions/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md` |
+| Remote Agent Host provider | `src/vs/workbench/contrib/sessions/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md` |
 
 Do not load the learning inbox by default. Search its headings and scopes, then read only matching entries after the authoritative specification.
 
@@ -76,7 +76,7 @@ Update a specification only when component ownership, an interface or lifecycle 
 Run the smallest existing checks that cover the change:
 
 - focused unit tests for affected behavior;
-- `npm run valid-layers-check` when imports or module ownership change;
+- `pnpm run valid-layers-check` when imports or module ownership change;
 - targeted type checking or compilation when TypeScript changes warrant it;
 - relevant integration, E2E, or visual validation for cross-process or UI work.
 

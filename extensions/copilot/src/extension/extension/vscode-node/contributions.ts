@@ -24,12 +24,10 @@ import { AiMappedEditsContrib } from '../../conversation/vscode-node/aiMappedEdi
 import { ConversationFeature } from '../../conversation/vscode-node/conversationFeature';
 import { FeedbackCommandContribution } from '../../conversation/vscode-node/feedbackContribution';
 import { LanguageModelAccess } from '../../conversation/vscode-node/languageModelAccess';
-import { LogWorkspaceStateContribution } from '../../conversation/vscode-node/logWorkspaceState';
 import { RemoteAgentContribution } from '../../conversation/vscode-node/remoteAgents';
 import { DiagnosticsContextContribution } from '../../diagnosticsContext/vscode/diagnosticsContextProvider';
 import { LanguageModelProxyContrib } from '../../externalAgents/vscode-node/lmProxyContrib';
 import { WalkthroughCommandContribution } from '../../getting-started/vscode-node/commands';
-import * as newWorkspaceContribution from '../../getting-started/vscode-node/newWorkspace.contribution';
 import { ScmContextProviderContribution } from '../../git/vscode/scmContextprovider';
 import { GitHubMcpContrib } from '../../githubMcp/vscode-node/githubMcp.contribution';
 import { IgnoredFileProviderContribution } from '../../ignore/vscode-node/ignoreProvider';
@@ -55,6 +53,7 @@ import { ToolsContribution } from '../../tools/vscode-node/tools';
 import { OTelChatDebugLogProviderContribution } from '../../trajectory/vscode-node/otelChatDebugLogProvider';
 import { InlineCompletionContribution } from '../../typescriptContext/vscode-node/languageContextService';
 import { NesRenameContribution } from '../../typescriptContext/vscode-node/nesRenameService';
+import { StructuralDiffContribution } from '../../typescriptContext/vscode-node/structuralDiffContribution';
 import * as workspaceIndexingContribution from '../../workspaceChunkSearch/vscode-node/workspaceChunkSearch.contribution';
 import { WorkspaceRecorderFeature } from '../../workspaceRecorder/vscode-node/workspaceRecorderFeature';
 import vscodeContributions from '../vscode/contributions';
@@ -91,6 +90,7 @@ export const vscodeNodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(FeedbackCommandContribution),
 	asContributionFactory(InlineCompletionContribution),
 	asContributionFactory(NesRenameContribution),
+	asContributionFactory(StructuralDiffContribution),
 	asContributionFactory(SearchPanelCommands),
 	asContributionFactory(ChatQuotaContribution),
 	asContributionFactory(NotebookFollowCommands),
@@ -122,14 +122,12 @@ export const vscodeNodeChatContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(RemoteAgentContribution),
 	asContributionFactory(AiMappedEditsContrib),
 	asContributionFactory(RenameSuggestionsContrib),
-	asContributionFactory(LogWorkspaceStateContribution),
 	asContributionFactory(SetupTestsContribution),
 	asContributionFactory(FixTestFailureContribution),
 	asContributionFactory(IgnoredFileProviderContribution),
 	asContributionFactory(McpSetupCommands),
 	asContributionFactory(LanguageModelProxyContrib),
 	asContributionFactory(PromptFileContribution),
-	newWorkspaceContribution,
 	asContributionFactory(OTelChatDebugLogProviderContribution),
 	asContributionFactory(ChatDebugFileLoggerContribution),
 ];

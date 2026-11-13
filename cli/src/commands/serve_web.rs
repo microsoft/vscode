@@ -58,6 +58,9 @@ const SERVER_ACTIVE_TIMEOUT_SECS: u64 = SERVER_IDLE_TIMEOUT_SECS * 24 * 30 * 12;
 /// How long to cache the "latest" version we get from the update service.
 const RELEASE_CHECK_INTERVAL: u64 = 60 * 60;
 
+const CONNECTION_TOKEN_QUERY_NAME: &str = "tkn";
+const CONNECTION_TOKEN_COOKIE_NAME: &str = "vscode-tkn";
+
 /// Number of bytes for the secret keys. See workbench.ts for their usage.
 const SECRET_KEY_BYTES: usize = 32;
 /// Path to mint the key combining server and client parts.
@@ -198,8 +201,12 @@ async fn handle(
 ) -> Result<Response<HyperBody>, Infallible> {
 	let client_key_half = get_client_key_half(&req);
 	let path = req.uri().path();
+	let is_authenticated =
+		request_has_valid_connection_token(&req, ctx.cm.args.connection_token.as_deref());
 
-	let mut res = if path.starts_with(&ctx.cm.base_path)
+	let mut res = if !is_authenticated {
+		response::forbidden()
+	} else if path.starts_with(&ctx.cm.base_path)
 		&& path.get(ctx.cm.base_path.len()..).unwrap_or_default() == SECRET_KEY_MINT_PATH
 	{
 		handle_secret_mint(&ctx, req)
@@ -209,6 +216,11 @@ async fn handle(
 
 	append_secret_headers(&ctx.cm.base_path, &mut res, &client_key_half);
 	append_frame_ancestors(&mut res);
+	if is_authenticated {
+		if let Some(connection_token) = &ctx.cm.args.connection_token {
+			append_connection_token_cookie(&mut res, connection_token);
+		}
+	}
 
 	Ok(res)
 }
@@ -289,6 +301,47 @@ fn append_frame_ancestors(res: &mut Response<HyperBody>) {
 		::http::header::HeaderName::from_static("x-frame-options"),
 		"SAMEORIGIN".parse().unwrap(),
 	);
+}
+
+fn append_connection_token_cookie(res: &mut Response<HyperBody>, connection_token: &str) {
+	res.headers_mut().append(
+		::http::header::SET_COOKIE,
+		format!(
+			"{CONNECTION_TOKEN_COOKIE_NAME}={connection_token}; SameSite=Strict; Max-Age=2592000; Path=/"
+		)
+		.parse()
+		.unwrap(),
+	);
+}
+
+fn request_has_valid_connection_token<B>(
+	req: &Request<B>,
+	expected_connection_token: Option<&str>,
+) -> bool {
+	let Some(expected_connection_token) = expected_connection_token else {
+		return true;
+	};
+
+	let query = req.uri().query().unwrap_or_default();
+	let mut query_tokens = url::form_urlencoded::parse(query.as_bytes())
+		.filter(|(name, _)| name == CONNECTION_TOKEN_QUERY_NAME);
+	if let Some((_, query_token)) = query_tokens.next() {
+		if query_tokens.next().is_none() && query_token == expected_connection_token {
+			return true;
+		}
+	}
+
+	if req
+		.headers()
+		.get("sec-fetch-site")
+		.and_then(|value| value.to_str().ok())
+		.is_some_and(|site| site == "cross-site" || site == "same-site")
+	{
+		return false;
+	}
+
+	extract_cookie(req, CONNECTION_TOKEN_COOKIE_NAME)
+		.is_some_and(|connection_token| connection_token == expected_connection_token)
 }
 
 /// Gets the release info from the VS Code path prefix, which is in the
@@ -425,10 +478,10 @@ fn is_commit_hash(s: &str) -> bool {
 }
 
 /// Gets a cookie from the request by name.
-fn extract_cookie(req: &Request<Incoming>, name: &str) -> Option<String> {
+fn extract_cookie<B>(req: &Request<B>, name: &str) -> Option<String> {
 	for h in req.headers().get_all(::http::header::COOKIE) {
 		if let Ok(str) = h.to_str() {
-			for pair in str.split("; ") {
+			for pair in str.split(';').map(str::trim) {
 				let i = match pair.find('=') {
 					Some(i) => i,
 					None => continue,
@@ -530,6 +583,14 @@ mod response {
 			.status(200)
 			.header("Content-Type", "application/octet-stream") // todo: get latest
 			.body(full_body(hash))
+			.unwrap()
+	}
+
+	pub fn forbidden() -> Response<HyperBody> {
+		Response::builder()
+			.status(403)
+			.header("Content-Type", "text/plain")
+			.body(full_body("Forbidden: missing or invalid connection token"))
 			.unwrap()
 	}
 }
@@ -998,4 +1059,69 @@ fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::
 	let prefer_token = prefer_token.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 	f.write_all(prefer_token.as_bytes())?;
 	Ok(prefer_token)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn request(
+		uri: &str,
+		connection_token: Option<&str>,
+		sec_fetch_site: Option<&str>,
+	) -> Request<()> {
+		let mut builder = Request::builder().uri(uri);
+		if let Some(connection_token) = connection_token {
+			builder = builder.header(
+				::http::header::COOKIE,
+				format!("{CONNECTION_TOKEN_COOKIE_NAME}={connection_token}"),
+			);
+		}
+		if let Some(sec_fetch_site) = sec_fetch_site {
+			builder = builder.header("sec-fetch-site", sec_fetch_site);
+		}
+		builder.body(()).unwrap()
+	}
+
+	#[test]
+	fn authenticates_connection_tokens_before_routing() {
+		assert!(request_has_valid_connection_token(
+			&request("/?tkn=expected", None, Some("cross-site")),
+			Some("expected")
+		));
+		assert!(request_has_valid_connection_token(
+			&request("/", Some("expected"), Some("same-origin")),
+			Some("expected")
+		));
+		assert!(request_has_valid_connection_token(
+			&request("/", None, None),
+			None
+		));
+		assert!(!request_has_valid_connection_token(
+			&request("/", Some("unexpected"), Some("same-origin")),
+			Some("expected")
+		));
+		assert!(!request_has_valid_connection_token(
+			&request("/", None, Some("same-origin")),
+			Some("expected")
+		));
+	}
+
+	#[test]
+	fn rejects_cross_site_cookie_authentication() {
+		for sec_fetch_site in ["cross-site", "same-site"] {
+			assert!(!request_has_valid_connection_token(
+				&request("/", Some("expected"), Some(sec_fetch_site)),
+				Some("expected")
+			));
+		}
+	}
+
+	#[test]
+	fn rejects_duplicate_connection_token_queries() {
+		assert!(!request_has_valid_connection_token(
+			&request("/?tkn=expected&tkn=expected", None, None),
+			Some("expected")
+		));
+	}
 }

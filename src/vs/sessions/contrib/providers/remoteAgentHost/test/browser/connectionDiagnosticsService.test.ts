@@ -13,15 +13,14 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { traceConnectionOperation, type IRemoteConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostPendingConnection, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -30,10 +29,12 @@ import { IQuickInputService, IQuickPick, IQuickPickItem, QuickInputHideReason } 
 import { IRemoteTunnelService } from '../../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
-import { ConnectionDiagnosticsService } from '../../browser/connectionDiagnosticsService.js';
-import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../browser/connectionDiagnostics.js';
-import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { ConnectionDiagnosticsService } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnosticsService.js';
+import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
+// Registers the commands that the tests run
+import '../../browser/remoteAgentHostActions.js';
 
 suite('ConnectionDiagnosticsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -97,15 +98,23 @@ suite('ConnectionDiagnosticsService', () => {
 		}();
 		instantiation.stub(IAgentHostFilterService, filter);
 		instantiation.stub(IProductService, { version: '1.139.0', commit: 'test-commit' });
-		const files = store.add(new FileService(new NullLogService()));
-		store.add(files.registerProvider('test', store.add(new InMemoryFileSystemProvider())));
+		const files = createInMemoryFileService(store, 'test');
 		const logFile = URI.parse('test:/window.log');
 		instantiation.stub(IFileService, files);
 		instantiation.stub(IWorkbenchEnvironmentService, { logFile });
+		const sharing = new class extends mock<IRemoteGitHubEnvironmentSharingService>() {
+			confirm = true;
+			readonly confirmations: string[] = [];
+			override async confirmDisconnect(address: string, name: string): Promise<boolean> {
+				this.confirmations.push(`${address}/${name}`);
+				return this.confirm;
+			}
+		}();
+		instantiation.stub(IRemoteGitHubEnvironmentSharingService, sharing);
 		const service = store.add(instantiation.createInstance(class extends ConnectionDiagnosticsService {
 			protected override get isWebPlatform(): boolean { return web; }
 		}));
-		return { service, remote, tunnels, changes, pendingChanges, configuration, instantiation, filter, files, logFile };
+		return { service, remote, tunnels, changes, pendingChanges, configuration, instantiation, filter, files, logFile, sharing };
 	}
 
 	function values(snapshot: IConnectionDiagnosticsSnapshot, title: string): Record<string, string> {
@@ -233,19 +242,23 @@ suite('ConnectionDiagnosticsService', () => {
 	});
 
 	test('manages selectable and hidden hosts from current state', async () => {
-		const { service, remote, filter, tunnels } = createService();
+		const { service, remote, filter, tunnels, sharing } = createService();
 		remote.connections = [{ address: 'tunnel:mock', name: 'Mock host', status: RemoteAgentHostConnectionStatus.connected }];
 		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected }];
 		tunnels.suppressed.add('mock');
 		tunnels.dismissed.add('hidden');
 
 		const before = service.getHostManagementState();
+		sharing.confirm = false;
+		await service.runHostAction('host', 'disconnect');
+		sharing.confirm = true;
 		await service.runHostAction('host', 'disconnect');
 		await service.runHostAction('host', 'reconnect');
 		await service.runHostAction('tunnel:hidden', 'restore');
 
 		assert.deepStrictEqual({
 			before,
+			confirmations: sharing.confirmations,
 			filterDisconnects: filter.disconnects,
 			tunnelDisconnects: tunnels.disconnects,
 			reconnects: filter.reconnects,
@@ -277,6 +290,7 @@ suite('ConnectionDiagnosticsService', () => {
 				}],
 				isDiscovering: false,
 			},
+			confirmations: ['tunnel:mock/Mock host', 'tunnel:mock/Mock host'],
 			filterDisconnects: ['host'],
 			tunnelDisconnects: [],
 			reconnects: ['host'],

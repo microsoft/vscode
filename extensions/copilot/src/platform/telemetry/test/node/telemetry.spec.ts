@@ -501,6 +501,29 @@ suite('multiplexProperties compression', function () {
 		});
 	});
 
+	test.each([0, 100, 8192, 8193, 20000])('always compresses messageText of length %i while preserving its raw prefix', async length => {
+		const messageText = 'x'.repeat(length);
+		const result = await multiplexProperties({ messageText }, gzipBase64);
+
+		expect(result).toEqual({
+			messageText: messageText.slice(0, 8192),
+			messageTextChunk: await gzipBase64(messageText),
+		});
+	});
+
+	test.each([
+		...[0, 100, 8192, 8193, 20000].map(length => ['request.option.tools', length] as const),
+		...[0, 100, 8192, 8193, 20000].map(length => ['request_option_tools', length] as const),
+	])('always compresses %s of length %i while preserving its raw prefix', async (key, length) => {
+		const tools = 'x'.repeat(length);
+		const result = await multiplexProperties({ [key]: tools }, gzipBase64);
+
+		expect(result).toEqual({
+			[key]: tools.slice(0, 8192),
+			[`${key}Chunk`]: await gzipBase64(tools),
+		});
+	});
+
 	test('always emits a compressed chunk family for known-large fields even when they fit', async () => {
 		const result = await multiplexProperties({ diffsJSON: 'small', messagesJson: 'tiny', other: 'x' }, gzipBase64) as { [key: string]: string };
 

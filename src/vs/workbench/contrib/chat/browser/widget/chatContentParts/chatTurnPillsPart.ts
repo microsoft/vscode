@@ -5,24 +5,31 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { EMPTY_DIFF_STATS, IDiffStats } from '../chatTurnPills.js';
-import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
+import { ChangesSummaryFileListPool } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+
+/**
+ * Whether a turn's changed-files disclosure is expanded. It is kept by the
+ * renderer and updated by the part, so a part rebuilt for the same turn
+ * (e.g. once it is no longer the last turn) keeps its expansion.
+ */
+export interface IChatTurnPillsDisclosureState {
+	open: boolean;
+}
 
 /**
  * Renders a single agent turn's changes as a checkpoint-style summary: a
@@ -38,11 +45,10 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 	constructor(
 		private readonly _content: IChatTurnPillsPart,
 		_context: IChatContentPartRenderContext,
+		listPool: ChangesSummaryFileListPool,
+		disclosureState: IChatTurnPillsDisclosureState,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 
@@ -82,6 +88,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const root = this.domNode.appendChild($('.checkpoint-file-changes-summary.checkpoint-file-changes-compact'));
 		const details = root.appendChild(document.createElement('details'));
 		details.classList.add('checkpoint-file-changes-disclosure');
+		details.open = disclosureState.open;
+		this._register(dom.addDisposableListener(details, 'toggle', () => disclosureState.open = details.open));
 		const header = details.appendChild(document.createElement('summary'));
 		header.classList.add('checkpoint-file-changes-summary-header');
 
@@ -90,10 +98,10 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		this._register(dom.addDisposableListener(header, 'click', () => {
 			this.domNode.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		}));
-		this._register(renderChangesSummaryFileList(details, this._diffs, this._instantiationService, this._editorService, this._configurationService));
+		this._register(listPool.renderOnFirstExpand(details, this._diffs));
 
 		this._register(autorun(reader => {
-			this.domNode.style.display = showChanges.read(reader) ? '' : 'none';
+			this.domNode.hidden = !showChanges.read(reader);
 		}));
 	}
 
@@ -106,7 +114,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const removedLabel = counts.appendChild($('span.deletions'));
 
 		const hoverDisposable = this._hoverService.setupDelayedHover(counts, () => ({
-			content: localize2('chat.viewTurnFileChangesSummary', 'View All File Changes')
+			content: localize2('chat.viewTurnFileChangesSummary', 'View Turn Changes'),
+			style: HoverStyle.Pointer,
 		}));
 		const clickDisposable = dom.addDisposableListener(counts, 'click', (e) => {
 			this._openChanges();
@@ -122,8 +131,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			addedLabel.textContent = `+${insertions}`;
 			removedLabel.textContent = `-${deletions}`;
 			counts.setAttribute('aria-label', localize(
-				'chat.turnChanges.viewAllAccessible',
-				'View all file changes: {0}, {1} lines added, {2} lines deleted',
+				'chat.turnChanges.viewTurnAccessible',
+				'View turn changes: {0}, {1} lines added, {2} lines deleted',
 				fileCountLabel,
 				insertions,
 				deletions

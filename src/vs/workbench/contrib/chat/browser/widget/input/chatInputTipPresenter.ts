@@ -7,11 +7,14 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { TIP_CATALOG } from '../../chatTipCatalog.js';
 import { IChatTipService } from '../../chatTipService.js';
 import { ChatContentMarkdownRenderer } from '../chatContentMarkdownRenderer.js';
 import { ChatTipContentPart } from '../chatContentParts/chatTipContentPart.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
+
+const tipConfigurationContextKeys = new Set(TIP_CATALOG.flatMap(tip => tip.when?.keys().filter(key => key.startsWith('config.')) ?? []));
 
 export interface IChatInputTipPresenterOptions {
 	/** The element the tip is rendered into. Hidden while no tip is showing. */
@@ -34,6 +37,7 @@ export class ChatInputTipPresenter extends Disposable {
 	private readonly _part = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _lease = this._register(new MutableDisposable<IDisposable>());
 	private _partRef: ChatTipContentPart | undefined;
+	private _tipId: string | undefined;
 	private _leading = false;
 	/** The rendered tip, when one is showing. */
 	get current(): ChatTipContentPart | undefined {
@@ -52,8 +56,27 @@ export class ChatInputTipPresenter extends Disposable {
 		// Takes the tip out of the container even if the notice host is already
 		// gone, so disposal never depends on a stand-down that will not arrive.
 		this._register(toDisposable(() => this._clearContent()));
+		this._register(this._chatTipService.onDidChangeTip(() => this._refreshTip()));
+		this._register(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(tipConfigurationContextKeys)) {
+				this._refreshTip();
+			}
+		}));
 
 		this.update();
+	}
+
+	private _refreshTip(): void {
+		const hadFocus = this._partRef?.hasFocus() ?? false;
+		this._clearContent();
+		this.update();
+		if (hadFocus) {
+			if (this._partRef) {
+				this._partRef.focus();
+			} else {
+				this._options.focusInput();
+			}
+		}
 	}
 
 	/**
@@ -108,10 +131,11 @@ export class ChatInputTipPresenter extends Disposable {
 		}
 
 		// An eligible tip is already rendered; keep it rather than rotating.
-		if (this._part.value) {
+		if (this._part.value && this._tipId === tip.id) {
 			setChatInputStackSlot(this._options.container, ChatInputStackSlot.Docked);
 			return;
 		}
+		this._clearContent();
 
 		const store = new DisposableStore();
 		const renderer = this._instantiationService.createInstance(ChatContentMarkdownRenderer);
@@ -126,6 +150,7 @@ export class ChatInputTipPresenter extends Disposable {
 		// context-key changes during construction do not append a second tip.
 		this._part.value = store;
 		this._partRef = tipPart;
+		this._tipId = tip.id;
 		dom.clearNode(this._options.container);
 		this._options.container.appendChild(tipPart.domNode);
 		setChatInputStackSlot(this._options.container, ChatInputStackSlot.Docked);
@@ -140,6 +165,7 @@ export class ChatInputTipPresenter extends Disposable {
 
 	private _clearContent(): void {
 		this._partRef = undefined;
+		this._tipId = undefined;
 		this._part.clear();
 		dom.clearNode(this._options.container);
 		setChatInputStackSlot(this._options.container, ChatInputStackSlot.Empty);

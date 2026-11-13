@@ -9,7 +9,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AgentEditorCommentsOverlayWidget } from '../../../../../workbench/services/agentEditorComments/browser/agentEditorCommentsOverlayWidget.js';
-import { Menus } from '../../../../browser/menus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { clearAllFeedbackActionId, navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from '../../browser/agentFeedbackEditorActions.js';
 
 interface INavigationBearings {

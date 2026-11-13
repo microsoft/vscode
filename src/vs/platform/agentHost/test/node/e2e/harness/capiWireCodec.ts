@@ -310,7 +310,7 @@ const ENVIRONMENT_CONTEXT_RE = /<environment_context>.*?<\/environment_context>/
  * and Codex's `<environment_context>` cwd/date preamble) so captures show just
  * the meaningful message and stay deterministic across re-records. Mirrors the
  * Copilot CLI harness, which normalizes the same injected blocks. */
-function normalizeVolatileText(text: string): string {
+export function normalizeVolatileText(text: string): string {
 	return text
 		.replace(CURRENT_DATETIME_RE, '')
 		.replace(SYSTEM_REMINDER_RE, '')
@@ -338,34 +338,63 @@ export const RESPONSES_PATH = '/responses';
  */
 export function aggregateResponsesSse(sseBody: string): IAnthropicMessage | undefined {
 	const events = parseSseEvents(sseBody);
-	const blocks: MutableBlock[] = [];
+	const items: ResponsesItem[] = [];
 	let usage: { inputTokens?: number; outputTokens?: number } | undefined;
-	let seen = false;
 
 	for (const evt of events) {
 		if (evt.type === 'response.output_item.done') {
-			seen = true;
-			const item = evt['item'] as { type?: string; content?: Array<{ type?: string; text?: string }>; name?: string; arguments?: string; input?: string; call_id?: string; id?: string };
-			if (item.type === 'message') {
-				const text = (item.content ?? []).filter(c => c.type === 'output_text').map(c => c.text ?? '').join('');
-				if (text) {
-					blocks.push({ type: 'text', text });
-				}
-			} else if (item.type === 'function_call') {
-				blocks.push({ type: 'tool_use', id: item.call_id ?? item.id ?? '', name: item.name ?? '', input: safeParseJson(item.arguments ?? '{}') });
-			} else if (item.type === 'custom_tool_call') {
-				if (typeof item.input !== 'string') {
-					throw new Error('Responses custom tool call is missing its string input');
-				}
-				blocks.push({ type: 'tool_use', id: item.call_id ?? item.id ?? '', name: item.name ?? '', format: 'custom', input: item.input });
-			}
+			items.push(evt['item'] as ResponsesItem);
 		} else if (evt.type === 'response.completed') {
 			usage = usageFromResponsesEvent(evt);
 		}
 	}
 
-	if (!seen) {
+	return aggregateResponsesOutput(items, usage);
+}
+
+interface ResponsesItem {
+	type?: string;
+	content?: Array<{ type?: string; text?: string }>;
+	name?: string;
+	arguments?: string;
+	input?: string;
+	call_id?: string;
+	id?: string;
+}
+
+/** Reads a completed non-streaming response without retaining opaque reasoning or request identifiers. */
+export function aggregateResponsesJson(body: string): IAnthropicMessage | undefined {
+	let response: { object?: string; status?: string; output?: ResponsesItem[] };
+	try {
+		response = JSON.parse(body);
+	} catch {
 		return undefined;
+	}
+	if (!response || response.object !== 'response' || response.status !== 'completed' || !Array.isArray(response.output)) {
+		return undefined;
+	}
+	return aggregateResponsesOutput(response.output, usageFromResponsesEvent({ type: 'response.completed', response }));
+}
+
+function aggregateResponsesOutput(items: readonly ResponsesItem[], usage?: { inputTokens?: number; outputTokens?: number }): IAnthropicMessage | undefined {
+	if (!items.length) {
+		return undefined;
+	}
+	const blocks: MutableBlock[] = [];
+	for (const item of items) {
+		if (item.type === 'message') {
+			const text = (item.content ?? []).filter(c => c.type === 'output_text').map(c => c.text ?? '').join('');
+			if (text) {
+				blocks.push({ type: 'text', text });
+			}
+		} else if (item.type === 'function_call') {
+			blocks.push({ type: 'tool_use', id: item.call_id ?? item.id ?? '', name: item.name ?? '', input: safeParseJson(item.arguments ?? '{}') });
+		} else if (item.type === 'custom_tool_call') {
+			if (typeof item.input !== 'string') {
+				throw new Error('Responses custom tool call is missing its string input');
+			}
+			blocks.push({ type: 'tool_use', id: item.call_id ?? item.id ?? '', name: item.name ?? '', format: 'custom', input: item.input });
+		}
 	}
 	const stopReason = blocks.some(b => b.type === 'tool_use') ? 'tool_use' : 'end_turn';
 	return { content: blocks, stopReason, usage: (usage && (usage.inputTokens !== undefined || usage.outputTokens !== undefined)) ? usage : undefined };
@@ -393,7 +422,7 @@ function usageFromResponsesEvent(evt: ISseEvent): { inputTokens?: number; output
 
 /** Summarize a `/responses` request into the shared readable request shape. */
 export function summarizeResponsesRequest(requestBody: string): IReadableAnthropicRequest | undefined {
-	let parsed: { model?: string; instructions?: unknown; input?: unknown };
+	let parsed: { model?: string; instructions?: unknown; input?: string | Array<{ type?: string; role?: string }> };
 	try {
 		parsed = JSON.parse(requestBody);
 	} catch {
@@ -402,9 +431,10 @@ export function summarizeResponsesRequest(requestBody: string): IReadableAnthrop
 	if (typeof parsed.model !== 'string') {
 		return undefined;
 	}
+	const hasInstructionMessage = Array.isArray(parsed.input) && parsed.input.some(item => item?.type === 'message' && (item.role === 'system' || item.role === 'developer'));
 	return {
 		model: parsed.model,
-		system: parsed.instructions !== undefined ? SYSTEM_PLACEHOLDER : '',
+		system: parsed.instructions !== undefined || hasInstructionMessage ? SYSTEM_PLACEHOLDER : '',
 		messages: responsesInputToMessages(parsed.input),
 	};
 }
@@ -423,9 +453,7 @@ function responsesInputToMessages(input: unknown): Array<{ role: string; content
 		const item = raw as { type?: string; role?: string; content?: unknown; name?: string; arguments?: string; input?: string; call_id?: string; output?: unknown };
 		switch (item.type) {
 			case 'message': {
-				// Skip harness-injected instruction messages (Codex uses the
-				// `developer` / `system` roles for its permissions + environment
-				// preamble); the real system prompt is already a placeholder.
+				// System prompt presence is captured separately; omit environment-derived instruction text.
 				if (item.role === 'system' || item.role === 'developer') {
 					break;
 				}
@@ -476,18 +504,7 @@ function summarizeResponsesOutput(output: unknown): unknown {
 	return summarizeContent(output);
 }
 
-/**
- * Regenerate a `/responses` SSE stream from a captured message. Emits the event
- * sequence the Codex app-server expects (`response.created` -> per-item
- * added/delta/done -> `response.completed`) with synthetic, stable item ids.
- * The `response` envelope carries the full set of required OpenAI Responses
- * fields so the client accepts the turn as complete (a partial envelope makes
- * it retry).
- */
-export function responsesMessageToSse(message: IAnthropicMessage): string {
-	const responseId = `resp_replay_${randomHex()}`;
-	let seq = 0;
-
+function responsesMessageEnvelope(message: IAnthropicMessage) {
 	const outputItems: ResponsesOutputItem[] = message.content.map((block, index): ResponsesOutputItem => {
 		const id = `item_${index}`;
 		if (block.type === 'text') {
@@ -507,10 +524,27 @@ export function responsesMessageToSse(message: IAnthropicMessage): string {
 		output_tokens: message.usage?.outputTokens ?? 1,
 		total_tokens: (message.usage?.inputTokens ?? 1) + (message.usage?.outputTokens ?? 1),
 	};
+	return {
+		id: `resp_replay_${randomHex()}`, object: 'response', created_at: 0, status: 'completed', error: null, incomplete_details: null,
+		instructions: null, model: 'replay', output: outputItems, output_text: outputText, parallel_tool_calls: true,
+		temperature: 1, tool_choice: 'auto', tools: [], top_p: 1, usage,
+	};
+}
+
+/** Regenerates a non-streaming Responses reply from the same readable content used by streaming replay. */
+export function responsesMessageToJson(message: IAnthropicMessage): string {
+	return JSON.stringify(responsesMessageEnvelope(message));
+}
+
+/** Regenerates the complete Responses event sequence without duplicating streamed content. */
+export function responsesMessageToSse(message: IAnthropicMessage): string {
+	const completed = responsesMessageEnvelope(message);
+	const outputItems = completed.output;
+	const outputText = completed.output_text;
+	const usage = completed.usage;
+	let seq = 0;
 	const envelope = (status: string, output: readonly ResponsesOutputItem[], text: string, use: unknown) => ({
-		id: responseId, object: 'response', created_at: 0, status, error: null, incomplete_details: null,
-		instructions: null, model: 'replay', output, output_text: text, parallel_tool_calls: true,
-		temperature: 1, tool_choice: 'auto', tools: [], top_p: 1, usage: use,
+		...completed, status, output, output_text: text, usage: use,
 	});
 
 	const chunks: string[] = [];

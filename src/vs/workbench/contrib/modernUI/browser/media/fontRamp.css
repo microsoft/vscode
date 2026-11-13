@@ -171,10 +171,10 @@
  * those exact selectors (including the `:not(:focus)` / `.clicked:focus` states)
  * and rely on the extra `.modern-ui` class to win on specificity.
  */
-.modern-ui.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.modern-ui.monaco-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before,
-.modern-ui.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.modern-ui.monaco-workbench .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+.modern-ui.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.modern-ui.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before,
+.modern-ui.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.modern-ui.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .part.auxiliarybar > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
 	border-top-color: transparent !important;
 	border-bottom-color: transparent !important;
 }

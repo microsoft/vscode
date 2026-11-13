@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { WebSocketClientTransport } from '../../browser/webSocketClientTransport.js';
-import type { ITransportCloseDetails } from '../../common/state/sessionTransport.js';
+import { getProtocolMessageSize, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 
 class TestWebSocket extends EventTarget implements WebSocket {
 	readonly CONNECTING = 0;
@@ -24,12 +24,34 @@ class TestWebSocket extends EventTarget implements WebSocket {
 	onclose: WebSocket['onclose'] = null;
 	onerror: WebSocket['onerror'] = null;
 	onmessage: WebSocket['onmessage'] = null;
-	send(): void { }
+	readonly sent: (string | ArrayBufferLike | Blob | ArrayBufferView)[] = [];
+	send(data: string | ArrayBufferLike | Blob | ArrayBufferView): void { this.sent.push(data); }
 	close(): void { this.readyState = this.CLOSED; }
 }
 
-suite('WebSocketClientTransport close diagnostics', () => {
+suite('WebSocketClientTransport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sends only AHP messages without Web PubSub capability controls', async () => {
+		const socket = new TestWebSocket();
+		const instantiation = store.add(new TestInstantiationService());
+		const transport = store.add(new class extends WebSocketClientTransport {
+			protected override createWebSocket(): WebSocket { return socket; }
+		}('ws://test', undefined, undefined, instantiation));
+		const received: object[] = [];
+		store.add(transport.onMessage(message => received.push(message)));
+		const connecting = transport.connect();
+		socket.readyState = socket.OPEN;
+		socket.dispatchEvent(new Event('open'));
+		await connecting;
+		const request = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'client' } } as const;
+		transport.send(request);
+		const response = { jsonrpc: '2.0', id: 1, result: {} };
+		const text = JSON.stringify(response, undefined, 2);
+		socket.dispatchEvent(new MessageEvent('message', { data: text }));
+		assert.deepStrictEqual({ sent: socket.sent, received }, { sent: [JSON.stringify(request)], received: [response] });
+		assert.strictEqual(getProtocolMessageSize(received[0]), text.length * 2);
+	});
 
 	for (const errorFirst of [false, true]) {
 		test(`captures close details ${errorFirst ? 'after an error' : 'on normal close'} without repeating onClose`, async () => {

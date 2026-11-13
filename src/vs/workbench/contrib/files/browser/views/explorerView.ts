@@ -5,6 +5,7 @@
 
 import * as nls from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Sequencer } from '../../../../../base/common/async.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
@@ -12,6 +13,7 @@ import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from '../fileActions.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { isUntitledWorkspace, IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -178,7 +180,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
-	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
+	protected tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
 	private filter!: FilesFilter;
 	private findProvider!: ExplorerFindProvider;
 
@@ -202,7 +204,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
 	private viewVisibleContextKey: IContextKey<boolean>;
 
-	private setTreeInputPromise: Promise<void> | undefined;
+	private readonly setTreeInputSequencer = new Sequencer();
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
@@ -220,6 +222,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
@@ -236,7 +239,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ICommandService private readonly commandService: ICommandService,
+		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
@@ -272,7 +275,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	get name(): string {
-		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
+		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace(), { withLocation: true });
 	}
 
 	override get title(): string {
@@ -319,7 +322,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// Expand on drag over
 		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
 			titleElement.textContent = this.name;
@@ -578,6 +581,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		});
 		this._register(this.tree);
 		this._register(this.themeService.onDidColorThemeChange(() => this.tree.rerender()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.tree.rerender()));
 
 		// Bind configuration
 		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
@@ -826,20 +830,19 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	override getOptimalWidth(): number {
 		const parentNode = this.tree.getHTMLElement();
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
-	async setTreeInput(): Promise<void> {
-		if (!this.isBodyVisible()) {
-			return Promise.resolve(undefined);
-		}
+	setTreeInput(): Promise<void> {
+		return this.setTreeInputSequencer.queue(() => this.doSetTreeInput());
+	}
 
-		// Wait for the last execution to complete before executing
-		if (this.setTreeInputPromise) {
-			await this.setTreeInputPromise;
+	private async doSetTreeInput(): Promise<void> {
+		if (!this.isBodyVisible()) {
+			return;
 		}
 
 		const initialInputSetup = !this.tree.getInput();
@@ -864,7 +867,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const previousInput = this.tree.getInput();
-		const promise = this.setTreeInputPromise = this.tree.setInput(input, viewState).then(async () => {
+		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
 				if (!viewState || previousInput instanceof ExplorerItem) {
 					// There is no view state for this workspace (we transitioned from a folder workspace?), expand up to five roots.
@@ -917,9 +920,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		// If something is refreshing the explorer, we must await it or else a selection race condition can occur
-		if (this.setTreeInputPromise) {
-			await this.setTreeInputPromise;
-		}
+		await this.setTreeInputSequencer.queue(() => Promise.resolve());
 
 		// Expand all stats in the parent chain.
 		let item: ExplorerItem | null = this.explorerService.findClosestRoot(resource);

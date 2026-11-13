@@ -7,7 +7,7 @@ import assert from 'assert';
 import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -15,17 +15,18 @@ import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentFeedbackAttachmentContribution } from '../../browser/agentFeedbackAttachment.js';
 import { AgentFeedbackAttachmentWidget } from '../../browser/agentFeedbackAttachmentWidget.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
-import { buildNewSessionPrompt } from '../../browser/agentFeedbackAttachmentEntry.js';
+import { IAgentFeedbackChangeEvent, IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
+import { buildNewSessionPrompt } from '../../../../../workbench/contrib/sessions/browser/agentFeedbackAttachmentEntry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 class TestHoverService extends mock<IHoverService>() {
@@ -67,10 +68,8 @@ class TestContextViewService extends mock<IContextViewService>() {
 }
 
 suite('AgentFeedbackAttachmentContribution', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	teardown(() => store.clear());
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('skips chat widget attachments for agent host sessions', () => {
 		const sessionResource = URI.parse('agent-host-copilot:/session-1');

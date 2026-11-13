@@ -403,6 +403,11 @@ export interface IEditorOptions {
 	 */
 	hover?: IEditorHoverOptions;
 	/**
+	 * Controls which remote images Markdown rendered by the editor may load,
+	 * for example in hovers, suggestion details and parameter hints.
+	 */
+	markdownImages?: IEditorMarkdownImagesOptions;
+	/**
 	 * Enable detecting links and making them clickable.
 	 * Defaults to true.
 	 */
@@ -463,7 +468,7 @@ export interface IEditorOptions {
 	 */
 	multiCursorMergeOverlapping?: boolean;
 	/**
-	 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+	 * Configure the behaviour when pasting text with a line count equal to the cursor count or when pasting column selections into a single cursor.
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
@@ -666,6 +671,11 @@ export interface IEditorOptions {
 	 * Maximum value is 2000
 	 */
 	occurrencesHighlightDelay?: number;
+	/**
+	 * Merge single-document highlights from all matching providers.
+	 * Defaults to false.
+	 */
+	occurrencesHighlightFromAllProviders?: boolean;
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -2463,6 +2473,81 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 
 //#endregion
 
+//#region markdownImages
+
+/**
+ * Configuration options for images in Markdown rendered by the editor
+ */
+export interface IEditorMarkdownImagesOptions {
+	/**
+	 * Origins from which remote images may be loaded, for example `['https://img.shields.io']`,
+	 * or `true` to allow images from all origins. An origin consists of scheme, host and port.
+	 * `data:` images are always allowed.
+	 * Defaults to `true`, except in the standalone editor, where it defaults to `[]`.
+	 */
+	allowedOrigins?: true | string[];
+}
+
+/**
+ * The `allowedOrigins` are `true` or normalized origins (see {@link getUrlOrigin}).
+ * @internal
+ */
+export type EditorMarkdownImagesOptions = Readonly<Required<IEditorMarkdownImagesOptions>>;
+
+/**
+ * Returns the origin of an absolute URL, or `undefined` if it has none (for example `data:` URLs).
+ * @internal
+ */
+export function getUrlOrigin(url: string): string | undefined {
+	try {
+		const origin = new URL(url).origin;
+		return origin === 'null' ? undefined : origin;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * @internal
+ */
+export function isMarkdownImageAllowed(options: EditorMarkdownImagesOptions, url: string): boolean {
+	if (options.allowedOrigins === true) {
+		return true;
+	}
+	const origin = getUrlOrigin(url);
+	return origin !== undefined && options.allowedOrigins.includes(origin);
+}
+
+class EditorMarkdownImages extends BaseEditorOption<EditorOption.markdownImages, IEditorMarkdownImagesOptions, EditorMarkdownImagesOptions> {
+
+	constructor() {
+		super(EditorOption.markdownImages, 'markdownImages', { allowedOrigins: true });
+	}
+
+	public validate(_input: unknown): EditorMarkdownImagesOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as Unknown<IEditorMarkdownImagesOptions>;
+		if (input.allowedOrigins === true) {
+			return { allowedOrigins: true };
+		}
+		if (!Array.isArray(input.allowedOrigins)) {
+			return this.defaultValue;
+		}
+		const allowedOrigins: string[] = [];
+		for (const value of input.allowedOrigins) {
+			const origin = typeof value === 'string' ? getUrlOrigin(value) : undefined;
+			if (origin !== undefined && !allowedOrigins.includes(origin)) {
+				allowedOrigins.push(origin);
+			}
+		}
+		return { allowedOrigins };
+	}
+}
+
+//#endregion
+
 //#region layoutInfo
 
 /**
@@ -2738,6 +2823,20 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		return { typicalViewportLineCount, extraLinesBeforeFirstLine, extraLinesBeyondLastLine, desiredRatio, minimapLineCount };
 	}
 
+	/**
+	 * Computes the minimap scale in device pixels from the configured `editor.minimap.scale`.
+	 * The configured scale is doubled on high DPI screens. Between a pixel ratio of 1 and 2,
+	 * the scale grows with the pixel ratio. The tolerance keeps a pixel ratio slightly below
+	 * a whole step (e.g. a slightly negative zoom level on a high DPI screen) at that step,
+	 * instead of shrinking the minimap abruptly.
+	 */
+	private static _computeMinimapScale(configuredScale: number, pixelRatio: number): number {
+		if (pixelRatio >= 2) {
+			return Math.round(configuredScale * 2);
+		}
+		return Math.max(configuredScale, Math.floor(configuredScale * pixelRatio + 0.125));
+	}
+
 	private static _computeMinimapLayout(input: IMinimapLayoutInput, memory: ComputeOptionsMemory): EditorMinimapLayoutInfo {
 		const outerWidth = input.outerWidth;
 		const outerHeight = input.outerHeight;
@@ -2788,7 +2887,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const typicalHalfwidthCharacterWidth = input.typicalHalfwidthCharacterWidth;
 		const scrollBeyondLastLine = input.scrollBeyondLastLine;
 		const minimapRenderCharacters = input.minimap.renderCharacters;
-		let minimapScale = (pixelRatio >= 2 ? Math.round(input.minimap.scale * 2) : input.minimap.scale);
+		let minimapScale = EditorLayoutInfoComputer._computeMinimapScale(input.minimap.scale, pixelRatio);
 		const minimapMaxColumn = input.minimap.maxColumn;
 		const minimapSize = input.minimap.size;
 		const minimapSide = input.minimap.side;
@@ -4693,6 +4792,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
+					restricted: true,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
 				'editor.inlineSuggest.edits.allowCodeShifting': {
@@ -5919,6 +6019,7 @@ export const enum EditorOption {
 	lineNumbersMinChars,
 	linkedEditing,
 	links,
+	markdownImages,
 	matchBrackets,
 	minimap,
 	mouseStyle,
@@ -5931,6 +6032,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	occurrencesHighlightFromAllProviders,
 	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
@@ -6430,7 +6532,7 @@ export const EditorOptions = {
 		{
 			enumDescriptions: [
 				nls.localize('fullwidthCharacterWidth.font', "Render full-width characters using the width defined by the font."),
-				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
+				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts when font ligatures are disabled. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
 			],
 			description: nls.localize('fullwidthCharacterWidth', "Controls the width used to render full-width characters.")
 		}
@@ -6473,6 +6575,7 @@ export const EditorOptions = {
 		EditorOption.links, 'links', true,
 		{ description: nls.localize('links', "Controls whether the editor should detect links and make them clickable.") }
 	)),
+	markdownImages: register(new EditorMarkdownImages()),
 	matchBrackets: register(new EditorStringEnumOption(
 		EditorOption.matchBrackets, 'matchBrackets',
 		'always' as 'never' | 'near' | 'always',
@@ -6532,10 +6635,10 @@ export const EditorOptions = {
 		['spread', 'full'] as const,
 		{
 			markdownEnumDescriptions: [
-				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text."),
+				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text. When pasting column selections into a single cursor, each copied line is pasted on a successive destination line and padded with spaces to form a rectangle."),
 				nls.localize('multiCursorPaste.full', "Each cursor pastes the full text.")
 			],
-			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
+			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count, or when pasting column selections into a single cursor.")
 		}
 	)),
 	multiCursorLimit: register(new EditorIntOption(
@@ -6563,6 +6666,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
+		}
+	)),
+	occurrencesHighlightFromAllProviders: register(new EditorBooleanOption(
+		EditorOption.occurrencesHighlightFromAllProviders, 'occurrencesHighlightFromAllProviders', false,
+		{
+			description: nls.localize('occurrencesHighlightFromAllProviders', "Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches.")
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(

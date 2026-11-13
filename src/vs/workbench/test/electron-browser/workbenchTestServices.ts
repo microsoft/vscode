@@ -13,6 +13,7 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IModelService } from '../../../editor/common/services/model.js';
 import { ModelService } from '../../../editor/common/services/modelService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IAgentHostEditorState, IAgentsWindowInvitation } from '../../../platform/chat/common/agentsWindowInvitation.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService, INativeOpenDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
@@ -25,7 +26,7 @@ import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMem
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
-import { IApplicationBadge, INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
+import { IApplicationBadge, INativeHostOptions, INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipResult, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../../../platform/native/common/native.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -34,7 +35,7 @@ import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
 import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
 import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
 import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { IColorScheme, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IColorScheme, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../../platform/window/common/window.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -105,10 +106,19 @@ export class TestNativeHostService implements INativeHostService {
 	}
 
 	async openAgentsWindow(_options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void> { }
+	async showAgentsLauncher(): Promise<void> { }
+
+	readonly onDidChangeAgentHostEditorState = Event.None;
+	async getAgentHostEditorState(): Promise<IAgentHostEditorState> { return { revision: 0, editorSessionCount: 0, sessions: [], lastShown: undefined, lastCopilotHarnessIntroductionSessionCount: undefined, invitation: undefined }; }
+	async updateAgentHostEditorState(): Promise<void> { }
+	async claimAgentsWindowInvitation(): Promise<IAgentsWindowInvitation | undefined> { return undefined; }
+	async markAgentsWindowInvitationShown(): Promise<void> { }
+	async releaseAgentsWindowInvitation(): Promise<void> { }
 
 	async syncSystemWideKeybindings(_keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> { return { failed: [] }; }
 
 	async toggleFullScreen(): Promise<void> { }
+	async handleTitleDoubleClick(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
 	async isFullScreen(): Promise<boolean> { return true; }
 	async maximizeWindow(): Promise<void> { }
@@ -118,8 +128,12 @@ export class TestNativeHostService implements INativeHostService {
 	async isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean> { return false; }
 	async toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void> { }
 	async setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> { }
+	async setWindowFolderLocation(folderLocation: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void> { }
 	async getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
+	async showWindow(options?: INativeHostOptions): Promise<void> { }
+	async hideWindow(options?: INativeHostOptions): Promise<void> { }
+	async setWindowOpacity(opacity: number, options?: INativeHostOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async updateWindowAccentColor(color: string): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
@@ -134,12 +148,14 @@ export class TestNativeHostService implements INativeHostService {
 	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
 	async showItemInFolder(path: string): Promise<void> { }
+	async startFileDrag(path: string): Promise<void> { }
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async isAdmin(): Promise<boolean> { return false; }
 	async writeElevated(source: URI, target: URI): Promise<void> { }
 	async isRunningUnderARM64Translation(): Promise<boolean> { return false; }
 	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
+	async getFreeDiskSpace(): Promise<number> { throw new Error('Method not implemented.'); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
 	async isGPUCompositingEnabled(): Promise<boolean> { return false; }
 	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
@@ -152,6 +168,7 @@ export class TestNativeHostService implements INativeHostService {
 	async updateTouchBar(): Promise<void> { }
 	async moveItemToTrash(): Promise<void> { }
 	async getMediaAccessStatus(_mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> { return 'granted'; }
+	async requestScreenCaptureAccess(): Promise<boolean> { return true; }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }
@@ -195,10 +212,13 @@ export class TestNativeHostService implements INativeHostService {
 	async writeClipboardBuffer(format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
 	async triggerPaste(options?: INativeHostOptions): Promise<void> { }
 	async readImage(): Promise<Uint8Array> { return Uint8Array.from([]); }
+	async writeImage(data: VSBuffer): Promise<void> { }
 	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
-	async createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<void> { }
+	async createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<INativeZipResult> { return { skippedFiles: [] }; }
+	readonly onDidProgressZipFile = Event.None;
+	async cancelZipFile(operationId: string): Promise<void> { }
 	async profileRenderer(): Promise<any> { throw new Error(); }
 	async startTracing(): Promise<void> { throw new Error(); }
 	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }

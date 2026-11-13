@@ -30,6 +30,7 @@ import { Tag } from '../../prompts/node/base/tag';
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 import { checkCancellation, InputGlobResult, inputGlobToPattern, patternContainsWorkspaceFolderPath } from './toolUtils';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { IExperimentationService } from '../../../lib/node/chatLibMain';
 import { IGrepResultService } from './grepResultService';
 

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
-import { CancellationToken, Command, EndOfLine, env, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, Uri, window, workspace } from 'vscode';
+import { CancellationToken, Command, EndOfLine, env, InlineCompletionContext, InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind, InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionItem, InlineCompletionItemProvider, InlineCompletionList, InlineCompletionModelInfo, InlineCompletionProviderOption, InlineCompletionsDisposeReason, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, NotebookCell, NotebookCellKind, Position, Range, TextDocument, TextDocumentShowOptions, TextEditor, Uri, window, workspace } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
+import { getEditedLineSpan, isSpanFullyVisibleInDocument } from '../common/visibleLines';
 import { stringEditFromDiff } from '../../../platform/editing/common/edit';
 import { DocumentEditRecorder } from '../../../platform/editSurvivalTracking/common/editComputer';
 import { EditSurvivalReporter } from '../../../platform/editSurvivalTracking/common/editSurvivalReporter';
@@ -18,6 +19,7 @@ import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/mo
 import { observeUnifiedCompletions } from './unifiedCompletions';
 import { shortenOpportunityId } from '../../../platform/inlineEdits/common/utils/utils';
 import { ILogger, ILogService } from '../../../platform/log/common/logService';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { getNotebookId } from '../../../platform/notebook/common/helpers';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
@@ -72,6 +74,11 @@ interface NesCompletionItem extends InlineCompletionItem {
 	 * side hint). Used by the "mimic ghost text behavior" gating.
 	 */
 	isInlineCompletion?: boolean;
+	/**
+	 * The suggested edit in the document it applies to. For notebooks, `document` is the cell and `range` is
+	 * relative to that cell. Unlike `range`/`insertText`, this is not adjusted for ghost text or jump labels.
+	 */
+	readonly targetEdit?: { readonly document: TextDocument; readonly range: Range; readonly newText: string };
 }
 
 class NesCompletionList extends InlineCompletionList {
@@ -523,6 +530,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				wasShown: false,
 				supportsRename,
 				correlationId,
+				targetEdit: targetDocument && range ? { document: targetDocument, range, newText: result.edit.newText } : undefined,
 			};
 
 			return new NesCompletionList(context.requestUuid, nesCompletionItem, menuCommands, telemetryBuilder);
@@ -703,7 +711,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		if (isLlmCompletionInfo(info)) {
 			this.model.nextEditProvider.handleAcceptance(info.documentId, info.suggestion);
 			if (!item.isEditInAnotherDocument) {
-				this._trackSurvivalRate(info);
+				this._trackSurvivalRate(info, item.telemetryBuilder);
 			}
 		} else {
 			this.model.diagnosticsBasedProvider?.handleAcceptance(info.documentId, info.suggestion);
@@ -711,11 +719,12 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	}
 
 	// TODO: Support tracking Diagnostics NES
-	private async _trackSurvivalRate(item: LlmCompletionInfo) {
+	private async _trackSurvivalRate(item: LlmCompletionInfo, telemetryBuilder: NextEditProviderTelemetryBuilder) {
 		const result = item.suggestion.result;
 		if (!result || !result.edit) {
 			return;
 		}
+		const gitHubCopilotRequestTe = telemetryBuilder.nesBuilder.getGitHubCopilotRequestTe();
 
 		const docBeforeEdits = result.documentBeforeEdits.value;
 		const docAfterEdits = result.edit.toEdit().apply(docBeforeEdits);
@@ -738,12 +747,13 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			diffedNextEdit,
 			userEdits,
 			{ includeArc: true },
-			res => {
+			res => void gitHubCopilotRequestTe.then(requestTe => {
 				/* __GDPR__
 					"reportInlineEditSurvivalRate" : {
 						"owner": "hediet",
 						"comment": "Reports the survival rate for an inline edit.",
 						"opportunityId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Unique identifier for an opportunity to show an NES." },
+						"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header for the model call that produced the accepted edit, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 
 						"survivalRateFourGram": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The rate between 0 and 1 of how much of the AI edit is still present in the document." },
 						"survivalRateNoRevert": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The rate between 0 and 1 of how much of the ranges the AI touched ended up being reverted." },
@@ -755,6 +765,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				this._telemetryService.sendTelemetryEvent('reportInlineEditSurvivalRate', { microsoft: true, github: { eventNamePrefix: 'copilot-nes/' } },
 					{
 						opportunityId: item.requestUuid,
+						...gitHubCopilotRequestTeProperty(requestTe),
 					},
 					{
 						survivalRateFourGram: res.fourGram,
@@ -764,9 +775,22 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 						arc: res.arc!,
 					}
 				);
-
-			}
+			})
 		);
+	}
+
+	private _wasFullyVisible(item: NesCompletionItem): boolean | undefined {
+		const target = item.targetEdit;
+		if (!target) {
+			return undefined;
+		}
+		const span = getEditedLineSpan(target.range.start.line, target.range.end.line, target.newText);
+		const toVisibleLines = (editor: TextEditor) => ({
+			document: editor.document,
+			visibleRanges: editor.visibleRanges.map(r => ({ startLine: r.start.line, endLine: r.end.line })),
+		});
+		const activeEditor = window.activeTextEditor;
+		return isSpanFullyVisibleInDocument(target.document, span, activeEditor && toVisibleLines(activeEditor), window.visibleTextEditors.map(toVisibleLines));
 	}
 
 	private _handleDidRejectCompletionItem(completionItem: NesCompletionItem): void {
@@ -777,7 +801,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 
 		const info = completionItem.info;
 		if (isLlmCompletionInfo(info)) {
-			this.model.nextEditProvider.handleRejection(info.documentId, info.suggestion);
+			this.model.nextEditProvider.handleRejection(info.documentId, info.suggestion, { wasFullyVisible: this._wasFullyVisible(completionItem) });
 		} else {
 			this.model.diagnosticsBasedProvider?.handleRejection(info.documentId, info.suggestion);
 		}

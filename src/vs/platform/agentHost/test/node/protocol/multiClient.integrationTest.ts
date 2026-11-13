@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from '../../../../../base/common/path.js';
 import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import type { ReconnectResult } from '../../../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, buildDefaultChatUri } from '../../../common/state/sessionState.js';
+import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
+import { defaultChatChannel } from '../hostDefaultChats.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -27,6 +31,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	let userDataDir: string;
 	const secondaryClients: TestProtocolClient[] = [];
 
 	function createSecondaryClient(): TestProtocolClient {
@@ -37,12 +42,14 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 	suiteSetup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
-		server = await startServer();
+		userDataDir = mkdtempSync(join(tmpdir(), 'agent-host-proto-multi-client-user-data-'));
+		server = await startServer({ userDataDir });
 	});
 
 	suiteTeardown(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
 		await stopServer(server);
+		rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 	});
 
 	setup(async function () {
@@ -124,7 +131,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-multi-client-2' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client2.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client2.clearReceived();
 
 		dispatchTurnStarted(client, sessionUri, 'turn-mc', 'hello', 1);
@@ -148,7 +155,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-msg-2' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client2.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -174,7 +181,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-tool-progress-2' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client2.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -275,7 +282,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 		await client2.connect();
 		await client2.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-cross-perm-2' });
 		await client2.call('subscribe', { channel: sessionUri });
-		await client2.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		await client2.call('subscribe', { channel: defaultChatChannel(sessionUri) });
 		client.clearReceived();
 		client2.clearReceived();
 
@@ -290,7 +297,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 		// Client B confirms the tool call
 		client2.notify('dispatchAction', {
-			channel: buildDefaultChatUri(sessionUri),
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 1,
 			action: {
 				type: 'chat/toolCallConfirmed',

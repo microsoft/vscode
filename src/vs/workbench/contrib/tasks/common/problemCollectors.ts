@@ -561,6 +561,9 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				this.logService?.trace(`ProblemMatcher: slow end regexp took ${elapsed}ms to execute`, background.end.regexp.source);
 			}
 			if (matches) {
+				if (this._activeBackgroundMatchers.has(background.key)) {
+					this.reportMarkersForCurrentResource();
+				}
 				if (this._numberOfMatches > 0) {
 					this._onDidFindErrors.fire(this.markerService.read({ owner: background.matcher.owner }));
 				} else {

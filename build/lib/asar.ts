@@ -14,7 +14,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], skipGlobs:
 
 	const shouldUnpackFile = (file: VinylFile): boolean => {
 		for (let i = 0; i < unpackGlobs.length; i++) {
-			if (minimatch(file.relative, unpackGlobs[i])) {
+			if (minimatch(file.relative, unpackGlobs[i], { dot: true })) {
 				return true;
 			}
 		}

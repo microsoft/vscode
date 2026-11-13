@@ -9,7 +9,7 @@ import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAg
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -40,6 +40,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
+import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../common/chatSessionCommands.js';
+import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -198,10 +201,13 @@ export class MarkAllAgentSessionsReadAction extends Action2 {
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor, context?: IMarshalledAgentSessionContext) {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 
-		const sessionsToMarkRead = agentSessionsService.model.sessions.filter(session => !session.isArchived() && !session.isRead());
+		const sessions = isMarshalledAgentSessionContext(context) && context.showAutomationRuns
+			? agentSessionsService.model.sessionsIncludingAutomationRuns ?? agentSessionsService.model.sessions
+			: agentSessionsService.model.sessions;
+		const sessionsToMarkRead = sessions.filter(session => !session.isArchived() && !session.isRead());
 		if (sessionsToMarkRead.length === 0) {
 			return;
 		}
@@ -410,9 +416,35 @@ export class CollapseAllAgentSessionSectionsAction extends Action2 {
 
 //#region Session Actions
 
+export class OpenAgentSessionCustomizationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.openCustomizations',
+			title: localize2('openSessionCustomizations', "Open Customizations"),
+			icon: Codicon.extensions,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.hasMultipleAgentSessionsSelected.negate()),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'navigation',
+				order: 6,
+				when: ChatContextKeys.enabled,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+		const sessions = isMarshalledAgentSessionContext(context) ? context.sessions ?? [context.session] : context ? [context] : [];
+		if (sessions.length !== 1) {
+			throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
+		}
+		await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
+	}
+}
+
 abstract class BaseAgentSessionAction extends Action2 {
 
 	protected readonly supportsChildSessions: boolean = false;
+	protected readonly supportsMultiSelection: boolean = false;
 
 	async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
@@ -429,7 +461,10 @@ abstract class BaseAgentSessionAction extends Action2 {
 			const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 			const focused = chatView?.getFocusedSessions().at(0);
 			if (focused) {
-				sessions = [focused];
+				const selected = this.supportsMultiSelection ? chatView?.agentSessionsControl?.getSelectedSessions() : undefined;
+				sessions = selected?.includes(focused)
+					? selected.filter(session => isAgentSessionChild(session) === isAgentSessionChild(focused))
+					: [focused];
 			}
 		}
 
@@ -447,10 +482,18 @@ abstract class BaseAgentSessionAction extends Action2 {
 
 export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor() {
 		super({
-			id: 'agentSession.markUnread',
+			id: AGENT_SESSION_MARK_UNREAD_ACTION_ID,
 			title: localize2('markUnread', "Mark as Unread"),
+			keybinding: {
+				primary: KeyMod.Shift | KeyCode.KeyU,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.agentSessionsViewerFocused, WorkbenchListFocusContextKey),
+			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '0_read',
@@ -472,10 +515,18 @@ export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
 export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor() {
 		super({
-			id: 'agentSession.markRead',
+			id: AGENT_SESSION_MARK_READ_ACTION_ID,
 			title: localize2('markRead', "Mark as Read"),
+			keybinding: {
+				primary: KeyMod.Shift | KeyCode.KeyI,
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.agentSessionsViewerFocused, WorkbenchListFocusContextKey),
+			},
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '0_read',
@@ -497,6 +548,9 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
 abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor(private readonly wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).archive;
 		super({
@@ -509,7 +563,7 @@ abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ChatContextKeys.isAgentSessionChild.negate(),
+					ContextKeyExpr.or(ChatContextKeys.isAgentSessionChild.negate(), ChatContextKeys.agentSessionChildCanArchive),
 					ChatContextKeys.isArchivedAgentSession.negate()
 				)
 			},
@@ -523,16 +577,23 @@ abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession.negate()
-			}]
+			}, ...[AgentSessionChatContextMenu, AgentSessionChatToolbar].map(id => ({
+				id,
+				group: id === AgentSessionChatToolbar ? 'navigation' : '1_state',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentSessionChildCanArchive, ChatContextKeys.isArchivedAgentSession.negate()),
+			}))]
 		});
 	}
 
 	async runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> {
-		const chatService = accessor.get(IChatService);
-		const dialogService = accessor.get(IDialogService);
-
 		// Archive all sessions
 		for (const session of sessions) {
+			if (isAgentSessionChild(session) && session.canArchive !== true) {
+				continue;
+			}
+			const chatService = accessor.get(IChatService);
+			const dialogService = accessor.get(IDialogService);
 			const chatModel = chatService.getSession(session.resource);
 			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
 				isArchiveAction: true,
@@ -563,6 +624,9 @@ export class MarkAgentSessionDoneAction extends BaseArchiveAgentSessionAction {
 
 abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 
+	protected override readonly supportsChildSessions = true;
+	protected override readonly supportsMultiSelection = true;
+
 	constructor(wording: ChatSessionArchiveActionWording) {
 		const action = getChatSessionArchiveActionPresentation(wording).unarchive;
 		super({
@@ -577,7 +641,7 @@ abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 				weight: KeybindingWeight.WorkbenchContrib + 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.agentSessionsViewerFocused,
-					ChatContextKeys.isAgentSessionChild.negate(),
+					ContextKeyExpr.or(ChatContextKeys.isAgentSessionChild.negate(), ChatContextKeys.agentSessionChildCanArchive),
 					ChatContextKeys.isArchivedAgentSession
 				)
 			},
@@ -591,13 +655,20 @@ abstract class BaseUnarchiveAgentSessionAction extends BaseAgentSessionAction {
 				group: '1_edit',
 				order: 2,
 				when: ChatContextKeys.isArchivedAgentSession,
-			}]
+			}, ...[AgentSessionChatContextMenu, AgentSessionChatToolbar].map(id => ({
+				id,
+				group: id === AgentSessionChatToolbar ? 'navigation' : '1_state',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentSessionChildCanArchive, ChatContextKeys.isArchivedAgentSession),
+			}))]
 		});
 	}
 
 	runWithSessions(sessions: IAgentSession[]): void {
 		for (const session of sessions) {
-			session.setArchived(false);
+			if (!isAgentSessionChild(session) || session.canArchive === true) {
+				session.setArchived(false);
+			}
 		}
 	}
 }

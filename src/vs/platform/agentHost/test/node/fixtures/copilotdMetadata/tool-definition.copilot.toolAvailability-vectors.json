@@ -1,0 +1,174 @@
+{
+  "$comment": "Conformance vectors for the `copilot.toolAvailability` key on ToolDefinition._meta. This key is produced by the AHP client registering a tool and consumed by the host. See ../tool-definition.md for the prose spec and ./README.md for the harness contract.",
+  "key": "copilot.toolAvailability",
+  "carrier": "ToolDefinition._meta",
+  "tests": [
+    {
+      "name": "set: stamps the restriction onto a tool with no _meta",
+      "op": "set",
+      "input": {
+        "tool": {
+          "name": "post_message",
+          "description": "Post a message as the signed-in user."
+        },
+        "availability": "userChats"
+      },
+      "expected": {
+        "tool": {
+          "name": "post_message",
+          "description": "Post a message as the signed-in user.",
+          "_meta": { "copilot.toolAvailability": "userChats" }
+        }
+      }
+    },
+    {
+      "name": "set: preserves other tool metadata",
+      "op": "set",
+      "input": {
+        "tool": {
+          "name": "post_message",
+          "_meta": { "copilot.toolDefer": "never" }
+        },
+        "availability": "userChats"
+      },
+      "expected": {
+        "tool": {
+          "name": "post_message",
+          "_meta": {
+            "copilot.toolDefer": "never",
+            "copilot.toolAvailability": "userChats"
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns UserChats when value is 'userChats'",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "post_message",
+          "_meta": { "copilot.toolAvailability": "userChats" }
+        }
+      },
+      "expected": { "availability": "userChats" }
+    },
+    {
+      "name": "extract: returns Session when value is 'session'",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.toolAvailability": "session" }
+        }
+      },
+      "expected": { "availability": "session" }
+    },
+    {
+      "name": "extract: defaults to 'session' when _meta is absent",
+      "op": "extract",
+      "input": {
+        "tool": { "name": "read_file", "description": "Read a file." }
+      },
+      "expected": { "availability": "session" }
+    },
+    {
+      "name": "extract: defaults to 'session' when the key is absent",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.unrelated": "ignored" }
+        }
+      },
+      "expected": { "availability": "session" }
+    },
+    {
+      "name": "extract: defaults to 'session' when value is the empty string",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.toolAvailability": "" }
+        }
+      },
+      "expected": { "availability": "session" }
+    },
+    {
+      "name": "extract: defaults to 'session' when value is not a string",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.toolAvailability": 42 }
+        }
+      },
+      "expected": { "availability": "session" }
+    },
+    {
+      "name": "extract: defaults to 'session' when value is outside the closed enum",
+      "$comment": "Forward compatibility resolves an unrecognised member to the permissive default. A host that guessed 'restricted' would silently break a tool the client expects to work everywhere.",
+      "op": "extract",
+      "input": {
+        "tool": {
+          "name": "read_file",
+          "_meta": { "copilot.toolAvailability": "rootChat" }
+        }
+      },
+      "expected": { "availability": "session" }
+    },
+    {
+      "name": "permitsScope: an unrestricted tool runs in the root chat",
+      "op": "permitsScope",
+      "input": { "availability": "session", "chatOrigin": "user" },
+      "expected": { "permitted": true }
+    },
+    {
+      "name": "permitsScope: an unrestricted tool runs in a tool-spawned chat",
+      "op": "permitsScope",
+      "input": { "availability": "session", "chatOrigin": "tool" },
+      "expected": { "permitted": true }
+    },
+    {
+      "name": "permitsScope: a userChats tool runs in the root chat",
+      "op": "permitsScope",
+      "input": { "availability": "userChats", "chatOrigin": "user" },
+      "expected": { "permitted": true }
+    },
+    {
+      "name": "permitsScope: a userChats tool is refused in a tool-spawned chat",
+      "op": "permitsScope",
+      "input": { "availability": "userChats", "chatOrigin": "tool" },
+      "expected": { "permitted": false }
+    },
+    {
+      "name": "wireShape: a tool carrying the key serializes to the flat-dotted shape",
+      "$comment": "Pins that the AHP ToolDefinition encodes _meta as a single flat dotted key, not a nested {copilot:{...}} object.",
+      "op": "wireShape",
+      "input": {
+        "tool": {
+          "name": "post_message",
+          "description": "Post a message as the signed-in user.",
+          "_meta": { "copilot.toolAvailability": "userChats" }
+        }
+      },
+      "expected": {
+        "json": {
+          "name": "post_message",
+          "description": "Post a message as the signed-in user.",
+          "_meta": { "copilot.toolAvailability": "userChats" }
+        }
+      }
+    },
+    {
+      "name": "wireShape: an unrestricted tool serializes without _meta",
+      "$comment": "Pins the 'omit the key entirely; no empty {} envelope' rule.",
+      "op": "wireShape",
+      "input": {
+        "tool": { "name": "read_file", "description": "Read a file." }
+      },
+      "expected": {
+        "json": { "name": "read_file", "description": "Read a file." }
+      }
+    }
+  ]
+}

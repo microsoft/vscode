@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as http from 'http';
 import { IFetcherService } from '../../common/fetcherService';
+// eslint-disable-next-line local/code-no-restricted-zone-imports -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { createExtensionTestingServices } from '../../../../extension/test/vscode-node/services';
 import { ITestingServicesAccessor } from '../../../test/node/services';
 

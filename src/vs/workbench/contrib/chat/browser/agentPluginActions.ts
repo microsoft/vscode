@@ -5,19 +5,20 @@
 
 import { Action, IAction, IActionChangeEvent } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICustomizationMarketplaceInstallService } from '../common/customizationMarketplaceInstallService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { dirname, joinPath } from '../../../../base/common/resources.js';
+import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { ContributionEnablementState, IEnablementModel, isContributionDisabled, isContributionEnabled } from '../common/enablement.js';
-import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginService, setAgentPluginEnablement } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { buildEnablementContextMenuGroup } from './enablementActions.js';
@@ -28,6 +29,7 @@ import { CustomizationEnablementKind, type PluginCustomization } from '../../../
 import { type ICustomizationItemAction } from '../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from './agentSessions/agentHost/agentHostCustomizationService.js';
 import { IReader } from '../../../../base/common/observable.js';
+import { readRuntimePluginEnablement } from '../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 
 //#region Simple actions
 
@@ -52,8 +54,19 @@ export class InstallPluginAction extends Action {
 }
 
 export class UninstallPluginAction extends Action {
-	constructor(private readonly removePlugin: () => Promise<boolean>) {
-		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), 'extension-action label uninstall', true);
+	constructor(private readonly removePlugin: () => Promise<boolean>, readonly requiredByOrganization = false) {
+		// Without the `uninstall` class, extension action bars show the disabled action instead of hiding it.
+		super('agentPlugin.uninstall', localize('uninstall', "Uninstall"), requiredByOrganization ? 'extension-action label' : 'extension-action label uninstall', !requiredByOrganization);
+		if (requiredByOrganization) {
+			this.tooltip = getPluginManagedByOrganizationMessage();
+		}
+	}
+
+	/** The accessible name, which includes the reason when the organization requires the plugin. */
+	get ariaLabel(): string {
+		return this.requiredByOrganization
+			? localize('pluginUninstallUnavailableAria', "{0}. {1}", this.label, this.tooltip)
+			: this.label;
 	}
 
 	override async run(): Promise<void> {
@@ -61,7 +74,40 @@ export class UninstallPluginAction extends Action {
 	}
 
 	runAndGetResult(): Promise<boolean> {
-		return this.removePlugin();
+		return this.enabled ? this.removePlugin() : Promise.resolve(false);
+	}
+}
+
+/**
+ * Renders the Uninstall action of a plugin the organization requires. It stays
+ * keyboard-reachable in action bars that skip disabled items, its accessible name
+ * includes the reason, and hovering or pressing Enter or Space shows the reason.
+ * The action itself stays disabled, so it never runs.
+ */
+export class OrganizationRequiredUninstallActionViewItem extends ActionViewItem {
+	constructor(
+		private readonly uninstallAction: UninstallPluginAction,
+		options: IActionViewItemOptions,
+		private readonly hoverService: IHoverService,
+	) {
+		super(undefined, uninstallAction, options);
+	}
+
+	override isEnabled(): boolean {
+		return true;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this._register(this.hoverService.setupDelayedHover(container, { content: this.uninstallAction.tooltip }, { setupKeyboardEvents: true }));
+	}
+
+	protected override getHoverContents(): undefined {
+		return undefined;
+	}
+
+	protected override updateAriaLabel(): void {
+		this.label?.setAttribute('aria-label', this.uninstallAction.ariaLabel);
 	}
 }
 
@@ -69,9 +115,13 @@ function isRemovableAgentPlugin(plugin: IAgentPlugin): plugin is IAgentPlugin & 
 	return plugin.remove !== undefined;
 }
 
+/**
+ * Creates the Uninstall action for a removable plugin. A plugin that the
+ * organization requires keeps a visible but disabled action that explains why.
+ */
 export function createUninstallPluginAction(plugin: IAgentPlugin, removePlugin?: () => Promise<boolean>): UninstallPluginAction | undefined {
-	return isRemovableAgentPlugin(plugin) && getPluginPolicyEnablement(plugin) !== true
-		? new UninstallPluginAction(removePlugin ?? (() => plugin.remove()))
+	return isRemovableAgentPlugin(plugin)
+		? new UninstallPluginAction(removePlugin ?? (() => plugin.remove()), isPluginRequiredByPolicy(plugin))
 		: undefined;
 }
 
@@ -127,6 +177,21 @@ export function isPluginPolicyBlocked(plugin: IAgentPlugin): boolean {
 	return getPluginPolicyEnablement(plugin) === false;
 }
 
+/** Whether the plugin is required by enterprise policy and cannot be disabled or uninstalled by the user. */
+export function isPluginRequiredByPolicy(plugin: IAgentPlugin, reader?: IReader): boolean {
+	return getPluginPolicyEnablement(plugin, reader) === true;
+}
+
+/** Whether the installed plugin at `uri`, or containing `uri`, is required by enterprise policy. */
+export function isPluginUriRequiredByPolicy(agentPluginService: Pick<IAgentPluginService, 'plugins'>, uri: URI): boolean {
+	return agentPluginService.plugins.get().some(plugin => isEqualOrParent(uri, plugin.uri) && isPluginRequiredByPolicy(plugin));
+}
+
+/** Explains that a plugin's state is controlled by the user's organization. */
+export function getPluginManagedByOrganizationMessage(): string {
+	return localize('pluginManagedByOrganizationMessage', "This plugin is managed by your organization.");
+}
+
 /** Notifies the user that a plugin is managed by their organization and cannot be enabled. */
 export function notifyPluginPolicyBlocked(notificationService: INotificationService, pluginName: string): void {
 	notificationService.warn(localize('pluginPolicyBlocked', "The plugin \"{0}\" has been disabled by your organization and cannot be enabled.", pluginName));
@@ -159,7 +224,7 @@ export function createPolicyManagedEnablementAction(plugin: IAgentPlugin, notifi
 /**
  * Builds the standard context menu action groups for an installed plugin.
  */
-export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService, removePlugin?: () => Promise<boolean>): IAction[][] {
+export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService, removePlugin?: () => Promise<boolean>, runtimeEnablementActions?: IAction[]): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
@@ -167,6 +232,10 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 		const policyAction = createPolicyManagedEnablementAction(plugin, accessor.get(INotificationService));
 		if (policyAction) {
 			groups.push([policyAction]);
+		} else if (plugin.copilotCliInstallation) {
+			const enabled = isContributionEnabled(plugin.enablement.get());
+			groups.push(runtimeEnablementActions ?? [new Action('agentPlugin.toggleRuntime', enabled ? localize('disableGlobally', "Disable Globally") : localize('enableGlobally', "Enable Globally"), undefined, plugin.setEnabled !== undefined,
+				() => setAgentPluginEnablement(plugin, agentPluginService.enablementModel, enabled ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile))]);
 		} else {
 			groups.push(buildEnablementContextMenuGroup(
 				plugin.enablement.get(),
@@ -174,6 +243,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 				agentPluginService.enablementModel,
 				workspaceService,
 				'agentPlugin',
+				state => setAgentPluginEnablement(plugin, agentPluginService.enablementModel, state),
 			));
 		}
 
@@ -190,10 +260,51 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 }
 
 /**
- * Builds enablement actions for a plugin customization published by an agent host.
+ * Builds scoped enablement actions whose switch reflects the host-reported effective activation.
  * Legacy VS Code-owned plugin menus continue to use {@link getInstalledPluginContextMenuActions}.
  */
 export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, customization: PluginCustomization, hasWorkspace: boolean): ICustomizationItemAction[] {
+	const runtime = readRuntimePluginEnablement(customization);
+	if (runtime) {
+		const available = agentHostCustomizations.canSetRuntimePluginEnablement?.(sessionResource) === true;
+		const managed = runtime.managedDesiredEnabled !== undefined;
+		const ready = runtime.effectiveEnabled !== undefined;
+		const workspaceScope = hasWorkspace && runtime.repositorySupported && typeof runtime.repositoryEnabled === 'boolean';
+		const checked = runtime.effectiveEnabled ?? (workspaceScope ? runtime.repositoryEnabled : undefined) ?? runtime.globalEnabled;
+		const create = (scope: 'global' | 'repository', enabled: boolean | null, supported: boolean): ICustomizationItemAction => ({
+			id: `agentPlugin.runtime.${enabled === null ? 'inherit' : enabled ? 'enable' : 'disable'}.${scope}`,
+			label: scope === 'global'
+				? enabled ? localize('runtimePluginEnableGlobal', "Enable Globally") : localize('runtimePluginDisableGlobal', "Disable Globally")
+				: enabled === null ? localize('runtimePluginScopeGlobal', "Use Global Enablement")
+					: enabled ? localize('runtimePluginEnableWorkspace', "Enable for Workspace") : localize('runtimePluginDisableWorkspace', "Disable for Workspace"),
+			enabled: available && !managed && ready && supported && (scope === 'global' || runtime.repositoryEnabled !== undefined),
+			tooltip: managed ? getPluginManagedByOrganizationMessage()
+				: !available ? localize('runtimePluginHostUnsupported', "This host does not support plugin enablement.")
+					: !supported ? localize('runtimePluginRepositoryUnsupported', "This plugin does not support workspace enablement. You can change global enablement.")
+						: !ready ? localize('runtimePluginEnablementPending', "Plugin enablement is unavailable until this chat's session is ready.")
+							: scope === 'repository' && runtime.repositoryEnabled === undefined ? localize('runtimePluginRepositoryStateUnavailable', "This host does not report the repository plugin setting.") : undefined,
+			run: async () => {
+				if (!available || managed || !ready || !supported || scope === 'repository' && runtime.repositoryEnabled === undefined || !agentHostCustomizations.setRuntimePluginEnablement) {
+					throw new Error(localize('runtimePluginActionUnavailable', "Plugin enablement is unavailable."));
+				}
+				await agentHostCustomizations.setRuntimePluginEnablement(sessionResource, customization.id, scope, enabled);
+			},
+		});
+		const toggle = create(workspaceScope ? 'repository' : 'global', !checked, true);
+		const scopeAction = create('repository', workspaceScope ? null : runtime.effectiveEnabled ?? runtime.globalEnabled, runtime.repositorySupported);
+		return [
+			{ ...toggle, checked, scope: workspaceScope ? 'workspace' : 'global' },
+			...(hasWorkspace ? [{
+				...scopeAction,
+				id: `agentPlugin.runtime.scope.${workspaceScope ? 'global' : 'workspace'}`,
+				scope: workspaceScope ? 'global' : 'workspace',
+				label: workspaceScope ? localize('runtimePluginScopeGlobal', "Use Global Enablement") : localize('runtimePluginScopeWorkspace', "Manage Enablement for This Workspace"),
+				tooltip: scopeAction.tooltip ?? (workspaceScope
+					? localize('runtimePluginScopeGlobalDescription', "Remove the workspace override and follow global enablement. This may change whether the plugin is enabled.")
+					: localize('runtimePluginScopeWorkspaceDescription', "Change enablement only for this workspace. The current activation is preserved.")),
+			} satisfies ICustomizationItemAction] : []),
+		];
+	}
 	const enablement = getCustomizationScopeEnablement(customization);
 	const actions = [
 		createAgentHostPluginEnablementAction(agentHostCustomizations, agentPluginService, sessionResource, customization, CustomizationEnablementKind.Global, !enablement.global, 'global'),
@@ -210,18 +321,31 @@ type AgentHostPluginEnablementTarget = {
 	readonly uri: string;
 	readonly clientId?: string;
 	readonly enablement?: readonly NonNullable<PluginCustomization['enablement']>[number][];
+	readonly _meta?: Record<string, unknown>;
 };
 
 /**
  * Routes a plugin enablement change to the client that owns its global decision
  * or to the agent host for all other scopes.
  */
-export function setAgentHostPluginEnablement(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): void {
+export async function setAgentHostPluginEnablement(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, plugin: AgentHostPluginEnablementTarget, kind: CustomizationEnablementKind, enabled: boolean): Promise<void> {
+	if (readRuntimePluginEnablement(plugin)) {
+		if (kind === CustomizationEnablementKind.Session || !agentHostCustomizations.setRuntimePluginEnablement) {
+			throw new Error(localize('runtimePluginScopeUnavailable', "This plugin supports only runtime-owned global or repository enablement."));
+		}
+		await agentHostCustomizations.setRuntimePluginEnablement(sessionResource, plugin.id, kind === CustomizationEnablementKind.Global ? 'global' : 'repository', enabled);
+		return;
+	}
 	if (kind === CustomizationEnablementKind.Global && plugin.clientId !== undefined) {
 		if (agentPluginService === undefined) {
 			throw new Error('A client-published plugin requires its client enablement service');
 		}
-		agentPluginService.enablementModel.setEnabled(plugin.uri.toString(), enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
+		const clientUri = agentHostCustomizations.getClientPluginUri(sessionResource, plugin);
+		const installed = clientUri && agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, clientUri));
+		if (!installed) {
+			throw new Error(localize('pluginNotAvailable', "Plugin '{0}' is no longer available.", plugin.uri));
+		}
+		await setAgentPluginEnablement(installed, agentPluginService.enablementModel, enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile);
 		return;
 	}
 	agentHostCustomizations.setCustomizationEnablement(sessionResource, plugin.id, plugin.enablement, kind, enabled);
@@ -233,7 +357,7 @@ export function createAgentHostEnablePluginAction(agentHostCustomizations: IAgen
 		id: 'agentPlugin.agentHost.enableContainer',
 		label: localize('agentHostPluginEnableContainer', "Enable Plugin"),
 		run: () => {
-			setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, plugin, kind, true);
+			return setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, plugin, kind, true);
 		},
 	};
 }
@@ -246,7 +370,7 @@ function createAgentHostPluginEnablementAction(agentHostCustomizations: IAgentHo
 		id: `agentPlugin.agentHost.${enabled ? 'enable' : 'disable'}.${scope}`,
 		label,
 		run: () => {
-			setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, customization, kind, enabled);
+			return setAgentHostPluginEnablement(agentHostCustomizations, agentPluginService, sessionResource, customization, kind, enabled);
 		},
 	};
 }
@@ -380,18 +504,17 @@ export function createEnablePluginDropDown(
 	enablementModel: IEnablementModel,
 	workspaceContextService: IWorkspaceContextService,
 ): EnablementDropDownAction {
-	const key = plugin.uri.toString();
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
 	const enable = new EnablementSubAction('agentPlugin.enable', localize('enable', "Enable"), 'extension-action label prominent',
 		isContributionDisabled(plugin.enablement.get()),
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.EnabledProfile); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledProfile));
 
 	const enableWorkspace = new EnablementSubAction('agentPlugin.enableForWorkspace', localize('enableForWorkspace', "Enable (Workspace)"), 'extension-action label',
 		isContributionDisabled(plugin.enablement.get()) && hasWorkspace,
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.EnabledWorkspace); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.EnabledWorkspace));
 
-	return new EnablementDropDownAction('agentPlugin.enableDropdown', [enable, enableWorkspace]);
+	return new EnablementDropDownAction('agentPlugin.enableDropdown', plugin.copilotCliInstallation ? [enable] : [enable, enableWorkspace]);
 }
 
 /**
@@ -403,18 +526,17 @@ export function createDisablePluginDropDown(
 	enablementModel: IEnablementModel,
 	workspaceContextService: IWorkspaceContextService,
 ): EnablementDropDownAction {
-	const key = plugin.uri.toString();
 	const hasWorkspace = workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 
 	const disable = new EnablementSubAction('agentPlugin.disable', localize('disable', "Disable"), 'extension-action label disable',
 		isContributionEnabled(plugin.enablement.get()),
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledProfile); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledProfile));
 
 	const disableWorkspace = new EnablementSubAction('agentPlugin.disableForWorkspace', localize('disableForWorkspace', "Disable (Workspace)"), 'extension-action label disable',
 		isContributionEnabled(plugin.enablement.get()) && hasWorkspace,
-		() => { enablementModel.setEnabled(key, ContributionEnablementState.DisabledWorkspace); return Promise.resolve(); });
+		() => setAgentPluginEnablement(plugin, enablementModel, ContributionEnablementState.DisabledWorkspace));
 
-	return new EnablementDropDownAction('agentPlugin.disableDropdown', [disable, disableWorkspace]);
+	return new EnablementDropDownAction('agentPlugin.disableDropdown', plugin.copilotCliInstallation ? [disable] : [disable, disableWorkspace]);
 }
 
 //#endregion

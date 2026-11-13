@@ -23,8 +23,14 @@ export type AutomationDispatchFailure =
 
 /** Outcome of the dispatch phase of {@link IAutomationRunner.runOnce}. */
 export type IAutomationRunDispatch =
+	/** Dispatch was acknowledged without a correlated run or session. */
+	| { readonly kind: 'accepted' }
+	/** The request may have been accepted, but its outcome needs reconciliation. */
+	| { readonly kind: 'uncertain'; readonly message: string }
 	/** The host accepted the request and created a session for it. */
 	| { readonly kind: 'started'; readonly run: IAutomationRun; readonly sessionResource: URI }
+	/** The host queued the request in its existing conversation, without owning that session. */
+	| { readonly kind: 'queued'; readonly run: IAutomationRun }
 	/** Another run already held the automation's run slot, so nothing was dispatched. */
 	| { readonly kind: 'alreadyRunning'; readonly activeRun: IAutomationRun }
 	/** Dispatch ended without a session. `run` is set when a run row was recorded first. */

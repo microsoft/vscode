@@ -8,15 +8,12 @@ import type { Memento } from 'vscode';
 const OWNED_CLOUD_TASKS_STORAGE_KEY = 'github.copilot.cloudAgent.ownedTasks';
 const MAX_OWNED_CLOUD_TASKS = 1000;
 
-/**
- * Cloud tasks that were started or adopted from VS Code.
- *
- * The Task API does not report which client started a task, so VS Code records every task it
- * creates and every task the user sends a message to. A task without a record is external: it
- * was started from another client (for example github.com, GitHub Mobile, or the Copilot CLI).
- * Each task keeps the time it was last recorded so that the record stays bounded by evicting
- * the tasks that were least recently used from VS Code.
- */
+interface IOwnedCloudTask {
+	readonly recordedAt: number;
+	readonly application?: string;
+}
+
+/** Bounded ownership records, retaining creation provenance when an external task is adopted. */
 export class CloudTaskOwnership {
 
 	constructor(
@@ -28,30 +25,40 @@ export class CloudTaskOwnership {
 		return new Set(this._read().keys());
 	}
 
+	getApplication(taskId: string): string | undefined {
+		return this._read().get(taskId)?.application;
+	}
+
 	/**
 	 * Records that the task was started or adopted from VS Code.
 	 * @returns whether the task was external before this call.
 	 */
-	async record(taskId: string, now = Date.now()): Promise<boolean> {
+	async record(taskId: string, now = Date.now(), application?: string): Promise<boolean> {
 		const owned = this._read();
 		const wasExternal = !owned.has(taskId);
-		owned.set(taskId, now);
+		owned.set(taskId, { recordedAt: now, application: owned.get(taskId)?.application ?? application });
 		const retained = [...owned]
-			.sort(([, a], [, b]) => b - a)
+			.sort(([, a], [, b]) => b.recordedAt - a.recordedAt)
 			.slice(0, this._maxTasks);
 		await this._globalState.update(OWNED_CLOUD_TASKS_STORAGE_KEY, Object.fromEntries(retained));
 		return wasExternal;
 	}
 
-	private _read(): Map<string, number> {
+	private _read(): Map<string, IOwnedCloudTask> {
 		const stored = this._globalState.get<unknown>(OWNED_CLOUD_TASKS_STORAGE_KEY);
-		const owned = new Map<string, number>();
+		const owned = new Map<string, IOwnedCloudTask>();
 		if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) {
 			return owned;
 		}
-		for (const [taskId, recordedAt] of Object.entries(stored)) {
-			if (typeof recordedAt === 'number' && Number.isFinite(recordedAt)) {
-				owned.set(taskId, recordedAt);
+		for (const [taskId, value] of Object.entries(stored)) {
+			if (typeof value === 'number' && Number.isFinite(value)) {
+				owned.set(taskId, { recordedAt: value });
+			} else if (typeof value === 'object' && value !== null && 'recordedAt' in value
+				&& typeof value.recordedAt === 'number' && Number.isFinite(value.recordedAt)) {
+				owned.set(taskId, {
+					recordedAt: value.recordedAt,
+					application: 'application' in value && typeof value.application === 'string' ? value.application : undefined,
+				});
 			}
 		}
 		return owned;

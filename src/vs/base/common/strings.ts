@@ -396,7 +396,10 @@ export function compareSubstringIgnoreCase(a: string, b: string, aStart: number 
 
 		if (codeA >= 128 || codeB >= 128) {
 			// not ASCII letters -> fallback to lower-casing strings
-			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
+			return compare(
+				a.substring(aStart, aEnd).toLowerCase(),
+				b.substring(bStart, bEnd).toLowerCase()
+			);
 		}
 
 		// mapper lower-case ascii letter onto upper-case varinats
@@ -699,6 +702,16 @@ export const UNUSUAL_LINE_TERMINATORS = /[\u2028\u2029]/; // LINE SEPARATOR (LS)
  */
 export function containsUnusualLineTerminators(str: string): boolean {
 	return UNUSUAL_LINE_TERMINATORS.test(str);
+}
+
+/**
+ * Replaces control, format (such as bidirectional overrides and zero-width
+ * characters) and line or paragraph separator characters with visible
+ * `\u{…}` escapes, so displayed text cannot hide characters, break a line,
+ * or reorder how it reads.
+ */
+export function escapeControlAndFormatCharacters(str: string): string {
+	return str.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, character => `\\u{${character.codePointAt(0)?.toString(16)}}`);
 }
 
 export function isFullWidthCharacter(charCode: number): boolean {

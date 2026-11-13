@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
 /**
  * Lint rule that prevents using a `ServicesAccessor` after an `await` expression.
@@ -21,20 +20,19 @@ import * as eslint from 'eslint';
  *    always called through `invokeFunction` at runtime (e.g. `Action2.run`,
  *    `ICommandHandler`).
  */
-export default new class NoAccessorAfterAwait implements eslint.Rule.RuleModule {
+export default new class NoAccessorAfterAwait implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			accessorAfterAwait: 'ServicesAccessor \'{{name}}\' must not be used after \'await\'. The accessor is only valid synchronously. Extract needed services before any async operation.',
 		},
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		return {
 			// Strategy 1: invokeFunction / invokeWithinContext calls
-			'CallExpression': (node: eslint.Rule.Node) => {
-				const callExpression = node as unknown as TSESTree.CallExpression;
+			'CallExpression': (callExpression: ESTree.CallExpression) => {
 
 				if (!isInvokeFunctionCall(callExpression.callee)) {
 					return;
@@ -42,7 +40,7 @@ export default new class NoAccessorAfterAwait implements eslint.Rule.RuleModule 
 
 				const functionArg = callExpression.arguments.find(arg =>
 					arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression'
-				) as TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression | undefined;
+				) as ESTree.ArrowFunctionExpression | ESTree.Function | undefined;
 
 				if (!functionArg || functionArg.params.length === 0) {
 					return;
@@ -57,22 +55,22 @@ export default new class NoAccessorAfterAwait implements eslint.Rule.RuleModule 
 			},
 
 			// Strategy 2: functions/methods with a `ServicesAccessor` typed parameter
-			'FunctionDeclaration': (node: eslint.Rule.Node) => {
-				checkFunctionWithAccessorParam(node as unknown as TSESTree.FunctionDeclaration, context);
+			'FunctionDeclaration': (node: ESTree.Function) => {
+				checkFunctionWithAccessorParam(node, context);
 			},
-			'FunctionExpression': (node: eslint.Rule.Node) => {
-				checkFunctionWithAccessorParam(node as unknown as TSESTree.FunctionExpression, context);
+			'FunctionExpression': (node: ESTree.Function) => {
+				checkFunctionWithAccessorParam(node, context);
 			},
-			'ArrowFunctionExpression': (node: eslint.Rule.Node) => {
-				checkFunctionWithAccessorParam(node as unknown as TSESTree.ArrowFunctionExpression, context);
+			'ArrowFunctionExpression': (node: ESTree.ArrowFunctionExpression) => {
+				checkFunctionWithAccessorParam(node, context);
 			},
 		};
 	}
 };
 
 function checkFunctionWithAccessorParam(
-	fn: TSESTree.FunctionDeclaration | TSESTree.FunctionExpression | TSESTree.ArrowFunctionExpression,
-	context: eslint.Rule.RuleContext
+	fn: ESTree.Function | ESTree.ArrowFunctionExpression,
+	context: Context
 ) {
 	for (const param of fn.params) {
 		if (param.type === 'Identifier' && hasServicesAccessorAnnotation(param)) {
@@ -92,7 +90,7 @@ function checkFunctionWithAccessorParam(
  * `invokeFunction` / `invokeWithinContext` call.
  */
 function isDirectInvokeFunctionCallback(
-	fn: TSESTree.FunctionDeclaration | TSESTree.FunctionExpression | TSESTree.ArrowFunctionExpression
+	fn: ESTree.Function | ESTree.ArrowFunctionExpression
 ): boolean {
 	const parent = fn.parent;
 	if (parent?.type === 'CallExpression' && isInvokeFunctionCall(parent.callee)) {
@@ -101,7 +99,7 @@ function isDirectInvokeFunctionCallback(
 	return false;
 }
 
-function hasServicesAccessorAnnotation(param: TSESTree.Identifier): boolean {
+function hasServicesAccessorAnnotation(param: ESTree.BindingIdentifier): boolean {
 	const annotation = param.typeAnnotation;
 	if (!annotation || annotation.type !== 'TSTypeAnnotation') {
 		return false;
@@ -114,14 +112,14 @@ function hasServicesAccessorAnnotation(param: TSESTree.Identifier): boolean {
 }
 
 function checkForAccessorAfterAwait(
-	fn: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression | TSESTree.FunctionDeclaration,
+	fn: ESTree.ArrowFunctionExpression | ESTree.Function,
 	accessorName: string,
-	context: eslint.Rule.RuleContext
+	context: Context
 ) {
 	let sawAwait = false;
-	const visited = new Set<TSESTree.Node>();
+	const visited = new Set<ESTree.Node>();
 
-	function walk(node: TSESTree.Node) {
+	function walk(node: ESTree.Node) {
 		if (visited.has(node)) {
 			return;
 		}
@@ -147,7 +145,7 @@ function checkForAccessorAfterAwait(
 
 		if (isAccessorUsage(node, accessorName) && sawAwait) {
 			context.report({
-				node: node as unknown as eslint.Rule.Node,
+				node,
 				messageId: 'accessorAfterAwait',
 				data: { name: accessorName },
 			});
@@ -257,7 +255,7 @@ function checkForAccessorAfterAwait(
  * via `return` or `throw`. Note: `break`/`continue` only exit loops, not the
  * enclosing function, so they are intentionally excluded.
  */
-function blockAlwaysExits(node: TSESTree.Node): boolean {
+function blockAlwaysExits(node: ESTree.Node): boolean {
 	if (node.type === 'ReturnStatement' || node.type === 'ThrowStatement') {
 		return true;
 	}
@@ -275,7 +273,7 @@ function blockAlwaysExits(node: TSESTree.Node): boolean {
  * Check if a node is a usage of the accessor — either `accessor.get(...)` or
  * just a reference to the accessor identifier (e.g. passing it to another fn).
  */
-function isAccessorUsage(node: TSESTree.Node, accessorName: string): boolean {
+function isAccessorUsage(node: ESTree.Node, accessorName: string): boolean {
 	// accessor.get(...)
 	if (node.type === 'CallExpression' &&
 		node.callee.type === 'MemberExpression' &&
@@ -288,14 +286,14 @@ function isAccessorUsage(node: TSESTree.Node, accessorName: string): boolean {
 		// Only flag when used as a call argument or assignment, not in
 		// the function's own parameter list
 		const parent = node.parent;
-		if (parent?.type === 'CallExpression' && parent.arguments.includes(node)) {
+		if (parent?.type === 'CallExpression' && (parent.arguments as readonly ESTree.Node[]).includes(node)) {
 			return true;
 		}
 	}
 	return false;
 }
 
-function walkChildren(node: TSESTree.Node, visit: (child: TSESTree.Node) => void) {
+function walkChildren(node: ESTree.Node, visit: (child: ESTree.Node) => void) {
 	switch (node.type) {
 		case 'BlockStatement':
 			node.body.forEach(visit);
@@ -397,7 +395,7 @@ function walkChildren(node: TSESTree.Node, visit: (child: TSESTree.Node) => void
 	}
 }
 
-function getParamName(param: TSESTree.Parameter): string | null {
+function getParamName(param: ESTree.ParamPattern): string | null {
 	if (param.type === 'Identifier') {
 		return param.name;
 	}
@@ -406,7 +404,7 @@ function getParamName(param: TSESTree.Parameter): string | null {
 
 const invokeFunctionNames = new Set(['invokeFunction', 'invokeWithinContext']);
 
-function isInvokeFunctionCall(callee: TSESTree.Expression): boolean {
+function isInvokeFunctionCall(callee: ESTree.Expression): boolean {
 	// object.invokeFunction(...)
 	if (callee.type === 'MemberExpression' &&
 		callee.property.type === 'Identifier' &&

@@ -11,6 +11,7 @@ jobs:
           targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-universal.zip
           artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
           displayName: Publish client archive
+          condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
           sbomPackageVersion: $(Build.SourceVersion)
@@ -18,16 +19,16 @@ jobs:
           targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
           artifactName: vscode_client_darwin_$(VSCODE_ARCH)_dmg
           displayName: Publish client DMG
+          condition: and(succeeded(), ne(variables['CLIENT_DMG_PUBLISHED'], 'true'))
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
           sbomPackageVersion: $(Build.SourceVersion)
     steps:
       - template: ../common/checkout.yml@self
 
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
+      - template: ../common/setup-node.yml@self
+        parameters:
+          os: macOS
 
       - template: ../distro/download-distro.yml@self
 
@@ -65,16 +66,18 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
+      - template: ../common/install-pnpm.yml@self
+
       - script: |
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
-              echo "Npm install failed too many times" >&2
+              echo "pnpm install failed too many times" >&2
               exit 1
             fi
-            echo "Npm install failed $i, trying again..."
+            echo "pnpm install failed $i, trying again..."
           done
         workingDirectory: build
         env:
@@ -117,11 +120,16 @@ jobs:
           security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
           security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
           security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
-          echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
-          security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+          echo "$MACOS_DEVELOPER_CERTIFICATE" | base64 -D > $(agent.tempdirectory)/cert.p12
+          security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$MACOS_DEVELOPER_CERTIFICATE_KEY" -T /usr/bin/codesign
           export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
           DEBUG=electron-osx-sign* node build/darwin/sign.ts $(agent.builddirectory)
+        env:
+          # Pass the secrets as environment variables: inline macros are pasted into the
+          # script text, so a quote in the password breaks the script.
+          MACOS_DEVELOPER_CERTIFICATE: $(macos-developer-certificate)
+          MACOS_DEVELOPER_CERTIFICATE_KEY: $(macos-developer-certificate-key)
         displayName: Set Hardened Entitlements
 
       - script: |
@@ -205,3 +213,15 @@ jobs:
           mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg
           mv $(DMG_PATH) $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
         displayName: Move artifact to out directory
+
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before an injected SDL step hung (see ../common/checkForArtifact.ts)
+      - script: >-
+          node build/azure-pipelines/common/checkForArtifact.ts
+          CLIENT_ARCHIVE_PUBLISHED vscode_client_darwin_$(VSCODE_ARCH)_archive
+          CLIENT_DMG_PUBLISHED vscode_client_darwin_$(VSCODE_ARCH)_dmg
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        continueOnError: true
+        displayName: Check for artifacts published by an earlier attempt

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Extensions, getConfigurationExperimentName, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
+import { Extensions, getConfigurationExperimentName, getConfigurationKeyExperimentName, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
 import { ITelemetryService } from './telemetry.js';
 
@@ -53,4 +53,13 @@ export function logExperimentTrigger(telemetryService: ITelemetryService, treatm
 export function logSettingExperimentTrigger(telemetryService: ITelemetryService, settingId: string): void {
 	const schema = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[settingId];
 	logExperimentTrigger(telemetryService, getConfigurationExperimentName(settingId, schema?.experiment));
+}
+
+/**
+ * Logs the {@link logExperimentTrigger experiment trigger} of one key of a keyed experiment-controlled
+ * object setting, using the treatment through which the experiment assigns that key's default value.
+ */
+export function logSettingKeyExperimentTrigger(telemetryService: ITelemetryService, settingId: string, key: string): void {
+	const schema = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[settingId];
+	logExperimentTrigger(telemetryService, getConfigurationKeyExperimentName(settingId, schema?.experiment, key));
 }

@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { net, session } from 'electron';
-import { pathToFileURL } from 'url';
+import { session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { COI, FileAccess, Schemas, CacheControlheaders, DocumentPolicyheaders } from '../../../base/common/network.js';
-import { basename, extname, normalize } from '../../../base/common/path.js';
+import { basename, extname, join, normalize } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { isUNCAccessAllowed } from '../../../base/node/unc.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
 import { NodeRemoteResourceResponse } from '../../remote/common/electronRemoteResources.js';
 import { createManagedRemoteResourceRequestHandler } from './managedRemoteResourceProtocol.js';
 import { IIPCObjectUrl, IProtocolMainService } from './protocol.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
+
+type ProtocolCallback = (response: Electron.FilePathWithHeaders | { error: number }) => void;
 
 export class ProtocolMainService extends Disposable implements IProtocolMainService {
 
@@ -50,15 +52,15 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	private handleProtocols(): void {
 		const { defaultSession } = session;
 
-		// Register vscode-file:// handler
-		defaultSession.protocol.handle(Schemas.vscodeFileResource, request => this.handleResourceRequest(request));
+		// TODO(deepak1556): Avoid protocol.handle nested file fetch until https://github.com/microsoft/vscode/issues/341401 is resolved.
+		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, callback));
 
 		// Block any file:// access
 		defaultSession.protocol.handle(Schemas.file, request => this.handleFileRequest(request));
 
 		// Cleanup
 		this._register(toDisposable(() => {
-			defaultSession.protocol.unhandle(Schemas.vscodeFileResource);
+			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
 			defaultSession.protocol.unhandle(Schemas.file);
 		}));
 	}
@@ -100,7 +102,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#region vscode-file://
 
-	private async handleResourceRequest(request: GlobalRequest): Promise<GlobalResponse> {
+	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const path = this.requestToNormalizedFilePath(request);
 		const pathBasename = basename(path);
 
@@ -125,7 +127,9 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 		// Document-policy header is needed for collecting
 		// JavaScript callstacks via https://www.electronjs.org/docs/latest/api/web-frame-main#framecollectjavascriptcallstack-experimental
 		// until https://github.com/electron/electron/issues/45356 is resolved.
-		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html') {
+		const isSessionsWorkbench = (pathBasename === 'sessions.html' || pathBasename === 'sessions-dev.html')
+			&& path === normalize(join(this.environmentService.appRoot, 'out/vs/sessions/electron-browser', pathBasename));
+		if (pathBasename === 'workbench.html' || pathBasename === 'workbench-dev.html' || isSessionsWorkbench) {
 			headers = {
 				...headers,
 				...DocumentPolicyheaders
@@ -134,41 +138,23 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
-			return this.createFileResponse(request, path, headers);
+			return callback({ path, headers });
 		}
 
-		// then check by validExtensions
-		if (this.validExtensions.has(extname(path).toLowerCase())) {
-			return this.createFileResponse(request, path, headers);
+		// then check by validExtensions, but only for UNC hosts the user allowed:
+		// UNC host restrictions only apply to node.js `fs` and Electron serves
+		// `vscode-file:` without going through it, so check the allowlist here
+		if (this.validExtensions.has(extname(path).toLowerCase()) && isUNCAccessAllowed(path)) {
+			return callback({ path, headers });
 		}
 
 		// finally block to load the resource
 		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${path} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
 
-		return Response.error();
+		return callback({ error: -3 /* ABORTED */ });
 	}
 
-	private async createFileResponse(request: GlobalRequest, path: string, headers: Record<string, string> | undefined): Promise<GlobalResponse> {
-		try {
-			const response = await net.fetch(pathToFileURL(path).toString(), {
-				method: request.method,
-				headers: request.headers,
-				bypassCustomProtocolHandlers: true
-			});
-			if (headers) {
-				for (const [name, value] of Object.entries(headers)) {
-					response.headers.set(name, value);
-				}
-			}
-
-			return response;
-		} catch (error) {
-			this.logService.error(`${Schemas.vscodeFileResource}: Failed to load resource ${path}`, error);
-			return Response.error();
-		}
-	}
-
-	private requestToNormalizedFilePath(request: GlobalRequest): string {
+	private requestToNormalizedFilePath(request: Electron.ProtocolRequest): string {
 
 		// 1.) Use `URI.parse()` util from us to convert the raw
 		//     URL into our URI.
