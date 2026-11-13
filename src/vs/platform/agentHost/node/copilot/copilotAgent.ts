@@ -1615,7 +1615,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
-		this._projectExtensionLaunchPolicy = new CopilotProjectExtensionLaunchPolicy(this._configurationService, this._logService);
+		this._projectExtensionLaunchPolicy = this._register(new CopilotProjectExtensionLaunchPolicy(this._configurationService, this._logService));
+		this._register(this._projectExtensionLaunchPolicy.onDidChangeExemptions(change => {
+			// Shutdown and disposal end every admission; no session is left to reconcile.
+			if (!this._isShuttingDown && !this._store.isDisposed) {
+				this._scheduleProjectExtensionTrustReconciliation(change);
+			}
+		}));
 		this._sandboxCertificate = this._instantiationService.createInstance(CopilotSandboxCertificate);
 		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
 			() => this._ensureClient(),

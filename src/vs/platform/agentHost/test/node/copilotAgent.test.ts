@@ -149,7 +149,7 @@ import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from 
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
-import { CopilotProjectExtensionLaunchPolicy, type ICopilotProjectExtensionLaunchAdmission, type ICopilotProjectExtensionTrustReconciliation } from '../../node/copilot/copilotProjectExtensionLaunchPolicy.js';
+import { CopilotProjectExtensionLaunchPolicy, type ICopilotProjectExtensionLaunchAdmission, type ICopilotProjectExtensionTrustChange, type ICopilotProjectExtensionTrustReconciliation } from '../../node/copilot/copilotProjectExtensionLaunchPolicy.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
 import type { CompactionTurnCorrelation, ICompactionTurnCorrelationResult } from '../../node/copilot/compactionTurnCorrelation.js';
 import { addCopilotSandboxPath, createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
@@ -5774,6 +5774,35 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({ registered, reconciliations }, { registered: true, reconciliations: [{ expanded: true, revokedExtensionNames: new Set() }] });
 			} finally {
 				admission.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('reconciles project extensions when an exemption under a launch starts or ends, except while shutting down', async () => {
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const internals = agent as unknown as {
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_projectExtensionTrustReconciler: Throttler;
+				_reconcileProjectExtensionsAfterTrustChange(change: ICopilotProjectExtensionTrustChange): Promise<void>;
+			};
+			const passes: ICopilotProjectExtensionTrustChange[] = [];
+			internals._reconcileProjectExtensionsAfterTrustChange = async change => { passes.push(change); };
+			// The policy fires this when a quick chat or an inheriting worktree session closes under a launch another session borrowed.
+			const exemptionChanges = (internals._projectExtensionLaunchPolicy as unknown as { _onDidChangeExemptions: Emitter<ICopilotProjectExtensionTrustChange> })._onDidChangeExemptions;
+			const settled = () => internals._projectExtensionTrustReconciler.queue(async () => { });
+			try {
+				exemptionChanges.fire({ expanded: false, contracted: true });
+				await settled();
+				const beforeShutdown = [...passes];
+				await agent.shutdown();
+				exemptionChanges.fire({ expanded: true, contracted: false });
+				await settled();
+
+				assert.deepStrictEqual({ beforeShutdown, duringShutdown: passes.slice(beforeShutdown.length) }, {
+					beforeShutdown: [{ expanded: false, contracted: true }],
+					duringShutdown: [],
+				});
+			} finally {
 				await disposeAgent(agent);
 			}
 		});
