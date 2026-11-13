@@ -91,6 +91,13 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	async openPreviousSession(): Promise<void> { }
 	async openNextSession(): Promise<void> { }
 
+	// Saved drafts are kept by the Agents window only.
+	registerSavedDraftOpener(): IDisposable {
+		return Disposable.None;
+	}
+
+	setCurrentDraftId(): void { }
+
 	async submitNewSessionInput(): Promise<boolean> {
 		return false;
 	}
