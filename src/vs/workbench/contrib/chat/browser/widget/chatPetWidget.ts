@@ -190,6 +190,8 @@ const DIZZY_FRAME_DURATIONS = Array.from({ length: 8 }, () => 120);
 const SUBAGENT_PET_SCALE = 0.5;
 /** Maximum number of subagent pets shown at once. */
 const SUBAGENT_PET_MAX_COUNT = 10;
+/** Delay between subagent pet arrivals, in milliseconds. */
+const SUBAGENT_PET_ARRIVAL_DELAY = 120;
 /** Maximum stacking height (CSS pixels) before subagent pets share space. */
 const SUBAGENT_PET_MAX_STACKING_HEIGHT = 500;
 /** Tolerance for fractional pixels when checking subagent pet bounds. */
@@ -1530,6 +1532,8 @@ export class ChatPetWidget extends Disposable {
 	private readonly _subagentPetEffects = this._register(new DisposableStore());
 	/** Coalesces bounds checks while the chat is resizing. */
 	private readonly _subagentPetResizeScheduler = this._register(new RunOnceScheduler(() => this._reconcileSubagentPetResize(), 16));
+	private readonly _subagentPetArrivalScheduler = this._register(new RunOnceScheduler(() => this._updateSubagentPets(this._activeSubagentIds, true), SUBAGENT_PET_ARRIVAL_DELAY));
+	private readonly _subagentPetArrivalDelay: number;
 	/** Overlay layer containing subagent pets. */
 	private readonly _subagentPetLayer: HTMLElement;
 	/** Shared widget services, initialized when the first subagent pet appears. */
@@ -1679,6 +1683,7 @@ export class ChatPetWidget extends Disposable {
 			readonly resizeObserverCtor?: typeof ResizeObserver;
 			readonly intersectionObserverCtor?: typeof IntersectionObserver;
 			readonly random?: () => number;
+			readonly subagentPetArrivalDelay?: number;
 		} | undefined,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -1690,6 +1695,7 @@ export class ChatPetWidget extends Disposable {
 	) {
 		super();
 		this._random = options?.random ?? Math.random;
+		this._subagentPetArrivalDelay = options?.subagentPetArrivalDelay ?? SUBAGENT_PET_ARRIVAL_DELAY;
 
 		this.parent = host.parent;
 		this.dragBounds = host.dragBounds;
@@ -2083,6 +2089,7 @@ export class ChatPetWidget extends Disposable {
 
 			if (!enabled) {
 				this._subagentPetResizeScheduler.cancel();
+				this._subagentPetArrivalScheduler.cancel();
 				this._activeSubagentIds = new Set();
 				this._despawningSubagentPetCount = 0;
 				this._subagentPets.clear();
@@ -2151,6 +2158,7 @@ export class ChatPetWidget extends Disposable {
 			const enabled = isChatPetVisible(this.chatPetService.enabled.read(reader), windowActive.read(reader));
 			const model = this._host.read(reader).model.read(reader);
 			if (model !== this._subagentPetModel) {
+				this._subagentPetArrivalScheduler.cancel();
 				this._updateSubagentPets(new Set());
 				this._subagentPetModel = model;
 			}
@@ -3304,7 +3312,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	/** Keeps existing pets for active subagents and fills available slots up to the limit. */
-	private _updateSubagentPets(activeSubagentIds: ReadonlySet<string>): void {
+	private _updateSubagentPets(activeSubagentIds: ReadonlySet<string>, arrivalReady = false): void {
 		this._activeSubagentIds = new Set(activeSubagentIds);
 		let removed = false;
 		let added = false;
@@ -3327,10 +3335,17 @@ export class ChatPetWidget extends Disposable {
 			if (this._subagentPets.has(id)) {
 				continue;
 			}
+			if (this._subagentPetArrivalDelay > 0 && !arrivalReady) {
+				if (!this._subagentPetArrivalScheduler.isScheduled()) {
+					this._subagentPetArrivalScheduler.schedule(this._subagentPetArrivalDelay);
+				}
+				break;
+			}
 			added = true;
 			const { left, top } = this._getSubagentPetLanding(getSubagentPetSize(this._scale));
 			const subagentPet = this._subagentPetEffects.add(new SubagentPet(this._getSubagentPetHost(), left, top));
 			this._subagentPets.set(id, subagentPet);
+			arrivalReady = false;
 		}
 		if (added || removed) {
 			this._scheduleSubagentPetResize();

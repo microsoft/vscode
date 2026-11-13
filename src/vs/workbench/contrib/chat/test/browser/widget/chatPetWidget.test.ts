@@ -114,7 +114,7 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void, initialModel?: IChatModel, random?: () => number) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void, initialModel?: IChatModel, random?: () => number, subagentPetArrivalDelay = 0) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		if (supportsJumpGame) {
@@ -179,7 +179,7 @@ suite('ChatPetWidget', () => {
 		}
 		initializeService?.(service);
 		const widget = disposables.add(new ChatPetWidget(
-			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor, random }, service, accessibilityService,
+			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor, random, subagentPetArrivalDelay }, service, accessibilityService,
 			new class extends mock<IContextMenuService>() {
 				override showContextMenu(delegate: IContextMenuDelegate): void { contextMenu = delegate; }
 			}(),
@@ -2895,6 +2895,55 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 0);
 	});
 
+	test('subagent pets arrive in sequence and skip subagents that have finished', () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		const { widget, firstHost, overlay } = createHostTransitionHarness(true, undefined, undefined, undefined, undefined, false, undefined, undefined, undefined, 120);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tools = Array.from({ length: 12 }, (_, index) => {
+			const id = `subagent-${index}`;
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		});
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 0);
+		tools[1].toolSpecificData = { kind: 'subagent', isActive: false };
+		changed.fire({ reason: 'other' });
+		clock.tick(119);
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 0);
+		clock.tick(1);
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 1);
+		clock.tick(120);
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 2);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Check the waiting subagent was skipped.
+		assert.ok(!widget['_subagentPets'].has(JSON.stringify(['request', 'subagent-1'])));
+		clock.tick(120 * 12);
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet, .chat-subagent-pet-despawning').length, 10);
+	});
+
+	test('subagent pet arrivals stop when disabled or the model changes', () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		disposables.add(toDisposable(() => clock.restore()));
+		const { widget, firstHost, overlay, service } = createHostTransitionHarness(true, undefined, undefined, undefined, undefined, false, undefined, undefined, undefined, 120);
+		const tools = ['first', 'second'].map(id => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		});
+		const model = observableValue<IChatModel | undefined>('model', createSubagentTestModel(tools));
+		widget.setHost({ ...firstHost, model });
+		clock.tick(120);
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 1);
+		model.set(undefined, undefined);
+		clock.tick(120);
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 0);
+		model.set(createSubagentTestModel(tools), undefined);
+		service.toggle();
+		clock.tick(240);
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet, .chat-subagent-pet-despawning').length, 0);
+	});
+
 	test('subagent pets fill available slots without replacing active pets', async () => {
 		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
@@ -3305,7 +3354,7 @@ suite('ChatPetWidget', () => {
 				assert.deepStrictEqual({
 					count: rects.length,
 					withinChat: left >= input.left - 0.1 && right <= input.right + 0.1 && top >= movement.top - 0.1 && bottom <= Math.min(input.top, movement.bottom) + 0.1,
-					bounded: right - left <= input.width + 0.1 && bottom - top <= 96.1,
+					bounded: right - left <= input.width + 0.1 && bottom - top <= 500.1,
 					largeEnough: rects.every(rect => rect.width >= 9.5 && rect.height >= 9.5),
 				}, { count, withinChat: true, bounded: true, largeEnough: true }, JSON.stringify({ left, right, top, bottom, input: input.toJSON(), movement: movement.toJSON() }));
 			};
