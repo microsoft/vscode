@@ -33,6 +33,13 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	public autoReply?: boolean;
 
 	/**
+	 * Set to `true` only when a person settled the carousel through its own UI, whether by submitting or
+	 * dismissing it. Answers submitted on their behalf (defaults, automatic replies, voice) and dismissals caused
+	 * by cancellation or disposal leave it unset. Not persisted.
+	 */
+	public submittedByUser?: boolean;
+
+	/**
 	 * Marks the carousel as dismissed with the given answers and clears draft
 	 * state. Safe to call multiple times — subsequent calls are no-ops.
 	 */

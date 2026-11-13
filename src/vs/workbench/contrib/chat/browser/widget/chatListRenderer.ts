@@ -5757,7 +5757,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
 		const carouselKey = carousel.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
 
-		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart) => {
+		const handleSubmit = async (answers: Map<string, IChatQuestionAnswerValue> | undefined, part: ChatQuestionCarouselPart, byUser?: boolean) => {
 			if (carousel.isUsed) {
 				// Voice can answer the same form, so a queued click may land after it
 				// has been submitted. Applying it would replace the spoken answer and
@@ -5771,6 +5771,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (carousel instanceof ChatQuestionCarouselData) {
 				carousel.draftAnswers = undefined;
 				carousel.draftCurrentIndex = undefined;
+				carousel.submittedByUser = byUser === true;
 				carousel.completion.complete({ answers: answersRecord });
 			}
 
@@ -5817,7 +5818,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus: false,
-				onSubmit: async (answers) => handleSubmit(answers, part)
+				onSubmit: async (answers, byUser) => handleSubmit(answers, part, byUser)
 			});
 			return part;
 		}
@@ -5826,14 +5827,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isEditing = !!this.viewModel?.editing;
 		const part = isEditing ? undefined : widget?.input.renderQuestionCarousel(carousel, context, {
 			shouldAutoFocus,
-			onSubmit: async (answers) => handleSubmit(answers, part!)
+			onSubmit: async (answers, byUser) => handleSubmit(answers, part!, byUser)
 		});
 
 		// If we couldn't render in the input part, fall back to inline rendering
 		if (!part) {
 			const fallbackPart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
 				shouldAutoFocus,
-				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
+				onSubmit: async (answers, byUser) => handleSubmit(answers, fallbackPart, byUser)
 			});
 			return fallbackPart;
 		}
@@ -5928,6 +5929,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			review.data = result;
 			review.isUsed = true;
 			if (review instanceof ChatPlanReviewData) {
+				review.submittedByUser = true;
 				review.completion.complete(result);
 			}
 			widget?.input.clearPlanReview(undefined, reviewKey);

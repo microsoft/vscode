@@ -60,6 +60,7 @@ import { readToolCallMeta, readAgentToolOutputDelta } from '../../../../../../pl
 import { readMcpRoutingServers, readMcpServerConnectorName } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { filterSessionConfigValues } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
+import { withHumanChatInputResponse } from '../../../../../../platform/agentHost/common/meta/agentChatInputResponseMeta.js';
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { getCompletionDescription, readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
@@ -79,7 +80,7 @@ import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, ChatTurnStartedAction, isChatAction, type ChatInputCompletedAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AuthenticateTargetKind, AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ChangesetStatus, ChatOriginKind, getSessionChatResource, getErrorResponsePart, getInlineToolInput, getTurnError, isChatReadOnly, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, SessionStatus, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, mergeSessionWithDefaultChat, readSessionScratchFolders, readSessionWorkspaceless, type ChatState, type ISessionFileDiff, type ISessionWithDefaultChat, type ICompletedToolCall, type InputRequestResponsePart, type MarkdownResponsePart, type Message, type MessageAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type ModelSelection, type PendingMessage, type ReasoningResponsePart, type RootState, type ChatInputAnswer, type ChatInputQuestion, type ChatSummary, type SessionState, type StringOrMarkdown, type ToolCallPendingConfirmationState, type ToolCallResponsePart, type ToolCallRunningState, type ToolCallState, type ToolInput, type Turn, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
@@ -5683,21 +5684,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (store.isDisposed || completedFromServer) {
 				return;
 			}
-			if (!result.answers) {
-				this._config.connection.dispatch(opts.chatURI, {
-					type: ActionType.ChatInputCompleted,
-					requestId: inputReq.id,
-					response: ChatInputResponseKind.Cancel,
-				});
-			} else {
-				const answers = convertCarouselAnswers(result.answers, inputReq.questions);
-				this._config.connection.dispatch(opts.chatURI, {
-					type: ActionType.ChatInputCompleted,
-					requestId: inputReq.id,
-					response: ChatInputResponseKind.Accept,
-					answers,
-				});
-			}
+			const completed: ChatInputCompletedAction = result.answers
+				? { type: ActionType.ChatInputCompleted, requestId: inputReq.id, response: ChatInputResponseKind.Accept, answers: convertCarouselAnswers(result.answers, inputReq.questions) }
+				: { type: ActionType.ChatInputCompleted, requestId: inputReq.id, response: ChatInputResponseKind.Cancel };
+			// The same completions follow cancellation, disposal, and answers submitted for the person.
+			this._config.connection.dispatch(opts.chatURI, carousel.submittedByUser ? withHumanChatInputResponse(completed) : completed);
 		});
 
 		if (opts.cancellationToken.isCancellationRequested) {
@@ -5766,11 +5757,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const completion = result
 				? planReview.toInputCompletion(result)
 				: { response: ChatInputResponseKind.Cancel };
-			this._config.connection.dispatch(opts.chatURI, {
-				type: ActionType.ChatInputCompleted,
-				requestId: inputReq.id,
-				...completion,
-			});
+			const completed: ChatInputCompletedAction = { type: ActionType.ChatInputCompleted, requestId: inputReq.id, ...completion };
+			// A dismissal and a voice answer resolve the same promise without the person using the review.
+			this._config.connection.dispatch(opts.chatURI, result && review.submittedByUser ? withHumanChatInputResponse(completed) : completed);
 		});
 
 		if (opts.cancellationToken.isCancellationRequested) {
@@ -5944,18 +5933,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const url = inputReq.url;
 		let completionDispatched = false;
 		let completedFromServer = false;
-		const settle = (response: ChatInputResponseKind): ElicitationState => {
+		// `byUser` marks the person's own choice of a button; any other settlement stays unattributed.
+		const settle = (response: ChatInputResponseKind, byUser = false): ElicitationState => {
 			if (completionDispatched || completedFromServer) {
 				return part.state.get();
 			}
 			completionDispatched = true;
 			part.state.set(response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected, undefined);
-			this._config.connection.dispatch(opts.chatURI, {
+			const completed: ChatInputCompletedAction = {
 				type: ActionType.ChatInputCompleted,
 				requestId: inputReq.id,
 				response,
 				...(response === ChatInputResponseKind.Accept && !url ? { answers: {} } : {}),
-			});
+			};
+			this._config.connection.dispatch(opts.chatURI, byUser ? withHumanChatInputResponse(completed) : completed);
 			return part.state.get();
 		};
 
@@ -5972,11 +5963,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return part.state.get();
 				}
 				if (!url) {
-					return settle(ChatInputResponseKind.Accept);
+					return settle(ChatInputResponseKind.Accept, true);
 				}
 				try {
+					// A URL that did not open is declined for the person, who chose to open it.
 					const opened = await this._openerService.open(url, { allowCommands: false });
-					return settle(opened ? ChatInputResponseKind.Accept : ChatInputResponseKind.Decline);
+					return opened ? settle(ChatInputResponseKind.Accept, true) : settle(ChatInputResponseKind.Decline);
 				} catch {
 					return settle(ChatInputResponseKind.Decline);
 				}
@@ -5985,7 +5977,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (completionDispatched || completedFromServer || store.isDisposed) {
 					return part.state.get();
 				}
-				return settle(ChatInputResponseKind.Decline);
+				return settle(ChatInputResponseKind.Decline, true);
 			},
 		);
 

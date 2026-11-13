@@ -11202,6 +11202,45 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('marks a completion as a person\'s only when they settled the request in its UI', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const question = { kind: ChatInputQuestionKind.Text, id: 'q', message: 'Delete the file?', required: true };
+			const plan: ChatInputRequestWithPlanReview = {
+				id: 'plan',
+				planReview: { title: 'Review Plan', content: 'Plan', canProvideFeedback: true, answerQuestionId: 'action', actions: [{ id: 'interactive', label: 'Implement Plan', default: true }] },
+			};
+			for (const request of [{ id: 'answered', questions: [question] }, { id: 'dismissed', questions: [question] }, { id: 'defaults', questions: [question] }, plan]) {
+				fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			}
+			await timeout(10);
+			const [answered, dismissed, defaults] = collected.flat().filter((part): part is ChatQuestionCarouselData => part instanceof ChatQuestionCarouselData);
+			const review = collected.flat().find((part): part is ChatPlanReviewData => part instanceof ChatPlanReviewData)!;
+			agentHostService.dispatchedActions.length = 0;
+
+			answered.submittedByUser = true;
+			answered.completion.complete({ answers: { q: 'Yes' } });
+			dismissed.submittedByUser = true;
+			dismissed.completion.complete({ answers: undefined });
+			// Defaults submitted for the person when they send another message.
+			defaults.submittedByUser = false;
+			defaults.completion.complete({ answers: { q: 'Yes' } });
+			review.submittedByUser = true;
+			review.completion.complete({ rejected: true });
+			await timeout(10);
+
+			const answer = { q: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Yes' } } };
+			const human = { 'agentHost.inputResponseSource': 'human_response' };
+			assert.deepStrictEqual(agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).map(d => d.action), [
+				{ type: ActionType.ChatInputCompleted, requestId: 'answered', response: ChatInputResponseKind.Accept, answers: answer, _meta: human },
+				{ type: ActionType.ChatInputCompleted, requestId: 'dismissed', response: ChatInputResponseKind.Cancel, _meta: human },
+				{ type: ActionType.ChatInputCompleted, requestId: 'defaults', response: ChatInputResponseKind.Accept, answers: answer },
+				{ type: ActionType.ChatInputCompleted, requestId: 'plan', response: ChatInputResponseKind.Decline, _meta: human },
+			]);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('plan-review rejection dispatches a decline without selecting an implementation action', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
@@ -11747,7 +11786,7 @@ suite('AgentHostChatContribution', () => {
 					completionsBeforeClick: [],
 					completions: [{
 						channel: session,
-						action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response, ...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}) },
+						action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response, ...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}), _meta: { 'agentHost.inputResponseSource': 'human_response' } },
 					}],
 					state: response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
 					openedUrls: [],
@@ -20046,7 +20085,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'Proceed after reconnect?',
 				completions: [{
 					channel: chatUri,
-					action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response: ChatInputResponseKind.Accept, answers: {} },
+					action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response: ChatInputResponseKind.Accept, answers: {}, _meta: { 'agentHost.inputResponseSource': 'human_response' } },
 				}],
 			});
 		});

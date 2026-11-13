@@ -28074,6 +28074,27 @@ Use the attached image as context.
 			assert.strictEqual(result.wasFreeform, true);
 		});
 
+		test('labels only the answers a client reports as a person\'s own', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const ask = () => runtime.handleUserInputRequest({ question: 'Delete the file?', choices: ['Yes', 'No'] }, { sessionId: 'test-session-1' });
+			const answer = (value: string) => ({ answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value } } } as const);
+			const human = { responseSource: 'human_response' } as const;
+
+			const answered = ask();
+			const dismissed = ask();
+			const unreported = ask();
+			session.respondToUserInputRequest(getInputRequest(signals[0]).id, ChatInputResponseKind.Accept, answer('Yes'), human);
+			session.respondToUserInputRequest(getInputRequest(signals[1]).id, ChatInputResponseKind.Cancel, undefined, human);
+			session.respondToUserInputRequest(getInputRequest(signals[2]).id, ChatInputResponseKind.Accept, answer('Yes'));
+
+			assert.deepStrictEqual({ answered: await answered, dismissed: await dismissed, unreported: await unreported }, {
+				answered: { answer: 'Yes', wasFreeform: false, decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				dismissed: { answer: '', wasFreeform: true, decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				unreported: { answer: 'Yes', wasFreeform: false },
+			});
+		});
+
 		test('respondToUserInputRequest returns false for unknown id', async () => {
 			const { session } = await createAgentSession(disposables);
 			assert.strictEqual(session.respondToUserInputRequest('unknown-id', ChatInputResponseKind.Accept), false);
@@ -28649,6 +28670,53 @@ Use the attached image as context.
 			const request = getInputRequest(signals[0]);
 			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Cancel);
 			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
+		});
+
+		test('labels a person\'s ask_user answer and refusals beside the result, and nothing else', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ask-user');
+			const ask = () => runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Delete README.md?',
+				requestedSchema: { type: 'object', properties: { confirm: { type: 'string', enum: ['Yes', 'No'] } } },
+			});
+			const yes = { confirm: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'Yes' } } } as const;
+			const human = { responseSource: 'human_response' } as const;
+
+			const accepted = ask();
+			const declined = ask();
+			const cancelled = ask();
+			const unreported = ask();
+			const tornDown = ask();
+			session.respondToUserInputRequest(getInputRequest(signals[0]).id, ChatInputResponseKind.Accept, yes, human);
+			session.respondToUserInputRequest(getInputRequest(signals[1]).id, ChatInputResponseKind.Decline, undefined, human);
+			session.respondToUserInputRequest(getInputRequest(signals[2]).id, ChatInputResponseKind.Cancel, undefined, human);
+			session.respondToUserInputRequest(getInputRequest(signals[3]).id, ChatInputResponseKind.Accept, yes);
+			const tornDownRequestId = getInputRequest(signals[4]).id;
+			const answered = { accepted: await accepted, declined: await declined, cancelled: await cancelled, unreported: await unreported };
+			await session.abort();
+
+			assert.deepStrictEqual({
+				...answered, tornDown: await tornDown,
+				lateHumanResponseHandled: session.respondToUserInputRequest(tornDownRequestId, ChatInputResponseKind.Accept, yes, human),
+			}, {
+				accepted: { action: 'accept', content: { confirm: 'Yes' }, decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				declined: { action: 'decline', decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				cancelled: { action: 'cancel', decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				unreported: { action: 'accept', content: { confirm: 'Yes' } },
+				tornDown: { action: 'cancel' },
+				lateHumanResponseHandled: false,
+			});
+		});
+
+		test('an automatic ask_user reply stays unlabeled', async () => {
+			const { runtime } = await createAgentSession(disposables, { configValues: { [SessionConfigKey.Mode]: 'autopilot' } });
+
+			assert.deepStrictEqual(await runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Delete README.md?',
+				requestedSchema: { type: 'object', properties: { confirm: { type: 'string' } } },
+			}), { action: 'accept', content: { confirm: AgentHostAutoReplyAnswer } });
 		});
 
 		test('autopilot auto-cancels without firing a progress event', async () => {
@@ -33250,6 +33318,37 @@ Use the attached image as context.
 			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
 
 			assert.deepStrictEqual(await responsePromise, { approved: false });
+		});
+
+		test('labels a person\'s plan approval, rejection, and feedback, but not a host-substituted outcome', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
+			const human = { responseSource: 'human_response' } as const;
+			const reviewed = new Set<AgentSignal>();
+			const review = async (response: ChatInputResponseKind, value?: { kind: ChatInputAnswerValueKind.Selected | ChatInputAnswerValueKind.Text; value: string }, context?: typeof human) => {
+				const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
+				const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested) && !reviewed.has(s));
+				reviewed.add(signal);
+				const request = getInputRequest(signal);
+				session.respondToUserInputRequest(request.id, response, value ? { [request.questions![0].id]: { state: ChatInputAnswerState.Submitted, value } } : undefined, context);
+				return responsePromise;
+			};
+
+			assert.deepStrictEqual({
+				approved: await review(ChatInputResponseKind.Accept, { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' }, human),
+				rejected: await review(ChatInputResponseKind.Decline, undefined, human),
+				feedback: await review(ChatInputResponseKind.Accept, { kind: ChatInputAnswerValueKind.Text, value: 'Keep the README.' }, human),
+				substitutedAction: await review(ChatInputResponseKind.Accept, { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' }, human),
+				emptySubmission: await review(ChatInputResponseKind.Accept, undefined, human),
+				unreported: await review(ChatInputResponseKind.Accept, { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' }),
+			}, {
+				approved: { approved: true, selectedAction: 'exit_only', decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				rejected: { approved: false, decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				feedback: { approved: false, feedback: 'Keep the README.', selectedAction: 'interactive', decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				substitutedAction: { approved: true, selectedAction: 'interactive' },
+				emptySubmission: { approved: false },
+				unreported: { approved: true, selectedAction: 'exit_only' },
+			});
 		});
 
 		test('abort resolves and clears a pending plan review', async () => {
