@@ -282,9 +282,8 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime interaction the row belongs to; joins with interaction_id on other forwarded events for that interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"unique_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Runtime-generated identifier for this telemetry envelope." },
-		"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the session was not judged: ineligible or not_sampled." },
-		"detail": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Eligibility detail, such as non-interactive client." },
-		"cohort": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How the session entered or left the judged cohort." }
+		"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the session was not judged: ineligible, not_sampled, or no_snapshot." },
+		"detail": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Eligibility detail, such as non-interactive client." }
 	}
 */
 
@@ -304,6 +303,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"user_message_event_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session event of the user message that was judged." },
 		"sentiment": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Closed-vocabulary sentiment of the user message, used to measure user frustration. The message text is not collected." },
 		"status": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the sentiment judge produced a verdict." },
+		"error_type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded reason the sentiment judge produced no verdict: invalid_response, model_unavailable, request_failed, or message_too_large. Exclude these rows when computing frustration rate." },
 		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Sentiment judge model; written in the clear only for catalog models." },
 		"current_message_length": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Length of the judged message.", "isMeasurement": true },
 		"previous_message_length": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Length of the preceding context message.", "isMeasurement": true },
