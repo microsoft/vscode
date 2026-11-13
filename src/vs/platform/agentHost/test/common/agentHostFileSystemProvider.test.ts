@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangesEvent, FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
+import type { IAgentConnection } from '../../common/agentService.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, PathStyle, ResourceType, type CreateResourceWatchParams, type InitializeResult, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
@@ -1147,6 +1148,7 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		readonly watchCalls: CreateResourceWatchParams[] = [];
 		onDidReconnect?: Event<void>;
 		initializeResult?: IObservable<InitializeResult | undefined>;
+		rootState?: IAgentConnection['rootState'];
 		nextWatchHandle: { onDidChange: Event<readonly IFileChange[]>; dispose(): void } | undefined;
 		watchError: unknown | undefined;
 		nextResolveResult: ResourceResolveResult = { uri: '', type: ResourceType.File, size: 42, mtime: '2026-01-15T12:34:56.789Z', etag: 'etag-1' };
@@ -1284,9 +1286,12 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		sub.dispose();
 	});
 
-	async function fireChangeAfterWatch(pathStyle: PathStyle, watchedUri: string, changedUri: string): Promise<{ watched: URI; received: IFileChange[][] }> {
+	async function fireChangeAfterWatch(pathStyle: PathStyle, watchedUri: string, changedUri: string, platform?: string): Promise<{ watched: URI; received: IFileChange[][] }> {
 		const { provider, connection } = setup();
 		connection.initializeResult = constObservable({ environment: { pathStyle } } as InitializeResult);
+		if (platform) {
+			connection.rootState = { value: { agents: [], activeSessions: 0, _meta: { 'vscode.agentHost.resources': { platform } } } } as unknown as IAgentConnection['rootState'];
+		}
 		const onDidChange = new Emitter<readonly IFileChange[]>();
 		connection.nextWatchHandle = { onDidChange: onDidChange.event, dispose: () => onDidChange.dispose() };
 		const watched = toAgentHostUri(URI.parse(watchedUri), 'remote');
@@ -1314,6 +1319,15 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 
 		assert.deepStrictEqual(received.map(e => e.map(c => c.resource.toString())), [[toAgentHostUri(URI.parse('file:///c:/Users/test/a.html'), 'remote').toString()]]);
 		assert.strictEqual(new FileChangesEvent(received[0], false).contains(watched, FileChangeType.UPDATED), false);
+	});
+
+	test('watch re-casing follows the path style even when the advertised platform conflicts', async () => {
+		const windowsStyleOnLinux = await fireChangeAfterWatch(PathStyle.Windows, 'file:///C:/Users/Test/a.html', 'file:///c:/Users/Test/a.html', 'linux');
+		const posixStyleOnMac = await fireChangeAfterWatch(PathStyle.Posix, 'file:///C:/Users/Test/a.html', 'file:///c:/Users/Test/a.html', 'macos');
+
+		assert.deepStrictEqual(
+			[windowsStyleOnLinux, posixStyleOnMac].map(r => new FileChangesEvent(r.received[0], false).contains(r.watched, FileChangeType.UPDATED)),
+			[true, false]);
 	});
 
 	test('watch attached before the handshake matches changes that only differ by case once the host is known', async () => {
