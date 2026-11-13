@@ -46,9 +46,9 @@ interface ISession extends IDisposable {
 type ScreenshotToolCaptureClassification = {
 	owner: 'Giuspepe';
 	comment: 'Reports how a screenshot entry point ended.';
-	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The entry point that started the screenshot: chat Add Context, the issue reporter, or an Integrated Browser screenshot action.' };
+	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The entry point that started the screenshot: chat Add Context, the issue reporter, an Integrated Browser screenshot action, or a chat command or Add Context item that captures the window of another app.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the screenshot was attached, cancelled, or failed.' };
-	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What was captured: the window, an area, a browser page, or a full browser page, or none when nothing was captured.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What was captured: the window, an area, a browser page, a full browser page, or the window of another app, or none when nothing was captured.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from running the entry point to its outcome, including the time the user spent selecting.' };
 };
 

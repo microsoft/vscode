@@ -13,6 +13,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
+import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../common/sessionsProvider.js';
 
 export type SessionFilter =
 	| { readonly kind: 'harness' | 'environment'; readonly id: string }
@@ -107,6 +109,20 @@ export function getSessionEnvironments(environments: readonly ISessionEnvironmen
 		byId.set(environment.id, environment);
 	}
 	return [...byId.values()].sort(compareSessionEnvironments);
+}
+
+/** Sharing registrations of this computer are already represented by This Computer. */
+export function getSessionFilterEnvironments(providers: readonly ISessionsProvider[], reader?: IReader): { environments: ISessionEnvironment[]; localEnvironmentIds: ReadonlySet<string> } {
+	const environments: ISessionEnvironment[] = [];
+	const localEnvironmentIds = new Set<string>();
+	for (const provider of providers) {
+		if (isAgentHostProvider(provider) && provider.localRegistration?.read(reader)) {
+			localEnvironmentIds.add(provider.environment.id);
+		} else {
+			environments.push(provider.environment);
+		}
+	}
+	return { environments, localEnvironmentIds };
 }
 
 /**

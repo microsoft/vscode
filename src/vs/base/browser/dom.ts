@@ -27,6 +27,9 @@ export interface IRegisteredCodeWindow {
 
 //# region Multi-Window Support Utilities
 
+/** The registered window that received focus last, for {@link getActiveDocument}. */
+let lastFocusedWindowId: number | undefined;
+
 export const {
 	registerWindow,
 	getWindow,
@@ -45,6 +48,8 @@ export const {
 	ensureCodeWindow(mainWindow, 1);
 	const mainWindowRegistration = { window: mainWindow, disposables: new DisposableStore() };
 	windows.set(mainWindow.vscodeWindowId, mainWindowRegistration);
+	// The main window lives as long as this module, before which `addDisposableListener` cannot be used yet.
+	mainWindow.addEventListener('focus', () => lastFocusedWindowId = mainWindow.vscodeWindowId);
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
 	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
@@ -83,6 +88,14 @@ export const {
 			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => {
 				onWillUnregisterWindow.fire(window);
 			}));
+
+			disposables.add(addDisposableListener(window, EventType.FOCUS, () => {
+				lastFocusedWindowId = window.vscodeWindowId;
+			}));
+			// A window can take focus as it opens, before it registers, and then has no focus event to come.
+			if (window.document.hasFocus()) {
+				lastFocusedWindowId = window.vscodeWindowId;
+			}
 
 			onDidRegisterWindow.fire(registeredWindow);
 
@@ -1082,10 +1095,11 @@ export function getActiveDocument(): Document {
 		return mainWindow.document;
 	}
 
-	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	const focusedDoc = documents.find(doc => doc.hasFocus());
-	if (focusedDoc) {
-		return focusedDoc;
+	const focusedWindows = Array.from(getWindows(), ({ window }) => window).filter(window => window.document.hasFocus());
+	if (focusedWindows.length) {
+		// A window can take focus without the window focused before it losing focus, such as a panel on macOS, so that
+		// both report focus. The one focused last is then the active one.
+		return (focusedWindows.find(window => window.vscodeWindowId === lastFocusedWindowId) ?? focusedWindows[0]).document;
 	}
 
 	// Check if an external component (like browser view) has focus

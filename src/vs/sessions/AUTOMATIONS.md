@@ -53,7 +53,7 @@ Cloud history retains the authoritative task ID as its native session resource. 
 
 `AutomationMutationGuard` is a caller-supplied pre-dispatch check for transient client conditions. Throwing stops a definition mutation before it is sent; the callback neither performs host authorization nor rolls back an already-dispatched request. Guarded editable-state comparison is a separate concern.
 
-Manual invocation also has two result boundaries: `IAutomationRunRequestResult` describes the provider's response to a host request, while `IAutomationRunOperation` separates user-facing dispatch feedback from ongoing observation. A host-handled request need not create a session successfully, and terminal observation does not imply a successful run.
+Manual invocation also has two result boundaries: `IAutomationRunRequestResult` describes the provider's response to a host request, while `IAutomationRunOperation` separates user-facing dispatch feedback from ongoing observation. Queue admission into an existing conversation has a distinct `queued` dispatch outcome without session ownership. A host-handled request need not create a session successfully, and terminal observation does not imply a successful run.
 
 ## Definitions and session configuration
 
@@ -62,6 +62,8 @@ Sessions management marks Automation configuration drafts with `isAutomationDraf
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
 One-time Automations use an absolute UTC `runAt` and require the separately negotiated `automations.oneTime` capability. Initial creation eligibility is restricted to the local desktop Agent Host, not remote or Cloud providers. The existing host scheduler atomically persists the one-time run receipt before dispatch, including Send Now before the due time. Missed instants catch up once after host availability and wake readiness return; failure never rearms the occurrence. Updates after admission are rejected. Cancellation or editing back to a draft first disables the pending definition through an authoritative update; deleting completed history is not cancellation.
+
+Agent-authored one-time requests use the same `ScheduledChatsService` handoff journal and submission path as Send Later, without reading or claiming a composer. `configureAutomation` defaults one-time creation to the authoritative originating chat; its explicit `currentSession` target retains new-session environment semantics. Tool-call identity is scoped to the originating chat and retained through a compact operation-to-automation receipt after dispatch, recovery, or definition removal, so replay cannot recreate a completed or cancelled request without retaining its body in the handoff journal. Catalogue reconciliation durably records acceptance, including after a lost creation acknowledgement. Discovery reports unresolved handoffs separately from definitions and exposes negotiated scheduling support separately from feature-gated creation availability. Existing-chat sends inherit execution-time configuration; new-session configuration snapshots remain provider-owned and are captured only for a new handoff, never on replay. Editing a captured request updates both its prompt and recovery text, and unknown acknowledgements never authorize a replacement creation.
 
 For `scheduledChat`, an acknowledged disable is terminal: the host removes Update and Run, rejecting stale re-enable and Send Now requests even after restart. Ordinary Automation pause/resume behavior is unchanged. `oneTimeRunId` is the same provider-scoped identity as the corresponding run's `id` and proves admission only. `oneTimeDispatchedAt` durably confirms initial-request dispatch independently of history retention; a run can already be `running` during session allocation, so that status alone is not dispatch confirmation. An absent dispatch receipt after interruption remains an uncertain outcome, never permission to retry automatically.
 
@@ -117,7 +119,9 @@ When an MCP server in a run session reports that it requires authentication, the
 
 ### Blueprints and templates
 
-`IAutomationBlueprint` is a versioned portable name, prompt, and schedule. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
+`IAutomationBlueprint` is a versioned portable name, prompt, schedule, and optional `disableConditions`. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.
+
+Version 2 adds `disableConditions`. Version 1 remains readable with its original strict schema; exports without conditions omit the field and use version 1, while exports containing conditions use version 2.
 
 Standalone `.automation.md` files and plugins use the same blueprint format. Plugin discovery exposes inert templates and follows effective plugin enablement; discovery, installation, and updates never mutate saved Automations.
 
@@ -187,9 +191,21 @@ Run Now submits a manual request to this authority and observes dispatch and com
 
 Disabling scheduled execution on a definition preserves manual Run Now. Disabling the Automations feature removes new-run authority without deleting definitions or automatically terminating sessions already running. On restart or re-enablement, the host applies its existing recovery and misfire rules without requiring an Agents Window.
 
+### Automatic disable conditions
+
+The local host accepts `disableConditions` as an optional array with at most one `afterDate` condition (`date`, an ISO 8601 timestamp). The existing AHP update action replaces the entire array; omission preserves it, and `[]` clears it without re-enabling scheduling. No separate capability, clear flag, or disable-reason state is used. The local host does not implement run-count scheduling. One-time requests do not support end dates; their send time and catch-up-once semantics remain independent of recurring automation cutoffs.
+
+Remote host definitions may contain standard AHP run-count conditions. The client preserves these in its catalogue and keeps supported operations available, but does not author or change them. Client end-date edits retain other host conditions when constructing the full AHP replacement array; exports reject conditions the portable end-date schema cannot represent instead of silently dropping them.
+
+The host evaluates the final date against admission time, including catch-up runs, and wakes at the cutoff independently of provider readiness or an active run. Expiry processing respects the host's wake/reconnect gate: when scheduled work resumes, overdue dates disable scheduling before any catch-up admission. At or after the cutoff it disables scheduling without cancelling an admitted run. Conditions stay in the definition; clients warn before enabling an expired date.
+
+Cloud automations have no end-date support; the cloud provider rejects non-empty `disableConditions` on create and update instead of dropping them.
+
 ## Persistence and retained history
 
 Canonical definitions, schedule cursors, manual request IDs, and run state live in Agent Host storage. Before session creation, the host journals the allocated backend URI and resolved provider. It durably links the session before sending the initial prompt. Interrupted creation is recovered or cleaned up using that recorded identity; recovery never resends the prompt and retries failed cleanup when providers return.
+
+Restoration removes obsolete run-count conditions and their usage counters, retaining end dates and history. Previously capped automations are disabled rather than silently becoming unlimited; users must explicitly re-enable them.
 
 Automation sessions carry the standard typed `SessionOriginKind.Automation` origin. It is stored as central-only session metadata so an absent older-build mirror cannot erase it, and forwarded through catalog/list/restore, notifications, and provider caches. Sidebar visibility uses this origin, not the currently loaded run-history page. Retained legacy run membership supplies missing origins without replacing other session metadata or deriving provider identity from a URI scheme.
 

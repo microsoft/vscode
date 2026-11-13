@@ -142,8 +142,16 @@ function getUnsupportedMcpSetup(data: unknown): { readonly repositoryUrl?: URI }
 
 function getMcpServerUrlInGallery(mcpServerUrl: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
 	const mcpGalleryUrl = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServersQueryService) ?? mcpGalleryManifest.url;
+	return getUrlInMcpGallery(mcpServerUrl, mcpGalleryUrl)?.href;
+}
+
+/**
+ * Parses `url`, normalizing it, when it is an HTTP(S) URL without credentials whose origin is the gallery's and whose
+ * path is at or under the gallery's.
+ */
+export function getUrlInMcpGallery(url: string, mcpGalleryUrl: string): URL | undefined {
 	try {
-		const serverUrl = new URL(mcpServerUrl);
+		const serverUrl = new URL(url);
 		const galleryUrl = new URL(mcpGalleryUrl);
 		if (
 			(serverUrl.protocol !== `${Schemas.http}:` && serverUrl.protocol !== `${Schemas.https}:`)
@@ -160,7 +168,7 @@ function getMcpServerUrlInGallery(mcpServerUrl: string, mcpGalleryManifest: IMcp
 		if (serverUrl.pathname !== galleryPath && !serverUrl.pathname.startsWith(`${galleryPath}/`)) {
 			return undefined;
 		}
-		return serverUrl.href;
+		return serverUrl;
 	} catch {
 		return undefined;
 	}

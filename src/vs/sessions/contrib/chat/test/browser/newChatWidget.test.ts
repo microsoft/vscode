@@ -11,7 +11,7 @@ import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { createErrorWithActions, isErrorWithActions } from '../../../../../base/common/errorMessage.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -41,6 +41,7 @@ import { IGitHubAccountClient } from '../../../../../platform/github/common/acco
 import { IUsersClient, User } from '../../../../../platform/github/common/core/users.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -336,7 +337,7 @@ interface ISendHarness {
 	_lastBackgroundSentSessionResource?: URI;
 	_lastBackgroundSendOptions?: ISendRequestOptions;
 	readonly _newChatInput?: Pick<SharedChatInputComposer, 'hasInput'>;
-	readonly notificationService: { error(message: string | Error): void; info?(message: string): void };
+	readonly notificationService: { error(message: string | Error): void; info?(message: string): void; prompt?: INotificationService['prompt'] };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
 	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
@@ -372,7 +373,7 @@ interface ISendHarness {
 		} | undefined;
 	};
 	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };
-	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: { readonly source: 'chat' }): Promise<void> };
+	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: IOpenSessionOptions): Promise<void> };
 	readonly commandService?: { executeCommand(commandId: string, ...args: unknown[]): Promise<unknown> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_getComparisonBranch?(session: ISession): string | undefined;
@@ -4308,12 +4309,16 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const [backgroundSend, inboxSelected] of [[false, false], [false, true], [true, false]]) {
-		test(`confirms background sends based on grouping and reseeds the workspace (always background: ${backgroundSend}, Inbox selected: ${inboxSelected})`, async () => {
+	for (const [backgroundSend, inboxSelected, openFails] of [[false, false, false], [false, true, false], [true, false, false], [false, true, true]]) {
+		test(`notifies background sends and reseeds the workspace, preserving hosted status (always background: ${backgroundSend}, Inbox selected: ${inboxSelected}, open fails: ${openFails})`, async () => {
 			const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 			const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
 			const folderUri = URI.file('/dismissed');
 			const restored: URI[] = [];
+			const notifications: Parameters<INotificationService['prompt']>[] = [];
+			const opened: { resource: URI; options: IOpenSessionOptions }[] = [];
+			const openError = new Error('Session no longer available');
+			const errors: Error[] = [];
 			const session = upcastPartial<ISession>({ sessionId: 'draft' });
 			const sentSession = upcastPartial<ISession>({ resource: URI.parse('test-session:/started') });
 			let sentOptions: ISendRequestOptions | undefined;
@@ -4324,7 +4329,19 @@ suite('NewChatWidget', () => {
 				_backgroundSend: backgroundSend,
 				_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
 				_newChatInput: { hasInput: false },
-				notificationService: { error: () => assert.fail('Unexpected error') },
+				notificationService: {
+					error: () => assert.fail('Unexpected error'),
+					prompt: (...args) => { notifications.push(args); return upcastPartial<ReturnType<INotificationService['prompt']>>({}); },
+				},
+				sessionsService: {
+					unsetNewSession: () => assert.fail('Unexpected navigation'),
+					openSession: async (resource, options) => {
+						opened.push({ resource, options });
+						if (openFails) {
+							throw openError;
+						}
+					},
+				},
 				_pendingBackgroundSends: pendingSends,
 				recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
 				_session: constObservable(session),
@@ -4343,16 +4360,28 @@ suite('NewChatWidget', () => {
 				_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 			};
 			await send.call(harness, 'hello', undefined, backgroundSend ? undefined : true);
-			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get(), notifications: notifications.length };
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
-			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get(), notifications: notifications.length };
 			assert.ok(sentOptions);
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
-			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
-				beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
+			const openedBeforeAction = [...opened];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			errorHandler.setUnexpectedErrorHandler(error => errors.push(error));
+			try {
+				await notifications[0]?.[2][0].run();
+			} finally {
+				errorHandler.setUnexpectedErrorHandler(previousHandler);
+			}
+			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource, notifications: notifications.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })), openedBeforeAction, opened, errors }, {
+				beforeSuccess: { restored: [], status: undefined, notifications: 0 }, afterUnrelatedSend: { restored: [], status: undefined, notifications: 0 },
 				restored: [folderUri], pending: 0, background: true,
-				status: backgroundSend || inboxSelected ? 'Message sent' : undefined,
-				resource: backgroundSend || inboxSelected ? sentSession.resource : undefined,
+				status: backgroundSend ? 'Message sent' : undefined,
+				resource: backgroundSend ? sentSession.resource : undefined,
+				notifications: backgroundSend ? [] : [{ severity: Severity.Info, message: 'Message sent', choices: ['Open Session'] }],
+				openedBeforeAction: [],
+				opened: backgroundSend ? [] : [{ resource: sentSession.resource, options: { source: 'link', forceMainChat: true } }],
+				errors: openFails ? [openError] : [],
 			});
 		});
 	}
@@ -4614,8 +4643,8 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		for (const outcome of ['dispatched', 'rejected'] as const) {
-			test(`hands an Alt+Enter send to its host before sending it, and ${outcome === 'dispatched' ? 'clears its own status when the request fails' : 'cancels that when the send is rejected'}`, async () => {
+		for (const [outcome, requestedInBackground] of [['dispatched', true], ['rejected', true], ['dispatched', false], ['rejected', false]] as const) {
+			test(`hands ${requestedInBackground ? 'an Alt+Enter send' : 'an Enter send of a composer that sends in the background'} to its host before sending it, and ${outcome === 'dispatched' ? 'clears its own status when the request fails' : 'cancels that when the send is rejected'}`, async () => {
 				const replaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 				const ended = disposables.add(new Emitter<INewSessionRequestEndedEvent>());
 				const pending = disposables.add(new DisposableMap<object, IDisposable>());
@@ -4628,6 +4657,7 @@ suite('NewChatWidget', () => {
 				const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file', name: 'file' });
 				let trackedWhenSent: number | undefined;
 				const harness: ISendHarness = {
+					_backgroundSend: !requestedInBackground,
 					_draftHost: host(slot, [], tracked),
 					_backgroundSendStatus: status,
 					_newChatInput: { hasInput: false },
@@ -4659,7 +4689,7 @@ suite('NewChatWidget', () => {
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 				};
 
-				const result = await send.call(harness, 'hello', [attachment], true);
+				const result = await send.call(harness, 'hello', [attachment], requestedInBackground || undefined);
 				status.set('Pending', undefined);
 				const latest = tracked[0]?.send.isLatest();
 				replaced.fire({ from: draft, to: prepared });
@@ -4670,7 +4700,7 @@ suite('NewChatWidget', () => {
 				assert.deepStrictEqual({
 					result,
 					trackedWhenSent,
-					tracked: tracked.map(({ send, cancelled }) => ({ session: send.session.sessionId, query: send.query, attachedContext: send.attachedContext, cancelled })),
+					tracked: tracked.map(({ send, cancelled }) => ({ session: send.session.sessionId, query: send.query, attachedContext: send.attachedContext, requestedInBackground: send.requestedInBackground, cancelled })),
 					latest,
 					statusAfterOther,
 					status: status.get(),
@@ -4679,7 +4709,7 @@ suite('NewChatWidget', () => {
 				}, outcome === 'dispatched' ? {
 					result: true,
 					trackedWhenSent: 1,
-					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], cancelled: false }],
+					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], requestedInBackground, cancelled: false }],
 					latest: true,
 					statusAfterOther: 'Pending',
 					status: undefined,
@@ -4688,7 +4718,7 @@ suite('NewChatWidget', () => {
 				} : {
 					result: false,
 					trackedWhenSent: 1,
-					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], cancelled: true }],
+					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], requestedInBackground, cancelled: true }],
 					latest: true,
 					statusAfterOther: 'Pending',
 					status: 'Pending',
