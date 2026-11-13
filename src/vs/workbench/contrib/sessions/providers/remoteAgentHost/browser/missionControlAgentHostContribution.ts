@@ -7,9 +7,10 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { localize } from '../../../../../../nls.js';
 import { autorun, derived } from '../../../../../../base/common/observable.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
-import { DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -37,6 +38,8 @@ const SESSION_HANDOFF_TIMEOUT = 2 * 60 * 1000;
 interface IHandoffSession {
 	readonly session: ISession;
 	readonly backendSession: URI;
+	/** The host chat resources of the session's chats, by their resources. */
+	readonly backendChats: ResourceMap<URI>;
 }
 
 interface ISessionHandoff extends IDisposable {
@@ -240,6 +243,10 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			if (environmentId === undefined || !environmentIds.has(environmentId) || this._returning.has(environmentId)) {
 				continue;
 			}
+			// The environment stays usable until the direct connection is established, in case connecting fails.
+			if (!RemoteAgentHostConnectionStatus.isConnected(this._remoteAgentHostService.connections.find(connection => connection.address === address)?.status)) {
+				continue;
+			}
 			const provider = this._providerInstances.get(cloudSandboxAddress(environmentId));
 			if (!provider || RemoteAgentHostConnectionStatus.isDisconnected(provider.connectionStatus.get())) {
 				continue;
@@ -263,12 +270,18 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	 */
 	private _handOff<T extends IAgentHostSessionsProvider>(environmentId: string, sessions: readonly IHandoffSession[], isReady: () => boolean, findTarget: () => T | undefined, onTarget?: (target: T) => void): void {
 		const store = new DisposableStore();
+		const targetListener = store.add(new MutableDisposable());
 		let remaining = sessions;
 		let target: T | undefined;
 		const handoff: ISessionHandoff = {
 			step: () => {
 				if (store.isDisposed) {
 					return;
+				}
+				// A target that was replaced (e.g. its provider was recreated) no longer receives the sessions.
+				if (target && !this._sessionsProvidersService.getProviders({ includeSessionBackends: true }).includes(target)) {
+					target = undefined;
+					targetListener.clear();
 				}
 				if (!target) {
 					if (!isReady()) {
@@ -278,14 +291,14 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 					if (!target) {
 						return;
 					}
-					store.add(target.onDidChangeSessions(() => handoff.step()));
+					targetListener.value = target.onDidChangeSessions(() => handoff.step());
 					onTarget?.(target);
 					if (store.isDisposed) {
 						return;
 					}
 				}
 				const current = target;
-				remaining = remaining.filter(({ session, backendSession }) => !current.adoptSession?.(session, backendSession));
+				remaining = remaining.filter(({ session, backendSession, backendChats }) => !current.adoptSession?.(session, backendSession, backendChats));
 				if (!remaining.length) {
 					finish();
 				}
@@ -314,7 +327,17 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	private _captureSessions(provider: IAgentHostSessionsProvider | undefined): IHandoffSession[] {
 		return (provider?.getSessions() ?? []).flatMap(session => {
 			const backendSession = provider!.getBackendSessionResource(session.sessionId);
-			return backendSession ? [{ session, backendSession }] : [];
+			if (!backendSession) {
+				return [];
+			}
+			const backendChats = new ResourceMap<URI>();
+			for (const chat of session.chats.get()) {
+				const backendChat = provider!.getBackendChatResource(chat.resource);
+				if (backendChat) {
+					backendChats.set(chat.resource, backendChat);
+				}
+			}
+			return [{ session, backendSession, backendChats }];
 		});
 	}
 

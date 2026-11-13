@@ -14,6 +14,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableValu
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
@@ -1277,7 +1278,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * Continues a session that another provider listed for the same agent host
 	 * session, so that open views move to this provider's session.
 	 */
-	adoptSession(from: ISession, backendSession: URI): boolean {
+	adoptSession(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean {
 		if (this._unpublished) {
 			return false;
 		}
@@ -1286,7 +1287,25 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		if (!to) {
 			return false;
 		}
-		this._onDidReplaceSession.fire({ from, to });
+		// Chat resources differ between providers; map them through the host's chat resources.
+		const chats = new ResourceMap<URI>();
+		chats.set(from.mainChat.get().resource, to.mainChat.get().resource);
+		if (backendChats?.size) {
+			const ownChats = new ResourceMap<URI>();
+			for (const chat of to.chats.get()) {
+				const backendChat = this.getBackendChatResource(chat.resource);
+				if (backendChat) {
+					ownChats.set(backendChat, chat.resource);
+				}
+			}
+			for (const [chat, backendChat] of backendChats) {
+				const ownChat = ownChats.get(backendChat);
+				if (ownChat) {
+					chats.set(chat, ownChat);
+				}
+			}
+		}
+		this._onDidReplaceSession.fire({ from, to, chats });
 		return true;
 	}
 

@@ -8,7 +8,8 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -44,7 +45,7 @@ import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workb
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISession, ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionChangeEvent } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { getRemoteAgentHostPickerKey } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostPickerVisibility.js';
 
@@ -64,16 +65,20 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 		this.id = `agenthost-${agentHostAuthority(remoteAddress)}`;
 	}
 	listSessions(...sessionIds: string[]): void {
-		this.listedSessions = sessionIds.map(sessionId => upcastPartial<ISession>({ sessionId, providerId: this.id }));
+		this.listedSessions = sessionIds.map(sessionId => upcastPartial<ISession>({
+			sessionId, providerId: this.id,
+			chats: constObservable([upcastPartial<IChat>({ resource: URI.from({ scheme: 'test-chat', path: `/${this.id}/${sessionId}` }) })]),
+		}));
 		this.sessionChanges.fire({ added: this.listedSessions, removed: [], changed: [] });
 	}
 	override getSessions(): ISession[] { return this.cachedSessionsVisible ? [...this.listedSessions] : []; }
 	override getBackendSessionResource(sessionId: string): URI { return URI.from({ scheme: 'agent-host', path: `/${sessionId}` }); }
-	override adoptSession(from: ISession, backendSession: URI): boolean {
+	override getBackendChatResource(chatResource: URI): URI { return URI.from({ scheme: 'agent-host', path: `${chatResource.path.substring(chatResource.path.lastIndexOf('/'))}/chat` }); }
+	override adoptSession(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean {
 		if (!this.getSessions().some(session => this.getBackendSessionResource(session.sessionId).toString() === backendSession.toString())) {
 			return false;
 		}
-		this.adoptions.push(`${from.providerId} ${backendSession.path}`);
+		this.adoptions.push(`${from.providerId} ${backendSession.path} ${[...backendChats ?? []].map(([chat, backendChat]) => `${chat.path}->${backendChat.path}`).join(',')}`);
 		return true;
 	}
 	override get defaultLabel(): string { return this.name; }
@@ -183,15 +188,15 @@ suite('Mission Control native provider inventory', () => {
 		const connectionsChanged = store.add(new Emitter<void>());
 		const connectionListeners = store.add(new DisposableStore());
 		const agentConnection = new class extends mock<IAgentConnection>() { }();
-		const setConnectionStatus = (id: string, status: RemoteAgentHostConnectionStatus | undefined) => {
-			const address = `cloudsandbox:${id}`;
+		const setAddressStatus = (address: string, status: RemoteAgentHostConnectionStatus | undefined, name = address) => {
 			if (status) {
-				connections.set(address, { address, name: id, status });
+				connections.set(address, { address, name, status });
 			} else {
 				connections.delete(address);
 			}
 			connectionsChanged.fire();
 		};
+		const setConnectionStatus = (id: string, status: RemoteAgentHostConnectionStatus | undefined) => setAddressStatus(`cloudsandbox:${id}`, status, id);
 		let sharedDiscoveries = 0;
 		let tunnelDiscoveries = 0;
 		const discoveryHandlers = new Set<Parameters<IAgentHostFilterService['registerDiscoveryHandler']>[0]>([async () => { tunnelDiscoveries++; }]);
@@ -277,7 +282,7 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, shares, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus,
+			hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, shares, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus, setAddressStatus,
 			whenConnected: (id: string) => {
 				const isConnected = () => RemoteAgentHostConnectionStatus.isConnected(connections.get(`cloudsandbox:${id}`)?.status);
 				return isConnected() ? Promise.resolve() : Event.toPromise(Event.filter(connectionsChanged.event, isConnected), connectionListeners);
@@ -393,29 +398,37 @@ suite('Mission Control native provider inventory', () => {
 			whileShared: [],
 			whileListed: [],
 			afterDisconnect: ['connect:kept'],
-			adoptions: [`${remote.id} /session`],
+			adoptions: [`${remote.id} /session /${remote.id}/session->/session/chat`],
 		});
 	});
 
-	test('moves sessions back to a remote connected directly again and disconnects its environment without suppressing auto-connect', async () => {
-		const { hosts, sharedRemoteEnvironmentIds, shares, created, actions, providersService } = fixture();
+	test('moves sessions back to a remote once it is connected directly again, also when its provider is recreated, and disconnects its environment without suppressing auto-connect', async () => {
+		const { hosts, sharedRemoteEnvironmentIds, shares, created, actions, providersService, setAddressStatus } = fixture();
 		shares.set(new Map([['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
 		hosts.set([{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' }], undefined);
 		const environment = created[0].provider;
 		await environment.connect();
 		environment.listSessions('session');
-		const remote = store.add(new TestProvider('ssh:kept', 'Kept SSH Host', {}));
-		store.add(providersService.registerProvider(remote));
+		const replaced = store.add(new TestProvider('ssh:kept', 'Kept SSH Host', {}));
+		const registration = providersService.registerProvider(replaced);
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connecting);
 		sharedRemoteEnvironmentIds.set(new Set(['kept']), undefined);
+		const whileConnecting = { actions: actions.filter(action => action !== 'discover'), listedByEnvironment: environment.getSessions().length };
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connected);
 		const listedByEnvironment = environment.getSessions().length;
+		// Renaming the remote recreates its provider.
+		registration.dispose();
+		const remote = store.add(new TestProvider('ssh:kept', 'Renamed SSH Host', {}));
+		store.add(providersService.registerProvider(remote));
 		remote.listSessions('session');
-		const adoptions = [...remote.adoptions];
+		const adoptions = { replaced: [...replaced.adoptions], remote: [...remote.adoptions] };
 		// Keeping the remote shared again reconnects its environment automatically
 		sharedRemoteEnvironmentIds.set(new Set(), undefined);
-		assert.deepStrictEqual({ actions: actions.filter(action => action !== 'discover'), listedByEnvironment, adoptions }, {
+		assert.deepStrictEqual({ whileConnecting, actions: actions.filter(action => action !== 'discover'), listedByEnvironment, adoptions }, {
+			whileConnecting: { actions: ['connect:kept'], listedByEnvironment: 1 },
 			actions: ['connect:kept', 'disconnect:kept', 'connect:kept'],
 			listedByEnvironment: 0,
-			adoptions: [`${environment.id} /session`],
+			adoptions: { replaced: [], remote: [`${environment.id} /session /${environment.id}/session->/session/chat`] },
 		});
 	});
 

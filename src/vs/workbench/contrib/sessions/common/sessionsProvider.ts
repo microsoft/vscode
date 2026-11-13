@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
@@ -54,6 +55,14 @@ export interface IChatMoveEnd {
 export interface IChatMovedEvent {
 	readonly from: IChatMoveEnd;
 	readonly to: IChatMoveEnd;
+}
+
+/** A session replaced by another; see {@link ISessionsProvider.onDidReplaceSession}. */
+export interface ISessionReplacedEvent {
+	readonly from: ISession;
+	readonly to: ISession;
+	/** The chats of `to` by the resources of the chats of `from` they continue, when their resources differ. */
+	readonly chats?: ResourceMap<URI>;
 }
 
 /**
@@ -468,7 +477,7 @@ export interface ISessionsProvider {
 	 * @internal This is an implementation detail of the Copilot Chat sessions
 	 * provider. Do not implement or consume this event in other providers.
 	 */
-	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+	readonly onDidReplaceSession?: Event<ISessionReplacedEvent>;
 
 	/**
 	 * Optional. Fires when the user invokes a changeset operation of one of

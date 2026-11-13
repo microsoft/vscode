@@ -260,6 +260,40 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		});
 	});
 
+	test('shows a kept environment once its remote is disconnected and does not ask while sharing is disabled', async () => {
+		const context = fixture();
+		store.add(context.service.registerKeepSharingHandler((address, environmentId) => context.calls.push(`keep ${address} ${environmentId}`)));
+		const ubuntu = context.addRemote('wsl:Ubuntu');
+		await context.flush();
+		await context.service.setShared('wsl:Ubuntu', true);
+		context.setEnabled(false);
+		await context.flush();
+		const disabled = await context.service.confirmDisconnect('wsl:Ubuntu', 'Ubuntu');
+		context.setEnabled(true);
+		await context.flush();
+
+		context.setPromptAnswer('Keep Sharing');
+		const kept = await context.service.confirmDisconnect('wsl:Ubuntu', 'Ubuntu');
+		// Disconnecting removes the remote's entry.
+		ubuntu.setConnected(false);
+		ubuntu.setConfigured(false);
+		await context.flush();
+
+		assert.deepStrictEqual({ disabled, kept, disconnected: context.snapshot(), calls: context.calls }, {
+			disabled: true,
+			kept: true,
+			disconnected: { shareable: [], shares: { 'wsl:Ubuntu': { state: 'enabled', environmentId: 'environment-wsl:Ubuntu' } }, environmentIds: [] },
+			calls: [
+				'register wsl:Ubuntu account token-1',
+				'unregister wsl:Ubuntu account',
+				'register wsl:Ubuntu account token-1',
+				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
+				'refresh environments',
+				'keep wsl:Ubuntu environment-wsl:Ubuntu',
+			],
+		});
+	});
+
 	test('rejects sharing unavailable remotes and retries unsharing after the next connection', async () => {
 		const context = fixture();
 		const ubuntu = context.addRemote('wsl:Ubuntu');

@@ -242,7 +242,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 
 	async confirmDisconnect(address: string, name: string): Promise<boolean> {
 		const share = this.shares.get().get(address);
-		if (!share || share.state === 'unavailable') {
+		if (!this._enabled.get() || !share || share.state === 'unavailable') {
 			return true;
 		}
 		const { result } = await this._dialogService.prompt<boolean>({
