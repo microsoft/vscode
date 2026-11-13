@@ -859,16 +859,24 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
  */
 export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	let testElement: HTMLElement | null = domNode;
-	let zoom = 1.0;
-	do {
-		// eslint-disable-next-line local/code-no-any-casts
-		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
-		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
-			zoom *= elementZoomLevel;
+	let zoom = 1;
+	const targetWindow = getWindow(domNode);
+	while (testElement !== null) {
+		const elementZoomLevel = targetWindow.getComputedStyle(testElement).getPropertyValue('zoom');
+		if (elementZoomLevel !== '' && elementZoomLevel !== '1') {
+			const value = Number(elementZoomLevel);
+			if (!isNaN(value) && value > 0) {
+				zoom *= value;
+			}
 		}
 
-		testElement = testElement.parentElement;
-	} while (testElement !== null && testElement !== testElement.ownerDocument.documentElement);
+		if (testElement.parentElement) {
+			testElement = testElement.parentElement;
+		} else {
+			const root = testElement.getRootNode();
+			testElement = isShadowRoot(root) && isHTMLElement(root.host) ? root.host : null;
+		}
+	}
 
 	return zoom;
 }

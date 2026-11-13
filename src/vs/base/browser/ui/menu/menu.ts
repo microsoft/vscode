@@ -5,7 +5,7 @@
 
 import { getVisibleWCOTitlebarAreaRect, isFirefox } from '../../browser.js';
 import { EventType as TouchEventType, Gesture } from '../../touch.js';
-import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getDomNodeZoomLevel, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
@@ -295,7 +295,8 @@ export class Menu extends ActionBar {
 		}));
 
 		const window = getWindow(container);
-		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
+		const containerZoom = getDomNodeZoomLevel(container);
+		menuElement.style.maxHeight = `${Math.max(10, (window.innerHeight - container.getBoundingClientRect().top - 35) / containerZoom)}px`;
 
 		this.push(cleanMenuActions(actions, options.submenuIds, options.getGroupTitle), { icon: true, label: true, isMenu: true });
 
@@ -1026,7 +1027,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		this.submenuContainer.style.left = '0';
 		const window = getWindow(this.element);
 		const computedStyles = window.getComputedStyle(this.parentData.parent.domNode);
-		const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
+		const submenuZoom = getDomNodeZoomLevel(this.submenuContainer);
+		const paddingTop = (parseFloat(computedStyles.paddingTop || '0') || 0) * submenuZoom;
 		const entryBox = this.element.getBoundingClientRect();
 		const entryBoxUpdated = {
 			top: entryBox.top - paddingTop,
@@ -1042,8 +1044,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			{ width: viewBox.width, height: viewBox.height },
 			layoutResult
 		);
-		this.submenuContainer.style.left = `${left - viewBox.left}px`;
-		this.submenuContainer.style.top = `${top - viewBox.top}px`;
+		this.submenuContainer.style.left = `${(left - viewBox.left) / submenuZoom}px`;
+		this.submenuContainer.style.top = `${(top - viewBox.top) / submenuZoom}px`;
 	}
 
 	private updateAriaExpanded(value: string): void {
