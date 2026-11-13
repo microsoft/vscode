@@ -3375,26 +3375,20 @@ export class ChatPetWidget extends Disposable {
 		const platforms = this._getPlatforms();
 		const floor = platformChanged ? this.movementBounds.getBoundingClientRect().bottom : Math.min(this.dragBounds.getBoundingClientRect().top, this.movementBounds.getBoundingClientRect().bottom);
 		const size = getSubagentPetSize(this._scale);
-		const subagentPets = [...this._subagentPets.values()].filter(subagentPet => !subagentPet.isRespawning()).map(subagentPet => ({
-			subagentPet,
-			left: subagentPet.left,
-			top: subagentPet.top,
-			size,
-		})).sort((a, b) => b.top - a.top);
-		for (const [index, entry] of subagentPets.entries()) {
-			const landing = getChatPetFallTarget(overlay.left + entry.left, overlay.top + entry.top - POSITION_EPSILON, entry.size, entry.size, platforms, floor);
-			let top = Math.max(entry.top, landing.top - overlay.top);
+		const subagentPets = [...this._subagentPets.values()].filter(subagentPet => !subagentPet.isRespawning()).sort((a, b) => b.top - a.top);
+		for (const [index, subagentPet] of subagentPets.entries()) {
+			const landing = getChatPetFallTarget(overlay.left + subagentPet.left, overlay.top + subagentPet.top - POSITION_EPSILON, size, size, platforms, floor);
+			let top = Math.max(subagentPet.top, landing.top - overlay.top);
 			let supported = !!landing.platform;
 			for (let below = 0; below < index; below++) {
 				const support = subagentPets[below];
-				if (!support.subagentPet.isRespawning() && entry.left < support.left + support.size && entry.left + entry.size > support.left && support.top >= entry.top + entry.size - POSITION_EPSILON && support.top - entry.size <= top) {
-					top = Math.min(top, support.top - entry.size);
+				if (!support.isRespawning() && subagentPet.left < support.left + size && subagentPet.left + size > support.left && support.top >= subagentPet.top + size - POSITION_EPSILON && support.top - size <= top) {
+					top = Math.min(top, support.top - size);
 					supported = true;
 				}
 			}
-			if (top > entry.top + POSITION_EPSILON) {
-				entry.subagentPet.fallTo(top, platformChanged && !supported);
-				entry.top = top;
+			if (top > subagentPet.top + POSITION_EPSILON) {
+				subagentPet.fallTo(top, platformChanged && !supported);
 			}
 		}
 	}
