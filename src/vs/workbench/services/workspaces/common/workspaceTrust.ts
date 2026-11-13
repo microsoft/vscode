@@ -71,6 +71,14 @@ export class CanonicalWorkspace implements IWorkspace {
 	get id(): string {
 		return this.originalWorkspace.id;
 	}
+
+	get uri(): URI | undefined {
+		// Trust applies to the resource the window is on, so while at an alternate location this is not the primary
+		if (this.configuration) {
+			return this.configuration;
+		}
+		return this.canonicalFolderUris.length === 1 ? this.canonicalFolderUris[0] : undefined;
+	}
 }
 
 export class WorkspaceTrustEnablementService extends Disposable implements IWorkspaceTrustEnablementService {

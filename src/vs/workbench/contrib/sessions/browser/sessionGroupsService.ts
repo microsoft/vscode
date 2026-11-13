@@ -288,7 +288,8 @@ export interface ISessionGroupsService {
 	 * and cleared if the new session is abandoned without sending. No-op when the
 	 * group does not exist.
 	 */
-	setPendingNewSessionGroup(groupId: string): void;
+	setPendingNewSessionGroup(groupId: string | undefined): void;
+	getPendingNewSessionGroup(): string | undefined;
 
 	/**
 	 * Record the group that sessions sent from the new-session draft slot with id `slotId` (see
@@ -894,8 +895,12 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return [...result];
 	}
 
-	setPendingNewSessionGroup(groupId: string): void {
-		this._pendingNewSessionGroupId = this._groups.has(groupId) ? groupId : undefined;
+	setPendingNewSessionGroup(groupId: string | undefined): void {
+		this._pendingNewSessionGroupId = groupId && this._groups.has(groupId) ? groupId : undefined;
+	}
+
+	getPendingNewSessionGroup(): string | undefined {
+		return this._pendingNewSessionGroupId;
 	}
 
 	setDraftSlotGroup(slotId: string, groupId: string | undefined): IDisposable {

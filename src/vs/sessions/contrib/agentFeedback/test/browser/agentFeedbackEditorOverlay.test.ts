@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
@@ -21,7 +22,8 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
 import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
-import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates } from '../../browser/agentFeedbackEditorOverlay.js';
+import { AgentFeedbackEditorOverlay, getAgentFeedbackOverlayResourceCandidates, getDiffEditorResource, getNavigationAnchorForResource } from '../../browser/agentFeedbackEditorOverlay.js';
+import { ISessionEditorComment } from '../../browser/sessionEditorComments.js';
 import { IAgentFeedbackService } from '../../../../../workbench/contrib/sessions/browser/agentFeedback.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -168,6 +170,45 @@ suite('AgentFeedbackEditorOverlay', () => {
 		}, {
 			file: [workspaceFolder],
 			emptyFiles: [],
+		});
+	});
+
+	test('anchors the navigation at the first comment of a file that is shown, unless it already is at one of its comments', () => {
+		const a = URI.file('/repo/a.ts');
+		const b = URI.file('/repo/b.ts');
+		const c = URI.file('/repo/c.ts');
+		const comments = [
+			upcastPartial<ISessionEditorComment>({ id: 'a1', resourceUri: a }),
+			upcastPartial<ISessionEditorComment>({ id: 'b1', resourceUri: b }),
+			upcastPartial<ISessionEditorComment>({ id: 'b2', resourceUri: b }),
+		];
+
+		assert.deepStrictEqual({
+			anchorInOtherFile: getNavigationAnchorForResource(comments, 'a1', b),
+			noAnchor: getNavigationAnchorForResource(comments, undefined, b),
+			anchorInFile: getNavigationAnchorForResource(comments, 'b2', b),
+			fileWithoutComments: getNavigationAnchorForResource(comments, 'a1', c),
+		}, {
+			anchorInOtherFile: 'b1',
+			noAnchor: 'b1',
+			anchorInFile: undefined,
+			fileWithoutComments: undefined,
+		});
+	});
+
+	test('uses the original file of a diff whose modified side is the empty document of a deleted file', () => {
+		const file = URI.file('/repo/a.ts');
+		const synthetic = (id: string) => URI.from({ scheme: Schemas.inMemory, path: `/synthetic/${id}` });
+		const diff = (original: URI, modified: URI) => getDiffEditorResource({ original: { uri: original }, modified: { uri: modified } }).toString();
+
+		assert.deepStrictEqual({
+			modified: diff(URI.file('/repo/.git/a.ts'), file),
+			added: diff(synthetic('1'), file),
+			deleted: diff(file, synthetic('2')),
+		}, {
+			modified: file.toString(),
+			added: file.toString(),
+			deleted: file.toString(),
 		});
 	});
 });

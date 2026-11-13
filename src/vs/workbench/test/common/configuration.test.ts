@@ -13,6 +13,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../platform/work
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ConfigurationMigration, ConfigurationMigrationWorkbenchContribution, Extensions, IConfigurationMigrationRegistry } from '../../common/configuration.js';
+import { testIWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('ConfigurationMigrationWorkbenchContribution', () => {
 
@@ -49,7 +50,7 @@ suite('ConfigurationMigrationWorkbenchContribution', () => {
 		const workspaceService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
 			override getWorkbenchState(): WorkbenchState { return WorkbenchState.EMPTY; }
-			override getWorkspace() { return { id: 'test', folders: [] }; }
+			override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
 		}();
 
 		disposables.add(new ConfigurationMigrationWorkbenchContribution(configurationService, workspaceService));

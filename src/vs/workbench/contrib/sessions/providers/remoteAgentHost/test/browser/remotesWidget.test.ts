@@ -51,6 +51,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	readonly copiedAddresses: string[] = [];
 	readonly locationChanges: string[] = [];
 	readonly serverUpdates: string[] = [];
+	readonly gitHubEnvironmentChanges: { id: string; shared: boolean }[] = [];
 	readonly tunnelDeletions: string[] = [];
 	readonly sshDeletions: string[] = [];
 	copyFailure: Error | undefined;
@@ -103,6 +104,12 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 		this.serverUpdates.push(id);
 		await this.pendingManagement?.p;
 		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, connectionStatus: RemoteAgentHostConnectionStatus.connected } : remote), undefined);
+	}
+
+	async setSharedAsGitHubEnvironment(id: string, shared: boolean): Promise<void> {
+		this.gitHubEnvironmentChanges.push({ id, shared });
+		await this.pendingManagement?.p;
+		this.remotes.set(this.remotes.get().map(remote => remote.id === id ? { ...remote, gitHubEnvironment: shared ? { state: 'enabled' } : undefined } : remote), undefined);
 	}
 
 	async deleteTunnel(id: string): Promise<void> {
@@ -745,6 +752,40 @@ suite('RemotesWidget', () => {
 			return parent.querySelector('.remotes-actions-column .codicon-cloud-download')?.getAttribute('aria-label') ?? null;
 		});
 		assert.deepStrictEqual(labels, [null, null, 'Update Server for Build server', null, null]);
+	});
+
+	test('GitHub environment action offers Stop Sharing once the remote is shared', async () => {
+		const { parent, model } = createWidget();
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, canShareAsGitHubEnvironment: true } : remote), undefined);
+		const action = () => [...parent.querySelectorAll<HTMLElement>('[data-remote-id="ssh:build"] .remotes-actions-column [role="button"]')]
+			.find(button => button.getAttribute('aria-label')?.includes('GitHub'))!;
+		const state = () => ({ label: action().getAttribute('aria-label'), disabled: action().getAttribute('aria-disabled'), pressed: action().getAttribute('aria-pressed') });
+		const states = [state()];
+		action().click();
+		await timeout(0);
+		states.push(state());
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, gitHubEnvironment: { state: 'connecting' } } : remote), undefined);
+		states.push(state());
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, gitHubEnvironment: { state: 'error', error: 'Denied' } } : remote), undefined);
+		states.push(state());
+		action().click();
+		await timeout(0);
+		states.push(state());
+		model.remotes.set(model.remotes.get().map(remote => remote.id === 'ssh:build' ? { ...remote, gitHubEnvironment: { state: 'unavailable', unavailableReason: 'account' } } : remote), undefined);
+		states.push(state());
+		action().click();
+		await timeout(0);
+		assert.deepStrictEqual({ states, changes: model.gitHubEnvironmentChanges }, {
+			states: [
+				{ label: 'Share Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Stop Sharing Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Sharing Build server as a GitHub environment...', disabled: 'true', pressed: null },
+				{ label: 'Stop Sharing Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Share Build server as GitHub Environment', disabled: null, pressed: null },
+				{ label: 'Build server is shared as a GitHub environment by another GitHub account.', disabled: 'true', pressed: null },
+			],
+			changes: [{ id: 'ssh:build', shared: true }, { id: 'ssh:build', shared: false }],
+		});
 	});
 
 	test('Update Server supports keyboard activation, blocks duplicates and restores focus when it disappears', async () => {

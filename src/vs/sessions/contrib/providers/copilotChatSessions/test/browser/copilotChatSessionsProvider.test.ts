@@ -2979,6 +2979,29 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.throws(() => provider.createQuickChat(CopilotSandboxSessionType.id, { isAutomationDraft: true }), /not supported/);
 		});
 
+		for (const providerMode of ['default', 'sandbox'] as const) {
+			test(`${providerMode} restores ordinary draft configuration with Automations disabled`, async () => {
+				const configurationService = new TestConfigurationService();
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				await configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
+				await configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+				const provider = createProviderForSendTests(disposables, model, async () => { throw new Error('Must not send.'); }, {
+					configurationService, providerMode,
+				});
+				const draftConfiguration = {
+					sessionTemplate: { modelId: 'model', modelConfiguration: { thinkingLevel: 'low' }, config: { providerChoice: true } },
+				};
+				const type = providerMode === 'default' ? CopilotCloudSessionType.id : CopilotSandboxSessionType.id;
+				const session = provider.createNewSession(workspace, type, { draftConfiguration });
+				const restored = provider.getDraftSessionConfiguration(session.sessionId);
+				assert.deepStrictEqual({
+					model: session.modelId.get(),
+					modelConfiguration: restored?.sessionTemplate?.modelConfiguration,
+					providerChoice: restored?.sessionTemplate?.config?.providerChoice,
+				}, { model: 'model', modelConfiguration: { thinkingLevel: 'low' }, providerChoice: true });
+			});
+		}
+
 		test('enabled cloud automations capture model and opaque tools without local approval defaults', async () => {
 			const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: true } } } });
 			const provider = createProviderForSendTests(disposables, model, async () => { throw new Error('Configuration must not send a request.'); }, { configurationService });
