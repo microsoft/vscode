@@ -1316,6 +1316,25 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		assert.strictEqual(new FileChangesEvent(received[0], false).contains(watched, FileChangeType.UPDATED), false);
 	});
 
+	test('watch attached before the handshake matches changes that only differ by case once the host is known', async () => {
+		const { provider, connection } = setup();
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		connection.nextWatchHandle = { onDidChange: onDidChange.event, dispose: () => onDidChange.dispose() };
+		const watched = toAgentHostUri(URI.parse('file:///C:/Users/Test/simple-test.html'), 'remote');
+
+		const received: IFileChange[][] = [];
+		const sub = provider.onDidChangeFile(c => received.push([...c]));
+		const watchDisposable = provider.watch(watched, { recursive: false, excludes: [] });
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		connection.initializeResult = constObservable({ environment: { pathStyle: PathStyle.Windows } } as InitializeResult);
+		onDidChange.fire([{ resource: URI.parse('file:///c%3A/Users/Test/simple-test.html'), type: FileChangeType.UPDATED }]);
+		watchDisposable.dispose();
+		sub.dispose();
+
+		assert.deepStrictEqual(received, [[{ resource: watched, type: FileChangeType.UPDATED }]]);
+	});
+
 	test('watch tags forwarded changes with the correlation ID of the watcher', async () => {
 		const { provider, connection } = setup();
 		const onDidChange = new Emitter<readonly IFileChange[]>();

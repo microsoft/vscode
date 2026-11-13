@@ -13,10 +13,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../platform/agentHost/common/agentHostTcpSupport.js';
-import { getAgentHostPathStyle } from '../../../../platform/agentHost/common/agentHostPathStyle.js';
-import { readAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
+import { isAgentHostPathCaseSensitive } from '../../../../platform/agentHost/common/agentHostPathStyle.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { PathStyle } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { BrowserViewStorageScope, getBrowserViewSessionAffinity, IBrowserViewNetwork, IBrowserViewOwner, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -229,14 +227,9 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			const connection = this._agentHostConnectionsService.getConnectionByAuthority(authority);
 			// Reading the handshake tracks it, so the style is picked up once it completes.
 			connection?.initializeResult?.read(reader);
-			const root = connection?.rootState?.value;
-			const platform = readAgentHostResources(root instanceof Error ? undefined : root)?.platform;
-			const pathStyle = connection && getAgentHostPathStyle(connection);
-			if (platform) {
-				// Posix path style also covers macOS, whose file systems are usually case-insensitive.
-				hosts[authority] = platform === 'linux';
-			} else if (pathStyle) {
-				hosts[authority] = pathStyle === PathStyle.Posix;
+			const caseSensitive = connection && isAgentHostPathCaseSensitive(connection);
+			if (caseSensitive !== undefined) {
+				hosts[authority] = caseSensitive;
 			}
 		}
 		return hosts;

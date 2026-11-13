@@ -12,7 +12,9 @@ import { PathStyle } from './state/protocol/common/commands.js';
 
 export const localProcessPathStyle = isWindows ? PathStyle.Windows : PathStyle.Posix;
 
-export function getAgentHostPathStyle(connection: Partial<Pick<IAgentConnection, 'initializeResult' | 'rootState'>>): PathStyle | undefined {
+type IAgentHostEnvironmentConnection = Partial<Pick<IAgentConnection, 'initializeResult' | 'rootState'>>;
+
+export function getAgentHostPathStyle(connection: IAgentHostEnvironmentConnection): PathStyle | undefined {
 	const initializeResult = connection.initializeResult?.get();
 	const environment = initializeResult?.environment;
 	if (environment !== undefined) {
@@ -37,4 +39,19 @@ export function getAgentHostPathStyle(connection: Partial<Pick<IAgentConnection,
 	}
 
 	return undefined;
+}
+
+/**
+ * Whether the host's file paths are case-sensitive, or `undefined` when its platform and path style are unknown.
+ * Linux hosts are case-sensitive; Windows and macOS hosts are not.
+ */
+export function isAgentHostPathCaseSensitive(connection: IAgentHostEnvironmentConnection): boolean | undefined {
+	const root = connection.rootState?.value;
+	const platform = readAgentHostResources(root instanceof Error ? undefined : root)?.platform;
+	if (platform) {
+		// Posix path style also covers macOS, whose file systems are usually case-insensitive.
+		return platform === 'linux';
+	}
+	const pathStyle = getAgentHostPathStyle(connection);
+	return pathStyle === undefined ? undefined : pathStyle === PathStyle.Posix;
 }

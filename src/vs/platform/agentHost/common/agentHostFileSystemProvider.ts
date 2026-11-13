@@ -10,10 +10,10 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposab
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import type { IAgentConnection } from './agentService.js';
-import { getAgentHostPathStyle } from './agentHostPathStyle.js';
+import { isAgentHostPathCaseSensitive } from './agentHostPathStyle.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
 import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
-import { ContentEncoding, PathStyle, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
+import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
 import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
@@ -140,8 +140,8 @@ export function agentHostRemotePath(uri: URI): string {
 }
 
 /**
- * Windows file systems are case-insensitive, but this provider is path-case-sensitive
- * as a whole because it also serves posix hosts. A Windows host may report a change
+ * Windows and macOS file systems are case-insensitive, but this provider is path-case-sensitive
+ * as a whole because it also serves Linux hosts. Such a host may report a change
  * with different casing than the watch (for example a lowercased drive letter, as
  * `URI.toString()` produces), which would never match the watched resource. Re-case
  * the event path to the watched one when they only differ by case.
@@ -407,14 +407,16 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					handle.dispose();
 					return;
 				}
-				// Unknown path styles stay case-sensitive.
-				const caseInsensitive = getAgentHostPathStyle(target) === PathStyle.Windows;
-				const sub = handle.onDidChange(changes => this._onDidChangeFile.fire(changes.map(c => ({
-					resource: this._encodeUri(caseInsensitive ? matchWatchedPathCase(c.resource, watchedPath) : c.resource, resource.authority),
-					type: c.type,
-					// Correlated watchers (such as the browser's auto-reload) only receive events carrying their ID.
-					...(opts.correlationId !== undefined ? { cId: opts.correlationId } : {}),
-				}))));
+				const sub = handle.onDidChange(changes => {
+					// Read per batch so a watch attached before the handshake picks up the host's platform. Unknown hosts stay case-sensitive.
+					const caseInsensitive = isAgentHostPathCaseSensitive(target) === false;
+					this._onDidChangeFile.fire(changes.map(c => ({
+						resource: this._encodeUri(caseInsensitive ? matchWatchedPathCase(c.resource, watchedPath) : c.resource, resource.authority),
+						type: c.type,
+						// Correlated watchers (such as the browser's auto-reload) only receive events carrying their ID.
+						...(opts.correlationId !== undefined ? { cId: opts.correlationId } : {}),
+					})));
+				});
 				handleHolder.value = toDisposable(() => {
 					sub.dispose();
 					handle.dispose();
