@@ -218,7 +218,11 @@ export interface ArtifactAutomationDisablement {
 /** Who asked for a change: a person in the UI, or an agent through its tools, with the person's confirmation where required. */
 export type ArtifactActor =
 	| { readonly kind: 'user' }
-	| { readonly kind: 'agent'; readonly chat: string; readonly turnId?: string };
+	| {
+		readonly kind: 'agent'; readonly chat: string; readonly turnId?: string;
+		/** The tool call ran without the person confirming it, for example under automatic tool approval. */
+		readonly autoApproved?: boolean;
+	};
 
 export interface ArtifactAutomationConfiguration {
 	readonly revision: number;
