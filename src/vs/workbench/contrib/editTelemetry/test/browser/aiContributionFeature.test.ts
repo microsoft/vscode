@@ -14,6 +14,7 @@ import { AiContributionFeature } from '../../browser/aiContributionFeature.js';
 import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { DiffService } from '../../browser/helpers/documentWithAnnotatedEdits.js';
 import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { MutableObservableWorkspace } from './editTelemetry.test.js';
@@ -22,6 +23,8 @@ import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 suite('AiContributionFeature', () => {
+	// Load @vscode/diff before the tests run on fake timers.
+	suiteSetup(() => linesDiffComputers.getAdvanced());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	let disposables: DisposableStore;

@@ -16,6 +16,7 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 import { createTextBuffer } from '../../../../../editor/common/model/textModel.js';
 import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
+import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { ModelService } from '../../../../../editor/common/services/modelService.js';
 import { EditSources, EditSuggestionId, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -36,6 +37,8 @@ import { IRandomService } from '../../browser/randomService.js';
 import { MutableObservableWorkspace } from './editTelemetry.test.js';
 
 suite('Edit Source Tracking Windows', () => {
+	// Load @vscode/diff before the tests run on fake timers.
+	suiteSetup(() => linesDiffComputers.getAdvanced());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('flushes and recreates the long-term tracker on hash and branch changes', () => runWithFakedTimers({}, async () => {

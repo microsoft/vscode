@@ -25,6 +25,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditSources } from '../../../../../../editor/common/textModelEditSource.js';
 import { computeStringDiffWithMetadata } from '../../../../../../editor/common/services/editorWebWorker.js';
+import { linesDiffComputers } from '../../../../../../editor/common/diff/linesDiffComputers.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -143,6 +144,8 @@ class TestAgentHost extends mock<IAgentConnection>() {
 }
 
 suite('AgentHostEditReview', () => {
+	// Load @vscode/diff before the tests run on fake timers.
+	suiteSetup(() => linesDiffComputers.getAdvanced());
 
 	const store = new DisposableStore();
 	const chatSessionResource = URI.parse('agent-host-copilot:/session');
@@ -585,7 +588,7 @@ suite('AgentHostEditReview', () => {
 
 		assert.deepStrictEqual(await describeEntries(), [
 			{ path: '/a.ts', original: 'one\ntwo\nthree\n', changes: ['[2,3)'] },
-			{ path: '/new.ts', original: '', changes: ['[1,3)'] },
+			{ path: '/new.ts', original: '', changes: ['[1,2)'] },
 		]);
 	});
 
