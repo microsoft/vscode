@@ -17,7 +17,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { EditorAgentHostPolicyContinuationPresenter } from '../../../browser/agentSessions/agentHost/agentHostPolicyContinuationEditor.js';
-import { ChatViewId, IChatWidget } from '../../../browser/chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatEditorInput } from '../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -66,6 +66,7 @@ suite('Editor Agent Host policy continuation presenter', () => {
 		});
 		services.stub(IViewsService, { openView: views.openView });
 		services.stub(IChatService, {});
+		services.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ chatViewHostDelegate: undefined }));
 		services.stub(IChatSessionsService, {});
 		services.stub(ICustomizationHarnessService, {});
 		services.stub(ILanguageModelToolsService, {});

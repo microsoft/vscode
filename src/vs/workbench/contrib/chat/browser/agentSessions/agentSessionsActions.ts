@@ -1140,6 +1140,11 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const sessions = accessor.get(IChatWidgetService).chatViewHostDelegate?.sessions;
+		if (!agentSessionsControl && sessions) {
+			sessions.refresh();
+			return;
+		}
 		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
 		if (control) {
 			control.refresh();
@@ -1165,6 +1170,10 @@ export class FindAgentSessionInViewerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const sessions = accessor.get(IChatWidgetService).chatViewHostDelegate?.sessions;
+		if (!agentSessionsControl && sessions) {
+			return sessions.find();
+		}
 		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
 		if (control) {
 			return control.openFind();
@@ -1177,6 +1186,12 @@ export class FindAgentSessionInViewerAction extends Action2 {
 abstract class UpdateChatViewWidthAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		// What replaces the Chat view lays out its own sessions list
+		const chatViewHostDelegate = accessor.get(IChatWidgetService).chatViewHostDelegate;
+		if (chatViewHostDelegate) {
+			return chatViewHostDelegate.sessions?.setOrientation(this.getOrientation());
+		}
+
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const viewDescriptorService = accessor.get(IViewDescriptorService);
 		const configurationService = accessor.get(IConfigurationService);
@@ -1338,9 +1353,11 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		const viewsService = accessor.get(IViewsService);
+		const chatViewHostDelegate = accessor.get(IChatWidgetService).chatViewHostDelegate;
 
-		const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
-		const currentOrientation = chatView?.getSessionsViewerOrientation();
+		const currentOrientation = chatViewHostDelegate
+			? chatViewHostDelegate.sessions?.getOrientation()
+			: viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId)?.getSessionsViewerOrientation();
 
 		if (currentOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			await commandService.executeCommand(HideAgentSessionsSidebar.ID);
@@ -1371,6 +1388,12 @@ export class FocusAgentSessionsAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
+
+		// What replaces the Chat view focuses its own sessions list
+		const chatViewHostDelegate = accessor.get(IChatWidgetService).chatViewHostDelegate;
+		if (chatViewHostDelegate) {
+			return chatViewHostDelegate.sessions?.focus();
+		}
 
 		const chatView = await viewsService.openView<ChatViewPane>(ChatViewId, true);
 		const focused = chatView?.focusSessions();

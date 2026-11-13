@@ -16,7 +16,7 @@ import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../../s
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatViewHostDelegate, IChatWidget, IChatWidgetService, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
@@ -27,6 +27,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	private _widgets: IChatWidget[] = [];
 	private _lastFocusedWidget: IChatWidget | undefined = undefined;
+	private _chatViewHostDelegate: IChatViewHostDelegate | undefined;
 
 	private readonly _onDidAddWidget = this._register(new Emitter<IChatWidget>());
 	readonly onDidAddWidget = this._onDidAddWidget.event;
@@ -62,6 +63,19 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		return this._lastFocusedWidget;
 	}
 
+	get chatViewHostDelegate(): IChatViewHostDelegate | undefined {
+		return this._chatViewHostDelegate;
+	}
+
+	setChatViewHostDelegate(delegate: IChatViewHostDelegate): IDisposable {
+		this._chatViewHostDelegate = delegate;
+		return toDisposable(() => {
+			if (this._chatViewHostDelegate === delegate) {
+				this._chatViewHostDelegate = undefined;
+			}
+		});
+	}
+
 	getAllWidgets(): ReadonlyArray<IChatWidget> {
 		return this._widgets;
 	}
@@ -91,6 +105,13 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			return last;
 		}
 
+		return this.revealChatView(preserveFocus);
+	}
+
+	async revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
+		if (this._chatViewHostDelegate) {
+			return this._chatViewHostDelegate.reveal(preserveFocus);
+		}
 		return (await this.viewsService.openView<ChatViewPane>(ChatViewId, !preserveFocus))?.widget;
 	}
 
@@ -102,7 +123,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			}
 		}
 
-		if (isIChatViewViewContext(widget.viewContext)) {
+		// The Chat view does not show while something replaces it
+		if (isIChatViewViewContext(widget.viewContext) && !this._chatViewHostDelegate) {
 			const view = await this.viewsService.openView(widget.viewContext.viewId, !preserveFocus);
 			if (!preserveFocus) {
 				view?.focus();
@@ -129,6 +151,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
+		// What replaces the Chat view shows what the Chat view would: a session it shows already stays where it is
+		if (this._chatViewHostDelegate && target === ChatViewPaneTarget) {
+			target = undefined;
+		}
 		const t0 = Date.now();
 		const targetKind = target === ChatViewPaneTarget ? 'view' : (typeof target === 'undefined' ? 'undefined' : 'editor');
 		this.logService.trace(`[ChatWidgetService] openSession start uri=${sessionResource.toString()} target=${targetKind}`);
@@ -146,6 +172,12 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			} else if (!await this.prepareSessionForMove(sessionResource, target)) {
 				this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=move cancelled=true`);
 				return undefined;
+			}
+
+			if (typeof target === 'undefined' && this._chatViewHostDelegate) {
+				const widget = await this._chatViewHostDelegate.openSession(sessionResource, options?.preserveFocus);
+				this.logService.trace(`[ChatWidgetService] openSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()} path=delegate shown=${!!widget}`);
+				return widget;
 			}
 
 			// Load this session in chat view (preferred)

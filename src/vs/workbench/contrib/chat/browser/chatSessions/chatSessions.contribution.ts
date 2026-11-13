@@ -41,7 +41,8 @@ import { IChatService, ResponseModelState } from '../../common/chatService/chatS
 import { autorun, derived, IObservable, observableFromEvent, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
@@ -1923,6 +1924,29 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
 	const activeClientService = chatSendOptions?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
 	const progressService = accessor.get(IProgressService);
+	const notificationService = accessor.get(INotificationService);
+
+	// What replaces the Chat view, such as the chat part of an editor window with the Agents view, shows the session instead
+	const widgetService = accessor.get(IChatWidgetService);
+	const chatViewHostDelegate = openOptions.position === ChatSessionPosition.Sidebar ? widgetService.chatViewHostDelegate : undefined;
+	if (chatViewHostDelegate) {
+		if (openOptions.type === AgentSessionProviders.Local) {
+			// It shows sessions, not local chat
+			notificationService.info(localize('chatSessions.localChatUnavailable', "Local chat sessions are not available while the Agents view is enabled."));
+			return undefined;
+		}
+		if (!chatSendOptions) {
+			openOptions.beforeOpen?.();
+			if (openOptions.sessionResource) {
+				return await chatViewHostDelegate.openSession(openOptions.sessionResource, false) ? { resource: openOptions.sessionResource, sendOutcome: 'none' } : undefined;
+			}
+			// A new session of the type, which its composer creates as the user sends
+			await chatViewHostDelegate.newSession(openOptions.type, false);
+			return undefined;
+		}
+		// With an initial request, the session is created and sent to as for any other position (with its options, tools and
+		// any copied conversation), and shown once it runs, by what replaces the Chat view
+	}
 
 	// Determine resource to open
 	const sessionResource = openOptions.sessionResource ?? getResourceForNewChatSession(openOptions);
@@ -1945,10 +1969,19 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	// sessions list suppressed across the whole transition so it never flashes.
 	let sessionsListSuppression: IDisposable | undefined;
 	let transitionProgress: DeferredPromise<void> | undefined;
+	// Holds the session's model while it is sent to before what replaces the Chat view shows it
+	let chatViewHostModel: IDisposable | undefined;
 	try {
 		openOptions.beforeOpen?.();
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
+				if (chatViewHostDelegate) {
+					chatViewHostModel = await chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'openChatSessionAndSend#chatViewHost', 'explicitOverride');
+					if (!chatViewHostModel) {
+						throw new Error(`Unable to load the '${openOptions.type}' chat session`);
+					}
+					break;
+				}
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 				openOptions.beforeOpen?.();
 				if (chatSendOptions?.importConversation) {
@@ -2008,6 +2041,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 		}
 	} catch (e) {
 		activeClientService?.clearSessionTools(sessionResource);
+		chatViewHostModel?.dispose();
 		sessionsListSuppression?.dispose();
 		transitionProgress?.complete();
 		if (openOptions.beforeOpen && isCancellationError(e)) {
@@ -2039,6 +2073,9 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 				openedSessionResource = newSessionResource;
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
+						if (chatViewHostDelegate) {
+							break;
+						}
 						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
 						await view.loadSession(newSessionResource);
 						break;
@@ -2071,6 +2108,32 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	// working indicator.
 	sessionsListSuppression?.dispose();
 	transitionProgress?.complete();
+	if (chatViewHostDelegate) {
+		try {
+			const ran = sendOutcome === 'sent' || sendOutcome === 'queued';
+			// A new session that did not run is not listed: only one that ran, became real or was given can show
+			const shown = (ran || openOptions.sessionResource || !resources.isEqual(openedSessionResource, sessionResource))
+				&& await chatViewHostDelegate.openSession(openedSessionResource, false);
+			if (!ran && !shown && chatSendOptions) {
+				importConversationStore.take(sessionResource);
+				// Only a request of a prompt and attachments can be sent again from a composer: one with a copied
+				// conversation, session options or tools would start a different session, so its caller reports it instead
+				const restorable = !chatSendOptions.importConversation && !chatSendOptions.initialSessionOptions && !chatSendOptions.sessionToolIds?.length;
+				const composer = restorable ? await chatViewHostDelegate.newSession(openOptions.type, false) : undefined;
+				if (composer) {
+					composer.setInput(chatSendOptions.prompt);
+					if (chatSendOptions.attachedContext?.length) {
+						composer.attachmentModel.addContext(...chatSendOptions.attachedContext);
+					}
+					notificationService.warn(localize('chatSessions.requestRestored', "The request could not be sent. It was restored in a new session so you can send it again."));
+				} else {
+					notificationService.error(localize('chatSessions.requestNotSent', "The request could not be sent."));
+				}
+			}
+		} finally {
+			chatViewHostModel?.dispose();
+		}
+	}
 	return { resource: openedSessionResource, sendOutcome };
 }
 

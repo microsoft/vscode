@@ -38,7 +38,7 @@ import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
 import { ChatInputPart, IChatInputHostModelSelection, IChatInputHostSubmit, IChatInputPartOptions } from './widget/input/chatInputPart.js';
 import { IChatWidgetContrib } from './widget/chatWidget.js';
 import { ICodeBlockActionContext, ICodeBlockRenderOptions } from './widget/chatContentParts/codeBlockPart.js';
-import { AgentSessionTarget } from './agentSessions/agentSessions.js';
+import { AgentSessionsViewerOrientation, AgentSessionTarget } from './agentSessions/agentSessions.js';
 import type { IResolvedResponseSelection } from './responseSelectionResolver.js';
 import type { IChatBackgroundShell } from '../../../common/chatBackgroundShell.js';
 
@@ -83,6 +83,44 @@ export interface ISessionTypePickerDelegate {
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
 
+/**
+ * What shows the chats a Chat view would show, while it replaces the Chat view, such as the chat part of an editor window
+ * with the Agents view (`chatAgentsViewActive`). See {@link IChatWidgetService.setChatViewHostDelegate}.
+ */
+export interface IChatViewHostDelegate {
+	/**
+	 * Shows its active chat, or a new-session composer when it has none, and resolves to the widget of what it shows: of the
+	 * chat, or of the composer's input, whose submits create the session.
+	 */
+	reveal(preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
+	/** Shows the chat of `sessionResource`, and resolves to its widget; to `undefined` when it cannot show that chat. */
+	openSession(sessionResource: URI, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
+	/** Shows or hides it, as Toggle Chat shows or hides the Chat view. */
+	toggle(): Promise<void>;
+	/**
+	 * Shows a new-session composer, aimed at sessions of `sessionType` when given, and resolves to the widget of its input,
+	 * whose submits create the session.
+	 */
+	newSession(sessionType: string | undefined, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined>;
+	/**
+	 * The sessions list it shows instead of the Chat view's, which the Chat view's sessions commands act on, such as Show
+	 * Agent Sessions Sidebar and Focus Agent Sessions. Without it, those commands do nothing while it replaces the Chat view.
+	 */
+	readonly sessions?: IChatViewHostSessionsDelegate;
+}
+
+/** The sessions list of an {@link IChatViewHostDelegate}, which the Chat view's sessions commands act on instead of the Chat view's. */
+export interface IChatViewHostSessionsDelegate {
+	/** How the list shows beside its chat: stacked above it, or side by side with it. */
+	getOrientation(): AgentSessionsViewerOrientation;
+	/** Shows the list stacked above its chat, or side by side with it, as Hide and Show Agent Sessions Sidebar do. */
+	setOrientation(orientation: AgentSessionsViewerOrientation): Promise<void>;
+	/** Shows the list and moves focus into it. */
+	focus(): Promise<void>;
+	refresh(): void;
+	find(): void;
+}
+
 export interface IChatWidgetService {
 
 	readonly _serviceBrand: undefined;
@@ -126,6 +164,17 @@ export interface IChatWidgetService {
 	 * Reveals the last active widget, or creates a new chat if necessary.
 	 */
 	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
+	/**
+	 * Shows the Chat view, or what replaces it ({@link chatViewHostDelegate}), and resolves to the widget of the chat it shows.
+	 */
+	revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
+	/** What replaces the Chat view, if anything does: what would show the Chat view shows it instead. */
+	readonly chatViewHostDelegate: IChatViewHostDelegate | undefined;
+
+	/** Replaces the Chat view with `delegate`, until the returned disposable is disposed. */
+	setChatViewHostDelegate(delegate: IChatViewHostDelegate): IDisposable;
 
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
