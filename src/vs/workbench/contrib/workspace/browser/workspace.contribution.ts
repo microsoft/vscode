@@ -399,13 +399,13 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			let trustOption: string | undefined;
 			let dontTrustOption: string | undefined;
 			const isAiGeneratedWorkspace = await this.isAiGeneratedWorkspace();
-			if (isAiGeneratedWorkspace && !this.productService.aiGeneratedWorkspaceTrust) {
-				console.warn('AI generated workspace trust dialog contents not available.');
-			} else if (isAiGeneratedWorkspace && this.productService.aiGeneratedWorkspaceTrust) {
+			if (isAiGeneratedWorkspace && this.productService.aiGeneratedWorkspaceTrust) {
 				titleString = this.productService.aiGeneratedWorkspaceTrust.title;
 				learnMoreString = this.productService.aiGeneratedWorkspaceTrust.startupTrustRequestLearnMore;
 				trustOption = this.productService.aiGeneratedWorkspaceTrust.trustOption;
 				dontTrustOption = this.productService.aiGeneratedWorkspaceTrust.dontTrustOption;
+			} else {
+				console.warn('AI generated workspace trust dialog contents not available.');
 			}
 
 			const title = titleString ?? (this.useWorkspaceLanguage ?
