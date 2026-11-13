@@ -79,7 +79,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
+import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -9649,6 +9649,69 @@ suite('CopilotAgent', () => {
 				listener.dispose();
 				await disposeAgent(agent);
 			}
+		});
+
+		test('retrying a declined canvas extension starts a new runtime that keeps session approvals and asks again about the declined extension, unless the chat is busy', async () => {
+			const directory = URI.file(process.cwd());
+			const sdkId = 'consent-sdk';
+			const { agent, launches } = setup(undefined, [sdkSession(sdkId, directory.fsPath)], [], { [AgentHostCanvasesEnabledConfigKey]: true });
+			afterTest(() => disposeAgent(agent));
+			const session = AgentSession.uri('copilotcli', 'scoped-canvas-consent');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const envRequest = (extensionName: string) => ({ kind: 'extension-env-access' as const, extensionName, environmentVariables: ['BLACKBIRD_AUTH_METIS_API_KEY'] as [string] });
+			const expired = 'This request to allow the canvas\'s extension is no longer pending. Open the canvas again.';
+			const ask = async (launch: typeof launches[number], extensionName: string) => {
+				const result = await launch.config.onPermissionRequest!(envRequest(extensionName), { sessionId: launch.sessionId });
+				return result.kind === 'attributed' ? result.result.kind : result.kind;
+			};
+			const open = (extensionId: string, answer?: AgentCanvasOpenAnswer) => agent.openSessionCanvas(session, { canvasId: 'demo', extensionId, instanceId: extensionId }, chat, context, answer);
+			const outcome = (result: Promise<AgentCanvasOpenResult>) => result.then(value => value.kind, (error: Error) => error.message);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: sdkId }));
+			const results: string[] = [];
+			// An answer never resumes a runtime: only the runtime that asked could take it.
+			const launchesBeforeAnswer = launches.length;
+			results.push(`answer without a runtime: ${await outcome(open('user:allowed', { kind: 'consent', consentId: 'stale', optionId: AgentExtensionConsentOption.Allow }))}; launched ${launches.length - launchesBeforeAnswer}`);
+			await agent.chats.prepareTurn!(chat, 'first-turn', [directory], context);
+			const first = launches[launches.length - 1];
+			first.runtime.rpc.canvas.open = async params => {
+				if (await ask(first, params.extensionId!) !== 'approve-once') {
+					throw new Error(`extension did not become ready: ${params.extensionId}`);
+				}
+				return { instanceId: params.instanceId, extensionId: params.extensionId!, canvasId: params.canvasId };
+			};
+			let declinedConsentId = '';
+			for (const [extensionId, optionId] of [['user:allowed', AgentExtensionConsentOption.Allow], ['user:declined', AgentExtensionConsentOption.NotNow]] as const) {
+				const asked = await open(extensionId);
+				assert.strictEqual(asked.kind, 'consentRequired');
+				declinedConsentId = asked.consent.id;
+				results.push(`${extensionId}: ${(await open(extensionId, { kind: 'consent', consentId: asked.consent.id, optionId })).kind}`);
+			}
+			const launchCount = launches.length;
+			// A new runtime would stop background subagents that outlive the response.
+			const subagents = stub(chatEntriesBySdkId(agent).get(first.sessionId)!.chatSession, 'hasActiveSubagents').get(() => true);
+			try {
+				results.push(`retry with subagents: ${await outcome(open('user:declined', { kind: 'retry' }))}; launched ${launches.length - launchCount}`);
+			} finally {
+				subagents.restore();
+			}
+			results.push(`retry: ${(await open('user:declined', { kind: 'retry' })).kind}`);
+			results.push(`answer from the replaced runtime: ${await outcome(open('user:declined', { kind: 'consent', consentId: declinedConsentId, optionId: AgentExtensionConsentOption.Allow }))}`);
+			const replacement = launches[launches.length - 1];
+			for (const extensionId of ['user:allowed', 'user:declined']) {
+				results.push(`replacement ${extensionId}: ${await raceTimeout(ask(replacement, extensionId), 0) ?? 'asks again'}`);
+			}
+			assert.deepStrictEqual({ results, newRuntime: launches.length === launchCount + 1 && replacement.sessionId === first.sessionId }, {
+				results: [
+					`answer without a runtime: ${expired}; launched 0`,
+					'user:allowed: opened', 'user:declined: consentDenied',
+					'retry with subagents: Try again after the chat finishes its current work.; launched 0',
+					'retry: opened', `answer from the replaced runtime: ${expired}`,
+					'replacement user:allowed: approve-once', 'replacement user:declined: asks again',
+				],
+				newRuntime: true,
+			});
 		});
 
 		test('paged isolated history shares one replay across a moved chat and concurrent child transcripts without activation', async () => {

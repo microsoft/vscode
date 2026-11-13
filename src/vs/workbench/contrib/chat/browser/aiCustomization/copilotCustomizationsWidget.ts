@@ -40,6 +40,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { type CanvasDefinitionSnapshot, getCanvasDefinitionInstanceId, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, isCanvasOwner, isOpenableExtensionCanvasDefinition } from '../../../canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../canvases/common/canvasDefinitionStore.js';
+import { CanvasExtensionConsentDeniedError, notifyCanvasExtensionConsentDenied } from '../../../canvases/common/agentHostCanvasConsent.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 import { customizationSearchMatchesAny } from '../../common/aiCustomizationSearch.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -1308,8 +1309,24 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			}
 			await currentItem.context.definitionProvider!.openCanvas(currentItem.canvas, instanceId);
 		} catch (error) {
+			if (error instanceof CanvasExtensionConsentDeniedError) {
+				const { context, canvas } = currentItem;
+				notifyCanvasExtensionConsentDenied(this.notificationService, error, () => this.retryOpenCanvas(context, canvas));
+				return;
+			}
 			this.notificationService.error(localize('copilotCanvases.openFailed', "Unable to open canvas {0}. {1}", currentItem.canvas.displayName, getErrorMessage(error)));
 		}
+	}
+
+	/**
+	 * Asks about the declined extension of `canvas` again in `context`'s chat, while canvases are enabled. The editor may be closed
+	 * by now, and the extension's canvases stay unregistered until the retry, so it opens through the chat directly.
+	 */
+	private async retryOpenCanvas(context: ICanvasContext, canvas: ICanvasDefinition): Promise<void> {
+		if (!this.canvasService.enabled.get() || !context.definitionProvider) {
+			return;
+		}
+		await context.definitionProvider.openCanvas(canvas, getCanvasDefinitionInstanceId(canvas), { retryDeniedConsent: true });
 	}
 
 	private activateCanvas(item: ICopilotCanvasItem): void {

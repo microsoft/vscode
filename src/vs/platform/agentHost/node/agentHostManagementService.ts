@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
@@ -199,11 +199,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.listSessionCanvases(session, chat);
 	}
 
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
 		if (!this._agentService.openSessionCanvas) {
 			throw new Error('Opening Copilot canvases is unavailable');
 		}
-		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat));
+		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat, answer));
 	}
 
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {

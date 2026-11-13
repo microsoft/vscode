@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -42,7 +42,7 @@ import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/tel
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { CapturingTelemetryService as PlatformCapturingTelemetryService, TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenResult, type IAgentCanvasOpenRequest, COPILOT_CLI_AGENT_PROVIDER_ID, fixedChatOwnerRef, type IAgentChatOwnerRef, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
@@ -802,7 +802,7 @@ class MockCopilotSession {
 			},
 		},
 		plugins: {
-			list: async () => ({ plugins: [] }),
+			list: async (): ReturnType<CopilotSession['rpc']['plugins']['list']> => ({ plugins: [] }),
 			install: async (params: { source: string }) => {
 				this.pluginInstallCalls.push(params);
 				this.onPluginInstall?.();
@@ -1369,7 +1369,7 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly toolTitle: string;
 	readonly readOnly?: boolean;
 	readonly permissionRecommendation?: Extract<PermissionRequest, { kind: 'mcp' }>['permissionRecommendation'];
-} | Extract<PermissionRequest, { kind: 'hook' | 'extension-permission-access' }>);
+} | Extract<PermissionRequest, { kind: 'hook' | 'extension-permission-access' | 'extension-env-access' }>);
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
 	switch (request.kind) {
@@ -1394,6 +1394,7 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 			return { readOnly: false, ...request };
 		case 'hook':
 		case 'extension-permission-access':
+		case 'extension-env-access':
 			return request;
 	}
 }
@@ -1484,6 +1485,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	getUserMcpServers?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers']>;
 	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
+	extensionSessionApprovals?: Set<string>;
 	connectorRefreshTimeoutMs?: number;
 	connectorOwnershipLookupTimeoutMs?: number;
 	onConnectorRefreshRetryable?: () => void;
@@ -2001,6 +2003,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
+			extensionSessionApprovals: options?.extensionSessionApprovals,
 			connectorRefreshTimeoutMs: options?.connectorRefreshTimeoutMs,
 			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
 			onConnectorRefreshRetryable: options?.onConnectorRefreshRetryable,
@@ -6297,6 +6300,30 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(canvasReadinessEvents(telemetryService), [{
 			schemaVersion: 1, launchKind: 'create', outcome: 'timeout', extensionCount: 1, failedExtensionCount: 0, hasDuration: true,
 		}]);
+	}));
+
+	test('does not wait for canvas readiness while an extension waits for consent to load', () => runWithFakedTimers({}, async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const captureRuntime: { current?: ICopilotSessionRuntime } = {};
+		let consent: Promise<unknown> | undefined;
+		const { session } = await createAgentSession(disposables, {
+			telemetryService,
+			captureRuntime,
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:demo', name: 'demo', source: 'user', status: 'starting' });
+				mock.onExtensionList = () => {
+					mock.onExtensionList = undefined;
+					consent = captureRuntime.current!.handlePermissionRequest({ kind: 'extension-env-access', extensionName: 'user:demo', environmentVariables: ['BLACKBIRD_AUTH_METIS_API_KEY'] }, { sessionId: 'test-session-1' });
+				};
+			},
+		});
+		const pending = session.hasPendingExtensionConsent('user:demo');
+		session.dispose();
+		assert.deepStrictEqual({ events: canvasReadinessEvents(telemetryService), pending, consent: await consent }, {
+			events: [{ schemaVersion: 1, launchKind: 'create', outcome: 'consentPending', extensionCount: 1, failedExtensionCount: 0, hasDuration: true }],
+			pending: true,
+			consent: { kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+		});
 	}));
 
 	test('reports canvas readiness errors with only observed counts and preserves the rejection', async () => {
@@ -20505,7 +20532,7 @@ Use the attached image as context.
 						chatToolCallStart('turn-consent', '<consent-id>', 'extension_permission_consent', 'Extensions'),
 						{
 							type: ActionType.ChatToolCallReady, turnId: 'turn-consent', toolCallId: '<consent-id>',
-							invocationMessage: `Extension 'grove-agent-monitor' wants to load with these permissions: register hooks.`,
+							invocationMessage: `Extension 'grove-agent-monitor' (plugin:grove-agent-monitor:grove-agent-monitor) wants to load with these permissions: register hooks.`,
 							confirmationTitle: 'Allow Extension grove-agent-monitor?',
 							options: [
 								{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
@@ -20610,6 +20637,220 @@ Use the attached image as context.
 					{ answer: allowed, settledBeforeNextTurn: false, pendingActions: [], rootConfigUpdates: [], extraActions: completed },
 					{ answer: allowed, settledBeforeNextTurn: false, pendingActions: [], rootConfigUpdates: [], extraActions: completed },
 				]);
+			});
+		});
+
+		suite('extension environment consent', () => {
+			const variable = 'BLACKBIRD_AUTH_METIS_API_KEY';
+			const envRequest = (extensionName: string): Extract<PermissionRequest, { kind: 'extension-env-access' }> => ({ kind: 'extension-env-access', extensionName, environmentVariables: [variable] });
+			const canvasRequest = (extensionId: string) => ({ canvasId: 'demo', extensionId, instanceId: `${extensionId}-demo` });
+			const consent = (extensionName: string, persistable: boolean) => ({ id: '<consent-id>', kind: 'environment', extensionName, displayName: 'demo', items: [variable], persistable });
+			const withoutId = (result: AgentCanvasOpenResult) => result.kind === 'opened' ? result : { ...result, consent: { ...result.consent, id: '<consent-id>' } };
+			const expired = 'This request to allow the canvas\'s extension is no longer pending. Open the canvas again.';
+
+			/** Asks for consent when the runtime opens the canvas, as a lazily started extension that requests a sensitive variable does. */
+			function useLazyCanvas(mockSession: MockCopilotSession, runtime: TestCopilotSessionRuntime): void {
+				mockSession.rpc.canvas.open = async params => {
+					const extensionName = params.extensionId ?? '';
+					if ((await runtime.handlePermissionRequest(envRequest(extensionName))).kind !== 'approve-once') {
+						throw new Error(`extension did not become ready: ${extensionName}`);
+					}
+					return { instanceId: params.instanceId, extensionId: extensionName, canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+			}
+
+			test('shows a turn-less canvas open the request, waits past the control-plane bound, and remembers Always Allow for a user extension', async () => {
+				const { session, runtime, mockSession, signals, rootConfigUpdates } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10 });
+				useLazyCanvas(mockSession, runtime);
+				const asked = await session.openCanvas(canvasRequest('user:demo'));
+				await timeout(30);
+				assert.strictEqual(asked.kind, 'consentRequired');
+				const opened = await session.openCanvas(canvasRequest('user:demo'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.AlwaysAllow });
+				const next = await createAgentSession(disposables, { rootValues: rootConfigUpdates[0] });
+				assert.deepStrictEqual({
+					asked: withoutId(asked), opened, desynchronized: session.requiresControlPlaneResync, actions: getActions(signals), rootConfigUpdates,
+					nextAnswer: await next.runtime.handlePermissionRequest(envRequest('user:demo')),
+				}, {
+					asked: { kind: 'consentRequired', consent: consent('user:demo', true) }, opened: { kind: 'opened' }, desynchronized: false, actions: [],
+					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'allow' } }],
+					nextAnswer: { kind: 'approve-once' },
+				});
+			});
+
+			test('never remembers a project extension, reports Not Now as retryable and a stored Never as final', async () => {
+				const project = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [`project:demo (environment variables: ${variable})`]: 'allow' } } });
+				useLazyCanvas(project.mockSession, project.runtime);
+				const asked = await project.session.openCanvas(canvasRequest('project:demo'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				const declined = await project.session.openCanvas(canvasRequest('project:demo'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Never });
+				const never = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'deny' } } });
+				useLazyCanvas(never.mockSession, never.runtime);
+				const refused = await never.session.openCanvas(canvasRequest('user:demo'));
+				assert.deepStrictEqual({
+					asked: withoutId(asked), declined: withoutId(declined), refused: withoutId(refused),
+					retryable: [project.session.hasRetryableExtensionConsentDenial('project:demo'), never.session.hasRetryableExtensionConsentDenial('user:demo')],
+					rootConfigUpdates: [...project.rootConfigUpdates, ...never.rootConfigUpdates],
+				}, {
+					asked: { kind: 'consentRequired', consent: consent('project:demo', false) },
+					declined: { kind: 'consentDenied', consent: consent('project:demo', false), retryable: true },
+					refused: { kind: 'consentDenied', consent: consent('user:demo', true), retryable: false },
+					retryable: [true, false],
+					rootConfigUpdates: [],
+				});
+			});
+
+			test('a client answer completes the confirmation the turn shows, and covers later requests', async () => {
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+				await session.send('Hello', undefined, 'turn-consent');
+				useLazyCanvas(mockSession, runtime);
+				const asked = await session.openCanvas(canvasRequest('project:demo'));
+				const ready = getActions(signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady);
+				assert.ok(ready && asked.kind === 'consentRequired');
+				const opened = await session.openCanvas(canvasRequest('project:demo'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow });
+				await timeout(0);
+				const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
+				signals.length = 0;
+				assert.deepStrictEqual({
+					ready: { ...ready, toolCallId: '<consent-id>' }, opened, completed: completed && { ...completed, toolCallId: '<consent-id>' },
+					repeated: await runtime.handlePermissionRequest(envRequest('project:demo')), repeatedActions: getActions(signals),
+				}, {
+					ready: {
+						type: ActionType.ChatToolCallReady, turnId: 'turn-consent', toolCallId: '<consent-id>',
+						invocationMessage: `Extension 'demo' (project:demo) wants to read these sensitive environment variables: ${variable}. Their values may be credentials, which the extension could send anywhere or pass to processes it starts.`,
+						confirmationTitle: 'Allow demo to Read Sensitive Environment Variables?',
+						options: [
+							{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
+							{ id: 'not-now', label: 'Not Now', kind: 'deny', group: 2 },
+						],
+					},
+					opened: { kind: 'opened' },
+					completed: { type: ActionType.ChatToolCallComplete, turnId: 'turn-consent', toolCallId: '<consent-id>', result: { success: true, pastTenseMessage: `Allowed demo to read ${variable}` } },
+					repeated: { kind: 'approve-once' }, repeatedActions: [],
+				});
+			});
+
+			test('session approvals shared with a replacement runtime keep a project approval in the folder the runtime found it in', async () => {
+				const approvals = new Set<string>();
+				const first = await createAgentSession(disposables, { extensionSessionApprovals: approvals, workingDirectory: URI.file('/repo-a') });
+				useLazyCanvas(first.mockSession, first.runtime);
+				// The runtime keeps the project extensions it found at launch after the chat moves to another folder.
+				first.mockSession.workingDirectorySetResults.push({ workingDirectory: '/repo-b' });
+				await first.session.setWorkingDirectory(URI.file('/repo-b'), noOpWorkingDirectoryChangeTransaction);
+				for (const extensionId of ['project:demo', 'user:demo']) {
+					const asked = await first.session.openCanvas(canvasRequest(extensionId));
+					assert.strictEqual(asked.kind, 'consentRequired');
+					await first.session.openCanvas(canvasRequest(extensionId), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow });
+				}
+				const answers = [];
+				for (const folder of ['/repo-a', '/repo-b']) {
+					const replacement = await createAgentSession(disposables, { extensionSessionApprovals: approvals, workingDirectory: URI.file(folder) });
+					for (const extensionId of ['project:demo', 'user:demo']) {
+						const answer = await raceTimeout(replacement.runtime.handlePermissionRequest(envRequest(extensionId)), 0);
+						answers.push(`${folder} ${extensionId}: ${answer?.kind ?? 'asks again'}`);
+					}
+					replacement.session.dispose();
+				}
+				assert.deepStrictEqual(answers, [
+					'/repo-a project:demo: approve-once',
+					'/repo-a user:demo: approve-once',
+					'/repo-b project:demo: asks again',
+					'/repo-b user:demo: approve-once',
+				]);
+			});
+
+			test('an answer only continues the open it was shown for, and a late answer returns that open\'s outcome', async () => {
+				const { session, runtime, mockSession, rootConfigUpdates } = await createAgentSession(disposables);
+				useLazyCanvas(mockSession, runtime);
+				const asked = await session.openCanvas(canvasRequest('user:demo'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				const answer = (request: IAgentCanvasOpenRequest, consentId: string, optionId: AgentExtensionConsentOption) => session.openCanvas(request, { kind: 'consent', consentId, optionId }).then(result => result.kind, (error: Error) => error.message);
+				assert.deepStrictEqual({
+					unknown: await answer(canvasRequest('user:demo'), 'unknown', AgentExtensionConsentOption.Allow),
+					otherOpen: await answer({ ...canvasRequest('user:demo'), instanceId: 'other' }, asked.consent.id, AgentExtensionConsentOption.Allow),
+					pending: session.hasPendingExtensionConsent('user:demo'),
+					answered: await answer(canvasRequest('user:demo'), asked.consent.id, AgentExtensionConsentOption.Allow),
+					late: await answer(canvasRequest('user:demo'), asked.consent.id, AgentExtensionConsentOption.Never),
+					rootConfigUpdates,
+				}, {
+					unknown: expired, otherOpen: expired, pending: true, answered: 'opened', late: 'opened', rootConfigUpdates: [],
+				});
+			});
+
+			test('remembers Always Allow chosen in the dialog after the turn stopped waiting', async () => {
+				const { session, runtime, mockSession, rootConfigUpdates } = await createAgentSession(disposables);
+				await session.send('Hello', undefined, 'turn-consent');
+				useLazyCanvas(mockSession, runtime);
+				const asked = await session.openCanvas(canvasRequest('user:demo'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				await session.abort();
+				await timeout(0);
+				const opened = await session.openCanvas(canvasRequest('user:demo'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.AlwaysAllow });
+				assert.deepStrictEqual({ opened, rootConfigUpdates }, {
+					opened: { kind: 'opened' },
+					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'allow' } }],
+				});
+			});
+
+			test('a Never removed from the settings can be asked about again, and any declined extension can be retried', async () => {
+				const identity = `user:demo (environment variables: ${variable})`;
+				const { session, runtime, mockSession, setRootValue } = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'deny' } } });
+				useLazyCanvas(mockSession, runtime);
+				const refused = await session.openCanvas(canvasRequest('user:demo'));
+				const retryable = () => [session.hasRetryableExtensionConsentDenial('user:demo'), session.hasRetryableExtensionConsentDenial(undefined)];
+				const whileStored = retryable();
+				const asked = await session.openCanvas(canvasRequest('user:other'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				await session.openCanvas(canvasRequest('user:other'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow });
+				const withOtherDeclined = retryable();
+				setRootValue(AgentHostExtensionPermissionApprovalsConfigKey, {});
+				assert.deepStrictEqual({ refused: refused.kind === 'consentDenied' && refused.retryable, whileStored, withOtherDeclined, afterRemoval: retryable() }, {
+					refused: false, whileStored: [false, false], withOtherDeclined: [false, true], afterRemoval: [true, true],
+				});
+			});
+
+			test('remembers a plugin\'s decision only for the install it was granted to', async () => {
+				const extensionName = 'plugin:demo-plugin:demo';
+				const plugin = (id: string) => ({ name: 'demo-plugin', marketplace: 'example', enabled: true, id });
+				const results = [];
+				for (const plugins of [[plugin('install-1')], [plugin('install-1'), plugin('install-2')]]) {
+					const { session, runtime, mockSession, rootConfigUpdates } = await createAgentSession(disposables);
+					mockSession.rpc.plugins.list = async () => ({ plugins });
+					useLazyCanvas(mockSession, runtime);
+					const asked = await session.openCanvas(canvasRequest(extensionName));
+					assert.strictEqual(asked.kind, 'consentRequired');
+					await session.openCanvas(canvasRequest(extensionName), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.AlwaysAllow });
+					results.push({ persistable: asked.consent.persistable, rootConfigUpdates });
+				}
+				assert.deepStrictEqual(results, [
+					{ persistable: true, rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`${extensionName} from install-1 (environment variables: ${variable})`]: 'allow' } }] },
+					// Two enabled plugins share the name, so the install cannot be told.
+					{ persistable: false, rootConfigUpdates: [] },
+				]);
+			});
+
+			test('applies an Allow All set while idle before the canvas extension asks', async () => {
+				const { session, runtime, mockSession, signals } = await createAgentSession(disposables, { configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } });
+				useLazyCanvas(mockSession, runtime);
+				const opened = await session.openCanvas(canvasRequest('user:demo'));
+				assert.deepStrictEqual({ opened, modes: mockSession.permissionModeSetCalls, actions: getActions(signals) }, { opened: { kind: 'opened' }, modes: ['allow-all'], actions: [] });
+			});
+
+			test('bounds the permission mode sync before an idle open, and does not start the open when it times out', async () => {
+				const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10, configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } });
+				mockSession.rpc.permissions.setMode = () => new Promise<never>(() => { });
+				let opens = 0;
+				mockSession.rpc.canvas.open = async params => {
+					opens++;
+					return { instanceId: params.instanceId, extensionId: params.extensionId ?? '', canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+				const outcome = await raceTimeout(
+					session.openCanvas(canvasRequest('user:demo')).then(result => result.kind, (error: Error) => error.message.replace(/^\[Copilot:[^\]]+\] /, '')),
+					500,
+				) ?? 'still waiting';
+				await timeout(0);
+				assert.deepStrictEqual({ outcome, desynchronized: session.requiresControlPlaneResync, opens }, {
+					outcome: 'permission mode sync before rpc.canvas.open timed out after 10ms', desynchronized: true, opens: 0,
+				});
 			});
 		});
 

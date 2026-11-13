@@ -70,7 +70,7 @@ import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, ISyncedCustomization } fro
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import type { IAgentChatInputResponseMeta } from '../../common/meta/agentChatInputResponseMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type IAgentPluginInstallation, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
+import { type IAgentPluginInstallation, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
 import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId, type IModelRouter } from '../../common/modelRouter.js';
 import { resolveModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
@@ -126,7 +126,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns, IMPORTED_TOOL_CALLS_DB_KEY, IMPORTED_TURN_DURATIONS_DB_KEY, serializeImportedToolCalls, serializeImportedTurnDurations } from './buildSessionEvents.js';
-import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
+import { CopilotAgentSession, createCanvasConsentExpiredError, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
 import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
@@ -618,7 +618,7 @@ interface IRuntimeProxyCredentials {
 
 /** What a configuration check runs for, and how it may wait. */
 interface ICopilotSessionRefreshCheckOptions {
-	readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer';
+	readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer' | 'openCanvas';
 	readonly token?: CancellationToken;
 	readonly launchedForTurn?: boolean;
 }
@@ -1431,6 +1431,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	/** Selections awaiting replay survive a failed replacement or model update. */
 	private readonly _pendingModelSelections = new Map<string, ModelSelection>();
+	/** Extension consent approvals by chat key, which outlive the chat's runtime across configuration refreshes. */
+	private readonly _extensionSessionApprovals = new Map<string, Set<string>>();
 	/** Canvases a configuration refresh is handing from a chat's previous runtime to its replacement. */
 	private readonly _canvasHandoffs = new ResourceMap<ICopilotCanvasHandoff>();
 	private readonly _releasedCanvasContinuities = new LinkedMap<string, IReleasedCanvasContinuity>();
@@ -3511,9 +3513,54 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
+	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
+		// Consent goes straight to the live runtime: the chat queue can hold an operation that waits for the extension load it gates.
+		const target = this._resolveSessionCanvasChatContext(session, chat, operationContext).target;
+		const live = target && isEqual(target.ownerSessionUri, session) ? target : undefined;
+		if (answer?.kind === 'consent') {
+			// Only the runtime that asked can take the answer; resuming a runtime for it would start an open of its own.
+			if (!live) {
+				throw createCanvasConsentExpiredError();
+			}
+			return live.openCanvas(request, answer);
+		}
+		if (!answer && live?.hasPendingExtensionConsent(request.extensionId)) {
+			return live.openCanvas(request);
+		}
+		if (answer?.kind === 'retry') {
+			await this._retryExtensionConsent(session, request, chat, operationContext);
+		}
 		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'openSessionCanvas');
-		await liveSession.openCanvas(request);
+		return liveSession.openCanvas(request);
+	}
+
+	/**
+	 * Replaces the chat's runtime when it declined the canvas's extension, which latches the extension as failed
+	 * and keeps the user's Not Now for the rest of that runtime, so that opening the canvas again asks the user again.
+	 */
+	private async _retryExtensionConsent(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+		const busy = () => new Error(localize('copilot.extensionConsentRetryBusy', "Try again after the chat finishes its current work."));
+		await this._queueChat(context.lifetimeId, context.sequencerKey, 'retryExtensionConsent', async () => {
+			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+			const entry = current.target;
+			if (!entry || !isEqual(entry.ownerSessionUri, session) || !entry.hasRetryableExtensionConsentDenial(request.extensionId)) {
+				return;
+			}
+			// Replacing the runtime would also stop background subagents that outlive the response.
+			if (entry.hasActiveTurn || entry.hasActiveSubagents) {
+				throw busy();
+			}
+			entry.requestExtensionConsentRetry();
+			try {
+				await this._refreshSessionConfiguration(current, entry, undefined, { operation: 'openCanvas', allowRestart: 'whenIdle' });
+			} catch (error) {
+				if (error instanceof CopilotSessionConfigurationBusyError) {
+					throw busy();
+				}
+				throw error;
+			}
+		});
 	}
 
 	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
@@ -6875,6 +6922,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatBackings.delete(chatKey);
 		this._modelRouterGuidance.forget(chatKey);
 		this._pendingModelSelections.delete(chatKey);
+		this._extensionSessionApprovals.delete(chatKey);
 		this._persistedChatHistory.delete(chatKey);
 		this._credentialSources.delete(chatKey);
 		this._credentialPins.delete(chatKey);
@@ -8601,6 +8649,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
 			?? (entry.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined)
+			?? (entry.requiresExtensionConsentRetry ? 'extensionConsentRetry' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
 			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
@@ -8665,7 +8714,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			kind: 'sdkSession',
 			cause: refreshReason,
 			firstTurn: !entry.hasCompletedTurn,
-			phase: operation === 'startMcpServer' ? 'idle' : 'turnPrepare',
+			phase: operation === 'startMcpServer' || operation === 'openCanvas' ? 'idle' : 'turnPrepare',
 		}, entry.completedTurnHistory);
 		const canvasHandoff = entry.takeCanvasProjection() ?? this._canvasHandoffs.get(entry.chatChannelUri);
 		if (canvasHandoff) {
@@ -8695,6 +8744,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._settleCanvasHandoff(entry.chatChannelUri, canvasHandoff, replacement);
 			}
 		}
+	}
+
+	private _extensionSessionApprovalsForChat(chatKey: string): Set<string> {
+		let approvals = this._extensionSessionApprovals.get(chatKey);
+		if (!approvals) {
+			approvals = new Set();
+			this._extensionSessionApprovals.set(chatKey, approvals);
+		}
+		return approvals;
 	}
 
 	/** Commits handed-over canvases to the replacement the refresh kept, or closes them when there is none. */
@@ -9821,6 +9879,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._chatBackings.delete(chatKey);
 			this._modelRouterGuidance.forget(chatKey);
 			this._pendingModelSelections.delete(chatKey);
+			this._extensionSessionApprovals.delete(chatKey);
 			this._persistedChatHistory.delete(chatKey);
 			this._readOnlyChatInputErrors.delete(chatKey);
 			this._chatOwners.delete(chatKey);
@@ -10909,6 +10968,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetryContext: () => this.getTelemetryContext(),
 				restrictedTelemetryEnabled: () => this._restrictedTelemetryEnabled,
 				canvasHandoff: this._canvasHandoffForChat(chatChannelUri),
+				extensionSessionApprovals: launchPlan.isEphemeral ? undefined : this._extensionSessionApprovalsForChat(chatKey),
 			},
 		);
 		return agentSession;

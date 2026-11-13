@@ -27,6 +27,7 @@ import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, I
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, type ISessionReplacedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
+import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
@@ -1859,12 +1860,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return provider.listCanvases(session.sessionId, chat.resource);
 	}
 
-	async openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
+	async openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.openCanvas) {
 			throw new Error(localize('sessions.openCanvas.unsupported', "Opening canvases is not supported for this session."));
 		}
-		await provider.openCanvas(session.sessionId, chat.resource, canvas, instanceId);
+		await provider.openCanvas(session.sessionId, chat.resource, canvas, instanceId, options);
 	}
 
 	async closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void> {
