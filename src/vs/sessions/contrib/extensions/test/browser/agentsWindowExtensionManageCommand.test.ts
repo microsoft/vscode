@@ -9,8 +9,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../../platform/extensions/common/extensions.js';
-import { AgentsWindowExtensionManageCommand, MANAGE_EXTENSION_COMMAND_ID } from '../../browser/agentsWindowExtensionManageCommand.js';
+import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, MANAGE_EXTENSION_COMMAND_ID } from '../../../../../platform/extensions/common/extensions.js';
+import { AgentsWindowExtensionManageCommand } from '../../browser/agentsWindowExtensionManageCommand.js';
 
 suite('AgentsWindowExtensionManageCommand', () => {
 

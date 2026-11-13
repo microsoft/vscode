@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { NotificationViewItem } from '../../../common/notifications.js';
 import { LinkedTextNode } from '../../../../base/common/linkedText.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription, MANAGE_EXTENSION_COMMAND_ID } from '../../../../platform/extensions/common/extensions.js';
 import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
 import { NotificationService } from '../../../services/notification/common/notificationService.js';
 import { NotificationActionRunner } from '../../../browser/parts/notifications/notificationsCommands.js';
@@ -183,7 +183,7 @@ suite('ExtHostMessageService', function () {
 		test('does not run Manage Extension of an earlier notification after the command is unregistered', async () => {
 			const executed: unknown[][] = [];
 			const commandService: ICommandService = { ...emptyCommandService, executeCommand: async (...args: unknown[]) => { executed.push(args); } };
-			const command = CommandsRegistry.registerCommand('_extensions.manage', () => { });
+			const command = CommandsRegistry.registerCommand(MANAGE_EXTENSION_COMMAND_ID, () => { });
 			const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
 			store.add(toDisposable(() => {
 				for (const item of [...notifications.model.notifications]) {
@@ -200,13 +200,13 @@ suite('ExtHostMessageService', function () {
 			await item.actions!.secondary![0].run();
 			item.close();
 			await promise;
-			assert.deepStrictEqual(executed, [['_extensions.manage', 'publisher.extension']]);
+			assert.deepStrictEqual(executed, [[MANAGE_EXTENSION_COMMAND_ID, 'publisher.extension']]);
 		});
 
 		for (const identifier of ['Publisher.Extension', undefined, '/private/extension']) {
 			test(`attributes extension messages and button positions without inferring semantics (${identifier ?? 'missing'})`, async () => {
 				const telemetry = new TestNotificationTelemetryService();
-				store.add(CommandsRegistry.registerCommand('_extensions.manage', () => { }));
+				store.add(CommandsRegistry.registerCommand(MANAGE_EXTENSION_COMMAND_ID, () => { }));
 				const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
 				store.add(toDisposable(() => {
 					for (const item of [...notifications.model.notifications]) {

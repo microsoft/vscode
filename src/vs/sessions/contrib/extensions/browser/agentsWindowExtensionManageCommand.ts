@@ -7,7 +7,7 @@ import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle
 import { autorun } from '../../../../base/common/observable.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, MANAGE_EXTENSION_COMMAND_ID } from '../../../../platform/extensions/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
@@ -15,12 +15,6 @@ import { AICustomizationManagementCommands } from '../../../../workbench/contrib
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-
-/**
- * The command that the Manage Extension action of notifications and status bar items runs, which opens the
- * Extensions editor in editor windows.
- */
-export const MANAGE_EXTENSION_COMMAND_ID = '_extensions.manage';
 
 /**
  * Registers the Manage Extension command of the Agents window, which shows the extension's page in the Extensions

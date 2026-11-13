@@ -7,6 +7,7 @@ import { IProgress, IProgressService, IProgressStep, ProgressLocation, IProgress
 import { MainThreadProgressShape, MainContext, ExtHostProgressShape, ExtHostContext, IProgressOptionsDto, IProgressStepDto } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { MANAGE_EXTENSION_COMMAND_ID } from '../../../platform/extensions/common/extensions.js';
 import { localize } from '../../../nls.js';
 import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { toAction } from '../../../base/common/actions.js';
@@ -51,11 +52,11 @@ export class MainThreadProgress implements MainThreadProgressShape {
 				priority: sourceIsUrgent ? NotificationPriority.URGENT : NotificationPriority.DEFAULT,
 				location: ProgressLocation.Notification,
 				// The Agents window registers the extensions management command only while it manages extensions
-				secondaryActions: CommandsRegistry.getCommand('_extensions.manage') ? [withNotificationActionTelemetry(toAction({
+				secondaryActions: CommandsRegistry.getCommand(MANAGE_EXTENSION_COMMAND_ID) ? [withNotificationActionTelemetry(toAction({
 					id: extensionId,
 					label: localize('manageExtension', "Manage Extension"),
 					// A notification keeps its actions after the command is unregistered
-					run: () => CommandsRegistry.getCommand('_extensions.manage') ? this._commandService.executeCommand('_extensions.manage', extensionId) : undefined
+					run: () => CommandsRegistry.getCommand(MANAGE_EXTENSION_COMMAND_ID) ? this._commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, extensionId) : undefined
 				}), NotificationActionTelemetryId.ManageExtension)] : undefined
 			};
 

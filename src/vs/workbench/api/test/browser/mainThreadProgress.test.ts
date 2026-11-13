@@ -14,7 +14,7 @@ import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { isLegacyExtensionLinkParsing } from '../../../../platform/notification/common/notificationLegacy.js';
 import { getNotificationTelemetrySource, NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { ExtHostProgress } from '../../common/extHostProgress.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription, MANAGE_EXTENSION_COMMAND_ID } from '../../../../platform/extensions/common/extensions.js';
 import { ProgressLocation as ExtensionProgressLocation } from '../../common/extHostTypes.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 
@@ -65,7 +65,7 @@ suite('MainThreadProgress', () => {
 
 	test('does not run Manage Extension of an earlier progress notification after the command is unregistered', async () => {
 		const executed: unknown[][] = [];
-		const command = CommandsRegistry.registerCommand('_extensions.manage', () => { });
+		const command = CommandsRegistry.registerCommand(MANAGE_EXTENSION_COMMAND_ID, () => { });
 		let options: IProgressOptions | undefined;
 		const mainThread = store.add(new MainThreadProgress(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostProgressShape>() { }),
@@ -88,7 +88,7 @@ suite('MainThreadProgress', () => {
 		await manage.run();
 		command.dispose();
 		await manage.run();
-		assert.deepStrictEqual(executed, [['_extensions.manage', 'publisher.extension']]);
+		assert.deepStrictEqual(executed, [[MANAGE_EXTENSION_COMMAND_ID, 'publisher.extension']]);
 	});
 
 	test('requires the notification telemetry proposal before forwarding a progress ID', async () => {
