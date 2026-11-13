@@ -75,6 +75,8 @@ export const enum SessionOriginKind {
  */
 export interface AutomationSessionOrigin {
 	kind: SessionOriginKind.Automation;
+	/** Immutable purpose copied from the run, including after its definition is removed. */
+	purpose?: 'scheduledChat';
 	/** Owning {@link AutomationEntry.resource}. */
 	automation: URI;
 	/** Owning {@link AutomationRunState.resource}. */

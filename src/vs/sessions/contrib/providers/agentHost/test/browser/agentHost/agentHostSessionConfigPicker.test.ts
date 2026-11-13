@@ -321,6 +321,7 @@ function setupServices(
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable<readonly ISessionHost[]>([]) }));
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);

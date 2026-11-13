@@ -48,6 +48,7 @@ export namespace ChatContextKeys {
 
 	export const inputHasText = new RawContextKey<boolean>('chatInputHasText', false, { type: 'boolean', description: localize('interactiveInputHasText', "True when the chat input has text.") });
 	export const inputHasSendableContent = new RawContextKey<boolean>('chatInputHasSendableContent', false, { type: 'boolean', description: localize('interactiveInputHasSendableContent', "True when the chat input has text or file attachments that can be sent.") });
+	export const hasSecondaryExecuteActions = new RawContextKey<boolean>('chatHasSecondaryExecuteActions', false, { type: 'boolean', description: localize('chatHasSecondaryExecuteActions', "True when the chat input has additional send actions.") });
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inputInlineAttachmentActive = new RawContextKey<boolean>('chatInputInlineAttachmentActive', false, { type: 'boolean', description: localize('chatInputInlineAttachmentActive', "True when the cursor in the chat input is right after an attachment shown inline with the prompt, which Enter opens.") });

@@ -49,6 +49,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../../workbench/contrib/webview/browser/webview.js';
 import { WebviewFindAccessibilityHelp } from '../../../../../workbench/contrib/webview/browser/webviewFindAccessibilityHelp.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatNativeComponentsRenderer, registerChatNativeComponentsRenderer } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ITestSessionWithChat, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -160,6 +161,37 @@ suite('SessionsChatAccessibilityHelp', () => {
 			});
 		});
 	}
+
+	test('documents native visuals only while this window renders them', () => {
+		const help = (nativeComponentsEnabled: boolean, aiDisabled = false) => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled, [ChatConfiguration.NativeComponentsEnabled]: nativeComponentsEnabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden: false } });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			return {
+				visuals: content.includes('vscode-ui code fence'),
+				sourceToggle: content.includes('Choose Show Source to toggle the original markup'),
+				textAlternative: content.includes('presents each visual as text'),
+				setting: content.includes(ChatConfiguration.NativeComponentsEnabled),
+				skill: content.includes('built-in /vscode-ui skill'),
+			};
+		};
+		const all = (documented: boolean) => ({ visuals: documented, sourceToggle: documented, textAlternative: documented, setting: documented, skill: documented });
+
+		const withoutRenderer = help(true);
+		store.add(registerChatNativeComponentsRenderer(upcastPartial<IChatNativeComponentsRenderer>({})));
+		assert.deepStrictEqual({ withoutRenderer, enabled: help(true), settingOff: help(false), aiDisabled: help(true, true) }, {
+			withoutRenderer: all(false), enabled: all(true), settingOff: all(false), aiDisabled: all(false),
+		});
+	});
 
 	for (const remotesEnabled of [false, true]) {
 		for (const manageEnabled of [undefined, false, true]) {
@@ -280,6 +312,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
 			systemWideKeybindingTip: content.includes('Ctrl+Cmd+A as a system-wide shortcut for opening the Agents window'),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
+			commandCenterPreview: content.includes('hover over the session command center to preview recent sessions'),
+			commandCenterCurrentSession: content.includes('The current session is selected in the preview.'),
+			persistentAttention: content.includes('Opening that session dismisses the message; if you navigate to a different session while the request is still unresolved, a compact orange question marker remains as a reminder'),
+			attentionListModes: content.includes('the full orange attention message and its preview focuses on sessions needing attention') && content.includes('the preview returns to the full recent sessions list'),
 			detailPositions: content.includes('to the left or right of, above, or below editor content inside the side panel. The side panel stays beside chat.'),
 			floatingDetails: content.includes('Activate Unpin to return to hover-preview mode without collapsing the view or moving focus.'),
 			instantSelection: content.includes('Opening a file or diff collapses an unpinned preview immediately, without a delay or collapse animation; expanding a folder does not.'),
@@ -292,7 +328,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			floatingResize: content.includes('Increase Current View Size and Decrease Current View Size resize the floating view while its tree or header has focus.'),
 			keyboardResize: content.includes('width or height resize handle, labelled with the view name'),
 			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, detailPositions: true, floatingDetails: true, instantSelection: true, passiveDetailsHeader: true, hoverPreview: true, floatingMove: true, contentFit: true, floatingMarkdown: true, floatingFocus: true, floatingResize: true, keyboardResize: true, moveToSession: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, commandCenterPreview: true, commandCenterCurrentSession: true, persistentAttention: true, attentionListModes: true, detailPositions: true, floatingDetails: true, instantSelection: true, passiveDetailsHeader: true, hoverPreview: true, floatingMove: true, contentFit: true, floatingMarkdown: true, floatingFocus: true, floatingResize: true, keyboardResize: true, moveToSession: true });
 	});
 
 	test('documents terminal command descriptions and Explain in confirmations', () => {

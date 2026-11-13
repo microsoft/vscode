@@ -6110,6 +6110,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [
 			{ ...createSession('cached-run', { summary: 'Cached run' }), origin: automationOrigin },
+			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: { ...automationOrigin, purpose: 'scheduledChat' } },
 			createSession('cached-plain', { summary: 'Cached plain' }),
 		]);
 		const nextHost = new MockAgentHostService();
@@ -6119,7 +6120,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			listSessionsCalls: nextHost.listSessionsCallCount,
 			marks: Object.fromEntries(provider.getSessions().map(session => [session.title.get(), session.isAutomation?.get()])),
-		}, { listSessionsCalls: 0, marks: { 'Cached run': true, 'Cached plain': false } });
+			scheduled: provider.getSessions().filter(session => session.isScheduledChat?.get()).map(session => session.title.get()),
+		}, { listSessionsCalls: 0, marks: { 'Cached run': true, 'Cached scheduled chat': true, 'Cached plain': false }, scheduled: ['Cached scheduled chat'] });
 	}));
 
 	test('preserves typed automation provenance when the run catalogue changes or is deleted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -9946,6 +9948,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await provider.getAutomationSessionConfiguration(draft.sessionId);
 			await timeout(0);
 			assert.deepStrictEqual(agentHost.createSessionConfigs.map(config => config.agent), [{ uri: 'file:///agents/reviewer.agent.md' }]);
+		});
+	}
+
+	for (const quickChat of [false, true]) {
+		test(`restores ordinary draft configuration before resolving the provider (quick chat: ${quickChat})`, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const sessionTemplate = {
+				modelId: 'agent-host-copilotcli:auto',
+				modelConfiguration: { thinkingLevel: 'low' },
+				config: { mode: 'plan', autoApprove: 'assisted' },
+			};
+			const options = { draftConfiguration: { sessionTemplate } };
+			const session = quickChat
+				? provider.createQuickChat(provider.sessionTypes[0].id, options)
+				: provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, options);
+			const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+			assert.deepStrictEqual({
+				modelId: captured?.sessionTemplate?.modelId,
+				modelConfiguration: captured?.sessionTemplate?.modelConfiguration,
+				mode: captured?.mode,
+				permissionLevel: captured?.permissionLevel,
+			}, { modelId: sessionTemplate.modelId, modelConfiguration: sessionTemplate.modelConfiguration, mode: 'plan', permissionLevel: 'assisted' });
 		});
 	}
 

@@ -64,6 +64,7 @@ import { ArchiveChatAction, ArchiveSessionAction } from '../../../../../workbenc
 import '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { WorkspaceSelectionOrigin, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
@@ -2078,6 +2079,7 @@ suite('Sessions - Actions', () => {
 
 	test('New Session prefills a supplied prompt and only inherits available quick-chat targets', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		const { session } = createTestSession('prompted');
 		const activeSession = upcastPartial<ITestSessionWithChat>(session);
@@ -2151,6 +2153,7 @@ suite('Sessions - Actions', () => {
 		]) {
 			test(`New Session preserves ${scenario.name} inheritance with toSide=${toSide}`, async () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 				instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 				instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 				const composerService = disposables.add(new NewSessionComposerService());
@@ -2199,6 +2202,7 @@ suite('Sessions - Actions', () => {
 		for (const pending of [false, true]) {
 			test(`New Session preserves container intent across repeated New (pending: ${pending}, toSide: ${toSide})`, async () => {
 				const instantiationService = disposables.add(new TestInstantiationService());
+				instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 				instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 				instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 				const composerService = disposables.add(new NewSessionComposerService());
@@ -2304,6 +2308,7 @@ suite('Sessions - Actions', () => {
 	test('New Session leaves an uncreated quick chat and opens the workspace picker', async () => {
 		const run = async (toSide: boolean | undefined, noWorkspaceChecked: boolean) => {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 			instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 			instantiationService.stub(IWindowCanvasService, { openNewSession: () => undefined });
 			const composerService = disposables.add(new NewSessionComposerService());
@@ -2655,6 +2660,7 @@ suite('Sessions - Actions', () => {
 
 	test('New Session uses the active native canvas for plain invocations and incidental toolbar context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		instantiationService.stub(ICustomViewService, { activeCustomView: constObservable(undefined) });
 		let canvasRequests = 0;
@@ -2722,6 +2728,7 @@ suite('Sessions - Actions', () => {
 
 	test('New Session uses the displayed custom view for plain invocations and incidental toolbar context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		let hosted = 0;
 		let opened = 0;

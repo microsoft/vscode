@@ -12,7 +12,7 @@ import { URI, uriToFsPath } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
 import { IDevContainerAgentHostMainService, type IDevContainerAgentHostWorkspaceConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
@@ -50,6 +50,9 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		this._register(_service.onDidOutput(event => this._forward(DevContainerOutputNotification, event)));
 		if (_service.onDidChangeSandboxSupport) {
 			this._register(_service.onDidChangeSandboxSupport(event => this._forward(DevContainerSandboxSupportNotification, event)));
+		}
+		if (_service.onDidReportUserState) {
+			this._register(_service.onDidReportUserState(event => this._forward(DevContainerUserStateNotification, event)));
 		}
 		this._register(_service.onDidRelayClose(id => this._forward(DevContainerRelayCloseNotification, { connectionId: id })));
 		this._register(_service.onDidCloseConnection(id => {
@@ -91,7 +94,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 				if (!isAbsolute(workspaceFolder) || workspaceFolder.includes('\0') || !config.name.trim() || config.name.includes('\0')) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFolder must be an absolute host path and name must be non-empty');
 				}
-				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), workspaceFolder });
+				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), ...(config.persistUserState !== undefined ? { persistUserState: config.persistUserState } : {}), workspaceFolder });
 			}
 			case DevContainerDisconnectExtensionMethod: {
 				const { connectionId } = this._validate(devContainerConnectionParamsValidator, params);

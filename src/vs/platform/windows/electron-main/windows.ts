@@ -149,6 +149,8 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
+	panel?: boolean;
+	opacity?: number;
 }
 
 /**
@@ -290,6 +292,19 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	if (overrides?.alwaysOnTop ?? windowState.alwaysOnTop) {
 		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.panel) {
+		options.fullscreenable = false;
+		if (isMacintosh) {
+			options.type = 'panel';
+		} else {
+			options.skipTaskbar = true;
+		}
+	}
+
+	if (typeof overrides?.opacity === 'number') {
+		options.opacity = overrides.opacity;
 	}
 
 	if (overrides?.frameless) {

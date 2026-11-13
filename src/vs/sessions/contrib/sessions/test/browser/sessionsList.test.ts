@@ -322,7 +322,7 @@ suite('Sessions - SessionsList', () => {
 				providers.fire({ added: [], removed: [] });
 			};
 			return {
-				harness, list, management, original, changes, invalidateCatalogue,
+				harness, list, management, original, changes, invalidateCatalogue, container,
 				counts: () => ({ reads, updates }),
 				titles: () => [...container.querySelectorAll('.session-title')].map(element => element.textContent),
 			};
@@ -352,7 +352,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		for (const operation of ['added', 'removed', 'changed'] as const) {
+		for (const operation of ['added', 'removed'] as const) {
 			test(`keeps concrete session ${operation} synchronous and cancels a redundant queued refresh`, async () => {
 				const fixture = await createFixture();
 				fixture.invalidateCatalogue();
@@ -361,7 +361,7 @@ suite('Sessions - SessionsList', () => {
 				fixture.changes.fire({
 					added: operation === 'added' ? [replacement] : [],
 					removed: operation === 'removed' ? [fixture.original] : [],
-					changed: operation === 'changed' ? [replacement] : [],
+					changed: [],
 				});
 				const immediate = { ...fixture.counts(), titles: fixture.titles() };
 				await nextFrame();
@@ -372,6 +372,21 @@ suite('Sessions - SessionsList', () => {
 				});
 			});
 		}
+
+		test('coalesces concrete metadata changes without losing the latest catalogue', async () => {
+			const fixture = await createFixture();
+			const replacement = createTestSession('Replacement').session;
+			fixture.management.sessions = [replacement];
+			fixture.changes.fire({ added: [], removed: [], changed: [replacement] });
+			fixture.changes.fire({ added: [], removed: [], changed: [replacement] });
+			const immediate = { ...fixture.counts(), titles: fixture.titles() };
+			await nextFrame();
+
+			assert.deepStrictEqual({ immediate, settled: { ...fixture.counts(), titles: fixture.titles() } }, {
+				immediate: { reads: 0, updates: 0, titles: ['Original'] },
+				settled: { reads: 1, updates: 1, titles: ['Replacement'] },
+			});
+		});
 
 		for (const explicit of ['refresh', 'update'] as const) {
 			test(`an explicit ${explicit} reads the latest pending catalogue synchronously`, async () => {
@@ -451,6 +466,52 @@ suite('Sessions - SessionsList', () => {
 				reads: 2, updates: 2, titles: ['Latest'],
 			});
 		});
+
+		for (const trigger of ['refresh', 'reveal'] as const) {
+			test(`defers metadata changes raised while ${trigger} renders a lazy row`, async () => {
+				const fixture = await createFixture();
+				fixture.list.layout(trigger === 'refresh' ? 400 : 90, 400);
+				const base = createTestSession('Lazy', { createdAt: trigger === 'reveal' ? new Date(0) : new Date() }).session;
+				let subscribed = false;
+				const onDidResolveTimestamp: Event<void> = () => {
+					if (!subscribed) {
+						subscribed = true;
+						fixture.changes.fire({ added: [], removed: [], changed: [lazy] });
+					}
+					return toDisposable(() => { });
+				};
+				const lazy: ISession = {
+					...base,
+					mainChat: constObservable({
+						...base.mainChat.get(),
+						updatedAt: observableFromEvent(disposables, onDidResolveTimestamp, () => undefined),
+					}),
+				};
+				fixture.management.sessions = [
+					...Array.from({ length: 4 }, (_, index) => createTestSession(`Session ${index}`).session),
+					lazy,
+				];
+				fixture.list.refresh();
+				if (trigger === 'reveal') {
+					assert.strictEqual(subscribed, false);
+					fixture.list.revealItem({ session: lazy.resource });
+				}
+				const immediate = fixture.counts();
+				await nextFrame();
+				const rows = [...fixture.container.querySelectorAll<HTMLElement>('.monaco-list-rows > .monaco-list-row')]
+					.sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index))
+					.map(row => row.getBoundingClientRect());
+
+				assert.deepStrictEqual({
+					subscribed, immediate, settled: fixture.counts(),
+					title: fixture.list.getItemRow({ session: lazy.resource })?.querySelector('.session-title')?.textContent,
+					disjoint: rows.every((row, index) => index === 0 || rows[index - 1].bottom <= row.top),
+				}, {
+					subscribed: true, immediate: { reads: 1, updates: 1 }, settled: { reads: 2, updates: 2 },
+					title: 'Lazy', disjoint: true,
+				});
+			});
+		}
 	});
 
 	test('uses the large radius token for list hovers even when pointer styles load later', () => {
@@ -2230,11 +2291,13 @@ suite('Sessions - SessionsList', () => {
 				const collapsed = getHeader()?.querySelector('.session-section-chevron')?.className;
 				getHeader()?.click();
 				const expanded = getHeader()?.querySelector('.session-section-chevron')?.className;
+				const disclosureRow = getHeader()?.closest('.monaco-list-row')?.classList.contains('sessions-disclosure-row');
 
-				assert.deepStrictEqual({ stickyHeaders, collapsed, expanded }, {
+				assert.deepStrictEqual({ stickyHeaders, collapsed, expanded, disclosureRow }, {
 					stickyHeaders: [label],
 					collapsed: 'session-section-chevron collapsible codicon codicon-chevron-right',
 					expanded: 'session-section-chevron collapsible codicon codicon-chevron-down',
+					disclosureRow: true,
 				});
 			});
 		}
@@ -11313,6 +11376,32 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
+		test('marks a collapsed parent session, but not a leaf session, as a disclosure row', () => {
+			const main = createChat('Main chat', ChatOriginKind.User);
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const parentBase = createTestSession('Parent').session;
+			const parent: ISession = {
+				...parentBase,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const parentContainer = renderSessionChatsList(parent, undefined, false, false).container;
+			const leafContainer = renderSessionChatsList(createTestSession('Leaf').session, undefined, false, false).container;
+			const parentRow = parentContainer.querySelector('.session-item')?.closest('.monaco-list-row');
+			const leafRow = leafContainer.querySelector('.session-item')?.closest('.monaco-list-row');
+
+			assert.deepStrictEqual({
+				parentCollapsed: parentRow?.getAttribute('aria-expanded'),
+				parentDisclosure: parentRow?.classList.contains('sessions-disclosure-row'),
+				leafDisclosure: leafRow?.classList.contains('sessions-disclosure-row'),
+			}, {
+				parentCollapsed: 'false',
+				parentDisclosure: true,
+				leafDisclosure: false,
+			});
+		});
+
 		/** Section, session and chat rows top to bottom, indented by nesting; done sessions and standalone chats are marked. */
 		function renderedTreeRows(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
@@ -15265,6 +15354,71 @@ suite('Sessions - SessionsList', () => {
 			// Base chat rows reserve 30px including spacing; an approval must reserve more.
 			assert.ok(parseInt(row.style.height) > 30, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
 			assert.ok(row.querySelector('.session-approval-row.visible'), 'approval row should be visible on the re-rendered target');
+		});
+	});
+
+	suite('SessionsFlatList active session', () => {
+
+		test('selects the active session without moving DOM focus', () => {
+			const first = createTestSession('First').session;
+			const second = createTestSession('Second').session;
+			const activeSession = observableValue<ISession | undefined>('activeSession', first);
+			const harness = createListHarness(disposables, [first, second]);
+			const container = harness.createContainer();
+			const focusTarget = mainWindow.document.createElement('button');
+			mainWindow.document.body.append(focusTarget);
+			disposables.add({ dispose: () => focusTarget.remove() });
+			focusTarget.focus();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				activeSession,
+				showSessionHover: false,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([first, second]);
+			list.layout(200, 400);
+			const selectedTitle = () => container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
+
+			const initial = { selected: selectedTitle(), preservedFocus: mainWindow.document.activeElement === focusTarget };
+			activeSession.set(second, undefined);
+			const updated = { selected: selectedTitle(), preservedFocus: mainWindow.document.activeElement === focusTarget };
+			activeSession.set(undefined, undefined);
+			const cleared = { selected: selectedTitle(), preservedFocus: mainWindow.document.activeElement === focusTarget };
+
+			assert.deepStrictEqual({ initial, updated, cleared }, {
+				initial: { selected: 'First', preservedFocus: true },
+				updated: { selected: 'Second', preservedFocus: true },
+				cleared: { selected: undefined, preservedFocus: true },
+			});
+		});
+
+		test('focuses the active or first session when the list receives DOM focus', () => {
+			const first = createTestSession('First').session;
+			const second = createTestSession('Second').session;
+
+			const createList = (activeSession: IObservable<ISession | undefined>) => {
+				const harness = createListHarness(disposables, [first, second]);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+					activeSession,
+					showSessionHover: false,
+					onSessionOpen: () => { },
+				}));
+				list.setSessions([first, second]);
+				list.layout(200, 400);
+				list.focus();
+				return {
+					focused: container.querySelector('.monaco-list-row.focused .session-title')?.textContent,
+					selected: container.querySelector('.monaco-list-row.selected .session-title')?.textContent,
+				};
+			};
+
+			const active = createList(constObservable(second));
+			const fallback = createList(constObservable(undefined));
+
+			assert.deepStrictEqual({ active, fallback }, {
+				active: { focused: 'Second', selected: 'Second' },
+				fallback: { focused: 'First', selected: undefined },
+			});
 		});
 	});
 

@@ -47,12 +47,13 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest'] } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
 		let restoredReferences: unknown;
 		let inputEnabled = true;
+		const executeToolbarElement = dom.$('div');
 		let focusRestored = false;
 		const inputTransitions: { enabled: boolean; preserveFocus: boolean }[] = [];
 		let draftModelState: object | undefined;
@@ -79,6 +80,7 @@ suite('SharedChatInputComposer', () => {
 		const attachmentModel = {
 			get attachments() { return attachments; },
 			addContext: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
+			clearAndSetContext: (...entries: IChatRequestVariableEntry[]) => { attachments = entries; },
 		};
 		const widget: { input: object | undefined;[key: string]: unknown } = {
 			domNode: dom.$('div'),
@@ -96,6 +98,7 @@ suite('SharedChatInputComposer', () => {
 			}),
 			attachmentModel,
 			input: {
+				executeToolbarElement,
 				attachmentModel,
 				currentModeKind: ChatModeKind.Agent,
 				selectedToolsModel: { entriesMap: { get: () => new Map() } },
@@ -111,6 +114,7 @@ suite('SharedChatInputComposer', () => {
 			},
 		};
 		const composer: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_store: store.add(new DisposableStore()),
 			_widget: widget,
 			_sending: observableValue('sending', false),
 			_confirmingSend: observableValue('confirmingSend', false),
@@ -120,6 +124,8 @@ suite('SharedChatInputComposer', () => {
 			_modelRef: { value: { object: { inputModel: { setState: (state: object) => { draftModelState = state; } } } } },
 			options: {
 				session: constObservable(undefined),
+				canSchedule: constObservable(!!options.scheduleRequest),
+				scheduleRequest: options.scheduleRequest,
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
 				preserveInputFocusOnSend: options.preserveInputFocusOnSend,
 				inputSnapshot: options.inputSnapshot,
@@ -144,8 +150,65 @@ suite('SharedChatInputComposer', () => {
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
-		return { composer, widget, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+		return { composer, widget, executeToolbarElement, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
+
+	test('scheduling supplies the send controls as the picker anchor and keeps input on cancel', async () => {
+		let anchor: HTMLElement | undefined;
+		const { composer, executeToolbarElement, state } = createComposer({
+			scheduleRequest: async element => { anchor = element; return undefined; },
+		});
+		await composer.schedule();
+		assert.deepStrictEqual({ anchor, input: state().input }, {
+			anchor: executeToolbarElement, input: { text: 'Build it', attachments: [context.id], enabled: true },
+		});
+	});
+
+	test('scheduling releases the captured source only after clearing its input', async () => {
+		const released: string[] = [];
+		const { composer, state } = createComposer({
+			scheduleRequest: async () => () => { released.push(state().input.text); },
+		});
+		await composer.schedule();
+		assert.deepStrictEqual({ released, input: state().input }, {
+			released: [''], input: { text: '', attachments: [], enabled: true },
+		});
+	});
+
+	test('late scheduling acceptance does not clear a replacement composition', async () => {
+		const accepted = new DeferredPromise<(() => void) | undefined>();
+		let released = false;
+		const { composer, state } = createComposer({ scheduleRequest: () => accepted.p });
+		const scheduling = composer.schedule();
+		composer.setDraft({ inputText: 'replacement', attachments: [] });
+		accepted.complete(() => { released = true; });
+		await scheduling;
+		assert.deepStrictEqual({ released, input: state().input }, {
+			released: false, input: { text: 'replacement', attachments: [], enabled: true },
+		});
+	});
+
+	test('scheduling can finish after the source composer is disposed', async () => {
+		const accepted = new DeferredPromise<(() => void) | undefined>();
+		let released = false;
+		const { composer, widget, inputTransitions } = createComposer({ scheduleRequest: () => accepted.p });
+		const scheduling = composer.schedule();
+		composer.dispose();
+		widget.input = undefined;
+		accepted.complete(() => { released = true; });
+		await scheduling;
+		assert.deepStrictEqual({ released, inputTransitions }, {
+			released: false, inputTransitions: [{ enabled: false, preserveFocus: false }],
+		});
+	});
+
+	test('drafts retain ordinary inline references without attachment pills', () => {
+		const references: IDynamicVariable[] = [{ id: 'file', range: new Range(1, 1, 1, 8), data: URI.file('/workspace/file.ts') }];
+		const { composer, state } = createComposer({ text: '#file.ts', references });
+		const draft = composer.getDraft();
+		composer.setDraft(draft);
+		assert.deepStrictEqual({ references: draft.references, restored: state().restoredReferences }, { references, restored: references });
+	});
 
 	for (const preserveInputFocusOnSend of [false, true]) {
 		test(`retains editor focus during confirmation and sending only when opted in (${preserveInputFocusOnSend})`, async () => {

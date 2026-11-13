@@ -256,8 +256,8 @@ export class ChatEditorView extends Disposable implements IViewEditorView {
 	/** Whether the view shows its title, the session header: not while its group shows its tabs, which show its actions. */
 	private readonly _providedTitleVisible = observableValue(this, true);
 
-	/** The title of the session header drags the chat. */
-	get dragHandle(): HTMLElement { return this.sessionView.headerTitleElement; }
+	/** The session header drags the chat. */
+	get dragHandle(): HTMLElement { return this.sessionView.headerElement; }
 
 	/** The actions of the session header, which the tab bar of its group shows while the header hides. */
 	get titleMenu(): IEditorPaneTitleMenu { return this.sessionView.titleMenu; }

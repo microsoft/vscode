@@ -4334,6 +4334,44 @@ suite('SessionsManagementService', () => {
 	});
 
 	suite('session navigation', () => {
+		test('restores saved drafts through a disposable opener without promoting MRU', async () => {
+			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [first, second]; }
+			}(first);
+			const { view } = createSessionsManagementService(first, disposables, provider);
+			const restored: string[] = [];
+			const registration = disposables.add(view.registerSavedDraftOpener(async (id, token) => {
+				restored.push(id);
+				view.setCurrentDraftId(id);
+				await view.openNewSession({ preserveNavigation: true }, token);
+				return true;
+			}));
+			await view.openSession(first.resource);
+			view.setCurrentDraftId('saved');
+			await view.openNewSession();
+			await view.openSession(second.resource);
+			const recentBefore = view.getRecentlyOpenedSessions().recent.map(session => session.sessionId);
+			await view.openPreviousSession();
+			const draftActive = activeSessionOf(view) === undefined;
+			await view.openPreviousSession();
+			const previous = activeSessionOf(view)?.sessionId;
+			await view.openNextSession();
+			await view.openNextSession();
+			const forward = activeSessionOf(view)?.sessionId;
+			const recentAfter = view.getRecentlyOpenedSessions().recent.map(session => session.sessionId);
+			registration.dispose();
+			await view.openPreviousSession();
+			assert.deepStrictEqual({
+				restored, draftActive, previous, forward, recentBefore, recentAfter,
+				afterDisposal: activeSessionOf(view)?.sessionId,
+			}, {
+				restored: ['saved', 'saved'], draftActive: true, previous: 'first', forward: 'second',
+				recentBefore: ['second', 'first'], recentAfter: ['second', 'first'], afterDisposal: 'first',
+			});
+		});
+
 		test('visits custom views and the composer without recording the covered session again', async () => {
 			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
 			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
@@ -7152,6 +7190,25 @@ suite('SessionsManagementService', () => {
 			),
 		]);
 		assert.strictEqual(createCount, 0);
+	});
+
+	test('ordinary draft configuration does not require Automation support', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const draftConfiguration = { sessionTemplate: { modelId: 'model', config: { providerChoice: true } } };
+		let captured: ISessionsProviderCreateSessionOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return { uri: URI.parse('test:///folder'), label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override getDraftSessionConfiguration() { return draftConfiguration; }
+			override createNewSession(_folder: URI, _type: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				captured = options;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		service.createNewSession(URI.parse('test:///folder'), { draftConfiguration });
+		assert.deepStrictEqual(captured, { metadata: undefined, draftConfiguration });
 	});
 
 	test('createAndSendNewChatRequest prepares request options while configuring the provisional session', async () => {

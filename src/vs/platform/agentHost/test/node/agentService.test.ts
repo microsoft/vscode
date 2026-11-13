@@ -51,7 +51,7 @@ import { createInMemoryFileService } from '../../../files/test/common/inMemoryFi
 import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostChatResourcesConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
 import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
@@ -1284,6 +1284,27 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			await assert.rejects(service.createSession({ legacyChatUris: false, provider: 'copilot', credentials: remote }), { code: AhpErrorCodes.PermissionDenied });
 			assert.strictEqual(creates, 0);
+		});
+
+		test('scheduled conversations restore persisted client ownership before autonomous dispatch', async () => {
+			const data = createPerSessionDataService();
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const provider = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(scopedService, provider);
+			const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const chat = hostDefaultChat(scopedService, session);
+			await data.database(session).setMetadata(SESSION_CREDENTIAL_PRINCIPAL_KEY, JSON.stringify({
+				apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1',
+			}));
+			const authentication = getTestAgentServiceComposition(scopedService).authenticationService;
+			const before = authentication.getSessionCredentialPrincipal(session.toString());
+			scopedService.restoreSession = async () => { assert.fail('A client-owned session must not be restored autonomously'); };
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the production autonomous guard without exposing a test-only API.
+			const prepare = scopedService['_automationService']['_execution'].prepareConversation!;
+			await assert.rejects(prepare({ session: session.toString(), chat }, { text: 'Scheduled follow-up', origin: { kind: MessageKind.User } }, 'scheduled-message'), /requires an authenticated client/);
+			assert.deepStrictEqual({ before, after: authentication.getSessionCredentialPrincipal(session.toString()) }, {
+				before: undefined, after: { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' },
+			});
 		});
 
 		test('optional alternatives do not authorize a scoped operation or bypass another required resource', async () => {
@@ -2631,6 +2652,27 @@ suite('AgentService (node dispatcher)', () => {
 				restarted: { owner: 'microsoft', repo: 'vscode' },
 				databaseOpens: 0,
 			});
+		});
+
+		test('artifact tools let agents ask how the chat shows a file while chat resources are enabled', async () => {
+			class ArtifactAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+			}
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			const agent = disposables.add(new ArtifactAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const offersMode = () => JSON.stringify(agent.serverToolHost!.getDefinitionsForSession(session.toString()).find(tool => tool.name === ArtifactServerToolName.AddArtifactOrReference)?.inputSchema).includes('"mode"');
+			getConfigurationService(svc).updateRootConfig({ [AgentHostArtifactToolsConfigKey]: true });
+			const disabled = offersMode();
+			getConfigurationService(svc).updateRootConfig({ [AgentHostChatResourcesConfigKey]: true });
+
+			assert.deepStrictEqual({ disabled, enabled: offersMode() }, { disabled: false, enabled: true });
 		});
 
 		for (const removeArtifacts of [false, true]) {
@@ -8552,6 +8594,18 @@ suite('AgentService (node dispatcher)', () => {
 			// agent has observed the (rewritten) sendMessage.
 			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length > 0, 'the rewritten message should reach the agent');
 		}
+
+		test('keeps skill resource identity when rewriting neighboring attachments', async () => {
+			const { svc, agent, session, attachmentsRoot, warnings } = await setup();
+			const skills: MessageAttachment[] = [
+				{ type: MessageAttachmentKind.Resource, uri: 'custom-skills:/review/SKILL.md', label: '/review', displayKind: 'skill' },
+				{ type: MessageAttachmentKind.Resource, uri: joinPath(attachmentsRoot, 'SKILL.md').toString(), label: '/other', displayKind: 'skill' },
+			];
+			await dispatchTurnAndWait(svc, agent, session, [...skills, {
+				type: MessageAttachmentKind.EmbeddedResource, label: 'Context', contentType: 'text/plain', data: encodeBase64(VSBuffer.fromString('context')),
+			}]);
+			assert.deepStrictEqual({ skills: agent.sendMessageCalls[0].attachments?.slice(0, 2), warnings }, { skills, warnings: [] });
+		});
 
 		test('snapshots EmbeddedResource attachments to disk and rewrites to a Resource URI under the session attachments folder', async () => {
 			const { svc, agent, session, attachmentsRoot } = await setup();

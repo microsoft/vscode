@@ -53,7 +53,6 @@ suite('Windows State Storing', () => {
 		assert.strictEqual(expected.remoteAuthority, actual.remoteAuthority, message);
 		assertEqualWorkspace(expected.workspace, actual.workspace, message);
 		assert.deepStrictEqual(expected.uiState, actual.uiState, message);
-		assert.deepStrictEqual(expected.folderLocation, actual.folderLocation, message);
 	}
 
 	function assertEqualWindowsState(expected: IWindowsState, actual: IWindowsState, message?: string) {
@@ -100,10 +99,10 @@ suite('Windows State Storing', () => {
 		};
 		assertRestoring(windowState, 'folder');
 
-		windowState = {
-			openedWindows: [{ backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI, folderLocation: { uri: 'file:///alt', label: 'Alt', providerId: 'p' } }]
-		};
-		assertRestoring(windowState, 'folder at alternate location');
+		// A folder location carried by state of an older version is ignored
+		const stored = getWindowsStateStoreData({ openedWindows: [{ backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI }] });
+		const restored = restoreWindowsState({ ...stored, openedWindows: stored.openedWindows.map(window => ({ ...window, folderLocation: { uri: 'file:///alt', label: 'Alt', providerId: 'p' } })) });
+		assert.deepStrictEqual(Object.keys(restored.openedWindows[0]).includes('folderLocation'), false);
 
 		windowState = {
 			openedWindows: [{ backupPath: testBackupPath1, uiState: getUIState(), folderUri: testFolderURI }, { backupPath: testBackupPath1, uiState: getUIState(), folderUri: testRemoteFolderURI, remoteAuthority: 'bar' }]

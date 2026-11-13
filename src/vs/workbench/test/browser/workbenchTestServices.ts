@@ -895,6 +895,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly parts: readonly IEditorPart[] = [this];
 
+	supportsSplitting = true;
+
 	windowId = mainWindow.vscodeWindowId;
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;

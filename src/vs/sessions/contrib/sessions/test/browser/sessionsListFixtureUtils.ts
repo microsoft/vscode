@@ -81,6 +81,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
+import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -113,7 +114,6 @@ import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPane
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
-import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
 import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -136,6 +136,7 @@ export interface ISessionsListFixtureChat extends ITestChatSpec {
 export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly inlineAction?: 'checks' | 'comments' | 'combined';
 	readonly chats?: readonly ISessionsListFixtureChat[];
+	readonly hasScheduledMessages?: boolean;
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
 	readonly inboxState?: SessionInboxAction;
@@ -768,6 +769,11 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
 			reg.define(ISessionsListPresentation, DefaultSessionsListPresentation);
+			reg.defineInstance(IPinnedCanvasService, new class extends mock<IPinnedCanvasService>() {
+				override readonly enabled = constObservable(false);
+				override readonly entries = constObservable([]);
+				override readonly selected = constObservable(undefined);
+			}());
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
@@ -973,6 +979,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		grouping: () => view.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => view.sorting ?? SessionsSorting.Created,
 		compact: () => view.compact ?? false,
+		scheduledSessionResources: constObservable(new Set(state.sessions
+			.filter(spec => spec.hasScheduledMessages)
+			.map(spec => getSession(spec.id).session.resource.toString()))),
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),

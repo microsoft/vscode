@@ -35,7 +35,7 @@ import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestar
 import { ISessionAttentionService } from '../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { SessionAttentionService } from '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
 import { sessionsListConfiguration } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
-import { SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 
 registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);
 
@@ -87,6 +87,22 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 export const sessionsConfiguration = {
 	id: 'sessions',
 	properties: {
+		[SESSIONS_DRAFTS_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('sessions.drafts.enabled', "Save unsent new sessions in the Agents window's Drafts section when you navigate away. Disabling this setting keeps saved drafts without showing them or saving new drafts."),
+			experiment: { mode: 'auto' },
+		},
+		[SESSIONS_SEND_LATER_ENABLED_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('sessions.sendLater.enabled', "Schedule requests from new-session and existing-chat inputs to be sent later in the Agents window. Requires Automations and a supported local agent host. Disabling this setting does not cancel scheduled requests; manage them in Automations."),
+			experiment: { mode: 'auto' },
+		},
 		[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental'],

@@ -446,19 +446,42 @@ suite('PromptHoverProvider', () => {
 			assert.strictEqual(hoverEdit, 'Read files');
 		});
 
-		test('hover on unavailable github-copilot tool shows provider availability', async () => {
-			copilotToolInventory = [{ name: 'github/*', description: 'GitHub tools', availability: 'disabled' }];
+		test('hover on spec-defined github-copilot namespaces uses static descriptions', async () => {
+			copilotToolInventory = [
+				{ name: 'github/*', description: 'Provider GitHub tools', availability: 'disabled' },
+				{ name: 'playwright/*', description: 'Provider browser tools', availability: 'unavailable' },
+			];
 			const content = [
 				'---',
 				'description: "Test"',
 				'target: github-copilot',
-				`tools: ['github/*']`,
+				`tools: ['github/*', 'playwright/*']`,
 				'---',
 			].join('\n');
 
-			const hover = await getHover(content, 4, 10, PromptsType.agent);
+			const githubHover = await getHover(content, 4, 10, PromptsType.agent);
+			const playwrightHover = await getHover(content, 4, 23, PromptsType.agent);
 
-			assert.strictEqual(hover, 'GitHub tools\n\nThis tool is recognized but disabled for the matching GitHub Copilot harness.');
+			assert.deepStrictEqual({ githubHover, playwrightHover }, {
+				githubHover: 'Use GitHub tools',
+				playwrightHover: 'Use browser automation tools',
+			});
+		});
+
+		test('hover on discovered github-copilot namespaces retains provider availability', async () => {
+			copilotToolInventory = [
+				{ name: 'disabled/*', description: 'Disabled tools', availability: 'disabled' },
+				{ name: 'unavailable/*', description: 'Unavailable tools', availability: 'unavailable' },
+			];
+			const content = '---\ndescription: Test\ntarget: github-copilot\ntools: [disabled/*, unavailable/*]\n---';
+
+			assert.deepStrictEqual({
+				disabledHover: await getHover(content, 4, 10, PromptsType.agent),
+				unavailableHover: await getHover(content, 4, 23, PromptsType.agent),
+			}, {
+				disabledHover: 'Disabled tools\n\nThis tool is recognized but disabled for the matching GitHub Copilot harness.',
+				unavailableHover: 'Unavailable tools\n\nThis tool is recognized but currently unavailable for the matching GitHub Copilot harness.',
+			});
 		});
 
 		test('hover on github-copilot skill shows description, source, and availability', async () => {

@@ -17,10 +17,6 @@ import { CopilotPickerActionViewItemContribution, registerCopilotSandboxPickerAc
  * and without the isolation picker of a new session, whose workspace picker offers New Worktree instead.
  */
 export class EditorWindowAgentHostSessionConfigPickerContribution extends AgentHostSessionConfigPickerContribution {
-	protected override get includesSessionHosts(): boolean {
-		return true;
-	}
-
 	protected override showsRepositoryProperty(isIsolation: boolean, isNewSession: boolean): boolean {
 		return !(isIsolation && isNewSession);
 	}

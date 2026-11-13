@@ -18,6 +18,7 @@ import type { AgentMessageProvenance } from './agentMessageProvenance.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentChatInputResponseMeta } from './meta/agentChatInputResponseMeta.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
@@ -2201,6 +2202,11 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/**
+	 * Answers a pending shell authentication prompt of the chat; `undefined`
+	 * cancels it. Resolves false when the prompt is no longer pending.
+	 */
+	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
 	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
@@ -2249,8 +2255,11 @@ export interface IAgent {
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void;
 
-	/** Respond to a pending user input request from the SDK's ask_user tool. */
-	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
+	/**
+	 * Respond to a pending user input request from the SDK's ask_user tool. `context` attributes the response to a
+	 * person only when a client reported their own interaction; omit it for any response the host produces itself.
+	 */
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>, context?: IAgentChatInputResponseMeta): void;
 
 	// ---- Configuration and customizations ----------------------------------
 

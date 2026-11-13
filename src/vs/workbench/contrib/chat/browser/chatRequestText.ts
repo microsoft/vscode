@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatRequestViewModel } from '../common/model/chatViewModel.js';
+import { localize } from '../../../../nls.js';
+import { IChatRequestViewModel, IChatScheduledRequest } from '../common/model/chatViewModel.js';
 import { getAgentMergeRequestLabel } from './widget/chatContentParts/chatAgentMergeContentPart.js';
 import { getArtifactRequestAccessibleText, getArtifactRequestLabel, getArtifactRequestPresentation } from './widget/chatContentParts/chatArtifactActionContentPart.js';
 
@@ -32,4 +33,12 @@ export function stripSystemNotificationWrapper(text: string): string {
 export function getChatRequestAccessibleText(item: IChatRequestViewModel): string {
 	const artifactRequest = getArtifactRequestPresentation(item);
 	return artifactRequest ? getArtifactRequestAccessibleText(artifactRequest) : getChatRequestText(item);
+}
+
+export function getChatScheduledRequestAccessibleText(item: IChatScheduledRequest): string {
+	const parts = [item.description, item.text];
+	if (item.attachments.length) {
+		parts.push(localize('scheduledAttachments', "Attachments: {0}", item.attachments.join(', ')));
+	}
+	return parts.join('\n');
 }

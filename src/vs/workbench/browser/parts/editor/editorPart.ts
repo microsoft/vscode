@@ -254,6 +254,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private _partOptions: IEditorPartOptions;
 	get partOptions(): IEditorPartOptions { return this._partOptions; }
 
+	get supportsSplitting(): boolean { return true; }
+
 	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable {
 		this.enforcedPartOptions.push(options);
 		this.handleChangedPartOptions();
@@ -1069,7 +1071,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 				options: {
 					index: actualIndex,
 					inactive,
-					preserveFocus: inactive || options?.preserveFocus
+					preserveFocus: inactive
 				}
 			});
 		}
@@ -1126,7 +1128,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	 * the check of explicit transfers: each editor is still asked as it
 	 * moves (see `EditorInput.canMove`), and one that cannot go stays.
 	 */
-	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart, options?: { preserveFocus?: boolean }): boolean {
+	protected mergeGroupsToMainPart(targetPart: IEditorGroupsView = this.editorPartsView.mainPart): boolean {
 		if (!this.groups.some(group => group.count > 0)) {
 			return true; // skip if we have no editors opened
 		}
@@ -1148,12 +1150,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			// Try to reduce the impact of closing this part
 			// as much as possible by not changing existing
 			// editors in the main part.
-			preserveExistingIndex: true,
-			preserveFocus: options?.preserveFocus
+			preserveExistingIndex: true
 		}, GroupMergeReason.Close);
-		if (!options?.preserveFocus) {
-			targetGroup.focus();
-		}
+		targetGroup.focus();
 
 		return result;
 	}

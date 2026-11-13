@@ -1080,6 +1080,7 @@
 		"--chat-input-notice-radius",
 		"--chat-input-own-radius",
 		"--chat-input-notification-line-height",
+		"--chat-inline-attachment-max-width",
 		"--chat-editing-last-edit-shift",
 		"--chat-voice-icon-glow-color",
 		"--sessions-chat-background-image",
