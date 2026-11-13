@@ -1288,9 +1288,9 @@ function getSubagentPetSize(scale: number): number {
 class SubagentPet extends Disposable {
 	/** Overlay element positioned at the pet's landing coordinates. */
 	readonly element: HTMLElement;
-	private readonly canvas: HTMLCanvasElement;
-	private readonly image: HTMLImageElement;
-	private readonly eyes: HTMLElement;
+	private readonly _canvas: HTMLCanvasElement;
+	private readonly _image: HTMLImageElement;
+	private readonly _eyes: HTMLElement;
 	private readonly _sprite: ChatPetSpriteElement;
 	/** Resources for the active pet or its disappearance effect. */
 	private readonly _activity = this._register(new DisposableStore());
@@ -1316,18 +1316,18 @@ class SubagentPet extends Disposable {
 		this.element.style.top = `${this._top}px`;
 		this.element.style.transform = `scale(${scale})`;
 		const distance = Math.max(0, _host.overlay.getBoundingClientRect().top + this._top + size);
-		this.canvas = dom.append(this.element, dom.$('canvas.chat-subagent-pet-canvas')) as HTMLCanvasElement;
-		this.canvas.width = CHAT_PET_SOURCE_SIZE;
-		this.canvas.height = CHAT_PET_SOURCE_SIZE;
-		this.eyes = this.element.appendChild(_host.eyes.cloneNode(true)) as HTMLElement;
-		this.eyes.classList.remove('blink', 'blinking', 'bobbed');
-		this.eyes.classList.add('tracking');
-		for (const eye of this.eyes.children) {
+		this._canvas = dom.append(this.element, dom.$('canvas.chat-subagent-pet-canvas')) as HTMLCanvasElement;
+		this._canvas.width = CHAT_PET_SOURCE_SIZE;
+		this._canvas.height = CHAT_PET_SOURCE_SIZE;
+		this._eyes = this.element.appendChild(_host.eyes.cloneNode(true)) as HTMLElement;
+		this._eyes.classList.remove('blink', 'blinking', 'bobbed');
+		this._eyes.classList.add('tracking');
+		for (const eye of this._eyes.children) {
 			(eye.firstElementChild as HTMLElement | null)?.style.removeProperty('transform');
 		}
-		this._blinkController = this._activity.add(new ChatPetBlinkController(blinking => this.eyes.classList.toggle('blink', blinking), _host.random));
+		this._blinkController = this._activity.add(new ChatPetBlinkController(blinking => this._eyes.classList.toggle('blink', blinking), _host.random));
 		this._activity.add(_host.onDidChangeAnimationVisibility(() => this.updateBlink()));
-		const firstPupil = this.eyes.firstElementChild?.firstElementChild;
+		const firstPupil = this._eyes.firstElementChild?.firstElementChild;
 		if (firstPupil) {
 			this._activity.add(dom.addDisposableListener(firstPupil, 'animationend', event => {
 				if ((event as AnimationEvent).animationName === 'chat-pet-tall-eye-blink') {
@@ -1336,11 +1336,11 @@ class SubagentPet extends Disposable {
 			}));
 		}
 		this.updateBlink();
-		this.image = dom.append(this.element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
-		this.image.alt = '';
-		this._sprite = { container: this.element, canvas: this.canvas, image: this.image, color: _host.color };
+		this._image = dom.append(this.element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
+		this._image.alt = '';
+		this._sprite = { container: this.element, canvas: this._canvas, image: this._image, color: _host.color };
 		this._updateAccessory();
-		this._activity.add(dom.addDisposableListener(this.image, 'load', () => this._onImageLoad()));
+		this._activity.add(dom.addDisposableListener(this._image, 'load', () => this._onImageLoad()));
 		this._setState('idle');
 		if (!_host.motionReduced && distance > 0) {
 			this._animateFall(this._top - distance, this._top);
@@ -1368,7 +1368,7 @@ class SubagentPet extends Disposable {
 	/** Applies changes to the shared color, motion, variant, and accessory. */
 	updateAppearance(motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean): void {
 		this._sprite.color = this._host.color;
-		this.eyes.style.color = getChatPetEyeColor(this._host.color);
+		this._eyes.style.color = getChatPetEyeColor(this._host.color);
 		if (accessoryChanged) {
 			this._updateAccessory();
 		}
@@ -1404,17 +1404,17 @@ class SubagentPet extends Disposable {
 	/** Plays the disappearance effect and releases the pet when it completes. */
 	despawn(onComplete: () => void): void {
 		this._activity.clear();
-		this.image.remove();
+		this._image.remove();
 		this._accessoryImage?.remove();
 		this.element.classList.remove('chat-subagent-pet');
 		this.element.classList.add('chat-subagent-pet-despawning');
-		this.eyes.remove();
+		this._eyes.remove();
 		const image = dom.append(this.element, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
 		image.alt = '';
 		const sources = getRespawnSpriteSources(this._host.variant);
 		const source = this._host.motionReduced ? sources.reducedMotion : sources.animated;
 		const animation = this._activity.add(new MutableDisposable<IDisposable>());
-		const sprite: ChatPetSpriteElement = { container: this.element, canvas: this.canvas, image, color: this._host.color };
+		const sprite: ChatPetSpriteElement = { container: this.element, canvas: this._canvas, image, color: this._host.color };
 		this._activity.add(dom.addDisposableListener(image, 'load', () => this._host.startAnimation(source, sprite, animation, onComplete, true)));
 		this._activity.add(dom.addDisposableListener(image, 'error', onComplete));
 		const targetWindow = dom.getWindow(this.element);
@@ -1435,9 +1435,9 @@ class SubagentPet extends Disposable {
 		this._state = state;
 		this.updateBlink();
 		if (this._host.motionReduced) {
-			this.eyes.classList.remove('bobbed');
+			this._eyes.classList.remove('bobbed');
 		}
-		setChatPetImageSource(this.image, this._getSpriteSource().url);
+		setChatPetImageSource(this._image, this._getSpriteSource().url);
 	}
 
 	private _updateAccessory(): void {
@@ -1459,7 +1459,7 @@ class SubagentPet extends Disposable {
 
 	private _onImageLoad(): void {
 		if (this._respawnPhase === 'despawning' || this._respawnPhase === 'respawning') {
-			this.eyes.classList.remove('tracking', 'bobbed');
+			this._eyes.classList.remove('tracking', 'bobbed');
 			this._host.startAnimation(this._getSpriteSource(), this._sprite, this._spriteAnimation, () => this._advanceRespawn(), this._respawnPhase === 'despawning');
 			if (this._host.motionReduced) {
 				this._respawnTimer.schedule();
@@ -1471,12 +1471,12 @@ class SubagentPet extends Disposable {
 			return;
 		}
 		const source = this._getSpriteSource();
-		this.eyes.classList.toggle('tracking', this._state === 'idle');
+		this._eyes.classList.toggle('tracking', this._state === 'idle');
 		this._host.startAnimation(source, this._sprite, this._spriteAnimation, this._state === 'splat' ? () => this._setState('idle') : undefined, false, frameIndex => {
-			this.eyes.classList.toggle('bobbed', this._state === 'idle' && !this._host.motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
+			this._eyes.classList.toggle('bobbed', this._state === 'idle' && !this._host.motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
 		}, (context, frameIndex) => {
 			if (this._accessoryImage?.complete && this._accessoryImage.naturalWidth > 0 && this._accessory) {
-				drawChatPetComposite(context, this.image, this._accessoryImage, frameIndex, source.accessoryRigFrame ?? frameIndex, source.frameWidth, source.frameHeight ?? CHAT_PET_SOURCE_SIZE, 'right', this._state, source.fixedOrientationDecorations, true, this._accessory.eyeAccessoryMirrorsWithFacing !== false, this._accessory.coversAntennae === true, this._sprite.color);
+				drawChatPetComposite(context, this._image, this._accessoryImage, frameIndex, source.accessoryRigFrame ?? frameIndex, source.frameWidth, source.frameHeight ?? CHAT_PET_SOURCE_SIZE, 'right', this._state, source.fixedOrientationDecorations, true, this._accessory.eyeAccessoryMirrorsWithFacing !== false, this._accessory.coversAntennae === true, this._sprite.color);
 				return true;
 			}
 			return false;
