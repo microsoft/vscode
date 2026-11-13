@@ -8,17 +8,14 @@ import { localize } from '../../../../../nls.js';
 import { ChatInputQuestionKind, type ChatInputRequest } from '../../state/protocol/channels-chat/state.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose, withChatInputRequestPurpose } from './agentChatInputRequestMeta.js';
 
-/** `secret` for a password or passphrase, `text` for a visible answer such as a user name, or `confirm` for a yes or no question. */
+/** `secret` for a password or passphrase, `text` for a visible answer, `confirm` for yes or no. */
 export type ShellAuthenticationInputKind = 'secret' | 'text' | 'confirm';
 
-/** What a program run by an agent shell command (`sudo -A`, `ssh`, or `git`) asks the user for. */
+/** What a program run by an agent shell command asks the user for. */
 export interface IShellAuthenticationPrompt {
-	/** The program that asked: `sudo`, `ssh`, or `git`. */
 	readonly program: string;
-	/** The prompt text the program supplied. */
 	readonly prompt: string;
 	readonly inputKind: ShellAuthenticationInputKind;
-	/** The shell command that triggered the prompt. */
 	readonly command: string;
 }
 
@@ -33,10 +30,8 @@ const UNSUPPORTED_CLIENT_CANCEL_OPTION_ID = 'cancel';
 type ChatInputRequestWithMeta = ChatInputRequest & { _meta?: Record<string, unknown> };
 
 /**
- * Creates the chat input request for a shell authentication prompt. Chat state keeps the answers a client submits, so
- * the request never asks for the answer itself: VS Code shows its own input from the request's `_meta` and sends the
- * answer with `vscode/answerShellAuthentication`. Other clients get a single choice without free-form input, which
- * cancels the prompt.
+ * Creates the chat input request for a shell authentication prompt. VS Code answers it from `_meta` through
+ * `vscode/answerShellAuthentication`; other clients can only cancel it.
  */
 export function createShellAuthenticationRequest(id: string, prompt: IShellAuthenticationPrompt): ChatInputRequest {
 	const { program, prompt: text, inputKind, command } = prompt;

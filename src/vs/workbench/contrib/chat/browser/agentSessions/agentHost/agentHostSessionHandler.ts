@@ -5721,10 +5721,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 	}
 
-	/**
-	 * Shows a shell authentication prompt as a question carousel built from the request's `_meta`. The answer goes to the
-	 * host with `vscode/answerShellAuthentication`, never into chat state; cancelling completes the request instead.
-	 */
+	/** Shows a shell authentication prompt from the request's `_meta` and sends the answer with `vscode/answerShellAuthentication`. */
 	private _setupShellAuthenticationInputRequest(
 		part$: IObservable<InputRequestResponsePart>,
 		prompt: IShellAuthenticationPrompt,

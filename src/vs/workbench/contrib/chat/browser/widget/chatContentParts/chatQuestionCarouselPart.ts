@@ -450,7 +450,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.carousel.draftCollapsed = this._isCollapsed;
 	}
 
-	/** The current answers without those to {@link IChatQuestion.password} questions, which only submitting passes on. */
 	private getAnswersWithoutPasswords(): Map<string, IChatQuestionAnswerValue> {
 		const answers = new Map(this._answers);
 		for (const question of this.carousel.questions) {
@@ -461,7 +460,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		return answers;
 	}
 
-	/** Submits the person's answers, keeping only masks of password answers for the summary. */
 	private submitAnswers(): void {
 		this._options.onSubmit(new Map(this._answers), true);
 		for (const question of this.carousel.questions) {
@@ -1379,10 +1377,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 	}
 
-	/**
-	 * Renders a masked input for a {@link IChatQuestion.password} question. It never shows a default value, and only an
-	 * answer typed into this rendering of the carousel is restored.
-	 */
 	private renderPasswordInput(container: HTMLElement, question: IChatQuestion): void {
 		const placeholder = localize('chat.questionCarousel.enterPassword', "Enter password");
 		const inputBox = this._inputBoxes.add(new InputBox(container, undefined, {

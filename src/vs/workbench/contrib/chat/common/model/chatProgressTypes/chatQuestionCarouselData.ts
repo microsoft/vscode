@@ -8,13 +8,8 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatQuestion, IChatQuestionAnswers, IChatQuestionCarousel } from '../../chatService/chatService.js';
 import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 
-/** What a carousel stores and shows in place of the answer to an {@link IChatQuestion.password} question. */
 export const CHAT_QUESTION_PASSWORD_MASK = '••••••••';
 
-/**
- * Returns `answers` with the answers to {@link IChatQuestion.password} questions replaced by
- * {@link CHAT_QUESTION_PASSWORD_MASK}, for storing, showing, or passing on.
- */
 export function maskPasswordAnswers(questions: readonly IChatQuestion[], answers: IChatQuestionAnswers | undefined): IChatQuestionAnswers | undefined {
 	if (!answers || !questions.some(question => question.password && answers[question.id] !== undefined)) {
 		return answers;
@@ -61,8 +56,7 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 
 	/**
 	 * Marks the carousel as dismissed with the given answers and clears draft
-	 * state. Safe to call multiple times — subsequent calls are no-ops. Only the
-	 * completion receives password answers; {@link data} keeps them masked.
+	 * state. Safe to call multiple times — subsequent calls are no-ops.
 	 */
 	dismiss(answers: IChatQuestionAnswers | undefined): void {
 		if (this.isUsed) {

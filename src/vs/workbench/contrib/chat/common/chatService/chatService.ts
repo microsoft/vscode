@@ -566,10 +566,6 @@ export interface IChatQuestion {
 	required?: boolean;
 	validation?: IChatQuestionValidation;
 	detailedMessage?: string | IMarkdownString;
-	/**
-	 * For a `text` question whose answer is a secret, such as a password: the input masks it, and the carousel never
-	 * stores, shows, or passes on the answer except through its completion.
-	 */
 	password?: boolean;
 }
 

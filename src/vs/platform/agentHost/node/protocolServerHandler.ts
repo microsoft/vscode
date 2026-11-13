@@ -3650,8 +3650,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/**
-	 * Handle the `vscode/answerShellAuthentication` session-data method. Returns a Promise when the underlying service
-	 * supports shell authentication prompts, undefined otherwise. The answer is never logged.
+	 * Handle the `vscode/answerShellAuthentication` session-data method. Returns a
+	 * Promise when the underlying service supports shell authentication, undefined otherwise.
 	 */
 	private _handleAnswerShellAuthenticationRequest(client: IConnectedClient, params: unknown): Promise<unknown> | undefined {
 		if (!this._agentService.answerShellAuthentication) {

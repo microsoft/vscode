@@ -316,16 +316,10 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	return carousel;
 }
 
-/** The id of the one question a shell authentication carousel asks. */
 export const SHELL_AUTHENTICATION_QUESTION_ID = 'answer';
 const SHELL_AUTHENTICATION_CONFIRM_YES = 'yes';
 const SHELL_AUTHENTICATION_CONFIRM_NO = 'no';
 
-/**
- * A carousel for a shell authentication prompt, built from the request's `_meta`: the request's own question only lets
- * other clients cancel the prompt. A secret is asked for with a masked input that the carousel never stores. The
- * program's prompt is shown as plain text, and the command as code with theme icons escaped.
- */
 export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt): ChatQuestionCarouselData {
 	const details = [
 		prompt.command ? localize('agentHost.shellAuthentication.command', "Command: {0}", appendEscapedMarkdownInlineCode(escapeIcons(prompt.command))) : undefined,
@@ -354,10 +348,6 @@ export function createShellAuthenticationCarousel(requestId: string, prompt: ISh
 	return carousel;
 }
 
-/**
- * The answer that a shell authentication carousel's answers give the program that asked, or `undefined` to cancel the
- * prompt. A `confirm` prompt is accepted with `yes` and declined by cancelling it.
- */
 export function getShellAuthenticationAnswer(prompt: IShellAuthenticationPrompt, answers: IChatQuestionAnswers | undefined): string | undefined {
 	const answer = answers?.[SHELL_AUTHENTICATION_QUESTION_ID];
 	if (prompt.inputKind === 'confirm') {

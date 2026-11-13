@@ -387,7 +387,6 @@ export interface ICopilotSessionRuntime {
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationHandlerResult>;
-	/** Asks the user for a password or another answer that a program run by an agent shell command needs. */
 	handleShellAuthenticationRequest(request: ShellAuthenticationRequest, invocation: ShellAuthenticationInvocation): Promise<ShellAuthenticationResponse>;
 	/**
 	 * Takes over the launch-time Connector reconciliation, which settles after the launch returns. The promise does

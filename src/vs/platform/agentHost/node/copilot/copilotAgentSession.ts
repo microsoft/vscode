@@ -450,11 +450,8 @@ type ShellAuthenticationRequest = Parameters<ShellAuthenticationHandler>[0];
 type ShellAuthenticationInvocation = Parameters<ShellAuthenticationHandler>[1];
 type ShellAuthenticationResponse = Awaited<ReturnType<ShellAuthenticationHandler>>;
 
-/** How a pending shell authentication prompt ended. */
 interface IShellAuthenticationOutcome {
-	/** The answer for the program that asked, or `undefined` when the prompt was cancelled. */
 	readonly answer: string | undefined;
-	/** Whether a client already completed the chat input request, so the host must not complete it again. */
 	readonly completedByClient: boolean;
 }
 
@@ -9953,9 +9950,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Asks the user for a password or another answer that a program run by an agent shell command needs (`sudo -A`,
-	 * `ssh`, or `git`). The answer arrives through {@link answerShellAuthentication}, never through chat state, and goes
-	 * only to the SDK. Cancels when nobody can answer, and closes the prompt when the SDK no longer needs the answer.
+	 * Asks the user for an answer that `sudo -A`, `ssh`, or `git` needs. The answer arrives through
+	 * {@link answerShellAuthentication}, never through chat state.
 	 */
 	private async _handleShellAuthenticationRequest(request: ShellAuthenticationRequest, invocation: ShellAuthenticationInvocation): Promise<ShellAuthenticationResponse> {
 		if (this._isAutopilotMode() || this._isAutoReplyEnabled() || !this.hasActiveTurn || invocation.signal.aborted) {
@@ -9987,10 +9983,6 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/**
-	 * Answers a pending shell authentication prompt outside chat state, so that the answer reaches only the program
-	 * that asked; `undefined` cancels the prompt. Returns whether the prompt was pending.
-	 */
 	answerShellAuthentication(requestId: string, answer: string | undefined): boolean {
 		return this._pendingShellAuthentications.respond(requestId, { answer, completedByClient: false });
 	}
@@ -10002,7 +9994,6 @@ export class CopilotAgentSession extends Disposable {
 			return this._pendingPlanReviews.respond(requestId, this._resolveExitPlanMode(pendingPlanReview, response, answers, responseSource));
 		}
 
-		// Chat state keeps these answers, so they never reach the program that asked: any completion cancels the prompt.
 		if (this._pendingShellAuthentications.respond(requestId, { answer: undefined, completedByClient: true })) {
 			return true;
 		}

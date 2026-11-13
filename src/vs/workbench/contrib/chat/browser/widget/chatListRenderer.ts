@@ -5764,7 +5764,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// notify the extension twice.
 				return;
 			}
-			// Mark the carousel as used and store the answers; only the completion receives password answers.
+			// Mark the carousel as used and store the answers
 			const answersRecord: IChatQuestionAnswers | undefined = answers ? Object.fromEntries(answers) : undefined;
 			const storedAnswers = maskPasswordAnswers(carousel.questions, answersRecord);
 			carousel.data = storedAnswers ?? {};

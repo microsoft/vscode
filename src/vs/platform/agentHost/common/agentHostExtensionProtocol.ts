@@ -100,10 +100,6 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
-/**
- * Answers a shell authentication prompt, a chat input request created by `createShellAuthenticationRequest`, outside
- * chat state so that the answer reaches only the program that asked. Without `answer`, cancels the prompt.
- */
 export const AnswerShellAuthenticationExtensionMethod = 'vscode/answerShellAuthentication';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
@@ -263,7 +259,7 @@ export const stopBackgroundWorkParamsValidator = vObj({
 	id: vString(),
 });
 
-/** `requestId` is the chat input request's id. */
+/** Answers a chat's pending shell authentication prompt; without `answer`, cancels it. */
 export const answerShellAuthenticationParamsValidator = vObj({
 	chat: vString(),
 	requestId: vString(),

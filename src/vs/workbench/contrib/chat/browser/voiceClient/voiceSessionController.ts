@@ -7394,7 +7394,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 	private _isOpenPendingPart(part: IChatProgressResponseContent): boolean {
 		if (part.kind === 'questionCarousel') {
-			// A password must never be spoken or heard, so voice leaves these to the chat UI.
 			return !part.isUsed && !part.answeredExternally && !part.questions.some(question => question.password);
 		}
 		if (part.kind === 'elicitation2') {

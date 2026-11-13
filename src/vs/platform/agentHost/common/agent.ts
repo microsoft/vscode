@@ -2203,8 +2203,8 @@ export interface IAgent {
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
 	/**
-	 * Answers a pending shell authentication prompt of the chat outside chat state; `undefined` cancels it. Resolves
-	 * false when the prompt is no longer pending.
+	 * Answers a pending shell authentication prompt of the chat; `undefined`
+	 * cancels it. Resolves false when the prompt is no longer pending.
 	 */
 	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */

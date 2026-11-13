@@ -16,10 +16,6 @@ export const enum ChatInputRequestPurpose {
 	AskUser = 'askUser',
 	Elicitation = 'elicitation',
 	PlanReview = 'planReview',
-	/**
-	 * A program run by an agent shell command (`sudo -A`, `ssh`, or `git`) asks for a password or another answer that
-	 * goes only to that program.
-	 */
 	ShellAuthentication = 'shellAuthentication',
 }
 
