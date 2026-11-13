@@ -11,6 +11,7 @@ import { ISessionsChatBackgroundService } from '../chatBackgroundService.js';
 import { IChatViewOptions } from '../parts/chatView.js';
 import { SESSIONS_CHAT_SURFACE_CLASS, SessionsChatSurface } from '../sessionsChatSurface.js';
 import { ChatViewFactory } from './chatView.js';
+import { worktreeSuggestionInputPresentation } from '../worktreeSuggestion/worktreeSuggestionInputPresentation.js';
 
 export class DefaultChatViewFactory extends ChatViewFactory {
 
@@ -21,6 +22,7 @@ export class DefaultChatViewFactory extends ChatViewFactory {
 	) {
 		super();
 		this.viewOptions = {
+			newSessionInput: worktreeSuggestionInputPresentation,
 			background: {
 				onDidChange: backgroundService.onDidChangeBackground,
 				hasBackground: () => !!backgroundService.getBackground(),

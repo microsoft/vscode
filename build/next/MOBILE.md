@@ -42,6 +42,12 @@ implementations and clipboard registration are also rejected. The mobile entry
 selects its own implementations; their shared contracts and behavior remain
 available.
 
+Native screenshot capture and image editing, worktree-suggestion presentation
+and styles, and pinned-canvas implementation are rejected too. Shared inputs
+and lists accept those capabilities from the selecting entry rather than
+requiring unsupported mobile services. Browser screenshot capture, ordinary
+image attachments, and provider configuration writes remain shared.
+
 Mobile does not include chat-background controls, settings, rendering, tinting
 or built-in background-generation tools. Its resource list is
 independent of the common workbench list, so background images, including both

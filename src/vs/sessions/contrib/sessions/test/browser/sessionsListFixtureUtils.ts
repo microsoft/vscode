@@ -81,6 +81,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
+import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
@@ -744,6 +745,11 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
 			reg.define(ISessionsListPresentation, DefaultSessionsListPresentation);
+			reg.defineInstance(IPinnedCanvasService, new class extends mock<IPinnedCanvasService>() {
+				override readonly enabled = constObservable(false);
+				override readonly entries = constObservable([]);
+				override readonly selected = constObservable(undefined);
+			}());
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);

@@ -23,6 +23,7 @@ import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chat
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import type { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
+import type { INewSessionInputPresentation } from '../newSessionInputPresentation.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -56,6 +57,7 @@ export interface IChatViewBackground {
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	readonly newSessionInput?: INewSessionInputPresentation;
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
 	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;

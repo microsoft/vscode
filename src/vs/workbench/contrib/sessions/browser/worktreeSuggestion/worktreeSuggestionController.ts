@@ -11,7 +11,6 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -19,31 +18,11 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { ISessionInputPickerVisibility } from '../../common/sessionPickerVisibility.js';
-import { NewSessionBannerPriority, NewSessionBanners } from '../../common/newSessionBanners.js';
+import { NewSessionBannerPriority } from '../../common/newSessionBanners.js';
+import { INewSessionInputContext, INewSessionInputController } from '../newSessionInputPresentation.js';
 import { WorktreeSuggestionVariant } from '../../common/worktreeSuggestion.js';
 import { getInlineHintMessage, getShowChangesLabel, getUseWorktreeLabel } from './worktreeSuggestionPresentation.js';
 import { IWorktreeSuggestion, IWorktreeSuggestionService, worktreeSuggestionEquals, WorktreeSpotlightChoice } from './worktreeSuggestionService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-
-/** The parts of a new-session composer that the worktree suggestion reads. */
-export interface IWorktreeSuggestionComposer {
-	/** The new session the composer configures. */
-	readonly session: IObservable<ISession | undefined>;
-	/** The composer's pickers. A session needs an interactive isolation picker to be offered a worktree. */
-	readonly pickerVisibility: ISessionInputPickerVisibility;
-	/** Whether the composer is shown. */
-	readonly visible: IObservable<boolean>;
-	readonly getInputValue: () => string;
-	readonly onDidChangeInput: Event<void>;
-	readonly focusInput: () => void;
-	/** Shows the isolation picker when the session options are collapsed. */
-	readonly revealIsolationPicker: () => void;
-	/** Opens the isolation picker with New Worktree focused, showing it first when the session options are collapsed. */
-	readonly openIsolationPicker: () => void;
-	/** The banners below the input, which show one at a time. The inline hint is one of them. */
-	readonly banners: NewSessionBanners;
-}
 
 let messageIdPool = 0;
 
@@ -52,7 +31,7 @@ let messageIdPool = 0;
  * changes, using the presentation selected by the worktree suggestion experiment. It owns the spotlight on
  * send and the inline hint; the isolation picker owns the number of uncommitted files.
  */
-export class WorktreeSuggestionController extends Disposable {
+export class WorktreeSuggestionController extends Disposable implements INewSessionInputController {
 
 	private readonly _suggestion: IObservable<IWorktreeSuggestion | undefined>;
 	private readonly _hasInput: IObservable<boolean>;
@@ -67,7 +46,7 @@ export class WorktreeSuggestionController extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		private readonly _composer: IWorktreeSuggestionComposer,
+		private readonly _composer: INewSessionInputContext,
 		@IWorktreeSuggestionService private readonly _service: IWorktreeSuggestionService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {

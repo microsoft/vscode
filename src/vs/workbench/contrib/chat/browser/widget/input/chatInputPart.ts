@@ -83,7 +83,6 @@ import { bindContextKey, observableConfigValue } from '../../../../../../platfor
 import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { IScreenshotToolService, ScreenshotToolSurface } from '../../../../screenshotTool/browser/screenshotTool.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -144,7 +143,6 @@ import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '..
 import { GitHubResourceDetailsResolver } from '../../../../github/browser/githubResourceDetails.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
-import { applyScreenshotToolEdit, getEditableImageAttachment } from '../../attachments/chatScreenshotContext.js';
 import { ImplicitContextAttachmentWidget, isImplicitContextAlreadyAttached } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
@@ -1203,7 +1201,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super();
 		// Registered before anything else here, so every listener below reads the models after the change.
@@ -4985,7 +4982,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isImageVariableEntry(attachment)) {
 			// On desktop, the images of the input can be marked up: right away, or from the Images Preview.
-			const imageOptions = this.screenshotToolService.isSupported ? { ...widgetOptions, markUp: () => this.markUpImageAttachment(attachment) } : widgetOptions;
+			const imageEditor = this._chatAttachmentWidgetRegistry.imageEditor;
+			const imageOptions = imageEditor ? { ...widgetOptions, markUp: () => imageEditor.edit(this._attachmentModel, attachment) } : widgetOptions;
 			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, imageOptions, container, this._contextResourceLabels);
 		} else if (isElementVariableEntry(attachment)) {
 			return this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
@@ -5004,21 +5002,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// The inline request-edit input part has no bound input model and falls back to the widget's session.
 		return this._chatAttachmentWidgetRegistry.createWidget(attachment, widgetOptions, container, this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource)
 			?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, widgetOptions, container, this._contextResourceLabels);
-	}
-
-	/**
-	 * Marks up an image of the input right away, and keeps it attached with the changes.
-	 */
-	private async markUpImageAttachment(attachment: IChatRequestVariableEntry): Promise<void> {
-		try {
-			const screenshot = await getEditableImageAttachment(attachment, this.screenshotToolService, async uri => (await this.fileService.readFile(uri)).value.buffer);
-			const edit = await this.screenshotToolService.edit(screenshot, ScreenshotToolSurface.Chat);
-			if (edit) {
-				applyScreenshotToolEdit(this._attachmentModel, attachment, edit, this.screenshotToolService);
-			}
-		} catch (error) {
-			this.logService.error('[ChatInputPart] Marking up an attached image failed:', error);
-		}
 	}
 
 	/**
