@@ -507,7 +507,7 @@ suite('Workbench - Titlebar Part', () => {
 		});
 	}
 
-	test('counter-zooms titlebar shadow-root and context-view menus without shrinking dropdown buttons', () => {
+	test('counter-zooms titlebar menus once without shrinking dropdown buttons or nested submenus', () => {
 		const workbench = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 		store.add(toDisposable(() => workbench.remove()));
 		workbench.className = 'monaco-workbench';
@@ -530,17 +530,37 @@ suite('Workbench - Titlebar Part', () => {
 		shadowHost.className = 'shadow-root-host';
 		const contextView = titlebarContainer.appendChild(mainWindow.document.createElement('div'));
 		contextView.className = 'context-view';
+		const appendSubmenu = (parent: HTMLElement) => {
+			const submenu = parent.appendChild(mainWindow.document.createElement('div'));
+			submenu.className = 'monaco-submenu menubar-menu-items-holder context-view';
+			return submenu;
+		};
+		const contextViewSubmenu = appendSubmenu(appendSubmenu(contextView));
+		const menubarButton = titlebarContainer.appendChild(mainWindow.document.createElement('div'));
+		menubarButton.className = 'menubar';
+		const menubarButtonInner = menubarButton.appendChild(mainWindow.document.createElement('div'));
+		menubarButtonInner.className = 'menubar-menu-button';
+		const menubarHolder = menubarButtonInner.appendChild(mainWindow.document.createElement('div'));
+		menubarHolder.className = 'menubar-menu-items-holder monaco-menu-container';
+		const menubarSubmenu = appendSubmenu(appendSubmenu(menubarHolder));
+		const zoomOf = (element: HTMLElement) => mainWindow.getComputedStyle(element).getPropertyValue('zoom');
 
 		assert.deepStrictEqual({
 			primaryWidth: Math.round(primary.getBoundingClientRect().width),
 			dropdownWidth: Math.round(dropdown.getBoundingClientRect().width),
-			shadowHostZoom: mainWindow.getComputedStyle(shadowHost).getPropertyValue('zoom'),
-			contextViewZoom: mainWindow.getComputedStyle(contextView).getPropertyValue('zoom'),
+			shadowHostZoom: zoomOf(shadowHost),
+			contextViewZoom: zoomOf(contextView),
+			nestedContextViewSubmenuZooms: [zoomOf(contextViewSubmenu.parentElement!), zoomOf(contextViewSubmenu)],
+			menubarHolderZoom: zoomOf(menubarHolder),
+			nestedMenubarSubmenuZooms: [zoomOf(menubarSubmenu.parentElement!), zoomOf(menubarSubmenu)],
 		}, {
 			primaryWidth: 25,
 			dropdownWidth: 20,
 			shadowHostZoom: '0.8',
 			contextViewZoom: '0.8',
+			nestedContextViewSubmenuZooms: ['1', '1'],
+			menubarHolderZoom: '0.8',
+			nestedMenubarSubmenuZooms: ['1', '1'],
 		});
 	});
 });

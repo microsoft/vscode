@@ -265,8 +265,9 @@
 
 .monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container,
 .monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .shadow-root-host,
-.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .context-view {
-	zoom: var(--zoom-factor); /* Counter-zoom menus hosted in the titlebar so they match window zoom */
+.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .context-view:not(.monaco-submenu) {
+	/* Counter-zoom menus hosted in the titlebar so they match window zoom. Submenus are excluded because they inherit the zoom of their parent menu */
+	zoom: var(--zoom-factor);
 }
 
 /* Resizer */
