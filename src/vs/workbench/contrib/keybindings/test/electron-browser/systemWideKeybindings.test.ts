@@ -81,7 +81,7 @@ suite('SystemWideKeybindings selection', () => {
 		});
 	});
 
-	test('selects default bindings while their when clause holds, after the user\'s and never over their keys', () => {
+	test('selects default bindings while their when clause holds, after the user\'s and never over their keys or chords', () => {
 		const context = {
 			contextMatchesRules: (rules: ContextKeyExpression | undefined) => !rules || rules.evaluate({ getValue: <T>(key: string) => (key === 'featureOn' ? true : undefined) as T | undefined }),
 		};
@@ -91,8 +91,10 @@ suite('SystemWideKeybindings selection', () => {
 			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyO), 'default.off', { isDefault: true, systemWide: true, when: 'featureOff' }),
 			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyA), 'default.taken', { isDefault: true, systemWide: true }),
 			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyB), 'default.inAppTaken', { isDefault: true, systemWide: true }),
+			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyC), 'default.chordTaken', { isDefault: true, systemWide: true }),
 			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyA), 'user.systemWide', { systemWide: true }),
 			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyB), 'user.inApp'),
+			item(resolve(KeyChord(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyC, KeyMod.CtrlCmd | KeyCode.KeyX)), 'user.chord'),
 		], context);
 
 		assert.deepStrictEqual(selection, {

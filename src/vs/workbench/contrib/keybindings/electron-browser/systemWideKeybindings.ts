@@ -32,7 +32,8 @@ export interface ISystemWideKeybindingRejection {
  * Selects the system-wide keybindings with Electron-compatible accelerators: the user's, then, given the context of a
  * window, the default ones whose `when` clause holds there (see `IKeybindingRule.systemWide`). The first binding wins
  * on accelerator conflicts. A default keybinding also gives way to the user's keybindings of other commands at its key,
- * which it would take over otherwise, and is left out silently, like one that is not a single key combination.
+ * and to the user's chords that start with its key, which it would take over otherwise, and is left out silently, like
+ * one that is not a single key combination.
  */
 export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingItem[], context?: Pick<IContextKeyService, 'contextMatchesRules'>): ISystemWideKeybindingSelection {
 	const seen = new Set<string>();
@@ -81,11 +82,20 @@ export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingIt
 	if (!context) {
 		return { candidates, unsupported, duplicates };
 	}
+	// The keys of the user's keybindings, and the first keys of their chords, which a system-wide keybinding at that key
+	// would keep from starting, even in VS Code. Chords have no accelerator, so keys compare by their dispatch string.
 	const userCommands = new Map<string, string[]>();
+	const userChordStarts = new Set<string>();
 	for (const item of items) {
-		const accelerator = !item.isDefault && item.command ? item.resolvedKeybinding?.getElectronAccelerator() : undefined;
-		if (accelerator && item.command) {
-			userCommands.set(accelerator, [...userCommands.get(accelerator) ?? [], item.command]);
+		const command = item.command;
+		const [key, ...rest] = !item.isDefault && command ? item.resolvedKeybinding?.getDispatchChords() ?? [] : [];
+		if (!key || !command) {
+			continue;
+		}
+		if (rest.length) {
+			userChordStarts.add(key);
+		} else {
+			userCommands.set(key, [...userCommands.get(key) ?? [], command]);
 		}
 	}
 	for (const item of items) {
@@ -94,7 +104,8 @@ export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingIt
 			continue;
 		}
 		const accelerator = item.resolvedKeybinding?.getElectronAccelerator();
-		if (!accelerator || seen.has(accelerator) || userCommands.get(accelerator)?.some(userCommand => userCommand !== command)) {
+		const key = item.resolvedKeybinding?.getDispatchChords()[0];
+		if (!accelerator || !key || seen.has(accelerator) || userChordStarts.has(key) || userCommands.get(key)?.some(userCommand => userCommand !== command)) {
 			continue;
 		}
 		seen.add(accelerator);

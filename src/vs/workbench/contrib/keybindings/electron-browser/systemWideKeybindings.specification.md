@@ -39,8 +39,8 @@ While VS Code is running (even unfocused), pressing that combination runs the co
   the context keys in it change. Such a clause should only depend on keys like settings.
 - **First binding wins** on accelerator conflicts (deduped both in the renderer selection and in the
   main-process per-window payload). The user's keybindings come before built-in ones, and a
-  built-in one also gives way to the user's keybindings of other commands at its key, so that it
-  never takes over a key that the user bound.
+  built-in one also gives way to the user's keybindings of other commands at its key, and to the
+  user's chords that start with its key, so that it never takes over a key that the user bound.
 - **Desktop only.** The flag is inert on web/server (there is no `globalShortcut` there, and the
   contribution is `electron-browser`).
 - **Always on.** There is no setting to enable/disable it and no first-run dialog.
