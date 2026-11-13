@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationHandlerResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { homedir } from 'os';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -382,7 +382,7 @@ export interface ICopilotSessionRuntime {
 	handlePermissionRequest(request: PermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult | AttributedPermissionResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
-	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
+	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationHandlerResult>;
 	/**
 	 * Takes over the launch-time Connector reconciliation, which settles after the launch returns. The promise does
 	 * not reject; it resolves to the session's Connector-owned servers, or `undefined` when they are unavailable.
