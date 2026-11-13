@@ -78,7 +78,7 @@ import { IAdditionalWorktreeLifecycleService } from './chatContributions/additio
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import type { IScratchFolder } from './agentHostScratchFolderDatabase.js';
 import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
-import { AgentHostAutomationService } from './agentHostAutomationService.js';
+import { AgentHostAutomationService, enqueueAutomationConversation } from './agentHostAutomationService.js';
 import { createAgentChatContext, createAgentChatCreationContext, inheritedChatFolders } from './agentChatContext.js';
 import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostAuthenticationScope, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
@@ -1355,6 +1355,31 @@ export class AgentService extends Disposable implements IAgentService {
 		);
 		this._catalogListReader = new AgentHostCatalogListReader(this._orchestratorDatabase);
 		this._automationService = this._register(instantiationService.createInstance(AgentHostAutomationService, {
+			supportsOneTimeAutomation: this._hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess,
+			supportsExistingConversation: this._hostLaunchKind === AgentHostLaunchKind.VSCodeMainProcess,
+			prepareConversation: async (conversation, message, messageId) => {
+				const session = URI.parse(conversation.session);
+				const registration = await this._orchestratorDatabase.getSessionV2Registration(conversation.session);
+				const owner = await this._chatOwnership.resolveChatOwner(conversation.chat);
+				await this._restoreCredentialPrincipal(conversation.session);
+				if (!registration || owner?.owner !== conversation.session || this._authService.getSessionCredentialPrincipal(conversation.session)
+					|| this._catalogSyncService.isSessionDeletionFenced(session) || this._sessionResidency.isBeingDisposed(session)) {
+					throw new Error('The scheduled conversation is deleted, moved, or requires an authenticated client.');
+				}
+				await this.restoreSession(session);
+				await this._stateManager.resolveChatState(conversation.chat);
+				if (!this._stateManager.getChatState(conversation.chat)
+					|| this._chatOwnership.getChatOwner(conversation.chat) !== conversation.session
+					|| !this._providerService.getProviderForChat(conversation.session, conversation.chat)) {
+					throw new Error('The scheduled conversation or its provider is unavailable.');
+				}
+				return () => {
+					if (this._catalogSyncService.isSessionDeletionFenced(session) || this._sessionResidency.isBeingDisposed(session)) {
+						throw new Error('The scheduled conversation is being deleted.');
+					}
+					enqueueAutomationConversation(this._stateManager, this._chatOwnership, conversation, message, messageId);
+				};
+			},
 			isSessionTemplateAvailable: (template, reader) => {
 				const provider = this._providerService.resolveProvider(template.provider);
 				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
@@ -1379,7 +1404,7 @@ export class AgentService extends Disposable implements IAgentService {
 					automation: run.automation,
 					automationRun: run.resource,
 				},
-			}, { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource }),
+			}, { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource, ...(run.purpose ? { purpose: run.purpose } : {}) }),
 			getRecoverableSessionProvider: async (session, expectedProvider) => {
 				const registration = await this._orchestratorDatabase.getSessionV2Registration(session.toString());
 				if (!registration || (await this._sessionRegistry.listProvisional()).has(session.toString())) {
@@ -2652,6 +2677,16 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 		return await this._providerService.getProviderForChat(URI.parse(owner), chat)?.stopBackgroundWork?.(chat, id) ?? false;
+	}
+
+	async answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		// A chat with a pending prompt is live, so there is nothing to restore first.
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
+		if (owner === undefined) {
+			this._logService.trace(`[AgentService] answerShellAuthentication ignored for unregistered chat: ${chat.toString()}`);
+			return false;
+		}
+		return await this._providerService.getProviderForChat(URI.parse(owner), chat)?.answerShellAuthentication?.(chat, requestId, answer) ?? false;
 	}
 
 	private _isArtifactToolsEnabled(): boolean {
@@ -11397,6 +11432,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._configurationService.getRootValue(chatProvidersRootConfigSchema, ChatProvidersConfigKey.Enabled) === true;
 	}
 
+	enableMultipleChatProviders(): void {
+		if (!this.multipleChatProvidersEnabled) {
+			this._configurationService.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: true });
+		}
+	}
+
 	async listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {
 		return this._automationService.listTriggerDefinitions(params);
 	}
@@ -14053,9 +14094,8 @@ export class AgentService extends Disposable implements IAgentService {
 			return true;
 		}
 		if (attachment.type === MessageAttachmentKind.Resource) {
-			// Don't try to fetch directories or already-rewritten attachments
-			// (whose URIs already point under our session attachments folder).
-			if (attachment.displayKind === 'directory') {
+			// Skill resources identify invocations, not file context to snapshot.
+			if (attachment.displayKind === 'directory' || attachment.displayKind === 'skill') {
 				return false;
 			}
 			if (this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoots)) {
@@ -14076,6 +14116,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _isUntaggedSnapshotResource(attachment: MessageAttachment, attachmentsRoots: readonly URI[]): boolean {
 		return attachment.type === MessageAttachmentKind.Resource
 			&& attachment.displayKind !== 'directory'
+			&& attachment.displayKind !== 'skill'
 			&& this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoots)
 			&& !isHostSnapshotAttachment(attachment);
 	}

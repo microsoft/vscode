@@ -27,6 +27,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IExplorerService } from './files.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { NewMarkdownDocumentFromNewTabButtonAction, NewUntitledFileFromNewTabButtonAction } from './newTabButtonActions.js';
 
 // Contribute Global Actions
 
@@ -41,6 +42,8 @@ registerAction2(SetActiveEditorReadonlyInSession);
 registerAction2(SetActiveEditorWriteableInSession);
 registerAction2(ToggleActiveEditorReadonlyInSession);
 registerAction2(ResetActiveEditorReadonlyInSession);
+registerAction2(NewUntitledFileFromNewTabButtonAction);
+registerAction2(NewMarkdownDocumentFromNewTabButtonAction);
 
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);

@@ -300,9 +300,10 @@ export class QuickInputTreeController extends Disposable {
 		}));
 
 		this._register(this._checkboxStateHandler.onDidChangeCheckboxState(e => {
-			this.updateCheckboxState(e.item, e.checked === true, true);
+			// Checkbox listeners can replace the tree items, so establish focus before notifying them.
 			this._tree.setFocus([e.item]);
 			this._tree.setSelection([e.item]);
+			this.updateCheckboxState(e.item, e.checked === true, true);
 		}));
 	}
 

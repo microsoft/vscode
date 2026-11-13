@@ -370,6 +370,22 @@ Fixtures cannot trigger CSS `:hover`, and DOM focus is only deterministic throug
 
 `src/vs/sessions/contrib/sessions/test/browser/sessionsListFixtureUtils.ts` renders `interaction: { hovered, focused, selected }` this way.
 
+#### Validate the interaction-state matrix
+
+Do not validate hover, focus, selection, and open state only in isolation. Add the combined states that determine CSS precedence:
+
+- keyboard focus plus pointer hover;
+- open/expanded/pressed plus hover;
+- selected/checked plus hover;
+- disabled plus hover;
+- a hovered parent with a focused, hovered, or open nested action.
+
+Use `.hovered` only as the deterministic proxy for the target actually under the pointer; a modality class such as `.mouse-navigation` must not fabricate hover on a stale focused row. Focus the real production element through `ctx.focus()` and use native/component state for persistent semantics (`aria-expanded`, `aria-pressed`, or `HTMLDetailsElement.open`).
+
+Load every production stylesheet that participates in boundary ownership. For virtualized trees, inspect the element that actually paints the ring (often `.monaco-tl-row`, not `.monaco-list-row`). For components with inset pseudo-elements, verify the pseudo-element paints only its intended fill and does not create a second outline.
+
+Render normal Dark/Light as well as HC Dark/Light whenever an HC selector excludes states from a shared hover selector; otherwise a fix for a solid HC boundary can accidentally remove normal-theme hover feedback. If keyboard focus intentionally opens a tooltip or rich hover, use the production hover service and wait for that content instead of suppressing it with a null service.
+
 ## Multiple Fixture Variants
 
 Create variants to show different states of the same component:

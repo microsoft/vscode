@@ -21,6 +21,7 @@ import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalMana
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { CopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
+import type { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 
 export const testRuntime: ICopilotSessionRuntime = {
 	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
@@ -31,6 +32,7 @@ export const testRuntime: ICopilotSessionRuntime = {
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
 	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
+	handleShellAuthenticationRequest: async () => { throw new Error('Unexpected shell authentication request'); },
 	adoptLaunchConnectorReconcile: () => { },
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
@@ -90,5 +92,6 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		telemetryService ?? upcastPartial<ITelemetryService>({ telemetryLevel: TelemetryLevel.USAGE }),
 		upcastPartial<ICopilotHomeService>({ home: URI.file('/copilot-home') }),
 		accountService ?? upcastPartial<ICopilotAccountService>({}),
+		upcastPartial<ICopilotApiService>({}),
 	);
 }

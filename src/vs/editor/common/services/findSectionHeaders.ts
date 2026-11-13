@@ -74,15 +74,22 @@ export function findSectionHeaders(model: ISectionHeaderFinderTarget, options: F
 function collectRegionHeaders(model: ISectionHeaderFinderTarget, options: FindSectionHeaderOptions): SectionHeader[] {
 	const regionHeaders: SectionHeader[] = [];
 	const endLineNumber = model.getLineCount();
+	const startMarker = options.foldingRules!.markers!.start;
+	// 'd' for the indices of a `label` group, without 'g' or 'y' so that every line is matched from its start
+	const regex = new RegExp(startMarker.source, startMarker.flags.replace(/[dgy]/g, '') + 'd');
 	for (let lineNumber = 1; lineNumber <= endLineNumber; lineNumber++) {
 		const lineContent = model.getLineContent(lineNumber);
-		const match = lineContent.match(options.foldingRules!.markers!.start);
+		const match = regex.exec(lineContent);
 		if (match) {
-			const range = { startLineNumber: lineNumber, startColumn: match[0].length + 1, endLineNumber: lineNumber, endColumn: lineContent.length + 1 };
+			// The label is the marker's `label` group if it has one, e.g. in `<!-- #region Label -->`,
+			// otherwise the text after the marker, e.g. in `// #region Label`
+			const labelIndices = match.indices?.groups?.['label'];
+			const [labelStart, labelEnd] = labelIndices ?? [match.index + match[0].length, lineContent.length];
+			const range = { startLineNumber: lineNumber, startColumn: labelStart + 1, endLineNumber: lineNumber, endColumn: labelEnd + 1 };
 			if (range.endColumn > range.startColumn) {
 				const sectionHeader = {
 					range,
-					...getHeaderText(lineContent.substring(match[0].length)),
+					...getHeaderText(lineContent.substring(labelStart, labelEnd)),
 					shouldBeInComments: false
 				};
 				if (sectionHeader.text || sectionHeader.hasSeparatorLine) {

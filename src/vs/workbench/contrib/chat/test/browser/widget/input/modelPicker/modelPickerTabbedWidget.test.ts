@@ -2191,6 +2191,41 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	for (const showUnavailable of [false, true]) {
+		test(`version requirements stay scoped to built-in models with unavailable suggestions ${showUnavailable ? 'shown' : 'hidden'}`, () => {
+			const gated = model('Gated');
+			const compatible = model('Compatible');
+			const byok = { ...gated, identifier: 'ollama/Gated', metadata: { ...gated.metadata, name: 'BYOK Gated', vendor: 'ollama' } };
+			const result = createPicker({
+				models: [gated, compatible, byok],
+				selectedModelId: compatible.identifier,
+				showUnavailable,
+				controlModels: {
+					Gated: { label: 'Gated', exists: true, featured: true, minVSCodeVersion: '99.0.0' },
+					Compatible: { label: 'Compatible', exists: true, featured: true },
+				},
+			});
+			const gatedRow = Array.from(result.popup.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.find(row => row.querySelector('.title')?.textContent === 'Gated')!;
+			const update = gatedRow.textContent?.includes('Update VS Code');
+			gatedRow.click();
+			const gatedSelections = [...result.selections];
+			reopen(result);
+			selectRow(result.popup, 'Compatible');
+			reopen(result);
+			element(result.popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
+			const byokRows = listRows(result.popup);
+			element(result.popup, '.monaco-list-row:not(.separator)').click();
+
+			assert.deepStrictEqual({ update, gatedSelections, byokRows, selections: result.selections }, {
+				update: true,
+				gatedSelections: [],
+				byokRows: ['BYOK Gated'],
+				selections: [compatible.identifier, byok.identifier],
+			});
+		});
+	}
+
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
 		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a tier`, () => {
 			const auto = createAutoModel();

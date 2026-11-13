@@ -14,6 +14,7 @@ import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../.
 import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
@@ -61,9 +62,10 @@ import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuWorkbenchButtonBar } from '../../../../../../platform/actions/browser/buttonbar.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getFlatActionBarActions, MenuEntryActionViewItem } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { ChatQueuePickerActionItem } from './chatQueuePickerActionItem.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -82,6 +84,7 @@ import { bindContextKey, observableConfigValue } from '../../../../../../platfor
 import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IScreenshotToolService, ScreenshotToolSurface } from '../../../../screenshotTool/browser/screenshotTool.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -139,8 +142,10 @@ import { getAgentSessionPullRequestContextValue } from '../../agentSessions/agen
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { ChatAttachmentModel } from '../../attachments/chatAttachmentModel.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
+import { GitHubResourceDetailsResolver } from '../../../../github/browser/githubResourceDetails.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, BrowserViewAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
+import { applyScreenshotToolEdit, getEditableImageAttachment } from '../../attachments/chatScreenshotContext.js';
 import { ImplicitContextAttachmentWidget, isImplicitContextAlreadyAttached } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
@@ -679,6 +684,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.inputActionsToolbar.getElement();
 	}
 
+	get executeToolbarElement(): HTMLElement {
+		return this.executeToolbar.getElement();
+	}
+
 	get attachContextButtonElement(): HTMLElement | undefined {
 		const element = this.attachContextActionViewItem?.element;
 		return element?.isConnected ? element : undefined;
@@ -1199,6 +1208,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super();
 		// Registered before anything else here, so every listener below reads the models after the change.
@@ -3990,7 +4000,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.renderChatEditingSessionState(null);
 
-		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container, this.container);
+		// Only the input itself takes drags ahead of the pane around it, not the widgets stacked on it, such as notices.
+		this.dnd.addOverlay(this.options.dndContainer ?? container, this.options.dndContainer ?? container, this.inputContainer);
 
 		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(inputContainer));
 		ChatContextKeys.inChatInput.bindTo(inputScopedContextKeyService).set(true);
@@ -4044,10 +4055,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.updateInputEditorFontFamily();
 		this._register(addDisposableListener(this._inputEditorElement, dom.EventType.PASTE, e => this.handleTerminalCommandPaste(e), true));
 
+		const hoverDelegate = this._register(createInstantHoverDelegate());
 		const getWidget = () => this._widget;
+		const getSessionResource = () => this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource;
 		this._inlineAttachments = this._register(this.instantiationService.createInstance(ChatInlineAttachments, this._inputEditor, this._attachmentModel, {
 			get widget() { return getWidget(); },
-			createAttachmentWidget: (attachment, container, attachmentOptions) => this.createAttachmentWidget(attachment, container, attachmentOptions),
+			get sessionResource() { return getSessionResource(); },
+			createAttachmentWidget: (attachment, container, attachmentOptions) => this.createAttachmentWidget(attachment, container, { ...attachmentOptions, hoverDelegate }),
 			removeAttachments: (attachments, explicit) => this.removeInlineAttachments(attachments, explicit),
 			resetDragState: () => this.dnd.resetDragState(),
 		}));
@@ -4172,8 +4186,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			CopyPasteController.get(this._inputEditor)?.clearWidgets();
 			DropIntoEditorController.get(this._inputEditor)?.clearWidgets();
 		}));
-
-		const hoverDelegate = this._register(createInstantHoverDelegate());
 
 		const { location } = this.getWidgetLocationInfo(widget);
 		const focusedWidget = observableFromEvent(this, this.chatWidgetService.onDidChangeFocusedSession, () => this.chatWidgetService.lastFocusedWidget);
@@ -4398,6 +4410,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.updateChatSessionPickerContainer();
 			}
 		}));
+		const secondaryExecuteMenu = this._register(this.menuService.createMenu(MenuId.ChatExecuteSecondary, this.contextKeyService));
+		const secondaryExecuteActions = () => getFlatActionBarActions(secondaryExecuteMenu.getActions({ shouldForwardArgs: true }));
+		const hasSecondaryExecuteActions = ChatContextKeys.hasSecondaryExecuteActions.bindTo(this.contextKeyService);
+		hasSecondaryExecuteActions.set(secondaryExecuteActions().length > 0);
+		this._register(toDisposable(() => hasSecondaryExecuteActions.reset()));
+		this._register(secondaryExecuteMenu.onDidChange(() => {
+			hasSecondaryExecuteActions.set(secondaryExecuteActions().length > 0);
+			this.executeToolbar?.refresh();
+		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
@@ -4420,11 +4441,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					});
 				}
 				if ((action.id === ChatSubmitAction.ID || action.id === ChatEditingSessionSubmitAction.ID) && action instanceof MenuItemAction) {
+					const hasSecondaryActions = secondaryExecuteActions().length > 0;
 					const submitLabel = this.options.hostSubmit?.label;
-					return this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
+					const createPrimaryAction = () => this.instantiationService.createInstance(class extends MenuEntryActionViewItem {
 						override render(container: HTMLElement): void {
 							super.render(container);
-							container.classList.add('chat-submit-button');
+							container.classList.toggle('chat-submit-button', !hasSecondaryActions);
 							if (submitLabel) {
 								const labelElement = dom.append(container, dom.$('span.chat-submit-button-label'));
 								labelElement.setAttribute('aria-hidden', 'true');
@@ -4432,6 +4454,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 									const label = submitLabel.read(reader);
 									labelElement.textContent = label ?? '';
 									container.classList.toggle('labeled', !!label);
+									container.classList.toggle('chat-submit-button', !hasSecondaryActions || !!label);
 									this.updateAriaLabel();
 								}));
 							}
@@ -4445,6 +4468,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							}
 						}
 					}, action, options);
+					return hasSecondaryActions
+						? this.instantiationService.createInstance(ChatQueuePickerActionItem, action, { ...options, primaryAction: createPrimaryAction() })
+						: createPrimaryAction();
 				}
 				if ((action.id === ChatSpeechToTextPreparingAction.ID || action.id === ChatSpeechToTextConnectingAction.ID) && action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(DictationDownloadActionViewItem, action, options);
@@ -4959,7 +4985,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Creates the pill for an attachment, using the widget that matches its kind.
 	 * Used for the attachments above the input and for inline attachment pills.
 	 */
-	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean }): IChatAttachmentWidgetInstance {
+	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver; hoverDelegate?: IHoverDelegate }): IChatAttachmentWidgetInstance {
 		const resource = URI.isUri(attachment.value) ? attachment.value : isLocation(attachment.value) ? attachment.value.uri : undefined;
 		const range = isLocation(attachment.value) ? attachment.value.range : undefined;
 		const widgetOptions = { ...options, isCurrentInput: true };
@@ -4977,7 +5003,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else if (attachment.kind === 'terminalCommand') {
 			return this.instantiationService.createInstance(TerminalCommandAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isImageVariableEntry(attachment)) {
-			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, widgetOptions, container, this._contextResourceLabels);
+			// On desktop, the images of the input can be marked up: right away, or from the Images Preview.
+			const imageOptions = this.screenshotToolService.isSupported ? { ...widgetOptions, markUp: () => this.markUpImageAttachment(attachment) } : widgetOptions;
+			return this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, lm, imageOptions, container, this._contextResourceLabels);
 		} else if (isElementVariableEntry(attachment)) {
 			return this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, lm, widgetOptions, container, this._contextResourceLabels);
 		} else if (isPasteVariableEntry(attachment)) {
@@ -4995,6 +5023,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// The inline request-edit input part has no bound input model and falls back to the widget's session.
 		return this._chatAttachmentWidgetRegistry.createWidget(attachment, widgetOptions, container, this._inputModelSessionResource ?? this._widget?.viewModel?.sessionResource)
 			?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, lm, widgetOptions, container, this._contextResourceLabels);
+	}
+
+	/**
+	 * Marks up an image of the input right away, and keeps it attached with the changes.
+	 */
+	private async markUpImageAttachment(attachment: IChatRequestVariableEntry): Promise<void> {
+		try {
+			const screenshot = await getEditableImageAttachment(attachment, this.screenshotToolService, async uri => (await this.fileService.readFile(uri)).value.buffer);
+			const edit = await this.screenshotToolService.edit(screenshot, ScreenshotToolSurface.Chat);
+			if (edit) {
+				applyScreenshotToolEdit(this._attachmentModel, attachment, edit, this.screenshotToolService);
+			}
+		} catch (error) {
+			this.logService.error('[ChatInputPart] Marking up an attached image failed:', error);
+		}
 	}
 
 	/**

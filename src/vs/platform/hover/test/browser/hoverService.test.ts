@@ -715,6 +715,29 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should position hover using viewport coordinates for a CSS-zoomed target', () => {
+			const zoomed = fixture.appendChild(document.createElement('div'));
+			zoomed.style.cssText = 'position: fixed; top: 0; left: 0; zoom: 1.25;';
+			const clippingElement = zoomed.appendChild(document.createElement('div'));
+			clippingElement.style.cssText = 'position: absolute; top: 0; left: 40px; width: 200px; height: 40px;';
+			const target = clippingElement.appendChild(document.createElement('div'));
+			target.style.cssText = 'position: absolute; top: 8px; left: 20px; width: 40px; height: 16px;';
+
+			const hover = store.add(showHover('Zoomed target hover', target, {
+				position: { hoverPosition: HoverPosition.BELOW, clippingElement },
+			}));
+			const hoverWidget = asHoverWidget(hover);
+			const targetRect = target.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				alignedX: Math.abs(hoverWidget.x - targetRect.left) < 0.5,
+				alignedY: Math.abs(hoverWidget.y - (targetRect.bottom - 2)) < 0.5,
+			}, {
+				alignedX: true,
+				alignedY: true,
+			});
+		});
+
 	});
 
 	suite('hideHover', () => {
@@ -1036,6 +1059,38 @@ suite('HoverService', () => {
 			assert.strictEqual(mainWindow.document.querySelectorAll('.monaco-hover').length, 0, 'Pending hover should be cancelled by the click');
 
 			disposable.dispose();
+		}));
+
+		test('should hide a hover when the mouse left the target shortly before the delay ended', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const target = createTarget();
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration('workbench.hover.delay', 500);
+			const renderSpy = sinon.spy(HoverWidget.prototype, 'render');
+
+			const disposable = hoverService.setupDelayedHover(target, { content: 'Session', persistence: { hideOnHover: false } });
+			target.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
+			// Leave the target less than the mouseout debounce before the hover is shown, so the
+			// show (render and layout) happens while the mouseout is pending
+			await timeout(400);
+			target.dispatchEvent(new MouseEvent('mouseleave'));
+			await timeout(100);
+			const hoversWhenShown = mainWindow.document.querySelectorAll('.monaco-hover').length;
+			const shownHover = renderSpy.thisValues[0] as HoverWidget;
+			renderSpy.restore();
+			// A layout after the hover is shown (e.g. from a resize) must not keep it open either
+			shownHover.layout();
+
+			await timeout(200);
+			assert.deepStrictEqual({
+				hoversWhenShown,
+				hoversAfterMouseOut: mainWindow.document.querySelectorAll('.monaco-hover').length
+			}, {
+				hoversWhenShown: 1,
+				hoversAfterMouseOut: 0
+			});
+
+			disposable.dispose();
+			hoverService.hideHover(true);
 		}));
 	});
 

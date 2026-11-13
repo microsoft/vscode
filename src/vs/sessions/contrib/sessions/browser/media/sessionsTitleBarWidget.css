@@ -37,10 +37,16 @@
 	transition: opacity 120ms ease-out;
 }
 
-.command-center .agent-sessions-titlebar-container:hover {
+.command-center .agent-sessions-titlebar-container:is(:hover, .hovered) {
 	color: var(--vscode-commandCenter-activeForeground);
 	background-color: var(--vscode-commandCenter-activeBackground);
 	border-color: var(--vscode-commandCenter-activeBorder);
+}
+
+:is(.hc-black, .hc-light) .command-center .agent-sessions-titlebar-container:not(.agent-sessions-titlebar-requires-input, .agent-sessions-titlebar-approved):is(:hover, .hovered):not(:focus-visible) {
+	border-color: transparent;
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 /* Session pill - clickable area for session picker, fills the command center box */
@@ -59,9 +65,17 @@
 	opacity: 0.6;
 }
 
-.command-center .agent-sessions-titlebar-container:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.monaco-workbench .command-center .agent-sessions-titlebar-container:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.command-center .agent-sessions-titlebar-container:focus-visible {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+:is(.hc-black, .hc-light) .command-center .agent-sessions-titlebar-container:focus-visible {
+	border-color: transparent;
 }
 
 /* Center group: workspace icon and folder */

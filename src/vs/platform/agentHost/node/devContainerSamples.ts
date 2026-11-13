@@ -5,6 +5,7 @@
 
 import { createHash, randomUUID } from 'crypto';
 import { readFile, rename, rm, writeFile } from 'fs/promises';
+import { isCancellationError } from '../../../base/common/errors.js';
 import { ParseError, parse } from '../../../base/common/json.js';
 import { join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
@@ -13,6 +14,7 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from './devContainerServerCache.js';
 import { devContainerSandboxRunArgs } from './devContainerSandbox.js';
+import { devContainerStateFallbackTarget, getDevContainerStateMount, getDevContainerStateVolumeLabels, getDevContainerStateVolumeName, isDevContainerRunning, isDevContainerStateVolumeFor } from './devContainerState.js';
 
 interface ICommandResult {
 	readonly stdout: string;
@@ -25,6 +27,14 @@ interface ISampleCommands {
 	readonly devcontainer: (args: readonly string[]) => Promise<ICommandResult>;
 	readonly readSource: () => Promise<{ readonly commitSha: string; readonly content: string }>;
 	readonly onContainerStarted: (containerId: string) => void;
+	/**
+	 * Links user state folders if the container has a state volume, which containers created with the setting on keep.
+	 * `selectorArgs` select the container for the Dev Containers CLI, which applies `configuration`.
+	 * `keepExistingFolders` is whether the container was running before `up`, so its processes may be using the folders.
+	 */
+	readonly linkUserState?: (containerId: string, remoteUser: string, selectorArgs: readonly string[], configuration: Record<string, unknown>, keepExistingFolders: boolean) => Promise<void>;
+	/** Reports that the state volume was added, or the error adding it. */
+	readonly reportUserStateMount?: (error?: unknown) => void;
 }
 
 export interface IPreparedDevContainerSample {
@@ -93,7 +103,7 @@ function checked(result: ICommandResult, operation: string): string {
 	return result.stdout;
 }
 
-export async function prepareDevContainerSample(sample: DevContainerSample, cacheDirectory: string, commands: ISampleCommands, sandboxEnabled = false): Promise<IPreparedDevContainerSample> {
+export async function prepareDevContainerSample(sample: DevContainerSample, cacheDirectory: string, commands: ISampleCommands, sandboxEnabled = false, persistUserState = false): Promise<IPreparedDevContainerSample> {
 	await prepareOwnerOnlyDirectory(cacheDirectory);
 	const sourcePath = join(cacheDirectory, 'source.json');
 	let sourceContent: string | undefined;
@@ -141,7 +151,32 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 	}));
 	await writeConfig(config);
 	const cliArgs = ['--override-config', configPath, ...getDevContainerSampleLabels(repository).flatMap(label => ['--id-label', label])];
-	const up = await commands.devcontainer(['up', '--log-level', 'debug', ...cliArgs, '--skip-post-create', '--mount', devContainerServerCacheMount]);
+	const userStateMountArgs: string[] = [];
+	if (persistUserState) {
+		const idLabels = getDevContainerSampleLabels(repository);
+		const stateVolumeName = getDevContainerStateVolumeName(idLabels);
+		try {
+			if (!existingVolumes.includes(stateVolumeName)) {
+				checked(await commands.docker(['volume', 'create', ...getDevContainerStateVolumeLabels(idLabels).flatMap(label => ['--label', label]), stateVolumeName]), 'docker volume create');
+			} else if (!isDevContainerStateVolumeFor(JSON.parse(checked(await commands.docker(['volume', 'inspect', '--format', '{{json .Labels}}', stateVolumeName]), 'docker volume inspect')), idLabels)) {
+				throw new Error(localize('devContainerSample.stateVolumeConflict', "The Docker volume '{0}' is not the state volume of this sample.", stateVolumeName));
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				commands.reportUserStateMount?.(error);
+			}
+			throw error;
+		}
+		commands.reportUserStateMount?.();
+		// The repository volume is mounted at /workspaces.
+		userStateMountArgs.push('--mount', getDevContainerStateMount(idLabels, devContainerStateFallbackTarget));
+	}
+	let keepExistingFolders = true;
+	if (commands.linkUserState) {
+		const existing = await commands.docker(['ps', '-a', '--format', '{{.State}}', ...getDevContainerSampleLabels(repository).flatMap(label => ['--filter', `label=${label}`])]);
+		keepExistingFolders = existing.code !== 0 || existing.stdout.split(/\r?\n/).some(isDevContainerRunning);
+	}
+	const up = await commands.devcontainer(['up', '--log-level', 'debug', ...cliArgs, '--skip-post-create', '--mount', devContainerServerCacheMount, ...userStateMountArgs]);
 	const errors: ParseError[] = [];
 	const result: unknown = parse(up.stdout.trim().split(/\r?\n/).at(-1) ?? '', errors);
 	if (isRecord(result) && typeof result.containerId === 'string' && result.containerId) {
@@ -178,6 +213,8 @@ fi`;
 	}
 	await writeConfig(actualConfig);
 	await writeAtomic(sourcePath, JSON.stringify({ commit: source.commit, content: actualContent }));
+	// Link once the checkout's configuration is in the override, so its remoteEnv selects the home folder.
+	await commands.linkUserState?.(result.containerId, result.remoteUser, cliArgs, actualConfig, keepExistingFolders);
 	const lifecycleOutput = checked(await commands.devcontainer(['run-user-commands', '--log-level', 'debug', ...cliArgs, '--container-id', result.containerId]), 'devcontainer run-user-commands');
 	const lifecycleResult: unknown = JSON.parse(lifecycleOutput.trim().split(/\r?\n/).at(-1)!);
 	if (!isRecord(lifecycleResult) || lifecycleResult.outcome !== 'success') {

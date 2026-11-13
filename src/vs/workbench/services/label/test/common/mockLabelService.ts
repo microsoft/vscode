@@ -8,7 +8,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename, normalize } from '../../../../../base/common/path.js';
 import { extUri, IExtUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, ResourceLabelTemplateFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
+import { IFormatterChangeEvent, ILabelService, IWorkspaceLabelDecorator, ResourceLabelFormatter, ResourceLabelFormatting, ResourceLabelTemplateFormatter, Verbosity } from '../../../../../platform/label/common/label.js';
 import { IWorkspace, IWorkspaceIdentifier } from '../../../../../platform/workspace/common/workspace.js';
 import { ResourceLabelTemplate } from '../../common/resourceLabelTemplate.js';
 
@@ -38,8 +38,14 @@ export class MockLabelService implements ILabelService {
 	getUriBasenameLabel(resource: URI): string {
 		return basename(resource.fsPath);
 	}
-	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose: Verbosity }): string {
+	getWorkspaceLabel(workspace: URI | IWorkspaceIdentifier | IWorkspace, options?: { verbose?: Verbosity; withLocation?: boolean }): string {
 		return '';
+	}
+	getFolderLocationLabel(folder: URI): string | undefined {
+		return undefined;
+	}
+	registerWorkspaceLabelDecorator(decorator: IWorkspaceLabelDecorator): IDisposable {
+		return { dispose: () => { } };
 	}
 	getHostLabel(scheme: string, authority?: string): string {
 		return '';

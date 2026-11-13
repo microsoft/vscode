@@ -112,7 +112,7 @@ import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../.
 import { IArtifactModel } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionDraftConfiguration, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../common/sessionsProvider.js';
 import type { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { LEGACY_MIGRATION_OPEN_TIMEOUT_MS, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { AgentHostChatMoveTracker } from '../../../../chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
@@ -978,6 +978,7 @@ function toSessionRemoteConnectionStatus(owner: object, connectionStatus: IObser
 				switch (status.reason) {
 					case AgentHostTransportFailureReason.Unknown:
 					case AgentHostTransportFailureReason.AuthenticationFailed:
+					case AgentHostTransportFailureReason.SSHAuthenticationFailed:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.Unknown };
 					case AgentHostTransportFailureReason.HostNotRunning:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.HostNotRunning };
@@ -1420,6 +1421,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly isQuickChat: IObservable<boolean>;
 	private readonly _origin = observableValue<SessionOrigin | undefined>(this, undefined);
 	readonly isAutomation = derived(this, reader => this._origin.read(reader)?.kind === SessionOriginKind.Automation);
+	readonly isScheduledChat = derived(this, reader => this._origin.read(reader)?.purpose === 'scheduledChat');
 	readonly isExternal: IObservable<boolean>;
 	readonly remoteConnectionStatus: IObservable<SessionRemoteConnectionStatus> | undefined;
 	readonly createdBySession: IObservable<ISessionCreationReference | undefined>;
@@ -5781,7 +5783,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					turnId: options.createdBySession.turnId,
 				})
 				: options?.metadata,
-			options?.automationConfiguration,
+			options?.draftConfiguration ?? options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
 			options?.permissionId,
@@ -5821,7 +5823,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					turnId: options.createdBySession.turnId,
 				})
 				: options?.metadata,
-			options?.automationConfiguration,
+			options?.draftConfiguration ?? options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
 			options?.permissionId,
@@ -6333,7 +6335,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!resolvedConfig) {
 			throw new Error('Cannot capture unresolved Automation session configuration.');
 		}
-		const config = { ...resolvedConfig.values };
+		const { sessionTemplate, modelId, mode, permissionLevel } = this.getDraftSessionConfiguration(sessionId)!;
+		return { sessionTemplate, modelId, mode, permissionLevel };
+	}
+
+	getDraftSessionConfiguration(sessionId: string): ISessionDraftConfiguration | undefined {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			return undefined;
+		}
+		const resolvedConfig = newSession.getConfig();
+		const config = { ...resolvedConfig?.values };
 		const initialConfig = newSession.getInitialSessionTemplate()?.config ?? {};
 		for (const [key, value] of Object.entries(initialConfig)) {
 			if (!newSession.wasConfigValueExplicitlySet(key)) {
@@ -6354,11 +6366,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			};
 		const mode = templateConfig[SessionConfigKey.Mode];
 		const permissionLevel = templateConfig[SessionConfigKey.AutoApprove];
+		const workspace = resolvedConfig && getSessionWorkspaceProperties(resolvedConfig.schema);
+		const isolation = workspace?.isolation && readSessionIsolation(workspace.isolation, config[workspace.isolation.key]);
+		const branch = workspace?.baseBranch && config[workspace.baseBranch.key];
 		return {
 			sessionTemplate,
 			modelId,
 			mode: typeof mode === 'string' ? mode : undefined,
 			permissionLevel: typeof permissionLevel === 'string' ? permissionLevel : undefined,
+			isolationMode: isolation === 'folder' ? 'workspace' : isolation,
+			branch: typeof branch === 'string' ? branch : undefined,
 		};
 	}
 
@@ -7708,6 +7725,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const backendResource = this.getBackendChatResource(chatResource);
 		const owner = this._getBackendSessionUri(toSessionId(this.id, chatResource.with({ fragment: '' })));
 		return backendResource && owner ? buildOpenSessionLinkForChat(owner, backendResource, this._backendDefaultChat(owner, undefined), undefined) : undefined;
+	}
+
+	protected getAutomationConversation(session: URI, chat: URI): { readonly sessionResource: URI; readonly chatResource: URI } | undefined {
+		const cached = this._sessionCache.get(session.toString());
+		const target = cached?.chats.get().find(candidate => isEqual(cached.getBackendChatResource(candidate.resource), chat));
+		return cached && target ? { sessionResource: cached.resource, chatResource: target.resource } : undefined;
 	}
 
 	getWorkingDirectories(sessionId: string): readonly string[] {
