@@ -1823,7 +1823,7 @@ export class AICustomizationListWidget extends Disposable {
 			return {
 				element: group.element,
 				collapsible: true,
-				collapsed: !isFiltering && this.collapsedGroups.has(this.getCollapsedGroupKey(group.element.groupKey)),
+				collapsed: !isFiltering && group.element.type === 'group-header' && this.collapsedGroups.has(this.getCollapsedGroupKey(group.element.groupKey)),
 				children: entries,
 			};
 		});
