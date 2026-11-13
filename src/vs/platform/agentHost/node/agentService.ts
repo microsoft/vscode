@@ -64,7 +64,7 @@ import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentCh
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { IRemoteSessionOrigin, parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../common/meta/agentRemoteSessionMeta.js';
-import { SessionOriginKind, type SessionOrigin } from '../common/state/protocol/channels-session/state.js';
+import type { SessionOrigin } from '../common/state/protocol/channels-session/state.js';
 import { getLegacySessionInitiator, parseSessionInitiator, readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentConfigurationService } from './agentConfigurationService.js';
 import { agentModelConfigurationReportKey } from '../common/agentModelConfiguration.js';
@@ -79,6 +79,7 @@ import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupServ
 import type { IScratchFolder } from './agentHostScratchFolderDatabase.js';
 import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { AgentHostAutomationService, enqueueAutomationConversation } from './agentHostAutomationService.js';
+import { agentHostAutomationSessionOrigin, getAgentHostScheduledChat } from '../common/meta/agentHostAutomationsMeta.js';
 import { createAgentChatContext, createAgentChatCreationContext, inheritedChatFolders } from './agentChatContext.js';
 import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostAuthenticationScope, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
@@ -1404,7 +1405,7 @@ export class AgentService extends Disposable implements IAgentService {
 					automation: run.automation,
 					automationRun: run.resource,
 				},
-			}, { kind: SessionOriginKind.Automation, automation: run.automation, run: run.resource, ...(run.purpose ? { purpose: run.purpose } : {}) }),
+			}, agentHostAutomationSessionOrigin(run.automation, run.resource, !!getAgentHostScheduledChat(run))),
 			getRecoverableSessionProvider: async (session, expectedProvider) => {
 				const registration = await this._orchestratorDatabase.getSessionV2Registration(session.toString());
 				if (!registration || (await this._sessionRegistry.listProvisional()).has(session.toString())) {
@@ -11428,6 +11429,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	get automationCapabilities(): AutomationCapabilities | undefined {
 		return this._automationService.capabilities;
+	}
+
+	get automationsSupportExistingConversation(): boolean {
+		return this._automationService.supportsExistingConversation;
 	}
 
 	get multipleChatProvidersEnabled(): boolean {
