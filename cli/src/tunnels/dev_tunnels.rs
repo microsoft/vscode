@@ -1391,6 +1391,28 @@ mod test {
 	use super::*;
 
 	#[test]
+	fn test_regex_tunnel_name_matching() {
+		for (name, expected) in [
+			("hello-123_".to_owned(), true),
+			("é東京".to_owned(), true),
+			("١".to_owned(), true),
+			("\u{0301}".to_owned(), true),
+			("\u{200c}".to_owned(), true),
+			("\u{203f}".to_owned(), true),
+			("a".repeat(MAX_TUNNEL_NAME_LENGTH), true),
+			("a".repeat(MAX_TUNNEL_NAME_LENGTH + 1), false),
+			("é".repeat(MAX_TUNNEL_NAME_LENGTH / 2), true),
+			("é".repeat(MAX_TUNNEL_NAME_LENGTH / 2 + 1), false),
+			(String::new(), false),
+			("hello world".to_owned(), false),
+			("hello\n".to_owned(), false),
+			("🦀".to_owned(), false),
+		] {
+			assert_eq!(is_valid_name(&name).is_ok(), expected, "{name:?}");
+		}
+	}
+
+	#[test]
 	fn test_tunnel_correlation_preserves_telemetry_session_id() {
 		let session_id = "7c86e247-3438-4f26-959d-061b3299f4de1791567000000";
 		assert_eq!(

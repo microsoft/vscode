@@ -1018,6 +1018,55 @@ async fn get_should_use_breakaway_from_job() -> bool {
 mod tests {
 	use super::*;
 
+	#[test]
+	fn test_regex_server_output_matching() {
+		for (line, expected) in [
+			(
+				"prefix Extension host agent listening on 1234\n",
+				Some(1234),
+			),
+			(
+				"Extension host agent listening on \nExtension host agent listening on 5678",
+				Some(5678),
+			),
+			("Extension host agent listening on ", None),
+			("Extension host agent listening on 1234\r", None),
+		] {
+			assert_eq!(parse_port_from(line), expected, "{line:?}");
+		}
+		assert_eq!(
+			parse_socket_from("prefix Extension host agent listening on /tmp/用户.sock\nrest"),
+			Some(PathBuf::from("/tmp/用户.sock")),
+		);
+	}
+
+	#[test]
+	fn test_regex_web_output_matching() {
+		for (line, expected) in [
+			(
+				"Web UI available at https://localhost/λ\nrest",
+				Some("https://localhost/%CE%BB"),
+			),
+			(
+				"Web UI available at \nWeb UI available at http://localhost:9000/",
+				Some("http://localhost:9000/"),
+			),
+			("Web UI available at ", None),
+			(
+				"Web UI available at invalid\nWeb UI available at http://localhost/",
+				None,
+			),
+		] {
+			assert_eq!(
+				WebUiMatcher::match_line(line)
+					.as_ref()
+					.map(|uri| uri.as_str()),
+				expected,
+				"{line:?}"
+			);
+		}
+	}
+
 	#[tokio::test]
 	async fn agent_certificate_command_preserves_exit_code() {
 		let mut cmd =

@@ -345,6 +345,24 @@ mod tests {
 	use super::*;
 
 	#[test]
+	fn test_regex_ldd_unicode_whitespace() {
+		for (output, expected) in [
+			(
+				"ldd (GNU libc)\u{a0}2.40.9000\u{2003}",
+				Some(SimpleSemver::new(2, 40, 0)),
+			),
+			("ldd 2.40", None),
+			("prefix ldd 2.40\n", None),
+		] {
+			assert_eq!(
+				extract_ldd_version(output.as_bytes()),
+				expected,
+				"{output:?}"
+			);
+		}
+	}
+
+	#[test]
 	fn test_extract_libstd_from_ldconfig() {
 		let actual = "
 							libstoken.so.1 (libc6,x86-64) => /lib/x86_64-linux-gnu/libstoken.so.1

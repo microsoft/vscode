@@ -438,6 +438,30 @@ mod tests {
 	}
 
 	#[test]
+	fn test_regex_commit_matching() {
+		for (value, expected) in [
+			("0123456789abcdefABCDEF0123456789abcdefAB".to_owned(), true),
+			("a".repeat(39), false),
+			("a".repeat(40), true),
+			("a".repeat(41), false),
+			(format!("{}g", "a".repeat(39)), false),
+			(format!("{}\n", "a".repeat(40)), false),
+			(format!("{}é", "a".repeat(38)), false),
+			("ａ".repeat(40), false),
+			(String::new(), false),
+		] {
+			assert_eq!(
+				matches!(
+					RequestedVersion::try_from(value.as_str()),
+					Ok(RequestedVersion::Commit(_))
+				),
+				expected,
+				"{value:?}"
+			);
+		}
+	}
+
+	#[test]
 	fn test_detect_installed_program() {
 		// developers can run this test and debug output manually; VS Code will not
 		// be installed in CI, so the test only makes sure it doesn't error out
