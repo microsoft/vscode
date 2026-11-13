@@ -319,11 +319,14 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 export const SHELL_AUTHENTICATION_QUESTION_ID = 'answer';
 const SHELL_AUTHENTICATION_CONFIRM_YES = 'yes';
 const SHELL_AUTHENTICATION_CONFIRM_NO = 'no';
+const SHELL_AUTHENTICATION_CANCEL = 'cancel';
 
-export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt): ChatQuestionCarouselData {
+export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt, canAnswer = true): ChatQuestionCarouselData {
 	const details = [
 		prompt.command ? localize('agentHost.shellAuthentication.command', "Command: {0}", appendEscapedMarkdownInlineCode(escapeIcons(prompt.command))) : undefined,
-		`$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model or saved in the chat.", appendEscapedMarkdownInlineCode(escapeIcons(prompt.program)))}`,
+		canAnswer
+			? `$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model or saved in the chat.", appendEscapedMarkdownInlineCode(escapeIcons(prompt.program)))}`
+			: `$(info) ${localize('agentHost.shellAuthentication.cannotAnswer', "This connection can't send your answer privately, so you can only cancel the prompt here.")}`,
 	].filter(isDefined).join('\n\n');
 	const base = {
 		id: SHELL_AUTHENTICATION_QUESTION_ID,
@@ -332,17 +335,24 @@ export function createShellAuthenticationCarousel(requestId: string, prompt: ISh
 		detailedMessage: new MarkdownString(details, { supportThemeIcons: true }),
 		required: true,
 	};
-	const question: IChatQuestion = prompt.inputKind === 'confirm'
+	const question: IChatQuestion = !canAnswer
 		? {
 			...base,
 			type: 'singleSelect',
 			allowFreeformInput: false,
-			options: [
-				{ id: SHELL_AUTHENTICATION_CONFIRM_YES, label: localize('agentHost.shellAuthentication.yes', "Yes"), value: SHELL_AUTHENTICATION_CONFIRM_YES },
-				{ id: SHELL_AUTHENTICATION_CONFIRM_NO, label: localize('agentHost.shellAuthentication.no', "No"), value: SHELL_AUTHENTICATION_CONFIRM_NO },
-			],
+			options: [{ id: SHELL_AUTHENTICATION_CANCEL, label: localize('agentHost.shellAuthentication.cancelPrompt', "Cancel Prompt"), value: SHELL_AUTHENTICATION_CANCEL }],
 		}
-		: { ...base, type: 'text', password: prompt.inputKind === 'secret' };
+		: prompt.inputKind === 'confirm'
+			? {
+				...base,
+				type: 'singleSelect',
+				allowFreeformInput: false,
+				options: [
+					{ id: SHELL_AUTHENTICATION_CONFIRM_YES, label: localize('agentHost.shellAuthentication.yes', "Yes"), value: SHELL_AUTHENTICATION_CONFIRM_YES },
+					{ id: SHELL_AUTHENTICATION_CONFIRM_NO, label: localize('agentHost.shellAuthentication.no', "No"), value: SHELL_AUTHENTICATION_CONFIRM_NO },
+				],
+			}
+			: { ...base, type: 'text', password: prompt.inputKind === 'secret' };
 	const carousel = new ChatQuestionCarouselData([question], true, requestId);
 	carousel.answerPresentation = 'conversation';
 	return carousel;

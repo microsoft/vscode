@@ -5729,7 +5729,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		opts: IObserveTurnOptions,
 	): void {
 		const requestId = part$.get().request.id;
-		const carousel = createShellAuthenticationCarousel(requestId, prompt);
+		const connection = this._config.connection;
+		// Relays carry only sealed credentials, and these answers are not sealed.
+		const canAnswer = !!connection.answerShellAuthentication
+			&& connection.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub
+			&& connection.clientConnectionKind !== AgentHostClientConnectionKind.MissionControl;
+		const carousel = createShellAuthenticationCarousel(requestId, prompt, canAnswer);
 		opts.sink([carousel]);
 
 		const clearCarousel = () => this._chatWidgetService.getWidgetBySessionResource(opts.sessionResource)?.input.clearQuestionCarousel(undefined, requestId);
@@ -5766,8 +5771,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (store.isDisposed || completedFromServer) {
 				return;
 			}
-			const answer = getShellAuthenticationAnswer(prompt, result.answers);
-			const connection = this._config.connection;
+			const answer = canAnswer ? getShellAuthenticationAnswer(prompt, result.answers) : undefined;
 			if (answer === undefined || !connection.answerShellAuthentication) {
 				cancel();
 				return;

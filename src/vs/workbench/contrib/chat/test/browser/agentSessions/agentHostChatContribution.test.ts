@@ -12132,6 +12132,46 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		for (const [connection, connectionKind, hasAnswerRequest] of [
+			['a Web PubSub relay', AgentHostClientConnectionKind.WebPubSub, true],
+			['a Mission Control relay', AgentHostClientConnectionKind.MissionControl, true],
+			['a connection without the answer request', undefined, false],
+		] as const) {
+			test(`offers only to cancel a shell prompt over ${connection}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				agentHostService.clientConnectionKind = connectionKind;
+				const answered: string[] = [];
+				if (hasAnswerRequest) {
+					agentHostService.answerShellAuthentication = async (_chat, requestId) => {
+						answered.push(requestId);
+						return true;
+					};
+				}
+				const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+				fire({ type: ActionType.ChatInputRequested, request: shellAuthenticationRequest('shell-auth', 'secret') } as ChatAction);
+				await timeout(10);
+				const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+				assert.ok(carousel instanceof ChatQuestionCarouselData);
+				agentHostService.dispatchedActions.length = 0;
+				carousel.dismiss({ [SHELL_AUTHENTICATION_QUESTION_ID]: { selectedValue: 'cancel' } });
+				await timeout(10);
+
+				assert.deepStrictEqual({
+					questions: carousel.questions.map(question => ({ type: question.type, password: question.password, options: question.options?.map(option => option.id), details: typeof question.detailedMessage === 'string' ? question.detailedMessage : question.detailedMessage?.value })),
+					answered,
+					completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).map(d => d.action),
+				}, {
+					questions: [{ type: 'singleSelect', password: undefined, options: ['cancel'], details: 'Command: `sudo -A true`\n\n$(info) This connection can\'t send your answer privately, so you can only cancel the prompt here.' }],
+					answered: [],
+					completions: [{ type: ActionType.ChatInputCompleted, requestId: 'shell-auth', response: ChatInputResponseKind.Cancel }],
+				});
+
+				fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+				await turnPromise;
+			}));
+		}
+
 		test('url-style input request renders an elicitation part with the URL', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
