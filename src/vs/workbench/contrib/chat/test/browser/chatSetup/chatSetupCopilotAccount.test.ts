@@ -76,6 +76,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 			activation: undefined as Promise<void> | undefined, retry: false,
 			discovery: undefined as DeferredPromise<void> | undefined,
 			challenge: undefined as ProtectedResourceMetadata | undefined, challengeBeforePublication: false, challengeSatisfiedElsewhere: false,
+			leftover: undefined as ProtectedResourceMetadata | undefined,
 			refused: undefined as ProtectedResourceMetadata | undefined,
 			consentError: undefined as Error | undefined, finishDiscoveryOnCredential: false, progress: false,
 			cancelProgress: undefined as (() => void) | undefined,
@@ -125,8 +126,11 @@ suite('Microsoft Copilot resource setup UI', () => {
 					await pending?.p;
 					// Like the real host, keep advertising a requirement that was never given a credential.
 					const challenged = state.challenge;
-					const outstanding = challenged && !state.challengeSatisfiedElsewhere && !state.offered.some(offered => offered.resource === challenged.resource)
-						&& !deliveries.some(delivery => delivery.resource === challenged.resource) ? [challenged] : [];
+					const outstanding = [
+						...(state.leftover ? [state.leftover] : []),
+						...(challenged && !state.challengeSatisfiedElsewhere && !state.offered.some(offered => offered.resource === challenged.resource)
+							&& !deliveries.some(delivery => delivery.resource === challenged.resource) ? [challenged] : []),
+					];
 					if (state.publication) {
 						publish([discovery, ...outstanding]);
 						void state.publication.then(() => publish([discovery, ...outstanding, ...state.offered]));
@@ -284,7 +288,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 		f.state.discovery = pendingDiscovery;
 		f.state.sessions = [f.credential(['User.Read'])];
 		f.state.offered = [services[1]];
-		f.state.challenge = services[0];
+		f.state.challenge = requirement;
 		f.state.refused = services[0];
 		f.state.consentError = new CancellationError();
 		f.state.signIn = prompt.p;
@@ -338,6 +342,18 @@ suite('Microsoft Copilot resource setup UI', () => {
 			}
 		});
 	}
+
+	test('a requirement left advertised by an earlier attempt is not offered as a service', async () => {
+		const f = fixture();
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.offered = [services[1]];
+		f.state.leftover = requirement;
+		f.publish([discovery, requirement, services[1]]);
+		const result = await raceTimeout(f.run(), 500);
+		assert.deepStrictEqual({ success: result?.success, choices: f.state.picks.length, delivered: f.deliveries.map(request => request.resource) }, {
+			success: true, choices: 0, delivered: [discovery.resource, services[1].resource],
+		});
+	});
 
 	test('a requirement the host is still asking for is not mistaken for a published service', async () => {
 		const f = fixture();

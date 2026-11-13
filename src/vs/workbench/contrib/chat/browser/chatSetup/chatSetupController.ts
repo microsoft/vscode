@@ -285,14 +285,8 @@ export class ChatSetupController extends Disposable {
 			const identityCredential = new DeferredPromise<AuthenticationSession | undefined>();
 			await identityCredential.complete(identity);
 			credentials.set(discovery.resource, { resource: discovery, credential: identityCredential });
-			// The host keeps advertising a requirement it was not given a credential for; that is a request, not a service it offers.
-			const offeredServices = (resources: readonly ProtectedResourceMetadata[]) => resources.filter(resource => {
-				if (!targets.has(resource.resource)) {
-					return false;
-				}
-				const challenged = credentials.get(resource.resource);
-				return !challenged || challenged.credential.isResolved || !equals(challenged.resource, resource);
-			});
+			// The host names a service it offers. A credential it asked for and was not given stays advertised without a name, also across attempts.
+			const offeredServices = (resources: readonly ProtectedResourceMetadata[]) => resources.filter(resource => targets.has(resource.resource) && !!resource.resource_name);
 			const answerChallenge = async (resource: ProtectedResourceMetadata, reason: AuthRequiredReason | undefined, credential: DeferredPromise<AuthenticationSession | undefined>) => {
 				try {
 					// The host announces a challenge before it advertises the challenged resource.
