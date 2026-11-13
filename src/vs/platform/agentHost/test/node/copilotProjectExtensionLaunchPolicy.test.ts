@@ -369,6 +369,59 @@ suite('CopilotProjectExtensionLaunchPolicy', () => {
 		}
 	});
 
+	test('keeps revoking extensions chats still run from folders whose own chats closed', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-borrowed-`);
+		const supplier = join(root, 'supplier');
+		const trustedConsumer = join(root, 'trusted-consumer');
+		const untrustedConsumer = join(root, 'untrusted-consumer');
+		const repository = join(root, 'repository');
+		const requested = (folder: string, name: string) => join(folder, '.github', 'extensions', name, 'extension.mjs');
+		for (const name of ['from-trusted', 'from-untrusted']) {
+			await fs.mkdir(join(supplier, 'tools', name), { recursive: true });
+			await fs.writeFile(join(supplier, 'tools', name, 'extension.mjs'), '');
+		}
+		// Each consumer discovers one of the supplier's modules through a link.
+		for (const [consumer, name] of [[trustedConsumer, 'from-trusted'], [untrustedConsumer, 'from-untrusted']]) {
+			await fs.mkdir(join(consumer, '.github', 'extensions'), { recursive: true });
+			await fs.symlink(join(supplier, 'tools', name), join(consumer, '.github', 'extensions', name), process.platform === 'win32' ? 'junction' : 'dir');
+		}
+		// The runtime discovers from a repository's root, above a chat working in one of its subfolders.
+		await fs.mkdir(join(repository, 'sub'), { recursive: true });
+		await fs.mkdir(join(repository, '.github', 'extensions', 'from-root'), { recursive: true });
+		await fs.writeFile(requested(repository, 'from-root'), '');
+		const { configurationService, policy } = createPolicy();
+		const trust = (folders: string[]) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: folders.map(folder => URI.file(folder).toString()) } });
+			return policy.updateTrust() ?? { expanded: false, contracted: false };
+		};
+		const launches = async (path: string) => !!(await policy.resolveLaunch(path, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		try {
+			// The chats running the extensions stay open.
+			disposables.add(await policy.acquireAdmission([URI.file(trustedConsumer)], undefined));
+			disposables.add(await policy.acquireAdmission([URI.file(untrustedConsumer)], undefined));
+			disposables.add(await policy.acquireAdmission([URI.file(join(repository, 'sub'))], undefined));
+			// The chats admitting the folders the modules come from close before those folders lose trust.
+			const supplierChat = await policy.acquireAdmission([URI.file(supplier)], undefined);
+			const repositoryChat = await policy.acquireAdmission([URI.file(repository)], undefined);
+			trust([supplier, trustedConsumer, repository]);
+			const allowed = [
+				await launches(requested(trustedConsumer, 'from-trusted')),
+				await launches(requested(untrustedConsumer, 'from-untrusted')),
+				await launches(requested(repository, 'from-root')),
+			];
+			supplierChat.dispose();
+			repositoryChat.dispose();
+			const revoked = [...(await policy.reconciliationFor(trust([trustedConsumer]))).revokedExtensionNames].sort();
+
+			assert.deepStrictEqual({ allowed, revoked }, {
+				allowed: [true, true, true],
+				revoked: ['from-root', 'from-trusted', 'from-untrusted'],
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test('lets only the worktree the host created as the working directory inherit its repository\'s trust', async () => {
 		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-worktree-`);
 		const repository = join(root, 'repo');
