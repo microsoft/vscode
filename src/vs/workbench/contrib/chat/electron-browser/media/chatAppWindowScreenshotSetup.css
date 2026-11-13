@@ -26,16 +26,11 @@
 	text-align: start;
 }
 
-.app-window-screenshot-setup-dialog .app-window-screenshot-setup-description,
-.app-window-screenshot-setup-dialog .app-window-screenshot-setup-note {
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-description {
 	margin: 0;
 	text-align: center;
 	text-wrap: balance;
 	color: var(--vscode-descriptionForeground);
-}
-
-.app-window-screenshot-setup-dialog .app-window-screenshot-setup-note {
-	font-size: var(--vscode-fontSize-body2);
 }
 
 .app-window-screenshot-setup-dialog .app-window-screenshot-setup-steps {
@@ -95,13 +90,7 @@
 	gap: var(--vscode-spacing-size40);
 }
 
-.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-controls > .monaco-button,
-.app-window-screenshot-setup-dialog .app-window-screenshot-setup-footer > .monaco-button {
+.app-window-screenshot-setup-dialog .app-window-screenshot-setup-step-controls > .monaco-button {
 	width: fit-content;
 	white-space: nowrap;
-}
-
-.app-window-screenshot-setup-dialog .app-window-screenshot-setup-footer {
-	display: flex;
-	justify-content: center;
 }

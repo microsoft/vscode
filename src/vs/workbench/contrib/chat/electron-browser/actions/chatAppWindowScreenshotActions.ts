@@ -28,9 +28,7 @@ import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/commo
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { FocusMode, INativeAppWindow } from '../../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
@@ -56,9 +54,6 @@ const ENABLE_SYSTEM_WIDE_KEYBINDING_COMMAND_ID = 'workbench.action.chat.enableAp
 
 /** The default keybinding of Attach Screenshot of App Window, which the user can make system-wide. */
 const DEFAULT_KEYBINDING = isMacintosh ? 'ctrl+cmd+s' : 'ctrl+alt+shift+s';
-
-/** Remembers that the user saw what capturing the windows of other apps does, and agreed to it. */
-const FIRST_USE_ACCEPTED_STORAGE_KEY = 'chat.appWindowScreenshots.firstUseAccepted';
 
 /** How long the Add Context picker waits to name the window that its item captures, as it opens once all items are ready. */
 const LABEL_TIMEOUT = 150;
@@ -95,8 +90,8 @@ type AppWindowScreenshotClassification = {
 	owner: 'Giuspepe';
 	comment: 'Reports how attaching a screenshot of the window of another app to chat ended, to learn how the window is found and why captures fail.';
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What started the capture: a command, such as from its keybinding, or the Add Context item.' };
-	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the window was found: the frontmost window of another app, picked by the user in a list or in the system picker, or none when the setup was closed.' };
-	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How it ended: captured, cancelled, declined in the setup, no window of another app, missing Screen Recording permission, or failed.' };
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the window was found: the frontmost window of another app, picked by the user in a list or in the system picker, or none when the setup showed instead.' };
+	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How it ended: captured, cancelled, no window of another app, missing Screen Recording permission (the setup showed), or failed.' };
 	permission: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether capturing had the permission that it needs when it started: granted, not granted or restricted on macOS, or not required on other platforms.' };
 	inBackground: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether VS Code was in the background when the capture started, as with a system-wide keybinding.' };
 };
@@ -110,8 +105,8 @@ interface IAppWindowScreenshotRequest {
 }
 
 /**
- * Captures the window of another app for chat, after the setup when it is needed, and returns it as an image attachment
- * that the user can mark up. Explains why a capture failed.
+ * Captures the window of another app for chat, and returns it as an image attachment that the user can mark up. When
+ * macOS doesn't allow Screen Recording, it shows the setup instead. Explains why a capture failed.
  */
 async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: IAppWindowScreenshotRequest): Promise<IChatRequestVariableEntry | undefined> {
 	const appWindowScreenshotService = accessor.get(IAppWindowScreenshotService);
@@ -120,7 +115,6 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 	const notificationService = accessor.get(INotificationService);
 	const commandService = accessor.get(ICommandService);
 	const telemetryService = accessor.get(ITelemetryService);
-	const productService = accessor.get(IProductService);
 	const instantiationService = accessor.get(IInstantiationService);
 
 	const stopWatch = StopWatch.create(false);
@@ -132,8 +126,9 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 		telemetryService.publicLog2<AppWindowScreenshotEvent, AppWindowScreenshotClassification>('screenshotTool.appWindow', { source: request.source, target, result, permission, inBackground });
 	};
 
-	if (!await instantiationService.invokeFunction(setUpAppWindowScreenshots, permission, inBackground)) {
-		log('none', 'declined', 'cancelled');
+	if (permission === 'notGranted' || permission === 'restricted') {
+		log('none', 'permissionRequired', 'cancelled');
+		await instantiationService.invokeFunction(showAppWindowScreenshotSetup, permission, inBackground);
 		return undefined;
 	}
 
@@ -154,18 +149,12 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 		return entry;
 	}
 
+	log(result.target, result.kind, result.kind === 'cancelled' ? 'cancelled' : 'failed');
 	if (result.kind === 'noWindow') {
 		notificationService.info(localize('appWindowScreenshot.noWindow', "No other app shows a window to capture. Open the app, then try again."));
 	} else if (result.kind === 'permissionRequired') {
-		// macOS revoked the permission after the setup checked it.
-		notificationService.prompt(
-			Severity.Warning,
-			localize('appWindowScreenshot.permission', "{0} needs the Screen Recording permission to capture the windows of other apps.", productService.nameShort),
-			[{
-				label: localize('appWindowScreenshot.allowInSettings', "Allow in Settings"),
-				run: () => { void appWindowScreenshotService.requestPermission(); },
-			}],
-		);
+		// macOS revoked the permission after it was checked.
+		await instantiationService.invokeFunction(showAppWindowScreenshotSetup, 'notGranted', inBackground);
 	} else if (result.kind === 'failed') {
 		notificationService.prompt(
 			Severity.Error,
@@ -178,25 +167,18 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 			}],
 		);
 	}
-	log(result.target, result.kind, result.kind === 'cancelled' ? 'cancelled' : 'failed');
 	return undefined;
 }
 
 /**
- * Shows the setup the first time, and whenever macOS doesn't allow Screen Recording: it explains what a capture takes,
- * lets the user allow Screen Recording, and offers to make the keybinding work while another app is in front. Returns
- * whether the capture can go ahead.
+ * Shows the setup, while macOS doesn't allow Screen Recording: it lets the user allow it, and offers to make the
+ * keybinding work while another app is in front. Resolves once the setup closed.
  */
-async function setUpAppWindowScreenshots(accessor: ServicesAccessor, permission: AppWindowScreenshotPermission, inBackground: boolean): Promise<boolean> {
-	const storageService = accessor.get(IStorageService);
+async function showAppWindowScreenshotSetup(accessor: ServicesAccessor, permission: AppWindowScreenshotPermission, inBackground: boolean): Promise<void> {
 	const hostService = accessor.get(IHostService);
 	const keybindingService = accessor.get(IKeybindingService);
 	const instantiationService = accessor.get(IInstantiationService);
 
-	const ready = permission === 'granted' || permission === 'notRequired';
-	if (ready && storageService.getBoolean(FIRST_USE_ACCEPTED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
-		return true;
-	}
 	if (inBackground) {
 		// The setup shows in VS Code, which a system-wide keybinding leaves in the background.
 		await hostService.focus(mainWindow, { mode: FocusMode.Force });
@@ -209,14 +191,10 @@ async function setUpAppWindowScreenshots(accessor: ServicesAccessor, permission:
 		enable: () => instantiationService.invokeFunction(enableSystemWideKeybinding, false),
 	} : undefined);
 	try {
-		if (!await dialog.show()) {
-			return false;
-		}
+		await dialog.show();
 	} finally {
 		dialog.dispose();
 	}
-	storageService.store(FIRST_USE_ACCEPTED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-	return true;
 }
 
 /** Returns the keybinding of Attach Screenshot of App Window, and whether it already works while another app is in front. */
