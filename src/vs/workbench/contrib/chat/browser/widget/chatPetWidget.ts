@@ -2363,7 +2363,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _updatePlatformPosition(): void {
-		if (this._enabled) {
+		if (this._enabled && this._subagentPets.size) {
 			this._settleSubagentPets(true);
 		}
 		if (this._jumpGame.value) {
