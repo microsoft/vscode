@@ -145,14 +145,6 @@ const MOUSE_BOUNCE_HORIZONTAL_TRANSFER = 0.35;
 const MOUSE_BOUNCE_EDGE_KICK = 320;
 const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_DISPLAY_SIZE = 48;
-/** Maximum number of subagent pets shown at once. */
-const SUBAGENT_PET_MAX_COUNT = 10;
-/** Maximum stacking height (CSS pixels) before subagent pets share space. */
-const SUBAGENT_PET_MAX_STACKING_HEIGHT = 96;
-/** Tolerance for fractional pixels when checking subagent pet bounds. */
-const SUBAGENT_PET_BOUNDARY_EPSILON = 0.01;
-/** Distance kept between subagent pets and the edges of their platform. */
-const SUBAGENT_PET_EDGE_INSET = 12;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
@@ -193,6 +185,17 @@ const SING_FRAME_DURATIONS = [180, 180, 180, 180];
 const SPEECHLESS_FRAME_DURATIONS = [400, 120, 1_000, 120, 1_080];
 const WORRY_FRAME_DURATIONS = [600, 600];
 const DIZZY_FRAME_DURATIONS = Array.from({ length: 8 }, () => 120);
+
+/** Scaling factor for calculating the size of the subagent pets. */
+const SUBAGENT_PET_SCALE = 0.5;
+/** Maximum number of subagent pets shown at once. */
+const SUBAGENT_PET_MAX_COUNT = 10;
+/** Maximum stacking height (CSS pixels) before subagent pets share space. */
+const SUBAGENT_PET_MAX_STACKING_HEIGHT = 96;
+/** Tolerance for fractional pixels when checking subagent pet bounds. */
+const SUBAGENT_PET_BOUNDARY_EPSILON = 0.01;
+/** Distance kept between subagent pets and the edges of their platform. */
+const SUBAGENT_PET_EDGE_INSET = 12;
 
 interface ChatPetSpriteSource {
 	readonly url: string;
@@ -1276,6 +1279,11 @@ export class ChatPetHopController extends Disposable {
 	}
 }
 
+/** Returns the displayed size of a subagent pet at the given main pet scale. */
+function getSubagentPetSize(scale: number): number {
+	return CHAT_PET_DISPLAY_SIZE * SUBAGENT_PET_SCALE * scale;
+}
+
 /** Owns the appearance, animation and lifecycle of one subagent pet. */
 class SubagentPet extends Disposable {
 	/** Overlay element positioned at the pet's landing coordinates. */
@@ -1300,8 +1308,8 @@ class SubagentPet extends Disposable {
 	/** Creates a pet at the given overlay-relative landing position. */
 	constructor(private readonly _host: SubagentPetHost, private _left: number, private _top: number) {
 		super();
-		const scale = 0.5 * _host.scale;
-		const size = CHAT_PET_DISPLAY_SIZE * scale;
+		const scale = SUBAGENT_PET_SCALE * _host.scale;
+		const size = getSubagentPetSize(_host.scale);
 		this.element = dom.append(_host.layer, dom.$('.chat-subagent-pet', { 'aria-hidden': 'true' }));
 		this._register(toDisposable(() => this.element.remove()));
 		this.element.style.left = `${this._left}px`;
@@ -1493,7 +1501,7 @@ class SubagentPet extends Disposable {
 	private _advanceRespawn(): void {
 		const overlay = this._host.overlay.getBoundingClientRect();
 		const input = this._host.getDragBounds();
-		const size = CHAT_PET_DISPLAY_SIZE * 0.5 * this._host.scale;
+		const size = getSubagentPetSize(this._host.scale);
 		if (this._respawnPhase === 'despawning') {
 			this._respawnPhase = 'respawning';
 			this._left = Math.max(input.left - overlay.left, Math.min(this._left, input.right - overlay.left - size));
@@ -3309,7 +3317,7 @@ export class ChatPetWidget extends Disposable {
 				continue;
 			}
 			added = true;
-			const { left, top } = this._getSubagentPetLanding(CHAT_PET_DISPLAY_SIZE * 0.5 * this._scale);
+			const { left, top } = this._getSubagentPetLanding(getSubagentPetSize(this._scale));
 			const subagentPet = this._subagentPetEffects.add(new SubagentPet(this._getSubagentPetHost(), left, top));
 			this._subagentPets.set(id, subagentPet);
 		}
@@ -3357,7 +3365,7 @@ export class ChatPetWidget extends Disposable {
 			subagentPet,
 			left: subagentPet.left,
 			top: subagentPet.top,
-			size: CHAT_PET_DISPLAY_SIZE * 0.5 * this._scale,
+			size: getSubagentPetSize(this._scale),
 		})).sort((a, b) => b.top - a.top);
 		for (const [index, entry] of subagentPets.entries()) {
 			const landing = getChatPetFallTarget(overlay.left + entry.left, overlay.top + entry.top - POSITION_EPSILON, entry.size, entry.size, platforms, floor);
@@ -3391,11 +3399,11 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		const { overlay, movement, left, right, bottom } = this._getSubagentPetBounds();
+		const size = getSubagentPetSize(this._scale);
 		let displaced = false;
 		for (const subagentPet of subagentPets) {
 			const subagentPetLeft = subagentPet.left;
 			const subagentPetTop = subagentPet.top;
-			const size = CHAT_PET_DISPLAY_SIZE * 0.5 * this._scale;
 			if (subagentPetLeft < left - SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetLeft + size > right + SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetTop < movement.top - overlay.top - SUBAGENT_PET_BOUNDARY_EPSILON || subagentPetTop + size > bottom + SUBAGENT_PET_BOUNDARY_EPSILON) {
 				displaced = true;
 				subagentPet.fallTo(movement.bottom - overlay.top - size, true);
@@ -3412,9 +3420,9 @@ export class ChatPetWidget extends Disposable {
 
 	private _setScale(scale: number): void {
 		this._stopJumpGame('restore');
-		const previousScale = this._scale * 0.5;
+		const previousScale = this._scale * SUBAGENT_PET_SCALE;
 		this._scale = scale;
-		const subagentPetScale = scale * 0.5;
+		const subagentPetScale = scale * SUBAGENT_PET_SCALE;
 		for (const subagentPet of this._subagentPets.values()) {
 			subagentPet.setScale(previousScale, subagentPetScale);
 		}
