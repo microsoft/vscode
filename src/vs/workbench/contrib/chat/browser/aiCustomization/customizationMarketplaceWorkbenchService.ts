@@ -185,6 +185,10 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	}
 	readonly onDidChangeSources: Event<ICustomizationMarketplaceSourcesChangeEvent>;
 	get sources(): readonly ICustomizationMarketplaceSourceInfo[] {
+		return this.getSourcesForQuery();
+	}
+
+	getSourcesForQuery(sourceIds?: readonly string[]): readonly ICustomizationMarketplaceSourceInfo[] {
 		const githubFeedAvailable = this.isGitHubFeedAvailable();
 		const pluginSources = this.marketplaceManagementProvider
 			? []
@@ -198,7 +202,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			CustomizationMarketplaceSources.CopilotConnectors,
 			...sortMarketplaceSources([
 				...pluginSources,
-				...this.getProviderMarketplaceSources(false),
+				...this.getProviderMarketplaceSources(false, sourceIds),
 			]),
 		];
 	}
@@ -276,11 +280,11 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		return marketplaces.map(marketplace => getProviderMarketplaceSourceId(marketplace.name));
 	}
 
-	private getProviderMarketplaceSources(includeUnavailable: boolean): readonly ICustomizationMarketplaceSourceInfo[] {
+	private getProviderMarketplaceSources(includeUnavailable: boolean, sourceIds?: readonly string[]): readonly ICustomizationMarketplaceSourceInfo[] {
 		if (this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
 			return [];
 		}
-		return this.getProviderMarketplaces(includeUnavailable)
+		return this.getProviderMarketplaces(includeUnavailable, sourceIds)
 			.map(marketplace => ({
 				id: getProviderMarketplaceSourceId(marketplace.name),
 				displayName: marketplace.name,
@@ -289,9 +293,12 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			}));
 	}
 
-	private getProviderMarketplaces(includeUnavailable = false): readonly ICustomizationMarketplaceInfo[] {
+	private getProviderMarketplaces(includeUnavailable = false, sourceIds?: readonly string[]): readonly ICustomizationMarketplaceInfo[] {
 		return this.providerMarketplaces.filter(marketplace => includeUnavailable ||
-			marketplace.available !== false && isPluginMarketplaceAvailableInDiscover(this.configurationService, marketplace.source, this.isGitHubFeedAvailable()));
+			marketplace.available !== false && (
+				sourceIds?.includes(getProviderMarketplaceSourceId(marketplace.name)) ||
+				isPluginMarketplaceAvailableInDiscover(this.configurationService, marketplace.source, this.isGitHubFeedAvailable())
+			));
 	}
 
 	private bindMarketplaceProviders(
@@ -368,7 +375,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 				githubFeedAvailable,
 			);
 		const providerMarketplaceProviders = managementProvider
-			? this.getProviderMarketplaces()
+			? this.providerMarketplaces.filter(marketplace => marketplace.available !== false)
 				.map(marketplace => createLazyCustomizationMarketplaceProvider(
 					getProviderMarketplaceSourceId(marketplace.name),
 					() => ({
@@ -575,7 +582,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage> {
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
-		const sources = this.sources;
+		const sources = this.getSourcesForQuery(options.sourceIds);
 		const queriesPlugins = sources.some(source => (!options.sourceIds || options.sourceIds.includes(source.id)) &&
 			(source.id.startsWith(CustomizationMarketplaceSources.PluginMarketplaces.id) || source.id.startsWith('providerPluginMarketplace.')));
 		const queriesPublicFeed = sources.some(source => source.id === CustomizationMarketplaceSources.AgentFinderPublicFeed.id &&

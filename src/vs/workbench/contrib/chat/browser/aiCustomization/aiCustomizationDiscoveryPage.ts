@@ -1219,7 +1219,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	}
 
 	private updateSources(): void {
-		this.marketplaceSources = getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources);
+		this.marketplaceSources = this.getVisibleQuerySources();
 		if (this.selectedSourceId && !this.marketplaceSources.some(source => source.id === this.selectedSourceId)) {
 			this.selectedSourceId = undefined;
 			this.callbacks.marketplaceNavigationChanged?.();
@@ -1277,7 +1277,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 		this.selectedSourceId = sourceId;
 		this.callbacks.marketplaceNavigationChanged?.();
-		this.updateSourceButton();
+		this.updateSources();
 		this.cancelCatalogRequest();
 		this.searchScheduler.cancel();
 		this.resetCatalogState();
@@ -1706,7 +1706,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private getEnabledCatalogSourceIds(): readonly string[] {
 		return this.entitlementService.sentiment.hidden ? []
-			: getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).map(source => source.id);
+			: this.getVisibleQuerySources().map(source => source.id);
+	}
+
+	private getVisibleQuerySources(): readonly ICustomizationMarketplaceSourceInfo[] {
+		return getVisibleCustomizationMarketplaceSources(this.configurationService,
+			this.marketplaceService.getSourcesForQuery?.(this.selectedSourceId ? [this.selectedSourceId] : undefined) ?? this.marketplaceService.sources);
 	}
 
 	private hasNextCatalogPage(): boolean {
@@ -3018,7 +3023,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			return;
 		}
 		this.selectedSourceId = undefined;
-		this.updateSourceButton();
+		this.updateSources();
 		this.setQuery(CustomizationDiscoveryQuery.parse(''));
 	}
 
@@ -3028,7 +3033,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	showMarketplace(query: string, sourceId: string | undefined, preserveFocus?: boolean): void {
 		this.selectedSourceId = sourceId;
-		this.updateSourceButton();
+		this.updateSources();
 		this.setQuery(CustomizationDiscoveryQuery.parse(query), preserveFocus);
 	}
 

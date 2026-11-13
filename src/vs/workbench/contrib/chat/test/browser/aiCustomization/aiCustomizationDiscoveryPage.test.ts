@@ -87,6 +87,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		browseSections?: ICustomizationMarketplaceBrowseSections | Promise<ICustomizationMarketplaceBrowseSections>,
 		sourcePreviews: Readonly<Record<string, readonly ICustomizationMarketplaceResource[] | Promise<readonly ICustomizationMarketplaceResource[]>>> = {},
 		providerItems: readonly ICustomizationItem[] = [],
+		getSourcesForQuery?: ICustomizationMarketplaceService['getSourcesForQuery'],
 	) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.customization-discovery-test'));
 		container.style.width = '900px';
@@ -168,6 +169,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = sources;
 			override readonly allSources = sources;
+			override getSourcesForQuery(sourceIds?: readonly string[]) { return getSourcesForQuery?.(sourceIds) ?? sources; }
 			override readonly onDidChangeSources = marketplaceChanges.event;
 			override getSourceRecoveryAction(sourceId: string) { return recoveryActions.get(sourceId); }
 			override async getBrowseSections(_options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, _token: CancellationToken, onProgress?: (progress: ICustomizationMarketplaceBrowseSectionsProgress) => void) {
@@ -1170,6 +1172,38 @@ suite('AICustomizationDiscoveryPage', () => {
 			],
 			visible: ['other-mail'],
 			selected: 'Other Feed',
+		});
+	});
+
+	test('explicit marketplace navigation retains a hidden query source until returning to All Sources', async () => {
+		const source = {
+			id: 'providerPluginMarketplace.awesome-copilot', displayName: 'awesome-copilot',
+			enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
+		};
+		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+			sourceIds => sourceIds?.includes(source.id) ? [...sources, source] : sources);
+		fixture.page.showMarketplace('@type:plugin', source.id);
+		fixture.page.setVisible(true);
+		await waitForRequestCount(fixture.requests, 1);
+		await fixture.requests[0].result.complete({
+			items: [resource('awesome-plugin', { sourceId: source.id, mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
+		});
+		await retry(async () => assert.ok(fixture.page.getAccessibilityContent().includes('awesome-plugin')), 10, 20);
+		const selected = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+		await fixture.selectSource(undefined);
+		await waitForRequestCount(fixture.requests, 2);
+		await fixture.requests[1].result.complete({ items: [] });
+		await timeout(0);
+		assert.deepStrictEqual({
+			requests: fixture.requests.map(request => request.options.sourceIds),
+			selected,
+			navigationResets: fixture.getMarketplaceNavigationChanges(),
+			sourceActions: fixture.getSourceActions().map(action => action.id).filter(id => id === `customizationDiscovery.source.${source.id}`),
+		}, {
+			requests: [[source.id], undefined],
+			selected: 'awesome-copilot',
+			navigationResets: 2,
+			sourceActions: [],
 		});
 	});
 

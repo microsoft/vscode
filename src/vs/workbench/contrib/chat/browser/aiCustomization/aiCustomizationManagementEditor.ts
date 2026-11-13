@@ -970,7 +970,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isMarketplaceSourceEnabled(sourceId: string): boolean {
-		const source = this.marketplaceService.sources.find(candidate => candidate.id === sourceId);
+		const source = (this.marketplaceService.getSourcesForQuery?.([sourceId]) ?? this.marketplaceService.sources).find(candidate => candidate.id === sourceId);
 		return !!source && this.configurationService.getValue<boolean>(source.enablementSetting) === true;
 	}
 

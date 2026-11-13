@@ -303,7 +303,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private isSourceEnabled(sourceId: string): boolean {
-		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources)
+		return getVisibleCustomizationMarketplaceSources(this.configurationService,
+			this.customizationMarketplaceService.getSourcesForQuery?.([sourceId]) ?? this.customizationMarketplaceService.sources)
 			.some(source => source.id === sourceId);
 	}
 

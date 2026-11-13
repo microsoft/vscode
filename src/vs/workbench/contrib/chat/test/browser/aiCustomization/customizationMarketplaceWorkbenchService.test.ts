@@ -406,6 +406,69 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		]);
 	});
 
+	test('explicit provider marketplace navigation queries the hidden default without changing Discover', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const marketplace = {
+			name: 'awesome-copilot', source: 'GitHub: github/awesome-copilot', isDefault: true, managed: false, available: true,
+		};
+		const unavailableMarketplace = { ...marketplace, name: 'unavailable', available: false };
+		const queries: { name: string; cursor: string | undefined }[] = [];
+		const provider: ICustomizationMarketplaceManagementProvider = {
+			onDidChange: Event.None,
+			onDidChangeMarketplaces: Event.None,
+			list: async () => [marketplace, unavailableMarketplace],
+			add: async () => { throw new Error('Unexpected add'); },
+			queryMarketplace: async (_session, marketplace, options) => {
+				queries.push({ name: marketplace.name, cursor: options.cursor });
+				return {
+					items: [{
+						identifier: options.cursor ? 'second-plugin' : 'first-plugin',
+						displayName: 'Plugin', description: '', mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+						tags: [], capabilities: [], representativeQueries: [],
+					}],
+					total: 2,
+					nextCursor: options.cursor ? undefined : 'next',
+				};
+			},
+			remove: async () => { throw new Error('Unexpected remove'); },
+			refresh: async () => [],
+		};
+		const service = createService(configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [], total: 0 }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{ query: async () => ({ items: [], total: 0 }) },
+			provider,
+		);
+		await Event.toPromise(service.onDidChangeSources);
+		const sourceId = getProviderMarketplaceSourceId(marketplace.name);
+		const options = { sourceIds: [sourceId], pageSize: 1 };
+		const first = await service.query(options, CancellationToken.None);
+		const discover = await service.query({}, CancellationToken.None);
+		const second = await service.query({ ...options, cursor: first.nextCursor }, CancellationToken.None);
+		assert.deepStrictEqual({
+			visible: service.sources.some(source => source.id === sourceId),
+			selected: service.getSourcesForQuery([sourceId]).some(source => source.id === sourceId),
+			items: [first, second].map(page => page.items.map(item => [item.sourceId, item.identifier])),
+			discover: discover.items,
+			queries,
+		}, {
+			visible: false,
+			selected: true,
+			items: [[[sourceId, 'first-plugin']], [[sourceId, 'second-plugin']]],
+			discover: [],
+			queries: [{ name: marketplace.name, cursor: undefined }, { name: marketplace.name, cursor: 'next' }],
+		});
+		await assert.rejects(service.query({ sourceIds: [getProviderMarketplaceSourceId(unavailableMarketplace.name)] }, CancellationToken.None), isCancellationError);
+		for (const setting of [ChatConfiguration.PluginsEnabled, CustomizationMarketplaceConfiguration.MarketplaceEnabled]) {
+			await setEnabled(configuration, setting, false);
+			await assert.rejects(service.query(options, CancellationToken.None), isCancellationError);
+			await setEnabled(configuration, setting, true);
+		}
+	});
+
 	test('provider customization activity signals source changes only when the marketplace list changes', async () => {
 		const configuration = createConfiguration([]);
 		const providerChanges = store.add(new Emitter<void>());

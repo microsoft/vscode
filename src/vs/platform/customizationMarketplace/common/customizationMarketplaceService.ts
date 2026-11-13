@@ -258,6 +258,8 @@ export interface ICustomizationMarketplaceService {
 	readonly sources: readonly ICustomizationMarketplaceSourceInfo[];
 	/** Complete source metadata, including sources that are not currently available. */
 	readonly allSources?: readonly ICustomizationMarketplaceSourceInfo[];
+	/** Available sources for a query, including explicitly selected sources hidden from general discovery. */
+	getSourcesForQuery?(sourceIds?: readonly string[]): readonly ICustomizationMarketplaceSourceInfo[];
 	/** Fires when non-configuration inputs change source availability, contents, or query identity. */
 	readonly onDidChangeSources?: Event<ICustomizationMarketplaceSourcesChangeEvent>;
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback): Promise<ICustomizationMarketplacePage>;
