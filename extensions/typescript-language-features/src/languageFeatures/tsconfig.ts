@@ -133,14 +133,22 @@ async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: st
 		}
 
 		if (moduleStat && (moduleStat.type & vscode.FileType.Directory)) {
-			for (const uriCandidate of pathCandidates
-				.map((relativePath) => relativePath.split(posix.sep).slice(sepIndex).join(posix.sep))
-				// skip empty paths within module
-				.filter(Boolean)
-				.map((relativeModulePath) => vscode.Uri.joinPath(moduleAbsoluteUrl, relativeModulePath))
-			) {
-				if (await exists(uriCandidate)) {
-					return uriCandidate;
+			for (const candidate of pathCandidates) {
+				const subpath = candidate.split(posix.sep).slice(sepIndex).join(posix.sep);
+				if (!subpath) {
+					continue;
+				}
+
+				// Try resolving via package.json exports first
+				const exportResolved = await resolveViaPackageExports(moduleAbsoluteUrl, subpath);
+				if (exportResolved && await exists(exportResolved)) {
+					return exportResolved;
+				}
+
+				// Fall back to direct path lookup
+				const directPath = vscode.Uri.joinPath(moduleAbsoluteUrl, subpath);
+				if (await exists(directPath)) {
+					return directPath;
 				}
 			}
 			// Continue to looking for potentially another version
@@ -154,6 +162,88 @@ async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: st
 			return;
 		}
 	}
+}
+
+/**
+ * Resolve a subpath using the package.json "exports" field.
+ * Supports exact matches and single-wildcard (*) patterns.
+ */
+async function resolveViaPackageExports(moduleUri: vscode.Uri, subpath: string): Promise<vscode.Uri | undefined> {
+	const packageJsonUri = vscode.Uri.joinPath(moduleUri, 'package.json');
+	let packageJson: { exports?: unknown };
+	try {
+		const raw = await vscode.workspace.fs.readFile(packageJsonUri);
+		packageJson = JSON.parse(Buffer.from(raw).toString('utf-8'));
+	} catch {
+		return undefined;
+	}
+
+	if (!packageJson.exports || typeof packageJson.exports !== 'object') {
+		return undefined;
+	}
+
+	const exportsMap = packageJson.exports as Record<string, unknown>;
+	const subpathWithDot = `./${subpath}`;
+
+	for (const [pattern, target] of Object.entries(exportsMap)) {
+		const resolved = matchExportPattern(pattern, subpathWithDot, target);
+		if (resolved) {
+			// resolved is relative to the module root (e.g., "./lib/base/tsconfig.json")
+			const relativePath = resolved.startsWith('./') ? resolved.slice(2) : resolved;
+			return vscode.Uri.joinPath(moduleUri, relativePath);
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Match a subpath against an exports pattern and return the resolved target path,
+ * or undefined if the pattern does not match.
+ */
+function matchExportPattern(pattern: string, subpath: string, target: unknown): string | undefined {
+	// Resolve conditional exports to a string target
+	const targetStr = resolveExportTarget(target);
+	if (!targetStr) {
+		return undefined;
+	}
+
+	// Exact match
+	if (pattern === subpath) {
+		return targetStr;
+	}
+
+	// Wildcard pattern match (single * substitution)
+	const starIndex = pattern.indexOf('*');
+	if (starIndex !== -1) {
+		const prefix = pattern.slice(0, starIndex);
+		const suffix = pattern.slice(starIndex + 1);
+		if (subpath.startsWith(prefix) && subpath.endsWith(suffix) && subpath.length >= prefix.length + suffix.length) {
+			const matched = subpath.slice(prefix.length, subpath.length - suffix.length);
+			return targetStr.replace('*', matched);
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Resolve conditional exports (objects with "types", "import", "default" keys) to a string.
+ */
+function resolveExportTarget(target: unknown): string | undefined {
+	if (typeof target === 'string') {
+		return target;
+	}
+	if (target && typeof target === 'object' && !Array.isArray(target)) {
+		const obj = target as Record<string, unknown>;
+		// Prefer types > import > require > default
+		for (const key of ['types', 'import', 'require', 'default']) {
+			if (key in obj) {
+				return resolveExportTarget(obj[key]);
+			}
+		}
+	}
+	return undefined;
 }
 
 // Reference Extends:https://github.com/microsoft/TypeScript/blob/febfd442cdba343771f478cf433b0892f213ad2f/src/compiler/commandLineParser.ts#L3005
