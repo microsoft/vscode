@@ -10531,7 +10531,8 @@ function getSessionWorktreeSection(session: ISession): ISessionWorktreeSection {
 	const repository = folder.gitRepository;
 	const name = basename(workingDirectory) || workingDirectory.path;
 	return {
-		id: `${WORKTREE_SECTION_PREFIX}${workingDirectory.toString()}`,
+		// Keyed like the main-checkout check below, so one checkout reported with different path casing is one section.
+		id: `${WORKTREE_SECTION_PREFIX}${extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory)}`,
 		label: name,
 		// The branch shows on hover, and so in the section's accessible label, not in its label
 		hover: repository?.branchName ? localize('worktreeSectionHover', "{0} (branch {1})", workingDirectory.fsPath, repository.branchName) : workingDirectory.fsPath,

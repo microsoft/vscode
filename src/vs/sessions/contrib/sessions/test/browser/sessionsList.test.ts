@@ -23,7 +23,7 @@ import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows, OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -3695,6 +3695,14 @@ suite('Sessions - SessionsList', () => {
 				{ id: 'worktree:file:///work/repo.worktrees/b', label: 'b', hover: URI.parse('file:///work/repo.worktrees/b').fsPath, sessions: ['feature-b'] },
 				{ id: 'worktree:other', label: 'Other', hover: undefined, sessions: ['cloud'] },
 			]);
+		});
+
+		test('puts one folder reported with different path casing in one section, where the platform ignores path case', () => {
+			const sections = groupByWorktree([
+				createWorktreeSession('upper', { workingDirectory: 'file:///c:/Work/repo' }, 1),
+				createWorktreeSession('lower', { workingDirectory: 'file:///c:/work/repo' }, 2),
+			]);
+			assert.deepStrictEqual(sections.map(section => section.sessions.map(session => session.sessionId)), isLinux ? [['upper'], ['lower']] : [['upper', 'lower']]);
 		});
 
 		test('shows the list by worktree, with the full path in a section\'s label for screen readers, and searches within it', async () => {
