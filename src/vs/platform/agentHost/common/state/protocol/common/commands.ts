@@ -376,6 +376,10 @@ export interface AutomationCapabilities {
 	create?: AutomationCreateCapability;
 	/** Present when definitions may contain {@link AutomationScheduleTrigger | schedule triggers}. */
 	schedules?: AutomationScheduleCapabilities;
+	/** Present when absolute one-time run triggers and atomic Send Now are supported. */
+	oneTime?: AutomationOneTimeCapability;
+	/** Present when one-time scheduled chats can target an existing conversation. */
+	existingConversation?: AutomationExistingConversationCapability;
 	/**
 	 * Present when clients may request cancellation of `pending` or `running`
 	 * automation runs.
@@ -404,6 +408,19 @@ export interface AutomationCapabilities {
  * @category Commands
  */
 export interface AutomationCustomizationsCapability { }
+
+/**
+ * Supports one-time runs, durable admission receipts, and conditional definition updates.
+ *
+ * Hosts MUST preserve supported message attachments durably without requiring a
+ * connected client, and reject unsupported content before accepting a definition.
+ *
+ * @category Commands
+ */
+export interface AutomationOneTimeCapability { }
+
+/** Supports immutable existing-conversation targets without creating or owning sessions. */
+export interface AutomationExistingConversationCapability { }
 
 /**
  * Presence capability for {@link AutomationCreateRequestedAction |

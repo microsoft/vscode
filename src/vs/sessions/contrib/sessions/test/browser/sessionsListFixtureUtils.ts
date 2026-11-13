@@ -121,6 +121,7 @@ export interface ISessionsListFixtureChat extends ITestChatSpec {
 export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly inlineAction?: 'checks' | 'comments' | 'combined';
 	readonly chats?: readonly ISessionsListFixtureChat[];
+	readonly hasScheduledMessages?: boolean;
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
 	readonly inboxState?: SessionInboxAction;
@@ -936,6 +937,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		grouping: () => view.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => view.sorting ?? SessionsSorting.Created,
 		compact: () => view.compact ?? false,
+		scheduledSessionResources: constObservable(new Set(state.sessions
+			.filter(spec => spec.hasScheduledMessages)
+			.map(spec => getSession(spec.id).session.resource.toString()))),
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),

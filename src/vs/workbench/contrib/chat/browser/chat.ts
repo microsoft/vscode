@@ -31,7 +31,7 @@ import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 import { IHandOff } from '../common/promptSyntax/promptFileParser.js';
 import { CHAT_PROVIDER_ID } from '../common/participants/chatParticipantContribTypes.js';
 import { ChatRequestQueueKind, IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService/chatService.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatPendingDividerViewModel } from '../common/model/chatViewModel.js';
+import { IChatResponseViewModel, IChatViewModel, ChatViewModelItem } from '../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType } from '../common/constants.js';
 import { ChatAttachmentModel } from './attachments/chatAttachmentModel.js';
 import { IChatEditorOptions } from './widgetHosts/editor/chatEditor.js';
@@ -206,7 +206,7 @@ export interface IChatFileTreeInfo {
 	focus(): void;
 }
 
-export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel;
+export type ChatTreeItem = ChatViewModelItem;
 
 export interface IChatContextMenuActionContext {
 	readonly $chatContextMenu: true;
@@ -366,6 +366,8 @@ export interface IChatWidgetViewOptions {
 	 * instead of silently dropping them.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
+	/** Revalidates a composer submission synchronously after preparation, immediately before dispatch. */
+	validateInput?: (query: string) => void;
 	/**
 	 * Horizontal space the input part reserves around itself. Hosts that render the
 	 * input flush with their own content set this to `0`.
