@@ -11,7 +11,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { parse, stringify } from '../../../../base/common/marshalling.js';
-import { equals } from '../../../../base/common/objects.js';
+import { equals, stableStringify } from '../../../../base/common/objects.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -38,7 +38,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { IChatDraft } from '../../chat/common/attachments/chatDraft.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationSchedule } from '../../chat/common/automations/automation.js';
-import { AutomationMutationGuard, AutomationMutationUncertainError, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../chat/common/automations/automationService.js';
+import { AutomationMutationGuard, AutomationMutationUncertainError, AutomationUnavailableError, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../chat/common/automations/automationsEnabled.js';
 import { ChatInputCanScheduleContext } from '../common/contextkeys.js';
 import { fromStoredChatDraft, toStoredChatDraft } from '../common/newChatDraftState.js';
@@ -53,6 +53,12 @@ import { IPendingSessionItem } from './views/pendingSessions.js';
 import { IChatScheduledRequest, IChatScheduledRequestEditing } from '../../chat/common/model/chatViewModel.js';
 
 const handoffStorageKey = 'sessions.scheduledChatHandoffs';
+const receiptStorageKey = 'sessions.scheduledChatReceipts';
+interface IScheduledChatReceipt {
+	readonly operationId: string;
+	readonly automationId: string;
+}
+
 interface IScheduledChatHandoff {
 	readonly id: string;
 	readonly toolOperationId?: string;
@@ -102,7 +108,8 @@ export interface IScheduledChatsService {
 	canSchedule(session: ISession | undefined, conversation?: IAutomationDescriptor['conversation']): boolean;
 	readonly availableProviders: IAutomationService['availableProviders'];
 	schedule(input: IChatDraft, target: ISavedSessionDraftTarget, session: ISession, compositionId: string, conversation?: IAutomationDescriptor['conversation'], anchor?: HTMLElement): Promise<boolean>;
-	scheduleRequest(options: IScheduledChatRequestOptions, operationId: string, mutationGuard?: AutomationMutationGuard): Promise<ScheduledChatSubmission>;
+	hasRequest(operationId: string): boolean;
+	scheduleRequest(options: IScheduledChatRequestOptions, operationId: string, mutationGuard?: AutomationMutationGuard, captureTemplate?: () => Promise<IScheduledChatRequestOptions['sessionTemplate']>): Promise<ScheduledChatSubmission>;
 	getPendingRequests(): readonly IPendingScheduledChatRequest[];
 	updateRequest(automation: IAutomationDescriptor, patch: IUpdateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
 	hasPendingHandoff(compositionId: string, input: IChatDraft): boolean;
@@ -157,7 +164,20 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			sessionsChanged.read(reader);
 			const automations = automationService.automations.read(reader);
 			const runs = automationService.runs.read(reader);
+			const catalogueState = automationService.catalogueState.read(reader);
+			const providers = automationService.availableProviders.read(reader);
 			for (const handoff of this.readHandoffs()) {
+				if (handoff.toolOperationId) {
+					const automation = automations.find(automation => automation.target.providerId === handoff.target.providerId
+						&& (automation.id === handoff.automationId || automation.id === handoff.requestedAutomationId || automation.creationId === handoff.id));
+					if (automation && !handoff.automationId) {
+						this.writeHandoff({ ...handoff, automationId: automation.id });
+					}
+					if (handoff.automationId && (automation?.oneTimeDispatchedAt
+						|| !automation && catalogueState === 'ready' && providers.some(provider => provider.id === handoff.target.providerId))) {
+						this.removeHandoff(handoff.id);
+					}
+				}
 				if (!handoff.target.groupId || handoff.conversation || handoff.groupApplied) {
 					continue;
 				}
@@ -394,9 +414,43 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 	}
 
 	private removeHandoff(id: string): void {
+		const handoffs = this.readHandoffs();
+		const handoff = handoffs.find(handoff => handoff.id === id);
+		if (handoff?.toolOperationId && handoff.automationId) {
+			const receipts = this.readReceipts().filter(receipt => receipt.operationId !== handoff.toolOperationId);
+			this.storageService.store(receiptStorageKey, stringify({
+				version: 1, receipts: [...receipts, { operationId: handoff.toolOperationId, automationId: handoff.automationId }],
+			}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
 		this.storageService.store(handoffStorageKey, stringify({
-			version: 1, handoffs: this.readHandoffs().filter(handoff => handoff.id !== id || handoff.toolOperationId && handoff.automationId).map(handoff => ({ ...handoff, input: toStoredChatDraft(handoff.input) })),
+			version: 1, handoffs: handoffs.filter(handoff => handoff.id !== id).map(handoff => ({ ...handoff, input: toStoredChatDraft(handoff.input) })),
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private readReceipts(): IScheduledChatReceipt[] {
+		const raw = this.storageService.get(receiptStorageKey, StorageScope.PROFILE);
+		if (!raw) {
+			return [];
+		}
+		const value: { version?: number; receipts?: IScheduledChatReceipt[] } = parse(raw);
+		if (value.version !== 1 || !Array.isArray(value.receipts)) {
+			throw new Error(localize('sendLater.invalidReceipts', "The saved scheduling receipts could not be read. Their stored content has not been changed."));
+		}
+		return value.receipts;
+	}
+
+	hasRequest(operationId: string): boolean {
+		return this.readHandoffs().some(handoff => handoff.toolOperationId === operationId)
+			|| this.readReceipts().some(receipt => receipt.operationId === operationId);
+	}
+
+	private async acceptedRequest(automationId: string): Promise<ScheduledChatSubmission> {
+		await this.automationService.refresh?.();
+		const automation = this.automationService.getAutomation(automationId);
+		if (!automation) {
+			throw new AutomationUnavailableError(localize('sendLater.previousRequestUnavailable', "This request was already accepted. Its definition is no longer available; it will not be recreated."));
+		}
+		return { status: 'accepted', automation };
 	}
 
 	hasPendingHandoff(compositionId: string, input: IChatDraft): boolean {
@@ -459,7 +513,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		return true;
 	}
 
-	scheduleRequest(options: IScheduledChatRequestOptions, operationId: string, mutationGuard?: AutomationMutationGuard): Promise<ScheduledChatSubmission> {
+	scheduleRequest(options: IScheduledChatRequestOptions, operationId: string, mutationGuard?: AutomationMutationGuard, captureTemplate?: () => Promise<IScheduledChatRequestOptions['sessionTemplate']>): Promise<ScheduledChatSubmission> {
 		return this.toolRequests.queue(operationId, async () => {
 			this.assertEnabled();
 			mutationGuard?.();
@@ -471,22 +525,27 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			const retry = !!handoff;
 			if (handoff) {
 				if (handoff.name !== options.name || handoff.request.text !== options.prompt || handoff.schedule.runAt !== runAt
-					|| !equals(handoff.target.configuration?.sessionTemplate, options.sessionTemplate)
-					|| !equals(handoff.automationTarget, options.target) || !equals(handoff.conversation, options.conversation)) {
+					|| !captureTemplate && stableStringify(handoff.target.configuration?.sessionTemplate) !== stableStringify(options.sessionTemplate)
+					|| !equalScheduledTargets(handoff.automationTarget, options.target)
+					|| !isEqual(handoff.conversation?.sessionResource, options.conversation?.sessionResource)
+					|| !isEqual(handoff.conversation?.chatResource, options.conversation?.chatResource)) {
 					throw new Error(localize('sendLater.changedOperation', "This scheduling operation already has a different saved request. Reconcile it before scheduling another request."));
 				}
 				if (handoff.automationId) {
-					await this.automationService.refresh?.();
-					const automation = this.automationService.getAutomation(handoff.automationId);
-					if (!automation) {
-						throw new Error(localize('sendLater.previousRequestUnavailable', "This request was already accepted. Its definition is no longer available; it will not be recreated."));
-					}
-					return { status: 'accepted', automation };
+					return this.acceptedRequest(handoff.automationId);
 				}
 			} else {
-				if (Date.parse(runAt) <= Date.now()) {
-					throw new Error(localize('sendLater.timePassed', "Choose a future send time."));
+				const receipt = this.readReceipts().find(receipt => receipt.operationId === operationId);
+				if (receipt) {
+					return this.acceptedRequest(receipt.automationId);
 				}
+				if (Date.parse(runAt) <= Date.now()) {
+					throw new AutomationUnavailableError(localize('sendLater.timePassed', "Choose a future send time."));
+				}
+				if (captureTemplate) {
+					options = { ...options, sessionTemplate: await captureTemplate() };
+				}
+				mutationGuard?.();
 				const target: ISavedSessionDraftTarget = {
 					providerId: options.target.providerId,
 					sessionTypeId: options.target.sessionTypeId,
@@ -517,21 +576,25 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 				const automation = retry ? await this.retryHandoff(handoff, guard) : await this.submitHandoff(handoff, false, guard);
 				return { status: 'accepted', automation };
 			} catch (error) {
-				const saved = this.readHandoffs().find(candidate => candidate.id === handoff.id)!;
+				const saved = this.readHandoffs().find(candidate => candidate.id === handoff.id);
+				const receipt = !saved && this.readReceipts().find(receipt => receipt.operationId === operationId);
+				if (receipt) {
+					return this.acceptedRequest(receipt.automationId);
+				}
 				if (!retry && !dispatchAuthorized) {
 					this.removeHandoff(handoff.id);
 					throw error;
 				}
-				return { status: 'unknown', pending: this.toPendingRequest(saved), message: error instanceof Error ? error.message : String(error) };
+				if (saved?.automationId) {
+					return this.acceptedRequest(saved.automationId);
+				}
+				return { status: 'unknown', pending: this.toPendingRequest(saved ?? handoff), message: error instanceof Error ? error.message : String(error) };
 			}
 		});
 	}
 
 	getPendingRequests(): readonly IPendingScheduledChatRequest[] {
-		const automations = this.automationService.automations.get();
-		return this.readHandoffs().filter(handoff => handoff.toolOperationId && !handoff.automationId
-			&& !automations.some(automation => automation.target.providerId === handoff.target.providerId
-				&& (automation.id === handoff.requestedAutomationId || automation.creationId === handoff.id)))
+		return this.readHandoffs().filter(handoff => handoff.toolOperationId && !handoff.automationId)
 			.map(handoff => this.toPendingRequest(handoff));
 	}
 
@@ -589,7 +652,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			this.assertEnabled();
 			if (!this.automationsEnabled.get() || !this.automationService.canCreateAutomation(handoff.target.providerId) || !this.availableProviders.get().some(provider => provider.id === handoff.target.providerId && provider.supportsOneTimeAutomation && (!handoff.conversation || provider.supportsExistingChatAutomation))
 				|| (!retry && Date.parse(handoff.schedule.runAt!) <= Date.now())) {
-				throw new Error(localize('sendLater.noLongerAvailable', "The scheduled time has passed or Send Later is no longer available. Your input has been kept."));
+				throw new AutomationUnavailableError(localize('sendLater.noLongerAvailable', "The scheduled time has passed or Send Later is no longer available. Your input has been kept."));
 			}
 			mutationGuard?.();
 		};
@@ -867,6 +930,11 @@ function captureChatInput(widget: IChatWidget): IChatDraft {
 		attachments: widget.input.getAttachedContext().asArray(),
 		references: [...getDynamicVariablesForWidget(widget)],
 	}))));
+}
+
+function equalScheduledTargets(a: AutomationTarget, b: AutomationTarget): boolean {
+	return a.kind === b.kind && a.providerId === b.providerId && a.sessionTypeId === b.sessionTypeId
+		&& (a.kind === 'quickChat' || b.kind === 'workspace' && isEqual(a.folderUri, b.folderUri) && equals(a.isolation, b.isolation));
 }
 
 function formatTime(value: string | undefined): string {

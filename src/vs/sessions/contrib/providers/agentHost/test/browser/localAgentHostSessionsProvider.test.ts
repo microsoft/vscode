@@ -16775,30 +16775,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 		const session = provider.getSessions().find(session => session.title.get() === 'Capture Running')!;
 		provider.getSessionOwnConfig(session.sessionId);
-		const unresolved = await provider.getAutomationSessionConfiguration(session.sessionId);
+		let resolved = false;
+		const capture = provider.getAutomationSessionConfiguration(session.sessionId).then(value => {
+			resolved = true;
+			return value;
+		});
 		const config: SessionConfigState = {
 			schema: {
 				type: 'object', properties: {
-					autoApprove: { type: 'string', title: 'Approvals' },
+					autoApprove: { type: 'string', title: 'Approvals', chatMutable: true },
 					isolation: { type: 'string', title: 'Isolation' },
 					mode: { type: 'string', title: 'Mode' },
 				},
 			},
-			values: { autoApprove: 'default', isolation: 'worktree', mode: 'plan' },
+			values: { autoApprove: 'autoApprove', isolation: 'worktree', mode: 'plan' },
 		};
 		const chat = { resource: 'ahp-chat:/captured-main', title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
 		const model = { id: 'test-model', config: { reasoningEffort: 'high' } };
-		agentHost.setChatState(chat.resource, { ...chat, turns: [], draft: { text: '', origin: { kind: MessageKind.User }, model } });
 		agentHost.setSessionState('capture-running', 'copilotcli', {
 			provider: 'copilotcli', title: 'Capture Running', status: ProtocolSessionStatus.Idle,
 			lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat: chat.resource, chats: [chat], config,
 		});
-		await waitForSessionConfig(provider, session, value => value?.values.mode === 'plan');
-		const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+		await timeout(0);
+		const resolvedBeforeChat = resolved;
+		agentHost.setChatState(chat.resource, { ...chat, turns: [], config: { values: { autoApprove: 'default' } }, draft: { text: '', origin: { kind: MessageKind.User }, model } });
+		const captured = await capture;
 		config.values.mode = 'agent';
 		model.config.reasoningEffort = 'low';
-		assert.deepStrictEqual({ unresolved, template: captured?.sessionTemplate }, {
-			unresolved: undefined,
+		assert.deepStrictEqual({ resolvedBeforeChat, template: captured?.sessionTemplate }, {
+			resolvedBeforeChat: false,
 			template: {
 				modelId: 'agent-host-copilotcli:test-model', modelConfiguration: { reasoningEffort: 'high' },
 				config: { autoApprove: 'default', mode: 'plan' },

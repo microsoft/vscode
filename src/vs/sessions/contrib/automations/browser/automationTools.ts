@@ -374,14 +374,14 @@ export class RunAutomationTool implements IToolImpl {
 			return automationUnknownOutcome(dispatch.message, automation);
 		}
 
-		const queued = !!automation.conversation && dispatch.run.status === 'completed';
+		const queued = dispatch.kind === 'queued';
 		const result = automationToolResult(JSON.stringify({
 			status: queued ? 'queued' : 'started',
 			automation: { id: automation.id, name: automation.name },
 			run: {
 				id: dispatch.run.id,
 				status: dispatch.run.status,
-				sessionResource: dispatch.sessionResource.toString(),
+				...(dispatch.kind === 'started' ? { sessionResource: dispatch.sessionResource.toString() } : {}),
 			},
 		}, undefined, 2));
 		result.toolResultMessage = queued
@@ -703,7 +703,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		}
 		let proposal: IAutomationProposal;
 		try {
-			proposal = this.parseProposal(context.parameters, context.chatSessionResource, context.originatingChatResource);
+			proposal = this.parseProposal(context.parameters, context.chatSessionResource, context.originatingChatResource, context.toolCallId);
 		} catch (error) {
 			logAutomationConfigureOutcome(this.telemetryService, 'unknown', error instanceof AutomationToolInputError ? 'blocked' : 'failed');
 			throw error;
@@ -772,7 +772,7 @@ The change uses the current tool-approval policy. When approval is required, the
 
 		let proposal: IAutomationProposal;
 		try {
-			proposal = this.parseProposal(invocation.parameters, invocation.context?.sessionResource, invocation.originatingChatResource);
+			proposal = this.parseProposal(invocation.parameters, invocation.context?.sessionResource, invocation.originatingChatResource, invocation.callId);
 		} catch (error) {
 			if (error instanceof AutomationToolInputError) {
 				return this.completeOperation('unknown', automationToolError(error.message));
@@ -844,16 +844,13 @@ The change uses the current tool-approval policy. When approval is required, the
 			if (!origin) {
 				throw new AutomationToolInputError('One-time scheduling requires an authoritative originating chat.');
 			}
-			if (captureSession) {
-				const configuration = await this.sessionsManagementService.getAutomationSessionConfiguration(captureSession);
-				if (!configuration) {
-					throw new AutomationToolInputError('The current session configuration is not ready. No request was scheduled.');
-				}
-				options = { ...options, sessionTemplate: configuration.sessionTemplate };
-			}
+			const operationId = scheduledRequestOperationId(origin, invocation.callId);
 			const guard = () => {
 				this.createMutationGuard(token)();
 				this.assertSchedulingAvailable(options.target, options.conversation);
+				if (Date.parse(options.schedule.runAt!) <= Date.now() && !this.scheduledChatsService.hasRequest(operationId)) {
+					throw new AutomationToolInputError('Choose a future send time.');
+				}
 				if (options.conversation) {
 					const current = this.sessionsManagementService.getSessionForChatResource(origin);
 					if (!current || !isEqual(current.session.resource, options.conversation.sessionResource)
@@ -863,7 +860,13 @@ The change uses the current tool-approval policy. When approval is required, the
 				}
 			};
 			guard();
-			const submission = await this.scheduledChatsService.scheduleRequest(options, JSON.stringify([getComparisonKey(origin), invocation.callId]), guard);
+			const submission = await this.scheduledChatsService.scheduleRequest(options, operationId, guard, captureSession ? async () => {
+				const configuration = await this.sessionsManagementService.getAutomationSessionConfiguration(captureSession);
+				if (!configuration) {
+					throw new AutomationToolInputError('The current session configuration is not ready. No request was scheduled.');
+				}
+				return configuration.sessionTemplate;
+			} : undefined);
 			if (submission.status === 'unknown') {
 				const result = automationToolResult(JSON.stringify({
 					status: 'unknown', ...submission.pending, conversation: serializeConversation(submission.pending.conversation),
@@ -973,7 +976,7 @@ The change uses the current tool-approval policy. When approval is required, the
 		}
 	}
 
-	private parseProposal(parameters: unknown, sessionResource: URI | undefined, originatingChatResource?: URI): IAutomationProposal {
+	private parseProposal(parameters: unknown, sessionResource: URI | undefined, originatingChatResource: URI | undefined, toolCallId: string): IAutomationProposal {
 		const rawInput = parameters;
 		if (!isRecord(rawInput)) {
 			throw new AutomationToolInputError('configureAutomation input must be an object.');
@@ -1034,6 +1037,9 @@ The change uses the current tool-approval policy. When approval is required, the
 		if (schedule?.interval === 'once' && !existing) {
 			if (!originatingChatResource) {
 				throw new AutomationToolInputError('One-time scheduling requires an authoritative originating chat.');
+			}
+			if (Date.parse(schedule.runAt!) <= Date.now() && !this.scheduledChatsService.hasRequest(scheduledRequestOperationId(originatingChatResource, toolCallId))) {
+				throw new AutomationToolInputError('Choose a future send time.');
 			}
 			if (enabled === false) {
 				throw new AutomationToolInputError('One-time requests must be enabled when created.');
@@ -1426,6 +1432,10 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 
 function serializeConversation(conversation: IAutomationDescriptor['conversation']): IAutomationToolOutput['conversation'] {
 	return conversation ? { sessionResource: conversation.sessionResource.toString(), chatResource: conversation.chatResource.toString() } : undefined;
+}
+
+function scheduledRequestOperationId(origin: URI, callId: string): string {
+	return JSON.stringify([getComparisonKey(origin), callId]);
 }
 
 function getUncertainAutomationRun(automation: IAutomationDescriptor, automationService: IAutomationService): string | undefined {
