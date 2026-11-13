@@ -367,7 +367,7 @@ suite('Artifact Integration Presentation', () => {
 			const presentation = store.add(instantiation.createInstance(ArtifactIntegrationPresentation, model, reader => chat.read(reader), controller));
 			const copy = store.add(new Action('copy', 'Copy Link', 'codicon codicon-copy', true, async () => { shellActions++; }));
 			const remove = store.add(new Action('remove', 'Remove Artifact', 'codicon codicon-close', true, async () => { shellActions++; }));
-			const base: IChatPillEntry = { id, label: `Recorded ${id}`, toolbarActions: [copy, remove], open: () => { resourceOpens++; } };
+			const base: IChatPillEntry = { id, label: `Recorded ${id}`, toolbarActions: [copy], promotedAction: remove, open: () => { resourceOpens++; } };
 			const entry = derived(reader => presentation.decorate(base, reader));
 			const container = append(actions, $('.action-item'));
 			const item = entry.get().inlinePill!.createActionViewItem!({});
@@ -614,7 +614,7 @@ suite('Artifact Integration Presentation', () => {
 				hiddenAfter: panel.querySelector<HTMLElement>('.artifact-activities')?.hidden,
 				headerActions: [...panel.querySelectorAll('.artifact-header-actions [role="button"]')].map(element => element.getAttribute('aria-label')),
 				focus: getActiveElement() === panel,
-			}, { hiddenBefore: true, collapsed: 'false', lazy: 0, reopened: 'true', hiddenAfter: true, headerActions: ['Copy Link', 'Remove Artifact', 'Close Artifact Details'], focus: true });
+			}, { hiddenBefore: true, collapsed: 'false', lazy: 0, reopened: 'true', hiddenAfter: true, headerActions: ['Copy Link', 'Close Artifact Details'], focus: true });
 		});
 
 		for (const count of [1, 20]) {
@@ -1061,14 +1061,13 @@ suite('Artifact Integration Presentation', () => {
 		}, { beforeDelay: undefined, firstShown: true, sectionShownImmediately: true });
 	}));
 
-	test('whole-artifact details show the full title, which navigates, and shell actions remain available', async () => {
+	test('whole-artifact details show the full title, which navigates, and shell actions other than Remove remain available', async () => {
 		const f = fixture();
 		const a = f.artifact();
 		const panel = await open(f, a);
 		const before = a.counts();
 		panel.querySelector<HTMLElement>('.artifact-details-title-link')!.click();
 		button(panel, 'Copy Link').click();
-		button(panel, 'Remove Artifact').click();
 		await settle(f);
 		assert.deepStrictEqual({
 			before, after: a.counts(), title: panel.querySelector('h2')?.textContent,
@@ -1081,11 +1080,11 @@ suite('Artifact Integration Presentation', () => {
 			headerIcons: [...panel.querySelectorAll('.artifact-header-actions [role="button"] .codicon')].map(icon => [...icon.classList].find(name => name.startsWith('codicon-'))),
 			footer: panel.querySelector('.artifact-general-actions'),
 		}, {
-			before: { resourceOpens: 0, shellActions: 0 }, after: { resourceOpens: 1, shellActions: 2 },
+			before: { resourceOpens: 0, shellActions: 0 }, after: { resourceOpens: 1, shellActions: 1 },
 			title: 'Full title for artifact', description: 'The actual resource description.',
 			selected: true, expanded: 'true', controls: f.controller.id, rootId: f.controller.id, acquired: ['main', 'checks', 'comments'],
-			headerActions: ['Copy Link', 'Remove Artifact', 'Close Artifact Details'], headerText: ['', '', ''],
-			headerIcons: ['codicon-copy', 'codicon-trash', 'codicon-close'], footer: null,
+			headerActions: ['Copy Link', 'Close Artifact Details'], headerText: ['', ''],
+			headerIcons: ['codicon-copy', 'codicon-close'], footer: null,
 		});
 	});
 
@@ -1119,9 +1118,9 @@ suite('Artifact Integration Presentation', () => {
 		await settle(f);
 		layout.push(measure());
 		assert.deepStrictEqual(layout, [
-			{ count: 3, actionsBelowTitle: false, iconBesideTitle: true, actionRows: 1, withinHeader: true },
-			{ count: 3, actionsBelowTitle: true, iconBesideTitle: true, actionRows: 1, withinHeader: true },
-			{ count: 6, actionsBelowTitle: true, iconBesideTitle: true, actionRows: 2, withinHeader: true },
+			{ count: 2, actionsBelowTitle: false, iconBesideTitle: true, actionRows: 1, withinHeader: true },
+			{ count: 2, actionsBelowTitle: true, iconBesideTitle: true, actionRows: 1, withinHeader: true },
+			{ count: 5, actionsBelowTitle: true, iconBesideTitle: true, actionRows: 2, withinHeader: true },
 		]);
 	});
 
@@ -1162,23 +1161,23 @@ suite('Artifact Integration Presentation', () => {
 	test('header general actions are icon-only and name the full action and any reason in their hover', async () => {
 		const f = fixture();
 		const a = f.artifact();
-		const remove = a.base.toolbarActions![1];
-		remove.label = 'Remove Artifact Full title for artifact from Session';
-		withChatPillHoverLabel(remove, 'Remove Artifact');
+		const copy = a.base.toolbarActions![0];
+		copy.label = 'Copy Link to Full title for artifact';
+		withChatPillHoverLabel(copy, 'Copy Link');
 		updateContribution(a, c => ({ ...c, view: { ...c.view, stateActions: [], generalActions: [{ id: 'merge', enabled: false, disabledReason: 'Checks must pass.' }] } }));
 		const panel = await open(f, a);
 		const hover = (element: HTMLElement) => {
 			const options = f.hovers.get(element);
 			return (typeof options === 'function' ? options() : options)?.content;
 		};
-		const removeButton = button(panel, 'Remove Artifact Full title for artifact from Session');
+		const copyButton = button(panel, 'Copy Link to Full title for artifact');
 		const mergeButton = button(panel, 'Merge. Checks must pass.');
 		assert.deepStrictEqual({
-			text: [removeButton.textContent, mergeButton.textContent],
-			hovers: [hover(removeButton), hover(mergeButton)],
+			text: [copyButton.textContent, mergeButton.textContent],
+			hovers: [hover(copyButton), hover(mergeButton)],
 		}, {
 			text: ['', ''],
-			hovers: ['Remove Artifact Full title for artifact from Session', 'Merge. Checks must pass.'],
+			hovers: ['Copy Link to Full title for artifact', 'Merge. Checks must pass.'],
 		});
 	});
 
@@ -2296,7 +2295,7 @@ suite('Artifact Integration Presentation', () => {
 			}, {
 				normal: 'rgb(51, 51, 51)', hovered: 'rgb(0, 102, 204)', retainedFocus: true, retainedLink: true, opens: 2,
 				text: '<em>Updated title</em>', href: 'https://example.test/updated', nativeLink: true, htmlChildren: ['SPAN'], heading: 'H2', wrappedFocus: true,
-				headerActions: ['Copy Link', 'Remove Artifact', 'Close Artifact Details'],
+				headerActions: ['Copy Link', 'Close Artifact Details'],
 			});
 		});
 
