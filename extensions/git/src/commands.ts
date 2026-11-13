@@ -243,7 +243,7 @@ class WorktreeItem implements QuickPickItem {
 	constructor(readonly worktree: Worktree) { }
 }
 
-class WorktreeDeleteItem extends WorktreeItem {
+class WorktreeDetailsItem extends WorktreeItem {
 	override get description(): string | undefined {
 		if (!this.worktree.commitDetails) {
 			return undefined;
@@ -263,7 +263,22 @@ class WorktreeDeleteItem extends WorktreeItem {
 	constructor(worktree: Worktree, private readonly shortCommitLength: number) {
 		super(worktree);
 	}
+}
 
+class WorktreeOpenItem extends WorktreeDetailsItem {
+	override get description(): string | undefined {
+		return coalesce([
+			this.isCurrent ? `$(check)` : undefined,
+			super.description
+		]).join(' ');
+	}
+
+	constructor(worktree: Worktree, shortCommitLength: number, private readonly isCurrent: boolean) {
+		super(worktree, shortCommitLength);
+	}
+}
+
+class WorktreeDeleteItem extends WorktreeDetailsItem {
 	async run(mainRepository: Repository): Promise<void> {
 		if (!this.worktree.path) {
 			return;
@@ -3758,9 +3773,9 @@ export class CommandCenter {
 		const choice = await window.showWarningMessage(message, { modal: true }, openWorktree, openWorktreeInNewWindow);
 
 		if (choice === openWorktree) {
-			await this.openWorktreeInCurrentWindow(worktreeRepository);
+			await this._openWorktreeFolder(worktreeRepository.root, false);
 		} else if (choice === openWorktreeInNewWindow) {
-			await this.openWorktreeInNewWindow(worktreeRepository);
+			await this._openWorktreeFolder(worktreeRepository.root, true);
 		}
 		return;
 	}
@@ -3802,22 +3817,55 @@ export class CommandCenter {
 
 	@command('git.openWorktree', { repository: true })
 	async openWorktreeInCurrentWindow(repository: Repository): Promise<void> {
-		if (!repository) {
-			return;
-		}
-
-		const uri = Uri.file(repository.root);
-		await commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
+		await this._openWorktree(repository, false);
 	}
 
 	@command('git.openWorktreeInNewWindow', { repository: true })
 	async openWorktreeInNewWindow(repository: Repository): Promise<void> {
+		await this._openWorktree(repository, true);
+	}
+
+	private async _openWorktree(repository: Repository, newWindow: boolean): Promise<void> {
 		if (!repository) {
 			return;
 		}
 
-		const uri = Uri.file(repository.root);
-		await commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
+		// A worktree that was detected as a separate repository in this window
+		// (`git.detectWorktrees`) is opened directly. Otherwise, let the user pick
+		// one of the repository's worktrees (including the main worktree).
+		if (repository.kind === 'worktree' && !this.isRepositoryOpenInWindow(repository)) {
+			await this._openWorktreeFolder(repository.root, newWindow);
+			return;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
+		const commitShortHashLength = config.get<number>('commitShortHashLength') ?? 7;
+
+		const worktreePicks = async (): Promise<WorktreeOpenItem[] | QuickPickItem[]> => {
+			const worktrees = await repository.getWorktreeDetails();
+
+			return worktrees.every(worktree => worktree.main)
+				? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+				: worktrees.map(worktree => new WorktreeOpenItem(worktree, commitShortHashLength, pathEquals(worktree.path, repository.root)));
+		};
+
+		const placeHolder = l10n.t('Select a worktree to open');
+		const choice = await this.pickRef<WorktreeOpenItem | QuickPickItem>(worktreePicks(), placeHolder);
+
+		if (!(choice instanceof WorktreeOpenItem)) {
+			return;
+		}
+
+		await this._openWorktreeFolder(choice.worktree.path, newWindow);
+	}
+
+	private isRepositoryOpenInWindow(repository: Repository): boolean {
+		return (workspace.workspaceFolders ?? []).some(folder => isDescendant(repository.root, folder.uri.fsPath));
+	}
+
+	private async _openWorktreeFolder(worktreePath: string, newWindow: boolean): Promise<void> {
+		const options = newWindow ? { forceNewWindow: true } : { forceReuseWindow: true };
+		await commands.executeCommand('vscode.openFolder', Uri.file(worktreePath), options);
 	}
 
 	@command('git.graph.deleteTag', { repository: true })
