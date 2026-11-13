@@ -164,6 +164,13 @@ suite('Sessions presentation entry isolation', () => {
 				'src/vs/sessions/contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.ts',
 				mobilePresentationRoot + 'mobile.contribution.ts',
 			].filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
+			const worktreePresentation = [
+				'worktreeSuggestionController.ts',
+				'worktreeSuggestionInputPresentation.ts',
+				'worktreeSuggestionIsolationPicker.ts',
+				'worktreeSuggestionService.ts',
+				'media/worktreeSuggestion.css',
+			].map(file => 'src/vs/workbench/contrib/sessions/browser/worktreeSuggestion/' + file);
 			assert.deepStrictEqual({
 				workingSet: registrations.filter(([id]) => id === 'ISessionEditorWorkingSetService'),
 				screenshot: registrations.filter(([id]) => id === 'IScreenshotToolService'),
@@ -171,13 +178,15 @@ suite('Sessions presentation entry isolation', () => {
 				desktopLayout: dependencies.has('src/vs/sessions/contrib/layout/browser/desktopLayoutController.ts'),
 				desktopScreenshot: dependencies.has('src/vs/workbench/contrib/screenshotTool/browser/screenshotToolService.ts'),
 				worktreeContribution: dependencies.has('src/vs/sessions/contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.ts'),
+				worktreePresentation: worktreePresentation.filter(file => dependencies.has(file)),
 			}, {
 				workingSet: [['ISessionEditorWorkingSetService', 'SessionEditorWorkingSetService']],
 				screenshot: [['IScreenshotToolService', mobile ? 'MobileNullScreenshotToolService' : 'ScreenshotToolService']],
-				worktreeSuggestion: [['IWorktreeSuggestionService', mobile ? 'MobileNullWorktreeSuggestionService' : 'WorktreeSuggestionService']],
+				worktreeSuggestion: mobile ? [] : [['IWorktreeSuggestionService', 'WorktreeSuggestionService']],
 				desktopLayout: !mobile,
 				desktopScreenshot: !mobile,
 				worktreeContribution: !mobile,
+				worktreePresentation: mobile ? [] : worktreePresentation,
 			});
 		});
 

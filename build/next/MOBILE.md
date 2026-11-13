@@ -42,6 +42,11 @@ implementations and clipboard registration are also rejected. The mobile entry
 selects its own implementations; their shared contracts and behavior remain
 available.
 
+Worktree-suggestion presentation, service, and styles are rejected too. Shared
+inputs and configuration pickers accept this capability from the selecting
+entry rather than requiring an unsupported mobile service. Provider
+configuration writes remain shared.
+
 Mobile does not include chat-background controls, settings, rendering, tinting
 or built-in background-generation tools. Its resource list is
 independent of the common workbench list, so background images, including both
