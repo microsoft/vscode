@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -168,12 +169,21 @@ suite('WorkspaceTrustRequestHandler', () => {
 			new class extends mock<IFileService>() { override async exists() { return false; } }
 		));
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
-		startup.fire();
-		await prompted.p;
+		// The startup prompt warns when the product has no AI-generated workspace trust contents
+		const consoleWarn = stub(console, 'warn');
+		let warnings: unknown[][] = [];
+		try {
+			startup.fire();
+			await prompted.p;
+		} finally {
+			warnings = consoleWarn.args;
+			consoleWarn.restore();
+		}
 
-		assert.deepStrictEqual({ checkboxes, labelled }, {
+		assert.deepStrictEqual({ checkboxes, labelled, warnings }, {
 			checkboxes: ['Trust the authors of all files in the parent folder \'checkouts\''],
-			labelled: ['/external/checkouts/feature']
+			labelled: ['/external/checkouts/feature'],
+			warnings: [['AI generated workspace trust dialog contents not available.']]
 		});
 	});
 });
