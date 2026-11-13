@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, isAncestor, size, trackFocus } from '../../../../../base/browser/dom.js';
+import { $, append, getWindow, isAncestor, size, trackFocus } from '../../../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -187,6 +187,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	constructor(
 		private readonly _hostOptions: ISessionViewHostOptions | undefined,
+		/** Whether the document of a window has focus; injectable for tests. */
+		private readonly _hasWindowFocus: (targetWindow: Window) => boolean = targetWindow => targetWindow.document.hasFocus(),
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -451,7 +453,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let view = this._currentView.value;
 			const replacingView = !view || view.kind !== desiredKind;
 			// Swapping the view detaches the focused element and drops focus, so give it to the new view.
-			const restoreFocus = replacingView && isAncestor(this._contentContainer.ownerDocument.activeElement, this._contentContainer);
+			// A document keeps its last active element while another window is focused, so require window focus too.
+			const restoreFocus = replacingView
+				&& isAncestor(this._contentContainer.ownerDocument.activeElement, this._contentContainer)
+				&& this._hasWindowFocus(getWindow(this._contentContainer));
 			if (!view || replacingView) {
 				view = desiredKind === 'chat'
 					? this._chatViewFactory.createChatView(this._chatViewInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
