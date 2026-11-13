@@ -7,6 +7,7 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
@@ -28,11 +29,13 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { enumerateLocalCustomizationsForHarness } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatNativeComponentsRenderer, registerChatNativeComponentsRenderer } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ICustomizationSyncProvider } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { PromptsConfig } from '../../../../../workbench/contrib/chat/common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { ILocalPromptPath, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptPath, PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptFilesLocator } from '../../../../../workbench/contrib/chat/common/promptSyntax/utils/promptFilesLocator.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
@@ -42,16 +45,17 @@ import { GetThemeColorsTool } from '../../browser/getThemeColorsTool.js';
 import { ScreenshotWindowTool } from '../../browser/screenshotWindowTool.js';
 import { AgenticPromptsService, BUILTIN_SKILLS_URI } from '../../browser/promptsService.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import '../../browser/chat.contribution.js';
+import '../../browser/chatBackground.contribution.js';
 
 const appearanceToolsProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING];
 
 suite('Sessions - Appearance tools', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function setup(enabled: boolean, workspaceSkill = false) {
+	async function setup(enabled: boolean, overrideSkill?: { name: string; storage: PromptsStorage.local | PromptsStorage.user }, htmlPreviewEnabled = false) {
 		const configuration = new TestConfigurationService({
 			[AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: enabled,
+			[ChatConfiguration.HtmlPreviewEnabled]: htmlPreviewEnabled,
 			[PromptsConfig.USE_AGENT_SKILLS]: true,
 		});
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
@@ -68,25 +72,29 @@ suite('Sessions - Appearance tools', () => {
 			contextKeyService: () => context,
 		}, disposables);
 		instantiationService.stub(IAgentPluginService, { plugins: constObservable([]) });
-		const localSkills: ILocalPromptPath[] = workspaceSkill ? [{
-			uri: joinPath(BUILTIN_SKILLS_URI, '../../test-workspace/.github/skills/generate-chat-background/SKILL.md'),
-			name: 'generate-chat-background',
-			storage: PromptsStorage.local,
-			type: PromptsType.skill,
-			source: PromptFileSource.ConfigWorkspace,
-		}] : [];
+		const localSkills: (IPromptPath & { source: PromptFileSource })[] = [];
+		if (overrideSkill) {
+			const metadata = {
+				uri: joinPath(BUILTIN_SKILLS_URI, '../../test-workspace/.github/skills', overrideSkill.name, 'SKILL.md'),
+				name: overrideSkill.name,
+				type: PromptsType.skill,
+			};
+			localSkills.push(overrideSkill.storage === PromptsStorage.local
+				? { ...metadata, storage: PromptsStorage.local, source: PromptFileSource.ConfigWorkspace }
+				: { ...metadata, storage: PromptsStorage.user, source: PromptFileSource.ConfigPersonal });
+		}
 		instantiationService.stubInstance(PromptFilesLocator, {
 			createFilesUpdatedEvent: () => ({ event: Event.None, dispose: () => { } }),
 			createAgentInstructionsUpdatedEvent: () => ({ event: Event.None, dispose: () => { } }),
 			getSourceFoldersInDiscoveryOrder: async () => [],
-			listFilesWithSource: async (type, storage) => type === PromptsType.skill && storage === PromptsStorage.local
-				? localSkills.map(({ uri }) => ({ uri, source: PromptFileSource.ConfigWorkspace }))
+			listFilesWithSource: async (type, storage) => type === PromptsType.skill
+				? localSkills.filter(skill => skill.storage === storage).map(({ uri, source }) => ({ uri, source }))
 				: [],
 			findAgentSkills: async () => localSkills,
 		});
 		await Promise.all([
-			...['automate', 'commit', 'generate-chat-background'].map(name => ({ name, uri: joinPath(BUILTIN_SKILLS_URI, name, 'SKILL.md') })),
-			...localSkills.map(skill => ({ name: 'generate-chat-background', uri: skill.uri })),
+			...['automate', 'commit', 'generate-chat-background', 'html-preview', 'vscode-ui'].map(name => ({ name, uri: joinPath(BUILTIN_SKILLS_URI, name, 'SKILL.md') })),
+			...localSkills.map(skill => ({ name: skill.name, uri: skill.uri })),
 		].map(({ name, uri }) => files.writeFile(uri, VSBuffer.fromString(`---\nname: ${name}\ndescription: A test skill.\n---\nTest instructions.`))));
 
 		const service = disposables.add(instantiationService.createInstance(AgenticPromptsService));
@@ -108,8 +116,79 @@ suite('Sessions - Appearance tools', () => {
 			builtinFiles: (await service.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None)).map(file => file.name).sort(),
 			forwarded: (await enumerateLocalCustomizationsForHarness(service, syncProvider, 'agent-host-copilot', CancellationToken.None, undefined)).map(file => basename(dirname(file.uri))).sort(),
 		});
-		return { service, configuration, context, instantiationService, setEnabled: (value: boolean) => setSetting(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, value), setSetting, snapshot };
+		return { service, configuration, context, instantiationService, syncProvider, setEnabled: (value: boolean) => setSetting(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, value), setSetting, snapshot };
 	}
+
+	for (const initiallyEnabled of [false, true]) {
+		test(`the html-preview skill follows HTML and AI settings across all discovery surfaces (initially enabled: ${initiallyEnabled})`, async () => {
+			const fixture = await setup(false, undefined, initiallyEnabled);
+			const visible = async () => Object.fromEntries(Object.entries(await fixture.snapshot()).map(([key, names]) => [key, names?.includes('html-preview') === true]));
+			const snapshots = [await visible()];
+			await fixture.setSetting(ChatConfiguration.HtmlPreviewEnabled, !initiallyEnabled);
+			snapshots.push(await visible());
+			await fixture.setSetting(ChatConfiguration.HtmlPreviewEnabled, true);
+			snapshots.push(await visible());
+			await fixture.setSetting(ChatAIDisabledSettingId, true);
+			snapshots.push(await visible());
+			await fixture.setSetting(ChatAIDisabledSettingId, false);
+			snapshots.push(await visible());
+			assert.deepStrictEqual(snapshots, [initiallyEnabled, !initiallyEnabled, true, false, true].map(enabled => ({
+				skills: enabled, slashCommands: enabled, allFiles: enabled, builtinFiles: enabled, forwarded: enabled,
+			})));
+		});
+	}
+
+	test('the vscode-ui skill is offered only where native components render, following their setting and AI enablement', async () => {
+		const fixture = await setup(false, undefined, true);
+		const visible = async () => Object.fromEntries(Object.entries(await fixture.snapshot()).map(([key, names]) => [key, names?.includes('vscode-ui') === true]));
+		await fixture.setSetting(ChatConfiguration.NativeComponentsEnabled, true);
+		// An entry without the renderer, such as the phone bundle, would show the skill's blocks as source.
+		const snapshots = [await visible()];
+		disposables.add(registerChatNativeComponentsRenderer(upcastPartial<IChatNativeComponentsRenderer>({})));
+		for (const [setting, value] of [
+			[ChatConfiguration.NativeComponentsEnabled, false],
+			[ChatConfiguration.NativeComponentsEnabled, true],
+			[ChatConfiguration.HtmlPreviewEnabled, false],
+			[ChatAIDisabledSettingId, true],
+			[ChatAIDisabledSettingId, false],
+		] as const) {
+			await fixture.setSetting(setting, value);
+			snapshots.push(await visible());
+		}
+		assert.deepStrictEqual(snapshots, [false, false, true, true, false, true].map(offered => ({
+			skills: offered, slashCommands: offered, allFiles: offered, builtinFiles: offered, forwarded: offered,
+		})));
+	});
+
+	for (const storage of [PromptsStorage.local, PromptsStorage.user] as const) {
+		test(`an html-preview ${storage} override takes precedence without being removed by the rendering setting`, async () => {
+			const fixture = await setup(false, { name: 'html-preview', storage }, true);
+			const origins = async () => (await fixture.service.findAgentSkills(CancellationToken.None))?.filter(skill => skill.name === 'html-preview').map(skill => skill.storage);
+			const enabled = await origins();
+			await fixture.setSetting(ChatConfiguration.HtmlPreviewEnabled, false);
+			assert.deepStrictEqual({ enabled, disabled: await origins() }, { enabled: [storage], disabled: [storage] });
+		});
+	}
+
+	test('the html-preview skill preserves user disablement when preview rendering is toggled', async () => {
+		const fixture = await setup(false, undefined, true);
+		const uri = joinPath(BUILTIN_SKILLS_URI, 'html-preview', 'SKILL.md');
+		const forwarded = async () => (await enumerateLocalCustomizationsForHarness(fixture.service, fixture.syncProvider, 'agent-host-copilot', CancellationToken.None, undefined))
+			.filter(file => basename(dirname(file.uri)) === 'html-preview')
+			.map(file => ({ uri: file.uri.toString(), disabled: file.disabled }));
+		const enabled = await forwarded();
+		fixture.service.setDisabledPromptFiles(PromptsType.skill, new ResourceSet([uri]));
+		const disabled = await forwarded();
+		await fixture.setSetting(ChatConfiguration.HtmlPreviewEnabled, false);
+		const hidden = await forwarded();
+		await fixture.setSetting(ChatConfiguration.HtmlPreviewEnabled, true);
+		assert.deepStrictEqual({ enabled, disabled, hidden, reenabled: await forwarded() }, {
+			enabled: [{ uri: uri.toString(), disabled: false }],
+			disabled: [{ uri: uri.toString(), disabled: true }],
+			hidden: [],
+			reenabled: [{ uri: uri.toString(), disabled: true }],
+		});
+	});
 
 	test('the automate skill follows automation and AI enablement across discovery, slash commands, and harness sync', async () => {
 		const fixture = await setup(false);
@@ -162,7 +241,7 @@ suite('Sessions - Appearance tools', () => {
 	}
 
 	test('does not suppress a workspace skill with the same name', async () => {
-		const t = await setup(false, true);
+		const t = await setup(false, { name: 'generate-chat-background', storage: PromptsStorage.local });
 		const getOrigin = async () => (await t.service.findAgentSkills(CancellationToken.None))?.find(skill => skill.name === 'generate-chat-background')?.storage;
 		const disabledOrigin = await getOrigin();
 		await t.setEnabled(true);

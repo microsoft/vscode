@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { OS } from '../../../../base/common/platform.js';
 import { AgentHostFileSystemProvider, type IRemoteFilesystemConnection } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostLabelFormatter, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IBrowserResourceService } from '../../../../platform/files/common/browserResourceService.js';
@@ -59,10 +58,7 @@ class AgentHostFileSystemService extends Disposable implements IAgentHostFileSys
 		const searchProvider = this._register(instantiationService.createInstance(FileSystemFileSearchProvider));
 		this._register(searchService.registerSearchResultProvider(AGENT_HOST_SCHEME, SearchProviderType.file, searchProvider));
 
-		// Two formatters: the scheme-wide fallback for hosts whose operating
-		// system is unknown, and a more specific one for the in-process host.
 		this._register(labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
-		this._register(labelService.registerFormatter(agentHostLabelFormatter(LOCAL_AGENT_HOST_AUTHORITY, OS)));
 	}
 
 	registerAuthority(authority: string, connection: IRemoteFilesystemConnection): IDisposable {

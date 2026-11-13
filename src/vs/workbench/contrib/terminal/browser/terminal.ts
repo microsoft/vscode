@@ -436,6 +436,8 @@ export interface IDetachedXTermOptions {
 	capabilities?: ITerminalCapabilityStore & IDisposable;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
+	/** Whether to disable shell integration activation timeout reporting. */
+	disableShellIntegrationReporting?: boolean;
 	disableOverviewRuler?: boolean;
 	/** The rows of scrollback to keep, overriding the `terminal.integrated.scrollback` setting. */
 	scrollback?: number;
@@ -1592,6 +1594,9 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 */
 	write(data: string | Uint8Array, callback?: () => void): void;
 
+	/** Registers a handler for an OSC sequence, returning a disposable to remove it. */
+	registerOscHandler(ident: number, callback: (data: string) => boolean | Promise<boolean>): IDisposable;
+
 	/**
 	 * Resizes the terminal.
 	 */
@@ -1636,7 +1641,7 @@ export interface IInternalXtermTerminal {
 	 * **WARNING:** This should never be used outside of the terminal component and only for
 	 * developer purposed inside the terminal component.
 	 */
-	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
+	_writeText(data: string): void; // eslint-disable-line ts-eslint-js/naming-convention
 }
 
 export interface IXtermColorProvider {

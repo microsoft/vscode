@@ -79,7 +79,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.RemoveArtifactOrReference,
 		title: 'Remove Artifact or Reference',
-		description: 'Remove an artifact or reference recorded in this chat by id. Removing it also pauses any automation its integrations run for it, such as automatic merging of a pull request. Only available in turns started by a person or a scheduled automation.',
+		description: 'Remove an artifact or reference recorded in this chat by id. Removing it also pauses any automation its integrations run for it, such as a pull request integration\'s own merge automation. Only available in turns started by a person or a scheduled automation.',
 		inputSchema: removeArtifactInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
 		deferLoading: true,

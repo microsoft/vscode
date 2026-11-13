@@ -53,6 +53,7 @@ import './contrib/semanticTokens/browser/viewportSemanticTokens.js';
 import './contrib/smartSelect/browser/smartSelect.js';
 import './contrib/snippet/browser/snippetController2.js';
 import './contrib/stickyScroll/browser/stickyScrollContribution.js';
+import './contrib/structuralDiff/common/structuralDiff.contribution.js';
 import './contrib/suggest/browser/suggestController.js';
 import './contrib/suggest/browser/suggestInlineCompletions.js';
 import './contrib/tokenization/browser/tokenization.js';

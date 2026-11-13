@@ -41,35 +41,29 @@
 .session-worktree-cleanup-controls {
 	display: flex;
 	align-items: center;
-	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size80);
-	margin: 0 0 var(--vscode-spacing-size120);
+	margin-left: auto;
 }
 
-.session-worktree-cleanup-controls label,
 .session-worktree-cleanup-setting {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-controls label {
-	cursor: default;
-}
-
-.session-worktree-cleanup-controls select {
-	cursor: pointer;
-	max-width: 100%;
-	min-width: 0;
-}
-
-.session-worktree-cleanup-controls select,
 .session-worktree-cleanup-setting input[type="number"] {
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-small);
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+}
+
+.session-worktree-cleanup-controls.age-filtered .session-worktree-cleanup-age,
+.session-worktree-cleanup-controls.workspace-filtered .session-worktree-cleanup-workspace {
+	color: var(--vscode-inputOption-activeForeground);
+	background: var(--vscode-inputOption-activeBackground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-inputOption-activeBorder);
 }
 
 .session-worktree-cleanup-summary-row {
@@ -116,6 +110,8 @@
 }
 
 .session-worktree-cleanup-summary-row.hidden,
+.session-worktree-cleanup-summary.hidden,
+.session-worktree-cleanup-action.hidden,
 .session-worktree-cleanup-progress.hidden,
 .session-worktree-cleanup-available-heading.hidden,
 .session-worktree-cleanup-list.hidden,
