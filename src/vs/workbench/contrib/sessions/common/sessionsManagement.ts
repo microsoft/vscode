@@ -275,14 +275,14 @@ export interface ISessionsManagementService {
 	// -- Sessions --
 
 	/**
-	 * Get all sessions from all registered providers, as they list them: without those a provider's listing scope hides,
-	 * such as the sessions of other folders in an editor window.
+	 * The sessions the providers list, within their listing scope: without those a provider's listing scope hides, such as
+	 * the sessions of other folders in an editor window.
 	 */
 	getSessions(): ISession[];
 
 	/**
-	 * Get every session of the registered providers, also those a provider's listing scope hides. For looking a session up,
-	 * such as to open it, not for listing sessions.
+	 * Every session of the registered providers, also those outside a provider's listing scope; for looking sessions up,
+	 * such as to open one, not for listing.
 	 */
 	getAllSessions(): ISession[];
 

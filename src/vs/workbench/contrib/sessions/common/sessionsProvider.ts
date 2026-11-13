@@ -405,13 +405,14 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
+	 * The sessions the provider lists, within its listing scope ({@link setListingScope}); without one, every session it
+	 * knows. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
 
 	/**
-	 * Every session known to the provider, also those its listing scope hides from {@link getSessions}, such as the
-	 * sessions of other folders in an editor window. For looking a session up, not for listing sessions. Without it,
+	 * Every session known to the provider, also those outside its listing scope, which {@link getSessions} leaves out,
+	 * such as the sessions of other folders in an editor window; for looking sessions up, not for listing. Without it,
 	 * {@link getSessions} lists every session.
 	 */
 	getAllSessions?(): ISession[];
