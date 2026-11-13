@@ -124,7 +124,7 @@ suite('SSHAgentHostContribution reconnect ownership', () => {
 						throw failure;
 					}
 				});
-				await harness.connect();
+				await assert.rejects(harness.connect(), error);
 				harness.connectionsChanged.fire();
 				harness.entriesChanged.fire();
 				harness.fireConfigurationChange(RemoteAgentHostsSettingId);
@@ -166,7 +166,7 @@ suite('SSHAgentHostContribution reconnect ownership', () => {
 
 	test('removing a cancelled host cannot revive it on a later event or timer', () => runWithFakedTimers({}, async () => {
 		const harness = createHarness(true, async () => { throw new CancellationError(); });
-		await harness.connect();
+		await assert.rejects(harness.connect(), CancellationError);
 		await harness.disconnect();
 		harness.connectionsChanged.fire();
 		await timeout(180_000);

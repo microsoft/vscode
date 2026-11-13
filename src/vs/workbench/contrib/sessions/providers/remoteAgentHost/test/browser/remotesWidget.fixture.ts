@@ -155,7 +155,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 		}
 	}());
 	if (options.troubleshoot) {
-		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, options.troubleshoot, 'troubleshoot', model, () => { }, () => { }, async () => { }));
+		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, options.troubleshoot, 'troubleshoot', model, () => { }, () => { }, async () => { }, async () => { }));
 		content.appendChild(details.domNode);
 		details.layout();
 		return;
@@ -163,7 +163,7 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	if (options.runBehavior) {
 		const remote = model.remotes.get()[0];
 		model.preferences.set(remote.id, 'dedicated');
-		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, 'runBehavior', model, () => { }, () => { }, async () => { }));
+		const details = disposableStore.add(instantiationService.createInstance(RemoteEnvironmentDetails, remote, 'runBehavior', model, () => { }, () => { }, async () => { }, async () => { }));
 		content.appendChild(details.domNode);
 		details.domNode.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
 		details.layout();

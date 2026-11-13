@@ -127,6 +127,7 @@ export class RemotesEditor extends EditorPane {
 			const widget = this.widget.value;
 			this.detailsVisibility.value = autorun(reader => {
 				widget.detailsVisible.read(reader);
+				widget.collapsed.read(reader);
 				this.layoutContents();
 			});
 		}
@@ -201,6 +202,7 @@ export class RemotesEditor extends EditorPane {
 		}
 		if (this.tableContainer) {
 			this.tableContainer.hidden = sharing;
+			this.tableContainer.classList.toggle('section-collapsed', !!this.widget.value?.collapsed.get() && !this.widget.value.detailsVisible.get());
 		}
 		this.thisComputer.value?.layout();
 		this.widget.value?.layout();

@@ -90,9 +90,7 @@ export function getRemoteSessionCreationEnvironment(provider: ISessionsProvider,
 		kind: containerRequested ? 'container' : 'remote',
 		label: containerRequested ? localize('environmentPicker.container', "Dev Container") : provider.label,
 		icon: containerRequested ? Codicon.remote : provider.icon, providerIds: [provider.id],
-		description: RemoteAgentHostConnectionStatus.isReconnecting(provider.connectionStatus.get())
-			? localize('environmentPicker.reconnecting', "Reconnecting")
-			: getAgentHostConnectionStatusLabel(provider.connectionStatus.get()),
+		description: getAgentHostConnectionStatusLabel(provider.connectionStatus.get()),
 	};
 }
 

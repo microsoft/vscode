@@ -144,11 +144,13 @@ suite('SessionEnvironmentPicker', () => {
 		assert.deepStrictEqual({
 			picker: getSessionCreationEnvironments(providers).map(environment => ({ id: environment.id, description: environment.description })),
 			retainedDraft: getRemoteSessionCreationEnvironment(providers[2])?.id,
+			retainedStatus: providers.map(provider => getRemoteSessionCreationEnvironment(provider)?.description),
 		}, {
 			picker: [
 				{ id: 'agenthost-remote-0', description: 'Connected' },
 			],
 			retainedDraft: 'agenthost-remote-2',
+			retainedStatus: ['Connected', 'Connecting', 'Disconnected', 'Reconnecting', 'Update required'],
 		});
 	});
 

@@ -41,27 +41,27 @@ import {
 suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('disconnected hovers retain the connection error with an optional address', () => {
+	test('connection hovers distinguish this window from sessions running remotely', () => {
 		const status = RemoteAgentHostConnectionStatus.disconnected;
 		assert.deepStrictEqual({
 			label: getStatusLabel(status),
-			error: getStatusHover(status, undefined, 'Connection refused'),
-			withAddress: getStatusHover(status, 'ssh:host', 'Connection refused'),
+			connected: getStatusLabel(RemoteAgentHostConnectionStatus.connected),
+			withAddress: getStatusHover(status, 'ssh:host'),
 			plain: getStatusHover(RemoteAgentHostConnectionStatus.disconnected),
 		}, {
 			label: 'Disconnected',
-			error: 'Connection refused', withAddress: 'Remote agent host is disconnected: Connection refused\n\nAddress: ssh:host',
-			plain: 'Agent tasks keep running on the host while this window is disconnected.',
+			connected: 'Connected', withAddress: 'This window is disconnected. Sessions may continue running on the remote computer.\n\nAddress: ssh:host',
+			plain: 'This window is disconnected. Sessions may continue running on the remote computer.',
 		});
 	});
 
-	test('automatic retry hovers retain the last error without changing the status label', () => {
+	test('connection progress hovers describe the operation rather than diagnostics', () => {
 		assert.deepStrictEqual([
 			RemoteAgentHostConnectionStatus.connecting,
 			RemoteAgentHostConnectionStatus.reconnecting,
-		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status, undefined, 'Connection refused'), withAddress: getStatusHover(status, 'ssh:host', 'Connection refused') })), [
-			{ label: 'Connecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
-			{ label: 'Reconnecting', hover: 'Retrying connection. Last error: Connection refused', withAddress: 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host' },
+		].map(status => ({ label: getStatusLabel(status), hover: getStatusHover(status), withAddress: getStatusHover(status, 'ssh:host') })), [
+			{ label: 'Connecting', hover: 'Connecting to the remote agent host...', withAddress: 'Connecting to the remote agent host...\n\nAddress: ssh:host' },
+			{ label: 'Reconnecting', hover: 'Reconnecting to the remote agent host automatically.', withAddress: 'Reconnecting to the remote agent host automatically.\n\nAddress: ssh:host' },
 		]);
 	});
 
@@ -148,7 +148,7 @@ suite('remoteHostOptions', () => {
 		// statuses so the workspace picker can visually call it out.
 		assert.notStrictEqual(incompatibleLabel, getStatusLabel(RemoteAgentHostConnectionStatus.disconnected));
 	});
-	test('getStatusHover surfaces the host-supplied message for incompatible status', () => {
+	test('incompatible picker hovers point to troubleshooting rather than exposing protocol diagnostics', () => {
 		const status = RemoteAgentHostConnectionStatus.incompatible(
 			'Client offered protocol versions [0.1.0], but this server only supports 0.2.0.',
 			['0.1.0'],
@@ -156,16 +156,16 @@ suite('remoteHostOptions', () => {
 		);
 
 		const hover = getStatusHover(status, 'host.example:1234');
-		assert.ok(hover.includes('0.1.0'), 'hover should mention the offered version');
-		assert.ok(hover.includes('only supports 0.2.0'), 'hover should include the host-supplied message');
-		assert.ok(hover.includes('host.example:1234'), 'hover should include the address when provided');
+		assert.deepStrictEqual({ label: getStatusLabel(status), hover }, {
+			label: 'Update required',
+			hover: 'Open Remote Environments to troubleshoot the connection and check for updates.\n\nAddress: host.example:1234',
+		});
 	});
 
 	test('getStatusHover omits the address line when address is undefined', () => {
 		const status = RemoteAgentHostConnectionStatus.incompatible('Some reason', ['0.1.0']);
 		const hover = getStatusHover(status);
-		assert.ok(hover.includes('Some reason'));
-		assert.ok(!hover.includes('Address'), 'hover should not include an address line when none is given');
+		assert.strictEqual(hover, 'Open Remote Environments to troubleshoot the connection and check for updates.');
 	});
 
 	test('upgrade reconnect status ignores a passive disconnect', () => {

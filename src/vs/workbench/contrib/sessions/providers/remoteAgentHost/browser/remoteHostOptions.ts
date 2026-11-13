@@ -274,27 +274,9 @@ export function watchForIncompatibleNotifications(
 	});
 }
 
-export function getStatusLabel(status: RemoteAgentHostConnectionStatus): string {
-	switch (status.kind) {
-		case 'connected':
-			return localize('workspacePicker.statusOnline', "Online");
-		case 'connecting':
-			return localize('workspacePicker.statusConnecting', "Connecting");
-		case 'reconnecting':
-			return localize('workspacePicker.statusReconnecting', "Reconnecting");
-		case 'disconnected':
-			return localize('workspacePicker.statusDisconnected', "Disconnected");
-		case 'incompatible':
-			return localize('workspacePicker.statusIncompatible', "Incompatible");
-	}
-}
+export { getAgentHostConnectionStatusLabel as getStatusLabel } from '../../../common/agentHostSessionsProvider.js';
 
-export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string, lastConnectionError?: string): string {
-	if ((status.kind === 'connecting' || status.kind === 'reconnecting') && lastConnectionError) {
-		return address
-			? localize('workspacePicker.hoverRetryingAfterErrorAddr', "Retrying connection. Last error: {0}\n\nAddress: {1}", lastConnectionError, address)
-			: localize('workspacePicker.hoverRetryingAfterError', "Retrying connection. Last error: {0}", lastConnectionError);
-	}
+export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?: string): string {
 	switch (status.kind) {
 		case 'connected':
 			return address
@@ -309,20 +291,13 @@ export function getStatusHover(status: RemoteAgentHostConnectionStatus, address?
 				? localize('workspacePicker.hoverReconnectingAddr', "Reconnecting to the remote agent host automatically.\n\nAddress: {0}", address)
 				: localize('workspacePicker.hoverReconnecting', "Reconnecting to the remote agent host automatically.");
 		case 'disconnected':
-			if (lastConnectionError) {
-				return address
-					? localize('workspacePicker.hoverDisconnectedErrorAddr', "Remote agent host is disconnected: {0}\n\nAddress: {1}", lastConnectionError, address)
-					: lastConnectionError;
-			}
 			return address
-				? localize('workspacePicker.hoverDisconnectedAddr', "Agent tasks keep running on the host while this window is disconnected.\n\nAddress: {0}", address)
-				: localize('workspacePicker.hoverDisconnected', "Agent tasks keep running on the host while this window is disconnected.");
-		case 'incompatible': {
-			const offered = status.supportedByClient.join(', ');
+				? localize('workspacePicker.hoverDisconnectedAddr', "This window is disconnected. Sessions may continue running on the remote computer.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverDisconnected', "This window is disconnected. Sessions may continue running on the remote computer.");
+		case 'incompatible':
 			return address
-				? localize('workspacePicker.hoverIncompatibleAddr', "Cannot connect to remote agent host: {0}\n\nThis client speaks protocol version {1}.\n\nAddress: {2}", status.message, offered, address)
-				: localize('workspacePicker.hoverIncompatible', "Cannot connect to remote agent host: {0}\n\nThis client speaks protocol version {1}.", status.message, offered);
-		}
+				? localize('workspacePicker.hoverUpdateRequiredAddr', "Open Remote Environments to troubleshoot the connection and check for updates.\n\nAddress: {0}", address)
+				: localize('workspacePicker.hoverUpdateRequired', "Open Remote Environments to troubleshoot the connection and check for updates.");
 	}
 }
 

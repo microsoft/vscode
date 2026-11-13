@@ -1781,7 +1781,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	test('Mission Control rows distinguish host availability from connection status without redundant text', () => {
 		const status = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.disconnected);
-		const availability = observableValue('availability', 'Online');
+		const availability = observableValue('availability', 'Available');
 		const provider = createMockProvider('agenthost-mission-control', {
 			connectionStatus: status,
 			hostDescription: availability,
@@ -1809,13 +1809,13 @@ suite('WorkspacePicker - Connection Status', () => {
 		status.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
 		availability.set('Offline', undefined);
 		states.push(rows());
-		assert.deepStrictEqual(states, ['Online', 'Online · Connecting', 'Online · Connected', 'Online · Reconnecting', 'Offline'].map(description => ({
+		assert.deepStrictEqual(states, ['Available', 'Connecting', 'Connected', 'Reconnecting', 'Offline'].map(description => ({
 			row: { description, ariaLabel: `${provider.label}, ${description}`, onRemove: undefined },
 			submenuOnRemove: undefined,
 		})));
 	});
 
-	test('remote picker hover uses service-owned error metadata independently of provider status', () => {
+	test('remote picker hover describes connection progress without exposing service error metadata', () => {
 		const status = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.connecting);
 		providersService.setProviders([createMockProvider('agenthost-remote-1', {
 			connectionStatus: status, remoteAddress: 'ssh:host',
@@ -1827,7 +1827,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		const submenu = picker.getItems().find(item => item.label === 'Remote')?.submenuActions?.[0];
 		assert.ok(submenu instanceof SubmenuAction);
 		const action: (IAction & { readonly hoverContent?: string }) | undefined = submenu.actions.find(action => action.label === 'Manage Provider agenthost-remote-1');
-		assert.deepStrictEqual(action?.hoverContent, 'Retrying connection. Last error: Connection refused\n\nAddress: ssh:host');
+		assert.deepStrictEqual(action?.hoverContent, 'Connecting to the remote agent host...\n\nAddress: ssh:host');
 	});
 
 	test('shows active session counts for remote providers', () => {
@@ -1917,11 +1917,11 @@ suite('WorkspacePicker - Connection Status', () => {
 				openSubmenuOnClick: true,
 			},
 			unifiedFilteredRemoteItems: [
-				{ label: 'Manage Provider agenthost-tunnel-one', ariaLabel: 'Provider agenthost-tunnel-one, Online · 1 active session' },
-				{ label: 'Manage Provider agenthost-tunnel-two', ariaLabel: 'Provider agenthost-tunnel-two, Online · 2 active sessions' },
-				{ label: 'Manage Provider agenthost-tunnel-idle', ariaLabel: 'Provider agenthost-tunnel-idle, Online' },
-				{ label: 'Manage Provider agenthost-ssh', ariaLabel: 'Provider agenthost-ssh, Online · 1 active session' },
-				{ label: 'Manage Provider agenthost-wsl', ariaLabel: 'Provider agenthost-wsl, Online · 2 active sessions' },
+				{ label: 'Manage Provider agenthost-tunnel-one', ariaLabel: 'Provider agenthost-tunnel-one, Connected · 1 active session' },
+				{ label: 'Manage Provider agenthost-tunnel-two', ariaLabel: 'Provider agenthost-tunnel-two, Connected · 2 active sessions' },
+				{ label: 'Manage Provider agenthost-tunnel-idle', ariaLabel: 'Provider agenthost-tunnel-idle, Connected' },
+				{ label: 'Manage Provider agenthost-ssh', ariaLabel: 'Provider agenthost-ssh, Connected · 1 active session' },
+				{ label: 'Manage Provider agenthost-wsl', ariaLabel: 'Provider agenthost-wsl, Connected · 2 active sessions' },
 			],
 			unifiedSubmenu: [
 				{ label: 'Manage Provider agenthost-tunnel-one', icon: Codicon.remote.id },

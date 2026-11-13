@@ -73,7 +73,9 @@ export type LocalAgentHostRegistration = 'devTunnel' | 'githubEnvironment';
 export function getAgentHostConnectionStatusLabel(status: RemoteAgentHostConnectionStatus): string {
 	return status.kind === 'connected' ? localize('agentHost.connected', "Connected")
 		: status.kind === 'connecting' ? localize('agentHost.connecting', "Connecting")
-			: localize('agentHost.disconnected', "Disconnected");
+			: status.kind === 'reconnecting' ? localize('agentHost.reconnecting', "Reconnecting")
+				: status.kind === 'incompatible' ? localize('agentHost.updateRequired', "Update required")
+					: localize('agentHost.disconnected', "Disconnected");
 }
 
 /**

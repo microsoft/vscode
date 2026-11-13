@@ -6,6 +6,7 @@
 import { Limiter, raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { isWindows, OperatingSystem } from '../../../../../../base/common/platform.js';
@@ -30,7 +31,7 @@ import { IRemoteTunnelService, TunnelStatus } from '../../../../../../platform/r
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider, isRemoteSessionCreationEnvironment } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { isActiveSessionStatus } from '../../../../../services/sessions/common/session.js';
+import { isActiveSessionStatus, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { applyRemoteAgentHostLocationPreference, changeRemoteAgentHostLocationPreference, confirmTunnelDeletion, disconnectSSHEntry, getCopyableRemoteAddress, reconnectRemoteHost, removeRemoteHost, renameRemoteHost, sshConnectionKey, upgradeRemoteHost } from './remoteHostOptions.js';
 import { getRemoteAgentHostPickerKey, RemoteAgentHostPickerVisibility } from './remoteAgentHostPickerVisibility.js';
 
@@ -41,7 +42,11 @@ const metadataKeyPrefix = 'remoteAgentHost.lastKnownMetadata.';
 export interface IRemoteMetadata {
 	readonly operatingSystem?: OperatingSystem;
 	readonly activeSessionCount?: number;
+	/** Total non-draft sessions in the last reconciled session list. */
+	readonly observedSessionCount?: number;
 	readonly lastConnectedAt?: number;
+	/** Most recent session update observed on this environment. */
+	readonly lastActivityAt?: number;
 	/** When this window last confirmed the remote was online. */
 	readonly lastOnlineAt?: number;
 	readonly observedAt: number;
@@ -50,7 +55,7 @@ export interface IRemoteMetadata {
 /**
  * Whether a remote is confirmed running right now, independent of whether this computer is connected to it.
  * - `online`: a live check in this window confirmed it is running.
- * - `offline`: discovery explicitly reported it offline, or WSL confirmed it isn't running or installed.
+ * - `offline`: discovery reported no live endpoint, a direct SSH check couldn't reach it, or WSL isn't running or installed.
  * - `pending`: the first live check in this window hasn't finished. Later checks keep the previous result until they finish.
  * - `unknown`: it couldn't be checked, for example while signed out or when it's reached through a proxy.
  */
@@ -171,6 +176,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 	/** The last settled availability of each remote, shown while a later check is still running. */
 	private readonly settledAvailability = new Map<string, Pick<ICustomizationRemote, 'availability' | 'unavailableReason' | 'startsOnConnect'>>();
 	private sshReachabilityVersion = 0;
+	private readonly connectionFailures = new Map<string, string>();
 
 	constructor(
 		@ISSHRemoteAgentHostService private readonly sshService: ISSHRemoteAgentHostService,
@@ -362,9 +368,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			if (target.kind === 'ssh' && target.entry.connection.type === RemoteAgentHostEntryType.SSH) {
 				const connection = target.entry.connection;
 				// A config alias carries its own port; a manually added host only has the address it was saved with.
-				hosts.push(connection.sshConfigHost
-					? { id, host: connection.sshConfigHost, port: undefined }
-					: { id, host: connection.hostName, port: connection.port });
+				hosts.push({ id, ...this.getSSHProbeTarget(connection) });
 				// Keep the previous result while re-checking so rows don't move on every refresh.
 				if (!this.sshReachability.has(id)) {
 					this.sshReachability.set(id, 'pending');
@@ -378,13 +382,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				if (token.isCancellationRequested || version !== this.sshReachabilityVersion || this._store.isDisposed) {
 					return;
 				}
-				let result: SSHHostReachability;
-				try {
-					result = await service.checkReachability!(host, port);
-				} catch (error) {
-					this.logService.info(`[Remotes] Could not check whether ${host} is reachable`, error);
-					result = 'unknown';
-				}
+				const result = await this.probeSSHHost(host, port);
 				if (version === this.sshReachabilityVersion && !this._store.isDisposed) {
 					this.sshReachability.set(id, result);
 					this.update();
@@ -399,6 +397,19 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					}
 				}
 			}
+		}
+	}
+
+	private getSSHProbeTarget(connection: IRemoteAgentHostSSHConnection): { host: string; port: number | undefined } {
+		return connection.sshConfigHost ? { host: connection.sshConfigHost, port: undefined } : { host: connection.hostName, port: connection.port };
+	}
+
+	private async probeSSHHost(host: string, port: number | undefined): Promise<SSHHostReachability> {
+		try {
+			return await this.sshService.checkReachability?.(host, port) ?? 'unknown';
+		} catch (error) {
+			this.logService.info(`[Remotes] Could not check whether ${host} is reachable`, error);
+			return 'unknown';
 		}
 	}
 
@@ -713,16 +724,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (!target || !this.enabled) {
 			throw new Error(localize('remotes.unavailable', "This remote is no longer available."));
 		}
-		if (connected) {
-			this.checkCanConnect(id);
-		}
-		if (target.kind === 'environment') {
-			this.checkEnvironment(target);
-		} else if (connected) {
-			await this.registerRemote(id);
-		}
-		const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
+		const failureKey = this.getPickerKey(target);
 		try {
+			if (connected) {
+				this.checkCanConnect(id);
+			}
+			if (target.kind === 'environment') {
+				this.checkEnvironment(target);
+			} else if (connected) {
+				await this.registerRemote(id);
+			}
+			const provider = this.providersService.getProviders().filter(isAgentHostProvider).find(provider => provider.remoteAddress === id);
 			if (connected) {
 				const connectionStatus = this.remoteAgentHostService.connections.find(connection => connection.address === id)?.status ?? provider?.connectionStatus?.get();
 				if (RemoteAgentHostConnectionStatus.isConnected(connectionStatus)) {
@@ -738,9 +750,13 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				} else if (target.kind === 'ssh' || target.kind === 'wsl') {
 					// Registration can precede the provider's scheduled reconciliation.
 					this.remoteAgentHostService.reconnect(id, true);
-					await this.remoteAgentHostService.waitForConnection(id);
 				} else {
 					throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+				}
+				await this.remoteAgentHostService.waitForConnection(id);
+				this.connectionFailures.delete(failureKey);
+				if (target.kind === 'ssh') {
+					this.sshReachability.set(id, 'reachable');
 				}
 			} else if (provider?.disconnect) {
 				await provider.disconnect();
@@ -749,6 +765,22 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			} else {
 				throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
 			}
+		} catch (error) {
+			const current = this.targets.get(id);
+			if (connected && !isCancellationError(error) && !this._store.isDisposed && current && this.getPickerKey(current) === failureKey) {
+				this.connectionFailures.set(failureKey, toErrorMessage(error));
+				this.logService.warn(`[Remotes] Connection to ${id} failed`, error);
+				if (current.kind === 'ssh' && current.entry.connection.type === RemoteAgentHostEntryType.SSH) {
+					const version = this.sshReachabilityVersion;
+					const probe = this.getSSHProbeTarget(current.entry.connection);
+					const reachable = await this.probeSSHHost(probe.host, probe.port);
+					const retained = this.targets.get(id);
+					if (version === this.sshReachabilityVersion && !this._store.isDisposed && retained && this.getPickerKey(retained) === failureKey) {
+						this.sshReachability.set(id, reachable);
+					}
+				}
+			}
+			throw error;
 		} finally {
 			if (!this._store.isDisposed) {
 				this.update();
@@ -820,7 +852,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			case 'ssh':
 				switch (this.sshReachability.get(id)) {
 					case 'reachable': return { availability: 'online' };
-					case 'unreachable': return { availability: 'unknown', unavailableReason: localize('remotes.sshUnreachable', "The SSH server didn't respond to a direct check from this network. This doesn't confirm the computer is offline. Select Connect to try.") };
+					case 'unreachable': return { availability: 'offline', unavailableReason: localize('remotes.sshUnreachable', "The SSH endpoint couldn't be reached from this network. Check the SSH host, port, and network connection, then refresh.") };
 					case 'pending': return { availability: 'pending' };
 					case 'unknown': return { availability: 'unknown', unavailableReason: localize('remotes.sshUnknown', "A direct SSH status check isn't available for this host. Select Connect to try.") };
 					default: return unknown();
@@ -904,7 +936,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		if (!value || !validNumber(value.observedAt)
 			|| value.operatingSystem !== undefined && value.operatingSystem !== OperatingSystem.Windows && value.operatingSystem !== OperatingSystem.Macintosh && value.operatingSystem !== OperatingSystem.Linux
 			|| value.activeSessionCount !== undefined && (!validNumber(value.activeSessionCount) || !Number.isInteger(value.activeSessionCount))
+			|| value.observedSessionCount !== undefined && (!validNumber(value.observedSessionCount) || !Number.isInteger(value.observedSessionCount))
 			|| value.lastConnectedAt !== undefined && !validNumber(value.lastConnectedAt)
+			|| value.lastActivityAt !== undefined && !validNumber(value.lastActivityAt)
 			|| value.lastOnlineAt !== undefined && !validNumber(value.lastOnlineAt)) {
 			this.logService.warn('[Remotes] Invalid cached environment metadata');
 			this.storageService.remove(key, StorageScope.PROFILE);
@@ -914,7 +948,9 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			observedAt: value.observedAt,
 			operatingSystem: value.operatingSystem,
 			activeSessionCount: value.activeSessionCount,
+			observedSessionCount: value.observedSessionCount,
 			lastConnectedAt: value.lastConnectedAt,
+			lastActivityAt: value.lastActivityAt,
 			lastOnlineAt: value.lastOnlineAt,
 		};
 	}
@@ -928,19 +964,28 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const justConnected = live && this.observedConnections.get(key) === false;
 		this.observedConnections.set(key, live);
 		const now = Date.now();
+		let lastActivityAt = previous?.lastActivityAt;
+		for (const session of sessions ?? []) {
+			const updatedAt = session.updatedAt.read(reader).getTime();
+			if (Number.isFinite(updatedAt) && updatedAt >= 0 && (lastActivityAt === undefined || updatedAt > lastActivityAt)) {
+				lastActivityAt = updatedAt;
+			}
+		}
 		const next = {
 			operatingSystem: operatingSystem ?? (target.kind === 'wsl' ? OperatingSystem.Linux : previous?.operatingSystem),
 			activeSessionCount: sessions?.filter(session => isActiveSessionStatus(session.status.read(reader))).length ?? previous?.activeSessionCount,
+			observedSessionCount: sessions?.filter(session => session.status.read(reader) !== SessionStatus.Untitled).length ?? previous?.observedSessionCount,
 			lastConnectedAt: justConnected ? now : previous?.lastConnectedAt,
+			lastActivityAt,
 			lastOnlineAt: availability === 'online' && (previous?.lastOnlineAt === undefined || now - previous.lastOnlineAt >= lastOnlineWriteIntervalMs)
 				? now : previous?.lastOnlineAt,
 		};
-		if (next.operatingSystem === undefined && next.activeSessionCount === undefined && next.lastConnectedAt === undefined && next.lastOnlineAt === undefined) {
+		if (next.operatingSystem === undefined && next.activeSessionCount === undefined && next.observedSessionCount === undefined && next.lastConnectedAt === undefined && next.lastActivityAt === undefined && next.lastOnlineAt === undefined) {
 			return {};
 		}
 		let metadata = previous;
-		const observedChanged = !previous || previous.operatingSystem !== next.operatingSystem || previous.activeSessionCount !== next.activeSessionCount
-			|| previous.lastConnectedAt !== next.lastConnectedAt;
+		const observedChanged = !previous || previous.operatingSystem !== next.operatingSystem || previous.activeSessionCount !== next.activeSessionCount || previous.observedSessionCount !== next.observedSessionCount
+			|| previous.lastConnectedAt !== next.lastConnectedAt || previous.lastActivityAt !== next.lastActivityAt;
 		if (observedChanged || previous.lastOnlineAt !== next.lastOnlineAt) {
 			// A last-online heartbeat must not make the recorded system details look freshly observed.
 			metadata = { ...next, observedAt: observedChanged ? now : previous.observedAt };
@@ -1024,6 +1069,11 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					break;
 			}
 			const connectionStatus = connectionStatuses.get(id) ?? RemoteAgentHostConnectionStatus.disconnected;
+			const failureKey = this.getPickerKey(target);
+			if (RemoteAgentHostConnectionStatus.isConnected(connectionStatus)) {
+				this.connectionFailures.delete(failureKey);
+			}
+			const lastConnectionError = connectionErrors.get(id) ?? this.connectionFailures.get(failureKey);
 			// Starting a connection is not evidence that the remote is online.
 			const availability = RemoteAgentHostConnectionStatus.isConnected(connectionStatus)
 				|| RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus)
@@ -1055,12 +1105,18 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 					...(shares.has(id) ? { gitHubEnvironment: shares.get(id) } : {}),
 				} : {}),
 				connectionStatus,
-				...(connectionErrors.has(id) ? { lastConnectionError: connectionErrors.get(id) } : {}),
+				...(lastConnectionError ? { lastConnectionError } : {}),
 			});
 		}
 		for (const id of this.settledAvailability.keys()) {
 			if (!this.targets.has(id)) {
 				this.settledAvailability.delete(id);
+			}
+			const failureKeys = new Set([...this.targets.values()].map(target => this.getPickerKey(target)));
+			for (const key of this.connectionFailures.keys()) {
+				if (!failureKeys.has(key)) {
+					this.connectionFailures.delete(key);
+				}
 			}
 		}
 		transaction(tx => {

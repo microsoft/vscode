@@ -152,6 +152,10 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _getListOptions(): IActionListOptions {
 		const options: IActionListOptions = {
+			minWidth: 300,
+			maxWidth: 320,
+			wrapDetails: true,
+			...this._getNameHeader(),
 			widgetClassName: 'remote-connections-picker',
 			hideDefaultKeybindingTooltip: true,
 		};
@@ -187,6 +191,42 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 					},
 				}),
 		};
+	}
+
+	private _getNameHeader(): Pick<IActionListOptions, 'headerIcon' | 'headerText' | 'headerAction'> {
+		const state = this._sharing.getState();
+		const usesGitHubEnvironment = this._sharing.usesGitHubEnvironment;
+		const name = this._sharing.name;
+		const headerText = name
+			? state.isSharing
+				? usesGitHubEnvironment
+					? localize('remoteConnections.registeredEnvironment', "Registered as GitHub environment: {0}", name)
+					: localize('remoteConnections.sharedTunnel', "Shared as Dev Tunnel: {0}", name)
+				: state.isConnecting
+					? localize('remoteConnections.connectingName', "Connecting as: {0}", name)
+					: localize('remoteConnections.name', "Will be shared as: {0}", name)
+			: this._sharing.namesLoaded
+				? localize('remoteConnections.nameUnavailable', "Remote name unavailable.")
+				: localize('remoteConnections.loadingName', "Loading remote name...");
+		return {
+			headerIcon: Codicon.deviceDesktop,
+			headerText,
+			headerAction: name ? toAction({
+				id: 'remoteConnections.rename',
+				label: name,
+				tooltip: localize('remoteConnections.rename', "Rename Remote Environment"),
+				enabled: this.isEnabled() && !state.isConnecting,
+				run: () => this._rename(usesGitHubEnvironment),
+			}) : undefined,
+		};
+	}
+
+	private async _rename(usesGitHubEnvironment: boolean): Promise<void> {
+		if (!this.isEnabled() || !this._sharing.name || this._sharing.getState().isConnecting || usesGitHubEnvironment !== this._sharing.usesGitHubEnvironment) {
+			return;
+		}
+		this._dropdown.hide();
+		await this._sharing.rename();
 	}
 
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
@@ -235,13 +275,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 			id: 'remoteConnections.rename',
 			label: localize('remoteConnections.renameComputer', "Change Sharing Name..."),
 			enabled: this.isEnabled() && !!this._sharing.name && !this._sharing.getState().isConnecting,
-			run: async () => {
-				if (!this.isEnabled() || !this._sharing.name || this._sharing.getState().isConnecting || usesGitHubEnvironment !== this._sharing.usesGitHubEnvironment) {
-					return;
-				}
-				this._dropdown.hide();
-				await this._sharing.rename();
-			},
+			run: () => this._rename(usesGitHubEnvironment),
 		});
 		for (const method of methods) {
 			method.category = { label: 'methods', order: 0 };

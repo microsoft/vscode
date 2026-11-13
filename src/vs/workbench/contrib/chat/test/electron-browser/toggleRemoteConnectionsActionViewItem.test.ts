@@ -165,7 +165,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
-	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean; managementAction?: Action } = { quality: 'insider' }) {
+	function fixture(backend: AgentHostRemoteConnectionsBackend = 'devTunnel', options: { quality?: IProductService['quality']; isChatInput?: boolean; precedingAction?: boolean; managementAction?: Action; environmentName?: string } = { quality: 'insider' }) {
 		const instantiation = store.add(new TestInstantiationService());
 		const availability = observableValue('availability', true);
 		instantiation.stub(IMissionControlAvailabilityService, { available: availability });
@@ -209,7 +209,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const quickInput = new TestQuickInputService();
 		instantiation.stub(IQuickInputService, quickInput);
 		instantiation.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
-			override async getMissionControlEnvironmentName() { return 'Test Machine (VS Code Insiders)'; }
+			override async getMissionControlEnvironmentName() { return options.environmentName ?? 'Test Machine (VS Code Insiders)'; }
 		}());
 		instantiation.stub(IProductService, new class extends mock<IProductService>() {
 			override readonly quality = options.quality;
@@ -364,7 +364,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 			sharing: sharing.calls,
 		}, {
 			tabFocus: true, shiftTabFocus: true, describedBy: true,
-			header: undefined,
+			header: 'Will be shared as: test-tunnel',
 			explanation: 'Sharing through GitHub Environments is disabled by your organization. Contact your administrator. View Setting',
 			opened: [[{ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }]],
 			sharing: [],
@@ -904,7 +904,7 @@ suite('RemoteConnectionsActionViewItem', () => {
 		});
 	});
 
-	test('keeps naming and setup out of the quick menu in both sharing states', async () => {
+	test('matches the origin main banner sizing, host-owned name, and registration state', async () => {
 		const { sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
 		await timeout(0);
 		openMenu();
@@ -919,13 +919,95 @@ suite('RemoteConnectionsActionViewItem', () => {
 			icon: disabled?.headerIcon?.id,
 			footer: disabled?.footerText,
 			disabled: disabled?.headerText,
+			enabledIcon: listOptions()?.headerIcon?.id,
 			enabled: listOptions()?.headerText,
 		}, {
-			minWidth: undefined, maxWidth: undefined, wrap: undefined,
-			icon: undefined,
+			minWidth: 300, maxWidth: 320, wrap: true,
+			icon: Codicon.deviceDesktop.id,
 			footer: undefined,
-			disabled: undefined,
-			enabled: undefined,
+			disabled: 'Will be shared as: Test Machine (VS Code Insiders)',
+			enabledIcon: Codicon.deviceDesktop.id,
+			enabled: 'Registered as GitHub environment: Test Machine (VS Code Insiders)',
+		});
+	});
+
+	test('matches the origin main banner while loading, Off, and connecting', async () => {
+		const { sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
+		const headers: Array<{ text: string | undefined; name: string | undefined; enabled: boolean | undefined }> = [];
+		const captureHeader = () => {
+			openMenu();
+			const { headerText, headerAction } = listOptions()!;
+			headers.push({ text: headerText, name: headerAction?.label, enabled: headerAction?.enabled });
+			closeMenu();
+		};
+		captureHeader();
+		await timeout(0);
+		captureHeader();
+		sharing.state.set('connecting', undefined);
+		captureHeader();
+		assert.deepStrictEqual(headers, [
+			{ text: 'Loading remote name...', name: undefined, enabled: undefined },
+			{ text: 'Will be shared as: Test Machine (VS Code Insiders)', name: 'Test Machine (VS Code Insiders)', enabled: true },
+			{ text: 'Connecting as: Test Machine (VS Code Insiders)', name: 'Test Machine (VS Code Insiders)', enabled: false },
+		]);
+	});
+
+	test('matches the origin main fallback when name loading finishes without a name', async () => {
+		const { openMenu, listOptions } = fixture('githubEnvironment', { environmentName: '' });
+		await timeout(0);
+		openMenu();
+		assert.deepStrictEqual({
+			text: listOptions()?.headerText,
+			action: listOptions()?.headerAction,
+		}, { text: 'Remote name unavailable.', action: undefined });
+	});
+
+	test('the header name renames the environment and updates its registration info', async () => {
+		const { quickInput, sharing, openMenu, closeMenu, listOptions } = fixture('githubEnvironment');
+		await timeout(0);
+		sharing.state.set('enabled', undefined);
+		quickInput.result = 'Renamed workstation';
+		openMenu();
+		await listOptions()?.headerAction?.run();
+		closeMenu();
+		openMenu();
+		assert.deepStrictEqual({
+			value: quickInput.options?.value,
+			header: listOptions()?.headerText,
+			link: listOptions()?.headerAction?.label,
+			state: sharing.state.get(),
+		}, {
+			value: 'Test Machine (VS Code Insiders)',
+			header: 'Registered as GitHub environment: Renamed workstation',
+			link: 'Renamed workstation',
+			state: 'enabled',
+		});
+	});
+
+	test('the header uses the connected Dev Tunnel name instead of the intended name', async () => {
+		const { remoteTunnel, openMenu, listOptions } = fixture();
+		await timeout(0);
+		remoteTunnel.fireStatus({ type: 'connected', info: { tunnelName: 'assigned-tunnel', isAttached: true }, serviceInstallFailed: false });
+		openMenu();
+		assert.deepStrictEqual({
+			header: listOptions()?.headerText,
+			link: listOptions()?.headerAction?.label,
+		}, {
+			header: 'Shared as Dev Tunnel: assigned-tunnel',
+			link: 'assigned-tunnel',
+		});
+	});
+
+	test('a stale header link cannot rename a different sharing method', async () => {
+		const { quickInput, configuration, sharing, openMenu, listOptions } = fixture('githubEnvironment');
+		await timeout(0);
+		sharing.state.set('enabled', undefined);
+		openMenu();
+		const rename = listOptions()?.headerAction;
+		await configuration.updateValue(AgentHostRemoteConnectionsSettingId, 'devTunnel');
+		await rename?.run();
+		assert.deepStrictEqual({ prompt: quickInput.options, name: sharing.environmentName.get() }, {
+			prompt: undefined, name: undefined,
 		});
 	});
 

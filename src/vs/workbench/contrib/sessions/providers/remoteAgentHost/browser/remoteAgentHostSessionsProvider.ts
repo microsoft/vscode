@@ -962,6 +962,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 		this._remoteAgentHostService.reconnect(this.remoteAddress);
+		await this._remoteAgentHostService.waitForConnection(this.remoteAddress);
 	}
 
 	reconnectNow(): void {

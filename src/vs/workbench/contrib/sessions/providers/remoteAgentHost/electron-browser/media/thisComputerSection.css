@@ -28,9 +28,11 @@
 	flex-shrink: 0;
 	min-width: 0;
 	padding-inline-start: var(--vscode-spacing-size240);
+	padding-inline-end: var(--vscode-spacing-size160);
 }
 
 .remotes-this-computer.sharing-expanded .remotes-this-computer-heading,
+.remotes-this-computer-header[hidden],
 .remotes-this-computer.sharing-expanded .remotes-this-computer-header {
 	display: none;
 }
@@ -112,14 +114,8 @@
 	flex-shrink: 0;
 }
 
-.remotes-this-computer-heading > .codicon,
 .remotes-sharing-status-icon {
 	flex-shrink: 0;
-}
-
-.remotes-this-computer-heading > .codicon {
-	width: var(--vscode-codiconFontSize);
-	font-size: var(--vscode-codiconFontSize);
 }
 
 .remotes-this-computer-share .monaco-button-dropdown {
@@ -146,6 +142,7 @@
 	flex-shrink: 0;
 }
 
+.remotes-sharing-status-icon[hidden],
 .remotes-this-computer-rename[hidden],
 .remotes-this-computer-header .monaco-button[hidden],
 .remotes-this-computer-share .monaco-button-dropdown[hidden],

@@ -248,6 +248,10 @@ suite('RemotesEditor', () => {
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		await timeout(0);
 		const section = container.querySelector<HTMLElement>('.remotes-this-computer')!;
+		assert.deepStrictEqual({
+			status: section.querySelector('[role="status"]')?.textContent,
+			statusIconHidden: section.querySelector<HTMLElement>('.remotes-sharing-status-icon')?.hidden,
+		}, { status: 'Not shared', statusIconHidden: true });
 		section.querySelector<HTMLElement>('.remotes-this-computer-share .monaco-button')!.click();
 		const page = container.querySelector<HTMLElement>('.remotes-sharing-details')!;
 		const table = container.querySelector<HTMLElement>('.remotes-editor-table')!;
@@ -985,7 +989,7 @@ suite('RemotesEditor', () => {
 			const metadata = section.querySelector('.remotes-this-computer-status')!.getBoundingClientRect();
 			return {
 				centered: Math.abs(controls.top + controls.height / 2 - nameRow.top - nameRow.height / 2) < 1,
-				rightAligned: Math.abs(controls.right - section.getBoundingClientRect().right) < 1,
+				rightAligned: Math.abs(controls.right - container.querySelector('.remotes-search-row')!.getBoundingClientRect().right) < 1,
 				statusBelow: metadata.top >= controls.bottom,
 				nameSeparate: name.getBoundingClientRect().right <= controls.left,
 			};
@@ -993,8 +997,8 @@ suite('RemotesEditor', () => {
 		const shareAlignment = sharingAlignment();
 		const collapsed = {
 			flat: dom.getWindow(section).getComputedStyle(section).backgroundColor === 'rgba(0, 0, 0, 0)',
-			leftAligned: Math.abs(section.getBoundingClientRect().left - container.querySelector('.remotes-search-row')!.getBoundingClientRect().left) < 1,
-			rightAligned: Math.abs(share.getBoundingClientRect().right - section.getBoundingClientRect().right) < 1,
+			leftAligned: Math.abs(name.getBoundingClientRect().left - container.querySelector('.remotes-search-row')!.getBoundingClientRect().left) < 1,
+			rightAligned: Math.abs(share.getBoundingClientRect().right - container.querySelector('.remotes-search-row')!.getBoundingClientRect().right) < 1,
 			descriptionHidden: description.getBoundingClientRect().height === 0,
 			label: share.querySelector('.monaco-button')?.textContent,
 			systemFirst: section.querySelector('.remotes-this-computer-status')?.firstElementChild?.classList.contains('remotes-this-computer-system'),
@@ -1005,12 +1009,12 @@ suite('RemotesEditor', () => {
 			matchingTypography: headingStyle.fontSize === otherHeadingStyle.fontSize && headingStyle.fontWeight === otherHeadingStyle.fontWeight,
 			headingLabelsSection: section.getAttribute('aria-labelledby') === heading.id,
 			detailsBelowHeading: name.getBoundingClientRect().top >= heading.getBoundingClientRect().bottom,
-			detailsAligned: Math.abs(name.getBoundingClientRect().left - heading.getBoundingClientRect().left) < 1,
+			detailsAligned: Math.abs(name.getBoundingClientRect().left - heading.querySelector('.monaco-button-mdlabel')!.getBoundingClientRect().left) < 1,
 			nameIsContent: name.tagName === 'DIV' && !name.contains(heading),
 		};
 		container.querySelector<HTMLElement>('.remotes-this-computer-share > .monaco-button')!.click();
 		const question = container.querySelector<HTMLElement>('.remotes-sharing-question')!;
-		const icon = container.querySelector<HTMLElement>('.remotes-this-computer-heading > .codicon')!;
+		const icon = container.querySelector<HTMLElement>('.remotes-this-computer-heading .codicon')!;
 		const task = {
 			aligned: Math.abs(description.getBoundingClientRect().left - question.getBoundingClientRect().left) < 1,
 			descriptionVisible: description.getBoundingClientRect().height > 0,
@@ -1037,6 +1041,39 @@ suite('RemotesEditor', () => {
 			shareAlignment: Array.from({ length: 3 }, () => ({ centered: true, rightAligned: true, statusBelow: true, nameSeparate: true })),
 			stopAlignment: Array.from({ length: 3 }, () => ({ centered: true, rightAligned: true, statusBelow: true, nameSeparate: true })),
 			aligned: true, descriptionVisible: true, iconHiddenOnTask: true, headingHiddenOnTask: true, sharingSeparator: 'none', headingRestored: true, antenna: true, color: 'rgb(34, 102, 255)',
+		});
+	});
+
+	test('top-level sections collapse independently without changing sharing or losing environment search', async () => {
+		const { editor, container, input, configuration, tunnel, sharing } = createEditor();
+		await configuration.setUserConfiguration(REMOTE_ENVIRONMENTS_THIS_COMPUTER_SETTING, true);
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+		await timeout(0);
+		const localToggle = container.querySelector<HTMLElement>('.remotes-this-computer-title .remotes-section-toggle')!;
+		const otherToggle = container.querySelector<HTMLElement>('.remotes-heading-title .remotes-section-toggle')!;
+		const localBody = container.querySelector<HTMLElement>('.remotes-this-computer-header')!;
+		const otherBody = container.querySelector<HTMLElement>('.remotes-overview-body')!;
+		const search = otherBody.querySelector<HTMLInputElement>('input')!;
+		search.value = 'build';
+		search.dispatchEvent(new InputEvent('input'));
+		localToggle.click();
+		const localOnly = { local: localBody.hidden, other: otherBody.hidden };
+		otherToggle.click();
+		tunnel.fireStatus({ type: 'connected', info: { tunnelName: 'shared', isAttached: false }, serviceInstallFailed: false });
+		const both = { local: localBody.hidden, other: otherBody.hidden };
+		editor.focus();
+		const focusOnVisibleHeading = dom.getActiveElement() === otherToggle;
+		localToggle.click();
+		otherToggle.click();
+		assert.deepStrictEqual({
+			localOnly, both, focusOnVisibleHeading,
+			restored: [localToggle, otherToggle].map(toggle => toggle.getAttribute('aria-expanded')),
+			bodies: [localBody.hidden, otherBody.hidden],
+			query: search.value, githubSharing: sharing.state.get(),
+			status: container.querySelector('.remotes-this-computer-status [role="status"]')?.textContent,
+		}, {
+			localOnly: { local: true, other: false }, both: { local: true, other: true }, focusOnVisibleHeading: true,
+			restored: ['true', 'true'], bodies: [false, false], query: 'build', githubSharing: 'disabled', status: 'Sharing via Dev Tunnel',
 		});
 	});
 

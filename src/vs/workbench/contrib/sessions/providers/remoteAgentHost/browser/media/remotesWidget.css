@@ -37,9 +37,18 @@
 	min-height: 0;
 }
 
+.remotes-editor-table.section-collapsed {
+	flex: 0 0 auto;
+}
+
+.remotes-editor-table.section-collapsed .remotes-widget {
+	height: auto;
+}
+
 .remotes-editor-this-computer[hidden],
 .remotes-editor-table[hidden],
 .remotes-overview[hidden],
+.remotes-overview-body[hidden],
 .remotes-details-page[hidden],
 .remotes-task-navigation[hidden] {
 	display: none;
@@ -50,7 +59,8 @@
 }
 
 .remotes-widget,
-.remotes-overview {
+.remotes-overview,
+.remotes-overview-body {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
@@ -59,9 +69,14 @@
 }
 
 .remotes-overview,
+.remotes-overview-body,
 .remotes-details-page {
 	flex: 1;
 	min-height: 0;
+}
+
+.remotes-section > .remotes-overview-body {
+	margin-inline-start: var(--vscode-spacing-size240);
 }
 
 .remotes-task-navigation {
@@ -116,6 +131,7 @@
 	gap: var(--vscode-spacing-size120);
 	flex-shrink: 0;
 	margin-bottom: var(--vscode-spacing-size120);
+	margin-inline-end: var(--vscode-spacing-size160);
 }
 
 .remotes-widget .remotes-filters {
@@ -141,31 +157,155 @@
 	max-width: 300px;
 }
 
-.remotes-widget .remotes-type-filter {
+.remotes-widget .remotes-view-switcher {
+	margin-inline-start: auto;
+	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-cards-container {
+	flex: 1;
+	min-height: 0;
+}
+
+.remotes-widget .remotes-cards-container[hidden] {
+	display: none;
+}
+
+.remotes-widget .remotes-cards-container > .monaco-scrollable-element {
+	height: 100%;
+}
+
+.remotes-widget .remotes-cards,
+.remotes-widget .remotes-card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+	align-content: start;
+	gap: var(--vscode-spacing-size120);
+}
+
+.remotes-widget .remotes-cards {
+	position: relative;
+	height: 100%;
+	box-sizing: border-box;
+	overflow-y: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size160) var(--vscode-spacing-size160) 0;
+	scrollbar-width: none;
+}
+
+.remotes-widget .remotes-cards::-webkit-scrollbar {
+	display: none;
+}
+
+.remotes-widget .remotes-card-slot {
 	min-width: 0;
-	max-width: 100%;
-}
-
-.remotes-widget .remotes-type-filter .actions-container {
-	flex-wrap: wrap;
-	gap: var(--vscode-spacing-size60);
-}
-
-.remotes-widget .remotes-type-filter .action-label {
-	white-space: nowrap;
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-panel-border));
-	border-radius: var(--vscode-cornerRadius-circle);
-	font-size: var(--vscode-fontSize-label1);
-	line-height: 16px;
-	color: var(--vscode-foreground);
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.remotes-widget .remotes-type-filter .action-label.checked {
-	color: var(--vscode-inputOption-activeForeground);
-	background: var(--vscode-inputOption-activeBackground);
+.remotes-widget .remotes-card-slot:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.remotes-widget .remotes-card-slot:focus-within {
 	border-color: var(--vscode-focusBorder);
+}
+
+.remotes-widget .remotes-card {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size160);
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.remotes-widget .remotes-card > [hidden] {
+	display: none;
+}
+
+.remotes-widget .remotes-card-metadata {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.remotes-widget .remotes-card-metadata > [hidden] {
+	display: none;
+}
+
+.remotes-widget .remotes-card:not(.remotes-card-group) .remotes-name {
 	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.remotes-widget .remotes-card .remotes-name-content {
+	gap: 0;
+}
+
+.remotes-widget .remotes-card .remotes-status-column {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize-compact);
+	padding: 0;
+}
+
+.remotes-widget .monaco-table .remotes-status-column {
+	display: flex;
+	justify-content: center;
+	padding-inline: var(--vscode-spacing-size40);
+}
+
+.remotes-widget .remotes-status-column[hidden] {
+	display: none;
+}
+
+.remotes-widget .remotes-status-column .remotes-metadata {
+	flex: 0 0 auto;
+}
+
+.remotes-widget .remotes-card .remotes-name-column {
+	display: flex;
+}
+
+.remotes-widget .remotes-card :is(.remotes-system-column, .remotes-sessions-column, .remotes-activity-column) {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.remotes-widget .remotes-card .remotes-actions-column {
+	display: flex;
+	align-items: center;
+	opacity: 1;
+	pointer-events: auto;
+	margin-top: auto;
+	padding: var(--vscode-spacing-size80) 0 0;
+	flex-wrap: wrap;
+	justify-content: flex-start;
+}
+
+.remotes-widget .remotes-card-section {
+	grid-column: 1 / -1;
+	border: none;
+}
+
+.remotes-widget .remotes-card-group {
+	flex-direction: row;
+	align-items: center;
+	padding: 0;
+	gap: var(--vscode-spacing-size80);
+}
+
+.remotes-widget .remotes-card-group .remotes-name-column {
+	min-width: 0;
+}
+
+.remotes-widget .remotes-card-group .remotes-actions-column {
+	margin: 0 0 0 auto;
+	padding: 0;
+}
+
+.remotes-widget .remotes-card-group .remotes-type-column {
+	display: none;
 }
 
 .remotes-widget .remotes-metadata {
@@ -201,6 +341,30 @@
 	font-size: var(--vscode-fontSize-heading3);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	white-space: nowrap;
+}
+
+.remotes-section-toggle.monaco-button {
+	justify-content: flex-start;
+	gap: var(--vscode-spacing-size80);
+	width: auto;
+	padding: var(--vscode-spacing-size40) 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	line-height: 1.5;
+}
+
+.remotes-section-toggle.monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.remotes-section-toggle.monaco-button .codicon {
+	flex-shrink: 0;
+	width: var(--vscode-codiconFontSize);
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize);
 }
 
 .remotes-widget .remotes-search-container .monaco-action-bar {
@@ -325,17 +489,66 @@
 }
 
 .remotes-widget .monaco-table:is(:hover, .hovered, :focus-within) > .monaco-split-view2,
-.remotes-widget .monaco-table:is(:hover, .hovered, :focus-within) > .monaco-split-view2 .monaco-sash.vertical::before {
+.remotes-widget .monaco-table:is(:hover, .hovered, :focus-within) > .monaco-split-view2 .monaco-sash.vertical:not(:first-child)::before {
 	border-color: var(--vscode-tree-tableColumnsBorder);
 }
 
 .remotes-widget .remotes-group-row {
-	background-color: var(--vscode-keybindingTable-headerBackground);
+	background: transparent;
+}
+
+.remotes-widget .remotes-card-summary {
+	display: flex;
+	align-items: center;
+	padding: var(--vscode-spacing-size40);
+	list-style: none;
 	cursor: pointer;
 }
 
+.remotes-widget .remotes-card-summary::-webkit-details-marker {
+	display: none;
+}
+
+.remotes-widget details[open] > .remotes-card-summary {
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.remotes-widget .remotes-card-summary > .remotes-card {
+	width: 100%;
+}
+
+.remotes-widget .remotes-group-chevron {
+	display: flex;
+	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-group-chevron[hidden] {
+	display: none;
+}
+
+.remotes-widget .remotes-table-container .monaco-table .monaco-list .monaco-list-rows > .monaco-list-row.remotes-group-list-row {
+	background: transparent;
+	color: var(--vscode-foreground);
+}
+
+.remotes-widget .remotes-table-container .monaco-table .monaco-list:not(:focus-visible) .monaco-list-rows > .monaco-list-row.remotes-group-list-row {
+	outline: none;
+}
+
+.remotes-widget .remotes-card-summary:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .remotes-widget .remotes-group-row .remotes-name {
+	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-semiBold);
+	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+}
+
+.remotes-widget .remotes-group-row .remotes-empty-description {
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
 }
 
 .remotes-widget .remotes-name-icon {
@@ -348,18 +561,27 @@
 	display: none;
 }
 
-.remotes-widget .monaco-table .monaco-list .remotes-group-row .remotes-name-icon > .codicon {
+.remotes-widget :is(.monaco-table .monaco-list, .remotes-cards) .remotes-group-row .remotes-name-icon > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 	color: var(--vscode-descriptionForeground);
 }
 
-.remotes-widget .monaco-table .monaco-list .remotes-ready-group .remotes-name-icon > .codicon,
+.remotes-widget :is(.monaco-table .monaco-list, .remotes-cards) .remotes-ready-group .remotes-name-icon > .codicon,
 :is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.connected > .codicon {
 	color: var(--vscode-testing-iconPassed, var(--vscode-debugIcon-startForeground));
 }
 
-.remotes-widget .monaco-table .monaco-list .remotes-available-group .remotes-name-icon > .codicon {
+.remotes-widget :is(.monaco-table .monaco-list, .remotes-cards) .remotes-available-group .remotes-name-icon > .codicon,
+:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.available > .codicon {
 	color: var(--vscode-charts-blue);
+}
+
+:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.offline > .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+:is(.remotes-widget, .remotes-environment-details) .remotes-connection-indicator.failed > .codicon {
+	color: var(--vscode-editorWarning-foreground);
 }
 
 .remotes-widget .remotes-group-row .remotes-name-content {
@@ -372,30 +594,6 @@
 .remotes-widget .remotes-group-row .remotes-name-row {
 	flex-shrink: 0;
 	max-width: 100%;
-}
-
-.remotes-widget .remotes-offline-row:not(.selected):not(.focused) :is(.remotes-name, .remotes-metadata) {
-	color: var(--vscode-descriptionForeground);
-}
-
-.remotes-widget .remotes-offline-row.remotes-row-hidden .remotes-name {
-	opacity: 1;
-}
-
-.remotes-widget .remotes-connection-column {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
-}
-
-.remotes-widget .remotes-connection-column[hidden] {
-	display: none;
-}
-
-.remotes-widget .monaco-list-row:is(:hover, .hovered) .remotes-group-row {
-	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .remotes-widget .monaco-list-row[data-parity=odd]:not(.focused):not(.selected):not(:hover):not(.hovered) .monaco-table-tr:not(.remotes-group-row) {
@@ -703,7 +901,6 @@
 	color: var(--vscode-editorWarning-foreground);
 }
 
-.remotes-widget .remotes-gutter-column,
 .remotes-widget .remotes-actions-column {
 	padding-inline: var(--vscode-spacing-size40);
 	justify-content: center;
@@ -712,11 +909,6 @@
 .remotes-widget .remotes-actions-column {
 	justify-content: flex-start;
 	gap: var(--vscode-spacing-size80);
-}
-
-.remotes-widget .remotes-gutter-column {
-	justify-content: flex-start;
-	padding-inline: var(--vscode-spacing-size80);
 }
 
 .remotes-widget .remotes-actions-column > .monaco-button {
@@ -735,15 +927,6 @@
 .remotes-widget .monaco-list:focus-within .monaco-list-row.focused .remotes-actions-column,
 .remotes-widget .remotes-actions-column.remotes-connection-failed,
 .remotes-widget .remotes-actions-column.remotes-connection-pending {
-	opacity: 1;
-}
-
-.remotes-widget .remotes-row-hidden .remotes-name {
-	opacity: 0.55;
-}
-
-.hc-black .remotes-widget .remotes-row-hidden .remotes-name,
-.hc-light .remotes-widget .remotes-row-hidden .remotes-name {
 	opacity: 1;
 }
 

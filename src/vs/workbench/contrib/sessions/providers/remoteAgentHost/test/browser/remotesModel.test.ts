@@ -349,7 +349,7 @@ suite('RemotesModel', () => {
 			setCachedTunnels: (cached: ICachedTunnel[]) => { tunnels = cached; tunnelsChanged.fire(); },
 			tunnelConnections, tunnelState, deletedTunnels,
 			setTunnelStatus: (status: TunnelStatus) => tunnelStatusChanged.fire(status),
-			failConnection: (error: Error) => { connectionFailure = error; },
+			failConnection: (error: Error | undefined) => { connectionFailure = error; },
 			renameInputs, setRenameInput: (value: string | undefined) => { renameInput = value; }, setDisplayName,
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setWSLDistros: (value: IWSLDistro[]) => { wslDistros = value; }, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setSSHReachability: (check: (host: string) => Promise<SSHHostReachability>) => { sshReachability = check; },
@@ -396,8 +396,28 @@ suite('RemotesModel', () => {
 			cached, whileLoading: whileLoading?.activeSessionCount, empty: empty.activeSessionCount,
 			connectionChanges: [...first.connectionChanges, ...second.connectionChanges],
 		}, {
-			unresolvedReads: 0, observed: { operatingSystem: OperatingSystem.Linux, activeSessionCount: 1, lastConnectedAt: undefined, lastOnlineAt: 'number', observedAt: true },
+			unresolvedReads: 0, observed: { operatingSystem: OperatingSystem.Linux, activeSessionCount: 1, observedSessionCount: 1, lastConnectedAt: undefined, lastActivityAt: session.session.updatedAt.get().getTime(), lastOnlineAt: 'number', observedAt: true },
 			cached: { metadata: observed, stale: true }, whileLoading: 1, empty: 0, connectionChanges: [],
+		});
+	});
+
+	test('last activity uses session updates, survives disconnection and never substitutes connection time', async () => {
+		const { model, providers } = setup();
+		await model.refresh(CancellationToken.None);
+		const provider = providers.get('ssh:build')!;
+		const updatedAt = observableValue(model, new Date(200_000));
+		const session = buildTestSession({ id: 'activity', title: 'Activity' }, 100_000).session;
+		provider.sessions.push({ ...session, updatedAt });
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.connected, undefined);
+		const pending = model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt;
+		provider.sessionListVersion.set(1, undefined);
+		const observed = model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt;
+		updatedAt.set(new Date(300_000), undefined);
+		const latest = model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt;
+		provider.connectionStatus.set(RemoteAgentHostConnectionStatus.disconnected, undefined);
+		updatedAt.set(new Date(400_000), undefined);
+		assert.deepStrictEqual({ pending, observed, latest, cached: model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.lastActivityAt }, {
+			pending: undefined, observed: 200_000, latest: 300_000, cached: 300_000,
 		});
 	});
 
@@ -412,10 +432,11 @@ suite('RemotesModel', () => {
 		provider.sessionListVersion.set(1, undefined);
 		const count = () => model.remotes.get().find(remote => remote.id === 'ssh:build')?.metadata?.activeSessionCount;
 		const working = count();
+		const total = model.remotes.get().find(remote => remote.id === 'ssh:build')!.metadata?.observedSessionCount;
 		sessions[0].status.set(SessionStatus.Completed, undefined);
 		const waiting = count();
 		sessions[1].status.set(SessionStatus.Completed, undefined);
-		assert.deepStrictEqual({ working, waiting, idle: count() }, { working: 2, waiting: 1, idle: 0 });
+		assert.deepStrictEqual({ working, waiting, idle: count(), total }, { working: 2, waiting: 1, idle: 0, total: 4 });
 	});
 
 	test('ignores legacy cached totals while preserving known system metadata', async () => {
@@ -427,7 +448,7 @@ suite('RemotesModel', () => {
 		const remote = model.remotes.get().find(remote => remote.id === 'tunnel:laptop')!;
 		assert.deepStrictEqual({ metadata: { ...remote.metadata, lastOnlineAt: typeof remote.metadata?.lastOnlineAt }, stale: remote.metadataIsStale, connectionChanges }, {
 			// Recording when the tunnel was seen online must not refresh when its system details were observed.
-			metadata: { operatingSystem: OperatingSystem.Macintosh, activeSessionCount: undefined, observedAt: 100000, lastConnectedAt: undefined, lastOnlineAt: 'number' },
+			metadata: { operatingSystem: OperatingSystem.Macintosh, activeSessionCount: undefined, observedSessionCount: undefined, observedAt: 100000, lastConnectedAt: undefined, lastActivityAt: undefined, lastOnlineAt: 'number' },
 			stale: true, connectionChanges: [],
 		});
 	});
@@ -920,7 +941,7 @@ suite('RemotesModel', () => {
 		setSSHReachability(async () => { throw new Error('probe failed'); });
 		await model.refresh(CancellationToken.None);
 		assert.deepStrictEqual({ initial, checking, reachable, rechecking, unreachable, failed: availability() }, {
-			initial: 'pending', checking: 'pending', reachable: 'online', rechecking: 'online', unreachable: 'unknown', failed: 'unknown',
+			initial: 'pending', checking: 'pending', reachable: 'online', rechecking: 'online', unreachable: 'offline', failed: 'unknown',
 		});
 	});
 
@@ -1380,6 +1401,41 @@ suite('RemotesModel', () => {
 			await model.setConnected(id, true);
 		}
 		assert.deepStrictEqual(reconnects, ['ssh:build', 'wsl:Ubuntu', 'tunnel:laptop']);
+	});
+
+	test('connection failures before transport registration stay on the row until a successful connection', async () => {
+		const { model, failConnection } = setup();
+		await model.refresh(CancellationToken.None);
+		failConnection(new Error('All configured authentication methods failed'));
+		await assert.rejects(model.setConnected('ssh:build', true), /authentication methods failed/);
+		const failure = model.remotes.get().find(remote => remote.id === 'ssh:build')!.lastConnectionError;
+		await model.refresh(CancellationToken.None);
+		const afterRefresh = model.remotes.get().find(remote => remote.id === 'ssh:build')!.lastConnectionError;
+		failConnection(undefined);
+		await model.setConnected('ssh:build', true);
+		assert.deepStrictEqual({ failure, afterRefresh, afterSuccess: model.remotes.get().find(remote => remote.id === 'ssh:build')!.lastConnectionError }, {
+			failure: 'All configured authentication methods failed', afterRefresh: 'All configured authentication methods failed', afterSuccess: undefined,
+		});
+	});
+
+	test('a provider hook returning early cannot report success before connection readiness', async () => {
+		const { model, providers, failConnection } = setup();
+		await model.refresh(CancellationToken.None);
+		providers.get('ssh:build')!.connect = async () => { };
+		failConnection(new Error('Agent host handshake failed'));
+		await assert.rejects(model.setConnected('ssh:build', true), /handshake failed/);
+		assert.deepStrictEqual(model.remotes.get().find(remote => remote.id === 'ssh:build')?.lastConnectionError, 'Agent host handshake failed');
+	});
+
+	test('a failed SSH connection refreshes endpoint evidence rather than preserving a stale reachable result', async () => {
+		const { model, setSSHReachability, failConnection } = setup();
+		setSSHReachability(async () => 'reachable');
+		await model.refresh(CancellationToken.None);
+		failConnection(new Error('connect ECONNREFUSED'));
+		setSSHReachability(async () => 'unreachable');
+		await assert.rejects(model.setConnected('ssh:build', true), /ECONNREFUSED/);
+		const remote = model.remotes.get().find(remote => remote.id === 'ssh:build')!;
+		assert.deepStrictEqual({ availability: remote.availability, error: remote.lastConnectionError }, { availability: 'offline', error: 'connect ECONNREFUSED' });
 	});
 
 	test('connection errors propagate and disabled AI prevents connection changes', async () => {

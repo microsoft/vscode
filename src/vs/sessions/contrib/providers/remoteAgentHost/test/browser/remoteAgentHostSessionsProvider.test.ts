@@ -32,7 +32,7 @@ import { ChangesetKind } from '../../../../../../platform/agentHost/common/chang
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentHostTcpConnection } from '../../../../../../platform/agentHost/common/agentHostTcpConnection.js';
 import { BrowserRemoteProxyEnabledSettingId } from '../../../../../../workbench/contrib/browserView/common/browserView.js';
-import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { cloudSandboxAddress, cloudSandboxTaskResource, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, ICloudSandboxTask } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -926,6 +926,24 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			reused: workspace.folders[0].root.toString(),
 			claimed: workspace.uri.toString(),
 		});
+	});
+
+	test('generic Connect waits for actual readiness and rejects a failed connection', async () => {
+		const pending = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+		const calls: string[] = [];
+		const remote = new class extends NullRemoteAgentHostService {
+			override reconnect(address: string): void { calls.push(address); }
+			override waitForConnection(): Promise<IRemoteAgentHostConnectionInfo> { return pending.p; }
+		}();
+		const provider = createProvider(disposables, connection, { noConnection: true, remoteAgentHostService: remote });
+		let resolved = false;
+		const connecting = provider.connect().then(() => { resolved = true; });
+		const rejected = assert.rejects(connecting, /SSH sign-in rejected/);
+		await timeout(0);
+		const premature = resolved;
+		await pending.error(new Error('SSH sign-in rejected'));
+		await rejected;
+		assert.deepStrictEqual({ premature, resolved, calls }, { premature: false, resolved: false, calls: ['localhost:4321'] });
 	});
 
 	test('rejects cloning on disconnected or unsupported hosts', async () => {

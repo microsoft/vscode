@@ -85,6 +85,9 @@ export class ThisComputerSection extends Disposable {
 	private readonly backAction: Action;
 	private readonly backToolbar: WorkbenchToolBar;
 	private readonly navigation: HTMLElement;
+	private readonly headingToggle: ButtonWithIcon;
+	private readonly summaryHeader: HTMLElement;
+	private collapsed = false;
 	private readonly nameInput: InputBox;
 	private readonly nameHint: HTMLElement;
 	private nameDrafts: Partial<Record<SharingMethod, string>> = {};
@@ -138,9 +141,21 @@ export class ThisComputerSection extends Disposable {
 		const system = OS === OperatingSystem.Windows ? localize('thisComputer.windows', "Windows")
 			: OS === OperatingSystem.Macintosh ? localize('thisComputer.mac', "macOS") : localize('thisComputer.linux', "Linux");
 		const sectionHeading = dom.append(this.domNode, dom.$('.remotes-this-computer-heading'));
-		dom.append(sectionHeading, renderIcon(Codicon.deviceDesktop)).setAttribute('aria-hidden', 'true');
-		dom.append(sectionHeading, dom.$('h2.remotes-this-computer-title', { id: titleId }, localize('thisComputer.title', "This computer")));
-		const header = dom.append(this.domNode, dom.$('.remotes-this-computer-header'));
+		const sectionTitle = dom.append(sectionHeading, dom.$('h2.remotes-this-computer-title', { id: titleId }));
+		this.headingToggle = this._register(new ButtonWithIcon(sectionTitle, { hoverDelegate }));
+		this.headingToggle.element.classList.add('remotes-section-toggle');
+		this.headingToggle.label = localize('thisComputer.title', "This computer");
+		this.headingToggle.icon = Codicon.chevronDown;
+		this.headingToggle.element.setAttribute('aria-expanded', 'true');
+		const header = this.summaryHeader = dom.append(this.domNode, dom.$('.remotes-this-computer-header', { id: generateUuid() }));
+		this.headingToggle.element.setAttribute('aria-controls', header.id);
+		this._register(this.headingToggle.onDidClick(() => {
+			this.collapsed = !this.collapsed;
+			this.headingToggle.element.setAttribute('aria-expanded', String(!this.collapsed));
+			this.headingToggle.icon = this.collapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			this.update();
+			this.onDidChangeExpansion(this.showingOptions);
+		}));
 		const summary = dom.append(header, dom.$('.remotes-this-computer-summary'));
 		const nameRow = dom.append(summary, dom.$('.remotes-this-computer-name-row'));
 		this.name = dom.append(nameRow, dom.$('.remotes-this-computer-name'));
@@ -469,6 +484,7 @@ export class ThisComputerSection extends Disposable {
 		this.renameContainer.hidden = this.showingOptions || active === 'off' || !name;
 		this.rename.enabled = !!name && active !== 'off' && !state.isConnecting && !this.isBusy;
 		this.details.hidden = !this.showingOptions;
+		this.summaryHeader.hidden = this.collapsed;
 		this.navigation.hidden = !this.showingOptions;
 		this.domNode.classList.toggle('sharing-expanded', this.showingOptions);
 		this.domNode.classList.toggle('sharing-active', active !== 'off');
@@ -479,8 +495,10 @@ export class ThisComputerSection extends Disposable {
 		this.stopButton.enabled = !this.isBusy;
 		this.shareButton.element.setAttribute('aria-expanded', String(this.showingOptions));
 		dom.clearNode(this.statusIcon);
-		dom.append(this.statusIcon, renderIcon(pending !== undefined ? ThemeIcon.modify(Codicon.loadingCompact, 'spin') : active === 'off' ? Codicon.circleSlashCompact
-			: state.isConnecting ? ThemeIcon.modify(Codicon.loadingCompact, 'spin') : Codicon.radioTower));
+		this.statusIcon.hidden = pending === undefined && active === 'off';
+		if (!this.statusIcon.hidden) {
+			dom.append(this.statusIcon, renderIcon(pending !== undefined || state.isConnecting ? ThemeIcon.modify(Codicon.loadingCompact, 'spin') : Codicon.radioTower));
+		}
 		this.status.textContent = pending !== undefined ? pending === 'off' ? localize('thisComputer.stopping', "Stopping sharing...")
 			: localize('thisComputer.starting', "Starting sharing via {0}...", sharingChoices[pending].label)
 			: active === 'off' ? localize('thisComputer.notShared', "Not shared")
@@ -494,7 +512,7 @@ export class ThisComputerSection extends Disposable {
 				feedbackParent.appendChild(this.feedbackContainer);
 			}
 		}
-		this.feedbackContainer.hidden = !this.changeFailed;
+		this.feedbackContainer.hidden = !this.changeFailed || this.collapsed && !this.showingOptions;
 		this.feedbackContainer.classList.toggle('sharing-failed', this.changeFailed);
 		this.feedbackLog.hidden = !this.changeFailed;
 		this.applyButton.label = active === 'off' ? localize('thisComputer.start', "Start Sharing") : localize('thisComputer.switch', "Switch Method");
@@ -543,6 +561,8 @@ export class ThisComputerSection extends Disposable {
 	focus(): void {
 		if (this.showingOptions) {
 			this.radio.focusActiveItem();
+		} else if (this.collapsed) {
+			this.headingToggle.focus();
 		} else {
 			(this.sharing.activeMethod === 'off' ? this.shareButton : this.stopButton).focus();
 		}
