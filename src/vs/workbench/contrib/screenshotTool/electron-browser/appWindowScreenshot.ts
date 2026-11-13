@@ -41,7 +41,7 @@ export type AppWindowScreenshotPermission =
 	| 'granted'
 	/** macOS needs the Screen Recording permission, which the user can turn on in System Settings. */
 	| 'notGranted'
-	/** The Screen Recording permission is restricted, such as by the organization that manages the Mac. */
+	/** The Screen Recording permission is restricted, such as by parental controls or by the organization that manages the Mac. */
 	| 'restricted'
 	/** The platform needs no permission. */
 	| 'notRequired';

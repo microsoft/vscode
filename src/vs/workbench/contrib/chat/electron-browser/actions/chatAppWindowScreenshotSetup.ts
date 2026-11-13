@@ -108,7 +108,7 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 		));
 
 		this._element = $('.app-window-screenshot-setup');
-		append(this._element, $('p.app-window-screenshot-setup-description', undefined, localize('appWindowScreenshotSetup.description', "Show chat the app that you are building, in a browser, a simulator, or its own window. {0} captures a window only when you ask it to, and never its own windows.", _productService.nameShort)));
+		append(this._element, $('p.app-window-screenshot-setup-description', undefined, localize('appWindowScreenshotSetup.description', "Let the agent see the app that you are building, whether it runs in a browser, a simulator, or its own window. {0} captures a window only when you ask it to, and never its own windows.", _productService.nameShort)));
 		if (permission !== 'notRequired' || shortcut) {
 			const steps = append(this._element, $('.app-window-screenshot-setup-steps', { role: 'list', 'aria-label': localize('appWindowScreenshotSetup.steps', "Setup steps") }));
 			if (permission !== 'notRequired') {
@@ -118,7 +118,7 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 				this._shortcut = this._createShortcutStep(steps, shortcut);
 			}
 		}
-		append(this._element, $('p.app-window-screenshot-setup-note', undefined, localize('appWindowScreenshotSetup.note', "The screenshot stays in the chat input until you send it, so you can mark it up or remove it. Check it first: screenshots can show private information or text that influences the agent.")));
+		append(this._element, $('p.app-window-screenshot-setup-note', undefined, localize('appWindowScreenshotSetup.note', "The screenshot stays in the chat input until you send it, so you can mark it up or remove it. Check it first, because screenshots can show private information, or text that the agent might act on.")));
 		const footer = append(this._element, $('.app-window-screenshot-setup-footer'));
 		this._attach = this._register(new Button(footer, { ...defaultButtonStyles }));
 		this._attach.label = localize('appWindowScreenshotSetup.attach', "Attach Screenshot");
@@ -204,8 +204,8 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 				localize('appWindowScreenshotSetup.screenRecording', "Screen Recording"),
 				granted ? localize('appWindowScreenshotSetup.allowed.state', "Allowed") : restricted ? localize('appWindowScreenshotSetup.restricted.state', "Restricted") : localize('appWindowScreenshotSetup.notAllowed.state', "Not allowed"),
 				granted ? localize('appWindowScreenshotSetup.allowed.description', "{0} can see the windows of other apps.", product)
-					: restricted ? localize('appWindowScreenshotSetup.restricted.description', "Your organization doesn't let {0} record the screen.", product)
-						: this._returnedWithoutPermission ? localize('appWindowScreenshotSetup.restart.description', "Turned it on? Restart {0} to apply it.", product)
+					: restricted ? localize('appWindowScreenshotSetup.restricted.description', "This Mac doesn't let {0} record the screen.", product)
+						: this._returnedWithoutPermission ? localize('appWindowScreenshotSetup.restart.description', "If you turned it on, restart {0} to apply it.", product)
 							: localize('appWindowScreenshotSetup.notAllowed.description', "Lets {0} see the windows of other apps.", product),
 				granted,
 				granted || restricted ? []
