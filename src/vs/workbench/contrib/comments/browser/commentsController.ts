@@ -497,7 +497,7 @@ export class CommentController extends Disposable implements IEditorContribution
 	private _commentWidgetVisible: IContextKey<boolean>;
 	private _hasRespondedToEditorChange: boolean = false;
 	private readonly _floatingWidgets = new Set<ReviewFloatingWidget>();
-	private readonly _floatingWidgetRoom: FloatingWidgetRoom | undefined;
+	private _floatingWidgetRoom: FloatingWidgetRoom | undefined;
 	private readonly _floatingWidgetHost: ICommentThreadFloatingWidgetHost = {
 		getLayout: widget => CommentController._floatingWidgetLayouts.get(this._getFloatingWidgetLayoutKey(widget)),
 		setLayout: (widget, layout) => CommentController._floatingWidgetLayouts.set(this._getFloatingWidgetLayoutKey(widget), layout),
@@ -540,8 +540,9 @@ export class CommentController extends Disposable implements IEditorContribution
 			return;
 		}
 
+		const isInMultiDiffEditor = !!EditorContextKeys.inMultiDiffEditor.getValue(contextKeyService);
 		if (!IsSessionsWindowContext.getValue(contextKeyService)) {
-			this._register(this.attach(editor));
+			this._register(this.attach(editor, isInMultiDiffEditor));
 			return;
 		}
 
@@ -551,7 +552,7 @@ export class CommentController extends Disposable implements IEditorContribution
 			if (!this.configurationService.getValue<boolean>(AGENTS_WINDOW_EDITOR_COMMENTS_SETTING)) {
 				attachment.clear();
 			} else if (!attachment.value) {
-				attachment.value = combinedDisposable(toDisposable(() => this.detach(editor)), this.attach(editor));
+				attachment.value = combinedDisposable(toDisposable(() => this.detach(editor)), this.attach(editor, isInMultiDiffEditor));
 			}
 		};
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -562,12 +563,12 @@ export class CommentController extends Disposable implements IEditorContribution
 		updateAttachment();
 	}
 
-	private attach(editor: ICodeEditor): IDisposable {
+	private attach(editor: ICodeEditor, isInMultiDiffEditor: boolean): IDisposable {
 		const store = new DisposableStore();
 		this.editor = editor;
-		if (EditorContextKeys.inMultiDiffEditor.getValue(contextKeyService)) {
+		if (isInMultiDiffEditor) {
 			// The editors of the multi diff editor are as tall as their content, so they grow to fit the floating widgets.
-			this._floatingWidgetRoom = this._register(new FloatingWidgetRoom(editor, () => Array.from(this._floatingWidgets, widget => widget.getDocumentRect())));
+			this._floatingWidgetRoom = store.add(new FloatingWidgetRoom(editor, () => Array.from(this._floatingWidgets, widget => widget.getDocumentRect())));
 		}
 
 		this._commentingRangeDecorator = store.add(new CommentingRangeDecorator());
@@ -680,6 +681,7 @@ export class CommentController extends Disposable implements IEditorContribution
 		this._activeCursorHasComment.set(false);
 		this._activeEditorHasCommentingRange.set(false);
 		this._commentWidgetVisible.set(false);
+		this._floatingWidgetRoom = undefined;
 		this.editor = undefined;
 	}
 
