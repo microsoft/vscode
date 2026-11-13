@@ -386,4 +386,47 @@ suite('NotebookEditorStickyScroll', () => {
 				outline.dispose();
 			});
 	});
+
+	test('test8: reproduction case - header appears too late when far from viewport', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}], 		//0
+				['var content 1;', 'javascript', CellKind.Code, [], {}], 	//50
+				['var content 2;', 'javascript', CellKind.Code, [], {}], 	//100
+				['var content 3;', 'javascript', CellKind.Code, [], {}], 	//150
+				['var content 4;', 'javascript', CellKind.Code, [], {}], 	//200
+				['var content 5;', 'javascript', CellKind.Code, [], {}], 	//250
+				['# header b', 'markdown', CellKind.Markup, [], {}], 		//300
+				['var content 6;', 'javascript', CellKind.Code, [], {}]		//350
+			],
+			async (editor, viewModel, ds) => {
+				viewModel.restoreEditorViewState({
+					editingCells: Array.from({ length: 8 }, () => false),
+					editorViewStates: Array.from({ length: 8 }, () => null),
+					cellTotalHeights: Array.from({ length: 8 }, () => 50),
+					cellLineNumberStates: {},
+					collapsedInputCells: {},
+					collapsedOutputCells: {},
+				});
+
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
+				cellList.attachViewModel(viewModel);
+				cellList.layout(400, 100);
+
+				// Simulate scrolling down to middle of content under header a
+				// Header a is at cell 0, we're viewing cells 4-7
+				// We should still see header a as sticky since we're in its section
+				editor.setScrollTop(225); // Between cells 4-5
+				editor.visibleRanges = [{ start: 4, end: 8 }];
+
+				const outline = getOutline(editor);
+				const notebookOutlineEntries = outline.entries;
+				const resultingMap = nbStickyTestHelper(domNode, editor, cellList, notebookOutlineEntries, ds);
+
+				// We expect header a to be shown since we're still in its section
+				// even though it's not in the visible range
+				await assertSnapshot(resultingMap);
+				outline.dispose();
+			});
+	});
 });
