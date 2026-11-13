@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, IReader, observableValue } from '../../../../../base/common/observable.js';
-import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { IAgentHostTerminalCreateOptions, IAgentHostTerminalProfileInfo, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -302,6 +302,7 @@ suite('SessionsTerminalContribution', () => {
 	let agentHostTerminalAddresses: string[];
 	/** The agent host each agent host terminal runs on, keyed by instance id. */
 	let agentHostTerminalAddressById: Map<number, string>;
+	let agentHostProfilesAvailable: boolean;
 	let terminalCreationBarriers: Map<string, DeferredPromise<void>>;
 	let terminalCreationStarted: string[];
 	let activeInstanceSet: number[];
@@ -330,6 +331,7 @@ suite('SessionsTerminalContribution', () => {
 		createdTerminals = [];
 		agentHostTerminalAddresses = [];
 		agentHostTerminalAddressById = new Map();
+		agentHostProfilesAvailable = true;
 		terminalCreationBarriers = new Map();
 		terminalCreationStarted = [];
 		activeInstanceSet = [];
@@ -440,7 +442,9 @@ suite('SessionsTerminalContribution', () => {
 
 		instantiationService.stub(IAgentHostTerminalService, new class extends mock<IAgentHostTerminalService>() {
 			override readonly profiles = constObservable<never[]>([]);
-			override getProfileForConnection() { return undefined; }
+			override getProfileForConnection(address: string): IAgentHostTerminalProfileInfo | undefined {
+				return agentHostProfilesAvailable ? { extensionIdentifier: 'vscode.agent-host-terminal', profileId: `agent-host-${address}`, title: address, address } : undefined;
+			}
 			override setDefaultCwd(cwd: URI | undefined): void { defaultCwdCalls.push(cwd); }
 			override async createTerminalForEntry(address: string, options?: IAgentHostTerminalCreateOptions): Promise<ITerminalInstance | undefined> {
 				const cwd = typeof options?.cwd === 'string' ? URI.file(options.cwd) : options?.cwd;
@@ -589,15 +593,83 @@ suite('SessionsTerminalContribution', () => {
 		// its terminal through AgentHostTerminalService.createTerminal, on a custom pty.
 		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
 		viewTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'one', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
-		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'ssh-remote+one');
 		const ready = viewTerminal._testSetProcessStarting();
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		// AgentHostTerminalService knows the terminal's host only once its createTerminal call returns.
+		await Promise.resolve();
+		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'ssh-remote+one');
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
+		ready.complete();
+	});
+
+	test('adopts the terminal the terminal view creates before its terminal group registers it', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		const worktreeUri = URI.file('/remote/worktree');
+		sessionProviders.set('agenthost-test', { id: 'agenthost-test', remoteAddress: 'remote-test' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ providerId: 'agenthost-test', worktree: toAgentHostUri(worktreeUri, 'remote-test'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
+		viewTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'remote-test', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		// The terminal group fires onDidCreateInstance before it adds the instance to its group,
+		// and a remote session's cwd needs no check on disk before the session's terminals are read.
+		onDidCreateInstance.fire(viewTerminal);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		await Promise.resolve();
+		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'remote-test');
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: [], backgrounded: [] });
+	});
+
+	test('does not adopt a custom pty terminal the terminal view creates for a local session', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// The user's default profile is a contributed profile that runs on a custom pty.
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		viewTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Contributed', isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
 		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
 		terminalGroupCount = 1;
 		onDidCreateInstance.fire(viewTerminal);
 		await tick();
 
-		assert.deepStrictEqual({ created: agentHostTerminalAddresses, disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
-		ready.complete();
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), backgrounded: [...backgroundedInstances] }, { created: [URI.file('/worktree-a').fsPath], backgrounded: [viewTerminal.instanceId] });
+	});
+
+	test('does not adopt a local terminal the terminal view creates for an Agent Host session without a profile', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		agentHostProfilesAvailable = false;
+		sessionProviders.set('agenthost-one', { id: 'agenthost-one', remoteAddress: 'ssh-remote+one' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:host-one', providerId: 'agenthost-one', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// Without an Agent Host profile to make the default, the view starts a local shell.
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(viewTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: ['ssh-remote+one'], backgrounded: [viewTerminal.instanceId] });
 	});
 
 	test('does not create a second terminal when the terminal view is shown again while its terminal starts', async () => {
