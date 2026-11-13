@@ -13346,6 +13346,7 @@ export class AgentService extends Disposable implements IAgentService {
 					[SessionConfigKey.PullRequestUrl]: undefined,
 				},
 				prompt: options.prompt,
+				ownerSession: session,
 				...(credentials ? { credentialSource: credentials } : {}),
 				githubToken: this._authService.getAuthToken({
 					session: session.toString(),
