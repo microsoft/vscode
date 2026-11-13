@@ -804,6 +804,71 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
+	/** A real Cloud runtime and its real task catalog, whose task bindings the test learns as it goes. */
+	function createCatalogRuntime() {
+		class Runtime extends CloudSandboxSessionsProvider {
+			createCatalog(): CloudSandboxTaskSessionsProvider {
+				return this._instantiationService.createInstance(CloudSandboxTaskSessionsProvider);
+			}
+		}
+		const bindings = new Map<string, URI>();
+		const runtime = createProvider(disposables, connection, { noConnection: true, ctor: Runtime }, {
+			providerId: CLOUD_SANDBOX_TASK_PROVIDER_ID,
+			mapSessionResource: session => bindings.get(AgentSession.id(session)),
+		});
+		assert.ok(runtime instanceof Runtime);
+		const catalog = disposables.add(runtime.createCatalog());
+		catalog.initialize({
+			accountKey: () => 'account', resolve: async () => runtime,
+			rename: async () => { }, archive: async () => { }, delete: async () => { },
+		});
+		const resources = (sessions: readonly ISession[]) => sessions.map(session => session.resource.toString());
+		const events: { added: string[]; removed: string[]; changed: string[] }[] = [];
+		disposables.add(catalog.onDidChangeAllSessions(event => events.push({ added: resources(event.added), removed: resources(event.removed), changed: resources(event.changed) })));
+		const task: ICloudSandboxTask = { taskId: 'the-task', sessionId: 'task-session', environmentId: 'environment', name: 'Task' };
+		const discover = () => runtime.seedSessions([createSession('task-session', { provider: 'copilot', session: AgentSession.uri('ahp-session', 'task-session'), summary: 'Task' })]);
+		const bind = () => {
+			bindings.set('task-session', cloudSandboxTaskResource('the-task'));
+			runtime.reconcileTaskResource('task-session');
+		};
+		return { runtime, catalog, task, events, resources, discover, bind };
+	}
+
+	test('a pending task\'s row that a runtime session rebinds to is reported added, and is the replacement, as the catalog lists it', async () => {
+		const { runtime, catalog, task, events, resources, discover, bind } = createCatalogRuntime();
+		// Attached before its task is known: the task is pending until its session shows
+		catalog.attach(task.taskId, runtime, task);
+		discover();
+		const atReplacement: { listed: string[]; all: string[]; toIsListed: boolean }[] = [];
+		disposables.add(catalog.onDidReplaceSession(({ to }) => atReplacement.push({
+			listed: resources(catalog.getSessions()),
+			all: resources(catalog.getAllSessions()),
+			toIsListed: catalog.getAllSessions().includes(to),
+		})));
+		catalog.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		events.length = 0;
+		bind();
+
+		assert.deepStrictEqual({ atReplacement, events }, {
+			atReplacement: [{ listed: ['cloud-sandbox-task:/the-task'], all: ['cloud-sandbox-task:/the-task'], toIsListed: true }],
+			events: [{ added: ['cloud-sandbox-task:/the-task'], removed: ['remote-localhost__4321-copilot:/task-session'], changed: [] }],
+		});
+	});
+
+	test('a catalog cleared before its runtime reports a replacement reports the task\'s row as it attaches again', async () => {
+		const { runtime, catalog, task, events, discover, bind } = createCatalogRuntime();
+		catalog.attach(task.taskId, runtime, task);
+		discover();
+		// Reset as the replacement is reported, before its runtime reports the session added
+		disposables.add(catalog.onDidReplaceSession(() => catalog.clear()));
+		bind();
+		catalog.setTasks([task]);
+		events.length = 0;
+		catalog.attach(task.taskId, runtime, task);
+
+		assert.deepStrictEqual(events, [{ added: [], removed: [], changed: ['cloud-sandbox-task:/the-task'] }]);
+	});
+
 	test('a scoped catalog lists the task, not the legacy row, as a runtime session rebinds to its task binding', async () => {
 		class Runtime extends CloudSandboxSessionsProvider {
 			createCatalog(): CloudSandboxTaskSessionsProvider {
