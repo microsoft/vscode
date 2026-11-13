@@ -499,6 +499,27 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('lists the sessions as their providers list them, and finds and reports the changes of also those outside a listing scope', () => {
+		const listed = stubSession({ sessionId: 'listed', providerId: 'scoped' });
+		const hidden = stubSession({ sessionId: 'hidden', providerId: 'scoped' });
+		const onDidChangeAllSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+		const scoped = new class extends TestSessionsProvider {
+			override readonly id = 'scoped';
+			override readonly onDidChangeAllSessions = onDidChangeAllSessions.event;
+			override getAllSessions(): ISession[] { return [listed, hidden]; }
+		}(listed);
+		const { service } = createSessionsManagementService(listed, disposables, [scoped]);
+		const changes: string[] = [];
+		disposables.add(service.onDidChangeSession(batch => changes.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`).join(', '))));
+		onDidChangeAllSessions.fire({ added: [], removed: [], changed: [hidden] });
+
+		assert.deepStrictEqual({
+			listed: service.getSessions().map(session => session.sessionId),
+			found: service.getSession(hidden.resource)?.sessionId,
+			changes,
+		}, { listed: ['listed'], found: 'hidden', changes: ['changed hidden'] });
+	});
+
 	suite('session grid integration', () => {
 		function created(id: string): ISession {
 			const chat: IChat = { ...stubChat, resource: URI.parse(`test:///${id}/chat`), status: constObservable(SessionStatus.Completed) };
@@ -2725,6 +2746,61 @@ suite('SessionsManagementService', () => {
 				}
 			}(providers);
 		}
+
+		test('without a listing scope, the changes of each session are those of the listed sessions', () => {
+			const first = stubSession({ sessionId: 'first', providerId: 'test' });
+			const second = stubSession({ sessionId: 'second', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+			}(first);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(first, disposables, providersService);
+			const listed: ISessionChangeEvent[] = [];
+			const each: string[] = [];
+			disposables.add(service.onDidChangeSessions(e => listed.push(e)));
+			disposables.add(service.onDidChangeSession(batch => each.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`).join(', '))));
+
+			disposables.add(providersService.registerProvider(provider));
+			onDidChangeSessions.fire({ added: [second], removed: [first], changed: [] });
+
+			// One batch for each change of the listed sessions
+			const fromListed = listed.map(e => [...e.added.map(s => `added ${s.sessionId}`), ...e.removed.map(s => `removed ${s.sessionId}`), ...e.changed.map(s => `changed ${s.sessionId}`)].join(', '));
+			assert.deepStrictEqual({ each, count: listed.length }, { each: fromListed, count: 2 });
+		});
+
+		test('reports an empty change of a provider, such as its invalidation of what it lists, as an empty batch', () => {
+			const session = stubSession({ sessionId: 'only', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			disposables.add(providersService.registerProvider(provider));
+			const batches: number[] = [];
+			disposables.add(service.onDidChangeSession(batch => batches.push(batch.length)));
+
+			onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+
+			assert.deepStrictEqual(batches, [0]);
+		});
+
+		test('reports the sessions of a provider that registers, also those outside its listing scope, in one change', () => {
+			const sessions = ['a', 'b', 'c'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return sessions.slice(0, 1); }
+				override getAllSessions(): ISession[] { return sessions; }
+			}(sessions[0]);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(sessions[0], disposables, providersService);
+			const batches: string[][] = [];
+			disposables.add(service.onDidChangeSession(batch => batches.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`))));
+
+			disposables.add(providersService.registerProvider(provider));
+
+			assert.deepStrictEqual(batches, [['added a', 'added b', 'added c']]);
+		});
 
 		test('announces cached sessions when a provider registers', () => {
 			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
