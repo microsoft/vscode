@@ -27,7 +27,7 @@ import { mark } from '../../../../base/common/performance.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, Extensions as WorkbenchExtensions, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -1171,6 +1171,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 }
 
 class RegisterConfigurationSchemasContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.registerConfigurationSchemas';
+
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -1677,8 +1680,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 	}
 }
 
-const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(RegisterConfigurationSchemasContribution.ID, RegisterConfigurationSchemasContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ConfigurationDefaultOverridesContribution.ID, ConfigurationDefaultOverridesContribution, WorkbenchPhase.BlockRestore);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);

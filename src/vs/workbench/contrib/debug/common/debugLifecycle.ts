@@ -13,6 +13,9 @@ import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/c
 import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 
 export class DebugLifecycle implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.debugLifecycle';
+
 	private disposable: IDisposable;
 
 	constructor(

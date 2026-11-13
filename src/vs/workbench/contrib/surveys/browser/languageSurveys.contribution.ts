@@ -6,13 +6,11 @@
 import { localize } from '../../../../nls.js';
 import { language } from '../../../../base/common/platform.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISurveyData } from '../../../../base/common/product.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Severity, INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { ITextFileService, ITextFileEditorModel } from '../../../services/textfile/common/textfiles.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -126,6 +124,8 @@ class LanguageSurvey extends Disposable {
 
 class LanguageSurveysContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.languageSurveys';
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -157,6 +157,5 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 }
 
 if (language === 'en') {
-	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Restored);
+	registerWorkbenchContribution2(LanguageSurveysContribution.ID, LanguageSurveysContribution, WorkbenchPhase.AfterRestored);
 }

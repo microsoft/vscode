@@ -5,12 +5,11 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -144,11 +143,9 @@ viewsRegistry.registerViews([{
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMActiveRepositoryController, LifecyclePhase.Restored);
+registerWorkbenchContribution2(SCMActiveRepositoryController.ID, SCMActiveRepositoryController, WorkbenchPhase.AfterRestored);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
+registerWorkbenchContribution2(SCMActiveResourceContextKeyController.ID, SCMActiveResourceContextKeyController, WorkbenchPhase.AfterRestored);
 
 registerWorkbenchContribution2(
 	SCMWorkingSetController.ID,

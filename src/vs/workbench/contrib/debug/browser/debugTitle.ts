@@ -11,6 +11,8 @@ import { ITitleService } from '../../../services/title/browser/titleService.js';
 
 export class DebugTitleContribution implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.debugTitle';
+
 	private toDispose: IDisposable[] = [];
 
 	constructor(

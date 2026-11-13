@@ -15,8 +15,7 @@ import { Severity } from '../../../../platform/notification/common/notification.
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -73,6 +72,8 @@ function getSessionsWindowTrustNote(environmentService: IWorkbenchEnvironmentSer
 
 export class WorkspaceTrustContextKeys extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.workspaceTrustContextKeys';
+
 	private readonly _ctxWorkspaceTrustEnabled: IContextKey<boolean>;
 	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
 
@@ -93,7 +94,7 @@ export class WorkspaceTrustContextKeys extends Disposable implements IWorkbenchC
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustContextKeys, LifecyclePhase.Restored);
+registerWorkbenchContribution2(WorkspaceTrustContextKeys.ID, WorkspaceTrustContextKeys, WorkbenchPhase.AfterRestored);
 
 
 /*
@@ -300,6 +301,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
  * Trust UX and Startup Handler
  */
 export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.workspaceTrustUXHandler';
 
 	private readonly entryId = `status.workspaceTrust`;
 
@@ -721,7 +724,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 }
 
 registerWorkbenchContribution2(WorkspaceTrustRequestHandler.ID, WorkspaceTrustRequestHandler, WorkbenchPhase.BlockRestore);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, LifecyclePhase.Restored);
+registerWorkbenchContribution2(WorkspaceTrustUXHandler.ID, WorkspaceTrustUXHandler, WorkbenchPhase.AfterRestored);
 
 
 /**
@@ -871,6 +874,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	});
 
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.workspaceTrustTelemetry';
+
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -989,5 +995,4 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkspaceTrustTelemetryContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(WorkspaceTrustTelemetryContribution.ID, WorkspaceTrustTelemetryContribution, WorkbenchPhase.AfterRestored);

@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from '../../../common/contributions.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { mark } from '../../../../base/common/performance.js';
@@ -62,6 +60,9 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 }
 
 class InitializeOtherResourcesContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.initializeOtherResources';
+
 	constructor(
 		@IUserDataInitializationService userDataInitializeService: IUserDataInitializationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -80,6 +81,5 @@ class InitializeOtherResourcesContribution implements IWorkbenchContribution {
 }
 
 if (isWeb) {
-	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, LifecyclePhase.Restored);
+	registerWorkbenchContribution2(InitializeOtherResourcesContribution.ID, InitializeOtherResourcesContribution, WorkbenchPhase.AfterRestored);
 }

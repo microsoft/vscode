@@ -17,9 +17,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 
 const builtInSource = localize('Built-In', "Built-In");
 const category: ILocalizedString = localize2('Create', 'Create');
@@ -52,6 +50,9 @@ registerAction2(class extends Action2 {
 
 type NewFileItem = { commandID: string; title: string; from: string; group: string; commandArgs?: unknown };
 class NewFileTemplatesManager extends Disposable {
+
+	static readonly ID = 'workbench.contrib.newFileTemplates';
+
 	static Instance: NewFileTemplatesManager | undefined;
 
 	private menu: IMenu;
@@ -207,8 +208,7 @@ class NewFileTemplatesManager extends Disposable {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(NewFileTemplatesManager, LifecyclePhase.Restored);
+registerWorkbenchContribution2(NewFileTemplatesManager.ID, NewFileTemplatesManager, WorkbenchPhase.AfterRestored);
 
 MenuRegistry.appendMenuItem(MenuId.NewFile, {
 	group: 'file',

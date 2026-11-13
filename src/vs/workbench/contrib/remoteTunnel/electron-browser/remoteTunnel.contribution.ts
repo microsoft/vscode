@@ -31,10 +31,9 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREFIX, CONFIGURATION_KEY_PREVENT_SLEEP, ConnectionInfo, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, IRemoteTunnelSession, LOGGER_NAME, LOG_ID, MAX_TUNNEL_NAME_LENGTH, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, isUntitledWorkspace } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IOutputService } from '../../../services/output/common/output.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
@@ -122,6 +121,8 @@ export async function promptToRenameRemoteTunnel(
 
 
 export class RemoteTunnelWorkbenchContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteTunnel.workbench';
 
 	private readonly connectionStateContext: IContextKey<CONTEXT_KEY_STATES>;
 	private readonly hasLinkContext: IContextKey<boolean>;
@@ -911,8 +912,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 }
 
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteTunnelWorkbenchContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(RemoteTunnelWorkbenchContribution.ID, RemoteTunnelWorkbenchContribution, WorkbenchPhase.AfterRestored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	type: 'object',

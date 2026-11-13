@@ -88,6 +88,8 @@ const CONTEXT_TURNING_ON_STATE = new RawContextKey<false>('userDataSyncTurningOn
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.userDataSync.workbench';
+
 	private readonly turningOnSyncContext: IContextKey<boolean>;
 
 	private readonly globalActivityBadgeDisposable = this._register(new MutableDisposable());

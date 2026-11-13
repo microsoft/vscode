@@ -16,11 +16,10 @@ import { IProcessService } from '../../../../platform/process/common/process.js'
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
 import '../browser/issueTroubleshoot.js';
 import './issueReporterKeybindings.js';
@@ -111,6 +110,8 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 
 class NativeIssueContribution extends BaseIssueContribution {
 
+	static readonly ID = 'workbench.contrib.nativeIssue';
+
 	constructor(
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService
@@ -154,7 +155,7 @@ class NativeIssueContribution extends BaseIssueContribution {
 		}
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(NativeIssueContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(NativeIssueContribution.ID, NativeIssueContribution, WorkbenchPhase.AfterRestored);
 
 class ReportPerformanceIssueUsingReporterAction extends Action2 {
 

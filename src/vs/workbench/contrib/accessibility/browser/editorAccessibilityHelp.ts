@@ -26,7 +26,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { localize } from '../../../../nls.js';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
-	static ID: 'editorAccessibilityHelpContribution';
+	static readonly ID = 'workbench.contrib.editorAccessibilityHelp';
 	constructor() {
 		super();
 		this._register(AccessibilityHelpAction.addImplementation(90, 'editor', async accessor => {

@@ -7,11 +7,9 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../common/remoteCodingAgentsService.js';
 
 interface IRemoteCodingAgentExtensionPoint {
@@ -62,6 +60,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IRemoteCodingAg
 });
 
 export class RemoteCodingAgentsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.remoteCodingAgents.extensionPoint';
+
 	constructor(
 		@IRemoteCodingAgentsService private readonly remoteCodingAgentsService: IRemoteCodingAgentsService
 	) {
@@ -95,5 +96,4 @@ export class RemoteCodingAgentsContribution extends Disposable implements IWorkb
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(RemoteCodingAgentsContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(RemoteCodingAgentsContribution.ID, RemoteCodingAgentsContribution, WorkbenchPhase.AfterRestored);

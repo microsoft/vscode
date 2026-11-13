@@ -15,6 +15,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export class ExtensionActivationProgress implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.extensionActivationProgress';
+
 	private readonly _listener: IDisposable;
 
 	constructor(

@@ -5,9 +5,9 @@
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { ILifecycleService, LifecyclePhase, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -115,6 +115,8 @@ const queryParamName = 'editSessionId';
 
 const useEditSessionsWithContinueOn = 'workbench.editSessions.continueOn';
 export class EditSessionsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.editSessions.workbench';
 
 	private continueEditSessionOptions: ContinueEditSessionItem[] = [];
 
@@ -1150,8 +1152,7 @@ const continueEditSessionExtPoint = ExtensionsRegistry.registerExtensionPoint<IC
 
 //#endregion
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditSessionsContribution, LifecyclePhase.Restored);
+registerWorkbenchContribution2(EditSessionsContribution.ID, EditSessionsContribution, WorkbenchPhase.AfterRestored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,

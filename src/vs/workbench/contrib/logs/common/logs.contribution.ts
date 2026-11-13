@@ -8,11 +8,10 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { SetLogLevelAction } from './logsActions.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IOutputChannelRegistry, IOutputService, Extensions, isMultiSourceOutputChannelDescriptor, isSingleSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { CONTEXT_LOG_LEVEL, ILoggerResource, ILoggerService, LogLevel, LogLevelToString, isLogLevel } from '../../../../platform/log/common/log.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { windowLogId, showWindowLogActionId } from '../../../services/log/common/logConstants.js';
@@ -51,6 +50,8 @@ registerAction2(class extends Action2 {
 });
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.logOutputChannels';
 
 	private readonly contextKeys = new CounterSet<string>();
 	private readonly outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
@@ -197,4 +198,4 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(LogOutputChannels, LifecyclePhase.Restored);
+registerWorkbenchContribution2(LogOutputChannels.ID, LogOutputChannels, WorkbenchPhase.AfterRestored);

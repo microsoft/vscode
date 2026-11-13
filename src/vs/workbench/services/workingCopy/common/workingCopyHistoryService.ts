@@ -6,9 +6,8 @@
 import { localize } from '../../../../nls.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { ILifecycleService, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
 import { WorkingCopyHistoryTracker } from './workingCopyHistoryTracker.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from './workingCopyHistory.js';
@@ -903,4 +902,4 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 }
 
 // Register History Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkingCopyHistoryTracker, LifecyclePhase.Restored);
+registerWorkbenchContribution2(WorkingCopyHistoryTracker.ID, WorkingCopyHistoryTracker, WorkbenchPhase.AfterRestored);

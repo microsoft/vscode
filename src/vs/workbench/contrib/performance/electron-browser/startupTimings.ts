@@ -43,6 +43,8 @@ interface IHeapStatistics {
 
 export class NativeStartupTimings extends StartupTimings implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.nativeStartupTimings';
+
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@ITimerService private readonly _timerService: ITimerService,

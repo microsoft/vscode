@@ -25,6 +25,9 @@ const HAS_PROMPTED_FOR_AUTOMATIC_TASKS = 'task.hasPromptedForAutomaticTasks.v2';
 const ALLOW_AUTOMATIC_TASKS = 'task.allowAutomaticTasks';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.runAutomaticTasks';
+
 	private _hasRunTasks: boolean = false;
 	constructor(
 		@ITaskService private readonly _taskService: ITaskService,

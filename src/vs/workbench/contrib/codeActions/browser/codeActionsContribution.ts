@@ -112,6 +112,8 @@ export const notebookEditorConfiguration = Object.freeze<IConfigurationNode>({
 
 export class CodeActionsContribution extends Disposable implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.codeActions.kindsSchema';
+
 	private readonly _onDidChangeSchemaContributions = this._register(new Emitter<void>());
 
 	private _allProvidedCodeActionKinds: HierarchicalKind[] = [];

@@ -25,6 +25,8 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.openerValidatorContributions';
+
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,

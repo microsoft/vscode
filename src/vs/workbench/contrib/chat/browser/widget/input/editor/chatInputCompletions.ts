@@ -37,14 +37,12 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../../../pl
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
-import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../common/contributions.js';
 import { EditorsOrder, isDiffEditorInput } from '../../../../../../common/editor.js';
 import { IsSessionsWindowContext } from '../../../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IHistoryService } from '../../../../../../services/history/common/history.js';
-import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
 import { ISearchService } from '../../../../../../services/search/common/search.js';
 import { McpPromptArgumentPick } from '../../../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
@@ -102,6 +100,9 @@ function isAgentHostBackedWidget(widget: IChatWidget): boolean {
 }
 
 export class SlashCommandCompletions extends Disposable {
+
+	static readonly ID = 'workbench.contrib.slashCommandCompletions';
+
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -392,9 +393,12 @@ export class SlashCommandCompletions extends Disposable {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SlashCommandCompletions, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(SlashCommandCompletions.ID, SlashCommandCompletions, WorkbenchPhase.Eventually);
 
 export class AgentCompletions extends Disposable {
+
+	static readonly ID = 'workbench.contrib.agentCompletions';
+
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -709,7 +713,7 @@ export class AgentCompletions extends Disposable {
 		return { label: agentLabel, isDupe };
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentCompletions, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(AgentCompletions.ID, AgentCompletions, WorkbenchPhase.Eventually);
 
 interface AssignSelectedAgentActionArgs {
 	agent: IChatAgentData;
@@ -930,6 +934,9 @@ interface IVariableCompletionsDetails {
 }
 
 export class BuiltinDynamicCompletions extends Disposable {
+
+	static readonly ID = 'workbench.contrib.builtinDynamicCompletions';
+
 	private static readonly addReferenceCommand = '_addReferenceCmd';
 	private static readonly VariableNameDef = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][\\w:-]*`, 'g'); // MUST be using `g`-flag
 
@@ -1387,9 +1394,11 @@ export class BuiltinDynamicCompletions extends Disposable {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(BuiltinDynamicCompletions, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(BuiltinDynamicCompletions.ID, BuiltinDynamicCompletions, WorkbenchPhase.Eventually);
 
 class ToolCompletions extends Disposable {
+
+	static readonly ID = 'workbench.contrib.toolCompletions';
 
 	private static readonly VariableNameDef = new RegExp(`(?<=^|\\s)[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}]\\w*`, 'g'); // MUST be using `g`-flag
 
@@ -1495,4 +1504,4 @@ class ToolCompletions extends Disposable {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ToolCompletions, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(ToolCompletions.ID, ToolCompletions, WorkbenchPhase.Eventually);

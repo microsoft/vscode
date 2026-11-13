@@ -29,6 +29,9 @@ const ActiveRepositoryContextKeys = {
 };
 
 export class SCMActiveRepositoryController extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.scmActiveRepositoryController';
+
 	private readonly _visibleRepositories: IObservable<readonly ISCMRepository[]>;
 	private readonly _activeRepositoryHistoryItemRefName: IObservable<string | undefined>;
 	private readonly _countBadgeConfig: IObservable<'all' | 'focused' | 'off'>;
@@ -186,6 +189,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 }
 
 export class SCMActiveResourceContextKeyController extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.scmActiveResourceContextKeyController';
+
 	private readonly _repositories: IObservable<Iterable<ISCMRepository>>;
 
 	private readonly _onDidRepositoryChange = new Emitter<void>();

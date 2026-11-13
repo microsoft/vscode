@@ -17,8 +17,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IExtensionService, toExtension } from '../../../services/extensions/common/extensions.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -37,6 +36,8 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
 export class DefaultFormatter extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.defaultFormatter';
 
 	static readonly configName = 'editor.defaultFormatter';
 
@@ -268,10 +269,7 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	DefaultFormatter,
-	LifecyclePhase.Restored
-);
+registerWorkbenchContribution2(DefaultFormatter.ID, DefaultFormatter, WorkbenchPhase.AfterRestored);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...editorConfigurationBaseNode,

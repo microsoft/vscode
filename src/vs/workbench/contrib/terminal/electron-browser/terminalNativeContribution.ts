@@ -16,6 +16,9 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { disposableWindowInterval, getActiveWindow } from '../../../../base/browser/dom.js';
 
 export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.terminalNative';
+
 	declare _serviceBrand: undefined;
 
 	constructor(

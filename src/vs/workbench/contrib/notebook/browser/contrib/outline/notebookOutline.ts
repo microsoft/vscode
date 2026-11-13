@@ -25,14 +25,13 @@ import { MarkerSeverity } from '../../../../../../platform/markers/common/marker
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { listErrorForeground, listWarningForeground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorPane } from '../../../../../common/editor.js';
 import { CellFoldingState, CellRevealType, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookEditor, INotebookEditorOptions, INotebookEditorPane, INotebookViewModel } from '../../notebookBrowser.js';
 import { NotebookEditor } from '../../notebookEditor.js';
 import { INotebookCellOutlineDataSource, NotebookCellOutlineDataSource } from '../../viewModel/notebookOutlineDataSource.js';
 import { CellKind, NotebookCellsChangeType, NotebookSetting } from '../../../common/notebookCommon.js';
 import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IBreadcrumbsDataSource, IBreadcrumbsOutlineElement, IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from '../../../../../services/outline/browser/outline.js';
 import { OutlineEntry } from '../../viewModel/OutlineEntry.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -822,6 +821,8 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, OutlineEntry> {
 
+	static readonly ID = 'workbench.contrib.notebookOutlineCreator';
+
 	readonly dispose: () => void;
 
 	constructor(
@@ -855,7 +856,7 @@ export const NotebookOutlineContext = {
 	OutlineElementTarget: new RawContextKey<OutlineTarget>('notebookOutlineElementTarget', undefined),
 };
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookOutlineCreator, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(NotebookOutlineCreator.ID, NotebookOutlineCreator, WorkbenchPhase.Eventually);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'notebook',

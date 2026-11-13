@@ -12,6 +12,9 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { AccessibilityWorkbenchSettingId, ViewDimUnfocusedOpacityProperties } from './accessibilityConfiguration.js';
 
 export class UnfocusedViewDimmingContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.unfocusedViewDimming';
+
 	private _styleElement?: HTMLStyleElement;
 	private _styleElementDisposables: DisposableStore | undefined = undefined;
 

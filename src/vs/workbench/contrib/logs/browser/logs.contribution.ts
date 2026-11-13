@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { OpenWindowSessionLogFileAction } from '../common/logsActions.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { LogsDataCleaner } from '../common/logsDataCleaner.js';
 
 class WebLogOutputChannels extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.webLogOutputChannels';
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -43,4 +43,4 @@ class WebLogOutputChannels extends Disposable implements IWorkbenchContribution 
 
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WebLogOutputChannels, LifecyclePhase.Restored);
+registerWorkbenchContribution2(WebLogOutputChannels.ID, WebLogOutputChannels, WorkbenchPhase.AfterRestored);

@@ -7,18 +7,19 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from '../../../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IBreakpoint, IDebugService } from '../../../../debug/common/debug.js';
 import { getNotebookEditorFromEditorPane } from '../../notebookBrowser.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { CellUri, NotebookCellsChangeType } from '../../../common/notebookCommon.js';
 import { INotebookService } from '../../../common/notebookService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 
 class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebookBreakpoints';
+
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
 		@INotebookService _notebookService: INotebookService,
@@ -124,4 +125,4 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookBreakpoints, LifecyclePhase.Restored);
+registerWorkbenchContribution2(NotebookBreakpoints.ID, NotebookBreakpoints, WorkbenchPhase.AfterRestored);

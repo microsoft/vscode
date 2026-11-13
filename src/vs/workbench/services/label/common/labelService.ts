@@ -8,8 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IDisposable, Disposable, dispose } from '../../../../base/common/lifecycle.js';
 import { posix, sep, win32 } from '../../../../base/common/path.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { basenameOrAuthority, basename, dirname, joinPath } from '../../../../base/common/resources.js';
@@ -17,7 +16,7 @@ import { tildify, getPathLabel } from '../../../../base/common/labels.js';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity, ResourceLabelTemplateFormatter } from '../../../../platform/label/common/label.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { match } from '../../../../base/common/glob.js';
-import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
+import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { isProposedApiEnabled } from '../../extensions/common/extensions.js';
@@ -87,6 +86,8 @@ function hasDriveLetterIgnorePlatform(path: string): boolean {
 
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 
+	static readonly ID = 'workbench.contrib.resourceLabelFormattersHandler';
+
 	private readonly formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
 
 	constructor(@ILabelService labelService: ILabelService) {
@@ -122,7 +123,7 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 		});
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, LifecyclePhase.Restored);
+registerWorkbenchContribution2(ResourceLabelFormattersHandler.ID, ResourceLabelFormattersHandler, WorkbenchPhase.AfterRestored);
 
 const FORMATTER_CACHE_SIZE = 50;
 

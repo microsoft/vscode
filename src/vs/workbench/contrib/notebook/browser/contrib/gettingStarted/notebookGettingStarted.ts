@@ -11,15 +11,13 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { Memento } from '../../../../../common/memento.js';
 import { NotebookSetting } from '../../../common/notebookCommon.js';
 import { HAS_OPENED_NOTEBOOK } from '../../../common/notebookContextKeys.js';
 import { NotebookEditorInput } from '../../../common/notebookEditorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
 
 const hasOpenedNotebookKey = 'hasOpenedNotebook';
 const hasShownGettingStartedKey = 'hasShownNotebookGettingStarted';
@@ -33,6 +31,8 @@ interface INotebookGettingStartedMemento {
  * Sets a context key when a notebook has ever been opened by the user
  */
 export class NotebookGettingStarted extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.notebookGettingStarted';
 
 	constructor(
 		@IEditorService _editorService: IEditorService,
@@ -80,7 +80,7 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookGettingStarted, LifecyclePhase.Restored);
+registerWorkbenchContribution2(NotebookGettingStarted.ID, NotebookGettingStarted, WorkbenchPhase.AfterRestored);
 
 registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
 	constructor() {

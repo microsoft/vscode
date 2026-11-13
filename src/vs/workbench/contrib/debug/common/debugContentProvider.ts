@@ -36,6 +36,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
  */
 export class DebugContentProvider extends Disposable implements IWorkbenchContribution, ITextModelContentProvider {
 
+	static readonly ID = 'workbench.contrib.debugContentProvider';
+
 	private static INSTANCE: DebugContentProvider;
 
 	private readonly pendingUpdates = new Map<string, CancellationTokenSource>();

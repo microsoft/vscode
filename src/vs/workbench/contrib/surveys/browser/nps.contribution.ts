@@ -5,12 +5,10 @@
 
 import * as nls from '../../../../nls.js';
 import { language } from '../../../../base/common/platform.js';
-import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Severity, INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -25,6 +23,8 @@ const SKIP_VERSION_KEY = 'nps/skipVersion';
 const IS_CANDIDATE_KEY = 'nps/isCandidate';
 
 class NPSContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.npsSurvey';
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -95,6 +95,5 @@ class NPSContribution implements IWorkbenchContribution {
 }
 
 if (language === 'en') {
-	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(NPSContribution, LifecyclePhase.Restored);
+	registerWorkbenchContribution2(NPSContribution.ID, NPSContribution, WorkbenchPhase.AfterRestored);
 }
