@@ -762,7 +762,6 @@ export function toAuthenticateRequest(
 	const account = providerId && session?.account?.id ? {
 		providerId,
 		accountId: session.account.id,
-		...(providerId === 'microsoft' && session.account.label ? { label: session.account.label } : {}),
 		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
 	} : undefined;
 	return {

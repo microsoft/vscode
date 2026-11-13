@@ -47,6 +47,9 @@ const GET_REFS_TIMEOUT_MS = 30_000;
 /** Budget for a git command that doesn't set its own, so that an unresponsive remote can't hang a caller. */
 const GIT_COMMAND_TIMEOUT_MS = 30_000;
 
+/** Beyond this many changed paths, stat-ing them costs about as much as the diff the fingerprint would save. */
+const MAX_FINGERPRINTED_CHANGED_PATHS = 2000;
+
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
@@ -783,6 +786,60 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		return this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch);
+	}
+
+	async getBranchDiffFingerprint(workingDirectory: URI, baseBranch?: string): Promise<string | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		const [mergeBaseCommit, head, statusOut] = await Promise.all([
+			this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch),
+			this._runGit(repositoryRoot, ['rev-parse', 'HEAD']),
+			this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']),
+		]);
+		if (statusOut === undefined) {
+			return undefined;
+		}
+		const changedPaths = parseChangedPaths(statusOut);
+		if (changedPaths.length > MAX_FINGERPRINTED_CHANGED_PATHS) {
+			return undefined;
+		}
+		const limiter = new Limiter<string>(16);
+		try {
+			const files = await Promise.all(changedPaths.map(changedPath => limiter.queue(async () => {
+				try {
+					const stat = await fsPromises.lstat(path.join(repositoryRoot.fsPath, changedPath), { bigint: true });
+					return `${stat.size}:${stat.mtimeNs}`;
+				} catch {
+					return 'missing';
+				}
+			})));
+			return JSON.stringify([mergeBaseCommit, head?.trim(), statusOut, files]);
+		} finally {
+			limiter.dispose();
+		}
+	}
+
+	async hasUnignoredPaths(workingDirectory: URI, resources: readonly URI[]): Promise<boolean | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot || resources.length === 0) {
+			return undefined;
+		}
+		const gitDirectory = path.join(repositoryRoot.fsPath, '.git');
+		const paths = resources.map(resource => resource.fsPath);
+		if (paths.some(candidate => candidate === gitDirectory || candidate.startsWith(gitDirectory + path.sep))) {
+			return true;
+		}
+		try {
+			// Tracked files are never reported, only untracked ones that an ignore rule covers.
+			const ignored = await this._runGit(repositoryRoot, ['check-ignore', '-z', '--stdin'], { throwOnError: true, input: paths.join('\0') + '\0' });
+			const ignoredPaths = new Set(ignored?.split('\0').filter(Boolean));
+			return paths.some(candidate => !ignoredPaths.has(candidate));
+		} catch (error) {
+			// Exit status 1 is `check-ignore` saying that no path is ignored.
+			return error instanceof GitCommandError && (error.cause as cp.ExecFileException | undefined)?.code === 1 ? true : undefined;
+		}
 	}
 
 	/**
