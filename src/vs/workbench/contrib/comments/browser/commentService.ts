@@ -72,7 +72,8 @@ export interface ICommentController {
 	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo<IRange>>;
 	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
 	setActiveCommentAndThread(commentInfo: { thread: CommentThread; comment?: Comment } | undefined): Promise<void>;
-	readonly submitCommentThreadLabel?: string;
+	/** The label of the button that submits what is typed into a thread, or `undefined` when there is no such button. */
+	getSubmitCommentThreadLabel?(thread: CommentThread<IRange | ICellRange>): string | undefined;
 	submitCommentThread?(thread: CommentThread, text: string): Promise<void>;
 }
 

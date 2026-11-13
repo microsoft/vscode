@@ -34,7 +34,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { AgentFeedbackWorkbenchCommentsContribution } from './agentFeedbackWorkbenchComments.js';
+import { AgentFeedbackWorkbenchCommentsContribution, registerAgentFeedbackWorkbenchCommentActions } from './agentFeedbackWorkbenchComments.js';
 import { AGENTS_WINDOW_EDITOR_COMMENTS_SETTING } from '../../../../workbench/contrib/comments/common/commentsConfiguration.js';
 /**
  * Sets the `hasActiveSessionAgentFeedback` context key to true when the
@@ -95,6 +95,8 @@ registerWorkbenchContribution2(AgentEditorCommentsProviderContribution.ID, Agent
 registerWorkbenchContribution2(AgentFeedbackWorkbenchCommentsContribution.ID, AgentFeedbackWorkbenchCommentsContribution, WorkbenchPhase.BlockRestore);
 
 registerAgentFeedbackEditorActions();
+
+registerAgentFeedbackWorkbenchCommentActions();
 
 registerAgentFeedbackReviewCommands();
 

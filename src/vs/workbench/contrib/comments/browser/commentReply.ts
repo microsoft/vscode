@@ -330,10 +330,11 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private createCommentWidgetFormActions(container: HTMLElement, model: ITextModel) {
 		const menu = this._commentMenus.getCommentThreadActions(this._contextKeyService);
 		const controller = this.commentService.getCommentController(this.owner);
-		const submitAction = controller?.submitCommentThread && controller.submitCommentThreadLabel
+		const submitLabel = controller?.submitCommentThread ? controller.getSubmitCommentThreadLabel?.(this._commentThread) : undefined;
+		const submitAction = controller?.submitCommentThread && submitLabel
 			? this._register(new Action(
 				`${controller.id}.submitCommentThread`,
-				controller.submitCommentThreadLabel,
+				submitLabel,
 				undefined,
 				model.getValueLength() > 0,
 				context => isCommentThreadReplyContext(context)
