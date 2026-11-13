@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -630,6 +631,22 @@ suite('BrowserViewWorkbenchService', () => {
 			callsWhileHeld: ['acquire ssh-remote+host'],
 			proxyCalls: ['acquire ssh-remote+host', 'release ssh-remote+host'],
 		});
+	});
+
+	test('opens local files of a remote workspace in an isolated session on the local network', async () => {
+		const { service, events, creationOptions } = createService('ssh-remote+host');
+		events.fire([{ type: 'snapshot', windowId: 1, views: [] }, []]);
+		registerProxyProvider(service, []);
+
+		const local = store.add(service.getOrCreateLazy({ id: 'local', associatedResource: URI.file('/Users/me/index.html') }));
+		const remote = store.add(service.getOrCreateLazy({ id: 'remote', associatedResource: URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+host', path: '/home/index.html' }) }));
+		await local.resolve();
+		await remote.resolve();
+
+		assert.deepStrictEqual(creationOptions.map(options => options.session), [
+			{ scope: BrowserViewStorageScope.Ephemeral },
+			{ scope: BrowserViewStorageScope.Workspace, network: { authority: 'ssh-remote+host' } },
+		]);
 	});
 
 	function proxy(port: number): ITunnelProxyInfo {

@@ -7,6 +7,7 @@ import { localize } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget } from '../browserEditor.js';
 import { BrowserRemoteProxyEnabledSettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
@@ -88,6 +89,9 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 				const fallback = this.getLocalFallback(model, network);
 				isWarning = fallback.isWarning;
 				statusMessage = fallback.message;
+			} else if (model.associatedResource?.scheme === Schemas.file && this.browserViewWorkbenchService.resolveNetwork(model.owner)) {
+				isVisible = true;
+				statusMessage = localize('browser.localFile', "This file is local and served from this machine, not over the remote connection.");
 			}
 		}
 

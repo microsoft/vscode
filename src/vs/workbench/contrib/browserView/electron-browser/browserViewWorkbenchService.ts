@@ -577,7 +577,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._known.has(id)) {
 			// Capture the opening context before any asynchronous work.
 			const owner = createOptions?.owner ?? { type: 'user' };
-			const requested = createOptions?.session ?? this._resolveSessionRequest(owner, data.session);
+			const requested = createOptions?.session ?? this._resolveSessionRequest(owner, data.session, associatedResource);
 			data = { ...data, session: typeof requested === 'string' ? undefined : requested };
 			const cancellation = new CancellationTokenSource();
 			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
@@ -634,12 +634,16 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	/** Fill missing session options from the opening context and configured storage. */
-	private _resolveSessionRequest(owner: IBrowserViewOwner, request?: IBrowserViewSessionRequest): IBrowserViewSessionOptions {
+	private _resolveSessionRequest(owner: IBrowserViewOwner, request?: IBrowserViewSessionRequest, associatedResource?: URI): IBrowserViewSessionOptions {
 		if (request?.scope !== undefined) {
 			return request;
 		}
 		if (!request) {
 			const network = this.resolveNetwork(owner);
+			// A local file can't be read through a remote network, so it opens in an isolated session on the local network.
+			if (network && associatedResource?.scheme === Schemas.file) {
+				return toBrowserViewSessionOptions(BrowserViewStorageScope.Ephemeral, undefined, undefined);
+			}
 			request = { network, affinity: network && this._networkResolver?.resolveStorageAffinity?.(owner) };
 		}
 		const configured = this.configurationService.getValue<BrowserViewStorageScope | 'default'>('workbench.browser.dataStorage') ?? 'default';
