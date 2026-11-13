@@ -259,10 +259,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				}
 			}
 			for (const [id, session] of sessions) {
-				// Inherited triage takes precedence, so a session awaiting the migration of an earlier identity's state is not admitted yet.
 				if (!next.has(id) && attention.has(id) && !session.isArchived.read(reader)
-					&& session.status.read(reader) === SessionStatus.Completed && !this.getInboxState(session, reader)
-					&& !session.previousIdentities?.some(previous => state.has(previous.sessionId))) {
+					&& session.status.read(reader) === SessionStatus.Completed && !this.getInboxState(session, reader)) {
 					next.set(id, { kind: 'resumed' });
 				}
 			}
@@ -287,7 +285,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this.migrateIdentities(sessions.flatMap(session => (session.previousIdentities ?? []).map((previous): [string, string] => [previous.sessionId, session.sessionId])));
 	}
 
-	/** Moves the list state of each `[from, to]` session ID to `to`, where `to` has none of that state of its own. */
+	/**
+	 * Moves the list state of each `[from, to]` session ID to `to`, where `to` has none of that state of its own.
+	 * An Inbox entry that records no triage, such as automatic admission before the replacement, counts as none.
+	 */
 	private migrateIdentities(identities: readonly (readonly [from: string, to: string])[]): void {
 		let changed = false;
 		let inboxChanged = false;
@@ -319,7 +320,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			move(this._updatedDefaultPlacements, from, to);
 			const state = inbox.get(from);
 			if (state) {
-				if (!inbox.has(to)) {
+				if ((inbox.get(to)?.kind ?? 'resumed') === 'resumed') {
 					// Acknowledged notification IDs are prefixed with the session ID.
 					const prefix = `${from}:`;
 					inbox.set(to, (state.kind === 'done' || state.kind === 'untilActivity') && state.notificationIds

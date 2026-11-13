@@ -109,37 +109,45 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
-	test('an Inbox acknowledgement follows a session replaced by one with another ID, and back', () => {
-		const updatedAt = new Date();
-		const local = createSession('local', SessionStatus.Completed, { updatedAt });
-		const relay = createSession('relay', SessionStatus.Completed, { updatedAt });
-		const notify = (session: ISession) => attention.set(new Map([[session.sessionId, {
-			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: [`${session.sessionId}:failingCI:o/r#1:head`], isHistoricalCompletion: false,
-		}]]), undefined);
-		const handOff = (from: ISession, to: ISession) => {
-			sessions = [to];
-			sessionReplacedEmitter.fire({ from, to });
-			notify(to);
-			sessionsChangedEmitter.fire({ added: [], removed: [from], changed: [to] });
-		};
-		const acknowledged = (session: ISession) => {
-			const state = service.getInboxState(session);
-			return state?.kind === 'done' ? state.notificationIds : state?.kind;
-		};
-		sessions = [local];
-		notify(local);
-		sessionsChangedEmitter.fire({ added: [local], removed: [], changed: [] });
-		service.setInboxState([local], 'done');
+	for (const listedFirst of [false, true]) {
+		test(`an Inbox acknowledgement follows a session replaced by one with another ID, and back${listedFirst ? ', when the destination is listed first' : ''}`, () => {
+			const updatedAt = new Date();
+			const local = createSession('local', SessionStatus.Completed, { updatedAt });
+			const relay = createSession('relay', SessionStatus.Completed, { updatedAt });
+			const notify = (...notified: ISession[]) => attention.set(new Map(notified.map(session => [session.sessionId, {
+				tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: [`${session.sessionId}:failingCI:o/r#1:head`], isHistoricalCompletion: false,
+			}])), undefined);
+			const handOff = (from: ISession, to: ISession) => {
+				if (listedFirst) {
+					// The destination's host lists the session, which the Inbox admits automatically, before the handoff adopts it.
+					sessions = [from, to];
+					notify(from, to);
+					sessionsChangedEmitter.fire({ added: [to], removed: [], changed: [] });
+				}
+				sessions = [to];
+				sessionReplacedEmitter.fire({ from, to });
+				notify(to);
+				sessionsChangedEmitter.fire({ added: [], removed: [from], changed: [to] });
+			};
+			const acknowledged = (session: ISession) => {
+				const state = service.getInboxState(session);
+				return state?.kind === 'done' ? state.notificationIds : state?.kind;
+			};
+			sessions = [local];
+			notify(local);
+			sessionsChangedEmitter.fire({ added: [local], removed: [], changed: [] });
+			service.setInboxState([local], 'done');
 
-		handOff(local, relay);
-		const handedOff = acknowledged(relay);
-		handOff(relay, local);
+			handOff(local, relay);
+			const handedOff = acknowledged(relay);
+			handOff(relay, local);
 
-		assert.deepStrictEqual({ handedOff, handedBack: acknowledged(local) }, {
-			handedOff: ['relay:failingCI:o/r#1:head'],
-			handedBack: ['local:failingCI:o/r#1:head'],
+			assert.deepStrictEqual({ handedOff, handedBack: acknowledged(local) }, {
+				handedOff: ['relay:failingCI:o/r#1:head'],
+				handedBack: ['local:failingCI:o/r#1:head'],
+			});
 		});
-	});
+	}
 
 	test('migrates pin and manual order from a previous identity without reapplying later', () => {
 		const previous = createSession('previous');
