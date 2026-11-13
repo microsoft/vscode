@@ -19,8 +19,8 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return undefined;
 	}
 
-	isNetworkPathCaseSensitive(): boolean {
-		return true;
+	isNetworkPathCaseSensitive(): undefined {
+		return undefined;
 	}
 
 	async acquireNetwork(): Promise<IReference<undefined>> {

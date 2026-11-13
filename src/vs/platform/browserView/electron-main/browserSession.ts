@@ -350,9 +350,9 @@ export class BrowserSession {
 		return this._network;
 	}
 
-	/** Whether the file system of this session's remote network distinguishes paths by case. Unknown remotes are strict. */
-	get isPathCaseSensitive(): boolean {
-		return !this._network || (BrowserSession._trustedRemoteFileRoots.get(this._network.authority.toLowerCase())?.caseSensitive ?? true);
+	/** Whether the file system of this session's remote network distinguishes paths by case (strict if unknown), or `undefined` for the local network, which follows the client. */
+	get isPathCaseSensitive(): boolean | undefined {
+		return this._network && (BrowserSession._trustedRemoteFileRoots.get(this._network.authority.toLowerCase())?.caseSensitive ?? true);
 	}
 
 	/** The options that select this session. */

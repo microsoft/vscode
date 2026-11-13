@@ -407,11 +407,11 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
 /**
  * Whether navigating to {@link target} stays on the {@link associatedResource}, apart from its query and fragment.
  * Pass the session's {@link network} when the page can display the resource as a `file:` URL (see {@link remoteUrlToFileUrl}),
- * and whether its file system is {@link caseSensitive}, which otherwise follows the client's.
+ * and whether its file system is {@link caseSensitive}. Without it, as for local resources, paths compare by the client's rules.
  */
 export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string, network?: IBrowserViewNetwork, caseSensitive?: boolean): boolean {
 	const targetResource = URI.parse(remoteUrlToFileUrl(network, target));
-	const comparer = !network || caseSensitive === undefined ? extUriBiasedIgnorePathCase : caseSensitive ? extUri : extUriIgnorePathCase;
+	const comparer = caseSensitive === undefined ? extUriBiasedIgnorePathCase : caseSensitive ? extUri : extUriIgnorePathCase;
 	return comparer.isEqual(
 		URI.parse(remoteUrlToFileUrl(network, associatedResource.toString())).with({ query: null, fragment: null }),
 		targetResource.with({ query: null, fragment: null })

@@ -406,7 +406,7 @@ export class BrowserEditorInput extends EditorInput {
 		const currentUrl = this.url;
 		let renamedUrl = currentUrl;
 		const network = this.activeNetwork;
-		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, network, network && this.browserViewWorkbenchService.isNetworkPathCaseSensitive(network))) {
+		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, network, this.browserViewWorkbenchService.isNetworkPathCaseSensitive(network))) {
 			// Map the target to the URL the page displays first, then carry over the page's query and fragment as written.
 			const mapped = remoteUrlToFileUrl(network, target.toString());
 			// Encoded paths hold no raw `?` or `#`, so the first one starts the target's own query or fragment.

@@ -381,8 +381,8 @@ export interface IBrowserViewWorkbenchService {
 	 */
 	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
 
-	/** Whether the file system behind a remote network distinguishes paths by case. Unknown remotes are strict. */
-	isNetworkPathCaseSensitive(network: IBrowserViewNetwork): boolean;
+	/** Whether the file system behind a remote network distinguishes paths by case (strict if unknown), or `undefined` for the local network, which follows the client. */
+	isNetworkPathCaseSensitive(network: IBrowserViewNetwork | undefined): boolean | undefined;
 
 	/**
 	 * Hold a network's proxy until the returned reference is disposed, so
