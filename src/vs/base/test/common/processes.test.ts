@@ -15,6 +15,7 @@ suite('Processes', () => {
 			FOO: 'bar',
 			ELECTRON_ENABLE_STACK_DUMPING: 'x',
 			ELECTRON_ENABLE_LOGGING: 'x',
+			ELECTRON_GET_USE_PROXY: '2',
 			ELECTRON_NO_ASAR: 'x',
 			ELECTRON_NO_ATTACH_CONSOLE: 'x',
 			ELECTRON_RUN_AS_NODE: 'x',
@@ -37,6 +38,7 @@ suite('Processes', () => {
 		};
 		processes.sanitizeProcessEnvironment(env);
 		assert.strictEqual(env['FOO'], 'bar');
+		assert.strictEqual(env['ELECTRON_GET_USE_PROXY'], '2');
 		assert.strictEqual(env['VSCODE_SHELL_LOGIN'], '1');
 		assert.strictEqual(env['VSCODE_PORTABLE'], '3');
 		assert.strictEqual(env['VSCODE_PYTHON_BASH_ACTIVATE'], undefined);
@@ -44,7 +46,7 @@ suite('Processes', () => {
 		assert.strictEqual(env['VSCODE_PYTHON_PWSH_ACTIVATE'], undefined);
 		assert.strictEqual(env['VSCODE_PYTHON_FISH_ACTIVATE'], undefined);
 		assert.strictEqual(env['VSCODE_PYTHON_AUTOACTIVATE_GUARD'], undefined);
-		assert.strictEqual(Object.keys(env).length, 3);
+		assert.strictEqual(Object.keys(env).length, 4);
 	});
 
 	test('removeDangerousEnvVariables', () => {
