@@ -54,6 +54,8 @@ suite('PluginUrlHandler', () => {
 		confirmed?: boolean;
 		confirmation?: Promise<boolean>;
 		existingMarketplaceSource?: string;
+		existingMarketplaceIsDefault?: boolean;
+		existingMarketplaceManaged?: boolean;
 		hidden?: boolean;
 		disabledInWorkspace?: boolean;
 		pluginsEnabled?: boolean;
@@ -88,7 +90,7 @@ suite('PluginUrlHandler', () => {
 			}
 		};
 		let marketplaces = options.existingMarketplaceSource ? [{
-			name: 'catalog', source: options.existingMarketplaceSource, isDefault: false, managed: false, available: true,
+			name: 'catalog', source: options.existingMarketplaceSource, isDefault: options.existingMarketplaceIsDefault ?? false, managed: options.existingMarketplaceManaged ?? false, available: true,
 		}] : [];
 		instantiationService.stub(IAgentHostService, {
 			listPluginMarketplaces: options.managementUnavailable ? undefined : async (provider, session, chat) => {
@@ -657,6 +659,49 @@ suite('PluginUrlHandler', () => {
 			errors: [],
 		});
 	});
+
+	for (const source of ['GitHub: github/awesome-copilot', 'URL: https://github.com/GitHub/Awesome-Copilot.git']) {
+		for (const path of ['/install', '/add-marketplace']) {
+			desktopTest(`reuses the built-in published Awesome Copilot marketplace for ${path}: ${source}`, async () => {
+				const fixture = createHandler({
+					existingMarketplaceSource: source,
+					existingMarketplaceIsDefault: true,
+					agentFinderAvailable: true,
+					failure: 'add',
+				});
+				await fixture.handler.handleURL(uri(path, 'source=github%2Fawesome-copilot%23marketplace&ref=github%2Fawesome-copilot%23marketplace&plugin=my-plugin&harness=copilot'));
+				assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+					calls: [
+						['list', 'copilotcli', undefined, undefined],
+						...(path === '/install' ? [
+							['browse', 'copilotcli', undefined, 'catalog', undefined],
+							['install', 'copilotcli', { source: 'my-plugin@catalog' }, undefined, undefined],
+						] : []),
+					],
+					errors: [],
+				});
+			});
+		}
+	}
+
+	for (const [source, isDefault, revision, managed] of [
+		['GitHub: github/awesome-copilot', true, 'feature/beta', false],
+		['GitHub: github/awesome-copilot#other', true, 'marketplace', false],
+		['GitHub: github/awesome-copilot', false, 'marketplace', false],
+		['GitHub: github/awesome-copilot', true, 'marketplace', true],
+	] as const) {
+		desktopTest(`does not substitute ${source} for revision ${revision} (default: ${isDefault}, managed: ${managed})`, async () => {
+			const fixture = createHandler({ existingMarketplaceSource: source, existingMarketplaceIsDefault: isDefault, existingMarketplaceManaged: managed, failure: 'add' });
+			await fixture.handler.handleURL(uri('/install', `source=${encodeURIComponent(`github/awesome-copilot#${revision}`)}&plugin=my-plugin&harness=copilot`));
+			assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors.length }, {
+				calls: [
+					['list', 'copilotcli', undefined, undefined],
+					['add', 'copilotcli', undefined, `github/awesome-copilot#${revision}`, undefined],
+				],
+				errors: 1,
+			});
+		});
+	}
 
 	desktopTest('does not duplicate a configured VS Code marketplace', async () => {
 		const fixture = createHandler({ harness: 'vscode', existingMarketplaceSource: 'https://github.com/ACME/plugins.git#feature/beta' });

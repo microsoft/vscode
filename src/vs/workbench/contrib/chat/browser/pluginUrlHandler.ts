@@ -32,10 +32,11 @@ import { SessionType } from '../common/chatSessionsService.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReferences, parseProviderMarketplaceReference, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
+import { DEFAULT_PLUGIN_MARKETPLACE, IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReferences, parseProviderMarketplaceReference, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
 import { isDefaultPluginMarketplace } from './aiCustomization/pluginCustomizationMarketplaceProvider.js';
 
 const awesomeCopilotCatalogIdentityPrefix = 'urn:air:github.com:github:awesome-copilot:';
+const defaultPluginMarketplaceReference = parseProviderMarketplaceReference(DEFAULT_PLUGIN_MARKETPLACE)!;
 
 type PluginLinkHarness = 'copilot' | 'vscode';
 
@@ -275,7 +276,13 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 		const provider = COPILOT_CLI_AGENT_PROVIDER_ID;
 		const marketplaces = await this.agentHostService.listPluginMarketplaces(provider);
-		let marketplace = marketplaces.find(marketplace => parseProviderMarketplaceReference(marketplace.source)?.canonicalId === ref.canonicalId);
+		let marketplace = marketplaces.find(marketplace => {
+			const source = parseProviderMarketplaceReference(marketplace.source);
+			// The built-in source description omits the standard published marketplace branch.
+			return source?.canonicalId === ref.canonicalId ||
+				marketplace.isDefault && !marketplace.managed && !!source && !source.ref && isDefaultPluginMarketplace(source) &&
+				ref.canonicalId === defaultPluginMarketplaceReference.canonicalId;
+		});
 		if (!marketplace) {
 			const managementProvider = this.harnessService.getDescriptorForSession(
 				this.harnessService.getSessionResourceForHarness(SessionType.AgentHostCopilot),
