@@ -24,6 +24,7 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
@@ -102,6 +103,7 @@ suite('SessionCanvasRegistryService', () => {
 			focusedSessionHostServiceOf(activeSession),
 			sessionsManagementService,
 			canvasService,
+			new TestNotificationService(),
 			new NullLogService(),
 		));
 		return {

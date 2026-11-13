@@ -17,6 +17,7 @@ import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn, type ActiveTurn, type ResponsePart } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
 import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
@@ -53,7 +54,7 @@ suite('AgentHost canvases', () => {
 				};
 			}
 		}();
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService()));
 		const references = observableValue<readonly CanvasReference[] | undefined>('references', [{ resource: resource.toString() }]);
 		const context = collection.createContext(owner, references);
 		let canvases: readonly ICanvas[] | undefined;
@@ -101,7 +102,7 @@ suite('AgentHost canvases', () => {
 				return { kind: 'opened' };
 			}
 		}();
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService()));
 		const context = collection.createContext(owner, constObservable([]), undefined, definitionsChanged.event);
 		assert.ok(context.definitionProvider);
 		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
@@ -156,8 +157,8 @@ suite('AgentHost canvases', () => {
 			} : undefined;
 		}();
 		const references = constObservable<readonly CanvasReference[] | undefined>([]);
-		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(true), new NullLogService())).createContext(owner, references);
-		const unsupported = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(false), new NullLogService())).createContext(owner, references);
+		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(true), new NullLogService(), new TestDialogService())).createContext(owner, references);
+		const unsupported = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(false), new NullLogService(), new TestDialogService())).createContext(owner, references);
 
 		await closing.closeCanvas?.(new AgentHostCanvas(resource, state, new NullLogService()));
 
@@ -187,7 +188,7 @@ suite('AgentHost canvases', () => {
 		};
 		const first = upcastPartial<Turn>({ id: 'turn', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: call }] });
 		const chat = observableValue<ChatState | undefined>('chat', upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [first] }));
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService()));
 		const context = collection.createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
 		const initial = context.openRequests?.get().get('preview');
 		const running = upcastPartial<Turn>({
@@ -243,7 +244,7 @@ suite('AgentHost canvases', () => {
 		const createChat = (activeTurn?: ActiveTurn) => upcastPartial<ChatState>({ resource: owner.chat.toString(), turns, activeTurn });
 		const chat = observableValue<ChatState | undefined>('chat', createChat());
 		const references = constObservable([{ resource: resource.toString() }, { resource: uiResource.toString() }]);
-		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService())).createContext(owner, references, chat);
+		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService())).createContext(owner, references, chat);
 		const requests: unknown[] = [];
 		store.add(autorun(reader => {
 			const current = context.openRequests?.read(reader);
@@ -290,7 +291,7 @@ suite('AgentHost canvases', () => {
 			}
 		}();
 		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [older, newest] }));
-		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService())).createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
+		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService())).createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
 
 		assert.deepStrictEqual({ id: context.openRequests?.get().get('preview')?.id, olderReads }, { id: 'newest\u0000open', olderReads: 0 });
 	});
