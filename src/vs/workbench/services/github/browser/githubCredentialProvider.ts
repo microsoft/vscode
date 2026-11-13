@@ -14,6 +14,7 @@ import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange
 import { IGitHubCredentialBroker } from '../../../../platform/github/common/remote/ipc.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { toGitHubAuthorizationContext } from '../common/githubService.js';
 
 interface IGitHubSessionGrant {
 	readonly accountId: string;
@@ -100,10 +101,7 @@ export class WorkbenchGitHubCredentialProvider extends Disposable implements IGi
 			throw new GitHubRequestError(localize('githubEndpointUnavailable', "The selected GitHub session does not identify a matching GitHub endpoint."), 'authentication');
 		}
 		return {
-			authorization: {
-				providerId: authorization.providerId, sessionId: session.id, accountId: session.account.id,
-				scopes: [...session.scopes], authorizationServer: issuer,
-			},
+			authorization: toGitHubAuthorizationContext(authorization.providerId, session),
 			apiBaseUri: endpoints.apiBaseUri,
 			graphQlUri: endpoints.graphQlUri,
 			missionControl: getWorkbenchMissionControlOptions(authorization.providerId, endpoints.enterpriseHost),

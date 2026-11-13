@@ -76,7 +76,7 @@ suite('Workbench GitHub service', () => {
 		return { service, sessions, state, changed, defaultChanged, calls, configuration };
 	}
 
-	for (const selection of ['legacy', 'portable', 'explicit'] as const) {
+	for (const selection of ['legacy', 'portable', 'explicit', 'session'] as const) {
 		test(`${selection} selection cancels while the authentication provider is pending`, async () => {
 			const lookup = new DeferredPromise<readonly AuthenticationSession[]>();
 			const { service } = setup(undefined, undefined, () => lookup.p);
@@ -86,7 +86,9 @@ suite('Workbench GitHub service', () => {
 				? service.acquireDefaultAccountClient(controller.signal)
 				: selection === 'portable'
 					? service.acquireDefaultAccountApiClient(controller.signal)
-					: service.acquireAccountApiClient(clientOptions('session').authorization, controller.signal);
+					: selection === 'explicit'
+						? service.acquireAccountApiClient(clientOptions('session').authorization, controller.signal)
+						: service.acquireAccountApiClient('github', session(), controller.signal);
 			let settled = false;
 			const rejected = assert.rejects(pending, error => error === reason).then(() => { settled = true; });
 			controller.abort(reason);
@@ -105,7 +107,9 @@ suite('Workbench GitHub service', () => {
 					? service.acquireDefaultAccountClient(signal())
 					: selection === 'portable'
 						? service.acquireDefaultAccountApiClient(signal())
-						: service.acquireAccountApiClient(clientOptions('session').authorization, signal());
+						: selection === 'explicit'
+							? service.acquireAccountApiClient(clientOptions('session').authorization, signal())
+							: service.acquireAccountApiClient('github', session(), signal());
 				let settled = false;
 				const rejected = assert.rejects(pending, { kind: 'timeout' }).then(() => { settled = true; });
 				await timeout(5 * 60_000);
@@ -193,6 +197,41 @@ suite('Workbench GitHub service', () => {
 		const authorization = { providerId: 'github-enterprise', sessionId: explicit.id, accountId: explicit.account.id, scopes: explicit.scopes, authorizationServer: issuer.toString() };
 		const client = store.add(await service.acquireAccountApiClient(authorization, signal()));
 		assert.deepStrictEqual(client.authorization, authorization);
+	});
+
+	for (const { providerId, issuer } of [
+		{ providerId: 'github', issuer: undefined },
+		{ providerId: 'github', issuer: URI.parse('https://github.com/login/oauth') },
+		{ providerId: 'github-enterprise', issuer: URI.parse('https://tenant.ghe.com') },
+	]) {
+		test(`session acquisition preserves the ${providerId} grant with issuer ${issuer ?? 'unset'}`, async () => {
+			const explicit = { ...session('explicit', 'other-account', ['read:user']), authorizationServer: issuer };
+			const { service, state, calls } = setup([session(), explicit]);
+			state.account = null;
+			const client = store.add(await service.acquireAccountApiClient(providerId, explicit, signal()));
+
+			assert.deepStrictEqual({ authorization: client.authorization, calls, defaultAccount: state.account }, {
+				authorization: {
+					providerId, sessionId: explicit.id, accountId: explicit.account.id,
+					scopes: ['read:user'], authorizationServer: issuer?.toString(),
+				},
+				calls: [{ providerId, options: { silent: true } }],
+				defaultAccount: null,
+			});
+		});
+	}
+
+	test('session acquisition rejects changes to the captured account, scopes, or issuer', async () => {
+		const selected = session('selected', 'selected-account', ['read:user']);
+		const { service } = setup([selected, session()]);
+		for (const captured of [
+			{ ...selected, account: { id: 'other-account', label: 'Other Account' } },
+			{ ...selected, scopes: ['repo'] },
+			{ ...selected, authorizationServer: URI.parse('https://github.com/login/oauth') },
+			{ ...selected, id: 'removed-session' },
+		]) {
+			await assert.rejects(service.acquireAccountApiClient('github', captured, signal()), { kind: 'authentication' });
+		}
 	});
 
 	for (const stop of ['cancel', 'dispose'] as const) {

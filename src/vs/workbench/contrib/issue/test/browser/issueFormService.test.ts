@@ -866,7 +866,9 @@ suite('IssueFormService', () => {
 			const signals: AbortSignal[] = [];
 			const leases = { released: 0 };
 			instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-				override async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal) {
+				override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>) {
+					assert.ok(args.length === 2);
+					const [authorization, signal] = args;
 					grants.push(authorization);
 					signals.push(signal);
 					await acquire?.();

@@ -31,7 +31,7 @@ import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../services/github/common/githubService.js';
 import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { TestDataTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
@@ -184,7 +184,10 @@ suite('CopilotConnectorsService', () => {
 			getToken: context => sessions.find(session => session.id === context.sessionId && session.account.id === context.accountId)?.accessToken,
 		}));
 		const gitHubService = new class extends mock<IWorkbenchGitHubService>() {
-			override async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
+			override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<IGitHubAccountClient> {
+				assert.ok(args.length === 3);
+				const [providerId, session, signal] = args;
+				const authorization = toGitHubAuthorizationContext(providerId, session);
 				signal.throwIfAborted();
 				grants.push(authorization);
 				if (!sessions.some(session => session.id === authorization.sessionId && session.account.id === authorization.accountId)) {
@@ -323,10 +326,12 @@ suite('CopilotConnectorsService', () => {
 	test('bounds a stalled acquisition and disposes a client that arrives after timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture([]);
 		const pending = new DeferredPromise<IGitHubAccountClient>();
-		const started = new DeferredPromise<{ authorization: GitHubAuthorizationContext; signal: AbortSignal }>();
+		const started = new DeferredPromise<{ providerId: string; session: AuthenticationSession; signal: AbortSignal }>();
 		const acquire = fixture.gitHubService.acquireAccountApiClient;
-		fixture.gitHubService.acquireAccountApiClient = async (authorization, signal) => {
-			void started.complete({ authorization, signal });
+		fixture.gitHubService.acquireAccountApiClient = async (...args) => {
+			assert.ok(args.length === 3);
+			const [providerId, session, signal] = args;
+			void started.complete({ providerId, session, signal });
 			return pending.p;
 		};
 		const start = Date.now();
@@ -334,7 +339,7 @@ suite('CopilotConnectorsService', () => {
 		const request = await started.p;
 		await rejected;
 		const elapsed = Date.now() - start;
-		const late = await acquire(request.authorization, new AbortController().signal);
+		const late = await acquire(request.providerId, request.session, new AbortController().signal);
 		await pending.complete(late);
 		await timeout(0);
 		assert.deepStrictEqual({ elapsed, aborted: request.signal.aborted, requests: fixture.requests, leases: fixture.leases }, {

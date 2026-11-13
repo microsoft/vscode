@@ -23,7 +23,7 @@ import { gitHubCopilotResource } from '../../../../../platform/agentHost/common/
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { ConnectorCatalog, ConnectorPlugin, copilotConnectorsScope, copilotCredentialBaselineScopes } from '../../../../../platform/github/common/connectors/connectors.js';
 import { deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
-import { GitHubAuthorizationContext, GitHubRequestError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubRequestError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
 import { SchemaError } from '../../../../../platform/github/common/client/schema.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceEntry, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -35,7 +35,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../services/github/common/githubService.js';
 
 const maxSearchQueryLength = 256;
 const maxSearchWords = 16;
@@ -778,11 +778,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			throw connectorSignInRequired();
 		}
 		this._authorizationRequired = false;
-		const authorization: GitHubAuthorizationContext = {
-			providerId: authentication.account.authenticationProvider.id,
-			sessionId: selectedSession.id, accountId: selectedSession.account.id, scopes: selectedSession.scopes,
-			authorizationServer: selectedSession.authorizationServer?.toString(),
-		};
+		const authorization = toGitHubAuthorizationContext(authentication.account.authenticationProvider.id, selectedSession);
 		const lifetime = new DisposableStore();
 		const cancellation = lifetime.add(new CancellationTokenSource(token));
 		const deadline = Date.now() + requestTimeout;
@@ -794,7 +790,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			if (!client || !isEqualAuthorization(client.authorization, authorization)) {
 				const clientLifetime = new DisposableStore();
 				try {
-					const acquired = clientLifetime.add(await this.gitHubService.acquireAccountApiClient(authorization, signal));
+					const acquired = clientLifetime.add(await this.gitHubService.acquireAccountApiClient(authorization.providerId, selectedSession, signal));
 					signal.throwIfAborted();
 					const existing = this.apiClient.value?.object;
 					if (existing && isEqualAuthorization(existing.authorization, authorization)) {

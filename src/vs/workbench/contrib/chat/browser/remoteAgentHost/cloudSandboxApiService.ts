@@ -49,7 +49,7 @@ import { SessionModelInfo } from '../../../../../platform/agentHost/common/state
 import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI } from '../../../../../platform/github/common/githubEndpoints.js';
-import { GitHubAuthorizationContext, GitHubRequestError, GitHubRequestTimeoutError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
+import { GitHubRequestError, GitHubRequestTimeoutError, isEqualAuthorization } from '../../../../../platform/github/common/githubTypes.js';
 import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
 import { ApiRequestOptions, ApiResponse } from '../../../../../platform/github/common/client/request.js';
 import { RequestError } from '../../../../../platform/github/common/types.js';
@@ -69,7 +69,7 @@ import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 import { createCloudSandboxContextTierSchema } from './cloudSandboxSessionConfig.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
 import { retryAfterSeconds } from './cloudSandboxRateLimit.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../services/github/common/githubService.js';
 
 interface IScannedTask extends Task {
 	readonly hasRepository: boolean;
@@ -255,10 +255,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	private async _getApiClient(session: AuthenticationSession, signal: AbortSignal): Promise<IGitHubAccountClient> {
-		const authorization: GitHubAuthorizationContext = {
-			providerId: this._authenticationProviderId, sessionId: session.id, accountId: session.account.id,
-			scopes: session.scopes, authorizationServer: session.authorizationServer?.toString(),
-		};
+		const authorization = toGitHubAuthorizationContext(this._authenticationProviderId, session);
 		const current = this._apiClient.value?.object;
 		if (current && isEqualAuthorization(current.authorization, authorization)) {
 			return current;
@@ -266,7 +263,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const generation = this._accountGeneration;
 		const lifetime = new DisposableStore();
 		try {
-			const acquired = lifetime.add(await this._githubService.acquireAccountApiClient(authorization, signal));
+			const acquired = lifetime.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, session, signal));
 			signal.throwIfAborted();
 			if (generation !== this._accountGeneration || this._store.isDisposed) {
 				throw new CancellationError();
@@ -416,10 +413,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				CancellationToken.toAbortSignal(token, store),
 				CancellationToken.toAbortSignal(this._lifetimeToken, store),
 			]);
-			const client = store.add(await this._githubService.acquireAccountApiClient({
-				providerId: this._authenticationProviderId, sessionId: session.id, accountId: session.account.id,
-				scopes: session.scopes, authorizationServer: session.authorizationServer?.toString(),
-			}, signal));
+			const client = store.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, session, signal));
 			const result = await client.environments.mintIdentityToken(signal, { caller: 'mc.tokens.create' });
 			this._telemetry.reportRequest('mintIdentityToken', 'succeeded');
 			return result;
@@ -457,11 +451,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			if (!authentication) {
 				throw new CloudSandboxAuthenticationRequiredError();
 			}
-			const client = store.add(await this._githubService.acquireAccountApiClient({
-				providerId: this._authenticationProviderId, sessionId: authentication.id,
-				accountId: authentication.account.id, scopes: authentication.scopes,
-				authorizationServer: authentication.authorizationServer?.toString(),
-			}, signal));
+			const client = store.add(await this._githubService.acquireAccountApiClient(this._authenticationProviderId, authentication, signal));
 			requested = true;
 			connection = await client.tasks.connectFeed(signal, { caller: 'mc.sessionFeed.connect' });
 			const current = await raceCancellationError(this._resolveGitHubSession(), requestToken);
