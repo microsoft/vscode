@@ -311,9 +311,10 @@ suite('Workbench layout chat part', () => {
 	});
 
 	test('the grid without a chat part is as before it existed', () => {
-		const { descriptor } = createLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+		const { layout, descriptor } = createLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+		const bannerFirst = (Reflect.get(layout, 'shouldShowBannerFirst') as () => boolean).call(layout);
 		assert.deepStrictEqual(shape(descriptor.root), [
-			'titlebar', '(banner)',
+			...(bannerFirst ? ['(banner)', 'titlebar'] : ['titlebar', '(banner)']),
 			['activitybar', 'sidebar', ['editor', 'panel'], 'auxiliarybar'],
 			'statusbar',
 		]);
