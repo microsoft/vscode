@@ -74,7 +74,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			const owner = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
+			const owner = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
 			if (!owner) {
 				return undefined;
 			}
@@ -120,7 +120,9 @@ export class AgentsChatViewHost implements IChatViewHost {
 				const given = !isUntitledChatSession(sessionResource);
 				const shown = (sent || given || !isEqual(resource, sessionResource)) && !!await this.openSession(resource);
 				if (!shown) {
+					// Shown before the start completes, and given back by createComposer
 					composer = this._openComposer(sessionType);
+					await composer;
 				}
 				return shown;
 			},

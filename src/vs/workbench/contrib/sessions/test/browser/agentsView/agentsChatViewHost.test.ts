@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
@@ -163,6 +164,23 @@ suite('AgentsChatViewHost', () => {
 			composer: true,
 			calls: ['hold agent-host-copilot:/untitled-1', 'openComposer sessionType=agent-host-copilot newComposer=true', 'release agent-host-copilot:/untitled-1'],
 		});
+	});
+
+	test('completing a session that did not run waits for its composer to show, and fails as showing it fails', async () => {
+		const untitled = URI.parse('agent-host-copilot:/untitled-1');
+		const opening = new DeferredPromise<void>();
+		const { host } = createHost({ chatPart: { openComposer: () => opening.p } });
+
+		const start = await host.startSession(untitled, { local: false, importingConversation: false });
+		let settled = false;
+		const completed = start.complete(untitled, false).finally(() => settled = true);
+		await timeout(0);
+		const pendingWhileShowing = !settled;
+		opening.error(new Error('no composer'));
+		const error = await completed.then(() => undefined, (e: Error) => e.message);
+		start.dispose();
+
+		assert.deepStrictEqual({ pendingWhileShowing, error }, { pendingWhileShowing: true, error: 'no composer' });
 	});
 
 	test('does not start local chat, which the Agents view does not show', async () => {
