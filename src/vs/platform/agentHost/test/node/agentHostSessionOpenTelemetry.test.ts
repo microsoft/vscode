@@ -12,7 +12,6 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
@@ -24,26 +23,13 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { AgentHostSessionOpenTelemetry, AgentHostSessionSubscribeTimeoutMs } from '../../node/agentHostSessionOpenTelemetry.js';
 import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
-
-function isTelemetryData(data: unknown): data is Record<string, unknown> {
-	return typeof data === 'object' && data !== null;
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: unknown): void {
-		if (eventName && isTelemetryData(data)) {
-			this.events.push({ name: eventName, data });
-		}
-	}
-}
+import { TestDataTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 
 suite('AgentHostSessionOpenTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilotcli', 'session');
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli'], associations: ReadonlyMap<string, string> = new Map(), chatOwners: ReadonlyMap<string, string> = new Map([[defaultChat.toString(), session.toString()]])) => {
+	const createService = (telemetryService: TestDataTelemetryService, providers: readonly string[] = ['copilotcli'], associations: ReadonlyMap<string, string> = new Map(), chatOwners: ReadonlyMap<string, string> = new Map([[defaultChat.toString(), session.toString()]])) => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IAgentHostStateManager, {
@@ -70,7 +56,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 
 	test('emits ordered subscribe, restore, and SDK resume milestones', async () => {
 		await runWithFakedTimers({ useFakeTimers: true, startTime: 1_000 }, async () => {
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const service = createService(telemetryService);
 			await service.withSubscription(defaultChat, async telemetry => {
 				telemetry.setServedFromMemory(false);
@@ -106,7 +92,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 
 	test('records warm subscriptions without restore or SDK resume milestones', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const service = createService(telemetryService);
 			await service.withSubscription(session, async telemetry => telemetry.setServedFromMemory(true));
 
@@ -129,7 +115,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	});
 
 	test('attributes existing subscription events without exporting resource paths or client machine metadata', async () => {
-		const telemetry = new TestTelemetryService();
+		const telemetry = new TestDataTelemetryService();
 		const service = createService(telemetry);
 		const context = {
 			clientId: 'opaque-client', clientType: AgentHostClientType.AgentsWindow,
@@ -155,7 +141,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	});
 
 	test('reports bounded subscription failures and cancellation exactly once', async () => {
-		const telemetry = new TestTelemetryService();
+		const telemetry = new TestDataTelemetryService();
 		const service = createService(telemetry);
 		for (const error of [new ProtocolError(AhpErrorCodes.PermissionDenied, 'private /Users/alice/file'), new CancellationError()]) {
 			await assert.rejects(service.withSubscription(session, async () => { throw error; }), caught => caught === error);
@@ -171,7 +157,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 
 	test('accumulates retries and reports fallback creation without duplicate emission', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const service = createService(telemetryService);
 			await service.withSubscription(session, async telemetry => {
 				telemetry.setServedFromMemory(false);
@@ -205,7 +191,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 
 	test('does not attribute an in-flight SDK resume to a late subscriber', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const service = createService(telemetryService);
 			const first = service.withSubscription(session, async telemetry => {
 				telemetry.setServedFromMemory(false);
@@ -231,7 +217,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	});
 
 	test('emits one failure outcome and rethrows the subscription error', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const service = createService(telemetryService);
 		const expectedError = new Error('Restore failed');
 
@@ -253,7 +239,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	});
 
 	test('emits subscription telemetry for current and future providers', async () => {
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const providers = [CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, 'future'];
 		const service = createService(telemetryService, providers);
 		for (const provider of [CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, 'future']) {
@@ -294,7 +280,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 				const events = [];
 				for (const scheme of [provider, 'ahp-session']) {
 					const resource = AgentSession.uri(scheme, 'session');
-					const telemetryService = new TestTelemetryService();
+					const telemetryService = new TestDataTelemetryService();
 					const service = createService(telemetryService, [provider], new Map([[resource.toString(), provider]]), new Map([buildDefaultChatUri(resource), buildChatUri(resource, 'peer')].map(chat => [chat, resource.toString()])));
 					for (const channel of [resource, URI.parse(buildDefaultChatUri(resource)), URI.parse(buildChatUri(resource, 'peer'))]) {
 						await service.withSubscription(channel, async telemetry => telemetry.setServedFromMemory(true));
@@ -323,7 +309,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 
 	test('a cold chat subscription is measured once the subscribe resolves its owner', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			// No chat is registered when the subscription starts.
 			const service = createService(telemetryService, ['copilotcli'], new Map(), new Map());
 			const peer = URI.parse(buildChatUri(session, 'cold-peer'));
@@ -346,7 +332,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 
 	test('emits a bounded timeout', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const telemetryService = new TestTelemetryService();
+			const telemetryService = new TestDataTelemetryService();
 			const service = createService(telemetryService);
 			const resume = new DeferredPromise<void>();
 			const subscription = service.withSubscription(session, async telemetry => {

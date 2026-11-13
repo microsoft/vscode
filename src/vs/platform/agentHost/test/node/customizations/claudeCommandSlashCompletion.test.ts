@@ -12,6 +12,7 @@ import { IFileService } from '../../../../files/common/files.js';
 import { createInMemoryFileService } from '../../../../files/test/common/inMemoryFileService.js';
 import { CompletionItem, CompletionItemKind } from '../../../common/state/protocol/commands.js';
 import { buildDefaultChatUri, MessageAttachmentKind } from '../../../common/state/sessionState.js';
+import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { AgentHostSkillCompletionProvider } from '../../../node/agentHostSkillCompletionProvider.js';
 import type { ISdkResolvedCustomizations } from '../../../node/claude/claudeSdkPipeline.js';
 import { buildDiscoveredCustomizations } from '../../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
@@ -45,7 +46,7 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 
 	/** An SDK snapshot whose `supportedCommands()` reports the given command names. */
 	const sdkWith = (...names: string[]): ISdkResolvedCustomizations =>
-		({ agents: [], commands: names.map(name => ({ name, description: '', argumentHint: '' })), mcpServers: [], plugins: [] });
+	({ agents: [], commands: names.map(name => ({ name, description: '', argumentHint: '' })), mcpServers: [], plugins: [] });
 
 	/**
 	 * Runs the real pipeline: scan `.claude`, project it through
@@ -59,7 +60,12 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 
 		const agent = disposables.add(new MockAgent('mock'));
 		agent.getSessionCustomizations = async () => customizations;
-		const provider = disposables.add(new AgentHostSkillCompletionProvider(() => agent, async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) })));
+		const provider = disposables.add(new AgentHostSkillCompletionProvider(
+			() => agent,
+			async session => ({ chat: URI.parse(buildDefaultChatUri(session)), context: createTestAgentChatContext(session, session) }),
+			undefined,
+			createSessionDataService(disposables.add(new TestSessionDatabase())),
+		));
 
 		return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: 'mock:/session', text, offset: text.length }, { chat: undefined }, CancellationToken.None);
 	}
@@ -78,12 +84,11 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 			rangeStart: 0,
 			rangeEnd: 8,
 			attachment: {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: commandUri.toString(),
 				label: '/speckit.specify',
+				displayKind: 'skill',
 				_meta: {
-					uri: commandUri.toString(),
-					name: 'speckit.specify',
-					displayName: 'speckit.specify',
 					description: 'Create a spec',
 				},
 			},

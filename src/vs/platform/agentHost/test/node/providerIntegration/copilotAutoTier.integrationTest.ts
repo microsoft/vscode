@@ -13,7 +13,7 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../../common/agent.js';
-import { autoModeTiers, parseManagedAutoTierDefault } from '../../../common/autoModeTiers.js';
+import { autoModeTiers, parseManagedAutoTierDefault, setAdvertisedAutoModeTiers } from '../../../common/autoModeTiers.js';
 import type { ModelSelection } from '../../../common/state/sessionState.js';
 import { getCopilotAutoTier, getCopilotContextTier, getCopilotReasoningEffort } from '../../../node/copilot/copilotSessionLauncher.js';
 import { omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from '../../../node/copilot/copilotManagedModelConfiguration.js';
@@ -42,6 +42,8 @@ suite('Copilot SDK managed model configuration', function () {
 	let unexpectedRequests: string[];
 
 	setup(async () => {
+		// This runtime runs without `DYNAMIC_AUTO_TIERS`, so it accepts the classic tiers the requests below carry.
+		setAdvertisedAutoModeTiers(autoModeTiers);
 		home = await mkdtemp(join(tmpdir(), 'copilot-auto-default-'));
 		policy = {};
 		modelEfforts = undefined;
@@ -86,12 +88,13 @@ suite('Copilot SDK managed model configuration', function () {
 				if (stub) {
 					response.writeHead(stub.status, stub.headers);
 					let content = stub.body.replaceAll('${capi}', baseUrl);
-					if (path === '/models' && modelEfforts) {
-						const catalog: { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] } = JSON.parse(content);
+					if ((path === '/models' || path === '/meta') && modelEfforts) {
+						const document = JSON.parse(content);
+						const catalog: { data: { id: string; capabilities: { supports: { reasoning_effort?: string[] } } }[] } = path === '/meta' ? document.models : document;
 						const model = catalog.data.find(model => model.id === 'gpt-5');
 						assert.ok(model);
 						model.capabilities.supports.reasoning_effort = modelEfforts;
-						content = JSON.stringify(catalog);
+						content = JSON.stringify(document);
 					}
 					response.end(content);
 				} else {
@@ -130,6 +133,7 @@ suite('Copilot SDK managed model configuration', function () {
 	});
 
 	teardown(async () => {
+		setAdvertisedAutoModeTiers(undefined);
 		try {
 			// Unlike forceStop, stop waits for the runtime process to exit.
 			assert.deepStrictEqual(await client?.stop() ?? [], []);
@@ -406,7 +410,7 @@ suite('Copilot SDK managed model configuration', function () {
 		});
 	}
 
-	test('bundled SDK regression: unsupported server effort reaches inference even in default-only mode (#26681)', async () => {
+	test('bundled SDK drops unsupported server effort before inference in default-only mode (#26681)', async () => {
 		policy = { model: 'gpt-4o', effortLevel: 'high' };
 		const session = await client.createSession({
 			model: 'gpt-4o', workingDirectory: home, enableManagedSettings: true, enableConfigDiscovery: false,
@@ -417,7 +421,7 @@ suite('Copilot SDK managed model configuration', function () {
 			await session.rpc.model.list();
 			const response = await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
 			assert.deepStrictEqual({ response: response?.data.content, completionEfforts, unexpectedRequests }, {
-				response: 'OK', completionEfforts: ['high'], unexpectedRequests: [],
+				response: 'OK', completionEfforts: [undefined], unexpectedRequests: [],
 			});
 		} finally {
 			await session.disconnect();

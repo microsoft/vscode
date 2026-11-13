@@ -7,13 +7,14 @@ import './media/part.css';
 import './media/floatingPanels.css';
 import { Component } from '../common/component.js';
 import { IThemeService, IColorTheme } from '../../platform/theme/common/themeService.js';
-import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition } from '../../base/browser/dom.js';
+import { ISizeService } from '../../platform/theme/common/sizeService.js';
+import { Dimension, size, IDimension, getActiveDocument, prepend, IDomPosition, isHTMLElement, getWindow, scheduleAtNextAnimationFrame } from '../../base/browser/dom.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
-import { ISerializableView, IViewSize } from '../../base/browser/ui/grid/grid.js';
+import { Grid, GridNode, ISerializableView, IViewSize, isGridBranchNode } from '../../base/browser/ui/grid/grid.js';
 import { Event, Emitter } from '../../base/common/event.js';
 import { IWorkbenchLayoutService } from '../services/layout/browser/layoutService.js';
 import { assertReturnsDefined } from '../../base/common/types.js';
-import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;
@@ -26,6 +27,169 @@ export interface ILayoutContentResult {
 	readonly titleSize: IDimension;
 	readonly contentSize: IDimension;
 	readonly footerSize: IDimension;
+}
+
+/** Matches an overlay's exposed corners to the inner edges of its owning part. */
+export function getPartOverlayCornerRadius(anchorElement: HTMLElement, part: Element | undefined): string | undefined {
+	const root = part?.closest('.monaco-workbench');
+	if (!part || part.classList.contains('modal-editor-part')
+		|| !root?.matches('.modern-ui, .floating-panels, .agent-sessions-workbench:not(.phone-layout)')) {
+		return undefined;
+	}
+
+	const anchor = anchorElement.getBoundingClientRect();
+	const bounds = part.getBoundingClientRect();
+	const content = {
+		left: bounds.left + part.clientLeft,
+		top: bounds.top + part.clientTop,
+		right: bounds.left + part.clientLeft + part.clientWidth,
+		bottom: bounds.top + part.clientTop + part.clientHeight,
+	};
+	const touches = (edge: 'left' | 'right' | 'top' | 'bottom') => Math.abs(anchor[edge] - content[edge]) <= 1;
+	const css = getWindow(part).getComputedStyle(part);
+	const radius = (value: string, firstBorder: string, secondBorder: string) =>
+		Math.max(0, Number.parseFloat(value) - Math.max(Number.parseFloat(firstBorder), Number.parseFloat(secondBorder)));
+	return [
+		touches('top') && touches('left') ? radius(css.borderTopLeftRadius, css.borderTopWidth, css.borderLeftWidth) : 0,
+		touches('top') && touches('right') ? radius(css.borderTopRightRadius, css.borderTopWidth, css.borderRightWidth) : 0,
+		touches('bottom') && touches('right') ? radius(css.borderBottomRightRadius, css.borderBottomWidth, css.borderRightWidth) : 0,
+		touches('bottom') && touches('left') ? radius(css.borderBottomLeftRadius, css.borderBottomWidth, css.borderLeftWidth) : 0,
+	].map(value => `${value}px`).join(' ');
+}
+
+/** Keeps a portaled overlay's clipping in sync with its owning part's exposed corners. */
+export class PartOverlayCorners extends Disposable {
+	private anchor: HTMLElement | undefined;
+	private part: Element | undefined;
+	private readonly observer = this._register(new MutableDisposable());
+	private readonly pendingUpdate = this._register(new MutableDisposable());
+
+	constructor(
+		private readonly element: HTMLElement,
+		sizeService: ISizeService,
+		themeService: IThemeService,
+	) {
+		super();
+		const update = () => {
+			this.update();
+			// Auxiliary windows receive cloned theme styles in a later mutation-observer callback.
+			this.pendingUpdate.value = scheduleAtNextAnimationFrame(getWindow(this.element), () => this.update());
+		};
+		this._register(sizeService.onDidChangeSizes(update));
+		this._register(themeService.onDidColorThemeChange(update));
+	}
+
+	setAnchor(anchor: HTMLElement, part: Element | undefined): void {
+		this.anchor = anchor;
+		if (part !== this.part) {
+			this.observer.clear();
+			this.part = part;
+			if (part) {
+				const observer = new (getWindow(part).MutationObserver)(() => this.update());
+				observer.observe(part, { attributes: true, attributeFilter: ['class', 'style'] });
+				const root = part.closest('.monaco-workbench');
+				if (root) {
+					observer.observe(root, { attributes: true, attributeFilter: ['class'] });
+				}
+				this.observer.value = toDisposable(() => observer.disconnect());
+			}
+		}
+		this.update();
+	}
+
+	private update(): void {
+		const radius = this.anchor && getPartOverlayCornerRadius(this.anchor, this.part);
+		if (radius === undefined) {
+			this.element.style.removeProperty('border-radius');
+		} else {
+			this.element.style.borderRadius = radius;
+		}
+	}
+}
+
+/** Reapplies content metrics when allocations are unchanged and the grid would skip its leaves. */
+export function relayoutWorkbenchParts(grid: Grid<ISerializableView>): void {
+	const relayout = (node: GridNode<ISerializableView>): void => {
+		if (isGridBranchNode(node)) {
+			node.children.forEach(relayout);
+		} else if (node.cachedVisibleSize === undefined && node.box.width > 0 && node.box.height > 0) {
+			node.view.layout(node.box.width, node.box.height, node.box.top, node.box.left);
+		}
+	};
+	relayout(grid.getViews());
+}
+
+/** Meets perpendicular dividers at their visible gap centers without changing sash thickness. */
+export function updateSashEndpoints(gridElement: HTMLElement, enabled: boolean): void {
+	const elements: HTMLElement[] = [];
+	const findChild = (element: Element, className: string) => Array.from(element.children)
+		.find((child): child is HTMLElement => isHTMLElement(child) && child.classList.contains(className));
+	const visit = (branch: HTMLElement): void => {
+		const split = findChild(branch, 'monaco-split-view2');
+		const sashContainer = split && findChild(split, 'sash-container');
+		if (sashContainer) {
+			elements.push(...Array.from(sashContainer.children).filter(isHTMLElement).filter(child => child.classList.contains('monaco-sash')));
+		}
+		const scrollable = split && findChild(split, 'monaco-scrollable-element');
+		const views = scrollable && findChild(scrollable, 'split-view-container');
+		for (const view of views?.children ?? []) {
+			const child = view.firstElementChild;
+			if (isHTMLElement(child) && child.classList.contains('monaco-grid-branch-node')) {
+				visit(child);
+			}
+		}
+	};
+	const branch = findChild(gridElement, 'monaco-grid-branch-node');
+	if (branch) {
+		visit(branch);
+	}
+	const topLevel = !gridElement.closest('.part');
+	const root = gridElement.closest('.monaco-workbench');
+	const panelHasNoGap = root?.classList.contains('nopanel')
+		|| (root?.classList.contains('floating-panels') && root.classList.contains('nomaineditorarea'));
+	const sashes = elements.flatMap(element => {
+		const vertical = element.classList.contains('vertical');
+		const parent = element.parentElement;
+		if (!enabled || !parent || element.classList.contains('disabled') || (topLevel && panelHasNoGap && !vertical)
+			|| parent.clientWidth === 0 || parent.clientHeight === 0) {
+			return [];
+		}
+		const position = Number.parseFloat(vertical ? element.style.left : element.style.top);
+		if (!Number.isFinite(position)) {
+			return [];
+		}
+		const bounds = parent.getBoundingClientRect();
+		const rect = element.getBoundingClientRect();
+		const scaleX = bounds.width / parent.clientWidth;
+		const scaleY = bounds.height / parent.clientHeight;
+		return [{
+			element,
+			vertical,
+			nativeCenter: vertical ? bounds.left + position * scaleX + rect.width / 2 : bounds.top + position * scaleY + rect.height / 2,
+			center: vertical ? rect.left + rect.width / 2 : rect.top + rect.height / 2,
+			start: vertical ? bounds.top : bounds.left,
+			end: vertical ? bounds.bottom : bounds.right,
+			scale: vertical ? scaleY : scaleX,
+		}];
+	});
+	for (const element of elements) {
+		const sash = sashes.find(sash => sash.element === element);
+		for (const edge of ['start', 'end'] as const) {
+			const crossing = sash && sashes.find(candidate => candidate.vertical !== sash.vertical
+				&& Math.abs(candidate.nativeCenter - sash[edge]) <= 0.5
+				&& sash.nativeCenter >= candidate.start - 0.5 && sash.nativeCenter <= candidate.end + 0.5);
+			element.classList.toggle(`workbench-sash-${edge}-at-gap`, !!crossing);
+			const property = `--workbench-sash-${edge}`;
+			if (sash && crossing) {
+				const value = `${(edge === 'start' ? crossing.center - sash.start : sash.end - crossing.center) / sash.scale}px`;
+				if (element.style.getPropertyValue(property) !== value) {
+					element.style.setProperty(property, value);
+				}
+			} else {
+				element.style.removeProperty(property);
+			}
+		}
+	}
 }
 
 /**
@@ -135,6 +299,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 		}
 
 		this.parent.appendChild(footerContainer);
+		this.parent.classList.add('has-footer');
 		footerContainer.classList.add('header-or-footer');
 		footerContainer.classList.add('footer');
 
@@ -156,6 +321,7 @@ export abstract class Part<MementoType extends object = object> extends Componen
 		if (this.footerArea) {
 			this.footerArea.remove();
 			this.footerArea = undefined;
+			this.parent?.classList.remove('has-footer');
 			this.partLayout?.setFooterVisibility(false);
 			this.relayout();
 		}

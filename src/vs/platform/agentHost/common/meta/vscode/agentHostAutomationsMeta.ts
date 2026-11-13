@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { InitializeResult } from '../../state/protocol/common/commands.js';
-import type { AutomationEntry } from '../../state/protocol/channels-automation/state.js';
+import type { AutomationDefinition, AutomationEntry } from '../../state/protocol/channels-automation/state.js';
+import { isUUID } from '../../../../../base/common/uuid.js';
 
 /** Initialize presence flag for autonomous execution support, independent of feature enablement and per-definition operations. */
 export const AgentHostAutonomousAutomationsCapabilityMetaKey = 'vscode.autonomousAutomations';
@@ -15,6 +16,35 @@ export const AgentHostAutomationHistoryReceiptsCapabilityMetaKey = 'vscode.autom
 export const AgentHostAutomationHistoryDeletionStateCapabilityMetaKey = 'vscode.automationHistoryDeletionState';
 
 const AgentHostAutomationHistoryStateMetaKey = 'vscode.automationHistoryState';
+const AgentHostAutomationScheduleKindMetaKey = 'vscode.automationScheduleKind';
+const AgentHostAutomationCreationIdMetaKey = 'vscode.automationCreationId';
+
+/** Reads the client-owned handoff receipt without interpreting a host resource URI. */
+export function getAgentHostAutomationCreationId(definition: AutomationDefinition): string | undefined {
+	const id = definition._meta?.[AgentHostAutomationCreationIdMetaKey];
+	return typeof id === 'string' && isUUID(id) ? id : undefined;
+}
+
+/** Preserves the handoff receipt across edits and reconnects. */
+export function withAgentHostAutomationCreationId(meta: Record<string, unknown> | undefined, creationId: string): Record<string, unknown> {
+	return { ...meta, [AgentHostAutomationCreationIdMetaKey]: creationId };
+}
+
+/** Reads the explicitly chosen CRON editing form without changing runtime schedule semantics. */
+export function getAgentHostAutomationScheduleKind(definition: AutomationDefinition): 'cron' | undefined {
+	return definition._meta?.[AgentHostAutomationScheduleKindMetaKey] === 'cron' ? 'cron' : undefined;
+}
+
+/** Sets or clears the chosen CRON editing form while preserving unrelated metadata. */
+export function withAgentHostAutomationScheduleKind(meta: Record<string, unknown> | undefined, kind: 'cron' | undefined): Record<string, unknown> {
+	const result = { ...meta };
+	if (kind === undefined) {
+		delete result[AgentHostAutomationScheduleKindMetaKey];
+	} else {
+		result[AgentHostAutomationScheduleKindMetaKey] = kind;
+	}
+	return result;
+}
 
 /** `retained` entries are inert owners of preserved run history; `deleting` entries have a history deletion in progress or pending retry. */
 export type AgentHostAutomationHistoryState = 'retained' | 'deleting';

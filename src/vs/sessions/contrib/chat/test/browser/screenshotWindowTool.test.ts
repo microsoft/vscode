@@ -19,7 +19,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { ILanguageModelToolsService, IToolImpl, IToolResult } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ScreenshotWindowTool, ScreenshotWindowToolContribution, ScreenshotWindowToolId } from '../../browser/screenshotWindowTool.js';
-import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../common/constants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 
 suite('Sessions - Screenshot Window tool', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -102,15 +102,11 @@ suite('Sessions - Screenshot Window tool', () => {
 	});
 
 	test('stops when cancelled during the capture', async () => {
-		const source = new CancellationTokenSource();
-		try {
-			await assert.rejects(invoke(async () => {
-				source.cancel();
-				return createJpeg(400, 300);
-			}, source.token), isCancellationError);
-		} finally {
-			source.dispose();
-		}
+		const source = disposables.add(new CancellationTokenSource());
+		await assert.rejects(invoke(async () => {
+			source.cancel();
+			return createJpeg(400, 300);
+		}, source.token), isCancellationError);
 	});
 
 	test('rejects a stale invocation without capturing when disabled', async () => {

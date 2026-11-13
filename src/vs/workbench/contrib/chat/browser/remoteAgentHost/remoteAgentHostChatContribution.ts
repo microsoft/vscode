@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
@@ -479,10 +479,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
+		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, undefined));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
-			sanitized,
+			connection,
 			(customization, clientId) => {
 				if (clientId !== undefined) {
 					// Customization came from the client; we don't allow actions on these since they're read-only reflections of client state.
@@ -510,6 +510,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			syncProvider,
 			agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
 			modelCatalogueStatus,
+			agentLabel,
 		);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
@@ -528,7 +529,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			connectionAuthority: sanitized,
 			extensionId: 'vscode.remote-agent-host',
 			extensionDisplayName: 'Remote Agent Host',
-			supportsCanvasPresentation: this._isSessionsWindow && !isWeb && agent.provider === 'copilotcli',
+			// The Agents window gates availability per session through its sessions provider.
+			supportsCanvasPresentation: this._isSessionsWindow && !isWeb && agent.provider === 'copilotcli' ? constObservable(true) : undefined,
 			resolveWorkingDirectory,
 			prepareSession: prepareSession ? async (sessionResource, token) => {
 				const directory = await prepareSession(resolveWorkingDirectory(sessionResource) ?? undefined, token);
@@ -553,7 +555,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const vendorDescriptor = { vendor, displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		agentStore.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService));
+		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, uri => connection.resourceUris.fromAgentHost(uri)));
 		connState.modelProviders.set(agent.provider, modelProvider);
 		agentStore.add(toDisposable(() => connState.modelProviders.delete(agent.provider)));
 		agentStore.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));

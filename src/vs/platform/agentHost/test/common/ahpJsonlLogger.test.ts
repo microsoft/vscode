@@ -15,6 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -338,6 +339,56 @@ suite('AhpJsonlLogger', () => {
 		});
 	});
 
+	test('redacts GitHub environment credentials without mutating live requests, including oversized entries', async () => {
+		const fileService = createInMemoryFileService(store, Schemas.file);
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'github-environment', connectionId: 'client', transport: 'websocket' },
+			fileService, new NullLogService(),
+		));
+		const request = { jsonrpc: '2.0', id: 1, method: RegisterGitHubEnvironmentExtensionMethod, params: { accountId: '42', credential: 'private-credential' } };
+		logger.log(request, 'c2s');
+		logger.log({ ...request, id: 2, params: { ...request.params, extra: 'x'.repeat(2 * 1024 * 1024) } }, 'c2s');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const entries = content.trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			credentials: entries.map(entry => entry.params.credential),
+			accountIds: entries.map(entry => entry.params.accountId),
+			containsCredential: content.includes(request.params.credential),
+			liveCredential: request.params.credential,
+			truncated: entries[1]._ahpLog.truncated,
+		}, {
+			credentials: ['<redacted>', '<redacted>'],
+			accountIds: ['42', '42'],
+			containsCredential: false, liveCredential: 'private-credential', truncated: true,
+		});
+	});
+
+	test('redacts shell authentication answers without mutating live requests, including oversized entries', async () => {
+		const fileService = createInMemoryFileService(store, Schemas.file);
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'shell-authentication', connectionId: 'client', transport: 'websocket' },
+			fileService, new NullLogService(),
+		));
+		const request = { jsonrpc: '2.0', id: 1, method: AnswerShellAuthenticationExtensionMethod, params: { chat: 'ahp-chat://copilot/s/c', requestId: 'r', answer: 'private-password' } };
+		logger.log(request, 'c2s');
+		logger.log({ ...request, id: 2, params: { ...request.params, extra: 'x'.repeat(2 * 1024 * 1024) } }, 'c2s');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const entries = content.trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			answers: entries.map(entry => entry.params.answer),
+			requestIds: entries.map(entry => entry.params.requestId),
+			containsAnswer: content.includes(request.params.answer),
+			liveAnswer: request.params.answer,
+			truncated: entries[1]._ahpLog.truncated,
+		}, {
+			answers: ['<redacted>', '<redacted>'],
+			requestIds: ['r', 'r'],
+			containsAnswer: false, liveAnswer: 'private-password', truncated: true,
+		});
+	});
+
 	test('bounds shared history across reconnects and concurrent writers while preserving unrelated files', async () => {
 		const log = new NullLogService();
 		const files = store.add(new FileService(log));
@@ -416,6 +467,18 @@ suite('AhpJsonlLogger', () => {
 			logged: JSON.parse(stringifyAhpLogEntry(response)).result.certificates,
 			live: response.result.certificates,
 		}, { logged: '<redacted>', live: ['PRIVATE CLIENT CA'] });
+	});
+
+	test('redacts Assisted permissions feedback in dispatched confirmations without modifying the live action', () => {
+		const action = { type: 'chat/toolCallConfirmed', turnId: 't', toolCallId: 'tc', approved: true, _meta: { 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': 'Private note' } };
+		const message = { jsonrpc: '2.0', method: 'dispatchAction', params: { channel: 'ahp-chat:/c', clientSeq: 1, action } };
+		assert.deepStrictEqual({
+			logged: JSON.parse(stringifyAhpLogEntry(message)).params.action._meta,
+			live: action._meta['vscode.assistedApprovalFeedback'],
+		}, {
+			logged: { 'agentHost.permissionDecisionSource': 'human_response', 'vscode.assistedApprovalFeedback': '<redacted permission feedback>' },
+			live: 'Private note',
+		});
 	});
 
 	test('preserves existing authentication redaction markers', () => {
@@ -568,23 +631,43 @@ suite('AhpJsonlLogger', () => {
 		// A message carrying a multi-MB string (e.g. a base64 resourceRead) is trimmed.
 		const huge = 'x'.repeat(4 * 1024 * 1024);
 		logger.log({ jsonrpc: '2.0', id: 2, result: { data: huge } }, 's2c');
+		let readsWithByteLength = 0;
+		logger.log({ jsonrpc: '2.0', id: 3, result: { get data() { readsWithByteLength++; return huge; } } }, 's2c', huge.length);
 		await logger.flush();
 
 		const content = (await fileService.readFile(logger.resource)).value.toString();
 		const lines = content.split('\n').filter(Boolean);
-		// Both lines must be valid JSON (the trimmed line stays well-formed JSONL).
+		// All lines must be valid JSON (the trimmed lines stay well-formed JSONL).
 		const parsed = lines.map(line => JSON.parse(line));
 
 		assert.strictEqual(parsed[0]._ahpLog.truncated, undefined);
 		assert.strictEqual(parsed[1]._ahpLog.truncated, true);
+		assert.strictEqual(parsed[2]._ahpLog.truncated, true);
+		assert.strictEqual(readsWithByteLength, 1);
 		// The huge string was elided rather than written in full.
 		assert.ok(parsed[1].result.data.length < huge.length);
 		assert.ok(parsed[1].result.data.includes('chars elided'));
+		assert.ok(parsed[2].result.data.includes('chars elided'));
 		// The whole serialized line stays modest in size.
 		assert.ok(lines[1].length < 1024 * 1024);
+		assert.ok(lines[2].length < 1024 * 1024);
 	});
 
 	suite('stringifyAhpLogEntry', () => {
+		test('redacts proxy authorization results without changing the live value', () => {
+			const result = { jsonrpc: '2.0', id: 1, result: { authorization: 'Negotiate private-ticket' } };
+			const credentials = { jsonrpc: '2.0', id: 2, result: { username: 'user', password: 'private-password' } };
+			assert.deepStrictEqual({
+				logged: [JSON.parse(stringifyAhpLogEntry(result)), JSON.parse(stringifyAhpLogEntry(credentials))],
+				live: [result.result.authorization, credentials.result.password],
+			}, {
+				logged: [
+					{ jsonrpc: '2.0', id: 1, result: { authorization: '<redacted>' } },
+					{ jsonrpc: '2.0', id: 2, result: { username: 'user', password: '<redacted>' } },
+				],
+				live: ['Negotiate private-ticket', 'private-password'],
+			});
+		});
 
 		test('serialises a top-level URI as its string form', () => {
 			const uri = URI.parse('file:///tmp/example.txt');

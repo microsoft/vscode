@@ -84,6 +84,10 @@ function normalizeWebFetchPattern(pattern: string): string {
 export interface IPermissionRequest {
 	readonly kind: AgentPermissionKind | undefined;
 	readonly toolName: string;
+	/** Raw MCP server name as configured, for MCP permission requests. */
+	readonly mcpServerName?: string;
+	/** Raw MCP tool name, for MCP permission requests. */
+	readonly mcpToolName?: string;
 	readonly shellLanguage?: 'bash' | 'powershell';
 	readonly url?: string;
 	/** Absolute filesystem path for read/write requests. */
@@ -112,6 +116,11 @@ export function matchesPermissionRule(rule: string, request: IPermissionRequest,
 	switch (parsed.tool) {
 		case 'Shell':
 			return request.kind === AgentPermissionKind.Shell && parsed.specifier === undefined;
+		case 'Mcp':
+			return request.kind === AgentPermissionKind.Mcp && (parsed.specifier === undefined
+				|| (!!request.mcpServerName && !request.mcpServerName.includes('/')
+					&& (parsed.specifier === request.mcpServerName
+						|| (request.mcpToolName !== undefined && parsed.specifier === `${request.mcpServerName}/${request.mcpToolName}`))));
 		case 'WebFetch':
 			return request.kind === AgentPermissionKind.Url && (parsed.specifier === undefined || matchesWebFetch(parsed.specifier, request.url));
 		case 'Read':
@@ -179,6 +188,20 @@ export function shellExactRule(subCommand: string): string | undefined {
 		: `Shell(${command})`;
 }
 
+/** Builds a server-wide MCP grant, refusing empty names, the wildcard name, unbalanced parentheses, or server names containing '/'. */
+export function mcpServerRule(serverName: string): string | undefined {
+	return isValidMcpRuleName(serverName) && !serverName.includes('/') ? `Mcp(${serverName})` : undefined;
+}
+
+/** Builds a per-tool MCP grant, refusing empty names, the wildcard name, unbalanced parentheses, or server names containing '/'. */
+export function mcpToolRule(serverName: string, toolName: string): string | undefined {
+	return mcpServerRule(serverName) !== undefined && isValidMcpRuleName(toolName) ? `Mcp(${serverName}/${toolName})` : undefined;
+}
+
+function isValidMcpRuleName(name: string): boolean {
+	return !!name.trim() && name !== '*' && hasBalancedParentheses(name);
+}
+
 /** Builds a WebFetch URL-pattern grant; scheme-less patterns default to HTTPS. */
 export function webFetchRule(pattern: string): string {
 	return `WebFetch(${pattern})`;
@@ -192,6 +215,16 @@ export function pathRule(tool: 'Read' | 'Edit', absolutePath: string, recursive:
 	}
 	const specifier = recursive ? posix.join(normalized, '**') : normalized;
 	return `${tool}(${normalized.startsWith('/') ? '/' : '//'}${specifier})`;
+}
+
+/** Whether a Read/Edit rule names an absolute path without glob characters. */
+export function isExactAbsolutePathRule(rule: string): boolean {
+	const parsed = parsePermissionRule(rule);
+	if ((parsed?.tool !== 'Read' && parsed?.tool !== 'Edit') || parsed.specifier === undefined) {
+		return false;
+	}
+	const specifier = parsed.specifier.replace(/\\/g, '/');
+	return (specifier.startsWith('//') || /^[a-z]:\//i.test(specifier)) && !/[*?\[\]{}]/.test(specifier);
 }
 
 /** The first opening and final closing parentheses delimit a specifier; nested parentheses remain literal. */

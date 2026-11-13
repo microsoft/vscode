@@ -20,8 +20,9 @@ import { PREPARE_PULL_REQUEST_OPERATION_ID } from '../../common/meta/agentPullRe
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
 import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostAcceptChangesOperationContribution } from '../../node/agentHostAcceptChangesOperationProvider.js';
@@ -132,6 +133,7 @@ class TestGitStateService implements IAgentHostGitStateService {
  */
 class TestConfigurationService implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
+	readonly copilotM365EnabledAtStartup = false;
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
@@ -202,6 +204,8 @@ class TestConfigurationService implements IAgentConfigurationService {
 	updateSessionConfig(): void { }
 	resolveConfigurationOwner(session: string): string { return session; }
 	getSessionSandboxPolicy(): undefined { return undefined; }
+	getSessionSandboxPaths(): undefined { return undefined; }
+	setSessionSandboxPaths(): void { }
 	setSessionSandboxPolicy(): void { }
 
 	getSessionConfigValues(): Record<string, unknown> | undefined {
@@ -783,12 +787,7 @@ suite('AgentHostChangesetOperationService', () => {
 			modifiedAt: new Date().toISOString(),
 			defaultChat: buildDefaultChatUri(sessionKey),
 		});
-		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hi', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), chatTurnStarted('turn-1', 'hi', '2025-01-01T00:00:00.000Z'));
 		const service = createService(stateManager);
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 
@@ -814,13 +813,8 @@ suite('AgentHostChangesetOperationService', () => {
 				modifiedAt: new Date().toISOString(),
 				defaultChat: chat,
 			});
-			const startTurn = (turnId: string) => stateManager.dispatchServerAction(chat, {
-				type: ActionType.ChatTurnStarted,
-				turnId,
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'hi', origin: { kind: MessageKind.User } },
-			});
-			const completeTurn = (turnId: string) => stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			const startTurn = (turnId: string) => stateManager.dispatchServerAction(chat, chatTurnStarted(turnId, 'hi', '2025-01-01T00:00:00.000Z'));
+			const completeTurn = (turnId: string) => stateManager.dispatchServerAction(chat, chatTurnComplete(turnId, 1));
 			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 			const turnUris = ['turn-1', 'turn-2', 'turn-3'].map(turnId => buildTurnChangesetUri(chat, turnId));
 			for (const turnUri of turnUris) {
@@ -868,43 +862,45 @@ suite('AgentHostChangesetOperationService', () => {
 		});
 	});
 
-	test('offers only Accept Changes and Discard Changes on the Working Set, with or without Git state, and keeps them while a turn runs as far as the provider allows', () => {
-		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-		const sessionKey = 'agent:/session';
-		const chat = buildDefaultChatUri(sessionKey);
-		stateManager.createSession({ resource: sessionKey, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat });
-		const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
-		const service = createService(stateManager, undefined, undefined, fileEditCoordinator);
-		// Only the advertising halves of the contributions are under test; their handlers need more services.
-		const accept = disposables.add(new AgentHostAcceptChangesOperationContribution(new (mock<IInstantiationService>())()));
-		const discard = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
-		for (const contribution of [accept, discard]) {
-			disposables.add(service.registerContribution({ registerHandlers: () => Disposable.None, getOperations: context => contribution.getOperations(context), dispose: () => { } }));
-		}
-		// Stands in for repository workflows, like pull requests, that don't look at the changeset kind.
-		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
-		const workingSet = buildWorkingSetChangesetUri(sessionKey);
-		const describe = (changeset: string, gitState: ISessionGitState | undefined) => service.getOperations(sessionKey, changeset, gitState).map(operation => `${operation.id}:${operation.status}`);
+	for (const workingDirectories of [['file:///a'], ['file:///a', 'file:///b']]) {
+		test(`offers only Accept Changes and Discard Changes on the Working Set with ${workingDirectories.length} roots, with or without Git state, and keeps them while a turn runs as far as the provider allows`, () => {
+			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const sessionKey = 'agent:/session';
+			const chat = buildDefaultChatUri(sessionKey);
+			stateManager.createSession({ resource: sessionKey, provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat, workingDirectories });
+			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const service = createService(stateManager, new TestConfigurationService(workingDirectories), undefined, fileEditCoordinator);
+			// Only the advertising halves of the contributions are under test; their handlers need more services.
+			const accept = disposables.add(new AgentHostAcceptChangesOperationContribution(new (mock<IInstantiationService>())()));
+			const discard = disposables.add(new AgentHostDiscardChangesOperationContribution(stateManager, new (mock<IInstantiationService>())()));
+			for (const contribution of [accept, discard]) {
+				disposables.add(service.registerContribution({ registerHandlers: () => Disposable.None, getOperations: context => contribution.getOperations(context), dispose: () => { } }));
+			}
+			// Stands in for repository workflows, like pull requests, that don't look at the changeset kind.
+			disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
+			const workingSet = buildWorkingSetChangesetUri(sessionKey);
+			const describe = (changeset: string, gitState: ISessionGitState | undefined) => service.getOperations(sessionKey, changeset, gitState).map(operation => `${operation.id}:${operation.status}`);
 
-		const idle = { withGit: describe(workingSet, sampleGitState), withoutGit: describe(workingSet, undefined), session: describe(buildSessionChangesetUri(sessionKey), sampleGitState) };
-		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date(0).toISOString(), message: { text: 'hi', origin: { kind: MessageKind.User } } });
-		const whileTurnRuns = { workingSet: describe(workingSet, sampleGitState), session: describe(buildSessionChangesetUri(sessionKey), sampleGitState) };
-		// The provider's edit tool calls wait for discards of their files, so its files' changes can be undone too.
-		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
+			const idle = { withGit: describe(workingSet, sampleGitState), withoutGit: describe(workingSet, undefined), session: describe(buildSessionChangesetUri(sessionKey), sampleGitState) };
+			stateManager.dispatchServerAction(chat, chatTurnStarted('turn-1', 'hi', new Date(0).toISOString()));
+			const whileTurnRuns = { workingSet: describe(workingSet, sampleGitState), session: describe(buildSessionChangesetUri(sessionKey), sampleGitState) };
+			// The provider's edit tool calls wait for discards of their files, so its files' changes can be undone too.
+			disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
 
-		assert.deepStrictEqual({ idle, whileTurnRuns, whileCoordinatedTurnRuns: describe(workingSet, sampleGitState) }, {
-			idle: {
-				withGit: ['accept-changes:idle', 'discard-changes:idle'],
-				withoutGit: ['accept-changes:idle', 'discard-changes:idle'],
-				session: ['discard-changes:idle', `${testOperationId}:idle`],
-			},
-			whileTurnRuns: {
-				workingSet: ['accept-changes:idle', 'discard-changes:disabled'],
-				session: ['discard-changes:disabled', `${testOperationId}:disabled`],
-			},
-			whileCoordinatedTurnRuns: ['accept-changes:idle', 'discard-changes:idle'],
+			assert.deepStrictEqual({ idle, whileTurnRuns, whileCoordinatedTurnRuns: describe(workingSet, sampleGitState) }, {
+				idle: {
+					withGit: ['accept-changes:idle', 'discard-changes:idle'],
+					withoutGit: ['accept-changes:idle', 'discard-changes:idle'],
+					session: ['discard-changes:idle', `${testOperationId}:idle`],
+				},
+				whileTurnRuns: {
+					workingSet: ['accept-changes:idle', 'discard-changes:disabled'],
+					session: ['discard-changes:disabled', `${testOperationId}:disabled`],
+				},
+				whileCoordinatedTurnRuns: ['accept-changes:idle', 'discard-changes:idle'],
+			});
 		});
-	});
+	}
 
 	test('offers pull request workflows on every folder scope Branch and Uncommitted changeset and keeps merge with the default chat', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -1221,12 +1217,7 @@ suite('AgentHostChangesetOperationService', () => {
 			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
 		});
 		// ... while a chat turn is still streaming on the session.
-		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), {
-			type: ActionType.ChatTurnStarted,
-			turnId: 'turn-1',
-			startedAt: '2025-01-01T00:00:00.000Z',
-			message: { text: 'hi', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(buildDefaultChatUri(sessionKey), chatTurnStarted('turn-1', 'hi', '2025-01-01T00:00:00.000Z'));
 
 		const service = createService(stateManager);
 		const handler = new TestHandler();

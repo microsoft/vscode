@@ -32,9 +32,11 @@ steps:
       fi
     displayName: Check 1.999.0 tag
 
+  - template: ../common/install-pnpm.yml@self
+
   - bash: |
       # Install build dependencies
-      (cd build && npm ci)
+      (cd build && pnpm install --frozen-lockfile)
       node build/azure-pipelines/publish-types/check-version.ts
     displayName: Check version
 

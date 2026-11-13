@@ -859,16 +859,24 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
  */
 export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	let testElement: HTMLElement | null = domNode;
-	let zoom = 1.0;
-	do {
-		// eslint-disable-next-line local/code-no-any-casts
-		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
-		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
-			zoom *= elementZoomLevel;
+	let zoom = 1;
+	const targetWindow = getWindow(domNode);
+	while (testElement !== null) {
+		const elementZoomLevel = targetWindow.getComputedStyle(testElement).getPropertyValue('zoom');
+		if (elementZoomLevel !== '' && elementZoomLevel !== '1') {
+			const value = Number(elementZoomLevel);
+			if (!isNaN(value) && value > 0) {
+				zoom *= value;
+			}
 		}
 
-		testElement = testElement.parentElement;
-	} while (testElement !== null && testElement !== testElement.ownerDocument.documentElement);
+		if (testElement.parentElement) {
+			testElement = testElement.parentElement;
+		} else {
+			const root = testElement.getRootNode();
+			testElement = isShadowRoot(root) && isHTMLElement(root.host) ? root.host : null;
+		}
+	}
 
 	return zoom;
 }
@@ -945,7 +953,7 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 	const flowToParentId = node.dataset[parentFlowToDataKey];
 	if (typeof flowToParentId === 'string') {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return node.ownerDocument.getElementById(flowToParentId);
 	}
 	return null;
@@ -1167,62 +1175,62 @@ function createHeadElement<K extends keyof HTMLElementTagNameMap>(tagName: K, co
 }
 
 export function isHTMLElement(e: unknown): e is HTMLElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLElement || e instanceof getWindow(e as Node).HTMLElement;
 }
 
 export function isHTMLAnchorElement(e: unknown): e is HTMLAnchorElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLAnchorElement || e instanceof getWindow(e as Node).HTMLAnchorElement;
 }
 
 export function isHTMLSpanElement(e: unknown): e is HTMLSpanElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLSpanElement || e instanceof getWindow(e as Node).HTMLSpanElement;
 }
 
 export function isHTMLTextAreaElement(e: unknown): e is HTMLTextAreaElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLTextAreaElement || e instanceof getWindow(e as Node).HTMLTextAreaElement;
 }
 
 export function isHTMLInputElement(e: unknown): e is HTMLInputElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLInputElement || e instanceof getWindow(e as Node).HTMLInputElement;
 }
 
 export function isHTMLButtonElement(e: unknown): e is HTMLButtonElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLButtonElement || e instanceof getWindow(e as Node).HTMLButtonElement;
 }
 
 export function isHTMLDivElement(e: unknown): e is HTMLDivElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLDivElement || e instanceof getWindow(e as Node).HTMLDivElement;
 }
 
 export function isSVGElement(e: unknown): e is SVGElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof SVGElement || e instanceof getWindow(e as Node).SVGElement;
 }
 
 export function isMouseEvent(e: unknown): e is MouseEvent {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof MouseEvent || e instanceof getWindow(e as UIEvent).MouseEvent;
 }
 
 export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof KeyboardEvent || e instanceof getWindow(e as UIEvent).KeyboardEvent;
 }
 
 export function isPointerEvent(e: unknown): e is PointerEvent {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof PointerEvent || e instanceof getWindow(e as UIEvent).PointerEvent;
 }
 
 export function isDragEvent(e: unknown): e is DragEvent {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof DragEvent || e instanceof getWindow(e as UIEvent).DragEvent;
 }
 
@@ -2112,6 +2120,12 @@ export class DragAndDropObserver extends Disposable {
 		this.registerListeners();
 	}
 
+	/** Resets tracking when a nested drop target consumes the end of a drag. */
+	reset(): void {
+		this.counter = 0;
+		this.dragStartTime = 0;
+	}
+
 	private registerListeners(): void {
 		if (this.callbacks.onDragStart) {
 			this._register(addDisposableListener(this.element, EventType.DRAG_START, (e: DragEvent) => {
@@ -2149,16 +2163,12 @@ export class DragAndDropObserver extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
-			this.counter = 0;
-			this.dragStartTime = 0;
-
+			this.reset();
 			this.callbacks.onDragEnd?.(e);
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
-			this.counter = 0;
-			this.dragStartTime = 0;
-
+			this.reset();
 			this.callbacks.onDrop?.(e);
 		}));
 	}

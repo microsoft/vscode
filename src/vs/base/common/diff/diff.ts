@@ -5,6 +5,7 @@
 
 import { DiffChange } from './diffChange.js';
 import { stringHash } from '../hash.js';
+import { computeCodePoint, isHighSurrogate, isLowSurrogate } from '../strings.js';
 import { Constants } from '../uint.js';
 
 export class StringDiffSequence implements ISequence {
@@ -21,8 +22,77 @@ export class StringDiffSequence implements ISequence {
 	}
 }
 
+class CodePointDiffSequence implements ISequence {
+
+	private readonly elements: Int32Array;
+	private readonly offsets: Int32Array;
+
+	constructor(source: string) {
+		let elementCount = 0;
+		for (let offset = 0; offset < source.length;) {
+			const charCode = source.charCodeAt(offset);
+			offset += isHighSurrogate(charCode) && offset + 1 < source.length && isLowSurrogate(source.charCodeAt(offset + 1)) ? 2 : 1;
+			elementCount++;
+		}
+
+		this.elements = new Int32Array(elementCount);
+		this.offsets = new Int32Array(elementCount + 1);
+		let elementIndex = 0;
+		for (let offset = 0; offset < source.length; elementIndex++) {
+			this.offsets[elementIndex] = offset;
+			const charCode = source.charCodeAt(offset);
+			if (isHighSurrogate(charCode) && offset + 1 < source.length) {
+				const nextCharCode = source.charCodeAt(offset + 1);
+				if (isLowSurrogate(nextCharCode)) {
+					this.elements[elementIndex] = computeCodePoint(charCode, nextCharCode);
+					offset += 2;
+					continue;
+				}
+			}
+
+			this.elements[elementIndex] = charCode;
+			offset++;
+		}
+		this.offsets[elementCount] = source.length;
+	}
+
+	getElements(): Int32Array {
+		return this.elements;
+	}
+
+	getOffset(elementIndex: number): number {
+		return this.offsets[elementIndex];
+	}
+}
+
 export function stringDiff(original: string, modified: string, pretty: boolean): IDiffChange[] {
-	return new LcsDiff(new StringDiffSequence(original), new StringDiffSequence(modified)).ComputeDiff(pretty).changes;
+	if (!containsSurrogatePair(original) && !containsSurrogatePair(modified)) {
+		return new LcsDiff(new StringDiffSequence(original), new StringDiffSequence(modified)).ComputeDiff(pretty).changes;
+	}
+
+	const originalSequence = new CodePointDiffSequence(original);
+	const modifiedSequence = new CodePointDiffSequence(modified);
+	return new LcsDiff(originalSequence, modifiedSequence).ComputeDiff(pretty).changes.map(change => {
+		const originalStart = originalSequence.getOffset(change.originalStart);
+		const originalEnd = originalSequence.getOffset(change.originalStart + change.originalLength);
+		const modifiedStart = modifiedSequence.getOffset(change.modifiedStart);
+		const modifiedEnd = modifiedSequence.getOffset(change.modifiedStart + change.modifiedLength);
+		return {
+			originalStart,
+			originalLength: originalEnd - originalStart,
+			modifiedStart,
+			modifiedLength: modifiedEnd - modifiedStart,
+		};
+	});
+}
+
+function containsSurrogatePair(value: string): boolean {
+	for (let i = 0; i + 1 < value.length; i++) {
+		if (isHighSurrogate(value.charCodeAt(i)) && isLowSurrogate(value.charCodeAt(i + 1))) {
+			return true;
+		}
+	}
+	return false;
 }
 
 export interface ISequence {

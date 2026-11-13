@@ -17,7 +17,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, createEditorRemoteAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { createSessionState, SessionState, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -2356,7 +2356,7 @@ suite('CustomizationMigrationService', () => {
 		const harnessService = new TestCustomizationHarnessService();
 		const session = harnessService.activeSessionResource.get();
 
-		const compute = async (resourceUris: IAgentHostResourceUriMapper) => {
+		const compute = async (resourceUris: IAgentHostResourceUriMapper, hydratedRoot: string) => {
 			let requestedRoots: readonly URI[] | undefined;
 			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
 				override acquireMcpServerSupportScope(_sessionType: string, roots: readonly URI[] | undefined) {
@@ -2437,14 +2437,14 @@ suite('CustomizationMigrationService', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
-				workingDirectories: [remoteRoot.toString()],
+				workingDirectories: [hydratedRoot],
 			});
 			subscriptionChanged.fire(subscription.value);
 			return { provisional, hydrated: await readMigration() };
 		};
 
-		const identityControl = await compute(identityAgentHostResourceUriMapper);
-		const remoteConnection = await compute(createAgentHostResourceUriMapper('remote-test'));
+		const identityControl = await compute(identityAgentHostResourceUriMapper, remoteRoot.toString());
+		const remoteConnection = await compute(createEditorRemoteAgentHostResourceUriMapper('dev-container+test', 'remote-test'), 'file:///workspaces/project');
 		const expectedMigration = {
 			roots: [remoteRoot.toString()],
 			candidates: [{ sourceUri: sourceUri.toString(), targetUri: targetUri.toString() }],

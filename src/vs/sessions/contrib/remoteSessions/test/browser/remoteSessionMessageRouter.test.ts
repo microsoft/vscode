@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -26,13 +26,14 @@ import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/commo
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionEnvelope, ActionType, ChatPendingMessageSetAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { chatTurnComplete, chatTurnStarted } from '../../../../../platform/agentHost/test/common/chatActionBuilders.js';
 import { ChatInteractivity as ProtocolChatInteractivity } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { chatReducer } from '../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatState, ComponentToState, MessageKind, parseChatUri, PendingMessageKind, RootState, SessionState, SessionStatus, StateComponents, withSessionSpawnDepth, withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { messageToRequestOrigin } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -41,11 +42,11 @@ import { IChatSession, IChatSessionsService } from '../../../../../workbench/con
 import { IChatModel, IChatPendingRequest } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity, IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ChatInteractivity, IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { maxRemoteMessageLength, parseSendRemoteMessageOptions, RemoteSessionMessageRouter } from '../../browser/remoteSessionMessageRouter.js';
 import { SendRemoteMessageTool } from '../../browser/sendRemoteMessageTool.js';
 import { resolveRemoteSessionSource } from '../../browser/remoteSessionSource.js';
@@ -208,7 +209,7 @@ suite('RemoteSessionMessageRouter', () => {
 			}
 			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return this.getConnection(authority); }
 		}();
-		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), new NullLogService()));
+		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 		const sessions = ['agent-host-copilot', 'remote-first-copilot', 'remote-second-copilot'].map((scheme, index) => {
 			const resource = URI.from({ scheme, path: '/same-id' });
 			const chats = ['', 'original-chat', 'other-chat'].map(fragment => upcastPartial<IChat>({
@@ -534,10 +535,7 @@ suite('RemoteSessionMessageRouter', () => {
 		const { router, first, sessions } = setup();
 		const channel = buildDefaultChatUri(backendSession);
 		const state = first.chatStates.get(channel)!;
-		state.set(chatReducer(state.verifiedValue!, {
-			type: ActionType.ChatTurnStarted, turnId: 'busy', startedAt: new Date(0).toISOString(),
-			message: { text: 'Busy', origin: { kind: MessageKind.User } },
-		}));
+		state.set(chatReducer(state.verifiedValue!, chatTurnStarted('busy', 'Busy', new Date(0).toISOString())));
 		state.set(chatReducer(state.verifiedValue!, {
 			type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'existing',
 			message: { text: 'Existing', origin: { kind: MessageKind.User } },
@@ -860,7 +858,7 @@ suite('RemoteSessionMessageRouter', () => {
 			const pendingOnly = { retained: backgroundState.references, active: active.get(), queued: pending.length };
 			first.acknowledgeDispatch(0);
 			const running = { retained: backgroundState.references, active: active.get(), queued: pending.length };
-			chat.set(chatReducer(chat.verifiedValue!, { type: ActionType.ChatTurnComplete, turnId: chat.verifiedValue!.activeTurn!.id, duration: 1 }));
+			chat.set(chatReducer(chat.verifiedValue!, chatTurnComplete(chat.verifiedValue!.activeTurn!.id, 1)));
 			assert.deepStrictEqual({
 				pendingOnly, running, released: backgroundState.references, dispatches: first.dispatched.length,
 			}, {

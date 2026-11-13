@@ -85,10 +85,10 @@ export const enum AccessibilityVerbositySettingId {
 	ChatQuestionCarousel = 'accessibility.verbosity.chatQuestionCarousel',
 	Survey = 'accessibility.verbosity.survey',
 	Automations = 'accessibility.verbosity.automations',
-	InboxNotifications = 'accessibility.verbosity.inboxNotifications',
 	AgentsWindowExtensions = 'accessibility.verbosity.agentsWindowExtensions',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
+	ScreenshotTool = 'accessibility.verbosity.screenshotTool',
 	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
 	ChatPetJumpGame = 'accessibility.verbosity.chatPetJumpGame'
 }
@@ -296,10 +296,6 @@ const configuration: IConfigurationNode = {
 			description: localize('verbosity.automations', 'Provide information about how to use Automations management views, including keyboard navigation and how to inspect scheduled runs.'),
 			...baseVerbosityProperty
 		},
-		[AccessibilityVerbositySettingId.InboxNotifications]: {
-			description: localize('verbosity.inboxNotifications', "Provide information about how to navigate and act on prioritized notifications in the Inbox view."),
-			...baseVerbosityProperty
-		},
 		[AccessibilityVerbositySettingId.AgentsWindowExtensions]: {
 			description: localize('verbosity.agentsWindowExtensions', "Provide information about how to access accessibility help when managing which extensions run in the Agents window."),
 			...baseVerbosityProperty
@@ -310,6 +306,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.BrowserElementCommenting]: {
 			description: localize('verbosity.browserElementCommenting', 'Provide information about how to access element commenting accessibility help in the Integrated Browser.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ScreenshotTool]: {
+			description: localize('verbosity.screenshotTool', "Provide information about how to access the screenshot tool accessibility help when the screenshot tool opens."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.ChatPetAchievements]: {

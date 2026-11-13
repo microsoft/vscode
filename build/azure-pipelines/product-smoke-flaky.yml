@@ -4,9 +4,10 @@
 # fans out to parallel Unit/Integration/Smoke jobs that download and reuse that
 # build instead of recompiling. Each job repeats its suite 20 times, with each
 # repetition as its own step (continueOnError) so a single flaky failure does not
-# abort the run and every iteration produces its own timeline record. Windows
-# unit and integration iterations are too slow to fit in one job, so each is
-# split into an odd-iteration and an even-iteration job. The
+# abort the run and every iteration produces its own timeline record. Unit
+# iterations on Windows and Linux, and integration iterations on Windows, are too
+# slow to fit in one job, so each is split into an odd-iteration and an
+# even-iteration job. The
 # pass/fail tally is read back from the build timeline by the vscode-probot
 # `SmokeFlaky` Azure Function (wired up via an ADO service hook on build
 # completion), which posts a summary to the Slack #build channel.
@@ -19,18 +20,18 @@ pr: none
 trigger: none
 
 schedules:
-  # Run the insider flavor twice per day. `always: true` forces the runs even when
-  # there are no new commits, since flaky behavior is environmental and worth
-  # sampling regardless of source changes.
-  - cron: "0 3,16 * * *"
-    displayName: Twice daily at 03:00 and 16:00 UTC (insider smoke flaky detection)
+  # Run the insider flavor once per day, after the 05:00 UTC insider has its macOS agents and well before the
+  # 11:00 UTC one, since both use the shared macOS pool. `always: true` forces the runs even when there are
+  # no new commits, since flaky behavior is environmental and worth sampling regardless of source changes.
+  - cron: "0 6 * * *"
+    displayName: Daily at 06:00 UTC (insider smoke flaky detection)
     branches:
       include:
         - main
     always: true
   # Also sample the stable flavor on Monday mornings.
-  - cron: "0 3 * * 1"
-    displayName: Monday at 03:00 UTC (stable smoke flaky detection)
+  - cron: "0 6 * * 1"
+    displayName: Monday at 06:00 UTC (stable smoke flaky detection)
     branches:
       include:
         - main
@@ -86,7 +87,7 @@ parameters:
 
 variables:
   - name: VSCODE_QUALITY
-    value: $[iif(eq(variables['Build.CronSchedule.DisplayName'], 'Monday at 03:00 UTC (stable smoke flaky detection)'), 'stable', '${{ parameters.VSCODE_QUALITY }}')]
+    value: $[iif(eq(variables['Build.CronSchedule.DisplayName'], 'Monday at 06:00 UTC (stable smoke flaky detection)'), 'stable', '${{ parameters.VSCODE_QUALITY }}')]
   - name: NPM_REGISTRY
     value: ${{ parameters.NPM_REGISTRY }}
   # Compile templates skip publish/codesign/artifact-staging when VSCODE_CIBUILD
@@ -179,30 +180,9 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
-      # The per-OS compile template unconditionally waits (up to 30 min) for a
-      # `Copilot` job to publish the `copilot_vsix` artifact, which is mixed into
-      # the build. This stage produces it — mirroring product-build.yml. The
-      # platform stages depend on its artifact-published output so they are
-      # skipped when the artifact cannot be produced, but still run if later
-      # Copilot validation fails.
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: false
-              VSCODE_RELEASE: false
-              # This is a test-only run; don't push the Copilot extension's source
-              # maps to the CDN.
-              VSCODE_UPLOAD_SOURCEMAPS: false
-
       - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
         - stage: Linux
-          dependsOn: Copilot
-          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          dependsOn: []
           pool:
             name: 1es-ubuntu-22.04-x64
             os: linux
@@ -217,8 +197,7 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
         - stage: Windows
-          dependsOn: Copilot
-          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          dependsOn: []
           pool:
             name: 1es-windows-2022-x64
             os: windows
@@ -233,8 +212,7 @@ extends:
 
       - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
         - stage: macOS
-          dependsOn: Copilot
-          condition: and(not(canceled()), eq(dependencies.Copilot.outputs['Copilot.copilotVsix.published'], 'true'))
+          dependsOn: []
           pool:
             name: AcesShared
             os: macOS

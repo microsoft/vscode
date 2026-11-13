@@ -17,7 +17,7 @@ import { ServicesAccessor, createDecorator } from '../../instantiation/common/in
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, ChatSessionToOpen, IAgentsWindowDraft, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -33,6 +33,7 @@ export interface IWindowsMainService {
 	readonly onDidMaximizeWindow: Event<ICodeWindow>;
 	readonly onDidUnmaximizeWindow: Event<ICodeWindow>;
 	readonly onDidChangeFullScreen: Event<{ window: ICodeWindow; fullscreen: boolean }>;
+	readonly onDidChangeAlwaysOnTop: Event<{ window: ICodeWindow; alwaysOnTop: boolean }>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: ICodeWindow; readonly x: number; readonly y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
@@ -41,7 +42,7 @@ export interface IWindowsMainService {
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault?: boolean, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI): Promise<ICodeWindow[]>;
+	openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault?: boolean, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI, revealRemoteAuthority?: string): Promise<ICodeWindow[]>;
 
 	sendToFocused(channel: string, ...args: unknown[]): void;
 	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
@@ -55,6 +56,13 @@ export interface IWindowsMainService {
 
 	getWindowById(windowId: number): ICodeWindow | undefined;
 	getWindowByWebContents(webContents: electron.WebContents): ICodeWindow | undefined;
+
+	/**
+	 * Restores the windows exactly as they are, for example minimized, when the
+	 * application starts the next time. Only applies if the application quits
+	 * without veto.
+	 */
+	restoreExactlyOnNextStartup(restore: boolean): void;
 }
 
 export interface IWindowsCountChangedEvent {
@@ -116,6 +124,12 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly remoteAuthority?: string;
 	readonly forceProfile?: string;
 	readonly forceTempProfile?: boolean;
+	/**
+	 * A chat session to open in the window that opens the only
+	 * entry of {@link urisToOpen}. It is not opened anywhere when
+	 * that entry can't be opened.
+	 */
+	readonly chatSessionToOpen?: ChatSessionToOpen;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
@@ -129,6 +143,40 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
+}
+
+/**
+ * Whether windows must never be shown or focused: `--hidden-window` is
+ * only honored when running extension tests (`--extensionTestsPath`).
+ */
+export function isHiddenWindowMode(environmentMainService: IEnvironmentMainService): boolean {
+	return environmentMainService.args['hidden-window'] === true && !!environmentMainService.extensionTestsLocationURI;
+}
+
+/**
+ * Whether background throttling may be enabled at runtime: a hidden window
+ * is never visible, so throttling would apply to it permanently.
+ */
+export function isBackgroundThrottlingAllowed(environmentMainService: IEnvironmentMainService, allowed: boolean): boolean {
+	return allowed && !isHiddenWindowMode(environmentMainService);
+}
+
+/**
+ * The mode an auxiliary window is restored into. Fullscreen is restored as
+ * maximized because auxiliary windows do not support restoring fullscreen.
+ */
+export function getAuxiliaryWindowRestoreMode(mode: WindowMode | undefined): WindowMode {
+	return mode === WindowMode.Maximized || mode === WindowMode.Fullscreen ? WindowMode.Maximized : WindowMode.Normal;
+}
+
+/**
+ * The mode an auxiliary window is restored into when it is claimed. Prefer the
+ * mode requested at creation: `options.show` is also false for windows that are
+ * hidden with `--hidden-window`. Otherwise probe `options.show`, because
+ * maximized windows are never shown initially to reduce flicker.
+ */
+export function getClaimedAuxiliaryWindowMode(requestedMode: WindowMode | undefined, options: electron.BrowserWindowConstructorOptions): WindowMode {
+	return requestedMode ?? (options.show === false ? WindowMode.Maximized : WindowMode.Normal);
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -234,7 +282,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 	}
 
-	if (overrides?.alwaysOnTop) {
+	if (overrides?.alwaysOnTop ?? windowState.alwaysOnTop) {
 		options.alwaysOnTop = true;
 	}
 
@@ -263,6 +311,14 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.webPreferences = {
 			...options.webPreferences,
 			backgroundThrottling: false,
+		};
+	}
+
+	if (isHiddenWindowMode(environmentMainService)) {
+		options.show = false;
+		options.webPreferences = {
+			...options.webPreferences,
+			backgroundThrottling: false, // a never shown window must keep timers, animation frames and page visibility like a visible one
 		};
 	}
 

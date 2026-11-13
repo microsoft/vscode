@@ -26,7 +26,7 @@ Local Copilot Chat remains a separate user-visible extension-host surface. Its f
 
 Copilot's native OTel signal contract lives in `github/copilot-agent-runtime`, not in VS Code's TypeScript attribute constants. Before auditing or changing the integration:
 
-1. Read the `@github/copilot-sdk` version from the root `package-lock.json` and the bundled runtime version from `copilotRuntimeVersion` in the root `package.json`.
+1. Read the `@github/copilot-sdk` version from the root importer (`.`) of `pnpm-lock.yaml` and the bundled runtime version from `copilotRuntimeVersion` in the root `package.json`.
 2. Resolve the matching immutable runtime tag and commit.
 3. Read the runtime monitoring reference and implementation at that revision.
 4. Use runtime `main` only after confirming that the relevant files are unchanged from the bundled revision.
@@ -173,8 +173,8 @@ Agent Host examples:
 Local Copilot Chat examples, from `extensions/copilot/`:
 
 ```bash
-npx tsc --noEmit --project tsconfig.json
-npm test -- --grep "OTel"
+pnpm exec tsc --noEmit --project tsconfig.json
+pnpm test --grep "OTel"
 ```
 
 For documentation-only changes, verify:
