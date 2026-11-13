@@ -6,36 +6,53 @@
 import assert from 'assert';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, MANAGE_EXTENSION_COMMAND_ID } from '../../../../../platform/extensions/common/extensions.js';
-import { AgentsWindowExtensionManageCommand } from '../../browser/agentsWindowExtensionManageCommand.js';
+import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../../platform/extensions/common/extensions.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotification, INotificationHandle, INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { manageExtension } from '../../browser/agentsWindowExtensionManageCommand.js';
 
 suite('AgentsWindowExtensionManageCommand', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('registers Manage Extension only while the Agents window manages extensions', async () => {
-		const configurationService = new TestConfigurationService({ [EXTENSIONS_AGENTS_WINDOW_MANAGEMENT]: false });
-		const setManagement = async (value: boolean) => {
-			await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, value);
-			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === EXTENSIONS_AGENTS_WINDOW_MANAGEMENT }));
-		};
-		const isRegistered = () => !!CommandsRegistry.getCommand(MANAGE_EXTENSION_COMMAND_ID);
+	async function runManageExtension(management: boolean): Promise<{ commands: unknown[][]; notifications: string[] }> {
+		const commands: unknown[][] = [];
+		const notifications: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [EXTENSIONS_AGENTS_WINDOW_MANAGEMENT]: management }));
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (id: string, ...args: unknown[]) => { commands.push([id, ...args]); return undefined; }
+		}));
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({ activeEditorPane: undefined }));
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override notify(notification: INotification): INotificationHandle {
+				notifications.push(String(notification.message));
+				return super.notify(notification);
+			}
+		});
 
-		const contribution = new AgentsWindowExtensionManageCommand(configurationService);
-		const states = [isRegistered()];
-		await setManagement(true);
-		states.push(isRegistered());
-		await setManagement(false);
-		states.push(isRegistered());
-		await setManagement(true);
-		states.push(isRegistered());
-		contribution.dispose();
-		states.push(isRegistered());
+		await instantiationService.invokeFunction(accessor => manageExtension(accessor, 'pub.ext'));
+		return { commands, notifications };
+	}
 
-		assert.deepStrictEqual(states, [false, true, false, true, false]);
-		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+	test('says that it can\'t manage the extension when the Agents window doesn\'t manage extensions', async () => {
+		assert.deepStrictEqual(await runManageExtension(false), {
+			commands: [],
+			notifications: ['Extension \'pub.ext\' can\'t be managed in this window right now.'],
+		});
+	});
+
+	test('opens the Extensions section of Agent Customizations, and says when it can\'t show the extension there', async () => {
+		assert.deepStrictEqual(await runManageExtension(true), {
+			commands: [[AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Extensions]],
+			notifications: ['Extension \'pub.ext\' can\'t be managed in this window right now.'],
+		});
 	});
 });

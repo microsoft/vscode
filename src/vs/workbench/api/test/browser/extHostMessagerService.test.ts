@@ -7,7 +7,7 @@ import assert from 'assert';
 import { MainThreadMessageService } from '../../browser/mainThreadMessageService.js';
 import { IDialogService, IPrompt, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter, IStatusHandle } from '../../../../platform/notification/common/notification.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { NotificationViewItem } from '../../../common/notifications.js';
 import { LinkedTextNode } from '../../../../base/common/linkedText.js';
-import { ExtensionIdentifier, IExtensionDescription, MANAGE_EXTENSION_COMMAND_ID } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InMemoryStorageService } from '../../../../platform/storage/common/storage.js';
 import { NotificationService } from '../../../services/notification/common/notificationService.js';
 import { NotificationActionRunner } from '../../../browser/parts/notifications/notificationsCommands.js';
@@ -162,51 +162,9 @@ suite('ExtHostMessageService', function () {
 			});
 		}
 
-		test('omits Manage Extension when the extensions management command is not registered', async () => {
-			const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
-			store.add(toDisposable(() => {
-				for (const item of [...notifications.model.notifications]) {
-					item.close();
-				}
-			}));
-			const service = store.add(new MainThreadMessageService(null!, notifications, emptyCommandService, new TestDialogService(), new TestExtensionService()));
-			const promise = service.$showMessage(Severity.Error, 'message', {
-				source: { identifier: new ExtensionIdentifier('publisher.extension'), label: 'Extension' }
-			}, []);
-			const item = notifications.model.notifications[0];
-			const secondary = item.actions?.secondary?.map(action => action.label) ?? [];
-			item.close();
-			await promise;
-			assert.deepStrictEqual(secondary, []);
-		});
-
-		test('does not run Manage Extension of an earlier notification after the command is unregistered', async () => {
-			const executed: unknown[][] = [];
-			const commandService: ICommandService = { ...emptyCommandService, executeCommand: async (...args: unknown[]) => { executed.push(args); } };
-			const command = CommandsRegistry.registerCommand(MANAGE_EXTENSION_COMMAND_ID, () => { });
-			const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
-			store.add(toDisposable(() => {
-				for (const item of [...notifications.model.notifications]) {
-					item.close();
-				}
-			}));
-			const service = store.add(new MainThreadMessageService(null!, notifications, commandService, new TestDialogService(), new TestExtensionService()));
-			const promise = service.$showMessage(Severity.Error, 'message', {
-				source: { identifier: new ExtensionIdentifier('publisher.extension'), label: 'Extension' }
-			}, []);
-			const item = notifications.model.notifications[0];
-			await item.actions!.secondary![0].run();
-			command.dispose();
-			await item.actions!.secondary![0].run();
-			item.close();
-			await promise;
-			assert.deepStrictEqual(executed, [[MANAGE_EXTENSION_COMMAND_ID, 'publisher.extension']]);
-		});
-
 		for (const identifier of ['Publisher.Extension', undefined, '/private/extension']) {
 			test(`attributes extension messages and button positions without inferring semantics (${identifier ?? 'missing'})`, async () => {
 				const telemetry = new TestNotificationTelemetryService();
-				store.add(CommandsRegistry.registerCommand(MANAGE_EXTENSION_COMMAND_ID, () => { }));
 				const notifications = store.add(new NotificationService(store.add(new InMemoryStorageService())));
 				store.add(toDisposable(() => {
 					for (const item of [...notifications.model.notifications]) {

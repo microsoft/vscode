@@ -11,7 +11,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import { INotificationService, INotificationSource, NotificationPriority } from '../../../platform/notification/common/notification.js';
 import { Event } from '../../../base/common/event.js';
-import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { MANAGE_EXTENSION_COMMAND_ID } from '../../../platform/extensions/common/extensions.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
@@ -83,17 +83,12 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			}
 
 			const secondaryActions: IAction[] = [];
-			// The Agents window registers the extensions management command only while it manages extensions
-			if (options.source && CommandsRegistry.getCommand(MANAGE_EXTENSION_COMMAND_ID)) {
+			if (options.source) {
 				secondaryActions.push(withNotificationActionTelemetry(toAction({
 					id: options.source.identifier.value,
 					label: nls.localize('manageExtension', "Manage Extension"),
 					run: () => {
-						// A notification keeps its actions after the command is unregistered
-						if (CommandsRegistry.getCommand(MANAGE_EXTENSION_COMMAND_ID)) {
-							return this._commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, options.source!.identifier.value);
-						}
-						return undefined;
+						return this._commandService.executeCommand(MANAGE_EXTENSION_COMMAND_ID, options.source!.identifier.value);
 					}
 				}), NotificationActionTelemetryId.ManageExtension));
 			}
