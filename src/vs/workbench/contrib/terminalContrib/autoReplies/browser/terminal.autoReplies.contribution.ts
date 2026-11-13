@@ -44,6 +44,10 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 	}
 
 	private _installListenersOnBackend(backend: ITerminalBackend): void {
+		// Only replies this window installed need removing on shutdown, so most windows never call
+		// into the backend while shutting down
+		let hasInstalledAutoReplies = false;
+
 		// Listen for config changes
 		const initialConfig = this._configurationService.getValue<ITerminalAutoRepliesConfiguration>(TERMINAL_CONFIG_SECTION);
 		for (const match of Object.keys(initialConfig.autoReplies)) {
@@ -51,6 +55,7 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 			const reply = initialConfig.autoReplies[match] as string | null;
 			if (reply) {
 				backend.installAutoReply(match, reply, this._ownerId);
+				hasInstalledAutoReplies = true;
 			}
 		}
 
@@ -63,12 +68,16 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 					const reply = config.autoReplies[match] as string | null;
 					if (reply) {
 						backend.installAutoReply(match, reply, this._ownerId);
+						hasInstalledAutoReplies = true;
 					}
 				}
 			}
 		}));
 		this._register(this._lifecycleService.onWillShutdown(e => {
 			configListener.dispose();
+			if (!hasInstalledAutoReplies) {
+				return;
+			}
 			// Finish while remote IPC is still connected, before the final disconnect joiner.
 			e.join(raceTimeout(backend.uninstallAllAutoReplies(this._ownerId), Constants.ShutdownCleanupTimeout), {
 				id: 'join.terminalAutoReplies',
