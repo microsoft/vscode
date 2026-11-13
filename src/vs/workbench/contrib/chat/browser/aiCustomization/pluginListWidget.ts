@@ -1174,7 +1174,7 @@ export class PluginListWidget extends Disposable {
 			}
 		}));
 		this._register(this.list.onDidFocus(() => {
-			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header' && isCustomizationTreeEntryVisible(this.list, entry));
+			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header', entry => isCustomizationTreeEntryVisible(this.list, entry));
 		}));
 
 		// Handle context menu

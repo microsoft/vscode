@@ -2481,7 +2481,7 @@ export class McpListWidget extends Disposable {
 			}
 		}));
 		this._register(this.list.onDidFocus(() => {
-			focusFirstCustomizationTreeItem<IMcpSectionEntry>(this.list, this.getVisibleMcpEntries(), entry => entry.type !== 'group-header' && isCustomizationTreeEntryVisible(this.list, entry));
+			focusFirstCustomizationTreeItem<IMcpSectionEntry>(this.list, this.getVisibleMcpEntries(), entry => entry.type !== 'group-header', entry => isCustomizationTreeEntryVisible(this.list, entry));
 		}));
 
 		// Listen to MCP service changes
