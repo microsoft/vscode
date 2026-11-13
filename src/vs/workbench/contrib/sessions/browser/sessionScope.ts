@@ -107,8 +107,16 @@ export class SessionsListingScopeFilter extends Disposable {
 		scope: ISessionsListingScope,
 		getAllSessions: () => ISession[],
 		onDidChangeAllSessions: Event<ISessionChangeEvent>,
+		onDidReplaceSession: Event<unknown> = Event.None,
 	) {
 		super();
+
+		// A provider that replaces a session, such as a draft that graduates into the session it committed, can drop the one
+		// it replaced without a change: match its sessions to the scope again
+		this._register(onDidReplaceSession(() => {
+			this._pendingChanges.push({ added: [], removed: [], changed: [] });
+			this._allSessionsChanged.trigger(undefined);
+		}));
 
 		this._register(onDidChangeAllSessions(e => {
 			if (this._initialized && !this._pendingChanges.length && !e.added.length && !e.removed.length && e.changed.length && e.changed.every(session => this._known.get(session.sessionId) === session)) {
