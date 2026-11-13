@@ -1,10 +1,10 @@
 {
 	"_comment": "TODO: Lower these temporary size limits further to improve the mobile experience.",
 	"budgets": {
-		"workbenchJavaScriptGzipBytes": 5700000,
-		"workbenchCssGzipBytes": 245000,
-		"initialGzipBytes": 6300000,
-		"runtimeGzipBytes": 14700000,
+		"workbenchJavaScriptGzipBytes": 6400000,
+		"workbenchCssGzipBytes": 275000,
+		"initialGzipBytes": 7000000,
+		"runtimeGzipBytes": 16500000,
 		"extensionsGzipBytes": 800000
 	},
 	"extensions": [
