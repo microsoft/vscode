@@ -43,7 +43,7 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../chat/common/automations/
 import { ChatInputCanScheduleContext } from '../common/contextkeys.js';
 import { fromStoredChatDraft, toStoredChatDraft } from '../common/newChatDraftState.js';
 import { hasSessionDraftContent, ISavedSessionDraftTarget } from '../common/savedSessionDrafts.js';
-import { captureScheduledChatRequest, parseScheduledChatTime } from '../common/scheduledChatRequest.js';
+import { captureScheduledChatRequest } from '../common/scheduledChatRequest.js';
 import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../common/sessionConfig.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionDraftsService } from './sessionDraftsService.js';
@@ -51,6 +51,7 @@ import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsService } from './sessionsService.js';
 import { IPendingSessionItem } from './views/pendingSessions.js';
 import { IChatScheduledRequest, IChatScheduledRequestEditing } from '../../chat/common/model/chatViewModel.js';
+import { pickScheduledChatTime } from './scheduledChatTimePicker.js';
 
 const handoffStorageKey = 'sessions.scheduledChatHandoffs';
 const receiptStorageKey = 'sessions.scheduledChatReceipts';
@@ -677,25 +678,7 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 	}
 
 	private async pickTime(anchor?: HTMLElement): Promise<Date | undefined> {
-		const now = Date.now();
-		const choices = [10, 30, 60, 24 * 60].map(minutes => {
-			const date = new Date(now + minutes * 60_000);
-			return { label: minutes === 10 ? localize('sendLater.tenMinutes', "In 10 Minutes") : minutes === 30 ? localize('sendLater.thirtyMinutes', "In 30 Minutes") : minutes === 60 ? localize('sendLater.oneHour', "In 1 Hour") : localize('sendLater.tomorrow', "In 24 Hours"), description: formatTime(date.toISOString()), date };
-		});
-		const picked = await this.quickInputService.pick([...choices, { label: localize('sendLater.customTime', "Choose Date and Time..."), description: '', date: undefined }], { title: localize('sendLater.title', "Send Later"), placeHolder: localize('sendLater.pickTime', "Choose when to send. Times use this device's time zone."), anchor, anchorPosition: anchor ? 'above' : undefined });
-		if (!picked || picked.date) {
-			return picked?.date;
-		}
-		const value = await this.quickInputService.input({
-			anchor, anchorPosition: anchor ? 'above' : undefined,
-			title: localize('sendLater.customTitle', "Send Later - Local Date and Time"),
-			prompt: localize('sendLater.timeFormat', "Enter YYYY-MM-DD HH:mm in this device's time zone. The local agent host sends when available."),
-			validateInput: async value => {
-				const date = parseScheduledChatTime(value);
-				return date && date.getTime() > Date.now() ? undefined : localize('sendLater.invalidTime', "Enter a valid future local date and time, for example 2027-01-15 09:30.");
-			},
-		});
-		return value ? parseScheduledChatTime(value) : undefined;
+		return pickScheduledChatTime(this.quickInputService, anchor);
 	}
 
 	private async preview(automation: IAutomationDescriptor): Promise<void> {
