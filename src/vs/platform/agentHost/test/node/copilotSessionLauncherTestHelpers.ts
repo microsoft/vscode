@@ -32,6 +32,7 @@ export const testRuntime: ICopilotSessionRuntime = {
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
 	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
+	handleShellAuthenticationRequest: async () => { throw new Error('Unexpected shell authentication request'); },
 	adoptLaunchConnectorReconcile: () => { },
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,

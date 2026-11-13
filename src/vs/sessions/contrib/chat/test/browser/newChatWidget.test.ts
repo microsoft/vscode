@@ -4499,8 +4499,8 @@ suite('NewChatWidget', () => {
 			});
 		});
 
-		for (const outcome of ['dispatched', 'rejected'] as const) {
-			test(`hands an Alt+Enter send to its host before sending it, and ${outcome === 'dispatched' ? 'clears its own status when the request fails' : 'cancels that when the send is rejected'}`, async () => {
+		for (const [outcome, requestedInBackground] of [['dispatched', true], ['rejected', true], ['dispatched', false], ['rejected', false]] as const) {
+			test(`hands ${requestedInBackground ? 'an Alt+Enter send' : 'an Enter send of a composer that sends in the background'} to its host before sending it, and ${outcome === 'dispatched' ? 'clears its own status when the request fails' : 'cancels that when the send is rejected'}`, async () => {
 				const replaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 				const ended = disposables.add(new Emitter<INewSessionRequestEndedEvent>());
 				const pending = disposables.add(new DisposableMap<object, IDisposable>());
@@ -4513,6 +4513,7 @@ suite('NewChatWidget', () => {
 				const attachment = upcastPartial<IChatRequestVariableEntry>({ id: 'file', name: 'file' });
 				let trackedWhenSent: number | undefined;
 				const harness: ISendHarness = {
+					_backgroundSend: !requestedInBackground,
 					_draftHost: host(slot, [], tracked),
 					_backgroundSendStatus: status,
 					_newChatInput: { hasInput: false },
@@ -4544,7 +4545,7 @@ suite('NewChatWidget', () => {
 					_clearBackgroundSendOnFailure: (...args) => clearBackgroundSendOnFailure.apply(harness, args),
 				};
 
-				const result = await send.call(harness, 'hello', [attachment], true);
+				const result = await send.call(harness, 'hello', [attachment], requestedInBackground || undefined);
 				status.set('Pending', undefined);
 				const latest = tracked[0]?.send.isLatest();
 				replaced.fire({ from: draft, to: prepared });
@@ -4555,7 +4556,7 @@ suite('NewChatWidget', () => {
 				assert.deepStrictEqual({
 					result,
 					trackedWhenSent,
-					tracked: tracked.map(({ send, cancelled }) => ({ session: send.session.sessionId, query: send.query, attachedContext: send.attachedContext, cancelled })),
+					tracked: tracked.map(({ send, cancelled }) => ({ session: send.session.sessionId, query: send.query, attachedContext: send.attachedContext, requestedInBackground: send.requestedInBackground, cancelled })),
 					latest,
 					statusAfterOther,
 					status: status.get(),
@@ -4564,7 +4565,7 @@ suite('NewChatWidget', () => {
 				}, outcome === 'dispatched' ? {
 					result: true,
 					trackedWhenSent: 1,
-					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], cancelled: false }],
+					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], requestedInBackground, cancelled: false }],
 					latest: true,
 					statusAfterOther: 'Pending',
 					status: undefined,
@@ -4573,7 +4574,7 @@ suite('NewChatWidget', () => {
 				} : {
 					result: false,
 					trackedWhenSent: 1,
-					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], cancelled: true }],
+					tracked: [{ session: 'draft', query: 'hello', attachedContext: [attachment], requestedInBackground, cancelled: true }],
 					latest: true,
 					statusAfterOther: 'Pending',
 					status: 'Pending',

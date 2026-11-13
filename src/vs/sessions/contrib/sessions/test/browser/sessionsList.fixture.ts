@@ -919,7 +919,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { section: 'repository:microsoft/vscode' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The pointer is over the microsoft/vscode repository header. It shows its hover background, a chevron in place of the repository icon, and on the right a New Session button with a dropdown arrow followed by an Archive All action.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the microsoft/vscode repository header. It shows its hover background, a chevron in place of the repository icon, and on the right a New Session button with a dropdown arrow followed by an Archive All action. In high contrast themes, a dashed active-contrast outline surrounds the header.'],
 	}),
 
 	//#endregion
@@ -1073,13 +1074,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_CompactNestedChatsCollapsed: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
 		view: { compact: true, showArchived: true, width: 340, collapsed: [{ session: 'nested-archive' }] },
-		interaction: { focused: { session: 'nested-archive' } },
+		interaction: { hovered: { session: 'nested-archive' }, focused: { session: 'nested-archive' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot' },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Its active child is hidden, its done child is in the collapsed Done section, and the parent remains a single compact row.'],
+		expectedVisualDescriptions: ['A keyboard-focused compact session retains its solid focus boundary while the pointer remains over it. It shows the parent Pin and Mark as Done actions, hides its active child, and keeps its done child in the collapsed Done section.'],
+	}),
+	SessionsList_CompactNestedChatsCollapsedHover: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { compact: true, showArchived: true, width: 340, collapsed: [{ session: 'nested-archive' }] },
+		interaction: { hovered: { session: 'nested-archive' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over a collapsed compact parent session. Its nested chats remain hidden and its row actions show. In high contrast themes, a dashed active-contrast outline surrounds the parent row.'],
 	}),
 	SessionsList_CompactNestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],

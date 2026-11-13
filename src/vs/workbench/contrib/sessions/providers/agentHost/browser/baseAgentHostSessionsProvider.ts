@@ -4615,6 +4615,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `customizations` and `activeClient.customizations` for the picker.
 	 */
 	protected readonly _lastSessionStates = new Map<string, SessionState>();
+	/** The chat that recorded each artifact, parsed once per session `_meta` value rather than once per artifact. */
+	private readonly _recordedArtifactOrigins = new WeakMap<SessionMeta, ReadonlyMap<string, string | undefined>>();
 	/** Fires when {@link _lastSessionStates} or {@link _sessionCache} changes, for readers of a backend session's default chat. */
 	private readonly _backendSessionsChanged = observableSignal(this);
 
@@ -8453,6 +8455,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._artifactIntegrations.value;
 	}
 
+	/** Every artifact's workspace reads its origin, so a session update parses the recorded artifacts once for all of them. */
+	private _getRecordedArtifactOrigin(meta: SessionMeta | undefined, artifactId: string): string | undefined {
+		if (!meta) {
+			return undefined;
+		}
+		let origins = this._recordedArtifactOrigins.get(meta);
+		if (!origins) {
+			const parsed = new Map<string, string | undefined>();
+			for (const artifact of readSessionArtifacts(meta)) {
+				if (!parsed.has(artifact.id)) {
+					parsed.set(artifact.id, artifact.origin?.chat);
+				}
+			}
+			origins = parsed;
+			this._recordedArtifactOrigins.set(meta, origins);
+		}
+		return origins.get(artifactId);
+	}
+
 	async acquireArtifactIntegration(sessionId: string, artifactId: string): Promise<IReference<IArtifactModel>> {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -8467,8 +8488,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return undefined;
 			}
 			const state = this._lastSessionStates.get(session.sessionId);
-			const recorded = readSessionArtifacts(state?._meta).find(artifact => artifact.id === artifactId);
-			const origin = recorded?.origin?.chat ?? state?.defaultChat;
+			const origin = this._getRecordedArtifactOrigin(state?._meta, artifactId) ?? state?.defaultChat;
 			const chat = state && session.chats.read(reader).find(chat => getSessionChatResource(state, chat.resource.fragment || DEFAULT_CHAT_ID, state.defaultChat) === origin);
 			const folder = chat?.workspace.read(reader)?.folders[0];
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): artifact integration workspace context needs the owning connection mapper

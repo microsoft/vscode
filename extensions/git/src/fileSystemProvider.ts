@@ -115,10 +115,13 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	private cleanup(): void {
 		const now = new Date().getTime();
 		const cache = new Map<string, CacheRow>();
+		// A loaded Git document needs change events even when its file is not open, for example when the Source Control
+		// view compares the index with HEAD.
+		const loadedDocuments = new Set(workspace.textDocuments.map(d => d.uri.toString()));
 
 		for (const row of this.cache.values()) {
 			const { path } = fromGitUri(row.uri);
-			const isOpen = workspace.textDocuments
+			const isOpen = loadedDocuments.has(row.uri.toString()) || workspace.textDocuments
 				.filter(d => d.uri.scheme === 'file')
 				.some(d => pathEquals(d.uri.fsPath, path));
 
