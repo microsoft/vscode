@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { IDefaultAccount, IEntitlementsData } from '../../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -20,6 +21,7 @@ import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, Cloud
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
 import { AccountClient } from '../../../../../../platform/github/common/account/accountClient.js';
 import { IApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
@@ -170,6 +172,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly onRequest?: (url: URL, token: CancellationToken, options: IRequestOptions) => IRequestContext | undefined | Promise<IRequestContext | undefined>;
 	readonly discoveryDate?: () => string;
 	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
+	readonly defaultAccountService?: IDefaultAccountService;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
@@ -291,6 +294,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	}());
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
+	instantiationService.stub(IDefaultAccountService, options.defaultAccountService ?? {
+		currentDefaultAccount: null, getDefaultAccount: async () => null,
+	});
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override readonly lifecycle = new CloudSandboxLifecycleTelemetry(new class extends mock<ITelemetryService>() {
 			override publicLog2(_eventName: string, data?: ITelemetryData): void {
@@ -5930,8 +5936,65 @@ suite('CloudSandboxApiService reservation submission', () => {
 });
 
 suite('CloudSandboxApiService session creation', () => {
-
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const enabled of [false, true, undefined]) {
+		test(`account eligibility ${enabled} gates creation and reservation but not existing task access`, async () => {
+			const account = upcastPartial<IDefaultAccount>({ entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: enabled }) });
+			const { service, typedRequests } = createService(store, {
+				tasks: [task('existing-task', 'Existing', undefined, 'existing-session', 'existing-env')], repositories: new Map(),
+				defaultAccountService: new class extends mock<IDefaultAccountService>() {
+					override readonly currentDefaultAccount = account;
+					override async getDefaultAccount() { return account; }
+				}(),
+				onRequest: (_url, _token, options) => options.type === 'POST'
+					? jsonTaskResponse({
+						id: 'new-task', sessions: [{ id: 'new-session', environment_id: 'new-env' }],
+						...(JSON.parse(options.data ?? '{}').reserve ? { reserved: true, reservation_expires_at: '2030-01-01T00:10:00Z' } : {}),
+					}, 201)
+					: options.type === 'DELETE' ? jsonResponse({}, 204) : undefined,
+			});
+			const create = () => service.createSession({ prompt: 'hello' }, CancellationToken.None);
+			const reserve = () => service.reserveSession({ expectedAccountKey: JSON.stringify(['github', 'a']) }, CancellationToken.None);
+			if (enabled === false) {
+				await assert.rejects(create(), /Cloud session creation is not available/);
+				await assert.rejects(reserve(), /Cloud session creation is not available/);
+			} else {
+				await create();
+				await reserve();
+			}
+			const history = await service.listSessions(CancellationToken.None);
+			await service.deleteTask('existing-task', CancellationToken.None);
+			assert.deepStrictEqual({
+				mutations: typedRequests.filter(request => request.method !== 'GET').map(request => request.method),
+				history: history.kind === 'complete' ? history.sessions.map(session => session.taskId) : history.kind,
+			}, { mutations: enabled === false ? ['DELETE'] : ['POST', 'POST', 'DELETE'], history: ['existing-task'] });
+		});
+	}
+
+	for (const reserve of [false, true]) {
+		test(`rechecks eligibility after authentication before dispatching ${reserve ? 'reservation' : 'creation'}`, async () => {
+			let enabled = true;
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				defaultAccountService: new class extends mock<IDefaultAccountService>() {
+					override get currentDefaultAccount(): IDefaultAccount {
+						return upcastPartial<IDefaultAccount>({ entitlementsData: upcastPartial<IEntitlementsData>({ cloud_sessions_enabled: enabled }) });
+					}
+					override async getDefaultAccount() { return this.currentDefaultAccount; }
+				}(),
+				authenticationSessions: async () => {
+					enabled = false;
+					return [{ accessToken: 'token', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+				},
+			});
+			let submitted = false;
+			await assert.rejects(reserve
+				? service.reserveSession({ expectedAccountKey: JSON.stringify(['github', 'a']) }, CancellationToken.None)
+				: service.createSession({ prompt: 'hello' }, CancellationToken.None, () => { submitted = true; }), /Cloud session creation is not available/);
+			assert.deepStrictEqual({ requestedUrls, submitted }, { requestedUrls: [], submitted: false });
+		});
+	}
 
 	test('binds creation lifecycle identity after the response and keeps reservation fallback distinct', async () => {
 		const environmentId = generateUuid();

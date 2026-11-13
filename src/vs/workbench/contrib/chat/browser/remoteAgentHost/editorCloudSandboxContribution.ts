@@ -26,6 +26,7 @@ import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -93,6 +94,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
 	private readonly _discoveryRegistration = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _onDidChangeCreationAvailability = this._register(new Emitter<void>());
 	/** Every GitHub remote of every workspace repository, lower-cased; scopes which existing sandboxes this window lists. */
 	private readonly _workspaceRepositories: IObservable<ReadonlySet<string> | undefined>;
 	/** The repository each workspace root tracks, in workspace order; `undefined` until every root has resolved. */
@@ -140,6 +142,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IViewsService private readonly _viewsService: IViewsService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
@@ -270,6 +273,18 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			}
 		}));
 		this._updateRegistration();
+		let cloudSessionsEnabled = this._cloudSessionsEnabled;
+		const updateAvailability = () => {
+			if (this._store.isDisposed || cloudSessionsEnabled === this._cloudSessionsEnabled) {
+				return;
+			}
+			cloudSessionsEnabled = this._cloudSessionsEnabled;
+			this._onDidChangeCreationAvailability.fire();
+		};
+		this._register(this._defaultAccountService.onDidChangeDefaultAccount(updateAvailability));
+		void this._defaultAccountService.getDefaultAccount().then(updateAvailability, error => {
+			this._editorLogService.error('[CloudSandbox] Failed to initialize account:', error);
+		});
 		const widgetListeners = this._register(new DisposableMap<IChatWidget, DisposableStore>());
 		for (const widget of this._chatWidgetService.getAllWidgets()) {
 			widgetListeners.set(widget, this._watchDraftInput(widget));
@@ -406,6 +421,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				},
 			}));
 			store.add(this._editorChatSessionsService.registerChatSessionItemController(CLOUD_SANDBOX_TASK_SCHEME, taskList));
+			const isCreationEnabled = () => this._cloudSessionsEnabled;
 			store.add(this._editorChatSessionsService.registerChatSessionContribution({
 				type: CLOUD_SANDBOX_SESSION_TYPE,
 				name: localize('cloudSandbox.sessionName', "Cloud"),
@@ -413,7 +429,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				description: localize('cloudSandbox.creationDescription', "Run the agent in a new cloud sandbox."),
 				inputPlaceholder: CLOUD_SANDBOX_INPUT_PLACEHOLDER,
 				sessionListGroup: SessionType.CopilotCloud,
-				hideFromSessionTypePicker: false,
+				get hideFromSessionTypePicker() { return !isCreationEnabled(); },
+				onDidChangeAvailability: this._onDidChangeCreationAvailability.event,
 				when: ChatContextKeys.enabled.key,
 				icon: '$(cloud)',
 				canDelegate: false,
@@ -433,6 +450,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 					if (!isUntitledChatSession(sessionResource)) {
 						throw new Error(`Sandbox session ${sessionResource.toString()} is served by its environment's session type.`);
 					}
+					await this._defaultAccountService.getDefaultAccount();
+					this._assertCloudSessionsEnabled();
 					this._requestDiscovery();
 					draftModels.load();
 					// Blocked while the first turn provisions, so no follow-up can queue on a draft that is
@@ -477,6 +496,16 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		}
 	}
 
+	private get _cloudSessionsEnabled(): boolean {
+		return this._defaultAccountService.currentDefaultAccount?.entitlementsData?.cloud_sessions_enabled !== false;
+	}
+
+	private _assertCloudSessionsEnabled(): void {
+		if (!this._cloudSessionsEnabled) {
+			throw new Error(localize('cloudSessions.unavailable', "Cloud session creation is not available for your account."));
+		}
+	}
+
 	protected override _onTasksChanged(tasks: readonly ICloudSandboxTask[], removedTaskIds: readonly string[]): void {
 		this._taskList?.update(tasks, removedTaskIds);
 	}
@@ -495,7 +524,9 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	/** Records the picked repository on the draft that invoked the picker. */
 	private async _selectRepository(notificationService: INotificationService, sessionResource: URI | undefined): Promise<void> {
 		try {
+			this._assertCloudSessionsEnabled();
 			const repoNwo = await this._pickRepository();
+			this._assertCloudSessionsEnabled();
 			if (repoNwo && URI.isUri(sessionResource)) {
 				this._editorChatSessionsService.setSessionOption(sessionResource, CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, { id: repoNwo, name: repoNwo, icon: Codicon.repo });
 			}
@@ -589,6 +620,8 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	async getNewChatSessionInputState(): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+		await this._defaultAccountService.getDefaultAccount();
+		this._assertCloudSessionsEnabled();
 		this._requestDiscovery();
 		this._draftModels.value?.load();
 		return this._draftOptionGroups.get();
@@ -607,9 +640,12 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		await raceCancellationError(this._defaultAccountService.getDefaultAccount(), token);
+		this._assertCloudSessionsEnabled();
 		this._requestDiscovery();
 		// The draft may be sent before a slow Git lookup has settled.
 		await waitForState(this._workspaceRepositoryChoices, choices => choices !== undefined, undefined, token);
+		this._assertCloudSessionsEnabled();
 		const draftOptions = this._editorChatSessionsService.getSessionOptions(draftResource);
 		const repoNwo = this._requestedRepository(draftOptions);
 		const title = repoNwo

@@ -3273,6 +3273,7 @@ suite('CopilotChatSessionsProvider', () => {
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IChatEntitlementService, { sentiment: {}, onDidChangeSentiment: Event.None });
 			instantiationService.stub(IWorkspaceTrustManagementService, { isWorkspaceTrusted: () => true, onDidChangeTrust: Event.None });
+			instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 			instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 				override readonly onDidChangeAccount = Event.None;
 				override async getAccountKey() { return 'account-a'; }

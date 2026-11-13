@@ -1714,6 +1714,29 @@ suite('ChatSessionsService - requiresCopilotSignInForSessionType', () => {
 			{ afterRegister: 1, afterChange: 2, afterDispose: 3, afterChangePostDispose: 3 },
 		);
 	});
+
+	test('creation availability changes preserve the registered type and stop notifying after disposal', () => {
+		const changed = store.add(new Emitter<void>());
+		let hidden = false;
+		const availability: (boolean | undefined)[] = [];
+		const registration = store.add(service.registerChatSessionContribution({
+			type: 'dyn', name: 'dyn', displayName: 'dyn', description: '',
+			get hideFromSessionTypePicker() { return hidden; },
+			onDidChangeAvailability: changed.event,
+		}));
+		store.add(service.onDidChangeAvailability(() => {
+			availability.push(service.getChatSessionContribution('dyn')?.hideFromSessionTypePicker);
+		}));
+
+		hidden = true;
+		changed.fire();
+		hidden = false;
+		changed.fire();
+		registration.dispose();
+		changed.fire();
+
+		assert.deepStrictEqual(availability, [true, false, undefined]);
+	});
 });
 
 suite('ChatSessionsService - archive capability', () => {
