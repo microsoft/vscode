@@ -1407,6 +1407,14 @@ suite('ContextView', () => {
 		// One stub per window per test; layouts swap the rect source instead of re-stubbing
 		let overlaySources: Map<Window, { getRect: (targetWindow: Window) => DOMRect | undefined }>;
 
+		/**
+		 * The top of a view pushed below a 30px window controls band. Where aligning would move it
+		 * back over the band, the view keeps its unaligned top.
+		 */
+		function belowControlsTop(): number {
+			return Math.max(alignedPosition(30), 30);
+		}
+
 		setup(() => {
 			disposables = new DisposableStore();
 			overlaySources = new Map();
@@ -1493,8 +1501,8 @@ suite('ContextView', () => {
 					titlebarArea: [measure({ x: 200, y: 0 }, withOverlay), measure({ x: 200, y: 0 }, none)],
 					belowBand: [measure({ x: 10, y: 100 }, withOverlay), measure({ x: 10, y: 100 }, none)],
 				}, {
-					leftCorner: [{ top: alignedPosition(30), left: alignedPosition(10), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
-					rightCorner: [{ top: alignedPosition(30), left: alignedPosition(width - 60), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
+					leftCorner: [{ top: belowControlsTop(), left: alignedPosition(10), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
+					rightCorner: [{ top: belowControlsTop(), left: alignedPosition(width - 60), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] }, true],
 					titlebarArea: [
 						{ top: alignedPosition(1), left: alignedPosition(200), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
 						{ top: alignedPosition(1), left: alignedPosition(200), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20] },
@@ -1520,7 +1528,7 @@ suite('ContextView', () => {
 				const { view, read } = layout(domPosition, { x: mainWindow.scrollX + 10, y: mainWindow.scrollY }, () => overlay);
 
 				assert.deepStrictEqual({ scrolled: mainWindow.scrollX > 0 && mainWindow.scrollY > 0, ...read(), ...clearance(view, overlay, mainWindow) }, {
-					scrolled: true, top: alignedPosition(30), left: alignedPosition(10), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
+					scrolled: true, top: belowControlsTop(), left: alignedPosition(10), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
 				});
 			});
 		}
@@ -1573,7 +1581,7 @@ suite('ContextView', () => {
 			}, {
 				otherWindow: true,
 				viewport: [400, 300],
-				top: alignedPosition(30), left: alignedPosition(340), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
+				top: belowControlsTop(), left: alignedPosition(340), classes: ['bottom', 'left'], coversButtons: false, inViewport: true, size: [40, 20]
 			});
 		});
 
@@ -1589,7 +1597,7 @@ suite('ContextView', () => {
 
 			assert.deepStrictEqual({ before, shown, after: read() }, {
 				before: { top: alignedPosition(1), left: alignedPosition(10), classes: ['bottom', 'left'] },
-				shown: { top: alignedPosition(30), left: alignedPosition(10), classes: ['bottom', 'left'] },
+				shown: { top: belowControlsTop(), left: alignedPosition(10), classes: ['bottom', 'left'] },
 				after: { top: alignedPosition(1), left: alignedPosition(10), classes: ['bottom', 'left'] },
 			});
 		});
