@@ -36,7 +36,9 @@
  * gutter the rail is offset by, but only while the rail surface is mounted (`.prompt-timeline-with-rail`);
  * header-only keeps the base layout. */
 .agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
+:is(.part.sessionspart, .sessions-window-host) .sessions-chat .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
 .agent-sessions-workbench :is(.part.sessionspart, .sessions-window-host) .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget,
+:is(.part.sessionspart, .sessions-window-host) .sessions-chat .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.prompt-timeline-with-rail.interactive-session .interactive-item-container,
 .agent-sessions-workbench .chat-editor-relative .prompt-timeline-host.prompt-timeline-with-rail.interactive-session > .chat-suggest-next-widget {
 	padding-right: calc(var(--prompt-timeline-rail-width) + var(--prompt-timeline-content-gap) + var(--prompt-timeline-scrollbar-gutter));
@@ -127,12 +129,14 @@
  * card's hairline side and bottom border. The top is left open so it reads as anchored to the top of the
  * transcript. The left inset matches the header's status-icon column (codicon size + 6px gap) so the
  * prompt text aligns with the title and the prompts below. */
-.agent-sessions-workbench .prompt-timeline-sticky-content {
+.agent-sessions-workbench .prompt-timeline-sticky-content,
+.sessions-chat .prompt-timeline-sticky-content {
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	padding: 0 10px;
 }
 
-.agent-sessions-workbench .prompt-timeline-sticky-band {
+.agent-sessions-workbench .prompt-timeline-sticky-band,
+.sessions-chat .prompt-timeline-sticky-band {
 	padding-left: calc(var(--vscode-codiconFontSize, 16px) + 6px);
 	/* The centered host already insets this side by 10px, so the band itself sits flush with it. */
 	padding-right: 0;
@@ -750,8 +754,8 @@
 /* Hovering tints only the half under the pointer — that, and nothing else, is what tells the two
  * targets apart. No divider: at rest there is no boundary to draw (nothing is being interacted with),
  * and on hover the tinted half's own edge already is the boundary. */
-.prompt-timeline-gutter-row-jump:hover,
-.prompt-timeline-gutter-row-diff:hover {
+.prompt-timeline-gutter-row-jump:is(:hover, .hovered),
+.prompt-timeline-gutter-row-diff:is(:hover, .hovered) {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
@@ -788,10 +792,16 @@
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
 }
 
-.prompt-timeline-gutter-row-jump:focus-visible,
-.prompt-timeline-gutter-row-diff:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.prompt-timeline-gutter-row-jump:is(:focus-visible, .focus-visible),
+.prompt-timeline-gutter-row-diff:is(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-jump:is(:hover, .hovered):not(:focus-visible, .focus-visible),
+.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-diff:is(:hover, .hovered):not(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 .prompt-timeline-gutter-row-label {

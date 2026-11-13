@@ -32,7 +32,7 @@ import { linkKey } from '../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError, ICreateNewChatOptions } from '../../../common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IHarnessPresentation, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError, ICreateNewChatOptions } from '../../../common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../browser/newSession.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -1092,6 +1092,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return this.providerMode === 'sandbox' ? [CopilotSandboxSessionType] : [CopilotCloudSessionType];
 	}
 
+	getHarnessPresentation(harness: string): IHarnessPresentation | undefined {
+		return harness === 'copilot'
+			? { label: localize('copilotHarness', "Copilot"), icon: Codicon.copilot }
+			: undefined;
+	}
+
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
@@ -1510,7 +1516,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (workspaceUri && !workspace) {
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
-		const automationConfiguration = options?.automationConfiguration;
+		const automationConfiguration = options?.draftConfiguration ?? options?.automationConfiguration;
 		assertAutomationSessionTemplate(automationConfiguration?.sessionTemplate);
 
 		if (this.providerMode !== 'sandbox' && sessionTypeId !== CopilotCloudSessionType.id) {
@@ -1580,6 +1586,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				},
 			};
 		}
+		return this.getDraftSessionConfiguration(sessionId);
+	}
+
+	getDraftSessionConfiguration(sessionId: string): IAutomationSessionConfiguration | undefined {
+		const session = this._newSessions.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		const modelId = session.modelId.get();
+		const modelConfiguration = session.modelConfiguration.captureModelConfiguration(modelId);
+		const initialConfiguration = session.initialAutomationSessionConfiguration;
+		const initialTemplate = initialConfiguration?.sessionTemplate;
 		// Cloud sessions have no client-side mode or permission pickers, so the initial
 		// Automation configuration is carried through unchanged.
 		const initialMode = initialConfiguration?.mode ?? initialTemplate?.config?.[SessionConfigKey.Mode];

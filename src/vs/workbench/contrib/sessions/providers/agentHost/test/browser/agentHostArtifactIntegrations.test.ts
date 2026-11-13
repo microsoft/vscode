@@ -8,12 +8,13 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, ImmortalReference, IReference } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue, waitForState } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, waitForState } from '../../../../../../../base/common/observable.js';
 import { deepFreeze } from '../../../../../../../base/common/objects.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
 import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatState, ComponentToState, RootState, ROOT_STATE_URI, SessionState, StateComponents } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -39,7 +40,7 @@ import { IChatEntitlementService } from '../../../../../../services/chat/common/
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { AgentHostArtifactIntegrations, createHostFacingArtifactAccess, IArtifactWorkspaceConfigurationContext, mapArtifactModelChats } from '../../browser/agentHostArtifactIntegrations.js';
-import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer } from '../../browser/githubPullRequestArtifactWorkspaceConfiguration.js';
+import { createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer, gitHubPullRequestArtifactWorkspaceSettingsPublishDelay } from '../../browser/githubPullRequestArtifactWorkspaceConfiguration.js';
 import { createClientArtifactRuntime } from '../../../../browser/clientArtifactRuntime.js';
 
 suite('Agent Host artifact chat mapping', () => {
@@ -140,6 +141,19 @@ suite('Agent Host artifact chat mapping', () => {
 			page: (await pendingPage).runs.map(run => run.chat), result: (await pendingRun).chat,
 			availability: f.model.snapshot.get().contributions[0].view.stateActions[0].chatAvailability,
 		}, { snapshot: [undefined, replacement.toString(), undefined], page: [undefined, replacement.toString(), undefined], result: replacement.toString(), availability: { [replacement.toString()]: { enabled: false } } });
+	});
+
+	test('publishes a new snapshot only when a change to the chats changes its content', () => {
+		const f = fixture();
+		const published: (string | undefined)[][] = [];
+		const listener = autorun(reader => { published.push(f.model.snapshot.read(reader).runs.map(run => run.chat)); });
+		f.chats.set([...f.chats.get()], undefined);
+		f.chats.set([{ client: f.clients[0], backend: f.backend[0] }], undefined);
+		listener.dispose();
+		assert.deepStrictEqual(published, [
+			[f.clients[0].toString(), f.clients[1].toString(), undefined],
+			[f.clients[0].toString(), undefined, undefined],
+		]);
 	});
 });
 
@@ -498,7 +512,7 @@ suite('Agent Host artifact workspace settings', () => {
 		});
 	}
 
-	test('mirrors only workspace overrides into artifact-scoped session configuration and resends after reconnect', async () => {
+	async function createWorkspaceSettingsFixture() {
 		const { instantiation } = createInstantiation(store);
 		let inspected: IConfigurationValue<readonly string[]> = { userValue: ['Global *'], workspaceValue: ['Workspace *'], workspaceFolderValue: ['Folder *'] };
 		const configuration = new class extends TestConfigurationService {
@@ -546,27 +560,79 @@ suite('Agent Host artifact workspace settings', () => {
 			createGitHubPullRequestArtifactWorkspaceConfigurationSynchronizer(configuration),
 		));
 		integrations.setConnection(connection);
-		const workspace = observableValue<IArtifactWorkspaceConfigurationContext | undefined>('workspace', {
-			chat: 'chat', workingDirectory: 'file:///repo', resource: URI.file('/repo'),
-		});
-		const reference = store.add(await integrations.acquireArtifact('session', 'pr', workspace));
-		connected.set(false, undefined);
-		connected.set(true, undefined);
-		actions.fire({ channel: 'another-session', serverSeq: 1, origin: undefined, action: { type: ActionType.SessionConfigChanged, config: {}, replace: true } });
-		actions.fire({ channel: 'session', serverSeq: 2, origin: undefined, action: { type: ActionType.SessionConfigChanged, config: {}, replace: true } });
-		inspected = { userValue: ['Global *'] };
+		const key = gitHubPullRequestArtifactWorkspaceSettingsKey('pr');
+		return {
+			integrations, connected, actions, patches,
+			setInspected: (value: IConfigurationValue<readonly string[]>) => { inspected = value; },
+			workspace: (workingDirectory: string) => observableValue<IArtifactWorkspaceConfigurationContext | undefined>('workspace', { chat: 'chat', workingDirectory, resource: URI.file('/repo') }),
+			patch: (workingDirectory: string | null) => ({ channel: 'session', config: { [key]: workingDirectory === null ? null : { chat: 'chat', workingDirectory, ignoredChecks: ['Folder *'] } } }),
+			replaceSessionConfig: (channel: string) => actions.fire({ channel, serverSeq: 1, origin: undefined, action: { type: ActionType.SessionConfigChanged, config: {}, replace: true } }),
+			settle: () => timeout(gitHubPullRequestArtifactWorkspaceSettingsPublishDelay),
+		};
+	}
+
+	test('mirrors only workspace overrides into artifact-scoped session configuration and resends after reconnect', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		const workspace = f.workspace('file:///repo');
+		const reference = store.add(await f.integrations.acquireArtifact('session', 'pr', workspace));
+		await f.settle();
+		f.connected.set(false, undefined);
+		f.connected.set(true, undefined);
+		await f.settle();
+		f.replaceSessionConfig('another-session');
+		f.replaceSessionConfig('session');
+		await f.settle();
+		f.setInspected({ userValue: ['Global *'] });
 		workspace.set({ ...workspace.get()!, resource: URI.file('/another-workspace') }, undefined);
+		await f.settle();
 		reference.dispose();
 		workspace.set(undefined, undefined);
-		actions.fire({ channel: 'session', serverSeq: 3, origin: undefined, action: { type: ActionType.SessionConfigChanged, config: {}, replace: true } });
-		const key = gitHubPullRequestArtifactWorkspaceSettingsKey('pr');
-		assert.deepStrictEqual(patches, [
-			{ channel: 'session', config: { [key]: { chat: 'chat', workingDirectory: 'file:///repo', ignoredChecks: ['Folder *'] } } },
-			{ channel: 'session', config: { [key]: { chat: 'chat', workingDirectory: 'file:///repo', ignoredChecks: ['Folder *'] } } },
-			{ channel: 'session', config: { [key]: { chat: 'chat', workingDirectory: 'file:///repo', ignoredChecks: ['Folder *'] } } },
-			{ channel: 'session', config: { [key]: null } },
-		]);
-	});
+		f.replaceSessionConfig('session');
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///repo'), f.patch('file:///repo'), f.patch('file:///repo'), f.patch(null)]);
+	}));
+
+	test('publishes one context for all live references to an artifact, from the most recently acquired one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		const first = store.add(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///worktree-a')));
+		await f.settle();
+		const second = store.add(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///worktree-b')));
+		await f.settle();
+		f.replaceSessionConfig('session');
+		await f.settle();
+		second.dispose();
+		await f.settle();
+		first.dispose();
+		f.replaceSessionConfig('session');
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///worktree-a'), f.patch('file:///worktree-b'), f.patch('file:///worktree-b'), f.patch('file:///worktree-a')]);
+	}));
+
+	test('publishes a workspace context only once it stops alternating', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		const workspace = f.workspace('file:///worktree-a');
+		store.add(await f.integrations.acquireArtifact('session', 'pr', workspace));
+		await f.settle();
+		for (let i = 0; i < 20; i++) {
+			workspace.set({ ...workspace.get()!, workingDirectory: i % 2 ? 'file:///worktree-a' : 'file:///worktree-b' }, undefined);
+			await timeout(gitHubPullRequestArtifactWorkspaceSettingsPublishDelay / 10);
+		}
+		await f.settle();
+		workspace.set({ ...workspace.get()!, workingDirectory: 'file:///worktree-b' }, undefined);
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///worktree-a'), f.patch('file:///worktree-b')]);
+	}));
+
+	test('publishes a change still settling when its last reference is released, unless the connection is lost first', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const f = await createWorkspaceSettingsFixture();
+		(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///worktree-a'))).dispose();
+		await f.settle();
+		(await f.integrations.acquireArtifact('session', 'pr', f.workspace('file:///worktree-b'))).dispose();
+		f.connected.set(false, undefined);
+		f.connected.set(true, undefined);
+		await f.settle();
+		assert.deepStrictEqual(f.patches, [f.patch('file:///worktree-a')]);
+	}));
 
 	for (const remoteAddress of [undefined, 'custom-host:opaque-address']) {
 		test(`artifact sign-in uses the advertised resource and ${remoteAddress ? 'remote credential transform' : 'local authentication flow'}`, async () => {

@@ -18,7 +18,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../../browser/dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, registerSessionChatDragEndHandler, SessionsDataTransfers } from '../../../browser/dnd.js';
 import { DraggedEditorIdentifier } from '../../../../../browser/dnd.js';
 import { IEditorIdentifier } from '../../../../../common/editor.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -35,6 +35,7 @@ import { ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } 
 import { LegacyFakePaneState, testPaneContentOf } from '../sessionHostTestUtils.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { ISessionHost, isSessionHostCommandContext } from '../../../../../services/sessions/browser/sessionHost.js';
+import '../../../browser/parts/media/chatCompositeBar.css';
 
 function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: ISessionCapabilities = { supportsMultipleChats: false }, mainChatStatus = SessionStatus.Completed) {
 	const store = disposables.add(new DisposableStore());
@@ -116,6 +117,47 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 
 suite('Sessions - Headers', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows high contrast hover only for editable read-mode titles', () => {
+		const editable = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const editing = createHarness(disposables, { supportsMultipleChats: false, supportsRename: true });
+		const readOnly = createHarness(disposables);
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench hc-black';
+		root.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.append(editable.header.element.parentElement!, editing.header.element.parentElement!, readOnly.header.element.parentElement!);
+		mainWindow.document.body.appendChild(root);
+		disposables.add(toDisposable(() => root.remove()));
+		const editableTitle = editable.header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!;
+		editing.header.startTitleEditing();
+		const editingTitle = editing.header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!;
+		const readOnlyTitle = readOnly.header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')!;
+		editableTitle.classList.add('hovered');
+		editingTitle.classList.add('hovered');
+		readOnlyTitle.classList.add('hovered');
+		const describe = (element: HTMLElement) => {
+			const style = mainWindow.getComputedStyle(element);
+			return {
+				editable: element.classList.contains('editable'),
+				editing: element.classList.contains('editing'),
+				color: style.outlineStyle === 'none' ? 'none' : style.outlineColor,
+				offset: style.outlineOffset,
+				style: style.outlineStyle,
+				width: style.outlineStyle === 'none' ? '0px' : style.outlineWidth,
+			};
+		};
+
+		assert.deepStrictEqual({
+			editable: describe(editableTitle),
+			editing: describe(editingTitle),
+			readOnly: describe(readOnlyTitle),
+		}, {
+			editable: { editable: true, editing: false, color: 'rgb(243, 133, 24)', offset: '-1px', style: 'dashed', width: '1px' },
+			editing: { editable: true, editing: true, color: 'none', offset: '0px', style: 'none', width: '0px' },
+			readOnly: { editable: false, editing: false, color: 'none', offset: '0px', style: 'none', width: '0px' },
+		});
+	});
 
 	test('reports only actual integer border-box height changes, including hidden ancestors and disposal', () => {
 		const { instantiationService, session, mainChat } = createHarness(disposables);
@@ -215,6 +257,40 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('a header that drags the editor of its chat carries the session and its chat from anywhere but its toolbar, which keeps the mouse', () => {
+		const { header, session, mainChat } = createHarness(disposables);
+		header.setDragsEditor(true);
+		const titleActions = header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')!;
+
+		const fromToolbar = simulateDragFrom(header, titleActions);
+		const fromHeader = simulateDragFrom(header, header.element);
+
+		assert.deepStrictEqual({
+			toolbarPrevented: fromToolbar.defaultPrevented,
+			headerPrevented: fromHeader.defaultPrevented,
+			session: JSON.parse(fromHeader.dataTransfer!.getData(SessionsDataTransfers.SESSION) || '{}').sessionId,
+			chat: getSessionChatDragData(fromHeader),
+		}, {
+			toolbarPrevented: true,
+			headerPrevented: false,
+			session: session.sessionId,
+			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
+		});
+	});
+
+	test('the end of a drag of the header, that of the session or its chat, is handed to the session drag-out, and not when the header drags the editor of its chat', () => {
+		const ended: string[] = [];
+		disposables.add(registerSessionChatDragEndHandler(async (_e, _element, session) => { ended.push(session.sessionId); return true; }));
+		const { header, session } = createHarness(disposables);
+
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END, { bubbles: true }));
+		const sessionDrag = [...ended];
+		header.setDragsEditor(true);
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END, { bubbles: true }));
+
+		assert.deepStrictEqual({ sessionDrag, afterEditorDrag: ended }, { sessionDrag: [session.sessionId], afterEditorDrag: [session.sessionId] });
+	});
+
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {
 		const { header } = createHarness(disposables);
 
@@ -239,7 +315,7 @@ suite('Sessions - Headers', () => {
 		test(`${paneClass} headers leave a six-pixel drag-free buffer by resize boundaries`, () => {
 			const { store, instantiationService, header: sessionHeader, session, activeChat } = createHarness(disposables);
 			const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-			chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
+			chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { }, close: () => { } });
 			const header = paneClass === 'session-view' ? sessionHeader : chatHeader;
 			const pane = $(`.${paneClass}`);
 			pane.style.width = '400px';
@@ -266,7 +342,7 @@ suite('Sessions - Headers', () => {
 		const { store, instantiationService, header, session, activeChat, secondChat } = createHarness(disposables);
 		activeChat.set(secondChat, undefined);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
+		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { }, close: () => { } });
 		const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
 		const describeDrag = (target: SessionHeader | ChatHeader) => {
 			const event = simulateDragFrom(target, target.element);
@@ -290,7 +366,7 @@ suite('Sessions - Headers', () => {
 	test('a main-chat group header drags its chat while the session header still drags the session', () => {
 		const { store, instantiationService, header, session, activeChat, mainChat } = createHarness(disposables);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
+		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { }, close: () => { } });
 		const chatDrag = simulateDragFrom(chatHeader, chatHeader.element);
 		const sessionDrag = simulateDragFrom(header, header.element);
 		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END));
@@ -315,7 +391,7 @@ suite('Sessions - Headers', () => {
 	test('chat header toolbar gestures and title editing do not start a drag', () => {
 		const { store, instantiationService, header, session, activeChat } = createHarness(disposables, { supportsRename: true, supportsMultipleChats: true });
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
+		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { }, close: () => { } });
 		const toolbarDrag = simulateDragFrom(chatHeader, chatHeader.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')!);
 		header.startTitleEditing();
 		const editingDrag = simulateDragFrom(header, header.element);
@@ -428,6 +504,7 @@ suite('Sessions - Headers', () => {
 			chat: activeChat,
 			isDetached: false,
 			activate: () => activationCalls++,
+			close: () => { },
 		});
 
 		header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')
@@ -436,10 +513,11 @@ suite('Sessions - Headers', () => {
 		assert.strictEqual(activationCalls, 1);
 	});
 
-	test('middle-clicking a session title closes only the session header', () => {
+	test('middle-clicking session and chat titles closes their represented panes', () => {
 		const { store, instantiationService, header, session, activeChat, closedSessions } = createHarness(disposables);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { } });
+		let closedChats = 0;
+		chatHeader.setChat({ session, chat: activeChat, isDetached: false, activate: () => { }, close: () => closedChats++ });
 		const sessionMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
 		const sessionRightClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 2, cancelable: true });
 		const chatMiddleClick = new MouseEvent(EventType.AUXCLICK, { bubbles: true, button: 1, cancelable: true });
@@ -450,6 +528,7 @@ suite('Sessions - Headers', () => {
 
 		assert.deepStrictEqual({
 			closedSessions,
+			closedChats,
 			sessionMiddleClickDefaultPrevented: sessionMiddleClick.defaultPrevented,
 			sessionDispatchResult,
 			sessionRightClickDefaultPrevented: sessionRightClick.defaultPrevented,
@@ -457,11 +536,12 @@ suite('Sessions - Headers', () => {
 			chatDispatchResult,
 		}, {
 			closedSessions: ['session'],
+			closedChats: 1,
 			sessionMiddleClickDefaultPrevented: true,
 			sessionDispatchResult: false,
 			sessionRightClickDefaultPrevented: false,
-			chatMiddleClickDefaultPrevented: false,
-			chatDispatchResult: true,
+			chatMiddleClickDefaultPrevented: true,
+			chatDispatchResult: false,
 		});
 	});
 
@@ -495,6 +575,7 @@ suite('Sessions - Headers', () => {
 			chat: activeChat,
 			isDetached: false,
 			activate: () => { },
+			close: () => { },
 		});
 		const describe = (args: readonly unknown[]) => args.map(arg =>
 			arg === session ? 'session'
@@ -600,7 +681,7 @@ suite('Sessions - Headers', () => {
 		secondChat.status.set(SessionStatus.InProgress, undefined);
 		const createChatHeader = (chat: IChat) => {
 			const header = store.add(instantiationService.createInstance(ChatHeader));
-			header.setChat({ session, chat: constObservable(chat), isDetached: false, activate: () => { } });
+			header.setChat({ session, chat: constObservable(chat), isDetached: false, activate: () => { }, close: () => { } });
 			return header;
 		};
 		const mainHeader = createChatHeader(mainChat);
@@ -626,7 +707,7 @@ suite('Sessions - Headers', () => {
 			session.chats.set([mainChat, child], undefined);
 			const createChatHeader = (chat: IChat) => {
 				const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
-				chatHeader.setChat({ session, chat: constObservable(chat), isDetached: false, activate: () => { } });
+				chatHeader.setChat({ session, chat: constObservable(chat), isDetached: false, activate: () => { }, close: () => { } });
 				return chatHeader;
 			};
 			const mainHeader = createChatHeader(mainChat);
@@ -715,6 +796,7 @@ suite('Sessions - Headers', () => {
 			chat: activeChat,
 			isDetached: false,
 			activate: () => { },
+			close: () => { },
 		});
 
 		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text .label-name')?.textContent, 'New Session');

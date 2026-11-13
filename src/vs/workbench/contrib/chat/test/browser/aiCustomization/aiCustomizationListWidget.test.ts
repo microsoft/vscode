@@ -41,6 +41,7 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
 import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('aiCustomizationListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -107,6 +108,29 @@ suite('aiCustomizationListWidget', () => {
 		assert.deepStrictEqual(focusChanges, [[firstItem], [group]]);
 	});
 
+	test('moves focus that is kept inside a collapsed group to the first visible item', () => {
+		type Entry = { type: 'group-header'; id: string } | { type: 'item'; id: string };
+		const collapsedGroup: Entry = { type: 'group-header', id: 'user' };
+		const hiddenItem: Entry = { type: 'item', id: 'hidden' };
+		const expandedGroup: Entry = { type: 'group-header', id: 'workspace' };
+		const visibleItem: Entry = { type: 'item', id: 'visible' };
+		let focus: Entry[] = [hiddenItem];
+		const focusChanges: Entry[][] = [];
+		const list = {
+			getFocus: () => focus,
+			setFocus: (entries: Entry[]) => {
+				focus = entries;
+				focusChanges.push(entries);
+			},
+		};
+		const isVisible = (entry: Entry) => entry !== hiddenItem;
+
+		focusFirstCustomizationTreeItem(list, [collapsedGroup, hiddenItem, expandedGroup, visibleItem], entry => entry.type === 'item', isVisible);
+		focusFirstCustomizationTreeItem(list, [collapsedGroup, hiddenItem, expandedGroup, visibleItem], entry => entry.type === 'item', isVisible);
+
+		assert.deepStrictEqual(focusChanges, [[visibleItem]]);
+	});
+
 	test('keeps editable source sections visible until search filtering starts', () => {
 		assert.deepStrictEqual({
 			agents: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, false),
@@ -159,7 +183,7 @@ suite('aiCustomizationListWidget', () => {
 		const secondUri = URI.file('/workspace/second');
 		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return { id: 'test', folders };
+				return testIWorkspace({ id: 'test', folders });
 			}
 			override getWorkspaceFolder(resource: URI) {
 				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
@@ -190,7 +214,7 @@ suite('aiCustomizationListWidget', () => {
 		const secondUri = URI.file('/workspace/second');
 		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return { id: 'test', folders };
+				return testIWorkspace({ id: 'test', folders });
 			}
 			override getWorkspaceFolder(resource: URI) {
 				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
@@ -1444,6 +1468,46 @@ suite('aiCustomizationListWidget', () => {
 			assert.deepStrictEqual({ agentRows, skillRows }, {
 				agentRows: ['Agent One'],
 				skillRows: ['Skill One'],
+			});
+		});
+
+		test('toggles scope groups with a single click on the header', async () => {
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [{
+				id: 'agent-one',
+				uri: URI.file('/workspace/.github/agents/agent-one.agent.md'),
+				name: 'Agent One',
+				filename: 'agent-one.agent.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const labels = () => Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+			const clickWorkspaceHeader = () => [...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'Workspace')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+
+			const initial = labels();
+			clickWorkspaceHeader();
+			const afterCollapse = labels();
+			clickWorkspaceHeader();
+
+			assert.deepStrictEqual({ initial, afterCollapse, afterExpand: labels() }, {
+				initial: ['Agent One'],
+				afterCollapse: [],
+				afterExpand: ['Agent One'],
 			});
 		});
 

@@ -83,6 +83,7 @@ import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragDa
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { SessionActivatingActionRunner } from '../../../../../workbench/contrib/sessions/browser/sessionActionRunner.js';
+import { navigationServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { SessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
 import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -816,7 +817,7 @@ suite('SessionsManagementService', () => {
 			const a = created('a');
 			const b = created('b');
 			const { view } = harness([a, b]);
-			const sessionHostService = disposables.add(new SessionHostService(view, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+			const sessionHostService = disposables.add(new SessionHostService(navigationServiceOf(view), upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 			// Resolved as the main window's UI resolves it: through the main window's instantiation service.
 			// Strict, as the workbench's: it rejects a service it does not know.
 			const root = disposables.add(new InstantiationService(new ServiceCollection([ISessionsService, view], [ISessionHostService, sessionHostService]), true));
@@ -4317,6 +4318,44 @@ suite('SessionsManagementService', () => {
 	});
 
 	suite('session navigation', () => {
+		test('restores saved drafts through a disposable opener without promoting MRU', async () => {
+			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [first, second]; }
+			}(first);
+			const { view } = createSessionsManagementService(first, disposables, provider);
+			const restored: string[] = [];
+			const registration = disposables.add(view.registerSavedDraftOpener(async (id, token) => {
+				restored.push(id);
+				view.setCurrentDraftId(id);
+				await view.openNewSession({ preserveNavigation: true }, token);
+				return true;
+			}));
+			await view.openSession(first.resource);
+			view.setCurrentDraftId('saved');
+			await view.openNewSession();
+			await view.openSession(second.resource);
+			const recentBefore = view.getRecentlyOpenedSessions().recent.map(session => session.sessionId);
+			await view.openPreviousSession();
+			const draftActive = activeSessionOf(view) === undefined;
+			await view.openPreviousSession();
+			const previous = activeSessionOf(view)?.sessionId;
+			await view.openNextSession();
+			await view.openNextSession();
+			const forward = activeSessionOf(view)?.sessionId;
+			const recentAfter = view.getRecentlyOpenedSessions().recent.map(session => session.sessionId);
+			registration.dispose();
+			await view.openPreviousSession();
+			assert.deepStrictEqual({
+				restored, draftActive, previous, forward, recentBefore, recentAfter,
+				afterDisposal: activeSessionOf(view)?.sessionId,
+			}, {
+				restored: ['saved', 'saved'], draftActive: true, previous: 'first', forward: 'second',
+				recentBefore: ['second', 'first'], recentAfter: ['second', 'first'], afterDisposal: 'first',
+			});
+		});
+
 		test('visits custom views and the composer without recording the covered session again', async () => {
 			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
 			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
@@ -5804,6 +5843,69 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	for (const { timing, preserveCustomView } of [
+		{ timing: 'before', preserveCustomView: false },
+		{ timing: 'during', preserveCustomView: false },
+		{ timing: 'during', preserveCustomView: true },
+	] as const) {
+		test(`restoreVisibleSessions ${preserveCustomView ? 'does not surface the hidden' : 'retains the visible'} workspace draft created ${timing} startup restoration`, async () => {
+			const folderUri = URI.file('/project');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri,
+				label: 'project',
+				icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'project', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			};
+			const draft = stubSession({
+				sessionId: 'workspace-draft',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Untitled),
+				workspace: constObservable(workspace),
+			});
+			const requests: { sessionId: string; chatResource: URI; query: string }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return []; }
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+					requests.push({ sessionId, chatResource, query: options.query });
+					return draft;
+				}
+			}(draft);
+			const { service, view } = createSessionsManagementService(draft, disposables, provider);
+			let restoring: Promise<void> | undefined;
+			if (timing === 'during') {
+				restoring = view.restoreVisibleSessions();
+			}
+			await view.openNewSession({ folderUri, preserveNavigation: true, preserveCustomView });
+			await (restoring ?? view.restoreVisibleSessions());
+
+			const active = activeSessionOf(view);
+			const restored = {
+				visible: slotSessionsOf(view).map(session => session?.sessionId),
+				active: active?.sessionId,
+				workspace: active?.workspace.get(),
+				pending: service.newSession.get()?.sessionId,
+				restoreComplete: view.initialRestoreComplete.get(),
+			};
+			if (!preserveCustomView && active) {
+				await service.sendNewChatRequest(active, { query: 'hello' });
+			}
+
+			assert.deepStrictEqual({ restored, requests }, {
+				restored: {
+					visible: [preserveCustomView ? undefined : draft.sessionId],
+					active: preserveCustomView ? undefined : draft.sessionId,
+					workspace: preserveCustomView ? undefined : workspace,
+					pending: draft.sessionId,
+					restoreComplete: true,
+				},
+				requests: preserveCustomView ? [] : [{ sessionId: draft.sessionId, chatResource: draft.mainChat.get().resource, query: 'hello' }],
+			});
+		});
+	}
+
 	test('restoreVisibleSessions prepares only the active session', async () => {
 		const session = stubSession({
 			sessionId: 'remote',
@@ -7135,6 +7237,25 @@ suite('SessionsManagementService', () => {
 			),
 		]);
 		assert.strictEqual(createCount, 0);
+	});
+
+	test('ordinary draft configuration does not require Automation support', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const draftConfiguration = { sessionTemplate: { modelId: 'model', config: { providerChoice: true } } };
+		let captured: ISessionsProviderCreateSessionOptions | undefined;
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return { uri: URI.parse('test:///folder'), label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override getDraftSessionConfiguration() { return draftConfiguration; }
+			override createNewSession(_folder: URI, _type: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				captured = options;
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		service.createNewSession(URI.parse('test:///folder'), { draftConfiguration });
+		assert.deepStrictEqual(captured, { metadata: undefined, draftConfiguration });
 	});
 
 	test('createAndSendNewChatRequest prepares request options while configuring the provisional session', async () => {

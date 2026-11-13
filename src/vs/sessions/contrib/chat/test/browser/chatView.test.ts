@@ -167,7 +167,7 @@ suite('Sessions - Chat View', () => {
 		disposables.add(toDisposable(() => workbench.remove()));
 		workbench.style.cssText = 'position: fixed; top: 0; left: 0; --vscode-spacing-size120: 12px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size240: 24px; --vscode-strokeThickness: 1px;';
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
-		const view = dom.append(part, dom.$('.chat-view-chat'));
+		const view = dom.append(part, dom.$('.chat-view-chat.sessions-chat'));
 		const session = dom.append(view, dom.$('.interactive-session.prompt-timeline-host.prompt-timeline-with-rail'));
 		session.style.cssText = 'width: 480px; height: 300px; --prompt-timeline-bottom: 100px;';
 		const list = dom.append(session, dom.$('.interactive-list'));
@@ -287,7 +287,7 @@ suite('Sessions - Chat View', () => {
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
 		const session = dom.append(part, dom.$('.session-view'));
 		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
-		const view = dom.append(group, dom.$('.chat-view'));
+		const view = dom.append(group, dom.$('.chat-view.sessions-chat'));
 		const chat = dom.append(view, dom.$('.interactive-session'));
 		const list = dom.append(chat, dom.$('.interactive-list'));
 		const request = dom.append(list, dom.$('.interactive-item-container.interactive-request'));
@@ -377,7 +377,7 @@ suite('Sessions - Chat View', () => {
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
 		const session = dom.append(part, dom.$('.session-view.is-active'));
 		const group = dom.append(session, dom.$('.chat-group-view.active-group'));
-		const view = dom.append(group, dom.$('.chat-view'));
+		const view = dom.append(group, dom.$('.chat-view.sessions-chat'));
 		const chat = dom.append(view, dom.$('.interactive-session'));
 		const list = dom.append(chat, dom.$('.interactive-list'));
 		list.style.transition = 'none';
@@ -591,7 +591,7 @@ suite('Sessions - Chat View', () => {
 
 	for (const inputOnly of [false, true]) {
 		test(`reads the widget offset only for a visible external banner and keeps input sizing independent for input-only hosts: ${inputOnly}`, () => {
-			const element = dom.$('.chat-view-chat');
+			const element = dom.$('.chat-view-chat.sessions-chat');
 			const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
 			const progress = dom.append(element, dom.$('.monaco-progress-container'));
 			const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
@@ -638,7 +638,7 @@ suite('Sessions - Chat View', () => {
 	}
 
 	test('reads the widget offset only for a visible external banner or while showing only the input, and lays out the input with its room to grow', () => {
-		const element = dom.$('.chat-view-chat');
+		const element = dom.$('.chat-view-chat.sessions-chat');
 		const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
 		const progress = dom.append(element, dom.$('.monaco-progress-container'));
 		const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
@@ -1135,7 +1135,7 @@ suite('Sessions - Chat View', () => {
 		part.style.position = 'relative';
 		part.style.width = '600px';
 		part.style.height = '400px';
-		const chatView = dom.append(part, dom.$('.chat-view'));
+		const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const interactiveList = dom.append(session, dom.$('.interactive-list'));
 		const list = dom.append(interactiveList, dom.$('.monaco-list'));
@@ -3224,6 +3224,44 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('only measures the surface on refresh when it shows codicons', async () => {
+		const clientWidth = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')!;
+		const measureRefreshes = async (background: ISessionsChatBackground | undefined) => {
+			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			const store = new DisposableStore();
+			store.add(toDisposable(() => workbench.remove()));
+			const renderer = store.add(new SessionsChatBackgroundRenderer(part, true, () => 0.5));
+			renderer.setBackground(background);
+			await timeout(20);
+			let reads = 0;
+			Object.defineProperty(part, 'clientWidth', { configurable: true, get() { reads++; return clientWidth.get!.call(this); } });
+			dom.append(part, dom.$('.interactive-item-container'));
+			await timeout(20);
+			part.dispatchEvent(new Event('scroll'));
+			await timeout(20);
+			store.dispose();
+			return reads;
+		};
+
+		assert.deepStrictEqual({
+			none: await measureRefreshes(undefined),
+			image: await measureRefreshes({
+				kind: 'image',
+				backgroundImage: 'url("file:///textures/kirby.png")',
+				backgroundRepeat: 'no-repeat',
+				backgroundSize: 'auto',
+				backgroundPosition: 'right bottom',
+			}),
+			measuresCodicons: await measureRefreshes({ kind: 'codicons' }) > 0,
+		}, {
+			none: 0,
+			image: 0,
+			measuresCodicons: true,
+		});
+	});
+
 	for (const interactive of [false, true]) {
 		test(`only writes Codicon opacity when it changes (${interactive ? 'interactive' : 'decorative'})`, async () => {
 			const codicons = { kind: 'codicons' } as const;
@@ -3385,13 +3423,13 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
-		const chatView = dom.append(part, dom.$('.chat-view'));
+		const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 		const value = dom.append(request, dom.$('.value'));
 		const bubble = dom.append(value, dom.$('.rendered-markdown'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
-		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
+		const plainChatView = dom.append(plainPart, dom.$('.chat-view.sessions-chat'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainRequest = dom.append(plainSession, dom.$('.interactive-item-container.interactive-request'));
 		const plainValue = dom.append(plainRequest, dom.$('.value'));
@@ -3419,7 +3457,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
 		const appendOrigin = (part: HTMLElement) => {
-			const chatView = dom.append(part, dom.$('.chat-view'));
+			const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 			return dom.append(chatView, dom.$('.chat-request-origin'));
 		};
 		const backgroundPart = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
@@ -3455,7 +3493,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
 		const appendAttachment = (part: HTMLElement) => {
-			const chatView = dom.append(part, dom.$('.chat-view'));
+			const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 			const value = dom.append(request, dom.$('.value'));
@@ -3488,7 +3526,7 @@ suite('Sessions - Chat View', () => {
 			workbench.style.setProperty('--session-view-background', '#202020');
 			workbench.style.setProperty('--vscode-chat-statusBackground', 'rgba(255, 255, 255, 0.3)');
 			const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
-			const chatView = dom.append(part, dom.$('.chat-view'));
+			const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
 			const actionRequest = disposables.add(new ChatActionRequestContentPart({
@@ -3528,7 +3566,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--session-view-background', '#202020');
 		workbench.style.setProperty('--vscode-chat-requestBubbleBackground', 'rgba(255, 255, 255, 0.3)');
 		const appendEditInput = (part: HTMLElement) => {
-			const chatView = dom.append(part, dom.$('.chat-view'));
+			const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request.editing'));
 			const editContainer = dom.append(request, dom.$('.chat-edit-input-container'));
@@ -3572,7 +3610,7 @@ suite('Sessions - Chat View', () => {
 			workbench.style.setProperty('--vscode-spacing-size80', '8px');
 			workbench.style.setProperty('--vscode-fontSize-label3', '10px');
 			const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
-			const chatView = dom.append(part, dom.$('.chat-view-chat'));
+			const chatView = dom.append(part, dom.$('.chat-view-chat.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request.editing'));
 			const editContainer = dom.append(request, dom.$('.chat-edit-input-container'));
@@ -3622,7 +3660,7 @@ suite('Sessions - Chat View', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#202020');
 		const appendCheckpointRows = (part: HTMLElement) => {
-			const chatView = dom.append(part, dom.$('.chat-view'));
+			const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const checkpoint = dom.append(session, dom.$('.checkpoint-container'));
 			const restore = dom.append(session, dom.$('.checkpoint-restore-container'));
@@ -3682,14 +3720,14 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-spacing-size240', '24px');
 		workbench.style.setProperty('--vscode-spacing-size320', '32px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
-		const chatView = dom.append(part, dom.$('.chat-view'));
+		const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
 		response.style.width = '600px';
 		const value = dom.append(response, dom.$('.value'));
 		const footer = dom.append(response, dom.$('.chat-footer-toolbar'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
-		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
+		const plainChatView = dom.append(plainPart, dom.$('.chat-view.sessions-chat'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainResponse = dom.append(plainSession, dom.$('.interactive-item-container.interactive-response'));
 		const createHighContrastResponse = (themeClass: 'hc-black' | 'hc-light') => {
@@ -3704,7 +3742,7 @@ suite('Sessions - Chat View', () => {
 			highContrastWorkbench.style.setProperty('--vscode-strokeThickness', '1px');
 			highContrastWorkbench.style.setProperty('--vscode-contrastBorder', '#ff0000');
 			const highContrastPart = dom.append(highContrastWorkbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
-			const highContrastChatView = dom.append(highContrastPart, dom.$('.chat-view'));
+			const highContrastChatView = dom.append(highContrastPart, dom.$('.chat-view.sessions-chat'));
 			const highContrastResponse = dom.append(highContrastChatView, dom.$('.interactive-item-container.interactive-response'));
 			dom.getWindow(highContrastWorkbench).document.body.appendChild(highContrastWorkbench);
 			return { highContrastWorkbench, highContrastResponse };
@@ -3801,7 +3839,7 @@ suite('Sessions - Chat View', () => {
 			workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
 			workbench.style.setProperty('--vscode-strokeThickness', '1px');
 			const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
-			const chatView = dom.append(part, dom.$('.chat-view.chat-view-chat'));
+			const chatView = dom.append(part, dom.$('.chat-view.chat-view-chat.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const secondaryToolbar = dom.append(session, dom.$('.chat-secondary-toolbar'));
 			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
@@ -3913,7 +3951,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-toolbar-activeBackground', 'rgba(0, 0, 0, 0.2)');
 		workbench.style.setProperty('--vscode-toolbar-hoverBackground', 'rgba(0, 0, 0, 0.12)');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
-		const chatView = dom.append(part, dom.$('.chat-view'));
+		const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 		chatView.style.setProperty('--vscode-chat-list-background', '#ffffff');
 		const newChatWidget = dom.append(chatView, dom.$('.sessions-chat-widget'));
 		const newChatContent = dom.append(newChatWidget, dom.$('.new-chat-widget-content'));
@@ -3935,7 +3973,7 @@ suite('Sessions - Chat View', () => {
 		newSessionView.style.setProperty('--vscode-button-secondaryBackground', 'rgba(0, 0, 0, 0)');
 		const newSessionViewContent = dom.append(newSessionView, dom.$('.session-view-content'));
 		// Unlike the session chat, the new-session view has no chat list to set `--vscode-chat-list-background`.
-		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view.chat-view-new'));
+		const productionNewChatView = dom.append(newSessionViewContent, dom.$('.chat-view.chat-view-new.sessions-chat'));
 		const productionNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget'));
 		const productionNewChatContainer = dom.append(productionNewChatWidget, dom.$('.new-chat-widget-container'));
 		const productionBottomContainer = dom.append(productionNewChatContainer, dom.$('.new-chat-bottom-container'));
@@ -3956,7 +3994,7 @@ suite('Sessions - Chat View', () => {
 		const peerExperimentalContent = dom.append(peerNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
 		const peerExperimentalOptions = dom.append(peerExperimentalContent, dom.$('.new-chat-session-options'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
-		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
+		const plainChatView = dom.append(plainPart, dom.$('.chat-view.sessions-chat'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
 		const plainSecondaryToolbar = dom.append(plainSession, dom.$('.chat-secondary-toolbar'));
 		const plainSecondaryAction = dom.append(plainSecondaryToolbar, dom.$('.action-label'));
@@ -4093,7 +4131,7 @@ suite('Sessions - Chat View', () => {
 	test('keeps selected chat rows transparent in dark themes', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
-		const chatView = dom.append(part, dom.$('.chat-view'));
+		const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 		const interactiveList = dom.append(chatView, dom.$('.interactive-list'));
 		const list = dom.append(interactiveList, dom.$('.monaco-list'));
 		const scrollable = dom.append(list, dom.$('.monaco-scrollable-element'));
@@ -4137,7 +4175,7 @@ suite('Sessions - Chat View', () => {
 		disposables.add(toDisposable(() => workbench.remove()));
 		workbench.style.cssText = 'width: 500px; --vscode-spacing-size40: 4px; --vscode-spacing-size160: 16px; --vscode-spacing-size240: 24px;';
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
-		const chatView = dom.append(part, dom.$('.chat-view'));
+		const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 		const session = dom.append(chatView, dom.$('.interactive-session'));
 		session.style.height = '400px';
 		const list = dom.append(session, dom.$('.interactive-list'));
@@ -4203,7 +4241,7 @@ suite('Sessions - Chat View', () => {
 				workbench.style.setProperty('--session-view-content-horizontal-padding', `${padding}px`);
 			}
 			const part = dom.append(workbench, dom.$('.part.sessionspart'));
-			const chatView = dom.append(part, dom.$('.chat-view'));
+			const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
 			session.style.height = '400px';
 			const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
@@ -4265,7 +4303,7 @@ suite('Sessions - Chat View', () => {
 			workbench.style.setProperty('--vscode-strokeThickness', '1px');
 			workbench.style.setProperty('--vscode-contrastBorder', '#ffffff');
 			const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
-			const chatView = dom.append(part, dom.$('.chat-view'));
+			const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session.chat-floating-persistent-content'));
 			const response = dom.append(session, dom.$('.interactive-item-container.interactive-response'));
 			const inputPart = dom.append(session, dom.$('.interactive-input-part'));
@@ -4390,7 +4428,7 @@ suite('Sessions - Chat View', () => {
 		const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface.has-chat-background'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
 		const createStickyRequest = (parent: HTMLElement) => {
-			const chatView = dom.append(parent, dom.$('.chat-view'));
+			const chatView = dom.append(parent, dom.$('.chat-view.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const interactiveList = dom.append(session, dom.$('.interactive-list'));
 			const list = dom.append(interactiveList, dom.$('.monaco-list'));
@@ -4449,7 +4487,7 @@ suite('Sessions - Chat View', () => {
 		const workbench = dom.$('.monaco-workbench.vs-dark.agent-sessions-workbench');
 		const createShadows = (hasBackground: boolean) => {
 			const part = dom.append(workbench, dom.$(`.part.sessionspart.sessions-chat-surface${hasBackground ? '.has-chat-background' : ''}`));
-			const chatView = dom.append(part, dom.$('.chat-view'));
+			const chatView = dom.append(part, dom.$('.chat-view.sessions-chat'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const interactiveList = dom.append(session, dom.$('.interactive-list'));
 			const list = dom.append(interactiveList, dom.$('.monaco-list'));

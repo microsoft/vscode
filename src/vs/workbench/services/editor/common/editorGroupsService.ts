@@ -127,6 +127,11 @@ export interface IMergeGroupOptions {
 	 * they are in the source group.
 	 */
 	readonly preserveExistingIndex?: boolean;
+
+	/**
+	 * Set this to not move focus to the moved editors.
+	 */
+	readonly preserveFocus?: boolean;
 }
 
 export interface ICloseEditorOptions {
@@ -334,6 +339,14 @@ export interface IEditorGroupsContainer {
 	readonly partOptions: IEditorPartOptions;
 
 	/**
+	 * Whether the container supports splitting, i.e. creating editor
+	 * groups next to existing ones (for example to open an editor to
+	 * the side). Containers that do not support splitting keep all
+	 * editors in a single group.
+	 */
+	readonly supportsSplitting: boolean;
+
+	/**
 	 * Enforce container options temporarily.
 	 */
 	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
@@ -481,6 +494,12 @@ export interface IEditorGroupsContainer {
 export interface IEditorPart extends IEditorGroupsContainer {
 
 	/**
+	 * Whether the part is owned by someone else than the editor parts service,
+	 * in which case it is not part of working sets.
+	 */
+	readonly isTransient?: boolean;
+
+	/**
 	 * An event for when the editor part receives focus.
 	 */
 	readonly onDidFocus: Event<void>;
@@ -538,9 +557,12 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	 * dirty editors of all groups back to the main editor
 	 * part.
 	 *
+	 * @param options `preserveFocus` keeps the focus where it is instead of
+	 * moving it to the group that received the editors.
+	 *
 	 * @returns `false` if an editor could not be moved back.
 	 */
-	close(): boolean;
+	close(options?: { preserveFocus?: boolean }): boolean;
 }
 
 /**
@@ -735,7 +757,31 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
+export interface IResolvedEditorWorkingSet extends IDisposable {
+
+	/**
+	 * The editors of the main part's groups, in group and editor order, with an editor shown in several groups listed once.
+	 */
+	readonly editors: readonly EditorInput[];
+
+	/**
+	 * The editor that was active in the main part's active group.
+	 */
+	readonly activeEditor: EditorInput | undefined;
+
+	/**
+	 * Disposes the editors that no group shows, as the editors are not needed: editors that are shown, such as
+	 * an editor of a file that another group has open as well, stay open.
+	 */
+	dispose(): void;
+}
+
 export interface IEditorWorkingSetOptions {
+
+	/**
+	 * Keeps the focus where it is: focus outside of the editor parts is not touched,
+	 * and focus inside of an editor part moves to the new active editor.
+	 */
 	readonly preserveFocus?: boolean;
 }
 
@@ -850,6 +896,14 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * @returns `true` when the working set as applied.
 	 */
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
+
+	/**
+	 * Resolves the editors of the main part of a working set without applying it or
+	 * changing any part. The returned editors are the caller's to show or to dispose.
+	 *
+	 * @returns `undefined` when the working set does not exist, or when it has editors that cannot be restored.
+	 */
+	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined;
 
 	/**
 	 * Deletes a working set.

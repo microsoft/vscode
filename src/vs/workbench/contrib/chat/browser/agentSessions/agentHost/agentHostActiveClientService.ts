@@ -5,6 +5,7 @@
 
 import { coalesce, distinct } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
@@ -12,7 +13,7 @@ import { Disposable, IDisposable, IReference } from '../../../../../../base/comm
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
-import { type IExtUri } from '../../../../../../base/common/resources.js';
+import { type IExtUri, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import type { AgentCustomization, SessionActiveClient, ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -25,14 +26,15 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { DEFAULT_SKILL_SOURCE_FOLDERS } from '../../../common/promptSyntax/config/promptFileLocations.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
 import { RenameToolId } from '../../tools/renameTool.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
+import { enumerateLocalCustomizationsForHarness, type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { getAgentFileToolReferenceName, toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnabledInSet } from './agentHostToolSetEnablementService.js';
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
@@ -79,8 +81,11 @@ export interface IAgentCustomizationScope extends IDisposable {
 
 export interface IAgentHostActiveClientService {
 	readonly _serviceBrand: undefined;
-	/** Acquires (or shares) the refcounted customization scope for `sessionType` + `roots`. Never fails. */
-	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope;
+	/**
+	 * Acquires (or shares) the refcounted customization scope for `sessionType` + `roots`. Never fails.
+	 * `undefined` roots stand for the window's workspace (the ambient management UI) while an empty array means no workspace.
+	 */
+	acquireScope(sessionType: string, roots: readonly URI[] | undefined): IAgentCustomizationScope;
 	/**
 	 * Acquires a shared MCP support scope for a Copilot CLI harness; `undefined` roots mean unknown applicability while an empty array means no workspace.
 	 * Returns `undefined` for harnesses whose MCP delivery is not assessed by the client.
@@ -131,7 +136,7 @@ class AgentCustomizationScope extends Disposable {
 
 	constructor(
 		private readonly _sessionType: string,
-		private readonly _roots: readonly URI[],
+		private readonly _roots: readonly URI[] | undefined,
 		scopeKey: string,
 		private readonly _syncProvider: ICustomizationSyncProvider,
 		private readonly _options: ILocalCustomizationSyncOptions | undefined,
@@ -155,6 +160,8 @@ class AgentCustomizationScope extends Disposable {
 			const seq = ++this._updateSeq;
 			let completedInitialResolution = false;
 			try {
+				// List the customization folders once for both the refs and the agents.
+				const enumerated = await enumerateLocalCustomizationsForHarness(this._promptsService, this._syncProvider, this._sessionType, CancellationToken.None, this._options, this._roots);
 				const [refs, agents] = await Promise.all([
 					resolveCustomizationRefs(
 						this._fileService,
@@ -168,8 +175,9 @@ class AgentCustomizationScope extends Disposable {
 						this._options,
 						this._roots,
 						this._windowRemoteAuthority,
+						enumerated,
 					),
-					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options),
+					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options, enumerated),
 				]);
 				if (seq !== this._updateSeq) {
 					return;
@@ -199,6 +207,25 @@ class AgentCustomizationScope extends Disposable {
 		const scheduleUpdate = () => {
 			this._updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
 		};
+
+		// The host discovers workspace skills in the session's roots, which may
+		// lie outside the window's workspace and so outside the prompts
+		// service's watchers. Watch their skill folders so that adding or
+		// removing a skill that overrides a built-in one refreshes the scope.
+		// Skills sit in subfolders, which needs a recursive (uncorrelated) watcher.
+		if (this._roots?.length) {
+			const skillFolders = this._roots.flatMap(root => DEFAULT_SKILL_SOURCE_FOLDERS
+				.filter(folder => folder.storage === PromptsStorage.local)
+				.map(folder => joinPath(root, folder.path)));
+			for (const folder of skillFolders) {
+				this._register(this._fileService.watch(folder, { recursive: true, excludes: [] }));
+			}
+			this._register(this._fileService.onDidFilesChange(e => {
+				if (skillFolders.some(folder => e.affects(folder))) {
+					scheduleUpdate();
+				}
+			}));
+		}
 
 		this._register(this._syncProvider.onDidChange(() => scheduleUpdate()));
 		this._register(Event.any(
@@ -321,9 +348,9 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		this._allToolSetsObs = this._toolsService.toolSets;
 	}
 
-	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
-		const normalizedRoots = normalizeRoots(roots, this._uriIdentityService.extUri);
-		const scopeKey = getScopeKey(normalizedRoots, this._uriIdentityService.extUri);
+	acquireScope(sessionType: string, roots: readonly URI[] | undefined): IAgentCustomizationScope {
+		const normalizedRoots = roots === undefined ? undefined : normalizeRoots(roots, this._uriIdentityService.extUri);
+		const scopeKey = normalizedRoots === undefined ? AMBIENT_SCOPE_KEY : getScopeKey(normalizedRoots, this._uriIdentityService.extUri);
 		const serviceScopeKey = getServiceScopeKey(sessionType, scopeKey);
 		let scope = this._scopes.get(serviceScopeKey);
 		if (!scope) {
@@ -566,6 +593,9 @@ export function areCustomizationScopeRootsEqual(first: readonly URI[] | undefine
 	const secondRoots = new ResourceSet(second, toComparisonKey);
 	return firstRoots.size === secondRoots.size && [...firstRoots].every(root => secondRoots.has(root));
 }
+
+/** Scope key of the window's workspace (`undefined` roots); no comparison key of a root list is equal to it. */
+const AMBIENT_SCOPE_KEY = '\0ambient';
 
 function getScopeKey(roots: readonly URI[], extUri: IExtUri): string {
 	return roots.map(root => extUri.getComparisonKey(root)).join('\n');

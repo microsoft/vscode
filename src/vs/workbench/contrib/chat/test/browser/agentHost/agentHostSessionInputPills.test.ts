@@ -25,7 +25,7 @@ import { IActionListDelegate, IActionListItem } from '../../../../../../platform
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind, DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
+import { ISessionArtifact, SessionArtifactMode, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { buildMcpResourceUri } from '../../../../../../platform/agentHost/common/mcpResourceUri.js';
 import { AgentHostNativeImplementationMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
@@ -688,6 +688,57 @@ suite('AgentHostSessionInputPills', () => {
 			pressed: ['Status'],
 			unchecked: ['Status', ['Show Above Chat Input']],
 			pressedAfterUncheck: [],
+		});
+	});
+
+	test('the agent can ask to pin a file or show it above the chat input, once per request', async () => {
+		const session = (planMode: SessionArtifactMode | undefined, planModeRevision?: number) => upcastPartial<SessionState>({
+			defaultChat: 'vendor-chat:/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'plan', label: 'Plan', uri: 'file:///repo/plan.md', type: SessionArtifactType.File, isArtifact: true, ...(planMode ? { mode: planMode } : {}), ...(planModeRevision ? { modeRevision: planModeRevision } : {}) },
+				{ id: 'notes', label: 'Notes', uri: 'file:///repo/notes.md', type: SessionArtifactType.File, isArtifact: true, mode: 'pinned' },
+				{ id: 'log', label: 'Log', uri: 'file:///repo/log.md', type: SessionArtifactType.File, isArtifact: true },
+			]),
+		});
+		const harness = createActivityPills(session('aboveInput'), undefined, undefined, 'local', undefined, undefined, { configurationService: new TestConfigurationService({ [ChatResourcesEnabledSettingId]: true }) });
+		harness.instantiationService.stub(ITextModelService, upcastPartial<ITextModelService>({ createModelReference: () => Promise.reject(new Error('unreadable')) }));
+		await timeout(0);
+		const pinnedPills = () => [...harness.persistentContent.querySelectorAll<HTMLElement>('.chat-pill-item')];
+		const state = () => ({
+			pinned: pinnedPills().map(pill => pill.textContent),
+			shown: [...harness.persistentContent.querySelectorAll('.chat-embedded-resource-title')].map(title => title.textContent),
+			planOpensInChat: !!harness.menu(pinnedPills().find(pill => pill.textContent === 'plan.md'))?.find(action => action.id === 'chatResources.showAboveInput')?.checked,
+		});
+		const requested = state();
+		// The user hides the plan: it stays hidden while the agent's request is unchanged.
+		await harness.menu(pinnedPills().find(pill => pill.textContent === 'plan.md'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+		harness.connection.setState(StateComponents.Session, session('aboveInput'));
+		await timeout(0);
+		const userChoice = state();
+		harness.connection.setState(StateComponents.Session, session('pinned', 1));
+		await timeout(0);
+		const pinnedAgain = state();
+		harness.connection.setState(StateComponents.Session, session('aboveInput', 2));
+		await timeout(0);
+		const shownAgain = state();
+		// Asking to only pin it moves it out of the chat directly, without the user hiding it first.
+		harness.connection.setState(StateComponents.Session, session('pinned', 3));
+		await timeout(0);
+		const pinnedFromAboveInput = state();
+		// A request that comes back to the applied mode while the chat missed the one in between is still new.
+		harness.connection.setState(StateComponents.Session, session('pinned', 5));
+		await timeout(0);
+		await harness.menu(pinnedPills().find(pill => pill.textContent === 'plan.md'))?.find(action => action.id === 'chatResources.showAboveInput')?.run();
+		harness.connection.setState(StateComponents.Session, session('pinned', 7));
+		await timeout(0);
+
+		assert.deepStrictEqual({ requested, userChoice, pinnedAgain, shownAgain, pinnedFromAboveInput, missedRequest: state() }, {
+			requested: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: ['Plan'], planOpensInChat: true },
+			userChoice: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
+			pinnedAgain: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
+			shownAgain: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: ['Plan'], planOpensInChat: true },
+			pinnedFromAboveInput: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
+			missedRequest: { pinned: ['notes.md', 'plan.md', 'log.md'], shown: [], planOpensInChat: false },
 		});
 	});
 

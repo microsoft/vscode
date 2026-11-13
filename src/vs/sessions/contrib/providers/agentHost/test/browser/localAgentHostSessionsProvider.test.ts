@@ -94,6 +94,7 @@ import { devContainerSamples, devContainerSampleUri } from '../../../../../../pl
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostMcpAppToolsService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { LocalAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProvider.js';
+import { AgentHostArtifactIntegrations } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostArtifactIntegrations.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
 import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -755,6 +756,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 ], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; getChatModel?: (resource: URI) => IChatModel | undefined; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<ITestSessionWithChat | undefined>; visibleSessions?: IObservable<readonly (ITestSessionWithChat | undefined)[]>; windowSessions?: IObservable<readonly ITestSessionWithChat[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; sessionTools?: (resource: URI) => readonly ToolDefinition[]; mcpAppTools?: (resource: URI) => readonly ToolDefinition[]; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; telemetryService?: ITelemetryService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
+	instantiationService.stubInstance(AgentHostArtifactIntegrations, { setConnection: () => { }, dispose: () => { } });
 	instantiationService.stub(IAgentHostService, agentHostService);
 	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 		private readonly _resources = new ResourceMap<URI>();
@@ -868,7 +870,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override acquireSessionTools = (resource: URI) => new ImmortalReference(constObservable(options?.sessionTools?.(resource) ?? []));
 		override areScopeRootsEqual = (first: readonly URI[] | undefined, second: readonly URI[]) =>
 			first !== undefined && first.length === second.length && first.every((root, index) => extUriIgnorePathCase.isEqual(root, second[index]));
-		override acquireScope = (sessionType: string, roots: readonly URI[]) => options?.activeClientScope?.(sessionType, roots) ?? ({
+		override acquireScope = (sessionType: string, roots: readonly URI[] | undefined) => options?.activeClientScope?.(sessionType, roots ?? []) ?? ({
 			customizations: constObservable(options?.activeClient?.customizations ?? []),
 			customAgents: options?.activeClientAgents ?? constObservable([]),
 			tools: constObservable(options?.activeClient?.tools ?? []),
@@ -4186,6 +4188,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, { unavailable: [], source: { name: agent.name, uri: URI.parse(agent.uri) }, available: ids.slice(1), current: ids[2], cleared: ids });
 	});
 
+	for (const disconnectDuringLoad of [false, true]) {
+		test(`background row sends reject an unavailable local host before optimistic submission and allow retry (disconnectDuringLoad=${disconnectDuringLoad})`, async () => {
+			const connected = observableValue('connected', true);
+			const host = new class extends MockAgentHostService {
+				override readonly connectionAvailable = connected;
+			}();
+			disposables.add(toDisposable(() => host.dispose()));
+			host.addSession(createSession('retry', { summary: 'Retry' }));
+			let loads = 0;
+			let sends = 0;
+			let releases = 0;
+			const provider = createRefreshableProvider(disposables, host, {
+				acquireOrLoadSession: async () => {
+					loads++;
+					if (disconnectDuringLoad && loads === 1) {
+						connected.set(false, undefined);
+					}
+					return {
+						object: new class extends mock<IChatModel>() {
+							override readonly inputModel = new class extends mock<IInputModel>() {
+								override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+								override setState(): void { }
+								override clearState(): void { }
+							}();
+						}(),
+						dispose: () => { releases++; },
+					};
+				},
+				sendRequest: async () => {
+					sends++;
+					return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			await provider.refreshForTest();
+			const session = provider.getSessions()[0];
+			const chat = session.mainChat.get();
+			const management = createManagementService(disposables, provider);
+			if (!disconnectDuringLoad) {
+				connected.set(false, undefined);
+			}
+			await assert.rejects(management.sendRequestInBackground(session, chat, { query: '/fix-ci' }), /agent host is unavailable/);
+			const failed = { sends, loads, releases };
+			connected.set(true, undefined);
+			await management.sendRequestInBackground(session, chat, { query: '/fix-ci' });
+			const retried = { sends, loads, releases };
+			connected.set(false, undefined);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'Foreground request' });
+			assert.deepStrictEqual({ failed, retried, foregroundSends: sends }, {
+				failed: { sends: 0, loads: disconnectDuringLoad ? 1 : 0, releases: disconnectDuringLoad ? 1 : 0 },
+				retried: { sends: 1, loads: disconnectDuringLoad ? 2 : 1, releases: disconnectDuringLoad ? 2 : 1 },
+				foregroundSends: 2,
+			});
+		});
+	}
+
 	test('agent metadata changes refresh model availability without changing the selected agent', async () => {
 		const agent: AgentCustomization = {
 			type: CustomizationType.Agent, id: 'required', uri: 'other-host:/required', name: 'Required',
@@ -6010,6 +6067,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [
 			{ ...createSession('cached-run', { summary: 'Cached run' }), origin: automationOrigin },
+			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: { ...automationOrigin, purpose: 'scheduledChat' } },
 			createSession('cached-plain', { summary: 'Cached plain' }),
 		]);
 		const nextHost = new MockAgentHostService();
@@ -6019,7 +6077,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			listSessionsCalls: nextHost.listSessionsCallCount,
 			marks: Object.fromEntries(provider.getSessions().map(session => [session.title.get(), session.isAutomation?.get()])),
-		}, { listSessionsCalls: 0, marks: { 'Cached run': true, 'Cached plain': false } });
+			scheduled: provider.getSessions().filter(session => session.isScheduledChat?.get()).map(session => session.title.get()),
+		}, { listSessionsCalls: 0, marks: { 'Cached run': true, 'Cached scheduled chat': true, 'Cached plain': false }, scheduled: ['Cached scheduled chat'] });
 	}));
 
 	test('preserves typed automation provenance when the run catalogue changes or is deleted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -9822,6 +9881,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await provider.getAutomationSessionConfiguration(draft.sessionId);
 			await timeout(0);
 			assert.deepStrictEqual(agentHost.createSessionConfigs.map(config => config.agent), [{ uri: 'file:///agents/reviewer.agent.md' }]);
+		});
+	}
+
+	for (const quickChat of [false, true]) {
+		test(`restores ordinary draft configuration before resolving the provider (quick chat: ${quickChat})`, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const sessionTemplate = {
+				modelId: 'agent-host-copilotcli:auto',
+				modelConfiguration: { thinkingLevel: 'low' },
+				config: { mode: 'plan', autoApprove: 'assisted' },
+			};
+			const options = { draftConfiguration: { sessionTemplate } };
+			const session = quickChat
+				? provider.createQuickChat(provider.sessionTypes[0].id, options)
+				: provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id, options);
+			const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+			assert.deepStrictEqual({
+				modelId: captured?.sessionTemplate?.modelId,
+				modelConfiguration: captured?.sessionTemplate?.modelConfiguration,
+				mode: captured?.mode,
+				permissionLevel: captured?.permissionLevel,
+			}, { modelId: sessionTemplate.modelId, modelConfiguration: sessionTemplate.modelConfiguration, mode: 'plan', permissionLevel: 'assisted' });
 		});
 	}
 

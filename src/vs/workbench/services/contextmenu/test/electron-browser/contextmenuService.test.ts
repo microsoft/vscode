@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getZoomFactor, setZoomFactor } from '../../../../../base/browser/browser.js';
 import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
+import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action, ActionRunner, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { isLinux, isWindows } from '../../../../../base/common/platform.js';
+import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { IContextMenuItem, IPopupOptions } from '../../../../../base/parts/contextmenu/common/contextmenu.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -20,6 +22,7 @@ import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { NativeContextMenuService } from '../../electron-browser/contextmenuService.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('Native ContextMenuService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -125,6 +128,7 @@ suite('Native ContextMenuService', () => {
 				const frame = mainWindow.document.createElement('iframe');
 				mainWindow.document.body.appendChild(frame);
 				store.add(toDisposable(() => frame.remove()));
+				store.add(registerTestIframe(frame));
 				const targetWindow = frame.contentWindow!;
 				const didRun = new DeferredPromise<void>();
 				const action = store.add(new Action('test', 'Test', undefined, true, async () => {
@@ -211,5 +215,39 @@ suite('Native ContextMenuService', () => {
 			});
 		}
 	}
+
+	test('scales native menu popup coordinates by window zoom without double-counting CSS zoom', () => {
+		const initialZoom = getZoomFactor(mainWindow);
+		store.add(toDisposable(() => setZoomFactor(initialZoom, mainWindow)));
+		setZoomFactor(0.8, mainWindow);
+
+		const counterZoomed = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		counterZoomed.style.cssText = 'position: fixed; top: 0; left: 0; zoom: 1.25;';
+		store.add(toDisposable(() => counterZoomed.remove()));
+		const anchor = counterZoomed.appendChild(mainWindow.document.createElement('div'));
+		anchor.style.cssText = 'position: absolute; top: 8px; left: 20px; width: 40px; height: 20px;';
+
+		const action = store.add(new Action('test', 'Test'));
+		const measure = (anchorAlignment: AnchorAlignment) => {
+			service.showContextMenu({
+				getAnchor: () => anchor,
+				getActions: () => [action],
+				anchorAlignment,
+			});
+			const result = { x: popupOptions?.x, y: popupOptions?.y };
+			closeMenu?.();
+			return result;
+		};
+
+		const rect = anchor.getBoundingClientRect();
+		const expectedY = Math.floor(rect.bottom * 0.8 + (isMacintosh ? 4 : 0));
+		assert.deepStrictEqual({
+			left: measure(AnchorAlignment.LEFT),
+			right: measure(AnchorAlignment.RIGHT),
+		}, {
+			left: { x: Math.floor(rect.left * 0.8), y: expectedY },
+			right: { x: Math.floor(rect.right * 0.8), y: expectedY },
+		});
+	});
 
 });

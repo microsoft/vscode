@@ -154,10 +154,12 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private static readonly INBOX_SCOPE_STORAGE_KEY = 'sessionsListControl.inboxScope';
 	private static readonly SHOW_AUTOMATION_RUNS_KEY = 'showAutomationRuns';
+	private static readonly SCHEDULED_ONLY_KEY = 'scheduledOnly';
 	private readonly excluded: Map<string, boolean>;
 	private _inboxScope: IInboxScope = {};
 	get inboxScope(): IInboxScope { return this._inboxScope; }
 	get hasInboxScope(): boolean { return this._inboxScope.workspace !== undefined || this._inboxScope.environment !== undefined; }
+	get hasInboxWorkspaceScope(): boolean { return !!this._inboxScope.workspace && this._inboxScope.workspace !== 'none'; }
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 	private readonly changeSignal = observableSignalFromEvent(this, this.onDidChange);
@@ -217,6 +219,15 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	setShowAutomationRuns(show: boolean): void {
 		this.excluded.set(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY, show);
+		this.save();
+	}
+
+	isScheduledOnly(): boolean {
+		return this.excluded.get(SessionsListFilters.SCHEDULED_ONLY_KEY) ?? false;
+	}
+
+	setScheduledOnly(scheduledOnly: boolean): void {
+		this.excluded.set(SessionsListFilters.SCHEDULED_ONLY_KEY, scheduledOnly);
 		this.save();
 	}
 

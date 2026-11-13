@@ -25,7 +25,7 @@ import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type AgentProvider, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentPluginInstallation, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { AgentHostPrewarmSessionsSettingId, type IAgentCanvasInfo, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -112,7 +112,7 @@ import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from '../../../../../.
 import { IArtifactModel } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IFocusedSessionHostService, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsRecentWorkspacesService } from '../../../browser/sessionsRecentWorkspacesService.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, ISessionChatMoveDestination, SessionMoveRefusedError, IDeleteChatOptions, type INestedChatFolderInfo, type INestedChatWorkspace, type INestedChatWorkspaceSupport, NestedChatWorkspaceError, type IForkChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionDraftConfiguration, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionPermissionOption, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration, ICreateNewChatOptions, IHarnessPresentation, type SessionResourceResolveReason } from '../../../common/sessionsProvider.js';
 import type { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { LEGACY_MIGRATION_OPEN_TIMEOUT_MS, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../../../chat/browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { AgentHostChatMoveTracker } from '../../../../chat/browser/agentSessions/agentHost/agentHostChatMoveTracker.js';
@@ -978,6 +978,7 @@ function toSessionRemoteConnectionStatus(owner: object, connectionStatus: IObser
 				switch (status.reason) {
 					case AgentHostTransportFailureReason.Unknown:
 					case AgentHostTransportFailureReason.AuthenticationFailed:
+					case AgentHostTransportFailureReason.SSHAuthenticationFailed:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.Unknown };
 					case AgentHostTransportFailureReason.HostNotRunning:
 						return { kind: status.kind, reason: SessionRemoteConnectionFailureReason.HostNotRunning };
@@ -1420,6 +1421,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly isQuickChat: IObservable<boolean>;
 	private readonly _origin = observableValue<SessionOrigin | undefined>(this, undefined);
 	readonly isAutomation = derived(this, reader => this._origin.read(reader)?.kind === SessionOriginKind.Automation);
+	readonly isScheduledChat = derived(this, reader => this._origin.read(reader)?.purpose === 'scheduledChat');
 	readonly isExternal: IObservable<boolean>;
 	readonly remoteConnectionStatus: IObservable<SessionRemoteConnectionStatus> | undefined;
 	readonly createdBySession: IObservable<ISessionCreationReference | undefined>;
@@ -4613,6 +4615,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `customizations` and `activeClient.customizations` for the picker.
 	 */
 	protected readonly _lastSessionStates = new Map<string, SessionState>();
+	/** The chat that recorded each artifact, parsed once per session `_meta` value rather than once per artifact. */
+	private readonly _recordedArtifactOrigins = new WeakMap<SessionMeta, ReadonlyMap<string, string | undefined>>();
 	/** Fires when {@link _lastSessionStates} or {@link _sessionCache} changes, for readers of a backend session's default chat. */
 	private readonly _backendSessionsChanged = observableSignal(this);
 
@@ -5051,6 +5055,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Current connection (always present for local; may be undefined while disconnected for remote). */
 	protected abstract get connection(): IAgentConnection | undefined;
+	get setPluginEnabled(): ((provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>) | undefined {
+		const connection = this.connection;
+		return connection?.setPluginEnabled
+			? (provider, plugin, enabled, scope, session, chat) => connection.setPluginEnabled!(provider, plugin, enabled, scope, session, chat)
+			: undefined;
+	}
+
+	get listPluginInstallations(): ((provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>) | undefined {
+		const connection = this.connection;
+		return connection?.listPluginInstallations
+			? (provider, session, chat) => connection.listPluginInstallations!(provider, session, chat)
+			: undefined;
+	}
 
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
@@ -5768,7 +5785,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					turnId: options.createdBySession.turnId,
 				})
 				: options?.metadata,
-			options?.automationConfiguration,
+			options?.draftConfiguration ?? options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
 			options?.permissionId,
@@ -5808,7 +5825,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					turnId: options.createdBySession.turnId,
 				})
 				: options?.metadata,
-			options?.automationConfiguration,
+			options?.draftConfiguration ?? options?.automationConfiguration,
 			options?.modelId,
 			options?.modelConfiguration,
 			options?.permissionId,
@@ -6320,7 +6337,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!resolvedConfig) {
 			throw new Error('Cannot capture unresolved Automation session configuration.');
 		}
-		const config = { ...resolvedConfig.values };
+		const { sessionTemplate, modelId, mode, permissionLevel } = this.getDraftSessionConfiguration(sessionId)!;
+		return { sessionTemplate, modelId, mode, permissionLevel };
+	}
+
+	getDraftSessionConfiguration(sessionId: string): ISessionDraftConfiguration | undefined {
+		const newSession = this._getNewSession(sessionId);
+		if (!newSession) {
+			return undefined;
+		}
+		const resolvedConfig = newSession.getConfig();
+		const config = { ...resolvedConfig?.values };
 		const initialConfig = newSession.getInitialSessionTemplate()?.config ?? {};
 		for (const [key, value] of Object.entries(initialConfig)) {
 			if (!newSession.wasConfigValueExplicitlySet(key)) {
@@ -6341,11 +6368,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			};
 		const mode = templateConfig[SessionConfigKey.Mode];
 		const permissionLevel = templateConfig[SessionConfigKey.AutoApprove];
+		const workspace = resolvedConfig && getSessionWorkspaceProperties(resolvedConfig.schema);
+		const isolation = workspace?.isolation && readSessionIsolation(workspace.isolation, config[workspace.isolation.key]);
+		const branch = workspace?.baseBranch && config[workspace.baseBranch.key];
 		return {
 			sessionTemplate,
 			modelId,
 			mode: typeof mode === 'string' ? mode : undefined,
 			permissionLevel: typeof permissionLevel === 'string' ? permissionLevel : undefined,
+			isolationMode: isolation === 'folder' ? 'workspace' : isolation,
+			branch: typeof branch === 'string' ? branch : undefined,
 		};
 	}
 
@@ -7697,6 +7729,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return backendResource && owner ? buildOpenSessionLinkForChat(owner, backendResource, this._backendDefaultChat(owner, undefined), undefined) : undefined;
 	}
 
+	protected getAutomationConversation(session: URI, chat: URI): { readonly sessionResource: URI; readonly chatResource: URI } | undefined {
+		const cached = this._sessionCache.get(session.toString());
+		const target = cached?.chats.get().find(candidate => isEqual(cached.getBackendChatResource(candidate.resource), chat));
+		return cached && target ? { sessionResource: cached.resource, chatResource: target.resource } : undefined;
+	}
+
 	getWorkingDirectories(sessionId: string): readonly string[] {
 		const sessionState = this._lastSessionStates.get(sessionId);
 		return sessionState?.workingDirectories ?? [];
@@ -8417,6 +8455,25 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._artifactIntegrations.value;
 	}
 
+	/** Every artifact's workspace reads its origin, so a session update parses the recorded artifacts once for all of them. */
+	private _getRecordedArtifactOrigin(meta: SessionMeta | undefined, artifactId: string): string | undefined {
+		if (!meta) {
+			return undefined;
+		}
+		let origins = this._recordedArtifactOrigins.get(meta);
+		if (!origins) {
+			const parsed = new Map<string, string | undefined>();
+			for (const artifact of readSessionArtifacts(meta)) {
+				if (!parsed.has(artifact.id)) {
+					parsed.set(artifact.id, artifact.origin?.chat);
+				}
+			}
+			origins = parsed;
+			this._recordedArtifactOrigins.set(meta, origins);
+		}
+		return origins.get(artifactId);
+	}
+
 	async acquireArtifactIntegration(sessionId: string, artifactId: string): Promise<IReference<IArtifactModel>> {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -8431,8 +8488,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				return undefined;
 			}
 			const state = this._lastSessionStates.get(session.sessionId);
-			const recorded = readSessionArtifacts(state?._meta).find(artifact => artifact.id === artifactId);
-			const origin = recorded?.origin?.chat ?? state?.defaultChat;
+			const origin = this._getRecordedArtifactOrigin(state?._meta, artifactId) ?? state?.defaultChat;
 			const chat = state && session.chats.read(reader).find(chat => getSessionChatResource(state, chat.resource.fragment || DEFAULT_CHAT_ID, state.defaultChat) === origin);
 			const folder = chat?.workspace.read(reader)?.folders[0];
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): artifact integration workspace context needs the owning connection mapper
@@ -8895,11 +8951,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 		this._assertSessionAvailable(chatId);
+		this._assertSendConnectionAvailable(options);
 		const newSession = this._getNewSession(chatId);
 		if (newSession) {
 			return this._sendNewSessionRequest(newSession, chatId, chatResource, options);
 		}
 		return this._sendCommittedChatRequest(chatId, chatResource, options);
+	}
+
+	private _assertSendConnectionAvailable(options: ISendRequestOptions): void {
+		if (options.requireConnected && (!this.connection || this.connection.connectionAvailable?.get() === false)) {
+			throw new Error(localize('agentHost.sendUnavailable', "The agent host is unavailable. Reconnect and try again."));
+		}
 	}
 
 	/** Send the first request for an already-committed peer chat, then clear its `new` flag. */
@@ -8962,6 +9025,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		try {
+			this._assertSendConnectionAvailable(options);
 			this._applyChatSessionState(modelRef, selectedModelId, selectedAgentUri, { modelConfiguration: selectedModelConfiguration });
 
 			const result = await this._chatService.sendRequest(chatResource, query, sendOptions);

@@ -15,6 +15,7 @@ import { ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor } from '../.
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { EditorType, IDiffEditor, IEditor, IEditorContribution, IModelChangedEvent } from '../../../../editor/common/editorCommon.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { IModelDecorationOptions, IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import { ModelDecorationOptions, TextModel } from '../../../../editor/common/model/textModel.js';
 import * as languages from '../../../../editor/common/languages.js';
@@ -27,6 +28,7 @@ import { ICommentInfo, ICommentService } from './commentService.js';
 import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from './commentThreadZoneWidget.js';
 import { CommentWidgetFocus, ICommentThreadEditorWidget } from './commentThreadEditorWidget.js';
 import { ICommentThreadFloatingWidgetHost, ReviewFloatingWidget } from './commentThreadFloatingWidget.js';
+import { FloatingWidgetRoom } from './commentThreadFloatingWidgetRoom.js';
 import { ICommentThreadFloatingWidgetLayout } from './commentThreadFloatingWidgetLayout.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/embeddedCodeEditorWidget.js';
@@ -130,7 +132,8 @@ class CommentingRangeDecorator {
 		const decorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: 'comment-range-glyph comment-diff-added'
+			linesDecorationsClassName: 'comment-range-glyph comment-diff-added',
+			firstLineDecorationClassName: 'comment-range-glyph comment-diff-added-glyph'
 		};
 
 		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
@@ -138,7 +141,8 @@ class CommentingRangeDecorator {
 		const hoverDecorationOptions: IModelDecorationOptions = {
 			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
-			linesDecorationsClassName: `comment-range-glyph line-hover`
+			linesDecorationsClassName: 'comment-range-glyph comment-diff-added',
+			firstLineDecorationClassName: 'comment-range-glyph line-hover'
 		};
 
 		this.hoverDecorationOptions = ModelDecorationOptions.createDynamic(hoverDecorationOptions);
@@ -485,6 +489,7 @@ export class CommentController extends Disposable implements IEditorContribution
 	private _commentWidgetVisible: IContextKey<boolean>;
 	private _hasRespondedToEditorChange: boolean = false;
 	private readonly _floatingWidgets = new Set<ReviewFloatingWidget>();
+	private readonly _floatingWidgetRoom: FloatingWidgetRoom | undefined;
 	private readonly _floatingWidgetHost: ICommentThreadFloatingWidgetHost = {
 		getLayout: widget => CommentController._floatingWidgetLayouts.get(this._getFloatingWidgetLayoutKey(widget)),
 		setLayout: (widget, layout) => CommentController._floatingWidgetLayouts.set(this._getFloatingWidgetLayoutKey(widget), layout),
@@ -492,7 +497,8 @@ export class CommentController extends Disposable implements IEditorContribution
 			this._floatingWidgets.add(widget);
 			return toDisposable(() => this._floatingWidgets.delete(widget));
 		},
-		getOtherWidgets: widget => Array.from(this._floatingWidgets).filter(other => other !== widget)
+		getOtherWidgets: widget => Array.from(this._floatingWidgets).filter(other => other !== widget),
+		getRoom: () => this._floatingWidgetRoom
 	};
 
 	constructor(
@@ -527,6 +533,10 @@ export class CommentController extends Disposable implements IEditorContribution
 		}
 
 		this.editor = editor;
+		if (EditorContextKeys.inMultiDiffEditor.getValue(contextKeyService)) {
+			// The editors of the multi diff editor are as tall as their content, so they grow to fit the floating widgets.
+			this._floatingWidgetRoom = this._register(new FloatingWidgetRoom(editor, () => Array.from(this._floatingWidgets, widget => widget.getDocumentRect())));
+		}
 
 		this._commentingRangeDecorator = this._register(new CommentingRangeDecorator());
 		this._register(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {

@@ -180,6 +180,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** Reject an unavailable connection instead of retaining the request for reconnection. */
+	readonly requireConnected?: boolean;
 	/** Initial configuration resolved by the target provider before its first turn. */
 	readonly sessionConfig?: Readonly<Record<string, unknown>>;
 	/** UI-only response observation, forwarded to the chat service rather than the backend. */
@@ -227,6 +229,8 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly pullRequestUrl?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
+	/** Ordinary saved-draft choices, independent of Automation availability. */
+	readonly draftConfiguration?: ISessionDraftConfiguration;
 }
 
 /** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
@@ -243,6 +247,12 @@ export interface IAutomationSessionConfiguration {
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
+}
+
+/** Serializable choices retained by an unsent session, without requiring a connection. */
+export interface ISessionDraftConfiguration extends IAutomationSessionConfiguration {
+	readonly isolationMode?: string;
+	readonly branch?: string;
 }
 
 /** Programmatic worktree settings applied together before a new session starts. */
@@ -286,6 +296,9 @@ export interface ISessionModelsSnapshot {
  * Unlike the aggregate IAutomationService, creation eligibility needs no provider ID because ownership is implicit.
  */
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Explicit host support for durable absolute-time requests; absent means unsupported. */
+	readonly supportsOneTimeAutomation?: IObservable<boolean>;
+	readonly supportsExistingChatAutomation?: IObservable<boolean>;
 	readonly configuration?: IAutomationProviderConfiguration;
 	/** Disabled providers are excluded from the aggregate catalogue and routing. */
 	readonly enabled?: IObservable<boolean>;
@@ -588,6 +601,9 @@ export interface ISessionsProvider {
 
 	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
 	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
+
+	/** Capture ordinary draft choices and support restoring them through `draftConfiguration` at creation. */
+	getDraftSessionConfiguration?(sessionId: string): ISessionDraftConfiguration | undefined;
 
 	/** Model preferences scoped to a session rather than the ordinary New Session defaults. */
 	getAutomationModelConfiguration?(sessionId: string): IModelConfigurationAccess | undefined;

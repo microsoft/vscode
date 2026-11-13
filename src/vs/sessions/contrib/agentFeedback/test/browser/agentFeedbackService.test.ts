@@ -226,6 +226,25 @@ suite('AgentFeedbackService - Ordering', () => {
 		assert.strictEqual(bearing.activeIdx, 2);
 	});
 
+	test('passive navigation anchors keep their reveal intent across feedback changes', () => {
+		const f1 = service.addFeedback(session, fileA, r(5), 'A:5');
+		service.addFeedback(session, fileA, r(20), 'A:20');
+		const reveals: boolean[] = [];
+		store.add(service.onDidChangeNavigation(event => reveals.push(event.reveal)));
+
+		service.setNavigationAnchor(session, f1.id, { reveal: false });
+		const passiveBearing = service.getNavigationBearing(session);
+		service.addFeedback(session, fileB, r(1), 'B:1');
+		service.getNextFeedback(session, true);
+		const revealedBearing = service.getNavigationBearing(session);
+
+		assert.deepStrictEqual({ passiveBearing, revealedBearing, reveals }, {
+			passiveBearing: { activeIdx: 0, totalCount: 2, reveal: false },
+			revealedBearing: { activeIdx: 1, totalCount: 3, reveal: true },
+			reveals: [false, false, true],
+		});
+	});
+
 	test('revealFeedback anchors the matching session editor comment so its widget expands', async () => {
 		const f1 = service.addFeedback(session, fileA, r(5), 'A:5');
 		const f2 = service.addFeedback(session, fileA, r(20), 'A:20');
@@ -1101,6 +1120,50 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			states: [AgentFeedbackState.Accepted], accepted: false, widgetLookups: [],
 		});
 	});
+
+	for (const agentHost of [true, false]) {
+		test(`background submission preserves Created comments on failure and submits only the selection on retry (agentHost=${agentHost})`, async () => {
+			if (!agentHost) {
+				providerId = 'legacy';
+			}
+			const selected = service.addFeedback(session, fileA, r(1), 'Selected', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
+			service.addFeedback(session, fileA, r(2), 'Other', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
+			const events: string[] = [];
+			store.add(service.onDidConvertFeedback(() => events.push('accepted')));
+			store.add(service.onDidSubmitFeedback(() => events.push('submitted')));
+			const options = { targetChat: backgroundChat.resource, background: true, feedbackIds: [selected.id], onRequestAccepted: () => events.push('sent') };
+			const pending = service.submitFeedback(session, options);
+			const before = service.getFeedback(session).map(item => item.state);
+			const rejection = assert.rejects(pending, /Unavailable/);
+			await backgroundAcceptance.error(new Error('Unavailable'));
+			await rejection;
+			const afterFailure = { states: service.getFeedback(session).map(item => item.state), events: [...events] };
+
+			backgroundAcceptance = new DeferredPromise<void>();
+			const retry = service.submitFeedback(session, options);
+			await backgroundAcceptance.complete();
+			await retry;
+
+			assert.deepStrictEqual({
+				before,
+				afterFailure,
+				afterRetry: service.getFeedback(session).map(item => item.state),
+				attachments: backgroundCalls.map(call => {
+					const attachment = call.options.attachedContext?.[0];
+					return attachment?.kind === 'agentFeedback' ? attachment.feedbackItems.map(item => item.id) : [];
+				}),
+				events,
+				widgetLookups,
+			}, {
+				before: [AgentFeedbackState.Created, AgentFeedbackState.Created],
+				afterFailure: { states: [AgentFeedbackState.Created, AgentFeedbackState.Created], events: [] },
+				afterRetry: [agentHost ? AgentFeedbackState.Submitted : AgentFeedbackState.Resolved, AgentFeedbackState.Created],
+				attachments: [[selected.id], [selected.id]],
+				events: ['accepted', 'submitted', 'sent'],
+				widgetLookups: [],
+			});
+		});
+	}
 
 	test('attaches the just-submitted feedback to the request and clears the attachment afterwards', async () => {
 		service.addFeedback(session, fileA, r(10), 'Please simplify');

@@ -12,6 +12,7 @@ import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/erro
 import { DeferredPromise, timeout } from '../../../../common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+import { registerTestIframe } from '../../testWindow.js';
 
 
 /**
@@ -1096,6 +1097,8 @@ suite('ContextView', () => {
 			iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 400px; height: 400px; border: 0;';
 			mainWindow.document.body.appendChild(iframe);
 			disposables.push(() => iframe.remove());
+			const registration = registerTestIframe(iframe);
+			disposables.push(() => registration.dispose());
 			const otherDocument = iframe.contentDocument!;
 			otherDocument.body.style.margin = '0';
 			// Auxiliary windows clone the main window's stylesheets, see `AuxiliaryWindowService`
@@ -1294,22 +1297,75 @@ suite('ContextView', () => {
 		}
 
 		for (const zoom of [2, 0.5]) {
-			test(`keeps the view clear of the window controls for a zoomed anchor (zoom ${zoom})`, () => {
+			test(`keeps the view clear of the window controls and aligned for a zoomed anchor (zoom ${zoom})`, () => {
 				const zoomed = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 				zoomed.style.cssText = `position: absolute; top: 0; left: 0; zoom: ${zoom};`;
 				disposables.add(toDisposable(() => zoomed.remove()));
 				const anchor = zoomed.appendChild(mainWindow.document.createElement('div'));
-				anchor.style.cssText = 'position: absolute; top: 0; left: 10px; width: 10px; height: 10px;';
+				anchor.style.cssText = 'position: absolute; top: 4px; left: 12px; width: 12px; height: 12px;';
 				// A band tall enough that the unadjusted view overlaps it at every zoom level
 				const overlay = new DOMRect(80, 0, mainWindow.innerWidth - 200, 100);
-				const measure = (getRect: () => DOMRect | undefined) => {
-					const { view } = layout(ContextViewDOMPosition.FIXED, anchor, getRect);
-					return clearance(view, overlay, mainWindow);
-				};
+				const withoutOverlayView = layout(ContextViewDOMPosition.FIXED, anchor, () => undefined);
+				const withoutOverlayRect = withoutOverlayView.view.getBoundingClientRect();
+				const anchorRect = anchor.getBoundingClientRect();
 
-				assert.deepStrictEqual({ withOverlay: measure(() => overlay), withoutOverlay: measure(() => undefined).coversButtons }, {
+				assert.deepStrictEqual({
+					withOverlay: clearance(layout(ContextViewDOMPosition.FIXED, anchor, () => overlay).view, overlay, mainWindow),
+					withoutOverlay: {
+						alignedTop: Math.abs(withoutOverlayRect.top - anchorRect.bottom) < 0.5,
+						alignedLeft: Math.abs(withoutOverlayRect.left - anchorRect.left) < 0.5,
+						classes: withoutOverlayView.read().classes,
+						...clearance(withoutOverlayView.view, overlay, mainWindow),
+					},
+				}, {
 					withOverlay: { coversButtons: false, inViewport: true, size: [40, 20] },
-					withoutOverlay: true,
+					withoutOverlay: {
+						alignedTop: true,
+						alignedLeft: true,
+						classes: ['bottom', 'left'],
+						coversButtons: true,
+						inViewport: true,
+						size: [40, 20],
+					},
+				});
+			});
+		}
+
+		for (const [name, domPosition] of [
+			['FIXED', ContextViewDOMPosition.FIXED],
+			['FIXED_SHADOW', ContextViewDOMPosition.FIXED_SHADOW],
+			['POPOVER', ContextViewDOMPosition.POPOVER],
+			['POPOVER_SHADOW', ContextViewDOMPosition.POPOVER_SHADOW],
+		] as const) {
+			test(`positions a ${name} context view hosted inside a CSS-zoomed container`, () => {
+				const host = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+				host.style.cssText = 'position: fixed; top: 12px; left: 20px; width: 200px; height: 40px; zoom: 1.25;';
+				disposables.add(toDisposable(() => host.remove()));
+				const anchor = host.appendChild(mainWindow.document.createElement('div'));
+				anchor.style.cssText = 'position: absolute; top: 8px; left: 16px; width: 24px; height: 16px;';
+
+				const contextView = disposables.add(new ContextView(host, domPosition));
+				contextView.show({
+					getAnchor: () => anchor,
+					render: view => {
+						const content = view.appendChild(mainWindow.document.createElement('div'));
+						content.style.cssText = 'display: block; width: 40px; height: 20px;';
+						return null;
+					}
+				});
+
+				const anchorRect = anchor.getBoundingClientRect();
+				const viewRect = contextView.getViewElement().getBoundingClientRect();
+				assert.deepStrictEqual({
+					alignedLeft: Math.abs(viewRect.left - anchorRect.left) < 0.5,
+					alignedTop: Math.abs(viewRect.top - anchorRect.bottom) < 0.5,
+					width: Math.round(viewRect.width),
+					height: Math.round(viewRect.height),
+				}, {
+					alignedLeft: true,
+					alignedTop: true,
+					width: 50,
+					height: 25,
 				});
 			});
 		}
@@ -1319,6 +1375,7 @@ suite('ContextView', () => {
 			iframe.style.cssText = 'position: absolute; top: 0; left: 0; width: 400px; height: 300px; border: 0;';
 			mainWindow.document.body.appendChild(iframe);
 			disposables.add(toDisposable(() => iframe.remove()));
+			disposables.add(registerTestIframe(iframe));
 			const otherDocument = iframe.contentDocument!;
 			const otherWindow = iframe.contentWindow!;
 			otherDocument.body.style.margin = '0';

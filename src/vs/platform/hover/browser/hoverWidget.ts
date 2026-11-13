@@ -348,6 +348,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	public render(container: HTMLElement): void {
+		this._mouseTracker?.enableMouseOutSuppression();
+		this._lockMouseTracker.enableMouseOutSuppression();
 		container.appendChild(this._hoverContainer);
 		const hoverFocused = this._hoverContainer.contains(this._hoverContainer.ownerDocument.activeElement);
 		const accessibleViewHint = hoverFocused && getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
@@ -377,22 +379,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._hover.contentsDomNode.style.maxHeight = '';
 		this._hover.containerDomNode.style.maxWidth = '';
 
-		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
-			const zoom = dom.getDomNodeZoomLevel(e);
-
-			const boundingRect = e.getBoundingClientRect();
-			return {
-				top: boundingRect.top * zoom,
-				bottom: boundingRect.bottom * zoom,
-				right: boundingRect.right * zoom,
-				left: boundingRect.left * zoom,
-			};
-		};
-
-		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
+		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
 		let { top, right, bottom, left } = targetBounds[0];
 		if (this._clippingElement) {
-			const clip = getZoomAccountedBoundingClientRect(this._clippingElement);
+			const clip = this._clippingElement.getBoundingClientRect();
 			const visible = {
 				top: Math.max(top, clip.top),
 				right: Math.min(right, clip.right),
@@ -736,6 +726,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 class CompositeMouseTracker extends Widget {
 	private _isMouseIn: boolean = true;
+	private _canSuppressMouseOut: boolean = false;
+	private _isPendingMouseOutSuppressible: boolean = false;
 	private _suppressNextMouseOut: boolean = false;
 	private readonly _mouseTimer: MutableDisposable<TimeoutTimer> = this._register(new MutableDisposable());
 
@@ -770,6 +762,7 @@ class CompositeMouseTracker extends Widget {
 
 	private _onTargetMouseLeave(): void {
 		this._isMouseIn = false;
+		this._isPendingMouseOutSuppressible = this._canSuppressMouseOut;
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
 		this._mouseTimer.value = new TimeoutTimer(() => this._fireIfMouseOutside(), this._eventDebounceDelay);
@@ -782,13 +775,24 @@ class CompositeMouseTracker extends Widget {
 	}
 
 	/**
+	 * Allows {@link suppressPendingMouseOut} to suppress mouseouts that start
+	 * after this call. Call this when the tracked elements are shown: a
+	 * mouseout that started before cannot be caused by them being resized or
+	 * repositioned, for example when the mouse left the target while a delayed
+	 * hover was pending.
+	 */
+	enableMouseOutSuppression(): void {
+		this._canSuppressMouseOut = true;
+	}
+
+	/**
 	 * Suppresses the next pending mouseout dismissal. Call this when tracked
 	 * elements are being resized or repositioned to avoid spurious dismissals
 	 * caused by the element shrinking away from the cursor. The suppression
 	 * is cleared when the mouse next enters a tracked element.
 	 */
 	suppressPendingMouseOut(): void {
-		if (!this._isMouseIn) {
+		if (!this._isMouseIn && this._isPendingMouseOutSuppressible) {
 			this._suppressNextMouseOut = true;
 		}
 	}

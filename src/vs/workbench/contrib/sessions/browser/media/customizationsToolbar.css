@@ -43,13 +43,15 @@
 
 /* Customization header */
 .ai-customization-toolbar .ai-customization-header {
+	position: relative;
+	isolation: isolate;
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
 	gap: var(--vscode-spacing-size40, 4px);
 	-webkit-user-select: none;
 	user-select: none;
-	padding: 6px 10px;
+	padding: var(--vscode-spacing-size60, 6px) var(--vscode-spacing-size100, 10px);
 	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	line-height: normal;
@@ -58,9 +60,29 @@
 	cursor: pointer;
 }
 
-.ai-customization-toolbar .ai-customization-header:hover .ai-customization-header-label,
+/* Inset the hover fill without shrinking the hit target. The shared disclosure
+ * contract owns the interaction boundary. */
+.ai-customization-toolbar .ai-customization-header:is(:hover, .hovered)::before {
+	content: '';
+	position: absolute;
+	inset: 0 var(--vscode-spacing-size40, 4px);
+	z-index: -1;
+	pointer-events: none;
+	border-radius: var(--vscode-cornerRadius-small, 4px);
+	background-color: var(--vscode-list-hoverBackground);
+}
+
 .ai-customization-toolbar .ai-customization-header:focus-visible .ai-customization-header-label {
 	color: var(--vscode-strongForeground);
+}
+
+.ai-customization-toolbar .ai-customization-header:is(:hover, .hovered) .ai-customization-header-label {
+	color: var(--vscode-list-hoverForeground, var(--vscode-strongForeground));
+}
+
+.ai-customization-toolbar .ai-customization-header:is(:hover, .hovered) .ai-customization-header-total-count,
+.ai-customization-toolbar .ai-customization-header:is(:hover, .hovered) .ai-customization-chevron {
+	color: var(--vscode-list-hoverForeground, var(--vscode-descriptionForeground));
 }
 
 .ai-customization-toolbar .ai-customization-header:focus-visible {
@@ -68,8 +90,12 @@
 	outline-offset: -1px;
 }
 
+.ai-customization-toolbar .ai-customization-header:focus-visible::before {
+	outline: none;
+}
+
 .ai-customization-toolbar .ai-customization-header:focus:not(:focus-visible) {
-	outline: none !important;
+	outline: none;
 }
 
 .ai-customization-toolbar .ai-customization-header-label {
@@ -128,11 +154,15 @@
 	opacity: 0;
 }
 
-.ai-customization-toolbar .ai-customization-header:hover .ai-customization-chevron,
+.ai-customization-toolbar .ai-customization-header:is(:hover, .hovered) .ai-customization-chevron,
 .ai-customization-toolbar .ai-customization-header:focus-visible .ai-customization-chevron,
 .ai-customization-toolbar .ai-customization-header.collapsed .ai-customization-chevron {
 	visibility: visible;
 	opacity: 0.7;
+}
+
+.ai-customization-toolbar .ai-customization-header:is(:hover, .hovered) .ai-customization-chevron {
+	opacity: 1;
 }
 
 .ai-customization-toolbar .ai-customization-chevron:hover {

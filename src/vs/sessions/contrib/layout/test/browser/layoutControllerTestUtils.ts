@@ -52,6 +52,7 @@ import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from 
 import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestCIModel.js';
 import { IGitHubCICheck } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 
@@ -857,6 +858,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			workingSetContents.set(name, { resources, activeResource: harness.activeEditorInput?.resource });
 			return { id: name, name };
 		}
+		override resolveWorkingSet(workingSet: IEditorWorkingSet) {
+			const contents = workingSetContents.get(workingSet.id);
+			if (!contents) {
+				return undefined;
+			}
+			const editors = contents.resources.map(resource => store.add(new TestStubEditorInput(resource)));
+			return { editors, activeEditor: editors.find(editor => isEqual(editor.resource, contents.activeResource)), dispose: () => editors.forEach(editor => editor.dispose()) };
+		}
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
 			const contents = workingSet === 'empty' ? { resources: [], activeResource: undefined } : workingSetContents.get(workingSet.id);
@@ -905,7 +914,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 		override get onDidChangeWorkspaceFolders() { return Event.map(harness.onDidChangeWorkspaceFolders.event, () => ({ added: [], removed: [], changed: [] })); }
-		override getWorkspace(): IWorkspace { return { id: 'test', folders: harness.workspaceFolders as IWorkspace['folders'] }; }
+		override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'test', folders: harness.workspaceFolders as IWorkspace['folders'] }); }
 	});
 
 	// The main window has focus: no chat window does.

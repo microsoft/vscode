@@ -2070,9 +2070,10 @@ suite('CopilotChatSessionsProvider', () => {
 		disposables.add(autorun(reader => observed.push(session.isExternal?.read(reader))));
 		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata }));
 
-		assert.deepStrictEqual({ observed, harness: session.harness, environment: session.environment, application: session.application.get() }, {
+		assert.deepStrictEqual({ observed, harness: session.harness, harnessLabel: provider.getHarnessPresentation(session.harness)?.label, environment: session.environment, application: session.application.get() }, {
 			observed: [true, false],
 			harness: 'copilot',
+			harnessLabel: 'Copilot',
 			environment: 'cloud',
 			application: { id: 'github/autopilot', label: 'Copilot App' },
 		});
@@ -2977,6 +2978,29 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.throws(() => provider.createNewSession(workspace, CopilotSandboxSessionType.id, { isAutomationDraft: true }), /not supported/);
 			assert.throws(() => provider.createQuickChat(CopilotSandboxSessionType.id, { isAutomationDraft: true }), /not supported/);
 		});
+
+		for (const providerMode of ['default', 'sandbox'] as const) {
+			test(`${providerMode} restores ordinary draft configuration with Automations disabled`, async () => {
+				const configurationService = new TestConfigurationService();
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				await configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
+				await configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
+				const provider = createProviderForSendTests(disposables, model, async () => { throw new Error('Must not send.'); }, {
+					configurationService, providerMode,
+				});
+				const draftConfiguration = {
+					sessionTemplate: { modelId: 'model', modelConfiguration: { thinkingLevel: 'low' }, config: { providerChoice: true } },
+				};
+				const type = providerMode === 'default' ? CopilotCloudSessionType.id : CopilotSandboxSessionType.id;
+				const session = provider.createNewSession(workspace, type, { draftConfiguration });
+				const restored = provider.getDraftSessionConfiguration(session.sessionId);
+				assert.deepStrictEqual({
+					model: session.modelId.get(),
+					modelConfiguration: restored?.sessionTemplate?.modelConfiguration,
+					providerChoice: restored?.sessionTemplate?.config?.providerChoice,
+				}, { model: 'model', modelConfiguration: { thinkingLevel: 'low' }, providerChoice: true });
+			});
+		}
 
 		test('enabled cloud automations capture model and opaque tools without local approval defaults', async () => {
 			const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: true } } } });

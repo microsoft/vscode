@@ -43,14 +43,16 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { extractIssueData } from '../../browser/issueFormService.js';
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
-import { IIssueReporterAttachmentImport, IIssueReporterDiagnosticsState, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
+import { IIssueReporterAttachmentImport, IIssueReporterDiagnosticsState, IIssueReporterTitleRequest, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { RecordingState } from '../../browser/recordingService.js';
-import { ScreenshotAnnotationEditor } from '../../browser/screenshotAnnotation.js';
-import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
+import { IScreenshotToolService } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService, TestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
+import { IIssueReporterFileAttachment, IssueReporterAttachment, IssueReporterData, IssueReporterLayout, IssueSource, IssueType } from '../../common/issue.js';
 import { internalIssueReporterUrl, resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { issueReporterGifFixture, issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 class TestContextViewService implements IContextViewService {
 	declare readonly _serviceBrand: undefined;
@@ -68,6 +70,7 @@ class TestContextViewService implements IContextViewService {
 suite('IssueReporterOverlay', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const screenshot = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
+	const annotatedScreenshot = { dataUrl: 'data:image/png;base64,YW5ub3RhdGVk', width: 24, height: 16 };
 	const attachment: IIssueReporterFileAttachment = { filePath: '/owned/bundle.zip', name: 'bundle.zip', mimeType: 'application/zip' };
 
 	function capturedScreenshot(id: string, image: IScreenshot = screenshot): IssueReporterAttachment<IScreenshot> {
@@ -81,9 +84,14 @@ suite('IssueReporterOverlay', () => {
 	function createReporter(overrides: Partial<IssueReporterData> = {}, options: {
 		resolveExtensionIssueData?: (extensionId: string) => Promise<IssueReporterData | undefined>;
 		captureContainer?: HTMLElement;
+		layout?: IssueReporterLayout;
+		/** The report to build the form for again, as when it moves to another pane. */
+		input?: IssueReporterEditorInput;
 	} = {}) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.fontFamily': 'monospace', 'editor.fontSize': 28 }));
+		const screenshotTool = createTestScreenshotToolService(store).service;
+		instantiation.stub(IScreenshotToolService, screenshotTool);
 		instantiation.stub(IClipboardService, { writeText: async () => { } });
 		instantiation.stub(IUserInteractionService, new UserInteractionService());
 		const telemetry = new TestTelemetryService();
@@ -112,14 +120,14 @@ suite('IssueReporterOverlay', () => {
 			},
 		});
 		instantiation.stub(IMarkdownRendererService, markdownRenderer);
-		const data: IssueReporterData = {
+		const data: IssueReporterData = options.input?.data ?? {
 			styles: {}, zoomLevel: 0, enabledExtensions: [], restrictedMode: false,
 			isInstallationPure: true, isSessionsWindow: false, githubAccessToken: '',
 			issueSource: IssueSource.VSCode, issueType: IssueType.Bug,
 			issueTitle: 'Repository selection', issueBody: 'Issue description',
 			...overrides,
 		};
-		const input = store.add(instantiation.createInstance(IssueReporterEditorInput, data));
+		const input = options.input ?? store.add(instantiation.createInstance(IssueReporterEditorInput, data, options.layout ?? 'detailed'));
 		const editor = input.descriptionInput;
 		const container = document.createElement('div');
 		container.style.width = '800px';
@@ -160,7 +168,7 @@ suite('IssueReporterOverlay', () => {
 			menu?.onHide?.(false);
 			await action.run();
 		};
-		return { overlay, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, telemetry, hovers, imports, completeImport, setSelection, setText, selectRepository, getMenu: () => menu };
+		return { overlay, input, editor, container, data, preview, writeTab, previewTab, descriptionPreview, description, files, feedback, opened, instantiation, telemetry, hovers, imports, completeImport, setSelection, setText, selectRepository, screenshotTool, getMenu: () => menu };
 	}
 
 	function insertNativeText(editor: HTMLTextAreaElement, text: string): void {
@@ -248,6 +256,7 @@ suite('IssueReporterOverlay', () => {
 		const frame = document.createElement('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		frame.contentDocument!.body.appendChild(container);
 		overlay.reparentFloatingBar();
 		const stayedWithSource = bar.ownerDocument === document && document.body.contains(bar);
@@ -271,9 +280,9 @@ suite('IssueReporterOverlay', () => {
 			focusedDescription: true,
 			submitted: ['A title'],
 			events: [
-				{ name: 'issueReporter.previewClicked', data: undefined },
-				{ name: 'issueReporter.previewClicked', data: undefined },
-				{ name: 'issueReporter.previewClicked', data: undefined },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } },
+				{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } },
 			],
 		});
 	});
@@ -282,7 +291,7 @@ suite('IssueReporterOverlay', () => {
 		test(`records one preview activation with keyCode ${activation.keyCode}`, () => {
 			const { preview, telemetry } = createReporter();
 			preview.dispatchEvent(new KeyboardEvent('keydown', { ...activation, bubbles: true, cancelable: true }));
-			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: undefined }]);
+			assert.deepStrictEqual(telemetry.events, [{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } }]);
 		});
 	}
 
@@ -297,7 +306,7 @@ suite('IssueReporterOverlay', () => {
 		preview.click();
 		assert.deepStrictEqual({ ignored, events: telemetry.events }, {
 			ignored: [],
-			events: [{ name: 'issueReporter.previewClicked', data: undefined }],
+			events: [{ name: 'issueReporter.previewClicked', data: { layout: 'detailed', automaticScreenshot: false } }],
 		});
 	});
 
@@ -739,7 +748,7 @@ suite('IssueReporterOverlay', () => {
 			for (const name of ['A.png', 'B.png']) {
 				completeImport({ filePath: `/owned/${name}`, name, mimeType: 'image/png' });
 			}
-			store.add(overlay.onDidRequestScreenshot(id => {
+			store.add(overlay.onDidRequestScreenshot(({ id }) => {
 				overlay.addScreenshot(screenshot, id);
 				overlay.completeScreenshotCapture(id);
 			}));
@@ -753,7 +762,7 @@ suite('IssueReporterOverlay', () => {
 		test('keeps request order through mixed pending work, cancellation, removal and restoration', () => {
 			const { overlay, files, imports } = createReporter();
 			let captureId = '';
-			store.add(overlay.onDidRequestScreenshot(id => { captureId = id; }));
+			store.add(overlay.onDidRequestScreenshot(({ id }) => { captureId = id; }));
 			paste(files, [new File(['a'], 'A.png', { type: 'image/png' })]);
 			overlay.triggerCaptureScreenshot();
 			paste(files, [new File(['b'], 'B.zip')]);
@@ -787,7 +796,9 @@ suite('IssueReporterOverlay', () => {
 			mainWindow.document.querySelector<HTMLElement>('.wizard-segmented-dropdown')!.click();
 			await getMenu()!.getActions().find(action => action.id === 'delay-3')!.run();
 			getMenu()!.onHide?.(false);
-			store.add(overlay.onDidRequestScreenshot(id => {
+			const delayedRequests: boolean[] = [];
+			store.add(overlay.onDidRequestScreenshot(({ id, delayed }) => {
+				delayedRequests.push(delayed);
 				overlay.addScreenshot(screenshot, id);
 				overlay.completeScreenshotCapture(id);
 			}));
@@ -795,7 +806,7 @@ suite('IssueReporterOverlay', () => {
 			paste(files, images(1));
 			completeImport(attachment);
 			await timeout(3100);
-			assert.deepStrictEqual(attachmentNames(files), ['screenshot-1.png', 'bundle.zip']);
+			assert.deepStrictEqual({ cards: attachmentNames(files), delayedRequests }, { cards: ['screenshot-1.png', 'bundle.zip'], delayedRequests: [true] });
 		}));
 
 		test('retains visible uploaded badges after completion, rerender, removal and restore', () => {
@@ -923,7 +934,7 @@ suite('IssueReporterOverlay', () => {
 			}));
 			const firstHovers = names.map(element => hovers.get(element));
 			overlay.setRecordingState(RecordingState.Idle);
-			const replacement = { oldHovers: names.filter(element => hovers.has(element)).length, currentHovers: hovers.size };
+			const replacement = { oldHovers: names.filter(element => hovers.has(element)).length, currentHovers: [...hovers.keys()].filter(target => files.contains(target)).length };
 			overlay.dispose();
 			assert.deepStrictEqual({ firstHovers, labels, replacement, afterDispose: hovers.size }, {
 				firstHovers: ['screenshot-1.png', name],
@@ -948,16 +959,15 @@ suite('IssueReporterOverlay', () => {
 			}), colors);
 		});
 
-		test('invalidates only the edited screenshot upload and ignores its old completion', () => {
-			const { overlay, files, container, data } = createReporter();
+		test('invalidates only the edited screenshot upload and ignores its old completion', async () => {
+			const { overlay, files, data, screenshotTool } = createReporter();
 			const ready = [capturedScreenshot('capture'), attachedFile('file')];
 			overlay.restoreAttachments(ready);
 			const destination = resolveIssueReporterTarget(data, product)!.url;
 			for (const attachment of ready) {
 				overlay.setAttachmentUploadState(attachment, { destination, state: 'done' });
 			}
-			files.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
-			closeAnnotation(container, 'Save');
+			await markUp(screenshotTool, files.querySelector<HTMLElement>('.wizard-screenshot-card')!);
 			overlay.setAttachmentUploadState(ready[0], { destination, state: 'done' });
 			assert.deepStrictEqual({
 				identities: overlay.getAttachments().map(item => item.id),
@@ -1148,43 +1158,278 @@ suite('IssueReporterOverlay', () => {
 		});
 	});
 
-	function closeAnnotation(container: HTMLElement, action: 'Save' | 'Discard'): void {
-		const editor = [...container.querySelectorAll('.issue-reporter-annotation-overlay')].at(-1)!;
-		[...editor.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === action)!.click();
+	/** Marks up the image of a card, which the screenshot tool returns with annotations. */
+	async function markUp(screenshotTool: TestScreenshotToolService, card: HTMLElement): Promise<void> {
+		screenshotTool.editResult = { original: screenshot, annotationState: { actions: [], undoneActions: [], crop: null }, image: annotatedScreenshot, annotated: true };
+		card.click();
+		await timeout(0);
 	}
 
-	for (const action of ['Save', 'Discard'] as const) {
-		test(`releases closed annotation editors after ${action}`, () => {
-			const { overlay, container } = createReporter();
-			const disposed = spy(ScreenshotAnnotationEditor.prototype, 'dispose');
-			store.add(toDisposable(() => disposed.restore()));
-			overlay.addScreenshot({ ...screenshot });
-			closeAnnotation(container, action);
-			disposed.resetHistory();
-			overlay.dispose();
-			assert.strictEqual(disposed.callCount, 0);
+	test('marks up a screenshot from its card and returns focus to its replaced card', async () => {
+		const { overlay, files, screenshotTool } = createReporter();
+		overlay.restoreAttachments([capturedScreenshot('capture')]);
+		const card = files.querySelector<HTMLElement>('.wizard-screenshot-card')!;
+		card.focus();
+		await markUp(screenshotTool, card);
+		const replaced = files.querySelector<HTMLElement>('.wizard-screenshot-card')!;
+		assert.deepStrictEqual({ tool: screenshotTool.requests, annotated: overlay.getScreenshots()[0].annotatedDataUrl, replaced: replaced !== card, focused: mainWindow.document.activeElement === replaced }, {
+			tool: ['edit 48x32'], annotated: annotatedScreenshot.dataUrl, replaced: true, focused: true,
 		});
-	}
+	});
 
-	test('keeps lower annotation editors open until the reporter closes', () => {
-		const { overlay, container } = createReporter();
-		overlay.addScreenshot({ ...screenshot });
-		overlay.addScreenshot({ ...screenshot });
-		closeAnnotation(container, 'Discard');
-		const remaining = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
-		overlay.dispose();
-		assert.deepStrictEqual({ remaining, afterClose: container.querySelectorAll('.issue-reporter-annotation-overlay').length }, { remaining: 1, afterClose: 0 });
+	test('explains attachments behind a "?", how to edit images before them, and adds files rather than screenshots from the last card', () => {
+		const { overlay, container, files, hovers } = createReporter();
+		const help = container.querySelector<HTMLElement>('.wizard-attachments .wizard-help-icon')!;
+		const describedBy = (element: Element) => element.getAttribute('aria-describedby')!.split(' ').map(id => mainWindow.document.getElementById(id)?.textContent);
+		const screenshotRequests: unknown[] = [];
+		store.add(overlay.onDidRequestScreenshot(request => screenshotRequests.push(request)));
+		let pickerOpens = 0;
+		store.add(addDisposableListener(container.querySelector<HTMLInputElement>('input[type=file]')!, 'click', event => {
+			event.preventDefault();
+			pickerOpens++;
+		}));
+		const addCard = files.querySelector<HTMLElement>('.wizard-screenshot-add')!;
+		addCard.click();
+		const explanation = 'Drop or paste up to 5 files. Images: 10 MB. Videos: 100 MB. Other files: 25 MB. Files stay local until you preview on GitHub.';
+		assert.deepStrictEqual({
+			heading: help.parentElement?.textContent,
+			help: { role: help.getAttribute('role'), label: help.getAttribute('aria-label'), hover: hovers.get(help), description: describedBy(help) },
+			attachmentsDescription: describedBy(files),
+			addCard: { text: addCard.textContent, label: addCard.getAttribute('aria-label') },
+			pickerOpens,
+			screenshotRequests: screenshotRequests.length,
+			visibleHints: [...container.querySelectorAll<HTMLElement>('.wizard-attachments p.wizard-subtitle')].filter(hint => !hint.hidden).map(hint => ({
+				text: hint.textContent,
+				beforeAttachments: !!(hint.compareDocumentPosition(files) & Node.DOCUMENT_POSITION_FOLLOWING),
+			})),
+		}, {
+			heading: 'Attachments',
+			help: { role: 'button', label: 'Attachments Help', hover: explanation, description: [explanation] },
+			attachmentsDescription: ['Click an image to edit it.', explanation],
+			addCard: { text: 'Add Files...', label: 'Add Files' },
+			pickerOpens: 1,
+			screenshotRequests: 0,
+			visibleHints: [{ text: 'Click an image to edit it.', beforeAttachments: true }],
+		});
+	});
+
+	test('edits an image added as a file like a screenshot, and opens one that cannot be decoded like other files', async () => {
+		const { overlay, files, screenshotTool } = createReporter();
+		const image = { filePath: '/owned/image.png', name: 'image.png', mimeType: 'image/png', thumbnailDataUrl: issueReporterImageFixture };
+		const broken = { filePath: '/owned/broken.png', name: 'broken.png', mimeType: 'image/png', thumbnailDataUrl: 'data:image/png;base64,AA==' };
+		overlay.restoreAttachments([attachedFile('image', image), attachedFile('broken', broken), attachedFile('file')]);
+		const cards = [...files.querySelectorAll<HTMLElement>('.wizard-file-card')];
+		const labels = cards.map(card => card.getAttribute('aria-label'));
+		const opened = new DeferredPromise<string>();
+		store.add(overlay.onDidRequestOpenFile(path => opened.complete(path)));
+		cards[1].click();
+		const openedFile = await opened.p;
+		const editRequested = new DeferredPromise<void>();
+		store.add(screenshotTool.onDidRequestEdit(() => void editRequested.complete()));
+		cards[0].click();
+		await editRequested.p;
+		await timeout(0);
+		assert.deepStrictEqual({ labels, openedFile, tool: screenshotTool.requests, unchanged: overlay.getFileAttachments() }, {
+			labels: ['Edit image.png', 'Edit broken.png', 'Open bundle.zip'],
+			openedFile: '/owned/broken.png',
+			tool: ['edit 48x32 named image.png'],
+			unchanged: [image, broken, attachment],
+		});
+	});
+
+	test('starts the description as tall as its placeholder, with its tabs after its label, and grows it with the text', () => {
+		const { container, editor, setText } = createReporter({ issueBody: '' });
+		const height = () => editor.getBoundingClientRect().height;
+		const empty = height();
+		setText(editor.placeholder);
+		const placeholderText = height();
+		setText('line\n'.repeat(8));
+		const eightLines = height();
+		setText('line\n'.repeat(100));
+		assert.deepStrictEqual({
+			labelRow: [...container.querySelector('.wizard-description-label-row')!.children].map(child => child.getAttribute('role') ?? child.tagName),
+			fitsPlaceholder: empty === placeholderText,
+			grows: eightLines > empty,
+			maxHeight: height(),
+		}, { labelRow: ['LABEL', 'tablist'], fitsPlaceholder: true, grows: true, maxHeight: 400 });
+	});
+
+	test('explains what to describe in the description\'s placeholder, and links to the guide for performance issues above it', () => {
+		const describe = (container: HTMLElement) => ({
+			placeholder: container.querySelector<HTMLTextAreaElement>('.wizard-description-input')!.placeholder,
+			guide: [...container.querySelectorAll<HTMLElement>('.wizard-description-guidance')].filter(guide => !guide.hidden).map(guide => guide.textContent),
+		});
+		assert.deepStrictEqual({
+			bug: describe(createReporter().container),
+			performance: describe(createReporter({ issueType: IssueType.PerformanceIssue }).container),
+		}, {
+			bug: { placeholder: 'Describe what happened, the steps to reproduce, what you expected, and what you observed instead.\nMarkdown formatting is supported.', guide: [] },
+			performance: { placeholder: 'Describe what is slow, when it happens, whether it\'s consistent or intermittent, and any patterns you\'ve noticed.\nMarkdown formatting is supported.', guide: ['See the performance issue reporting guide.'] },
+		});
+	});
+
+	suite('Layouts', () => {
+		function describeForm(container: HTMLElement) {
+			const names = ['wizard-issue-guidance', 'wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-classification', 'wizard-diagnostics', 'wizard-simple-diagnostics', 'wizard-simple-destination', 'wizard-preview'];
+			const parts = container.querySelectorAll<HTMLElement>(names.map(name => `.${name}`).join(', '));
+			return {
+				order: [...parts].filter(part => !part.closest('[hidden]')).map(part => names.find(name => part.classList.contains(name))),
+				title: container.querySelector('.wizard-title-field label')?.textContent,
+				titlePlaceholder: container.querySelector<HTMLInputElement>('.wizard-title-field input')?.placeholder,
+				guidance: container.querySelector<HTMLTextAreaElement>('.wizard-description-input')?.placeholder,
+				previewNote: container.querySelector<HTMLElement>('.wizard-preview-consent:not([hidden])')?.textContent,
+			};
+		}
+
+		test('both layouts ask for screenshots and a description first; the simple layout leaves out the rest', () => {
+			const extension = { id: 'publisher.extension', name: 'extension', publisher: 'publisher', version: '1.0.0', isTheme: false, isBuiltin: false, displayName: 'Extension', repositoryUrl: undefined, bugsUrl: 'https://github.com/publisher/extension/issues' };
+			const extensionReport = createReporter({ issueSource: IssueSource.Extension, extensionId: extension.id, enabledExtensions: [extension] }, { layout: 'simple' });
+			assert.deepStrictEqual({
+				detailed: describeForm(createReporter().container),
+				simple: describeForm(createReporter({}, { layout: 'simple' }).container),
+				simpleExtensionReportShowsTarget: !extensionReport.container.querySelector<HTMLElement>('.wizard-classification')!.hidden,
+				simpleExternalReportNote: describeForm(createReporter({ uri: URI.parse('https://example.com/issues/new') }, { layout: 'simple' }).container).previewNote,
+			}, {
+				detailed: {
+					order: ['wizard-issue-guidance', 'wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-classification', 'wizard-diagnostics', 'wizard-preview'],
+					title: 'Title*',
+					titlePlaceholder: 'E.g. Workbench is missing problems panel',
+					guidance: 'Describe what happened, the steps to reproduce, what you expected, and what you observed instead.\nMarkdown formatting is supported.',
+					previewNote: 'Preview uploads attachments and opens your report on GitHub. You can review it there before submitting.',
+				},
+				simple: {
+					order: ['wizard-attachments', 'wizard-description-editor', 'wizard-title-field', 'wizard-simple-diagnostics', 'wizard-simple-destination', 'wizard-preview'],
+					title: 'Title (optional)',
+					titlePlaceholder: 'Leave empty to generate a title from the description',
+					guidance: 'Describe what you saw. A sentence or two is enough.\nMarkdown formatting is supported.',
+					previewNote: undefined,
+				},
+				simpleExtensionReportShowsTarget: true,
+				simpleExternalReportNote: 'Opens the extension\'s issue reporter without sending this report or its attachments.',
+			});
+		});
+
+		test('the simple layout generates a missing title when previewing, or takes the first line of the description', async () => {
+			const { overlay, container, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'simple' });
+			const requests: string[] = [];
+			const submitted: string[] = [];
+			store.add(overlay.onDidRequestGenerateTitle(({ description }) => requests.push(description)));
+			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
+			const title = container.querySelector<HTMLInputElement>('.wizard-title-field input')!;
+			setText('Tabs flicker\nwhen they are dragged');
+			preview.click();
+			const whileGenerating = { label: preview.textContent, disabled: preview.classList.contains('disabled') };
+			overlay.setGeneratedTitle('Tabs flicker while dragging');
+			await timeout(0);
+			title.value = '';
+			title.dispatchEvent(new Event('input'));
+			preview.click();
+			// When no title can be generated, the first line of the description becomes the title.
+			overlay.resetGenerateButton();
+			await timeout(0);
+			assert.deepStrictEqual({ requests, whileGenerating, submitted, title: title.value }, {
+				requests: ['Tabs flicker\nwhen they are dragged', 'Tabs flicker\nwhen they are dragged'],
+				whileGenerating: { label: 'Generating title...', disabled: true },
+				submitted: ['Tabs flicker while dragging', 'Tabs flicker'],
+				title: 'Tabs flicker',
+			});
+		});
+
+		test('the simple layout stops waiting for a generated title that takes too long, and can generate one again', () => runWithFakedTimers({}, async () => {
+			const { overlay, container, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'simple' });
+			const requests: IIssueReporterTitleRequest[] = [];
+			const submitted: string[] = [];
+			store.add(overlay.onDidRequestGenerateTitle(request => requests.push(request)));
+			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
+			setText('Tabs flicker\nwhen they are dragged');
+			preview.click();
+			await timeout(10_000);
+			container.querySelector<HTMLElement>('.wizard-ai-title-btn')!.click();
+			assert.deepStrictEqual({ submitted, cancelled: requests.map(request => request.token.isCancellationRequested) }, {
+				submitted: ['Tabs flicker'],
+				cancelled: [true, false],
+			});
+		}));
+
+		test('the simple layout checks the report again once its title is generated, since the form can change meanwhile', async () => {
+			const { overlay, editor, preview, setText } = createReporter({ issueTitle: '', issueBody: '' }, { layout: 'simple' });
+			const submitted: string[] = [];
+			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
+			setText('Tabs flicker');
+			preview.click();
+			setText('');
+			overlay.setGeneratedTitle('Tabs flicker while dragging');
+			await timeout(0);
+			const afterClearing = { submitted: [...submitted], descriptionInvalid: editor.getAttribute('aria-invalid') };
+			setText('Tabs flicker while they are dragged');
+			preview.click();
+			assert.deepStrictEqual({ afterClearing, submitted }, {
+				afterClearing: { submitted: [], descriptionInvalid: 'true' },
+				submitted: ['Tabs flicker while dragging'],
+			});
+		});
+
+		test('the simple layout generates no title for an external reporter, which opens without it', () => {
+			const { overlay, preview } = createReporter({ issueTitle: '', uri: URI.parse('https://example.com/issues/new') }, { layout: 'simple' });
+			const requests: string[] = [];
+			const submitted: string[] = [];
+			store.add(overlay.onDidRequestGenerateTitle(({ description }) => requests.push(description)));
+			store.add(overlay.onDidSubmit(event => submitted.push(event.title)));
+			preview.click();
+			assert.deepStrictEqual({ requests, submitted }, { requests: [], submitted: [''] });
+		});
+
+		test('the simple layout still asks for no category after the report moves to another pane', () => {
+			const { input } = createReporter({ issueType: undefined }, { layout: 'simple' });
+			const { overlay, preview } = createReporter({}, { input });
+			const bodies: string[] = [];
+			store.add(overlay.onDidSubmit(event => bodies.push(event.body)));
+			preview.click();
+			assert.deepStrictEqual(bodies.map(body => body.includes('Issue Category')), [false]);
+		});
+
+		test('the simple layout includes or leaves out all diagnostics with one checkbox, and asks for no category', () => {
+			const { overlay, container, preview } = createReporter({ issueType: undefined }, { layout: 'simple' });
+			overlay.updateModel({ experimentInfo: 'treatment' });
+			const bodies: string[] = [];
+			store.add(overlay.onDidSubmit(event => bodies.push(event.body)));
+			preview.click();
+			container.querySelector<HTMLElement>('.wizard-simple-diagnostics-checkbox')!.click();
+			preview.click();
+			container.querySelector<HTMLElement>('.wizard-simple-diagnostics-label')!.click();
+			preview.click();
+			assert.deepStrictEqual(bodies.map(body => ({ experiments: body.includes('A/B Experiments'), category: body.includes('Issue Category') })), [
+				{ experiments: true, category: false },
+				{ experiments: false, category: false },
+				{ experiments: true, category: false },
+			]);
+		});
+
+		test('the automatic screenshot of the simple layout is no unsaved input until it is edited', async () => {
+			const { overlay, input, container, preview, telemetry, screenshotTool } = createReporter({}, { layout: 'simple' });
+			input.automaticScreenshot = capturedScreenshot('automatic');
+			overlay.restoreAttachments([input.automaticScreenshot]);
+			const untouched = overlay.hasUnsavedChanges();
+			preview.click();
+			await markUp(screenshotTool, container.querySelector<HTMLElement>('.wizard-screenshot-card')!);
+			preview.click();
+			assert.deepStrictEqual({ untouched, edited: overlay.hasUnsavedChanges(), events: telemetry.events.map(event => event.data) }, {
+				untouched: false,
+				edited: true,
+				events: [{ layout: 'simple', automaticScreenshot: true }, { layout: 'simple', automaticScreenshot: true }],
+			});
+		});
 	});
 
 	test('removes handlers from replaced screenshot cards', () => {
-		const { overlay, files, container } = createReporter();
+		const { overlay, files, screenshotTool } = createReporter();
 		overlay.restoreAttachments([capturedScreenshot('capture')]);
 		const oldCard = files.querySelector<HTMLElement>('.wizard-screenshot-card')!;
 		overlay.restoreAttachments([capturedScreenshot('capture')]);
 		oldCard.click();
-		const old = container.querySelectorAll('.issue-reporter-annotation-overlay').length;
+		const old = screenshotTool.requests.length;
 		files.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
-		assert.deepStrictEqual({ old, current: container.querySelectorAll('.issue-reporter-annotation-overlay').length }, { old: 0, current: 1 });
+		assert.deepStrictEqual({ old, current: screenshotTool.requests.length }, { old: 0, current: 1 });
 	});
 
 	test('stops answering issue-data requests after disposal', async () => {

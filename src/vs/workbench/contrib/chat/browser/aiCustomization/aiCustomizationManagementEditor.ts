@@ -10,7 +10,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { mcpAccessConfig, McpAccessValue, normalizeMcpGalleryUrl } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
@@ -24,7 +24,7 @@ import { DisposableStore, IDisposable, IReference, MutableDisposable, toDisposab
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun, derived } from '../../../../../base/common/observable.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
@@ -52,12 +52,12 @@ import { basename, dirname, getComparisonKey, isEqual } from '../../../../../bas
 import { URI } from '../../../../../base/common/uri.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from './aiCustomizationManagementSectionRegistry.js';
+import { observeVisibleSectionBadges } from './aiCustomizationSectionBadges.js';
 import { AICustomizationListWidget } from './aiCustomizationListWidget.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { createInstalledPluginItem, McpListWidget } from './mcpListWidget.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -626,6 +626,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
 			this.workspaceService.activeProjectLabel.read(reader);
+			this.workspaceService.activeTargetLabels?.read(reader);
 			this.updateTargetLabelPresentation();
 			if (this.viewMode === 'editor') {
 				this.currentEditingProjectRoot = this.workspaceService.getActiveProjectRoot();
@@ -791,11 +792,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateTargetLabelPresentation(): void {
-		const harnessLabel = this.getActiveHarnessLabel();
-		const workspaceLabel = this.workspaceService.activeProjectLabel.get();
+		const targetLabels = this.workspaceService.activeTargetLabels?.get();
+		const harnessLabel = targetLabels?.harness ?? this.getActiveHarnessLabel();
+		const workspaceLabel = targetLabels?.workspace ?? this.workspaceService.activeProjectLabel.get();
 		this.welcomePage?.setHarnessLabel(harnessLabel);
 		if (this.input instanceof AICustomizationManagementEditorInput) {
-			this.input.setTargetLabels(harnessLabel, workspaceLabel);
+			this.input.setTargetLabels(harnessLabel, workspaceLabel, targetLabels?.environment);
 		}
 	}
 
@@ -806,20 +808,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	private rebuildVisibleSections(): void {
 		const activeId = this.harnessService.activeHarness.get();
-		const descriptor = this.harnessService.findHarnessById(activeId);
-		const hidden = new Set(descriptor?.hiddenSections ?? []);
 
 		this.sections.length = 0;
 		for (const s of this.allSections) {
 			const contribution = aiCustomizationManagementSectionRegistry.get(s.id, activeId);
-			const contributed = aiCustomizationManagementSectionRegistry.has(s.id);
-			if (!hidden.has(s.id) && (!contributed || !!contribution) && this.isContributedSectionEnabled(s.id)) {
+			if (aiCustomizationManagementSectionRegistry.isVisible(s.id, activeId, this.harnessService, this.configurationService)) {
+				s.badge = this.sectionBadges.get(s.id);
 				this.sections.push(contribution ? {
 					...s,
 					label: contribution.label,
 					description: contribution.description,
 					separatorBefore: contribution.separatorBefore,
-					badge: this.sectionBadges.get(s.id),
 				} : s);
 			}
 		}
@@ -843,8 +842,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private isContributedSectionEnabled(section: AICustomizationManagementSection): boolean {
-		const settings = aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get())?.enablementSettings;
-		return !settings || settings.some(setting => this.configurationService.getValue<boolean>(setting) === true);
+		return aiCustomizationManagementSectionRegistry.isEnabled(aiCustomizationManagementSectionRegistry.get(section, this.harnessService.activeHarness.get()), this.configurationService);
 	}
 
 	private updateContributedSectionEnablement(): void {
@@ -921,7 +919,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			this._previousActiveHarnessId = activeId;
 		}));
-		this.registerContributedSectionBadges();
+		this.registerSectionBadges();
 
 		this.editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (this.welcomePage?.isMarketplaceConfigurationChange(e)) {
@@ -2475,6 +2473,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		if (item.extensionId) {
+			// The Agents window has no Extensions view, so it shows the extension in its Extensions section instead.
+			const extensionsSection = this.sections.some(section => section.id === AICustomizationManagementSection.Extensions)
+				? this.ensureContributedSectionWidget(AICustomizationManagementSection.Extensions)
+				: undefined;
+			if (extensionsSection?.showExtension) {
+				this.selectSection(AICustomizationManagementSection.Extensions);
+				extensionsSection.showExtension(item.extensionId);
+				return;
+			}
 			await this.commandService.executeCommand(showExtensionsWithIdsCommandId, [item.extensionId]);
 		}
 	}
@@ -3646,20 +3653,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	/**
-	 * Shows the badges that contributed sections describe on their navigation entries.
+	 * Shows the badges that sections register on their navigation entries while the sections are visible.
 	 */
-	private registerContributedSectionBadges(): void {
-		// Resolve the badge observables once per harness so that badge changes only re-read them.
-		const sectionBadges = derived(this, reader => {
-			const activeHarness = this.harnessService.activeHarness.read(reader);
-			return this.workspaceService.managementSections.map(section => {
-				const getBadge = aiCustomizationManagementSectionRegistry.get(section, activeHarness)?.getBadge;
-				return { section, badge: getBadge ? this.instantiationService.invokeFunction(getBadge) : undefined };
-			});
+	private registerSectionBadges(): void {
+		const visibleBadges = observeVisibleSectionBadges({
+			instantiationService: this.instantiationService,
+			harnessService: this.harnessService,
+			workspaceService: this.workspaceService,
+			configurationService: this.configurationService,
 		});
 		this.editorDisposables.add(autorun(reader => {
-			for (const { section, badge } of sectionBadges.read(reader)) {
-				this.updateSectionBadge(section, badge?.read(reader));
+			const badges = new Map(visibleBadges.read(reader).map(({ section, badge }) => [section, badge]));
+			for (const section of this.workspaceService.managementSections) {
+				this.updateSectionBadge(section, badges.get(section));
 			}
 		}));
 	}
@@ -3829,19 +3835,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Move focus to the search input so keyboard users can immediately
 		// filter without extra Tab traversal (parity with mouse-click flow).
 		if (!options?.preserveFocus) {
-			if (section === AICustomizationManagementSection.McpServers) {
-				this.mcpListWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Plugins) {
-				this.pluginListWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Models) {
-				this.modelsWidget?.focusSearch();
-			} else if (section === AICustomizationManagementSection.Tools) {
-				this.toolsListWidget?.focusSearch();
-			} else if (this.contributedSectionContainers.has(section)) {
-				this.ensureContributedSectionWidget(section)?.focus?.();
-			} else {
-				this.listWidget?.focusSearch();
-			}
+			this.focusSectionContent(section);
+		}
+	}
+
+	/**
+	 * Moves focus to the search input of the given section, or into its widget for contributed sections.
+	 */
+	private focusSectionContent(section: AICustomizationManagementSection): void {
+		if (section === AICustomizationManagementSection.McpServers) {
+			this.mcpListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Plugins) {
+			this.pluginListWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Models) {
+			this.modelsWidget?.focusSearch();
+		} else if (section === AICustomizationManagementSection.Tools) {
+			this.toolsListWidget?.focusSearch();
+		} else if (this.contributedSectionContainers.has(section)) {
+			this.ensureContributedSectionWidget(section)?.focus?.();
+		} else {
+			this.listWidget?.focusSearch();
 		}
 	}
 
@@ -4183,7 +4196,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		await super.setInput(input, options, context, token);
-		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
+		const targetLabels = this.workspaceService.activeTargetLabels?.get();
+		input.setTargetLabels(
+			targetLabels?.harness ?? this.getActiveHarnessLabel(),
+			targetLabels?.workspace ?? this.workspaceService.activeProjectLabel.get(),
+			targetLabels?.environment,
+		);
 		if (!token.isCancellationRequested) {
 			this.initializeContributedSectionWidgets();
 			if (this.selectedSection && this.isContributedSectionEnabled(this.selectedSection)) {
@@ -4288,19 +4306,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.welcomePage?.focus();
 			return;
 		}
-		if (this.selectedSection === AICustomizationManagementSection.McpServers) {
-			this.mcpListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Plugins) {
-			this.pluginListWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Models) {
-			this.modelsWidget?.focusSearch();
-		} else if (this.selectedSection === AICustomizationManagementSection.Tools) {
-			this.toolsListWidget?.focusSearch();
-		} else if (this.selectedSection && this.contributedSectionContainers.has(this.selectedSection)) {
-			this.ensureContributedSectionWidget(this.selectedSection)?.focus?.();
-		} else {
-			this.listWidget?.focusSearch();
-		}
+		this.focusSectionContent(this.selectedSection);
 	}
 
 	/**
@@ -4374,22 +4380,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 			// to handle the case where the editor just opened with a persisted section that
 			// matches the requested one (content might not be loaded yet).
 			if (this.viewMode === 'marketplaceDetail') {
-				this.goBackFromMarketplaceDetail();
+				this.goBackFromMarketplaceDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'editor') {
-				this.goBackToList();
+				this.goBackToList(options?.preserveFocus);
 			}
 			if (this.viewMode === 'migration') {
 				this.viewMode = 'list';
 			}
 			if (this.viewMode === 'mcpDetail') {
-				this.goBackFromMcpDetail();
+				this.goBackFromMcpDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'connectorDetail') {
-				this.goBackFromConnectorDetail();
+				this.goBackFromConnectorDetail(options?.preserveFocus);
 			}
 			if (this.viewMode === 'pluginDetail') {
-				this.goBackFromPluginDetail();
+				this.goBackFromPluginDetail(options?.preserveFocus);
 			}
 			this.selectedSection = sectionId;
 			this.sectionContextKey.set(sectionId);
@@ -4410,6 +4416,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (sectionId === AICustomizationManagementSection.Plugins) {
 					this.pluginListWidget?.showBrowseMarketplace();
 				}
+			}
+
+			// Showing the section hides whatever had focus before (such as the welcome
+			// page search), so move focus into the section to keep the modal's Escape
+			// handling, Tab order, and screen reader context.
+			if (!options?.preserveFocus) {
+				this.focusSectionContent(sectionId);
 			}
 			return true;
 		}

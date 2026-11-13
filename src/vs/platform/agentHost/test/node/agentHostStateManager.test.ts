@@ -22,6 +22,8 @@ import { withAgentCustomizationSettings } from '../../common/agentCustomizationS
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
+import { buildAgentMergePrompt } from '../../common/agentMergePrompt.js';
 import { readAgentHostResources } from '../../common/meta/agentHostResources.js';
 import { supportsRemoteSessions } from '../../common/meta/agentRemoteSessionMeta.js';
 import { collectAgentHostResources } from '../../node/agentHostResources.js';
@@ -2496,6 +2498,47 @@ suite('AgentHostStateManager', () => {
 				});
 			});
 		}
+
+		test('session aggregation describes a running Agent Merge turn while its chat reports no activity of its own', () => {
+			manager.createSession(makeSessionSummary());
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const snapshot = () => ({
+				summary: manager.getSessionSummary(sessionUri)?.activity,
+				catalog: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.activity,
+			});
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'repair',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: {
+					text: buildAgentMergePrompt(['fixCI'], { pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1', title: 'Fix', headSha: 'abc123', baseRef: 'main', headRef: 'fix', reviewThreads: [], reviewSummaries: [], newComments: [], failedChecks: ['Build'], behind: false, conflicting: false, commentWatermark: '' }),
+					origin: { kind: MessageKind.SystemNotification },
+					_meta: toAgentMergeMessageMeta(),
+				},
+			});
+			const whileRunning = snapshot();
+			manager.dispatchServerAction(defaultChat, { type: ActionType.ChatActivityChanged, activity: 'Running tests' });
+			const withOwnActivity = snapshot();
+			manager.dispatchServerAction(defaultChat, { type: ActionType.ChatActivityChanged, activity: undefined });
+			const afterOwnActivity = snapshot();
+			manager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatInputRequested,
+				request: withChatInputRequestPurpose({
+					id: 'request',
+					questions: [{ kind: ChatInputQuestionKind.Text, id: 'question', message: 'Continue?' }],
+				}, ChatInputRequestPurpose.AskUser),
+			});
+			const whileWaiting = snapshot();
+			manager.dispatchServerAction(defaultChat, chatTurnComplete('repair', 1000));
+
+			assert.deepStrictEqual({ whileRunning, withOwnActivity, afterOwnActivity, whileWaiting, afterComplete: snapshot() }, {
+				whileRunning: { summary: 'Agent Merge: Fixing CI...', catalog: undefined },
+				withOwnActivity: { summary: 'Running tests', catalog: 'Running tests' },
+				afterOwnActivity: { summary: 'Agent Merge: Fixing CI...', catalog: undefined },
+				whileWaiting: { summary: undefined, catalog: undefined },
+				afterComplete: { summary: undefined, catalog: undefined },
+			});
+		});
 
 		test('a running peer chat forwards its own status to the session catalog so its tab can show progress', () => {
 			manager.createSession(makeSessionSummary());

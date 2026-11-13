@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { constObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, observableFromEvent, observableFromEventOpts } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -158,7 +159,8 @@ export class AgentHostArtifactRuntime extends Disposable {
 					};
 				});
 				return {
-					object: observableFromEvent(this, stateChanges, () => reference.object()),
+					// `stateChanges` fires for every session, so most values equal the previous one.
+					object: observableFromEventOpts({ owner: this, equalsFn: structuralEquals }, stateChanges, () => reference.object()),
 					dispose: () => reference.dispose(),
 				};
 			},

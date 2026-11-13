@@ -13,11 +13,9 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatExternalPathConfirmationContribution } from '../../common/tools/builtinTools/chatExternalPathConfirmation.js';
-import { ChatUrlFetchingConfirmationContribution } from '../../common/tools/builtinTools/chatUrlFetchingConfirmation.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
-import { FetchWebPageTool, FetchWebPageToolData, IFetchWebPageToolParams } from './fetchPageTool.js';
+import { FetchWebPageTool, FetchWebPageToolData } from './fetchPageTool.js';
 
 export class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -36,14 +34,6 @@ export class NativeBuiltinToolsContribution extends Disposable implements IWorkb
 
 		const editTool = instantiationService.createInstance(FetchWebPageTool);
 		this._register(toolsService.registerTool(FetchWebPageToolData, editTool));
-
-		this._register(confirmationService.registerConfirmationContribution(
-			InternalFetchWebPageToolId,
-			instantiationService.createInstance(
-				ChatUrlFetchingConfirmationContribution,
-				params => (params as IFetchWebPageToolParams).urls
-			)
-		));
 
 		// Register external path confirmation contribution for read_file and list_dir
 		// They share the same allowlist so approving a folder for reading files also allows listing that directory

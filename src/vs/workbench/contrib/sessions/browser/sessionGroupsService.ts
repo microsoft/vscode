@@ -20,7 +20,7 @@ import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOr
 export interface ISessionGroupAppearance {
 	/** Theme icon id chosen by the user. */
 	readonly icon?: string;
-	/** Theme color id applied to the group icon. */
+	/** Theme color id applied to the group icon and name. */
 	readonly color?: string;
 }
 
@@ -211,7 +211,7 @@ export interface ISessionGroupsService {
 	/** Set a group's icon, or restore the default with `undefined`. */
 	setGroupIcon(groupId: string, icon: string | undefined): void;
 
-	/** Set a group's icon color, or restore the default with `undefined`. */
+	/** Set a group's icon and name color, or restore the default with `undefined`. */
 	setGroupColor(groupId: string, color: string | undefined): void;
 
 	/** Appearance of a workspace, repository, or environment section, keyed by its stable section id. */
@@ -220,7 +220,7 @@ export interface ISessionGroupsService {
 	/** Set a grouping section's icon, or restore its default with `undefined`. */
 	setSectionIcon(sectionId: string, icon: string | undefined): void;
 
-	/** Set a grouping section's icon color, or restore its default with `undefined`. */
+	/** Set a grouping section's icon and name color, or restore its default with `undefined`. */
 	setSectionColor(sectionId: string, color: string | undefined): void;
 
 	/**
@@ -288,7 +288,8 @@ export interface ISessionGroupsService {
 	 * and cleared if the new session is abandoned without sending. No-op when the
 	 * group does not exist.
 	 */
-	setPendingNewSessionGroup(groupId: string): void;
+	setPendingNewSessionGroup(groupId: string | undefined): void;
+	getPendingNewSessionGroup(): string | undefined;
 
 	/**
 	 * Record the group that sessions sent from the new-session draft slot with id `slotId` (see
@@ -894,8 +895,12 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return [...result];
 	}
 
-	setPendingNewSessionGroup(groupId: string): void {
-		this._pendingNewSessionGroupId = this._groups.has(groupId) ? groupId : undefined;
+	setPendingNewSessionGroup(groupId: string | undefined): void {
+		this._pendingNewSessionGroupId = groupId && this._groups.has(groupId) ? groupId : undefined;
+	}
+
+	getPendingNewSessionGroup(): string | undefined {
+		return this._pendingNewSessionGroupId;
 	}
 
 	setDraftSlotGroup(slotId: string, groupId: string | undefined): IDisposable {

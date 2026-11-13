@@ -139,19 +139,12 @@ import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplac
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import '../../../../contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getExtensionSuggestionsSectionBadge, IAgentsWindowExtensionSuggestionsService } from '../../../../contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // ============================================================================
 // Mock helpers
 // ============================================================================
-
-/** Describes the badge of the contributed Extensions section in a fixture. */
-interface IFixtureExtensionsSectionBadge {
-	readonly _serviceBrand: undefined;
-	readonly badge: IObservable<string | undefined>;
-}
-
-const IFixtureExtensionsSectionBadge = createDecorator<IFixtureExtensionsSectionBadge>('fixtureExtensionsSectionBadge');
 
 // The explorer mounts the fixtures of a folder together, and they share the section registry, which returns the first
 // contribution of a section. So the Extensions section is registered once, and each fixture supplies its badge with its
@@ -163,9 +156,9 @@ aiCustomizationManagementSectionRegistry.register({
 	description: 'Choose which installed extensions run in the Agents window.',
 	separatorBefore: true,
 	supportsHarness: () => true,
-	getBadge: accessor => accessor.get(IFixtureExtensionsSectionBadge).badge,
 	create: () => ({ dispose: () => { } }),
 });
+aiCustomizationManagementSectionRegistry.registerBadge(AICustomizationManagementSection.Extensions, getExtensionSuggestionsSectionBadge);
 
 const userHome = URI.file('/home/dev');
 const BUILTIN_STORAGE = 'builtin';
@@ -1337,8 +1330,8 @@ interface IRenderEditorOptions {
 	readonly pluginMarketplaceMigration?: boolean;
 	readonly pluginMarketplaceMigrationOnly?: boolean;
 	readonly pluginMarketplaceMigrationDeselected?: boolean;
-	/** Describes the badge of the contributed Extensions section, which shows none unless given. */
-	readonly extensionsSectionBadge?: string;
+	/** Whether the contributed Extensions section shows its badge for suggested extensions. */
+	readonly extensionSuggestions?: boolean;
 	/** Settings whose values come from organization policy. */
 	readonly policyConfiguration?: Record<string, unknown>;
 	/** Adds local plugins that organization policy requires or blocks. */
@@ -1588,7 +1581,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
-			reg.defineInstance(IFixtureExtensionsSectionBadge, { _serviceBrand: undefined, badge: constObservable(options.extensionsSectionBadge) });
+			reg.defineInstance(IAgentsWindowExtensionSuggestionsService, new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
+				override readonly showBadge = constObservable(options.extensionSuggestions ?? false);
+			}());
 			if (options.migrationConfirmation) {
 				reg.defineInstance(IDialogService, new class extends mock<IDialogService>() {
 					override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -1908,7 +1903,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					override async getConfigurationResource() { return undefined; }
 				}(),
 				new class extends mock<IWorkspaceContextService>() {
-					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+					override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'test', folders: [] }); }
 				}(),
 				secretStorageService,
 			));
@@ -1972,7 +1967,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
-				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+				override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'test', folders: [] }); }
 				override getWorkbenchState(): WorkbenchState { return WorkbenchState.WORKSPACE; }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
@@ -2908,6 +2903,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
@@ -3209,6 +3205,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
@@ -3767,13 +3764,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and scope-group styling. Workspace appears before User. Every Canvas renders directly in a flat scope list with "Plugin: name" or "Extension: name" secondary text. Source controls remain available on each Canvas row, and Workspace-provided Canvases remain read-only.'],
+		expectedVisualDescriptions: ['Canvases reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and scope-group styling. Workspace appears before User. Each scope lists Canvas extension and plugin parent rows with their Canvases nested beneath; plugin parents follow the user\'s own extensions under User and link "Plugin: name", while other parents show "Extension: name". Enablement switches and source actions appear only on parent rows, including the microsoft-foundry plugin, which reports no Canvases. Canvas child rows show only their names, and Workspace-provided Canvas extensions remain read-only.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
 			marketplaceVisibilityEnabled: true,
 			copilotExtensionInventory: fixtureCopilotExtensionInventory,
 			copilotCanvases: fixtureCopilotCanvases,
+			height: 1000,
 		}),
 	}),
 
@@ -3861,7 +3859,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Tools,
 				AICustomizationManagementSection.Extensions,
 			],
-			extensionsSectionBadge: 'Some installed extensions can be enabled in the Agents window.',
+			extensionSuggestions: true,
 		}),
 	}),
 

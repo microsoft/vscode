@@ -1,0 +1,395 @@
+# CI build pipeline.
+#
+# Runs the CI builds of main and release/* commits: the quality checks, and the
+# CI test jobs of Windows, Linux and macOS. The product build (product-build.yml)
+# runs the same test jobs for its x64 (macOS: arm64) builds.
+#
+# It never signs or publishes anything, so it uses the unofficial 1ES template
+# with the SDL tools disabled, and its expanded YAML must not reference the
+# signing, publishing or release service connections: `vscode`, `vscode-esrp`,
+# `vscode-cdn` and `vscode-apiscan`. The CI jobs reference none of them, and the
+# quality checks drop theirs with VSCODE_PRIVILEGED_CONNECTIONS. The Copilot
+# test jobs still use `VS Code Development WIF` for their test credentials.
+
+name: "$(Date:yyyyMMdd).$(Rev:r)"
+
+pr: none
+
+trigger:
+  batch: true
+  branches:
+    include: ["main", "release/*"]
+
+parameters:
+  - name: VSCODE_BUILD_WIN32
+    displayName: "🎯 Windows"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX
+    displayName: "🎯 Linux"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS
+    displayName: "🎯 macOS"
+    type: boolean
+    default: true
+
+variables:
+  - name: VSCODE_QUALITY
+    value: insider
+  - name: NPM_REGISTRY
+    value: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+  - name: CARGO_REGISTRY
+    value: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+  - name: VSCODE_CIBUILD
+    value: true
+  - name: VSCODE_PUBLISH
+    value: false
+  - name: VSCODE_STEP_ON_IT
+    value: false
+  # The day of the workspace images of the CI test jobs (see build/azure-pipelines/common/workspaceImage.ts):
+  # the first CI build of a day builds a new one. The same in every job of a run, unlike the clock.
+  - name: VSCODE_WORKSPACE_IMAGE_DAY
+    value: $[format('{0:yyyyMMdd}', pipeline.startTime)]
+  # Not for publishing: the CI jobs build the built-in Copilot extension, whose
+  # build (extensions/copilot/.esbuild.mts) stamps a pre-release version into its
+  # package.json on Azure Pipelines and fails without this counter for insider.
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
+  # Apply the Component Governance notice of the Quality stage, see product-build.yml.
+  - name: VSCODE_OVERWRITE_TPN
+    value: 'true'
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+    - repository: capi
+      type: github
+      name: microsoft/vscode-capi
+      endpoint: Monaco
+      ref: main
+    - repository: encrypt
+      type: github
+      name: microsoft/vscode-encrypt
+      endpoint: Monaco
+      ref: main
+    - repository: vsda
+      type: github
+      name: microsoft/vsda
+      endpoint: Monaco
+      ref: main
+    - repository: regexp
+      type: github
+      name: microsoft/vscode-regexp-languagedetection
+      endpoint: Monaco
+      ref: main
+    - repository: vscode_loc
+      type: github
+      name: microsoft/vscode-extensions-loc
+      endpoint: Monaco
+      ref: main
+
+extends:
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      enableAllTools: false
+      sourceRepositoriesToScan:
+        exclude:
+          - repository: distro
+          - repository: capi
+          - repository: encrypt
+          - repository: vsda
+          - repository: regexp
+          - repository: vscode_loc
+      tsa:
+        enabled: false
+      codeql:
+        compiled:
+          enabled: false
+          justificationForDisabling: CI build only, not a shipping build
+      sourceAnalysisPool: 1es-windows-2022-x64
+      createAdoIssuesForJustificationsForDisablement: false
+    settings:
+      networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
+    stages:
+      - stage: Quality
+        dependsOn: []
+        pool:
+          name: 1es-ubuntu-22.04-x64
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-quality-checks.yml@self
+            parameters:
+              VSCODE_PRIVILEGED_CONNECTIONS: false
+
+      - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+        - stage: Windows
+          displayName: Windows X64
+          dependsOn: []
+          pool:
+            name: 1es-windows-2022-x64
+            os: windows
+          jobs:
+            - template: build/azure-pipelines/win32/product-build-win32-cli.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_CHECK_ONLY: true
+                VSCODE_POOL_NAME: 1es-windows-2022-x64
+
+            # The test jobs start from its workspace image when the cache has one, without waiting for it
+            - template: build/azure-pipelines/win32/product-build-win32-workspace-image.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - unit-electron
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                VSCODE_TEST_IDS:
+                  - unit-node
+                  - unit-browser-chromium
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-firefox
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            # Without the workspace image, like the WSL smoke test job of pull requests: WSL cannot open folders
+            # on a volume that is mounted in a folder (see .github/workflows/workspace_image/README.md)
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
+                  - smoke-wsl-kerberos-proxy
+                  - smoke-wsl-basic-proxy
+                  - smoke-wsl-basic-pac-proxy
+            - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
+                  - copilot
+
+      - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+        - stage: Linux
+          displayName: Linux X64
+          dependsOn: []
+          pool:
+            name: 1es-ubuntu-22.04-x64
+            os: linux
+          jobs:
+            - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                VSCODE_CHECK_ONLY: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_POOL_NAME: 1es-ubuntu-22.04-x64
+
+            # The test jobs start from its workspace image when the cache has one, without waiting for it
+            - template: build/azure-pipelines/linux/product-build-linux-workspace-image.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+                NPM_ARCH: x64
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - unit-electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                VSCODE_TEST_IDS:
+                  - unit-node
+                  - unit-browser-chromium
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-chromium
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
+            - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Copilot
+                VSCODE_JOB_DISPLAY_NAME: Copilot Tests
+                VSCODE_TEST_IDS:
+                  - copilot
+
+      - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+        - stage: macOS
+          displayName: macOS ARM64
+          dependsOn: []
+          pool:
+            name: AcesShared
+            os: macOS
+            demands:
+              - ImageOverride -equals ACES_VM_SharedPool_Sequoia
+          variables:
+            BUILDSECMON_OPT_IN: true
+          jobs:
+            - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+                VSCODE_CHECK_ONLY: true
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+
+            # The test jobs start from its workspace image when the cache has one, without waiting for it
+            - template: build/azure-pipelines/darwin/product-build-darwin-workspace-image.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - unit-electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js & Browser)
+                VSCODE_TEST_IDS:
+                  - unit-node
+                  - unit-browser-webkit
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: BrowserRemote
+                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
+                VSCODE_TEST_IDS:
+                  - integration-browser-webkit
+                  - integration-remote
+                  - smoke-browser-chromium
+                  - smoke-remote
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Integration
+                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-electron
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
+            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: true
+                VSCODE_WORKSPACE_IMAGE: use
+                VSCODE_JOB_NAME: Smoke
+                VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - smoke-electron
+                  - smoke-agents-pac-proxy
+                  - smoke-agents-kerberos-pac-proxy
+                  - smoke-agents-basic-proxy

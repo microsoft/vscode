@@ -288,7 +288,10 @@ suite('Menu', () => {
 
 	test('stationary mouse does not open submenu (#110594, #148158)', () => {
 		const clock = sinon.useFakeTimers();
-		const host = append(document.body, $('div'));
+		const host = append(document.body, $('.hc-black'));
+		host.style.setProperty('--vscode-menu-selectionBorder', '#f38518');
+		host.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		host.style.setProperty('--vscode-strokeThickness', '1px');
 		disposables.add(toDisposable(() => host.remove()));
 		const submenu = new SubmenuAction('submenu', 'Submenu', [
 			disposables.add(new Action('child', 'Child'))
@@ -311,11 +314,13 @@ suite('Menu', () => {
 		assert.deepStrictEqual({
 			expandedAfterMouseOver,
 			expandedAfterStationaryMouseMove,
-			expandedAfterMouseMove: submenuItem.getAttribute('aria-expanded')
+			expandedAfterMouseMove: submenuItem.getAttribute('aria-expanded'),
+			expandedOutline: getWindow(submenuItem).getComputedStyle(submenuItem).outlineStyle,
 		}, {
 			expandedAfterMouseOver: 'false',
 			expandedAfterStationaryMouseMove: 'false',
-			expandedAfterMouseMove: 'true'
+			expandedAfterMouseMove: 'true',
+			expandedOutline: 'solid',
 		});
 	});
 
@@ -577,6 +582,84 @@ suite('Menu', () => {
 		});
 	});
 
+	test('stationary pointer down switches a high contrast menu from focus to hover styling', () => {
+		const host = append(document.body, $('.hc-black'));
+		host.style.setProperty('--vscode-menu-selectionBorder', '#f38518');
+		host.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		host.style.setProperty('--vscode-strokeThickness', '1px');
+		disposables.add(toDisposable(() => host.remove()));
+		const menu = disposables.add(new Menu(host, [disposables.add(new Action('first', 'First'))], {}, unthemedMenuStyles));
+		menu.focus(true);
+		const menuElement = host.querySelector<HTMLElement>('.monaco-menu')!;
+		menuElement.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+		const item = host.querySelector<HTMLElement>('.action-item')!;
+		const label = item.querySelector<HTMLElement>('.action-menu-item')!;
+		const describe = () => ({
+			keyboard: menuElement.classList.contains('keyboard-navigation'),
+			mouse: menuElement.classList.contains('mouse-navigation'),
+			outline: getWindow(label).getComputedStyle(label).outlineStyle,
+		});
+		const keyboard = describe();
+		const actionsList = menuElement.querySelector<HTMLElement>('.monaco-action-bar.vertical')!;
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true }));
+		const deadSpace = describe();
+		item.classList.add('hovered');
+		item.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true }));
+		const pointer = describe();
+		item.classList.remove('hovered');
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+		const pointerAway = describe();
+
+		assert.deepStrictEqual({ keyboard, deadSpace, pointer, pointerAway }, {
+			keyboard: { keyboard: true, mouse: false, outline: 'solid' },
+			deadSpace: { keyboard: true, mouse: false, outline: 'solid' },
+			pointer: { keyboard: false, mouse: true, outline: 'dashed' },
+			pointerAway: { keyboard: false, mouse: true, outline: 'solid' },
+		});
+	});
+
+	test('keyboard navigation restores the focus outline after pointer navigation', () => {
+		for (const theme of ['hc-black', 'hc-light']) {
+			const host = append(document.body, $(`.${theme}`));
+			host.style.setProperty('--vscode-menu-selectionBorder', '#007fd4');
+			host.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+			host.style.setProperty('--vscode-strokeThickness', '1px');
+			disposables.add(toDisposable(() => host.remove()));
+			const menu = disposables.add(new Menu(host, [
+				disposables.add(new Action('first', 'First')),
+				disposables.add(new Action('second', 'Second')),
+			], {}, unthemedMenuStyles));
+			menu.focus(true);
+			const menuElement = host.querySelector<HTMLElement>('.monaco-menu')!;
+			const items = [...host.querySelectorAll<HTMLElement>('.action-item')];
+			const firstItem = items[0];
+			firstItem.classList.add('hovered');
+
+			const states = [
+				{ key: 'ArrowDown', keyCode: 40 },
+				{ key: 'ArrowUp', keyCode: 38 },
+				{ key: 'Home', keyCode: 36 },
+				{ key: 'End', keyCode: 35 },
+			].map(({ key, keyCode }) => {
+				firstItem.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+				const focusedItem = host.querySelector<HTMLElement>('.action-item.focused > .action-menu-item')!;
+				focusedItem.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true }));
+				const nextFocusedItem = host.querySelector<HTMLElement>('.action-item.focused > .action-menu-item')!;
+				return {
+					focused: items.indexOf(nextFocusedItem.parentElement!),
+					keyboard: menuElement.classList.contains('keyboard-navigation'),
+					mouse: menuElement.classList.contains('mouse-navigation'),
+					outline: getWindow(nextFocusedItem).getComputedStyle(nextFocusedItem).outlineStyle,
+				};
+			});
+
+			assert.deepStrictEqual(states, [1, 1, 0, 1].map(focused => ({
+				focused, keyboard: true, mouse: false, outline: 'solid',
+			})), theme);
+		}
+	});
+
 	test('high contrast selection outline does not apply to nested submenu items (#327543)', () => {
 		const host = append(document.body, $('div'));
 		disposables.add(toDisposable(() => host.remove()));
@@ -587,7 +670,10 @@ suite('Menu', () => {
 
 		const themeRoot = shadowRoot.appendChild($('.hc-black'));
 		themeRoot.style.setProperty('--vscode-menu-selectionBorder', 'yellow');
-		const actionBar = append(append(themeRoot, $('.monaco-menu')), $('.monaco-action-bar.vertical'));
+		themeRoot.style.setProperty('--vscode-contrastActiveBorder', 'orange');
+		themeRoot.style.setProperty('--vscode-strokeThickness', '1px');
+		const menu = append(themeRoot, $('.monaco-menu'));
+		const actionBar = append(menu, $('.monaco-action-bar.vertical'));
 		const focusedAction = append(actionBar, $('.action-item.focused'));
 		const focusedMenuItem = append(focusedAction, $('a.action-menu-item'));
 
@@ -595,11 +681,26 @@ suite('Menu', () => {
 		const nestedMenuItem = append(append(submenuActionBar, $('.action-item')), $('a.action-menu-item'));
 
 		const window = getWindow(host);
+		const readOutline = (element: HTMLElement) => {
+			const style = window.getComputedStyle(element);
+			return {
+				color: style.outlineColor,
+				offset: style.outlineOffset,
+				style: style.outlineStyle,
+				width: style.outlineWidth,
+			};
+		};
+		const keyboard = readOutline(focusedMenuItem);
+		focusedAction.classList.add('hovered');
+		menu.classList.add('mouse-navigation');
+		const pointer = readOutline(focusedMenuItem);
 		assert.deepStrictEqual({
-			focused: window.getComputedStyle(focusedMenuItem).outlineStyle,
+			keyboard,
+			pointer,
 			nested: window.getComputedStyle(nestedMenuItem).outlineStyle,
 		}, {
-			focused: 'solid',
+			keyboard: { color: 'rgb(255, 255, 0)', offset: '-1px', style: 'solid', width: '1px' },
+			pointer: { color: 'rgb(255, 165, 0)', offset: '-1px', style: 'dashed', width: '1px' },
 			nested: 'none',
 		});
 	});
