@@ -271,6 +271,8 @@ export interface IChatListItemRendererOptions {
 	readonly codeBlockRenderOptions?: ICodeBlockRenderOptions;
 	/** Enables isolated previews for explicit html-preview fences in responses. */
 	readonly renderHtmlPreviews?: boolean;
+	/** Enables native components for explicit vscode-ui fences in responses. */
+	readonly renderNativeComponents?: boolean;
 	/** Presents responses as coming from this identity instead of the responding agent's own. */
 	readonly responseIdentity?: IChatResponseIdentity;
 }
@@ -513,6 +515,8 @@ export interface IChatWidget {
 	readonly supportsFileReferences: boolean;
 	/** Whether this widget can host question and confirmation controls. Defaults to true. */
 	readonly supportsInputRequests?: boolean;
+	/** Whether this widget shows native components in responses while they are enabled. Defaults to false. */
+	readonly rendersNativeComponents?: boolean;
 	/** Whether the input part is rendered above the transcript instead of below it (quick chat, composer-style widgets). */
 	readonly rendersInputOnTop: boolean;
 	readonly attachmentCapabilities: IChatAgentAttachmentCapabilities;
