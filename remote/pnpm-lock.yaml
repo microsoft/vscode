@@ -178,8 +178,8 @@ importers:
         specifier: 0.88.0
         version: 0.88.0
       '@github/copilot-sdk':
-        specifier: 1.0.32-preview.3
-        version: 1.0.32-preview.3
+        specifier: 1.0.33
+        version: 1.0.33
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -404,52 +404,52 @@ packages:
     engines: {node: '>=20.0.0'}
     hasBin: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.32-preview.3':
-    resolution: {integrity: sha512-oFG1kfYFkWo8/l9SUVboWZPvAy9Jt0SFMl3XDQtfYIcfb6M3jGm4LA66v9Vd9R11AwiKWG7HDC41qYp0ImvEOQ==}
+  '@github/copilot-sdk-darwin-arm64@1.0.33':
+    resolution: {integrity: sha512-gEAwhTEBwxZjdUwcgqCAcElJ2eDEL9AaeIWBXZ5FcMGPW8z4UEq0AqaR0igKcKxpp44Dc+wqUnjF5OAuV5LcwQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@github/copilot-sdk-darwin-x64@1.0.32-preview.3':
-    resolution: {integrity: sha512-YmOTQVcJoN913jBeYl/Pih9uskSat0V3ueAj7fG8CO4xXVT0vd21E0/ADTYYdStXJVRIp89SmP0GrmR7WLSP/w==}
+  '@github/copilot-sdk-darwin-x64@1.0.33':
+    resolution: {integrity: sha512-66cPDoru6kpmgz6yizcgxuU8mNYRob5DFOOQXcDuZ8pLy7rtNlSadarjwakJTddKccA2SdmQhvixDIyaBe0oPQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@github/copilot-sdk-linux-arm64@1.0.32-preview.3':
-    resolution: {integrity: sha512-ispivEaVev0hoGbnDv4fI6NTukTijsdSYnqeUdGIhtrL289F071Y1O7Cp0XdxnTMkvUfNWcXMFiFpttDctmbxQ==}
+  '@github/copilot-sdk-linux-arm64@1.0.33':
+    resolution: {integrity: sha512-1fHT/Kwscd2JY37+coYPcM0ZAccSni6B0DMU6Tbfmghu8lUsyS64+38KmK7JA22GRP4AdoyDeyB8r9bWcUynMg==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linux-x64@1.0.32-preview.3':
-    resolution: {integrity: sha512-IxF6E1Thtv8zF6HaapZokK7mQ8oz1Zu9dBwX/mNll588iKsE2rtjPxMTL5YPrqX1ifmkvIJ4h7j2fWpXQTEcNw==}
+  '@github/copilot-sdk-linux-x64@1.0.33':
+    resolution: {integrity: sha512-NFLVRrWQGbuQvMff1UM2OAjauakhL0+p/Hx/f5H1dKfgcu4NAacT9CA8KlKvONGA5/GzzwpmjSsIkfEaLl4z6Q==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.32-preview.3':
-    resolution: {integrity: sha512-mWSbThpeD5U90BJpWgY6yF3nfGYYv07BvtPwroHwzVD5mre5txmFy+sx+5UEcRTQFoCwG4TA/tjZFilkWq4KZg==}
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.33':
+    resolution: {integrity: sha512-9vq7BZ7ZijUGEXnHQvlWVa8Ef0Hh8X3jh8eHLkwTxv1ru4ZrV5SgZcRBlzeltBmPPLuQbqVosw6Unl96GblELQ==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.32-preview.3':
-    resolution: {integrity: sha512-SQgxPKk5cpFKvjwA7FowRjG/d7Xeb4ygCZCmp9uOY7/vg8XgGAmwf9eeCGTczQyx3vEXbNOODRQvErORRDZP8A==}
+  '@github/copilot-sdk-linuxmusl-x64@1.0.33':
+    resolution: {integrity: sha512-S34a0VeVj+2VPZkYbUOAAhS0fM3IRNrbdfDmBgyQL9eVA/n5MqibQ3MjS/CT4mkye/7140SXczadLKW6LmId1g==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-win32-arm64@1.0.32-preview.3':
-    resolution: {integrity: sha512-50H9GD8Pm5UwyaVZ6lPZ5kVaarr/s32xsB55RyKgOns+tXrN1YnVAnAuDorfWf+Mv087RHxiTcIKL2Om6qo/KA==}
+  '@github/copilot-sdk-win32-arm64@1.0.33':
+    resolution: {integrity: sha512-rfWx+5/kRhRkYLDL/2gr02UqcMgoOZ6LmUU/MvM9/p+yXs+RAjmKfXsyoB9sMBLAikZtlCTZgn81RIDf14h8Cw==}
     cpu: [arm64]
     os: [win32]
 
-  '@github/copilot-sdk-win32-x64@1.0.32-preview.3':
-    resolution: {integrity: sha512-3Ea8V39vZHqqY7+O9lYu2QbuF5PkCeoCf1tkabWQlCJ/Gf3w5/eld6NEVaTSjIZC1pbdWvVaLCwVMJBfBPPLBw==}
+  '@github/copilot-sdk-win32-x64@1.0.33':
+    resolution: {integrity: sha512-H6ogD4XRze5YA1CaTrwcYTtclW1Wv/hx6fqP95VS35LForAta71BVWic5bzoXHHFI7yrvvN4Pkn4/KFgBi9jOA==}
     cpu: [x64]
     os: [win32]
 
-  '@github/copilot-sdk@1.0.32-preview.3':
-    resolution: {integrity: sha512-yn2vdGJmk1KSmjynvHeFl9mC4qriTaPu6G0uRpoEp9CETB1HWbmBh32A2DKl/N/8BspJ4n3i0wRf74oF0X2Onw==}
+  '@github/copilot-sdk@1.0.33':
+    resolution: {integrity: sha512-2PO7U1tkFFE3iaw3NtWtC321FCy7hFQe+KXU7mZrYdHjiauzsYfWNTqru0qTAHKrm6UlYVFgd0pqCLxu8qaDOA==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@hpke/common@1.10.1':
@@ -1062,45 +1062,45 @@ snapshots:
 
   '@devcontainers/cli@0.88.0': {}
 
-  '@github/copilot-sdk-darwin-arm64@1.0.32-preview.3':
+  '@github/copilot-sdk-darwin-arm64@1.0.33':
     optional: true
 
-  '@github/copilot-sdk-darwin-x64@1.0.32-preview.3':
+  '@github/copilot-sdk-darwin-x64@1.0.33':
     optional: true
 
-  '@github/copilot-sdk-linux-arm64@1.0.32-preview.3':
+  '@github/copilot-sdk-linux-arm64@1.0.33':
     optional: true
 
-  '@github/copilot-sdk-linux-x64@1.0.32-preview.3':
+  '@github/copilot-sdk-linux-x64@1.0.33':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.32-preview.3':
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.33':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.32-preview.3':
+  '@github/copilot-sdk-linuxmusl-x64@1.0.33':
     optional: true
 
-  '@github/copilot-sdk-win32-arm64@1.0.32-preview.3':
+  '@github/copilot-sdk-win32-arm64@1.0.33':
     optional: true
 
-  '@github/copilot-sdk-win32-x64@1.0.32-preview.3':
+  '@github/copilot-sdk-win32-x64@1.0.33':
     optional: true
 
-  '@github/copilot-sdk@1.0.32-preview.3':
+  '@github/copilot-sdk@1.0.33':
     dependencies:
       koffi: 3.2.1
       lossless-json: 4.3.3
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.32-preview.3
-      '@github/copilot-sdk-darwin-x64': 1.0.32-preview.3
-      '@github/copilot-sdk-linux-arm64': 1.0.32-preview.3
-      '@github/copilot-sdk-linux-x64': 1.0.32-preview.3
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.32-preview.3
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.32-preview.3
-      '@github/copilot-sdk-win32-arm64': 1.0.32-preview.3
-      '@github/copilot-sdk-win32-x64': 1.0.32-preview.3
+      '@github/copilot-sdk-darwin-arm64': 1.0.33
+      '@github/copilot-sdk-darwin-x64': 1.0.33
+      '@github/copilot-sdk-linux-arm64': 1.0.33
+      '@github/copilot-sdk-linux-x64': 1.0.33
+      '@github/copilot-sdk-linuxmusl-arm64': 1.0.33
+      '@github/copilot-sdk-linuxmusl-x64': 1.0.33
+      '@github/copilot-sdk-win32-arm64': 1.0.33
+      '@github/copilot-sdk-win32-x64': 1.0.33
 
   '@hpke/common@1.10.1': {}
 
