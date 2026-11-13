@@ -136,15 +136,16 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 				return;
 			}
 
-			// Closing an editor whose backup is not restored yet discards the backup: retried once its editor turns dirty.
-			// A change that comes in while the backups are queried could be missed by them, so it checks again right away.
+			// Closing an input whose backup is not restored yet discards the backup, and closing a side by side editor disposes
+			// its dirty sides: retried once inputs change their dirty state. A change that comes in while the backups are
+			// queried could be missed by them, so it checks again right away.
 			const generation = this.workingCopyGeneration;
-			this.deferred = await this.hasUnrestoredBackups();
+			this.deferred = await this.wouldCloseUnsavedInputs();
 			if (this.deferred || this.disposed) {
 				if (this.deferred && generation !== this.workingCopyGeneration) {
 					this.reconcile();
 				} else if (this.deferred) {
-					this.logService.info('[folderLocation] Deferring the switch of the editors until their backups are restored');
+					this.logService.info('[folderLocation] Deferring the switch of the editors until their backups are restored and the dirty sides of closing side by side editors are saved');
 				}
 				return;
 			}
@@ -154,32 +155,37 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	}
 
 	/**
-	 * Whether an input that applying a working set would close has a backup that is not restored yet.
-	 * A backup only exists for unsaved content and a restored one makes its input dirty: so a backup of
-	 * an input that is not dirty is not restored yet, also when its working copy is already registered.
-	 * A backup whose input never restores keeps the switch deferred.
+	 * Whether applying a working set would dispose unsaved content: an input that has a backup that is not
+	 * restored yet, or a dirty side of a side by side editor that closes because its primary side is not dirty or is saving.
+	 * A backup only exists for unsaved content and a restored one makes its input dirty: so a backup of an
+	 * input that is not dirty is not restored yet, also when its working copy is already registered.
+	 * A backup whose input never restores, or a dirty side that is never saved, keeps the switch deferred.
 	 */
-	private async hasUnrestoredBackups(): Promise<boolean> {
-		const backups = await this.workingCopyBackupService.getBackups();
-		if (backups.length === 0) {
+	private async wouldCloseUnsavedInputs(): Promise<boolean> {
+		if (this.getClosingInputs().length === 0) {
 			return false;
 		}
 
+		const backups = await this.workingCopyBackupService.getBackups();
+
 		// The editors are only looked at once the backups are known, so that they are current
-		return this.getClosingInputs().some(input => !input.isDirty() && backups.some(backup => this.uriIdentityService.extUri.isEqual(input.resource, backup.resource)));
+		return this.getClosingInputs().some(({ input, side }) => input.isDirty()
+			? side
+			: backups.some(backup => this.uriIdentityService.extUri.isEqual(input.resource, backup.resource)));
 	}
 
 	/**
 	 * The inputs that applying a working set disposes: the editors that close without confirmation
-	 * (that are not dirty, or are dirty and saving) and, for side by side editors, both of their sides.
+	 * (that are not dirty, or are dirty and saving) and, for side by side editors, all of their sides,
+	 * also the dirty ones, because closing the editor disposes them.
 	 */
-	private getClosingInputs(): EditorInput[] {
-		const inputs: EditorInput[] = [];
-		const add = (input: EditorInput) => {
-			inputs.push(input);
+	private getClosingInputs(): { input: EditorInput; side: boolean }[] {
+		const inputs: { input: EditorInput; side: boolean }[] = [];
+		const add = (input: EditorInput, side: boolean) => {
+			inputs.push({ input, side });
 			if (input instanceof SideBySideEditorInput) {
-				add(input.primary);
-				add(input.secondary);
+				add(input.primary, true);
+				add(input.secondary, true);
 			}
 		};
 		for (const part of this.editorGroupsService.parts) {
@@ -189,7 +195,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 			for (const group of part.groups) {
 				for (const editor of group.editors) {
 					if (!editor.isDirty() || editor.isSaving()) {
-						add(editor);
+						add(editor, false);
 					}
 				}
 			}

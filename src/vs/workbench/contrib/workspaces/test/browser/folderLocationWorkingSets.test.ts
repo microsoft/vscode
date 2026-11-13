@@ -563,6 +563,8 @@ suite('FolderLocationWorkingSetsContribution', () => {
 
 suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 
+	const alternateKey = URI.file('/work/project-alt').toString();
+
 	const disposables = new DisposableStore();
 
 	teardown(() => {
@@ -580,8 +582,11 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 		}
 	}
 
-	/** Switches the location while the backup of an untitled editor, which is only in an inactive tab of its own or of a diff editor, is being restored. */
-	async function switchWhileRestoring(tab: 'untitled' | 'diff') {
+	/**
+	 * Switches the location while the backup of an untitled editor, which is only in an inactive tab of its own,
+	 * or of a diff editor as its modified or its original side, is being restored.
+	 */
+	async function createWorkbench() {
 		const backupService = disposables.add(new HeldWorkingCopyBackupService());
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService), workingCopyBackupService: () => backupService }, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
@@ -591,6 +596,34 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 		const container = parts.testMainPart.getContainer()!;
 		mainWindow.document.body.appendChild(container);
 		disposables.add({ dispose: () => container.remove() });
+		const storage = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
+		const owner = (): string | undefined => JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE) ?? '{}').owner;
+
+		/** Starts the contribution at the primary location and returns a function that switches to the alternate one. */
+		const startAtPrimary = () => {
+			let folder = URI.file('/work/project');
+			const onDidChangeLocation = disposables.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
+			disposables.add(instantiationService.invokeFunction(accessor => new FolderLocationWorkingSetsContribution(
+				{ onDidChangeLocation: onDidChangeLocation.event, onDidChangeCanSetLocation: Event.None, canSetLocation: () => true } as unknown as IWorkspaceFolderLocationService,
+				{ getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: folder, name: 'project', index: 0 })], false, null, () => false) } as unknown as IWorkspaceContextService,
+				parts,
+				storage,
+				accessor.get(IUriIdentityService),
+				accessor.get(ILogService),
+				backupService,
+				accessor.get(IWorkingCopyService)
+			)));
+			return () => {
+				folder = URI.file('/work/project-alt');
+				onDidChangeLocation.fire({ reason: 'programmatic' });
+			};
+		};
+
+		return { backupService, instantiationService, parts, storage, owner, startAtPrimary };
+	}
+
+	async function switchWhileRestoring(tab: 'untitled' | 'diff' | 'diffOriginal') {
+		const { backupService, instantiationService, parts, storage, owner, startAtPrimary } = await createWorkbench();
 
 		// Restored inactive: the working copy of the untitled editor is registered and clean while its backup resolves
 		const model = disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IUntitledTextEditorService)).create());
@@ -600,42 +633,38 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 		backupService.gate = new Promise<void>(resolve => release = resolve);
 		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
 		const active = disposables.add(new TestFileEditorInput(URI.file('/work/project/active.txt'), 'testTypeId'));
-		const original = disposables.add(new TestFileEditorInput(URI.file('/work/project/original.txt'), 'testTypeId'));
-		const inactive = tab === 'diff' ? disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, original, untitled, undefined)) : untitled;
+		const file = disposables.add(new TestFileEditorInput(URI.file('/work/project/file.txt'), 'testTypeId'));
+		const inactive = tab === 'diff' ? disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, file, untitled, undefined))
+			: tab === 'diffOriginal' ? disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, untitled, file, undefined))
+				: untitled;
 		const group = parts.testMainPart.activeGroup;
 		await group.openEditor(active, { pinned: true });
 		await group.openEditor(inactive, { pinned: true, inactive: true });
 		const resolving = untitled.resolve();
 		await parts.whenRestored;
 
-		let folder = URI.file('/work/project');
-		const alternateKey = URI.file('/work/project-alt').toString();
-		const storage = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
-		const onDidChangeLocation = disposables.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
-		disposables.add(instantiationService.invokeFunction(accessor => new FolderLocationWorkingSetsContribution(
-			{ onDidChangeLocation: onDidChangeLocation.event, onDidChangeCanSetLocation: Event.None, canSetLocation: () => true } as unknown as IWorkspaceFolderLocationService,
-			{ getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: folder, name: 'project', index: 0 })], false, null, () => false) } as unknown as IWorkspaceContextService,
-			parts,
-			storage,
-			accessor.get(IUriIdentityService),
-			accessor.get(ILogService),
-			backupService,
-			accessor.get(IWorkingCopyService)
-		)));
+		const switchToAlternate = startAtPrimary();
 
 		const editors = () => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor === inactive ? tab : editor === active ? 'active' : 'other');
 		// The entering location only becomes the owner once its editors are applied
 		const switched = Event.toPromise(Event.filter(storage.onDidChangeValue(StorageScope.WORKSPACE, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, disposables), () => JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE)!).owner === alternateKey), disposables);
-		folder = URI.file('/work/project-alt');
-		onDidChangeLocation.fire({ reason: 'programmatic' });
+		switchToAlternate();
 		await timeout(50);
 		const whileRestoring = { editors: editors(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), backup: backupService.hasBackupSync(identifier) };
 
 		release();
-		await resolving;
-		await switched;
+		if (tab === 'diffOriginal') {
+			// The diff closes while its original side is dirty: nothing switches, so wait for the retry the restore triggers
+			const restored = Event.toPromise(instantiationService.invokeFunction(accessor => accessor.get(IWorkingCopyService)).onDidChangeDirty, disposables);
+			await resolving;
+			await restored;
+			await timeout(50);
+		} else {
+			await resolving;
+			await switched;
+		}
 
-		return { whileRestoring, editors: editors(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), content: model.textEditorModel?.getValue(), backup: backupService.hasBackupSync(identifier) };
+		return { whileRestoring, editors: editors(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), content: model.textEditorModel?.getValue(), backup: backupService.hasBackupSync(identifier), owner: owner() };
 	}
 
 	test('an inactive untitled editor whose backup is still being restored is neither closed nor discarded by a switch, and travels along once it is restored', async () => {
@@ -645,7 +674,41 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 			disposed: false,
 			dirty: true,
 			content: 'backed up',
-			backup: true
+			backup: true,
+			owner: alternateKey
+		});
+	});
+
+	test('an inactive diff editor whose original side is an untitled editor with a backup keeps a switch deferred while it is restored and once it is dirty, since closing the diff would dispose it', async () => {
+		assert.deepStrictEqual(await switchWhileRestoring('diffOriginal'), {
+			whileRestoring: { editors: ['active', 'diffOriginal'], disposed: false, dirty: false, backup: true },
+			editors: ['active', 'diffOriginal'],
+			disposed: false,
+			dirty: true,
+			content: 'backed up',
+			backup: true,
+			owner: undefined
+		});
+	});
+
+	test('an inactive diff editor whose original side is dirty keeps a switch deferred, since closing the diff would dispose it', async () => {
+		const { instantiationService, parts, owner, startAtPrimary } = await createWorkbench();
+		const model = disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IUntitledTextEditorService)).create({ initialValue: 'unsaved' }));
+		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
+		await untitled.resolve();
+		const active = disposables.add(new TestFileEditorInput(URI.file('/work/project/active.txt'), 'testTypeId'));
+		const file = disposables.add(new TestFileEditorInput(URI.file('/work/project/file.txt'), 'testTypeId'));
+		const diff = disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, untitled, file, undefined));
+		const group = parts.testMainPart.activeGroup;
+		await group.openEditor(active, { pinned: true });
+		await group.openEditor(diff, { pinned: true, inactive: true });
+		await parts.whenRestored;
+
+		startAtPrimary()();
+		await timeout(50);
+
+		assert.deepStrictEqual({ editors: group.count, diffDirty: diff.isDirty(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), content: model.textEditorModel?.getValue(), owner: owner() }, {
+			editors: 2, diffDirty: false, disposed: false, dirty: true, content: 'unsaved', owner: undefined
 		});
 	});
 
@@ -656,7 +719,8 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 			disposed: false,
 			dirty: true,
 			content: 'backed up',
-			backup: true
+			backup: true,
+			owner: alternateKey
 		});
 	});
 });
