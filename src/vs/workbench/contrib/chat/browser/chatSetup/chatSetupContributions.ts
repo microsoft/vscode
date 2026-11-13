@@ -255,6 +255,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
 				const lifecycleService = accessor.get(ILifecycleService);
+				const configurationService = accessor.get(IConfigurationService);
+
+				await context.update({ hidden: false });
+				configurationService.updateValue(ChatAIDisabledSettingId, false);
+
 				if (mode) {
 					const chatWidget = await widgetService.revealWidget();
 					if (chatWidget) {

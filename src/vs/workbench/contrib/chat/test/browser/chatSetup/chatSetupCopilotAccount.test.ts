@@ -682,10 +682,11 @@ suite('Microsoft Copilot resource setup UI', () => {
 		assert.deepStrictEqual({ success: result.success, calls: f.calls, delivered: f.deliveries }, { success: false, calls: ['signIn', 'retry'], delivered: [] });
 	});
 
-	test('unsupported startup gate and disabled AI never fabricate successful Microsoft setup', async () => {
+	test('Microsoft setup fails on a host that does not offer it and, like GitHub, is not refused when AI features are off', async () => {
 		const outcomes = [];
 		for (const condition of ['unsupported', 'hidden', 'admin'] as const) {
 			const f = fixture();
+			f.state.offered = [services[1]];
 			if (condition === 'unsupported') {
 				f.publish([]);
 			} else {
@@ -694,7 +695,10 @@ suite('Microsoft Copilot resource setup UI', () => {
 			const result = await f.run();
 			outcomes.push({ condition, success: result.success, calls: f.calls, delivered: f.deliveries.length });
 		}
-		assert.deepStrictEqual(outcomes, ['unsupported', 'hidden', 'admin'].map(condition => ({ condition, success: false, calls: ['retry'], delivered: 0 })));
+		assert.deepStrictEqual(outcomes, [
+			{ condition: 'unsupported', success: false, calls: ['retry'], delivered: 0 },
+			...['hidden', 'admin'].map(condition => ({ condition, success: true, calls: ['signIn', 'install'], delivered: 2 })),
+		]);
 	});
 
 	test('GitHub and GHE follow the ordinary sign-in path with the gate on or off', async () => {

@@ -45,7 +45,6 @@ import { AuthRequiredReason, NotificationType } from '../../../../../platform/ag
 import { ROOT_STATE_URI, RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { toAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 
@@ -251,7 +250,6 @@ export class ChatSetupController extends Disposable {
 	}
 
 	private async doMicrosoftAccountSetup(token: CancellationToken): Promise<ChatSetupResultValue> {
-		this.requireMicrosoftSetupEnabled();
 		this.setStep(ChatSetupStep.SigningIn);
 		const store = new DisposableStore();
 		const cancellation = store.add(new CancellationTokenSource(token));
@@ -387,15 +385,7 @@ export class ChatSetupController extends Disposable {
 		}
 	}
 
-	private requireMicrosoftSetupEnabled(): void {
-		const state = this.context.state;
-		if (state.hidden || state.disabled || state.disabledInWorkspace || this.configurationService.getValue(ChatConfiguration.AgentEnabled) === false) {
-			throw new Error(localize('copilotSetupUnavailable', "Copilot setup is unavailable. Check your AI feature and administrator settings."));
-		}
-	}
-
 	private requireMicrosoftResource(resource: ProtectedResourceMetadata, offered: readonly ProtectedResourceMetadata[], token: CancellationToken): void {
-		this.requireMicrosoftSetupEnabled();
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}

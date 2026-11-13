@@ -41,7 +41,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { IChatMicrosoftSignInProbeService } from './chatSetupMicrosoftProbe.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { AgentHostCopilotM365EnabledSettingId, ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
+import { AgentHostCopilotM365EnabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 
 type ChatSetupDialogShownEvent = {
 	source: ChatSetupSource;
@@ -403,10 +403,6 @@ export class ChatSetup {
 		let setupError: Error | undefined;
 		let errorAlreadyHandled = false;
 		const microsoftSetup = setupStrategy === ChatSetupStrategy.SetupWithMicrosoftProvider && this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true;
-		if (!microsoftSetup && setupStrategy !== ChatSetupStrategy.Canceled) {
-			await this.context.update({ hidden: false });
-			await this.configurationService.updateValue(ChatAIDisabledSettingId, false);
-		}
 		const setupCancellation = new CancellationTokenSource(options?.cancellationToken);
 		try {
 			if (!microsoftSetup && (entersProviderAuthentication(setupStrategy) || (setupStrategy === ChatSetupStrategy.DefaultSetup && !signedInAccount))) {
