@@ -24,7 +24,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { FocusMode, INativeAppWindow } from '../../../../../platform/native/common/native.js';
+import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import product from '../../../../../platform/product/common/product.js';
@@ -36,8 +36,8 @@ import { getScreenshotToolImageData, IScreenshotToolImage, IScreenshotToolServic
 import { AppWindowScreenshotPermission, AppWindowScreenshotResult, getAppWindowLabel, IAppWindowScreenshotService } from '../../../screenshotTool/electron-browser/appWindowScreenshot.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../browser/attachments/chatContextPickService.js';
-import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatWidget, IChatWidgetContrib } from '../../browser/widget/chatWidget.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
+import { ChatWidget, IChatWidgetContrib, isQuickChat } from '../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
@@ -47,9 +47,6 @@ import { AppWindowScreenshotSetupDialog } from './chatAppWindowScreenshotSetup.j
 
 const ATTACH_APP_WINDOW_SCREENSHOT_TITLE = localize2('chat.attachAppWindowScreenshot', "Attach Screenshot of App Window");
 const PICK_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.pickAppWindowScreenshot';
-
-/** How long the Add Context picker waits to name the window that its item captures, as it opens once all items are ready. */
-const LABEL_TIMEOUT = 150;
 
 /** How long a capture waits for the chat input to load its session before it gives up attaching the screenshot. */
 const VIEW_MODEL_TIMEOUT = 10000;
@@ -96,8 +93,6 @@ interface IAppWindowScreenshotRequest {
 	readonly source: AppWindowScreenshotSource;
 	/** Lets the user pick the window in a list. */
 	readonly pick?: boolean;
-	/** The window to capture, which a menu named. */
-	readonly window?: INativeAppWindow;
 	/** The session of the chat to attach the screenshot to, instead of the chat that had focus last. */
 	readonly sessionResource?: URI;
 }
@@ -152,7 +147,7 @@ async function captureAppWindowScreenshot(accessor: ServicesAccessor, request: I
 		return undefined;
 	}
 
-	const result: AppWindowScreenshotResult = await appWindowScreenshotService.capture({ pick: request.pick, window: request.window });
+	const result: AppWindowScreenshotResult = await appWindowScreenshotService.capture({ pick: request.pick });
 	if (result.kind === 'captured') {
 		const label = getAppWindowLabel(result.window);
 		const { data, mimeType } = getScreenshotToolImageData(result.image);
@@ -231,6 +226,7 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 	const instantiationService = accessor.get(IInstantiationService);
 	const contextKeyService = accessor.get(IContextKeyService);
 	const appWindowScreenshotService = accessor.get(IAppWindowScreenshotService);
+	const quickChatService = accessor.get(IQuickChatService);
 
 	// A system-wide keybinding runs the command without checking its precondition.
 	if (!contextKeyService.contextMatchesRules(AppWindowScreenshotsEnabled)) {
@@ -246,6 +242,11 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 
 	// Captures before VS Code comes to the front, which would change which window is in front.
 	const screenshot = await instantiationService.invokeFunction(captureAppWindowScreenshot, request);
+	// Quick Chat can't be revealed like other chats, and the list of windows to pick from takes its place, so it opens
+	// again, also when the user cancelled picking a window.
+	if (chatInUse && isQuickChat(chatInUse) && (screenshot || request.pick)) {
+		quickChatService.open();
+	}
 	if (!screenshot) {
 		return;
 	}
@@ -344,45 +345,28 @@ class PickAppWindowScreenshotAction extends Action2 {
 	}
 }
 
-/** The Add Context item, which names the window that it captures when it is known without asking for a permission. */
+/** The Add Context item, which lets the user pick the window to capture, as Pick App Window to Screenshot does. */
 class AppWindowScreenshotContextValuePick implements IChatContextValueItem {
 
 	readonly type = 'valuePick';
 	readonly icon = Codicon.deviceCamera;
-	readonly commandId = ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID;
-
-	private window: INativeAppWindow | undefined;
+	readonly label = localize('chatContext.appWindowScreenshot', "Screenshot App Window...");
+	readonly commandId = PICK_APP_WINDOW_SCREENSHOT_COMMAND_ID;
 
 	constructor(
-		@IAppWindowScreenshotService private readonly appWindowScreenshotService: IAppWindowScreenshotService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
-	get label(): string {
-		return this.window
-			? localize('chatContext.appWindowScreenshot.named', "Screenshot of {0}", getAppWindowLabel(this.window))
-			: localize('chatContext.appWindowScreenshot', "Screenshot App Window");
-	}
-
 	async isEnabled(widget: IChatWidget): Promise<boolean> {
-		this.window = undefined;
 		const model = widget.input.selectedLanguageModel.get();
 		// An automatically selected model can pick one that sees images, as the image pills assume.
-		if (!widget.attachmentCapabilities.supportsImageAttachments || !(isAutoLanguageModel(model) || model?.metadata.capabilities?.vision)) {
-			return false;
-		}
-		this.window = await raceTimeout(this.appWindowScreenshotService.getFrontmostWindow(), LABEL_TIMEOUT);
-		return true;
+		return !!widget.attachmentCapabilities.supportsImageAttachments && (isAutoLanguageModel(model) || !!model?.metadata.capabilities?.vision);
 	}
 
-	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
-		const screenshot = await this.instantiationService.invokeFunction(captureAppWindowScreenshot, { source: 'addContext', window: this.window });
-		if (screenshot) {
-			await this.appWindowScreenshotService.endCaptureFeedback({ element: widget.inputPart.inputContainerElement ?? widget.inputPart.element, image: screenshot.image });
-			status(localize('appWindowScreenshot.attached', "Attached a screenshot of {0}.", screenshot.entry.name));
-		}
-		widget.focusInput();
-		return screenshot?.entry;
+	/** Attaches the screenshot to this chat itself, so that it shrinks into its attachment, and returns nothing to attach. */
+	async asAttachment(widget: IChatWidget): Promise<undefined> {
+		await this.instantiationService.invokeFunction(attachAppWindowScreenshot, { source: 'addContext', pick: true, sessionResource: widget.viewModel?.sessionResource });
+		return undefined;
 	}
 }
 
