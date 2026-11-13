@@ -1007,7 +1007,7 @@ suite('Artifact Integration Presentation', () => {
 		updateContribution(a, c => ({ ...c, view: { ...c.view, sections: [{ id: 'status', icon: { id: 'pass' }, label: '2/2', detailsId: 'checks' }] } }));
 		assert.deepStrictEqual({
 			afterMain, opened,
-			details: details.map(section => ({ label: section.textContent, ariaLabel: section.getAttribute('aria-label'), icon: !!section.querySelector('.codicon-chevron-down') })),
+			details: details.map(section => ({ label: section.textContent, ariaLabel: section.getAttribute('aria-label'), icon: !!section.querySelector('.codicon-info') })),
 			replaced: sections(a).map(section => section.textContent),
 		}, {
 			afterMain: { opens: 1, selected: undefined, acquired: [] },
