@@ -249,6 +249,7 @@ suite('OpenBrowserTool', () => {
 			url: { value: 'http://localhost:3000/' },
 			title: { value: id },
 			model: { value: upcastPartial<IBrowserViewModel>({ network, sharingState: BrowserViewSharingState.Shared }) },
+			activeNetwork: { value: network },
 		});
 		const pages = [page('local-page', undefined), page('remote-page', { authority: 'remote' })];
 		const reused: Record<string, string[]> = {};
@@ -295,6 +296,7 @@ suite('OpenBrowserTool', () => {
 			url: { value: 'https://example.com/' },
 			title: { value: 'unshared-page' },
 			model: { value: model },
+			activeNetwork: { value: undefined },
 			resolve: { value: async () => model },
 		});
 		const sessionResource = URI.parse('chat:session');
