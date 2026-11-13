@@ -48,6 +48,8 @@ import { BugIndicatingError } from '../../../../base/common/errors.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
 import { isString } from '../../../../base/common/types.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { assertTaskWorkspaceTrust, TaskWorkspaceTrustError } from '../../tasks/common/taskSystem.js';
 
 const enum ProcessConstants {
 	/**
@@ -165,7 +167,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
@@ -251,6 +254,23 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		rows: number,
 		reset: boolean = true
 	): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
+		try {
+			return await this._createProcess(shellLaunchConfig, cols, rows, reset);
+		} catch (error) {
+			if (error instanceof TaskWorkspaceTrustError) {
+				this._logService.warn(error.message);
+				return { message: error.message };
+			}
+			throw error;
+		}
+	}
+
+	private async _createProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		cols: number,
+		rows: number,
+		reset: boolean = true
+	): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		this._shellLaunchConfig = shellLaunchConfig;
 		this._dimensions.cols = cols;
 		this._dimensions.rows = rows;
@@ -325,6 +345,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 					};
 					try {
+						if (shellLaunchConfig.type === 'Task') {
+							assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
+						}
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
@@ -440,6 +463,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, ProcessConstants.ErrorLaunchThresholdDuration);
 
+		if (shellLaunchConfig.type === 'Task') {
+			try {
+				assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
+			} catch (error) {
+				newProcess.shutdown(false);
+				throw error;
+			}
+		}
 		const result = await newProcess.start();
 		if (result) {
 			// Error
@@ -563,6 +594,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._terminalConfigurationService.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
+		if (shellLaunchConfig.type === 'Task') {
+			assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
+		}
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._terminalConfigurationService.config.unicodeVersion, env, options, shouldPersist);
 	}
 

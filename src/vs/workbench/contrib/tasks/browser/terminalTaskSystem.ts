@@ -39,7 +39,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { TaskTerminalStatus } from './taskTerminalStatus.js';
 import { ProblemCollectorEventKind, ProblemHandlingStrategy, StartStopProblemCollector, WatchingProblemCollector } from '../common/problemCollectors.js';
 import { GroupKind } from '../common/taskConfiguration.js';
-import { IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
+import { assertTaskWorkspaceTrust, IResolveSet, IResolvedVariables, ITaskExecuteResult, ITaskResolver, ITaskSummary, ITaskSystem, ITaskSystemInfo, ITaskSystemInfoResolver, ITaskTerminateResponse, TaskError, TaskErrors, TaskExecuteKind, Triggers, VerifiedTask } from '../common/taskSystem.js';
 import { CommandOptions, CommandString, ContributedTask, CustomTask, DependsOrder, ICommandConfiguration, IConfigurationProperties, IExtensionTaskSource, IPresentationOptions, IShellConfiguration, IShellQuotingOptions, ITaskEvent, InMemoryTask, PanelKind, RerunForActiveTerminalCommandId, RevealKind, RevealProblemKind, RuntimeType, ShellQuoting, TASK_TERMINAL_ACTIVE, Task, TaskEvent, TaskEventKind, TaskScope, TaskSourceKind, rerunTaskIcon } from '../common/tasks.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { VSCodeOscProperty, VSCodeOscPt, VSCodeSequence } from '../../terminal/browser/terminalEscapeSequences.js';
@@ -54,6 +54,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { TaskProblemMonitor } from './taskProblemMonitor.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { serializeVSCodeOscMessage } from '../../../../platform/terminal/common/xterm/shellIntegrationAddon.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -171,7 +172,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _previousTerminalInstance: ITerminalInstance | undefined;
 	private _terminalStatusManager: TaskTerminalStatus;
 	private _taskProblemMonitor: TaskProblemMonitor;
-	private _terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
+	private readonly _terminalCreationQueue = new Async.Sequencer();
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _terminalTabActions = [{ id: RerunForActiveTerminalCommandId, label: nls.localize('rerunTask', 'Rerun Task'), icon: rerunTaskIcon }];
@@ -223,6 +224,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		instantiationService: IInstantiationService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
 		private _taskLookup: (taskKey: string) => Promise<Task | undefined>,
+		private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -277,6 +279,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const executeResult = { kind: TaskExecuteKind.Started, task, started: {}, promise: this._executeTask(task, resolver, trigger, new Set(), new Map(), undefined) };
 			executeResult.promise.then(summary => {
 				this._lastTask = this._currentTask;
+			}, error => {
+				this._logService.error('Task execution failed', error);
 			});
 			return executeResult;
 		} catch (error) {
@@ -532,12 +536,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		// any of the code in the then runs (see #180541 and #180578). Wrapping
 		// it in Promise.resolve().then() ensures that.
 		const promise = Promise.resolve().then(async () => {
+			assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 			alreadyResolved = alreadyResolved ?? new Map<string, string>();
 			const promises: Promise<ITaskSummary>[] = [];
 			if (task.configurationProperties.dependsOn) {
 				const nextLiveDependencies = new Set(liveDependencies).add(task.getCommonTaskId());
 				for (const dependency of task.configurationProperties.dependsOn) {
 					const dependencyTask = await resolver.resolve(dependency.uri, dependency.task);
+					assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 					if (dependencyTask) {
 						this._adoptConfigurationForDependencyTask(dependencyTask, task);
 
@@ -568,6 +574,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						}
 						encounteredTasks.set(commonKey, taskResult);
 						promises.push(taskResult);
+						taskResult.catch(error => this._logService.error('Task dependency failed', error));
 						if (task.configurationProperties.dependsOrder === DependsOrder.sequence) {
 							const promiseResult = await taskResult;
 							if (promiseResult.exitCode !== 0) {
@@ -586,6 +593,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 
 			return Promise.all(promises).then((summaries): Async.MaybePromise<ITaskSummary> => {
+				assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 				for (const summary of summaries) {
 					if (summary.exitCode !== 0) {
 						return { exitCode: summary.exitCode };
@@ -620,7 +628,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return promise;
 	}
 
-	private _createInactiveDependencyPromise(task: Task): Promise<ITaskSummary> {
+	private _createInactiveDependencyPromise(task: Task, disposables?: DisposableStore): Promise<ITaskSummary> {
 		return new Promise<ITaskSummary>(resolve => {
 			const taskInactiveDisposable = this.onDidStateChange(taskEvent => {
 				if ((taskEvent.kind === TaskEventKind.Inactive) && (taskEvent.__task === task)) {
@@ -628,6 +636,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					resolve({ exitCode: 0 });
 				}
 			});
+			disposables?.add(taskInactiveDisposable);
 		});
 	}
 
@@ -687,8 +696,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved);
 		}
 
-		const inactivePromise = this._createInactiveDependencyPromise(task);
-		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved)]);
+		const disposables = new DisposableStore();
+		const inactivePromise = this._createInactiveDependencyPromise(task, disposables);
+		return Promise.race([inactivePromise, this._executeTask(task, resolver, trigger, liveDependencies, encounteredTasks, alreadyResolved)]).finally(() => disposables.dispose());
 	}
 
 	private async _resolveAndFindExecutable(systemInfo: ITaskSystemInfo | undefined, workspaceFolder: IWorkspaceFolder | undefined, task: CustomTask | ContributedTask, cwd: string | undefined, envPath: string | undefined): Promise<string> {
@@ -837,6 +847,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const resolvedVariables = this._acquireInput(systemInfo, workspaceFolder, task, variables, alreadyResolved);
 
 		return resolvedVariables.then((resolvedVariables) => {
+			assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 			if (resolvedVariables && !this._isTaskEmpty(task)) {
 				this._currentTask.resolvedVariables = resolvedVariables;
 				return this._executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, systemInfo, resolvedVariables.variables, this._configurationResolverService), workspaceFolder);
@@ -876,6 +887,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		if (!hasAllVariables) {
 			return this._acquireInput(lastTask.getVerifiedTask().systemInfo, lastTask.getVerifiedTask().workspaceFolder, task, variables, alreadyResolved).then((resolvedVariables) => {
+				assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 				if (!resolvedVariables) {
 					// Allows the taskExecutions array to be updated in the extension host
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.End, task));
@@ -893,6 +905,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private async _executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver, workspaceFolder: IWorkspaceFolder | undefined): Promise<ITaskSummary> {
+		assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 		let terminal: ITerminalInstance | undefined = undefined;
 		let error: TaskError | undefined = undefined;
 		let promise: Promise<ITaskSummary> | undefined = undefined;
@@ -941,7 +954,13 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}));
 			watchingProblemMatcher.aboutToStart();
 			let delayer: Async.Delayer<void> | undefined = undefined;
-			[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
+			try {
+				[terminal, error] = await this._createTerminal(task, resolver, workspaceFolder);
+			} catch (error) {
+				watchingProblemMatcher.dispose();
+				toDispose.dispose();
+				throw error;
+			}
 
 			if (error) {
 				return Promise.reject(new Error((<TaskError>error).message));
@@ -1451,6 +1470,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	private async _doCreateTerminal(task: Task, group: string | undefined, launchConfigs: IShellLaunchConfig): Promise<ITerminalInstance> {
 		const reconnectedTerminal = await this._reconnectToTerminal(task);
+		assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 		const registerOnDisposed = (terminal: ITerminalInstance) => {
 			const listener = terminal.onDisposed(() => {
 				this._fireTaskEvent(TaskEvent.terminated(task, terminal.instanceId, terminal.exitReason));
@@ -1549,6 +1569,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this._currentTask.shellLaunchConfig = launchConfigs = {
 				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),
+				type: TaskTerminalType,
 				waitOnExit,
 				name: this._createTerminalName(task),
 				initialText: task.command.presentation && task.command.presentation.echo ? formatMessageForTerminal(nls.localize({
@@ -1569,6 +1590,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return [undefined, new TaskError(Severity.Error, nls.localize('TerminalTaskSystem', 'Can\'t execute a shell command on an UNC drive using cmd.exe.'), TaskErrors.UnknownError)];
 			}
 		}
+		assertTaskWorkspaceTrust(this._workspaceTrustManagementService);
 		const prefersSameTerminal = presentationOptions.panel === PanelKind.Dedicated;
 		const allowsSharedTerminal = presentationOptions.panel === PanelKind.Shared;
 		const group = presentationOptions.group;
@@ -1625,8 +1647,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return [terminalToReuse.terminal, undefined];
 		}
 
-		this._terminalCreationQueue = this._terminalCreationQueue.then(() => this._doCreateTerminal(task, group, launchConfigs));
-		const terminal: ITerminalInstance = (await this._terminalCreationQueue)!;
+		const terminal = await this._terminalCreationQueue.queue(() => this._doCreateTerminal(task, group, launchConfigs));
 		if (task.configurationProperties.isBackground) {
 			terminal.shellLaunchConfig.reconnectionProperties = { ownerId: TaskTerminalType, data: { lastTask: task.getCommonTaskId(), group, label: task._label, id: task._id } };
 		}

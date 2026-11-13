@@ -11,6 +11,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { getCaseInsensitive } from '../../../../../base/common/objects.js';
 import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
@@ -24,6 +25,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 
 function listenerCount(emitter: Emitter<unknown>): number {
 	return (emitter as unknown as { _size: number })._size ?? 0;
@@ -153,6 +155,84 @@ suite('Workbench - TerminalProcessManager', () => {
 	function serializedVariables(options: ITerminalProcessOptions): string[] {
 		return options.environmentVariableCollections?.flatMap(([, collection]) => collection.map(([, mutator]) => mutator.variable)) ?? [];
 	}
+
+	for (const remote of [false, true]) {
+		test(`revalidates task trust after ${remote ? 'remote' : 'local'} environment preparation without restricting ordinary terminals`, async () => {
+			const trust = instantiationService.get(IWorkspaceTrustManagementService);
+			const entered = new DeferredPromise<void>();
+			const pending = new DeferredPromise<void>();
+			const backend = await terminalInstanceService.getBackend();
+			backend.getShellEnvironment = async () => {
+				await entered.complete();
+				await pending.p;
+				return {};
+			};
+			instantiationService.stub(ITerminalInstanceService, { getBackend: async () => backend });
+			if (remote) {
+				instantiationService.stub(IRemoteAgentService, {
+					getEnvironment: async () => upcastPartial<IRemoteAgentEnvironment>({ os: OperatingSystem.Linux, userHome: URI.file('/home/test') })
+				});
+			}
+			const taskManager = store.add(instantiationService.createInstance(TerminalProcessManager, 2,
+				remote ? URI.from({ scheme: Schemas.vscodeRemote, authority: 'test-remote', path: '/workspace' }) : undefined, undefined, undefined));
+			const execution = taskManager.createProcess({ type: 'Task', isFeatureTerminal: true }, 80, 24, false);
+			await entered.p;
+			await trust.setWorkspaceTrust(false);
+			await pending.complete();
+			const result = await execution;
+			ok(result && hasKey(result, { message: true }) && result.message.includes('workspace is no longer trusted'));
+			const taskLaunches = terminalInstanceService.createdProcesses.length;
+			await taskManager.createProcess({}, 80, 24, false);
+			deepStrictEqual({ taskLaunches, ordinaryLaunches: terminalInstanceService.createdProcesses.length }, { taskLaunches: 0, ordinaryLaunches: 1 });
+		});
+	}
+
+	test('shuts down an unstarted task process when trust is revoked while the backend prepares it', async () => {
+		const trust = instantiationService.get(IWorkspaceTrustManagementService);
+		const entered = new DeferredPromise<void>();
+		const pending = new DeferredPromise<void>();
+		const backend = await terminalInstanceService.getBackend();
+		const createProcess = backend.createProcess;
+		backend.createProcess = async (...args) => {
+			const child = await createProcess(...args);
+			await entered.complete();
+			await pending.p;
+			return child;
+		};
+		instantiationService.stub(ITerminalInstanceService, { getBackend: async () => backend });
+		const taskManager = store.add(instantiationService.createInstance(TerminalProcessManager, 2, undefined, undefined, undefined));
+		const execution = taskManager.createProcess({ type: 'Task', isFeatureTerminal: true }, 80, 24, false);
+		await entered.p;
+		const child = terminalInstanceService.createdProcesses[0];
+		const shutdownCalls: boolean[] = [];
+		child.shutdown = immediate => shutdownCalls.push(immediate);
+		await trust.setWorkspaceTrust(false);
+		await pending.complete();
+		const result = await execution;
+		deepStrictEqual({
+			cancelled: result && hasKey(result, { message: true }) && result.message.includes('workspace is no longer trusted'),
+			startCalls: child.calls.filter(call => call === 'start'),
+			shutdownCalls
+		}, { cancelled: true, startCalls: [], shutdownCalls: [false] });
+	});
+
+	test('does not start a custom task terminal after trust is revoked', async () => {
+		const trust = instantiationService.get(IWorkspaceTrustManagementService);
+		const child = new TestTerminalChildProcess(false);
+		const trustChanges: Promise<void>[] = [];
+		const result = await manager.createProcess({
+			type: 'Task',
+			customPtyImplementation: () => {
+				trustChanges.push(trust.setWorkspaceTrust(false));
+				return child;
+			}
+		}, 80, 24, false);
+		await Promise.all(trustChanges);
+		deepStrictEqual({
+			cancelled: result && hasKey(result, { message: true }) && result.message.includes('workspace is no longer trusted'),
+			startCalls: child.calls.filter(call => call === 'start')
+		}, { cancelled: true, startCalls: [] });
+	});
 
 	test('does not apply or serialize PATH from a different terminal host while retaining non-PATH variables', async () => {
 		setCollection('foreign.extension', {
