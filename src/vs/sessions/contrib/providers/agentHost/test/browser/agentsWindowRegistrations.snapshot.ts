@@ -230,7 +230,6 @@ export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
 	'keybinding sessionsViewPane.renameSession weight 250 when inChat && isSessionsWindow && sessionSupportsRename && !sessionItem.isMultiSelection || listFocus && !inputFocus && !sessionItem.isMultiSelection && !treestickyScrollFocused && focusedView == \'sessions.workbench.view.sessionsView\'',
 	'configuration sessions.drafts.enabled',
 	'configuration sessions.sendLater.enabled',
-	'configuration sessions.list.inlineActions',
 	'configuration sessions.sidebar.separateNavigation',
 	'configuration sessions.list.groupExternalSessions',
 	'configuration sessions.list.inboxEnabled',
