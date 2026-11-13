@@ -597,16 +597,17 @@ suite('Sessions - View Menu', () => {
 			list.setFocusedItem({ session: session.resource });
 			list.focus();
 			const row = list.getItemRow({ session: session.resource })!;
+			await retry(async () => assert.ok(row.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]')), 10, 100);
+			const button = row.querySelector<HTMLElement>('.session-title-toolbar [aria-label^="Acknowledge"]')!;
+			button.focus();
+			assert.strictEqual(getActiveElement(), button);
+			button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
 			if (source === 'toolbar') {
-				await retry(async () => assert.ok(row.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]')), 10, 100);
-				const button = row.querySelector<HTMLElement>('.session-title-toolbar [aria-label^="Acknowledge"]')!;
-				button.focus();
-				assert.strictEqual(getActiveElement(), button);
-				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
 				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
 			} else {
-				row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true }));
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'F10', keyCode: 121, shiftKey: true, bubbles: true }));
 				assert.ok(shown);
 				const action = shown.getActions().find(action => action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!;
 				await shown.actionRunner!.run(action, shown.getActionsContext?.());
@@ -614,7 +615,7 @@ suite('Sessions - View Menu', () => {
 			await retry(async () => assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId), [other.sessionId]), 10, 100);
 			const acknowledged = model.getInboxState(session)?.kind;
 			const stillActive = activeSession.get().sessionId;
-			const keyboardFocusRetained = source !== 'toolbar' || container.contains(getActiveElement());
+			const keyboardFocusRetained = list.element.contains(getActiveElement());
 			grouping = SessionsGrouping.Workspace;
 			list.update();
 			const availableElsewhere = list.getVisibleSessions().includes(session);

@@ -8878,6 +8878,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (acknowledgingActions.has(action.id)) {
 					this.acknowledgeInboxSessions(selectedSessions, action.id);
 				}
+				if (action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID) {
+					this.getFocusedTree().domFocus();
+				}
 				return true;
 			})) : undefined,
 			getKeyBinding: action => this.options.grouping() === SessionsGrouping.Inbox
