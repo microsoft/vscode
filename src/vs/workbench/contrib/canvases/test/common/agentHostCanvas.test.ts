@@ -11,6 +11,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentCanvasCloseRequest, IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import type { AgentCanvasOpenResult } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -95,8 +96,9 @@ suite('AgentHost canvases', () => {
 				calls.push(['list', session.toString(), chat.toString()]);
 				return [definition];
 			}
-			override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+			override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<AgentCanvasOpenResult> {
 				calls.push(['open', session.toString(), chat.toString(), request]);
+				return { kind: 'opened' };
 			}
 		}();
 		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));

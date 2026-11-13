@@ -436,6 +436,18 @@ export interface IAgentExtensionConsentRequest {
 	readonly persistable: boolean;
 }
 
+/** Continues a canvas open that returned {@link AgentCanvasOpenResult} `consentRequired` with the user's answer. */
+export type AgentCanvasOpenAnswer = { readonly kind: 'consent'; readonly consentId: string; readonly optionId: AgentExtensionConsentOption };
+
+/**
+ * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;
+ * `consentDenied` means the extension was not allowed to load, and `retryable` whether asking again can help.
+ */
+export type AgentCanvasOpenResult =
+	| { readonly kind: 'opened' }
+	| { readonly kind: 'consentRequired'; readonly consent: IAgentExtensionConsentRequest }
+	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean };
+
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
 export interface IAgentCanvasCloseRequest {
 	/** The canvas channel the chat advertised. It identifies one canvas lifetime: reopening a canvas advertises a new channel. */
@@ -2090,8 +2102,8 @@ export interface IAgent {
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
-	/** Open or focus one canvas instance in an initialized provider chat. */
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+	/** Open or focus one canvas instance in an initialized provider chat, or continue one that waits for the user's consent. */
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;

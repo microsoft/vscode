@@ -89,11 +89,13 @@ export class AgentHostCanvasCollection extends Disposable {
 			? {
 				onDidChangeDefinitions,
 				listCanvases: () => this.connection.listSessionCanvases!(owner.session, owner.chat),
-				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openSessionCanvas!(owner.session, {
-					canvasId: canvas.canvasId,
-					extensionId: canvas.extensionId,
-					instanceId,
-				}, owner.chat),
+				openCanvas: async (canvas: ICanvasDefinition, instanceId: string) => {
+					await this.connection.openSessionCanvas!(owner.session, {
+						canvasId: canvas.canvasId,
+						extensionId: canvas.extensionId,
+						instanceId,
+					}, owner.chat);
+				},
 			}
 			: undefined;
 		const closeCanvas = this.connection.closeSessionCanvas
