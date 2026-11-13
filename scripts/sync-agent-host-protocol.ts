@@ -19,8 +19,7 @@
 //   2. Merges duplicate imports from the same module.
 //   3. Formats with the project's tsfmt.json settings.
 //   4. Adds Microsoft copyright header.
-//   5. Applies agent-host-protocol.patch, when present, to preserve committed
-//      VS Code extensions.
+//   5. Applies agent-host-protocol.patch, when present, to preserve committed VS Code extensions.
 // The version file records the upstream revision, before this local overlay.
 //
 // URI stays as `string` (the protocol's canonical representation). VS Code code
