@@ -16,6 +16,11 @@ export class AgentsWindowUsage {
 		return this.storageService.getNumber(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, StorageScope.APPLICATION, 0);
 	}
 
+	/** When the user last created an Agents Window session, or `undefined` if no creation was recorded. */
+	get lastSessionCreated(): number | undefined {
+		return this.storageService.getNumber(AGENTS_WINDOW_LAST_SESSION_CREATED_STORAGE_KEY, StorageScope.APPLICATION);
+	}
+
 	isActiveUser(now = Date.now()): boolean {
 		return isActiveAgentsWindowUser(this.storageService, now);
 	}
