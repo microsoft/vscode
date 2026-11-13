@@ -33,7 +33,7 @@ export class AutomationSessionsListingContribution extends Disposable implements
 		super();
 		this._register(chatService.onDidAcceptRequest(({ chatSessionResource }) => {
 			const session = sessionsManagementService.getSessionForChatResource(chatSessionResource)?.session;
-			if (!session?.isAutomation?.get()) {
+			if (!session?.isAutomation?.get() || session.isScheduledChat?.get()) {
 				return;
 			}
 			logSettingExperimentTrigger(telemetryService, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING);

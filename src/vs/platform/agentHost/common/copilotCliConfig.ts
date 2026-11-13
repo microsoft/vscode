@@ -68,6 +68,8 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Run the runtime's purpose-built secret detection model in `/security-review`. Off by default. */
+	SecurityReviewSecretDetection = 'securityReviewSecretDetection',
 	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
 	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
 	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
@@ -148,6 +150,8 @@ export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
+
+export const CopilotSecurityReviewSecretDetectionEnabledSettingId = 'chat.copilot.securityReview.secretDetection.enabled';
 
 export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
 
@@ -374,6 +378,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.stabilityOrderedPrompt.title', "Stability-Ordered System Prompt"),
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.SecurityReviewSecretDetection]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.securityReviewSecretDetection.title', "Security Review Secret Detection"),
+		description: localize('agentHost.config.securityReviewSecretDetection.description', "When enabled, /security-review in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ProgressUpdatesPrompt]: schemaProperty<boolean>({

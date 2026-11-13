@@ -73,7 +73,12 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 			return this.getAvailableProviders(reader)
 				.filter(provider => !isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.read(reader) !== false)
 				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.canCreateAutomation.read(reader))
-				.map(provider => ({ id: provider.id, label: provider.label }));
+				.map(provider => ({
+					id: provider.id,
+					label: provider.label,
+					...(provider.automations?.supportsOneTimeAutomation?.read(reader) ? { supportsOneTimeAutomation: true } : {}),
+					...(provider.automations?.supportsExistingChatAutomation?.read(reader) ? { supportsExistingChatAutomation: true } : {}),
+				}));
 		});
 		this.automations = derived(this, reader => {
 			return this.getStores(reader).flatMap(store => [...store.automations.read(reader)])
@@ -123,6 +128,12 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		const store = providerId ? this.sessionsProvidersService.getProvider(providerId)?.automations : undefined;
 		if (!store || store.enabled?.get() === false || !store.canCreateAutomation.get()) {
 			throw new AutomationUnavailableError(localize('automationCreateUnavailable', "Connect to an Agent Host that supports automations before creating one."));
+		}
+		if ((options.schedule.interval === 'once' || options.purpose !== undefined || options.request !== undefined || options.creationId !== undefined) && store.supportsOneTimeAutomation?.get() !== true) {
+			throw new AutomationUnavailableError(localize('automationOneTimeUnavailable', "The selected provider does not support captured one-time requests."));
+		}
+		if (options.conversation && store.supportsExistingChatAutomation?.get() !== true) {
+			throw new AutomationUnavailableError(localize('automationExistingChatUnavailable', "The selected provider does not support scheduling follow-ups in an existing chat."));
 		}
 		return store.createAutomation(options, mutationGuard);
 	}

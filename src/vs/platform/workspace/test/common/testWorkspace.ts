@@ -5,7 +5,7 @@
 
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
-import { toWorkspaceFolder, Workspace as BaseWorkspace, WorkspaceFolder } from '../../common/workspace.js';
+import { IWorkspace, toWorkspaceFolder, Workspace as BaseWorkspace, WorkspaceFolder } from '../../common/workspace.js';
 
 export class Workspace extends BaseWorkspace {
 	constructor(
@@ -23,4 +23,11 @@ export const TestWorkspace = testWorkspace(wsUri);
 
 export function testWorkspace(...resource: URI[]): Workspace {
 	return new Workspace('test-workspace', resource.map(toWorkspaceFolder));
+}
+
+/**
+ * Creates an `IWorkspace` fake whose uri is derived from its configuration and folders.
+ */
+export function testIWorkspace(workspace: Omit<IWorkspace, 'uri'> & { uri?: URI }): IWorkspace {
+	return { uri: workspace.configuration ?? (workspace.folders.length === 1 ? workspace.folders[0].uri : undefined), ...workspace };
 }

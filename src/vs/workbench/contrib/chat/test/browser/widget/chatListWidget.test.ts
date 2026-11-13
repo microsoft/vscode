@@ -11,14 +11,17 @@ import { OverlayLayoutElement } from '../../../../../../base/browser/overlayLayo
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { ObjectTree } from '../../../../../../base/browser/ui/tree/objectTree.js';
 import { IObjectTreeElement } from '../../../../../../base/browser/ui/tree/tree.js';
+import { toAction } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -65,7 +68,7 @@ import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
 import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { ILanguageModelToolsService, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
@@ -170,6 +173,113 @@ suite('ChatListWidget', () => {
 			scrollbar: false,
 			missing: false,
 		});
+	});
+
+	test('scheduled messages expose their inline actions in the context menu', async () => {
+		let contextMenuDelegate: IContextMenuDelegate | IContextMenuMenuDelegate | undefined;
+		const contextMenuService: IContextMenuService = {
+			_serviceBrand: undefined,
+			onDidShowContextMenu: Event.None,
+			onDidHideContextMenu: Event.None,
+			showContextMenu: delegate => contextMenuDelegate = delegate,
+		};
+		const { viewModel, container, widget } = createWidget({}, undefined, false, contextMenuService);
+		let edits = 0;
+		let timeAnchor: HTMLElement | undefined;
+		const edit = toAction({ id: 'edit', label: 'Edit', run: async () => { edits++; } });
+		const reschedule = toAction({ id: 'reschedule', label: 'Reschedule', run: async (anchor?: HTMLElement) => { timeAnchor = anchor; } });
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled', description: 'Tomorrow', attachments: [], actions: [edit, reschedule], editAction: edit }]);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		const content = container.querySelector('.scheduled-request-text');
+		assert.ok(content);
+		content.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+		const actions = contextMenuDelegate?.getActions?.();
+		await actions?.[0].run();
+		await actions?.[1].run(contextMenuDelegate?.getActionsContext?.());
+		assert.deepStrictEqual({
+			ids: actions?.map(action => action.id), edits, anchored: timeAnchor === content.closest('.rendered-markdown'),
+		}, { ids: ['edit', 'reschedule'], edits: 1, anchored: true });
+	});
+
+	test('scheduled message toolbar buttons remain fully hittable above the session tree row', async () => {
+		const { disposables, viewModel, container, widget } = createWidget({}, undefined, true);
+		container.classList.add('interactive-list');
+		const host = dom.append(mainWindow.document.body, dom.$('.part.sessionspart', undefined,
+			dom.$('.sessions-chat', undefined, container.parentElement!)));
+		disposables.add(toDisposable(() => host.remove()));
+		const clicked: string[] = [];
+		const anchored: boolean[] = [];
+		const actions = [
+			{ id: 'edit', label: 'Edit', icon: Codicon.edit },
+			{ id: 'sendNow', label: 'Send Now', icon: Codicon.newLine },
+			{ id: 'reschedule', label: 'Reschedule', icon: Codicon.clock },
+			{ id: 'cancel', label: 'Cancel Schedule', icon: Codicon.closeSmall },
+		].map(({ id, label, icon }) => toAction({
+			id, label, class: ThemeIcon.asClassName(icon), run: async (anchor?: HTMLElement) => {
+				clicked.push(id);
+				if (id === 'reschedule') {
+					anchored.push(anchor === container.querySelector('.scheduled-request .rendered-markdown'));
+				}
+			},
+		}));
+		viewModel.setScheduledRequests([{ id: 'later', text: 'Scheduled message', description: 'Tomorrow', attachments: [], actions }]);
+		widget.refresh();
+		for (const width of [300, 700, 300]) {
+			container.style.width = `${width}px`;
+			widget.layout(300, width);
+			await waitForStableLayout(widget);
+			container.querySelector<HTMLElement>('.scheduled-request .rendered-markdown')!.focus();
+			const buttons = container.querySelectorAll<HTMLElement>('.scheduled-request-actions .action-label');
+			const requestRow = container.querySelector('.scheduled-request')?.closest('.monaco-list-row')?.classList.contains('request');
+			const hittable = Array.from(buttons, button => {
+				const bounds = button.getBoundingClientRect();
+				const hit = mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + 2);
+				const visible = !!hit && button.contains(hit);
+				hit?.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true }));
+				return visible;
+			});
+			assert.deepStrictEqual({ width, requestRow, hittable, clicked: clicked.splice(0), anchored: anchored.splice(0) }, {
+				width, requestRow: true, hittable: [true, true, true, true], clicked: actions.map(action => action.id), anchored: [true],
+			});
+		}
+	});
+
+	test('scheduled message editing retains the edit state across time changes and cancellation', async () => {
+		const { viewModel, container, widget } = createWidget({}, undefined, true);
+		const request = { id: 'later', text: 'Original', description: 'Tomorrow', attachments: [], actions: [] };
+		const finish = () => {
+			viewModel.setScheduledRequests([request]);
+			widget.refresh();
+		};
+		const editing = {
+			text: request.text, runAt: '2099-01-15T10:00:00Z', description: request.description,
+			selectTime: toAction({
+				id: 'time', label: 'Time', run: async () => {
+					editing.description = 'Next week';
+					viewModel.setScheduledRequests([{ ...request, editing }]);
+					widget.refresh();
+				}
+			}),
+			save: async () => finish(),
+			cancel: finish,
+		};
+		viewModel.setScheduledRequests([{ ...request, editing }]);
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		editing.text = 'Unsaved change';
+		const time = container.querySelector<HTMLElement>('.scheduled-request-edit-time')!;
+		time.focus();
+		time.click();
+		await waitForStableLayout(widget);
+		const retained = viewModel.getItems().find(isScheduledRequestVM)?.editing === editing;
+		[...container.querySelectorAll<HTMLElement>('.scheduled-request-editing .monaco-button')].find(button => button.textContent === 'Cancel')!.click();
+		await waitForStableLayout(widget);
+		assert.deepStrictEqual({
+			retained, text: editing.text, description: editing.description, editing: !!container.querySelector('.scheduled-request-editing'),
+		}, { retained: true, text: 'Unsaved change', description: 'Next week', editing: false });
 	});
 
 	test('provides registered menu commands with the link context', async () => {
