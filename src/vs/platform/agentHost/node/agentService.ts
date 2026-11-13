@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { withMessageReplacedTurn, withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
+import { isBranchCreationSourcesRequest } from '../common/meta/branchCreationSources.js';
 import { readRuntimePluginEnablement } from '../common/meta/pluginEnablementMeta.js';
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
@@ -11412,7 +11413,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// The host owns branch completions for every agent (they share the same
 		// git-backed branch list); all other properties stay provider-specific.
 		if (params.property === SessionConfigKey.Branch && this._worktree.supported) {
-			return this._worktree.branchCompletions(params.workingDirectory);
+			return this._worktree.branchCompletions(params.workingDirectory, isBranchCreationSourcesRequest(params));
 		}
 		const provider = this._providerService.resolveProvider(params.provider);
 		if (!provider) {

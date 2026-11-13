@@ -5,12 +5,14 @@
 
 import * as fs from 'fs/promises';
 import { DeferredPromise, RunOnceScheduler, SequencerByKey } from '../../../../base/common/async.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { dirname, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -81,7 +83,7 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	/** Startup reconciliation of detached worktrees that were never claimed; see {@link reconcileDetachedWorktrees}. */
 	cleanupUnclaimedDetachedWorktrees(canRemove?: DetachedWorktreeRemovalGuard): Promise<void>;
 	resolveIsolationConfig(request: IResolveIsolationConfigRequest): Promise<IIsolationConfigContribution | undefined>;
-	branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }>;
+	branchCompletions(workingDirectory: URI | undefined, includeCreationSources?: boolean): Promise<{ items: { value: string; label: string; description?: string }[] }>;
 	takePendingAnnouncement(sessionId: string): string | undefined;
 	persistCreationFailure(sessionUri: URI, sessionId: string, diagnostic: string | undefined): Promise<void>;
 	applyRestoreAnnouncement(sessionUri: URI, turns: readonly Turn[]): Promise<readonly Turn[]>;
@@ -1115,17 +1117,41 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 * All local branch names for the branch picker, ordered with the current and
 	 * default branches first. Pickers filter the returned list and cap how many rows they show.
 	 */
-	async branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> {
+	async branchCompletions(workingDirectory: URI | undefined, includeCreationSources = false): Promise<{ items: { value: string; label: string; description?: string }[] }> {
 		if (!workingDirectory) {
 			return { items: [] };
 		}
-		const [branches, currentBranch, defaultBranch] = await Promise.all([
+		if (includeCreationSources) {
+			const sources = await this._gitService.getBranchCreationSources(workingDirectory);
+			return {
+				items: sources.map(source => {
+					if (hasKey(source, { unborn: true })) {
+						return { value: source.ref, label: localize('agentHost.branchSource.unborn', "HEAD ({0}, No Commits Yet)", source.name) };
+					}
+					const commit = source.commit.substring(0, 7);
+					return {
+						value: source.ref,
+						label: source.ref === 'HEAD'
+							? source.kind === GitRefType.DetachedHead
+								? localize('agentHost.branchSource.detached', "HEAD (Detached at {0})", commit)
+								: localize('agentHost.branchSource.head', "HEAD ({0}, {1})", source.name, commit)
+							: source.name,
+						description: [source.author, commit, fromNow(source.timestamp, true, true), source.subject].join(' \u2022 '),
+					};
+				}),
+			};
+		}
+		const [branches, currentBranchName, defaultBranch] = await Promise.all([
 			this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' }),
-			this._gitService.getCurrentBranch(workingDirectory),
+			this._gitService.getCurrentBranchName?.(workingDirectory),
 			this._gitService.getDefaultBranch(workingDirectory),
 		]);
-		const branchCompletions = getBranchCompletions(branches.map(branch => branch.name), {
-			currentBranch,
+		const branchNames = new Set(branches.map(branch => branch.name));
+		if (currentBranchName) {
+			branchNames.add(currentBranchName);
+		}
+		const branchCompletions = getBranchCompletions([...branchNames], {
+			currentBranch: currentBranchName,
 			defaultBranch: defaultBranch?.name,
 		});
 

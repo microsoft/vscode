@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import Severity from '../../../../../../../base/common/severity.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -20,7 +21,7 @@ import { toAction } from '../../../../../../../base/common/actions.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -36,7 +37,7 @@ import { IKeybindingService } from '../../../../../../../platform/keybinding/com
 import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
-import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput, QuickInputHideReason } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
@@ -61,6 +62,7 @@ import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessio
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
+import { workbenchInstantiationService } from '../../../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ENVIRONMENT_PICKER_SETTING } from '../../../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IWorktreeSuggestionService } from '../../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '../../../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
@@ -74,6 +76,18 @@ import { IChatSessionFileChange2 } from '../../../../../../../workbench/common/c
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
+
+class TestQuickInputService extends mock<IQuickInputService>() {
+	override createInputBox(): IInputBox {
+		return new class extends mock<IInputBox>() {
+			override readonly onDidHide = Event.None;
+			override show(): void { }
+			override dispose(): void { }
+		}();
+	}
+
+	override async input(): Promise<string | undefined> { return undefined; }
+}
 
 function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main', upstreamBranchName?: string, root = URI.file('/repo'), defaultBranch?: { readonly name: string; readonly remoteName: string }): ISessionWorkspace {
 	return {
@@ -177,6 +191,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	devContainerEnabled = false;
 	/** Completions returned by `getSessionConfigCompletions`, e.g. for the dynamic branch picker. */
 	completions: readonly SessionConfigValueItem[] = [];
+	branchCreationSources: readonly SessionConfigValueItem[] = [];
 	readonly completionQueries: (string | undefined)[] = [];
 	completionBarrier: DeferredPromise<void> | undefined;
 
@@ -209,6 +224,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 			: this.completions.filter(item => item.value.toLowerCase().includes(query.toLowerCase()));
 	}
 	isDevContainerEnabled(): boolean { return this.devContainerEnabled; }
+	async getBranchCreationSources(): Promise<readonly SessionConfigValueItem[]> { return this.branchCreationSources; }
 
 	/** Swap the config + resolving flag and pulse, as the real provider does. */
 	set(config: ResolveSessionConfigResult, resolving: boolean): void {
@@ -280,6 +296,7 @@ class CapturingActionWidgetHolder {
 function setupServices(
 	store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, 'add'>,
 	options?: {
+		createBranchSupported?: boolean;
 		checkoutDialogChoice?: 'Stash & Checkout' | 'Commit & Checkout';
 		checkoutDialogShown?: DeferredPromise<void>;
 		checkoutDialogRelease?: DeferredPromise<void>;
@@ -293,7 +310,7 @@ function setupServices(
 	const notificationErrors: string[] = [];
 
 	const instantiationService = store.add(new TestInstantiationService());
-	instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+	instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
 		override async input() { return undefined; }
 	}());
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
@@ -388,12 +405,15 @@ function setupServices(
 	const checkoutInvocations: { operationId: string; _meta: Record<string, unknown> | undefined }[] = [];
 	const uncommittedChangeset = new class extends mock<ISessionChangeset>() {
 		override readonly id = UNCOMMITTED_CHANGES_CHANGESET_ID;
-		override readonly operations = observableValue('checkoutOperations', [{
-			id: AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+		override readonly operations = observableValue('checkoutOperations', [
+			AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID,
+			...(options?.createBranchSupported ? [AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID] : []),
+		].map(id => ({
+			id,
 			label: 'Checkout',
 			scopes: [SessionChangesetOperationScope.Changeset],
 			status: SessionChangesetOperationStatus.Idle,
-		}]);
+		})));
 		override async invokeOperation(operationId: string, _target?: ISessionChangesetOperationTarget, _meta?: Record<string, unknown>): Promise<void> {
 			checkoutInvocations.push({ operationId, _meta });
 			branchSelectionEvents.push('checkout');
@@ -447,6 +467,642 @@ suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('places both branch creation commands after a separator below available and filtered branches', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.completions = ['main', 'feature/existing'].map(value => ({ value, label: value }));
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const rows = (items: readonly IActionListItem<IConfigPickerItem>[]) => items.map(item =>
+			item.kind === ActionListItemKind.Separator ? 'separator' : item.item?.createBranch ?? item.item?.value);
+		const initial = rows(services.actionWidget.items);
+		const filtered = rows(await services.actionWidget.delegate!.onFilter!('feature', CancellationToken.None));
+		const empty = rows(await services.actionWidget.delegate!.onFilter!('no-matching-branch', CancellationToken.None));
+		assert.deepStrictEqual({ initial, filtered, empty }, {
+			initial: ['main', 'separator', 'feature/existing', 'separator', 'current', 'from'],
+			filtered: ['feature/existing', 'separator', 'current', 'from'],
+			empty: ['current', 'from'],
+		});
+	});
+
+	for (const isolation of ['folder', undefined] as const) {
+		test(`creates and selects a branch only after Git succeeds with ${isolation ?? 'default folder'} isolation`, async () => {
+			const created = new DeferredPromise<void>();
+			const services = setupServices(store, { createBranchSupported: true }, () => created.p);
+			services.provider.config = makeDynamicBranchConfig('main', isolation);
+			if (isolation === undefined) {
+				services.provider.config = { ...services.provider.config, values: { branch: 'main' } };
+				services.provider.config.schema.properties.isolation.default = 'folder';
+			}
+			services.provider.completions = [{ value: 'main', label: 'main' }];
+			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+				override async input() { return 'feature/new'; }
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+			await timeout(0);
+			const callsBeforeCreation = services.provider.setSessionConfigValueCalls;
+			created.complete();
+			await creation;
+			assert.deepStrictEqual({
+				callsBeforeCreation,
+				invocations: services.checkoutInvocations,
+				selection: services.provider.config.values.branch,
+				label: branchLabel(container),
+			}, {
+				callsBeforeCreation: 0,
+				invocations: [{
+					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'HEAD' } },
+				}],
+				selection: 'feature/new',
+				label: 'feature/new',
+			});
+		});
+	}
+
+	for (const headLabel of ['HEAD (main, abc1234)', 'HEAD (Detached at abc1234)']) {
+		test(`identifies the current commit in the branch naming prompt: ${headLabel}`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			services.provider.branchCreationSources = [{ value: 'HEAD', label: headLabel, description: 'Author, abc1234, commit subject' }];
+			let prompt: string | undefined;
+			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+				override async input(options?: IInputOptions) { prompt = options?.prompt; return undefined; }
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'current')!.item!);
+			assert.strictEqual(prompt, `Enter a name for the new branch, starting from '${headLabel}'.`);
+		});
+	}
+
+	for (const selectedRef of ['refs/remotes/origin/main', 'refs/tags/v1']) {
+		test(`groups rich branch sources and creates from the exact selected ref: ${selectedRef}`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			const description = 'Author, abc1234, commit subject';
+			services.provider.branchCreationSources = [
+				{ value: 'HEAD', label: 'HEAD (main, abc1234)', description },
+				{ value: 'refs/heads/main', label: 'main', description },
+				{ value: 'refs/remotes/origin/main', label: 'origin/main', description },
+				{ value: 'refs/tags/v1', label: 'v1', description },
+			];
+			let rows: { label: string | undefined; detail?: string; iconClass?: string }[] = [];
+			let matchOnDetail: boolean | undefined;
+			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> & { canPickMany: true }): Promise<T[] | undefined>;
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
+				override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | T[] | undefined> {
+					const items = await picks;
+					rows = items.map(item => item.type === 'separator' ? { label: item.label } : { label: item.label, detail: item.detail, iconClass: item.iconClass });
+					matchOnDetail = options?.matchOnDetail;
+					const source = items.find((item): item is T => item.type !== 'separator' && item.label === (selectedRef.startsWith('refs/tags/') ? 'v1' : 'origin/main'));
+					return source && options?.canPickMany ? [source] : source;
+				}
+				override async input() { return 'feature/new'; }
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			assert.deepStrictEqual({ rows, matchOnDetail, invocations: services.checkoutInvocations }, {
+				rows: [
+					{ label: 'HEAD (main, abc1234)', detail: description, iconClass: 'codicon codicon-git-branch' },
+					{ label: 'Branches' },
+					{ label: 'main', detail: description, iconClass: 'codicon codicon-git-branch' },
+					{ label: 'Remote Branches' },
+					{ label: 'origin/main', detail: description, iconClass: 'codicon codicon-cloud' },
+					{ label: 'Tags' },
+					{ label: 'v1', detail: description, iconClass: 'codicon codicon-tag' },
+				],
+				matchOnDetail: true,
+				invocations: [{
+					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: selectedRef } },
+				}],
+			});
+		});
+	}
+
+	for (const host of ['rich', 'older'] as const) {
+		test(`lists the default branch first when creating a branch from ${host} host sources`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('feature', 'folder');
+			services.workspaceObs.set(makeWorkspace(undefined, 'feature', 'origin/feature', undefined, { name: 'main', remoteName: 'origin/main' }), undefined);
+			if (host === 'rich') {
+				services.provider.branchCreationSources = [
+					{ value: 'HEAD', label: 'HEAD (feature, abc1234)' },
+					{ value: 'refs/heads/feature', label: 'feature' },
+					{ value: 'refs/heads/main', label: 'main' },
+					{ value: 'refs/remotes/origin/feature', label: 'origin/feature' },
+					{ value: 'refs/remotes/origin/main', label: 'origin/main' },
+					{ value: 'refs/tags/v1', label: 'v1' },
+				];
+			} else {
+				services.provider.branchCreationSources = [];
+				services.provider.completions = ['feature', 'main'].map(value => ({ value, label: value }));
+			}
+			let rows: (string | undefined)[] = [];
+			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> & { canPickMany: true }): Promise<T[] | undefined>;
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
+				override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[]): Promise<T | T[] | undefined> {
+					rows = (await picks).map(item => item.type === 'separator' ? `--- ${item.label}` : item.label);
+					return undefined;
+				}
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			assert.deepStrictEqual(rows, host === 'rich'
+				? ['--- Default Branch', 'origin/main', 'main', '--- Current Branch', 'HEAD (feature, abc1234)', '--- Branches', 'feature', '--- Remote Branches', 'origin/feature', '--- Tags', 'v1']
+				: ['--- Default Branch', 'main', '--- Current Branch', 'HEAD (Commit Details Unavailable)', '--- Branches', 'feature']);
+		});
+	}
+
+	test('renders branch source names and commit details separately from their icons in Quick Pick', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		const detail = 'Author, abc1234, commit subject';
+		services.provider.branchCreationSources = [
+			{ value: 'HEAD', label: 'HEAD (main, abc1234)', description: detail },
+			{ value: 'refs/heads/main', label: 'main', description: detail },
+			{ value: 'refs/remotes/origin/main', label: 'origin/main', description: detail },
+			{ value: 'refs/tags/v1', label: 'v1', description: detail },
+		];
+		const quickInputServices = workbenchInstantiationService(undefined, store);
+		const quickInput = quickInputServices.get(IQuickInputService);
+		services.instantiationService.stub(IQuickInputService, quickInput);
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+		try {
+			await timeout(0);
+			const rows = Array.from(mainWindow.document.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row[data-index]'));
+			assert.deepStrictEqual(rows.filter(row => row.querySelector('.label-name')).map(row => {
+				const name = row.querySelector<HTMLElement>('.label-name')!;
+				return {
+					name: name.textContent,
+					detail: row.querySelector('.quick-input-list-label-meta .label-name')?.textContent,
+					icon: row.querySelector('.quick-input-list-icon')?.className,
+					labelIsIcon: name.closest('.monaco-icon-label')?.classList.contains('codicon'),
+					nameHasWidth: name.getBoundingClientRect().width > 0,
+				};
+			}), [
+				{ name: 'HEAD (main, abc1234)', detail, icon: 'quick-input-list-icon codicon codicon-git-branch', labelIsIcon: false, nameHasWidth: true },
+				{ name: 'main', detail, icon: 'quick-input-list-icon codicon codicon-git-branch', labelIsIcon: false, nameHasWidth: true },
+				{ name: 'origin/main', detail, icon: 'quick-input-list-icon codicon codicon-cloud', labelIsIcon: false, nameHasWidth: true },
+				{ name: 'v1', detail, icon: 'quick-input-list-icon codicon codicon-tag', labelIsIcon: false, nameHasWidth: true },
+			]);
+		} finally {
+			await quickInput.cancel();
+			await creation;
+		}
+	});
+
+	for (const command of ['current', 'from'] as const) {
+		test(`preserves text entered while ${command} branch details are loading`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			services.provider.completions = ['main', 'dev'].map(value => ({ value, label: value }));
+			const quickInput = workbenchInstantiationService(undefined, store).get(IQuickInputService);
+			services.instantiationService.stub(IQuickInputService, quickInput);
+			const { container } = renderAttachedPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
+			const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === command)!.item!);
+			try {
+				const input = mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget input.input')!;
+				const value = command === 'current' ? 'feature/new' : 'dev';
+				input.value = value;
+				input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				await barrier.complete();
+				await timeout(0);
+				assert.deepStrictEqual({
+					value: mainWindow.document.querySelector<HTMLInputElement>('.quick-input-widget input.input')?.value,
+					type: quickInput.currentQuickInput?.type,
+					busy: quickInput.currentQuickInput?.busy,
+				}, { value, type: command === 'current' ? 'inputBox' : 'quickPick', busy: false });
+			} finally {
+				await barrier.complete();
+				await quickInput.cancel();
+				await creation;
+			}
+		});
+
+		for (const outcome of ['success', 'failure'] as const) {
+			test(`cancels ${command} branch loading without reopening input after a late ${outcome}`, async () => {
+				const services = setupServices(store, { createBranchSupported: true });
+				services.provider.config = makeDynamicBranchConfig('main', 'folder');
+				const quickInput = workbenchInstantiationService(undefined, store).get(IQuickInputService);
+				services.instantiationService.stub(IQuickInputService, quickInput);
+				const { container } = renderAttachedPicker(store, services);
+				branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+				await timeout(0);
+				const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
+				const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === command)!.item!);
+				try {
+					await timeout(0);
+					const loading = quickInput.currentQuickInput;
+					assert.deepStrictEqual({
+						type: loading?.type,
+						busy: loading?.busy,
+						visible: !!mainWindow.document.querySelector('.quick-input-widget:not([style*="display: none"])'),
+					}, { type: 'inputBox', busy: true, visible: true });
+					await quickInput.cancel(QuickInputHideReason.Gesture);
+					await creation;
+					if (outcome === 'failure') {
+						await barrier.error(new Error('Reference query failed'));
+					} else {
+						await barrier.complete();
+					}
+					await timeout(0);
+					assert.deepStrictEqual({
+						input: quickInput.currentQuickInput,
+						operations: services.checkoutInvocations,
+						errors: services.notificationErrors,
+					}, { input: undefined, operations: [], errors: [] });
+				} finally {
+					await barrier.complete();
+					await quickInput.cancel();
+					await creation;
+				}
+			});
+		}
+	}
+
+	test('preserves outside-click focus when the branch source picker is dismissed', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		const quickInput = workbenchInstantiationService(undefined, store).get(IQuickInputService);
+		services.instantiationService.stub(IQuickInputService, quickInput);
+		const { container } = renderAttachedPicker(store, services);
+		const destination = container.appendChild(document.createElement('button'));
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+		try {
+			await timeout(0);
+			destination.focus();
+			await quickInput.cancel(QuickInputHideReason.Blur);
+			await creation;
+			assert.deepStrictEqual({
+				preservedFocus: mainWindow.document.activeElement === destination,
+				operations: services.checkoutInvocations,
+			}, { preservedFocus: true, operations: [] });
+		} finally {
+			await quickInput.cancel();
+			await creation;
+		}
+	});
+
+	test('surfaces a branch loading failure and closes its loading input', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		const quickInput = workbenchInstantiationService(undefined, store).get(IQuickInputService);
+		services.instantiationService.stub(IQuickInputService, quickInput);
+		const { container } = renderAttachedPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const barrier = services.provider.completionBarrier = new DeferredPromise<void>();
+		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'current')!.item!);
+		await barrier.error(new Error('Reference query failed'));
+		await creation;
+		assert.deepStrictEqual({
+			input: quickInput.currentQuickInput,
+			operations: services.checkoutInvocations,
+			errors: services.notificationErrors,
+		}, { input: undefined, operations: [], errors: ['Error: Reference query failed'] });
+	});
+
+	test('does not steal focus after branch creation finishes', async () => {
+		const destination = document.body.appendChild(document.createElement('button'));
+		store.add(toDisposable(() => destination.remove()));
+		const services = setupServices(store, { createBranchSupported: true }, async () => destination.focus());
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+			override async input() { return 'feature/new'; }
+		}());
+		const { container } = renderAttachedPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'current')!.item!);
+		assert.deepStrictEqual({
+			preservedFocus: mainWindow.document.activeElement === destination,
+			selectedBranch: services.provider.config.values[SessionConfigKey.Branch],
+		}, { preservedFocus: true, selectedBranch: 'feature/new' });
+	});
+
+	for (const property of [SessionConfigKey.Branch, SessionConfigKey.Isolation]) {
+		test(`places phone creation actions below branches and restores the initiating ${property} chip after a refresh`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			services.provider.completions = ['main', 'dev'].map(value => ({ value, label: value }));
+			const quickInput = workbenchInstantiationService(undefined, store).get(IQuickInputService);
+			services.instantiationService.stub(IQuickInputService, quickInput);
+			// A background Electron test window does not dispatch native focus events.
+			store.add(quickInput.onShow(() => {
+				const previous = mainWindow.document.activeElement;
+				mainWindow.document.querySelector('.quick-input-widget input')?.dispatchEvent(new mainWindow.FocusEvent('focus', { relatedTarget: previous }));
+			}));
+			const mainContainer = services.instantiationService.get(IAgentWorkbenchLayoutService).mainContainer;
+			mainContainer.classList.add('phone-layout');
+			document.body.appendChild(mainContainer);
+			store.add(toDisposable(() => mainContainer.remove()));
+			const factories = new Map<string, IActionViewItemFactory>();
+			services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+				override readonly onDidChange = Event.None;
+				override register(menu: MenuId, commandId: string | MenuId, factory: IActionViewItemFactory) {
+					if (menu === Menus.NewSessionRepositoryConfig) {
+						factories.set(String(commandId), factory);
+					}
+					return toDisposable(() => factories.delete(String(commandId)));
+				}
+			}());
+			services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+				override readonly mainContainer = mainContainer;
+			}());
+			services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				readonly gridShown = constObservable([services.activeSession]);
+				override readonly slotPanes = testGridPanes(this.gridShown);
+			}());
+			services.instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>(testChatSourceOf(services.sessionObs)));
+			store.add(services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
+			const commandId = `sessions.agentHost.sessionConfigPicker.${encodeURIComponent(property)}`;
+			const action = toAction({ id: commandId, label: property, run: () => { } });
+			const item = store.add(factories.get(commandId)!(action, {}, services.instantiationService, mainWindow.vscodeWindowId)!);
+			const container = mainContainer.appendChild(document.createElement('div'));
+			item.render(container);
+			const trigger = container.querySelector<HTMLElement>('a.action-label')!;
+			trigger.click();
+			try {
+				await timeout(0);
+				const results = mainContainer.querySelector<HTMLElement>('.mobile-picker-sheet-search-results')!;
+				const labels = () => Array.from(results.querySelectorAll('.mobile-picker-sheet-label'), label => label.textContent);
+				assert.deepStrictEqual(labels(), ['main', 'dev', 'Create New Branch...', 'Create New Branch From...']);
+				const search = mainContainer.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input')!;
+				search.value = 'dev';
+				search.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				await timeout(200);
+				assert.deepStrictEqual(labels(), ['dev', 'Create New Branch...', 'Create New Branch From...']);
+				const create = Array.from(results.querySelectorAll<HTMLButtonElement>('button')).find(row => row.querySelector('.mobile-picker-sheet-label')?.textContent === 'Create New Branch...')!;
+				create.click();
+				await timeout(200);
+				services.provider.set(makeDynamicBranchConfig('main', 'folder'), false);
+				await quickInput.cancel(QuickInputHideReason.Gesture);
+				await timeout(0);
+				assert.deepStrictEqual({
+					returnedFocus: mainWindow.document.activeElement === container.querySelector('a.action-label'),
+					replacedTrigger: !trigger.isConnected,
+					operations: services.checkoutInvocations,
+					errors: services.notificationErrors,
+				}, { returnedFocus: true, replacedTrigger: true, operations: [], errors: [] });
+			} finally {
+				mainContainer.querySelector<HTMLElement>('.mobile-picker-sheet-backdrop')?.click();
+				await timeout(200);
+				await quickInput.cancel();
+			}
+		});
+	}
+
+	for (const outcome of ['created', 'sourceCancel', 'nameCancel', 'sessionChanged'] as const) {
+		test(`creating a branch from another branch handles ${outcome}`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			services.provider.completions = ['main', 'dev'].map(value => ({ value, label: value }));
+			const steps: string[] = [];
+			let sourceLabels: (string | undefined)[] = [];
+			let prompt: string | undefined;
+			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: IPickOptions<T> & { canPickMany: true }): Promise<T[] | undefined>;
+				override pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: Omit<IPickOptions<T>, 'canPickMany'>): Promise<T | undefined>;
+				override async pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T>): Promise<T | T[] | undefined> {
+					steps.push('source');
+					const items = await picks;
+					sourceLabels = items.map(item => item.label);
+					if (outcome === 'sessionChanged') {
+						services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+					}
+					const source = items.find((item): item is T => item.type !== 'separator' && item.label === 'dev');
+					return outcome === 'sourceCancel' || !source ? undefined : options?.canPickMany ? [source] : source;
+				}
+				override async input(options?: IInputOptions) {
+					steps.push('name');
+					prompt = options?.prompt;
+					return outcome === 'nameCancel' ? undefined : 'feature/new';
+				}
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch === 'from')!.item!);
+			const nameShown = outcome === 'created' || outcome === 'nameCancel';
+			assert.deepStrictEqual({
+				steps,
+				sourceLabels,
+				prompt,
+				invocations: services.checkoutInvocations,
+				writes: services.provider.setSessionConfigValueArguments,
+			}, {
+				steps: nameShown ? ['source', 'name'] : ['source'],
+				sourceLabels: ['HEAD (Commit Details Unavailable)', 'Branches', 'main', 'dev'],
+				prompt: nameShown ? 'Enter a name for the new branch, starting from \'dev\'.' : undefined,
+				invocations: outcome === 'created' ? [{
+					operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+					_meta: { 'vscode.createBranch': { branchName: 'feature/new', startPoint: 'dev' } },
+				}] : [],
+				writes: outcome === 'created' ? [{ sessionId: SESSION_ID, property: 'branch', value: 'feature/new' }] : [],
+			});
+		});
+	}
+
+	for (const isolation of ['worktree', undefined] as const) {
+		test(`does not offer branch creation with ${isolation ?? 'default worktree'} isolation`, async () => {
+			const services = setupServices(store, { createBranchSupported: true });
+			services.provider.config = makeDynamicBranchConfig('main');
+			if (isolation === undefined) {
+				services.provider.config = { ...services.provider.config, values: { branch: 'main' } };
+			}
+			services.provider.completions = [{ value: 'main', label: 'main' }];
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const filtered = await services.actionWidget.delegate!.onFilter!('main', CancellationToken.None);
+			assert.deepStrictEqual({
+				initial: services.actionWidget.items.some(item => item.item?.createBranch),
+				filtered: filtered.some(item => item.item?.createBranch),
+			}, { initial: false, filtered: false });
+		});
+	}
+
+	test('does not create a branch from a stale action after selecting worktree isolation', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		let inputShown = false;
+		services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+			override async input() { inputShown = true; return 'feature/new'; }
+		}());
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const action = services.actionWidget.items.find(item => item.item?.createBranch)!.item!;
+		services.provider.config = makeDynamicBranchConfig('main', 'worktree');
+		await services.actionWidget.delegate!.onSelect(action);
+		assert.deepStrictEqual({ inputShown, invocations: services.checkoutInvocations }, { inputShown: false, invocations: [] });
+	});
+
+	test('validates new branch names and ref conflicts in the standard quick input', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.completions = ['main', 'feature/existing'].map(value => ({ value, label: value }));
+		let inputOptions: IInputOptions | undefined;
+		services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+			override async input(options?: IInputOptions) { inputOptions = options; return undefined; }
+		}());
+		const { container } = renderPicker(store, services);
+		const trigger = branchSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		trigger.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		// Matches `git check-ref-format --branch`, except where the picker is deliberately stricter.
+		const nameCases: [name: string, accepted: boolean][] = [
+			['feature/new', true], ['fix-123', true], ['release/1.2', true], ['a.b', true], ['a@b', true], ['@b', true],
+			['a-', true], ['a{b}', true], ['a]b', true], ['user/a-b_c', true], ['caf\u00e9', true],
+			['', false], ['HEAD', false], ['-option', false], ['a b', false], ['a\tb', false], ['a..b', false], ['a@{b', false],
+			['.hidden', false], ['a/.hidden', false], ['a.lock', false], ['a.lock/b', false], ['a//b', false], ['a/', false],
+			['/a', false], ['a.', false], ['a\\b', false], ['a~b', false], ['a^b', false], ['a:b', false], ['a?b', false],
+			['a*b', false], ['a[b', false], ['a\u0001b', false], ['a\u007fb', false],
+			// Stricter than Git: `@` means HEAD, and a non-breaking space looks like a space.
+			['@', false], ['a\u00a0b', false],
+			// Conflicts with the existing `main` and `feature/existing` branches.
+			['main', false], ['feature', false], ['feature/existing/child', false],
+		];
+		assert.deepStrictEqual({
+			anchor: inputOptions?.anchor,
+			names: await Promise.all(nameCases.map(async ([name]) => [name, !await inputOptions?.validateInput?.(name)])),
+			invocations: services.checkoutInvocations,
+		}, {
+			anchor: undefined,
+			names: nameCases,
+			invocations: [],
+		});
+	});
+
+	test('warns about case-only branch matches but allows attempting creation', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.provider.completions = ['main', 'Feature/Existing'].map(value => ({ value, label: value }));
+		let inputOptions: IInputOptions | undefined;
+		services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+			override async input(options?: IInputOptions) {
+				inputOptions = options;
+				return 'feature/existing';
+			}
+		}());
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		const warning = {
+			content: 'Branch \'Feature/Existing\' already exists with different casing. This can cause problems on case-insensitive but case-preserving file systems. Press Enter to attempt creation anyway.',
+			severity: Severity.Warning,
+		};
+		assert.deepStrictEqual({
+			lowerCase: await inputOptions?.validateInput?.('feature/existing'),
+			upperCase: await inputOptions?.validateInput?.('FEATURE/EXISTING'),
+			exact: await inputOptions?.validateInput?.('Feature/Existing'),
+			distinct: await inputOptions?.validateInput?.('feature/new'),
+			invocations: services.checkoutInvocations,
+			selection: services.provider.config.values.branch,
+		}, {
+			lowerCase: warning,
+			upperCase: warning,
+			exact: 'A branch named \'Feature/Existing\' already exists or conflicts with an existing branch.',
+			distinct: undefined,
+			invocations: [{
+				operationId: AGENT_HOST_CREATE_BRANCH_CHANGESET_OPERATION_ID,
+				_meta: { 'vscode.createBranch': { branchName: 'feature/existing', startPoint: 'HEAD' } },
+			}],
+			selection: 'feature/existing',
+		});
+	});
+
+	for (const outcome of ['cancel', 'failure', 'sessionChanged'] as const) {
+		test(`does not select a new branch after ${outcome}`, async () => {
+			const services = setupServices(store, { createBranchSupported: true }, async () => { throw new Error('Git failed'); });
+			services.provider.config = makeDynamicBranchConfig('main', 'folder');
+			services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+				override async input() {
+					if (outcome === 'sessionChanged') {
+						services.sessionObs.set(otherActiveSession(services.activeSession), undefined);
+					}
+					return outcome === 'cancel' ? undefined : 'feature/new';
+				}
+			}());
+			const { container } = renderPicker(store, services);
+			branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+			assert.deepStrictEqual({
+				selection: services.provider.config.values.branch,
+				writes: services.provider.setSessionConfigValueCalls,
+				invocations: services.checkoutInvocations.length,
+				errors: services.notificationErrors,
+			}, {
+				selection: 'main',
+				writes: 0,
+				invocations: outcome === 'failure' ? 1 : 0,
+				errors: outcome === 'failure' ? ['Error: Git failed'] : [],
+			});
+		});
+	}
+
+	test('does not offer branch creation on hosts that do not advertise it', async () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		assert.strictEqual(services.actionWidget.items.some(item => item.item?.createBranch), false);
+	});
+
+	test('does not offer branch creation for a fixed branch enum', async () => {
+		const services = setupServices(store, { createBranchSupported: true });
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		assert.strictEqual(services.actionWidget.items.some(item => item.item?.createBranch), false);
+	});
+
+	test('does not write the created branch into a different repository', async () => {
+		const created = new DeferredPromise<void>();
+		const services = setupServices(store, { createBranchSupported: true }, () => created.p);
+		services.provider.config = makeDynamicBranchConfig('main', 'folder');
+		services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
+			override async input() { return 'feature/new'; }
+		}());
+		const { container } = renderPicker(store, services);
+		branchSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await timeout(0);
+		const creation = services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.createBranch)!.item!);
+		await timeout(0);
+		services.workspaceObs.set(makeWorkspace(undefined, 'main', undefined, URI.file('/other')), undefined);
+		created.complete();
+		await creation;
+		assert.deepStrictEqual({
+			invocations: services.checkoutInvocations.length,
+			writes: services.provider.setSessionConfigValueCalls,
+			selection: services.provider.config.values.branch,
+		}, { invocations: 1, writes: 0, selection: 'main' });
+	});
+
 	test('Copilot repository controls preserve target, baseBranch and new branch keys', async () => {
 		const services = setupServices(store);
 		services.provider.completions = [{ value: 'main', label: 'main' }, { value: 'dev', label: 'dev' }];
@@ -462,7 +1118,7 @@ suite('Agent Host Session Config Picker', () => {
 			},
 			values: { target: 'worktree', baseBranch: 'main', approvalMode: 'assisted', effectiveApprovalMode: 'manual' },
 		};
-		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+		services.instantiationService.stub(IQuickInputService, new class extends TestQuickInputService {
 			override async input() { return 'new-session-branch'; }
 		}());
 		const { container } = renderPicker(store, services);

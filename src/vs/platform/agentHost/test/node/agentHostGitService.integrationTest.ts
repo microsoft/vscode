@@ -1387,6 +1387,78 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
 	});
 
+	(hasGit ? test : test.skip)('branch creation sources include commit details for HEAD, branches, remotes and tags', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
+		const commit = run('rev-parse', 'HEAD');
+		const timestamp = Number(run('log', '-1', '--format=%ct')) * 1000;
+		run('branch', 'dev');
+		run('update-ref', 'refs/remotes/origin/main', commit);
+		run('tag', 'lightweight');
+		run('tag', '-a', 'annotated', '-m', 'tag message, not commit subject');
+		const sources = await svc!.getBranchCreationSources(URI.file(dir));
+		const details = { commit, author: 't', subject: 'initial', timestamp };
+		assert.deepStrictEqual(sources, [
+			{ ref: 'HEAD', name: 'main', kind: GitRefType.Head, ...details },
+			{ ref: 'refs/heads/dev', name: 'dev', kind: GitRefType.Head, ...details },
+			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head, ...details },
+			{ ref: 'refs/remotes/origin/main', name: 'origin/main', kind: GitRefType.RemoteHead, ...details },
+			{ ref: 'refs/tags/lightweight', name: 'lightweight', kind: GitRefType.Tag, ...details },
+			{ ref: 'refs/tags/annotated', name: 'annotated', kind: GitRefType.Tag, ...details },
+		]);
+	});
+
+	(hasGit ? test : test.skip)('branch creation sources identify detached HEAD and surface query failures', async () => {
+		const dir = initRepo();
+		cp.execFileSync('git', ['checkout', '-q', '--detach'], { cwd: dir, env, stdio: 'pipe' });
+		const sources = await svc!.getBranchCreationSources(URI.file(dir));
+		assert.deepStrictEqual({ ref: sources[0].ref, name: sources[0].name, kind: sources[0].kind }, {
+			ref: 'HEAD', name: 'HEAD', kind: GitRefType.DetachedHead,
+		});
+		await assert.rejects(svc!.getBranchCreationSources(URI.file(join(dir, 'missing'))));
+	});
+
+	(hasGit ? test : test.skip)('branch creation sources and checkout support a branch without commits', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
+		const commit = run('rev-parse', 'HEAD');
+		const timestamp = Number(run('log', '-1', '--format=%ct')) * 1000;
+		// Like a newly initialized repository, an orphan branch has no commits.
+		run('checkout', '-q', '--orphan', 'draft');
+
+		const sources = await svc!.getBranchCreationSources(URI.file(dir));
+		await svc!.createBranch(URI.file(dir), 'feature/first', { checkout: true, startPoint: 'HEAD' });
+
+		assert.deepStrictEqual({ sources, current: run('symbolic-ref', '--short', 'HEAD') }, {
+			sources: [
+				{ ref: 'HEAD', name: 'draft', kind: GitRefType.Head, unborn: true },
+				{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head, commit, author: 't', subject: 'initial', timestamp },
+			],
+			current: 'feature/first',
+		});
+	});
+
+	(hasGit ? test : test.skip)('branch creation sources ignore signature display configured for signed commits', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
+		const unsigned = run('cat-file', 'commit', 'HEAD');
+		const signed = unsigned.replace('\n\n', '\ngpgsig -----BEGIN PGP SIGNATURE-----\n invalid\n -----END PGP SIGNATURE-----\n\n');
+		const commit = cp.execFileSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], {
+			cwd: dir, env, input: signed, encoding: 'utf8',
+		}).trim();
+		run('update-ref', 'refs/heads/main', commit);
+		run('config', 'log.showSignature', 'true');
+		// Avoid consulting the user's signing tools or keyring for this synthetic signature.
+		run('config', 'gpg.program', 'git');
+
+		const sources = await svc!.getBranchCreationSources(URI.file(dir));
+		const details = { commit, author: 't', subject: 'initial', timestamp: Number(run('log', '-1', '--no-show-signature', '--format=%ct', commit)) * 1000 };
+		assert.deepStrictEqual(sources, [
+			{ ref: 'HEAD', name: 'main', kind: GitRefType.Head, ...details },
+			{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head, ...details },
+		]);
+	});
+
 	(hasGit ? test : test.skip)('inventories unusual worktree paths without bypassing registered dirty-worktree protection', async () => {
 		const dir = initRepo();
 		const wtPath = join(dir, isWindows ? 'checkout with spaces' : 'checkout with\n"quotes"');
@@ -1427,6 +1499,27 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			baseHead,
 			status: '?? dirty.txt',
 		});
+	});
+
+	(hasGit ? test : test.skip)('createBranch uses the selected start point without changing the checkout', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, env, encoding: 'utf8' }).trim();
+		const base = run('rev-parse', 'HEAD');
+		run('checkout', '-q', '-b', 'dev');
+		run('commit', '-q', '--allow-empty', '-m', 'dev');
+		await svc!.createBranch(URI.file(dir), 'feature/new', { startPoint: 'main' });
+		assert.deepStrictEqual({
+			current: run('branch', '--show-current'),
+			created: run('rev-parse', 'feature/new'),
+		}, { current: 'dev', created: base });
+	});
+
+	(hasGit ? test : test.skip)('createBranch rejects invalid and existing names without changing the checkout', async () => {
+		const dir = initRepo();
+		for (const name of ['main', '-option', 'HEAD', 'a..b', 'a.lock', 'a b', '@{-1}']) {
+			await assert.rejects(svc!.createBranch(URI.file(dir), name, { checkout: true, startPoint: 'main' }));
+		}
+		assert.strictEqual(cp.execFileSync('git', ['branch', '--show-current'], { cwd: dir, env, encoding: 'utf8' }).trim(), 'main');
 	});
 
 	(hasGit ? test : test.skip)('checkout switches a clean working directory to an existing branch', async () => {

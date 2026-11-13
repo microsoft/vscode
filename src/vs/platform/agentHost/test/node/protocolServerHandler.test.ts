@@ -7015,7 +7015,7 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli', config }));
 			transport.simulateMessage(request(3, 'createSession', { channel: 'copilot:/mc-config-created', provider: 'copilotcli', config }));
 			transport.simulateMessage(request(4, 'sessionConfigCompletions', { provider: 'copilotcli', config, property: 'approvalMode' }));
-			transport.simulateMessage(request(5, 'sessionConfigCompletions', { provider: 'copilotcli', config, property: 'baseBranch', query: 'release' }));
+			transport.simulateMessage(request(5, 'sessionConfigCompletions', { provider: 'copilotcli', config, property: 'baseBranch', query: 'release', _meta: { 'vscode.branchCreationSources': true } }));
 			transport.simulateMessage(request(6, 'createSession', { channel: 'copilot:/mc-worktree-created', provider: 'copilotcli', config: { target: 'worktree', baseBranch: 'release/isolated' } }));
 			transport.simulateMessage(request(7, 'createSession', { channel: 'copilot:/mc-legacy-created', provider: 'copilotcli', config: { isolation: 'folder', branch: 'main' } }));
 			native.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli', config: localConfig }));
@@ -7048,7 +7048,7 @@ suite('ProtocolServerHandler', () => {
 				received: [nativeConfig, localConfig],
 				created: [nativeConfig, { isolation: 'worktree', branch: 'release/isolated' }, { isolation: 'folder', branch: 'main' }],
 				completion: { provider: 'copilotcli', workingDirectory: undefined, config: nativeConfig, property: 'autoApprove', query: undefined },
-				branchCompletion: { provider: 'copilotcli', workingDirectory: undefined, config: nativeConfig, property: 'branch', query: 'release' },
+				branchCompletion: { provider: 'copilotcli', workingDirectory: undefined, config: nativeConfig, property: 'branch', query: 'release', _meta: { 'vscode.branchCreationSources': true } },
 				localValues: localConfig, localSchema: sessionSchema(),
 			});
 		});

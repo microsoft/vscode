@@ -24,6 +24,7 @@ import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../p
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
+import { branchCreationSourcesRequestMeta } from '../../../../../../platform/agentHost/common/meta/branchCreationSources.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentSession, type AgentProvider, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentPluginInstallation, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../../platform/agentHost/common/agentMerge.js';
@@ -4101,13 +4102,14 @@ class NewSession extends Disposable {
 		}
 	}
 
-	getConfigCompletions(connection: IAgentConnection, property: string, query: string | undefined) {
+	getConfigCompletions(connection: IAgentConnection, property: string, query: string | undefined, _meta?: Record<string, unknown>) {
 		return connection.sessionConfigCompletions({
 			provider: this.agentProvider,
 			workingDirectory: this.workspaceUri,
 			config: this.getConfigValues(),
 			property,
 			query,
+			...(_meta ? { _meta } : {}),
 		});
 	}
 
@@ -4119,18 +4121,14 @@ class NewSession extends Disposable {
 		if (!this._branchLoad) {
 			const load = this.getConfigCompletions(connection, branch.key, undefined).then(result => result.items);
 			this._branchLoad = load;
-			// The host reports a timed-out or failed git query as an empty list, which is
-			// likely right after startup, so only keep a non-empty result for later picker opens.
+			// Share concurrent requests, but refresh on the next picker open so
+			// branch creation and external Git changes are reflected.
 			const forget = () => {
 				if (this._branchLoad === load) {
 					this._branchLoad = undefined;
 				}
 			};
-			load.then(items => {
-				if (items.length === 0) {
-					forget();
-				}
-			}, forget);
+			load.then(forget, forget);
 		}
 		return this._branchLoad;
 	}
@@ -7180,6 +7178,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const result = await newSession.getConfigCompletions(connection, property, query);
 		return result.items;
+	}
+
+	async getBranchCreationSources(sessionId: string): Promise<readonly SessionConfigValueItem[]> {
+		const newSession = this._getNewSession(sessionId);
+		const connection = this.connection;
+		if (!newSession || !connection) {
+			return [];
+		}
+		const config = await this.whenSessionConfigResolved(sessionId, CancellationToken.None);
+		const branch = config && getSessionWorkspaceProperties(config.schema).baseBranch;
+		if (!branch) {
+			throw new Error('Branch configuration is not advertised.');
+		}
+		return (await newSession.getConfigCompletions(connection, branch.key, undefined, branchCreationSourcesRequestMeta())).items;
 	}
 
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined {

@@ -2613,6 +2613,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				config: this._config.sessionConfigAdapter ? this._config.sessionConfigAdapter.fromClientValues(params.config) : params.config,
 				property: this._config.sessionConfigAdapter ? this._config.sessionConfigAdapter.fromClientProperty(params.property) : params.property,
 				query: params.query,
+				...(params._meta ? { _meta: params._meta } : {}),
 			});
 		},
 		completions: async (_client, params) => {
