@@ -848,6 +848,18 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('says an answer is kept out of the chat only for a secret', () => {
+			const details = (['secret', 'text', 'confirm'] as const).map(inputKind => {
+				const [question] = createShellAuthenticationCarousel('shell-auth', { program: 'git', prompt: 'Username for \'https://example.com\': ', inputKind, command: 'git fetch' }).questions;
+				return typeof question.detailedMessage === 'string' ? question.detailedMessage : question.detailedMessage?.value;
+			});
+			assert.deepStrictEqual(details, [
+				'$(lock) Your answer goes only to `git` and isn\'t sent to the model or saved in the chat.',
+				'$(lock) Your answer goes only to `git` and isn\'t sent to the model.',
+				'$(lock) Your answer goes only to `git` and isn\'t sent to the model.',
+			]);
+		});
+
 		test('empty turns produces empty history', () => {
 			const result = turnsToHistory(URI.file('/'), [], 'p');
 			assert.deepStrictEqual(result, []);

@@ -1765,7 +1765,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCopilotShellAuthenticationEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.copilot.shellAuthentication.enabled', "Controls whether Copilot Agent Host sessions ask in chat for the passwords, passphrases, and confirmations that `sudo -A`, `ssh`, and `git` request. The answer goes only to that program and isn't sent to the model or saved in the chat. Takes effect when a session starts or resumes."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.shellAuthentication.enabled', "Controls whether Copilot Agent Host sessions ask in chat for the passwords, passphrases, and confirmations that `sudo -A`, `ssh`, and `git` request. The answer goes only to that program and isn't sent to the model. Passwords and passphrases also aren't saved in the chat. Takes effect when a session starts or resumes."),
 			default: true,
 			tags: ['experimental'],
 			scope: ConfigurationScope.APPLICATION,

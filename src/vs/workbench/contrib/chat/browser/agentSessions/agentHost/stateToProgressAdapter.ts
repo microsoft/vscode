@@ -322,9 +322,12 @@ const SHELL_AUTHENTICATION_CONFIRM_NO = 'no';
 const SHELL_AUTHENTICATION_CANCEL = 'cancel';
 
 export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt, canAnswer = true): ChatQuestionCarouselData {
-	const notice = canAnswer
-		? `$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model or saved in the chat.", appendEscapedMarkdownInlineCode(escapeIcons(prompt.program)))}`
-		: `$(info) ${localize('agentHost.shellAuthentication.cannotAnswer', "This connection can't send your answer privately, so you can only cancel the prompt here.")}`;
+	const program = appendEscapedMarkdownInlineCode(escapeIcons(prompt.program));
+	const notice = !canAnswer
+		? `$(info) ${localize('agentHost.shellAuthentication.cannotAnswer', "This connection can't send your answer privately, so you can only cancel the prompt here.")}`
+		: prompt.inputKind === 'secret'
+			? `$(lock) ${localize('agentHost.shellAuthentication.secretDisclosure', "Your answer goes only to {0} and isn't sent to the model or saved in the chat.", program)}`
+			: `$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model.", program)}`;
 	const base = {
 		id: SHELL_AUTHENTICATION_QUESTION_ID,
 		title: getShellAuthenticationTitle(prompt),
