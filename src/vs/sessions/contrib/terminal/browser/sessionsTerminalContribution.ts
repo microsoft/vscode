@@ -441,20 +441,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	/**
-	 * Whether the terminal the terminal view created runs on the given backend.
-	 * An Agent Host terminal is registered with its host only once it is created,
-	 * so a custom pty is the session's Agent Host terminal when the session's
-	 * Agent Host profile is the default profile the view used.
+	 * Whether the terminal the terminal view created runs on the given backend:
+	 * the session's Agent Host, or a local shell for a local session. A custom
+	 * pty whose Agent Host is unknown runs on neither.
 	 */
 	private _isTerminalViewShellOnBackend(instance: ITerminalInstance, agentHostAddress: string | undefined): boolean {
 		const instanceAgentHostAddress = this._agentHostTerminalService.getAgentHostAddress(instance);
 		if (instanceAgentHostAddress !== undefined) {
 			return instanceAgentHostAddress === agentHostAddress;
 		}
-		if (instance.shellLaunchConfig.customPtyImplementation) {
-			return agentHostAddress !== undefined && this._defaultProfileOverride.get()?.address === agentHostAddress;
-		}
-		return agentHostAddress === undefined || agentHostAddress === LOCAL_AGENT_HOST_ADDRESS;
+		return !instance.shellLaunchConfig.customPtyImplementation
+			&& (agentHostAddress === undefined || agentHostAddress === LOCAL_AGENT_HOST_ADDRESS);
 	}
 
 	private async _ensureTerminal(cwd: URI, focus: boolean, session?: ISession, generation?: number, requireCwdMatch = false, location?: ITerminalLocationOptions, createIfMissing = true): Promise<ITerminalInstance[]> {

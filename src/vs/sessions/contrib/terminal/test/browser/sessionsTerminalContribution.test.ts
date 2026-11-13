@@ -596,10 +596,9 @@ suite('SessionsTerminalContribution', () => {
 		const ready = viewTerminal._testSetProcessStarting();
 		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
 		terminalGroupCount = 1;
-		onDidCreateInstance.fire(viewTerminal);
-		// AgentHostTerminalService knows the terminal's host only once its createTerminal call returns.
-		await Promise.resolve();
+		// AgentHostTerminalService knows the terminal's host as soon as the instance exists.
 		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'ssh-remote+one');
+		onDidCreateInstance.fire(viewTerminal);
 		await tick();
 
 		assert.deepStrictEqual({ created: agentHostTerminalAddresses, disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
@@ -619,16 +618,61 @@ suite('SessionsTerminalContribution', () => {
 		await tick();
 		const viewTerminal = makeTerminalInstance(nextInstanceId++, worktreeUri.fsPath);
 		viewTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'remote-test', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'remote-test');
 		// The terminal group fires onDidCreateInstance before it adds the instance to its group,
 		// and a remote session's cwd needs no check on disk before the session's terminals are read.
 		onDidCreateInstance.fire(viewTerminal);
 		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
 		terminalGroupCount = 1;
-		await Promise.resolve();
-		agentHostTerminalAddressById.set(viewTerminal.instanceId, 'remote-test');
 		await tick();
 
 		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: [], backgrounded: [] });
+	});
+
+	test('does not adopt an Agent Host terminal on another host that is created while the terminal view opens empty', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		sessionProviders.set('agenthost-two', { id: 'agenthost-two', remoteAddress: 'ssh-remote+two' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:host-two', providerId: 'agenthost-two', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// The user creates a terminal on another Agent Host while the session's host is the default profile.
+		const otherHostTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		otherHostTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'one', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(otherHostTerminal.instanceId, otherHostTerminal);
+		terminalGroupCount = 1;
+		agentHostTerminalAddressById.set(otherHostTerminal.instanceId, 'ssh-remote+one');
+		onDidCreateInstance.fire(otherHostTerminal);
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: ['ssh-remote+two'], backgrounded: [otherHostTerminal.instanceId] });
+	});
+
+	test('does not adopt a custom pty terminal of an unknown host for a remote session whose host is the default profile', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		sessionProviders.set('agenthost-two', { id: 'agenthost-two', remoteAddress: 'ssh-remote+two' } as unknown as ISessionsProvider);
+		activeSessionObs.set(makeAgentSession({ sessionId: 'test:host-two', providerId: 'agenthost-two', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+		// A custom pty that no Agent Host created, such as an extension's pseudoterminal, or an
+		// Agent Host terminal on host one whose host the view could not tell when it was created.
+		const otherTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
+		otherTerminal._testSetShellLaunchConfig({ customPtyImplementation: () => { throw new Error('not started in this test'); }, name: 'Agent Host', hostLabel: 'one', isRemotePty: true, isFeatureTerminal: false } as ITerminalInstance['shellLaunchConfig']);
+		terminalInstances.set(otherTerminal.instanceId, otherTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(otherTerminal);
+		await Promise.resolve();
+		agentHostTerminalAddressById.set(otherTerminal.instanceId, 'ssh-remote+one');
+		await tick();
+
+		assert.deepStrictEqual({ created: agentHostTerminalAddresses, backgrounded: [...backgroundedInstances] }, { created: ['ssh-remote+two'], backgrounded: [otherTerminal.instanceId] });
 	});
 
 	test('does not adopt a custom pty terminal the terminal view creates for a local session', async () => {
