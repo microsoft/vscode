@@ -2780,6 +2780,7 @@ export class AutomationsCustomViewContribution extends Disposable {
 			id: AUTOMATIONS_CUSTOM_VIEW_ID,
 			ctor: new SyncDescriptor(AutomationsCustomView),
 			actions: { style: 'buttonBar', menuId: AgentsWindowMenus.CustomViewAutomations },
+			allowPanel: true,
 		}, {
 			restore: contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key) === true,
 		}));

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fail, strictEqual } from 'assert';
+import { deepStrictEqual, fail, strictEqual } from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -11,13 +11,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { TerminalLocation, TitleEventSource, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type TerminalIcon } from '../../../../../platform/terminal/common/terminal.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalService } from '../../browser/terminalService.js';
 import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 
 suite('Workbench - TerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,6 +83,45 @@ suite('Workbench - TerminalService', () => {
 				strictEqual(disposalEmitters[i].hasListeners(), false);
 			}
 		});
+	});
+
+	test('applies the default cwd only to visible local terminals', async () => {
+		const home = URI.file('/home/user');
+		terminalService.setPanelDefaultCwd(Promise.resolve(home));
+		const resolveCwd = Reflect.get(terminalService, '_resolveCwd') as (shellLaunchConfig: IShellLaunchConfig, split: boolean, options: { location: TerminalLocation }, useDefaultCwd: boolean) => Promise<void>;
+		const panel = { location: TerminalLocation.Panel };
+		const local: IShellLaunchConfig = {};
+		const hidden: IShellLaunchConfig = { hideFromUser: true };
+		const contributed: IShellLaunchConfig = {};
+		const extension: IShellLaunchConfig = { extHostTerminalId: 'extension-terminal' };
+
+		await resolveCwd.call(terminalService, local, false, panel, true);
+		await resolveCwd.call(terminalService, hidden, false, panel, true);
+		await resolveCwd.call(terminalService, contributed, false, panel, false);
+		await resolveCwd.call(terminalService, extension, false, panel, true);
+
+		deepStrictEqual({
+			local: local.cwd,
+			hidden: hidden.cwd,
+			contributed: contributed.cwd,
+			extension: extension.cwd,
+		}, {
+			local: home,
+			hidden: undefined,
+			contributed: undefined,
+			extension: undefined,
+		});
+	});
+
+	test('does not apply the panel default cwd without local process support', async () => {
+		terminalService.setPanelDefaultCwd(Promise.resolve(URI.file('/home/user')));
+		(Reflect.get(terminalService, '_processSupportContextKey') as IContextKey<boolean>).set(false);
+		const resolveCwd = Reflect.get(terminalService, '_resolveCwd') as (shellLaunchConfig: IShellLaunchConfig, split: boolean, options: { location: TerminalLocation }, useDefaultCwd: boolean) => Promise<void>;
+		const local: IShellLaunchConfig = {};
+
+		await resolveCwd.call(terminalService, local, false, { location: TerminalLocation.Panel }, true);
+
+		strictEqual(local.cwd, undefined);
 	});
 
 	suite('safeDisposeTerminal', () => {

@@ -52,7 +52,7 @@ The workbench omits the standard Activity Bar, Status Bar, and Banner. Part posi
 | Editor | File, browser, diff, and other editor inputs |
 | Auxiliary Bar | Session details such as changes and files |
 | Panel | Terminal and other panel views |
-| Custom View Grid | Full-surface contributed views that replace session content |
+| Custom View Grid | Contributed views that replace session content; a view may retain the desktop bottom Panel |
 | Session Activity Bar column | The active chat's Session Activity Bar; a fixed-width grid view, not a part, shown only while that strip is in it |
 
 ### Chat windows
@@ -146,9 +146,9 @@ Session providers register internal per-session directories as resource label ho
 
 ## Custom views
 
-`ICustomViewService` owns the active contributed full-surface view.
+`ICustomViewService` owns the active contributed view.
 
-A custom view is mutually exclusive with the Sessions Part, grid Editor, Auxiliary Bar, and Panel. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
+A custom view is mutually exclusive with the Sessions Part, grid Editor, and Auxiliary Bar. By default it also replaces the Panel, but a descriptor may retain the desktop bottom Panel when the view is useful alongside logs or terminals. The title bar and Sidebar remain available. Covered parts retain desired visibility separately from effective grid visibility so their state can be restored when the custom view closes.
 
 Inbox projects constituent notifications into exclusive session workflow tabs. Hold and occurrence-scoped Done state belong to Inbox, not the provider runtime or the session's archived state. Selecting a row previews evidence without marking the session read. Opening the full session clears completion notifications through the existing read state, but outstanding questions, approvals, CI failures, and review requests remain independent.
 

@@ -36,6 +36,7 @@ import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_FIX
 import { SESSION_ACTIVITY_BAR_FIXED_COLUMN_SETTING, SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING, SESSIONS_FLOATING_DETAILS_SETTING, SESSIONS_DETAILS_POSITION_SETTING } from '../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
+import { CustomViewAllowsPanelContext, CustomViewVisibleContext } from '../../common/agentsWindowContextKeys.js';
 
 const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
 const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
@@ -88,6 +89,26 @@ suite('Sessions - Layout Actions', () => {
 				toggled: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, density),
 			})),
 		});
+	});
+
+	test('panel-capable custom views keep the title-bar panel toggle available', () => {
+		const panelItems = MenuRegistry.getMenuItems(AgentsWindowMenus.TitleBarSessionMenu)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === TOGGLE_PANEL_ACTION_ID);
+		const context: IContext = {
+			getValue: <T extends ContextKeyValue>(key: string) => ({
+				[CustomViewVisibleContext.key]: true,
+				[CustomViewAllowsPanelContext.key]: true,
+			})[key] as T | undefined,
+		};
+
+		assert.deepStrictEqual(panelItems.map(item => ({
+			visible: item.when?.evaluate(context) !== false,
+			enabled: item.command.precondition?.evaluate(context) !== false,
+		})), [
+			{ visible: true, enabled: true },
+			{ visible: false, enabled: true },
+		]);
 	});
 
 	// The side panel toggle registers with its layout controller; see baseSessionLayoutController.test.ts.

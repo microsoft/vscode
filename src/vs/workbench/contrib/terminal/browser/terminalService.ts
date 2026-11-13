@@ -82,8 +82,17 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _terminalCountContextKey: IContextKey<number>;
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
+	private _panelDefaultCwd: Promise<URI> | undefined;
 
 	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
+
+	setPanelDefaultCwd(cwd: Promise<URI> | undefined): void {
+		this._panelDefaultCwd = cwd;
+	}
+
+	getPanelDefaultCwd(): Promise<URI> | undefined {
+		return this.isProcessSupportRegistered && getActiveWindow() === mainWindow ? this._panelDefaultCwd : undefined;
+	}
 
 	private _connectionState: TerminalConnectionState = TerminalConnectionState.Connecting;
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
@@ -1011,7 +1020,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			? options.location.splitActiveTerminal
 			: typeof options?.location === 'object' ? hasKey(options.location, { parentTerminal: true }) : false;
 
-		await this._resolveCwd(shellLaunchConfig, splitActiveTerminal, options);
+		await this._resolveCwd(shellLaunchConfig, splitActiveTerminal, options, contributedProfile === undefined);
 
 		// Launch the contributed profile
 		// If it's a custom pty implementation, we did not await the profiles ready, so
@@ -1177,7 +1186,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}));
 	}
 
-	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
+	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options: ICreateTerminalOptions | undefined, useDefaultCwd: boolean): Promise<void> {
 		const cwd = shellLaunchConfig.cwd;
 		if (!cwd) {
 			if (options?.cwd) {
@@ -1191,6 +1200,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 					throw new Error('Cannot split without an active instance');
 				}
 				shellLaunchConfig.cwd = await getCwdForSplit(parent, this._workspaceContextService.getWorkspace().folders, this._commandService, this._terminalConfigurationService);
+			} else if (
+				useDefaultCwd
+				&& !shellLaunchConfig.hideFromUser
+				&& !shellLaunchConfig.extHostTerminalId
+				&& await this.resolveLocation(options?.location) === TerminalLocation.Panel
+			) {
+				const panelDefaultCwd = this.getPanelDefaultCwd();
+				if (panelDefaultCwd) {
+					shellLaunchConfig.cwd = await panelDefaultCwd;
+				}
 			}
 		}
 	}
