@@ -623,9 +623,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _createInactiveDependencyPromise(task: Task): Promise<ITaskSummary> {
 		return new Promise<ITaskSummary>(resolve => {
 			const taskInactiveDisposable = this.onDidStateChange(taskEvent => {
-				if ((taskEvent.kind === TaskEventKind.Inactive) && (taskEvent.__task === task)) {
+				// Process exit can emit Inactive for cleanup, which is not a readiness signal.
+				if ((taskEvent.kind === TaskEventKind.Inactive || taskEvent.kind === TaskEventKind.ProcessEnded) && (taskEvent.__task === task)) {
 					taskInactiveDisposable.dispose();
-					resolve({ exitCode: 0 });
+					resolve({ exitCode: taskEvent.kind === TaskEventKind.ProcessEnded ? taskEvent.exitCode : 0 });
 				}
 			});
 		});
