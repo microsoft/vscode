@@ -18,6 +18,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
+import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -1641,7 +1642,10 @@ suite('Automation dialog creation', () => {
 		const button = dialog.container.querySelector<HTMLElement>('.automation-form-days-button')!;
 		const text = () => button.textContent?.trim();
 		button.click();
-		const section = dialog.actionWidgetService.labels[0];
+		const picker = {
+			labels: dialog.actionWidgetService.labels,
+			preferredAnchorPosition: dialog.actionWidgetService.listOptions?.preferredAnchorPosition,
+		};
 		dialog.actionWidgetService.select('Monday');
 		const single = { text: text(), checked: dialog.actionWidgetService.checked('Monday') };
 		dialog.actionWidgetService.select('Wednesday');
@@ -1649,8 +1653,11 @@ suite('Automation dialog creation', () => {
 		dialog.actionWidgetService.hide();
 		const closed = !dialog.actionWidgetService.isVisible;
 		dialog.saveButton.click();
-		assert.deepStrictEqual({ section, single, multiple, closed, schedule: (await dialog.result)?.value.schedule }, {
-			section: 'Day of week',
+		assert.deepStrictEqual({ picker, single, multiple, closed, schedule: (await dialog.result)?.value.schedule }, {
+			picker: {
+				labels: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+				preferredAnchorPosition: AnchorPosition.ABOVE,
+			},
 			single: { text: 'Monday', checked: true },
 			multiple: '2 days selected',
 			closed: true,
@@ -3665,6 +3672,7 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 	labels: readonly string[] = [];
 	details: ReadonlyArray<IActionListItem<unknown>['detail']> = [];
 	ariaLabels: readonly string[] = [];
+	listOptions: IActionListOptions | undefined;
 	private selectItem: ((label: string) => void) | undefined;
 	private isItemChecked: ((label: string) => boolean | undefined) | undefined;
 	private hideWidget: ((didCancel?: boolean) => void) | undefined;
@@ -3678,9 +3686,10 @@ class RecordingActionWidgetService extends mock<IActionWidgetService>() {
 		_container: HTMLElement | undefined,
 		_actionBarActions: readonly IAction[],
 		accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>,
-		_listOptions?: IActionListOptions,
+		listOptions?: IActionListOptions,
 	): void {
 		this.isVisible = true;
+		this.listOptions = listOptions;
 		this.labels = items.map(item => item.label ?? '');
 		this.details = items.map(item => item.detail);
 		this.ariaLabels = items.map(item => {

@@ -1241,6 +1241,8 @@ export function renderForm(
 		selectedIds: selectedDays().map(String),
 		width: dayButton.element.offsetWidth || undefined,
 		contextViewLayer: 1,
+		preferredAnchorPosition: AnchorPosition.ABOVE,
+		hideSectionHeaders: true,
 		requireSelection: true,
 	});
 	// The dropdown dismisses on pointer-down, so remember whether this click started while it was open.

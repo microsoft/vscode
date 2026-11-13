@@ -38,6 +38,8 @@ export interface IMultiSelectDropdownOptions {
 	readonly width?: number;
 	/** Use a higher layer when opening inside another context view, such as a dialog. */
 	readonly contextViewLayer?: number;
+	readonly preferredAnchorPosition?: AnchorPosition;
+	readonly hideSectionHeaders?: boolean;
 	/** Prevents clearing the last selected item. */
 	readonly requireSelection?: boolean;
 }
@@ -75,7 +77,7 @@ export class MultiSelectDropdown extends Disposable {
 		const selected = new Set(options.selectedIds);
 		const buildItems = (): IActionListItem<IMultiSelectDropdownItem>[] => options.sections.filter(section => section.items.length).flatMap((section, index) => [
 			...(index > 0 ? [{ kind: ActionListItemKind.Separator }] : []),
-			{ kind: ActionListItemKind.Header, label: section.label },
+			...(options.hideSectionHeaders ? [] : [{ kind: ActionListItemKind.Header, label: section.label }]),
 			...section.items.map(item => ({
 				kind: ActionListItemKind.Action,
 				item,
@@ -147,7 +149,7 @@ export class MultiSelectDropdown extends Disposable {
 			minWidth: options.width ?? 280,
 			maxWidth: options.width ?? 280,
 			hideDefaultKeybindingTooltip: true,
-			preferredAnchorPosition: AnchorPosition.BELOW,
+			preferredAnchorPosition: options.preferredAnchorPosition ?? AnchorPosition.BELOW,
 			widgetClassName: 'multi-select-dropdown',
 		}, options.contextViewLayer);
 		const popup = dom.getActiveElement()?.closest<HTMLElement>('.multi-select-dropdown');
