@@ -9,8 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import type { IAgentConnection } from './agentService.js';
-import { isAgentHostPathCaseSensitive } from './agentHostPathStyle.js';
+import { isAgentHostPathCaseSensitive, type IAgentHostEnvironmentConnection } from './agentHostPathStyle.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
 import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
 import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
@@ -25,7 +24,7 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
  * Both {@link IAgentConnection} (client→server) and client-exposed
  * filesystems (server→client) satisfy this contract.
  */
-export interface IRemoteFilesystemConnection extends Partial<Pick<IAgentConnection, 'initializeResult' | 'rootState'>> {
+export interface IRemoteFilesystemConnection extends IAgentHostEnvironmentConnection {
 	/** Fires when the same logical connection recovers its transport or expired relay authorization. */
 	readonly onDidReconnect?: Event<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
