@@ -43,6 +43,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { NewTabButtonEntryAction, NewTabButtonHidden } from '../../../../browser/parts/editor/newTabButton.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -832,10 +833,10 @@ export function registerChatActions() {
 			});
 		}
 
-		protected override openTab(accessor: ServicesAccessor, group: IEditorGroup): Promise<unknown> {
+		protected override openTab(accessor: ServicesAccessor, group: IEditorGroup, options: IEditorOptions): Promise<unknown> {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
-			return widgetService.openSession(input.resource, group, input.options);
+			return widgetService.openSession(input.resource, group, { ...input.options, ...options });
 		}
 	});
 

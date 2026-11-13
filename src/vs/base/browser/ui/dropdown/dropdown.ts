@@ -181,7 +181,8 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 	readonly actionProvider?: IActionProvider;
 	menuClassName?: string;
 	closeAnimation?: IContextViewCloseAnimation;
-	getAnchor?: () => HTMLElement;
+	/** Where the menu shows: below an element, or with its top left corner at a point. Defaults to the dropdown. */
+	getAnchor?: () => HTMLElement | { readonly x: number; readonly y: number };
 	menuAsChild?: boolean; // scope down for #99448
 	menuAsPopover?: boolean; // host the menu as a popover inside the dropdown element
 	readonly skipTelemetry?: boolean;

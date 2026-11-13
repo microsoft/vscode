@@ -50,7 +50,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
 import { BrowserNavigationFeatures } from './browserNavigationFeatures.js';
-import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
+import { IEditorOptions, ViewColumn } from '../../../../../platform/editor/common/editor.js';
 import { IExternalUriOpenContext } from '../../../../../platform/opener/common/opener.js';
 
 const CONTEXT_BROWSER_EDITOR_OPEN = new RawContextKey<boolean>('browserEditorOpen', false, localize('browser.editorOpen', "Whether any browser editor is currently open"));
@@ -568,9 +568,15 @@ registerAction2(class OpenIntegratedBrowserFromNewTabButtonAction extends NewTab
 		});
 	}
 
-	// Opens where the browser opens new tabs, by default in the (now active) group of the button.
-	protected override openTab(accessor: ServicesAccessor): Promise<unknown> {
-		return accessor.get(ICommandService).executeCommand(BrowserViewCommandId.Open);
+	protected override async openTab(accessor: ServicesAccessor, group: IEditorGroup, options: IEditorOptions): Promise<unknown> {
+		const editorService = accessor.get(IEditorService);
+		logBrowserOpen(accessor.get(ITelemetryService), 'newTabButton');
+
+		const editorPane = await editorService.openEditor({ resource: BrowserViewUri.forId(generateUuid()), options }, group);
+		if (editorPane instanceof BrowserEditor) {
+			editorPane.getContribution(BrowserNavigationFeatures)?.openUrlPicker();
+		}
+		return editorPane;
 	}
 });
 registerAction2(OpenFileInIntegratedBrowserAction);

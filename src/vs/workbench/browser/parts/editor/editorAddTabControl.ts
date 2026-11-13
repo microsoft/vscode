@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventHelper, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { IAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -20,6 +20,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IEditorCommandsContext } from '../../../common/editor.js';
 
 const addTabActionId = 'editor.tabs.addTab';
@@ -41,7 +42,24 @@ export interface IEditorAddTabControlOptions {
 	 * on the active one.
 	 */
 	readonly context?: IEditorCommandsContext;
+
+	/**
+	 * Lists the entry picked last (remembered per profile) first.
+	 */
+	readonly recentFirst?: boolean;
+
+	/**
+	 * Opens the menu over the button, with its first entry under the pointer, so that a second click without moving
+	 * the pointer picks it.
+	 */
+	readonly menuOverButton?: boolean;
 }
+
+/**
+ * The offset of the pointer in the button from the top left corner of the menu when the menu opens over the button:
+ * inside the icon column of the first entry, at its vertical center.
+ */
+const MENU_OVER_BUTTON_POINTER_OFFSET = { x: 16, y: 19 };
 
 /**
  * The "Add Tab" (`+`) dropdown that lists the actions of a contributed menu.
@@ -68,14 +86,21 @@ export class EditorAddTabControl extends Disposable {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
 		this.element = $('.tabs-bar-add-tab');
 		parent.insertBefore(this.element, options?.before ?? null);
 
+		const recentEntryStorageKey = `editor.addTabMenu.recentEntry.${menuId.id}`;
 		const menu = this._register(menuService.createMenu(menuId, contextKeyService));
-		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+		const getActions = () => {
+			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
+			const recentEntry = options?.recentFirst ? storageService.get(recentEntryStorageKey, StorageScope.PROFILE) : undefined;
+			const recentIndex = recentEntry ? actions.findIndex(action => action.id === recentEntry) : -1;
+			return recentIndex > 0 ? [actions[recentIndex], ...actions.slice(0, recentIndex), ...actions.slice(recentIndex + 1)] : actions;
+		};
 		const addTabAction = toAction({
 			id: addTabActionId,
 			label: localize('addTab', "Add Tab"),
@@ -84,7 +109,8 @@ export class EditorAddTabControl extends Disposable {
 		});
 		const dropdown = this._register(new DropdownMenuActionViewItem(addTabAction, { getActions }, contextMenuService, {
 			classNames: ThemeIcon.asClassNameArray(Codicon.add),
-			keybindingProvider: options?.keybindingProvider ?? (action => keybindingService.lookupKeybinding(action.id, contextKeyService))
+			keybindingProvider: options?.keybindingProvider ?? (action => keybindingService.lookupKeybinding(action.id, contextKeyService)),
+			getAnchor: options?.menuOverButton ? () => this._getMenuOverButtonAnchor() : undefined
 		}));
 		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, this.element, {
 			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
@@ -93,6 +119,16 @@ export class EditorAddTabControl extends Disposable {
 		toolbar.context = options?.context;
 		toolbar.setActions([addTabAction]);
 		this._registerMenuTelemetry(menuId, dropdown, toolbar, telemetryService);
+		if (options?.recentFirst) {
+			this._register(toolbar.actionRunner.onWillRun(e => {
+				if (e.action.id !== addTabActionId) {
+					storageService.store(recentEntryStorageKey, e.action.id, StorageScope.PROFILE, StorageTarget.MACHINE);
+				}
+			}));
+		}
+		if (options?.menuOverButton) {
+			this._ignoreReleaseOfOpeningPress();
+		}
 
 		const updateVisibility = () => this.element.classList.toggle('hidden', getActions().length === 0);
 		updateVisibility();
@@ -103,6 +139,32 @@ export class EditorAddTabControl extends Disposable {
 				this._onDidChangeVisibility.fire();
 			}
 		}));
+	}
+
+	private _getMenuOverButtonAnchor(): { x: number; y: number } {
+		const button = this.element.getBoundingClientRect();
+		return {
+			x: button.left + button.width / 2 - MENU_OVER_BUTTON_POINTER_OFFSET.x,
+			y: button.top + button.height / 2 - MENU_OVER_BUTTON_POINTER_OFFSET.y,
+		};
+	}
+
+	/**
+	 * The menu opens on mouse down, under the pointer: releasing the button that opened it must not pick its first entry.
+	 */
+	private _ignoreReleaseOfOpeningPress(): void {
+		const pendingRelease = this._register(new MutableDisposable());
+		this._register(addDisposableListener(this.element, EventType.MOUSE_DOWN, e => {
+			if (e.button !== 0) {
+				return;
+			}
+			pendingRelease.value = addDisposableListener(getWindow(this.element), EventType.MOUSE_UP, release => {
+				pendingRelease.clear();
+				if (!isHTMLElement(release.target) || !this.element.contains(release.target)) {
+					EventHelper.stop(release, true);
+				}
+			}, true);
+		}, true));
 	}
 
 	/**

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { stub } from 'sinon';
 import { isSafari } from '../../../../../base/browser/browser.js';
-import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -20,6 +20,7 @@ import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../plat
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
@@ -27,6 +28,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
+import { EditorAddTabControl } from '../../../../browser/parts/editor/editorAddTabControl.js';
 import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRowEditorTabsControl.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
@@ -4817,6 +4819,63 @@ suite('MultiEditorTabsControl', () => {
 			{ kind: 'opened', menuId: 'test.addTab.journey', entry: undefined },
 			{ kind: 'dismissed', menuId: 'test.addTab.journey', entry: undefined },
 		]);
+	});
+
+	test('the new tab button lists the entry picked last first and opens its menu over itself', async () => {
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(): Promise<R> { return undefined as R; }
+		}());
+		instantiationService.stub(IMenuService, new class extends TestMenuService {
+			override createMenu(): IMenu {
+				return {
+					onDidChange: Event.None,
+					dispose: () => { },
+					getActions: options => [['navigation', ['test.newTabButton.first', 'test.newTabButton.second'].map(id =>
+						instantiationService.createInstance(MenuItemAction, { id, title: id }, undefined, options, undefined, undefined))]],
+				};
+			}
+		}());
+		let shownMenu: IContextMenuDelegate | undefined;
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+			override readonly onDidShowContextMenu = Event.None;
+			override readonly onDidHideContextMenu = Event.None;
+			override showContextMenu(delegate: IContextMenuDelegate): void { shownMenu = delegate; }
+		}());
+		const outside = mainWindow.document.body.appendChild($('div'));
+		disposables.add(toDisposable(() => outside.remove()));
+		const releasesOutside: string[] = [];
+		disposables.add(addDisposableListener(outside, EventType.MOUSE_UP, () => releasesOutside.push('received')));
+
+		const createButton = () => disposables.add(instantiationService.createInstance(EditorAddTabControl, container, MenuId.for('test.newTabButton'), instantiationService.get(IContextKeyService), { recentFirst: true, menuOverButton: true }));
+		const open = (button: EditorAddTabControl) => {
+			shownMenu = undefined;
+			button.element.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { button: 0, detail: 1, bubbles: true }));
+			const entries = shownMenu!.getActions().map(action => action.id);
+			const anchor = shownMenu!.getAnchor() as { x: number; y: number };
+			const bounds = button.element.getBoundingClientRect();
+			shownMenu!.onHide?.(true);
+			return { entries, anchorFromButtonCenter: { x: anchor.x - (bounds.left + bounds.width / 2), y: anchor.y - (bounds.top + bounds.height / 2) } };
+		};
+
+		const button = createButton();
+		const initially = open(button);
+		// The release of the press that opened the menu over the button does not reach it; the next one does
+		outside.dispatchEvent(new MouseEvent(EventType.MOUSE_UP, { button: 0, bubbles: true }));
+		outside.dispatchEvent(new MouseEvent(EventType.MOUSE_UP, { button: 0, bubbles: true }));
+		open(button);
+		await shownMenu!.actionRunner!.run(shownMenu!.getActions()[1], shownMenu!.getActionsContext?.());
+
+		assert.deepStrictEqual({
+			initially,
+			afterPickingSecond: open(button).entries,
+			inAnotherButton: open(createButton()).entries,
+			releasesOutside,
+		}, {
+			initially: { entries: ['test.newTabButton.first', 'test.newTabButton.second'], anchorFromButtonCenter: { x: -16, y: -19 } },
+			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
+			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
+			releasesOutside: ['received'],
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

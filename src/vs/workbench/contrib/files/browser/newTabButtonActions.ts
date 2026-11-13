@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize2 } from '../../../../nls.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { NewTabButtonEntryAction } from '../../../browser/parts/editor/newTabButton.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -26,11 +27,11 @@ export class NewUntitledFileFromNewTabButtonAction extends NewTabButtonEntryActi
 		});
 	}
 
-	protected override openTab(accessor: ServicesAccessor, group: IEditorGroup): Promise<unknown> {
+	protected override openTab(accessor: ServicesAccessor, group: IEditorGroup, options: IEditorOptions): Promise<unknown> {
 		return accessor.get(IEditorService).openEditor({
 			resource: undefined,
 			untitledOrigin: 'newTabButton',
-			options: { pinned: true, override: DEFAULT_EDITOR_ASSOCIATION.id }
+			options: { ...options, override: DEFAULT_EDITOR_ASSOCIATION.id }
 		}, group);
 	}
 }
@@ -46,7 +47,7 @@ export class NewMarkdownDocumentFromNewTabButtonAction extends NewTabButtonEntry
 		});
 	}
 
-	protected override async openTab(accessor: ServicesAccessor, group: IEditorGroup): Promise<unknown> {
+	protected override async openTab(accessor: ServicesAccessor, group: IEditorGroup, options: IEditorOptions): Promise<unknown> {
 		const editorService = accessor.get(IEditorService);
 		const editorResolverService = accessor.get(IEditorResolverService);
 		const untitled = accessor.get(IUntitledTextEditorService).create({ languageId: 'markdown', origin: 'newTabButton' });
@@ -57,7 +58,7 @@ export class NewMarkdownDocumentFromNewTabButtonAction extends NewTabButtonEntry
 
 		return editorService.openEditor({
 			resource: untitled.resource,
-			options: { pinned: true, override: markdownEditorAvailable ? MARKDOWN_EDITOR_ID : DEFAULT_EDITOR_ASSOCIATION.id }
+			options: { ...options, override: markdownEditorAvailable ? MARKDOWN_EDITOR_ID : DEFAULT_EDITOR_ASSOCIATION.id }
 		}, group);
 	}
 }

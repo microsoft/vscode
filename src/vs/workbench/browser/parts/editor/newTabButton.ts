@@ -8,6 +8,7 @@ import { ILocalizedString } from '../../../../nls.js';
 import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { EditorTabsVisibleContext } from '../../../common/contextkeys.js';
 import { isEditorCommandsContext } from '../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -58,11 +59,12 @@ export abstract class NewTabButtonEntryAction extends Action2 {
 		// Commands that open in the active group then open in the group of the button.
 		editorGroupsService.activateGroup(group);
 
-		return this.openTab(accessor, group);
+		// Like the button, after the last tab, rather than after the active one.
+		return this.openTab(accessor, group, { pinned: true, index: group.count });
 	}
 
 	/**
-	 * Opens the new tab. The accessor is only valid until the first `await`.
+	 * Opens the new tab with the given options. The accessor is only valid until the first `await`.
 	 */
-	protected abstract openTab(accessor: ServicesAccessor, group: IEditorGroup): Promise<unknown>;
+	protected abstract openTab(accessor: ServicesAccessor, group: IEditorGroup, options: IEditorOptions): Promise<unknown>;
 }

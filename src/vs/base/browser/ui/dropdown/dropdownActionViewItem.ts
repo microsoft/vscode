@@ -37,7 +37,7 @@ export interface IDropdownMenuActionViewItemOptions extends IBaseActionViewItemO
 	readonly classNames?: string[] | string;
 	readonly menuClassName?: string;
 	readonly closeAnimation?: IContextViewCloseAnimation;
-	readonly getAnchor?: () => HTMLElement;
+	readonly getAnchor?: IDropdownMenuOptions['getAnchor'];
 	readonly anchorAlignmentProvider?: IAnchorAlignmentProvider;
 	readonly menuAsChild?: boolean;
 	readonly menuAsPopover?: boolean;
