@@ -60,7 +60,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { ExperimentalSettingsService } from '../../common/experimentalSettings.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 
 suite('ConfigurationDefaultOverridesContribution', () => {
 
@@ -1302,6 +1302,23 @@ suite('WorkspaceContextService - Folder', () => {
 		const applied = [await holder, await queued];
 
 		assert.deepStrictEqual({ applied, folders }, { applied: [true, false], folders: [first.toString()] });
+	});
+
+	test('setFolderLocation() reports a failing onApplied callback and still applies the switch', async () => {
+		const first = joinPath(ROOT, 'Alternate');
+		const second = joinPath(ROOT, 'Alternate2');
+		const errors: unknown[] = [];
+		const previous = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(e => errors.push(e));
+		disposables.add(toDisposable(() => setUnexpectedErrorHandler(previous)));
+		const failure = new Error('onApplied failed');
+
+		const applied = await testObject.setFolderLocation(first, { onApplied: () => { throw failure; } });
+		const next = await testObject.setFolderLocation(second);
+
+		assert.deepStrictEqual(
+			{ applied, next, folder: testObject.getWorkspace().folders[0].uri.toString(), errors },
+			{ applied: true, next: true, folder: second.toString(), errors: [failure] });
 	});
 
 	test('setFolderLocation() switches the folder and keeps the identity', async () => {

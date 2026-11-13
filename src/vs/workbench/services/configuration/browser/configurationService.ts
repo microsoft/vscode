@@ -50,7 +50,7 @@ import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { fixSettingLinks } from '../../preferences/common/preferencesModels.js';
 import { IExperimentalSettingsService } from '../common/experimentalSettings.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -236,7 +236,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			}
 			await this.doSetFolderLocation(location, options?.trusted);
 			applied = true;
-			options?.onApplied?.(); // runs while this switch still owns the queue, so no other switch can change the folder first
+			try {
+				options?.onApplied?.(); // runs while this switch still owns the queue, so no other switch can change the folder first
+			} catch (error) {
+				onUnexpectedError(error); // the switch was applied: a failing callback must not report it as failed
+			}
 		}).then(() => applied);
 	}
 
