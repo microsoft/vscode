@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ValidatorBase, vArray, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
+import { ValidatorBase, vArray, vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
 import { LoadClientCertificatesExtensionMethod, loadClientCertificatesResultValidator } from './clientCertificatesProtocol.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, lookupClientProxyBasicAuthorizationResultValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, lookupClientProxyKerberosAuthorizationResultValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, resolveClientProxyResultValidator } from './clientProxyProtocol.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
@@ -55,12 +55,29 @@ export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClo
 export const DevContainerCloseConnectionNotification = 'vscode/devContainers/closeConnection';
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
 export const DevContainerSandboxSupportNotification = 'vscode/devContainers/sandboxSupport';
+export const DevContainerUserStateNotification = 'vscode/devContainers/userState';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
-export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()) });
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()), persistUserState: vOptionalProp(vBoolean()) });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
 export const devContainerSandboxSupportValidator = vObj({ connectionId: vString(), supported: vBoolean() });
+export const devContainerUserStateValidator = vObj({
+	connectionId: vString(),
+	stage: vEnum('mount', 'up', 'link', 'userCommands'),
+	outcome: vString(),
+	reason: vOptionalProp(vString()),
+	step: vOptionalProp(vString()),
+	exitCode: vOptionalProp(vNumber()),
+	target: vOptionalProp(vString()),
+	restoredFolders: vOptionalProp(vNumber()),
+	movedFolders: vOptionalProp(vNumber()),
+	createdFolders: vOptionalProp(vNumber()),
+	existingFolders: vOptionalProp(vNumber()),
+	skippedFolders: vOptionalProp(vNumber()),
+	skipReasons: vOptionalProp(vString()),
+	errorMessage: vOptionalProp(vString()),
+});
 export const devContainerConnectResultValidator = vObj({
 	connectionId: vString(),
 	address: vString(),
@@ -431,6 +448,7 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
+	[DevContainerUserStateNotification]: ValidatorType<typeof devContainerUserStateValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {
