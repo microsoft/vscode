@@ -1388,16 +1388,14 @@ class SubagentPet extends Disposable {
 	/** Falls to an overlay-relative position, optionally starting relocation on landing. */
 	fallTo(top: number, respawn = false): void {
 		const previousTop = this.element.getBoundingClientRect().top - this._host.overlay.getBoundingClientRect().top;
-		this._respawnPhase = respawn ? 'falling' : 'none';
+		const animateFall = !this._host.motionReduced && top > previousTop;
+		this._respawnPhase = respawn ? (animateFall ? 'falling' : 'despawning') : 'none';
 		this._fallAnimation.clear();
 		this._top = top;
 		this.element.style.top = `${top}px`;
 		this._setState('idle');
-		if (!this._host.motionReduced && top > previousTop) {
+		if (animateFall) {
 			this._animateFall(previousTop, top);
-		} else if (respawn) {
-			this._respawnPhase = 'despawning';
-			this._setState('idle');
 		}
 	}
 
@@ -1454,7 +1452,6 @@ class SubagentPet extends Disposable {
 			}
 			setChatPetImageSource(this._accessoryImage, getChatPetAccessoryImageSource(this._accessory).url);
 		}
-		this._sprite.redrawFrame?.();
 	}
 
 	private _onImageLoad(): void {
