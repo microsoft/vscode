@@ -25,6 +25,7 @@ import { ApiRequestError, MutationUncertainError } from '../../../github/common/
 import { isPullRequestFeedbackAuthor } from '../../../github/common/pullRequestFeedback.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
@@ -226,6 +227,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 		@IAgentHostArtifactEventService private readonly events: AgentHostArtifactEventService,
 		@ILogService private readonly logService: ILogService,
 		@IAgentHostGitHubEndpointService private readonly endpoint: IAgentHostGitHubEndpointService,
+		@IAgentHostGitStateService private readonly gitState: IAgentHostGitStateService,
 	) {
 		this.onDidChange = github.onDidChangeRepositoryClient;
 	}
@@ -330,7 +332,7 @@ export class GitHubPullRequestArtifactIntegration implements IArtifactIntegratio
 	}
 
 	createBinding(resource: GitHubPullRequestArtifactResource, context: IArtifactBindingContext): IArtifactIntegrationBinding {
-		return new GitHubPullRequestArtifactBinding(resource, context, resource.client, this.git, this.stateManager, this.configuration, this.events, this.logService);
+		return new GitHubPullRequestArtifactBinding(resource, context, resource.client, this.git, this.stateManager, this.configuration, this.events, this.logService, this.gitState);
 	}
 }
 
@@ -385,6 +387,10 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	readonly actions: readonly ArtifactAction[];
 	private readonly workspaces = observableValueOpts<Readonly<Record<string, WorkspaceState>>>({ owner: this, equalsFn: structuralEquals }, {});
 	private workspaceRevision = 0;
+	private gitRefreshes = 0;
+	/** What the last conclusive checkout probe was based on; the same inputs give the same answer. */
+	private lastWorkspaceProbe: string | undefined;
+	private probingWorkspace: string | undefined;
 	private readonly automationError = observableValue<string | undefined>(this, undefined);
 	/** Threads resolved from their details row, by resolution time, hidden until GitHub's thread list reflects it. */
 	private readonly resolvedThreads = observableValue<ReadonlyMap<string, number>>(this, new Map());
@@ -404,10 +410,13 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		private readonly configuration: IAgentConfigurationService,
 		events: AgentHostArtifactEventService,
 		private readonly logService: ILogService,
+		private readonly gitState: IAgentHostGitStateService,
 	) {
 		super();
 		this.hostChanges = observableSignalFromEvent(this, Event.any<unknown>(
 			Event.filter(events.onDidChange, event => event.channel === context.session || stateManager.getChatOwner(event.channel) === context.session),
+			// A checkout that Git state refreshes observed to change is probed again.
+			Event.map(Event.filter(gitState.onDidRefreshSessionGitState, key => key === context.session || stateManager.getChatOwner(key) === context.session), () => { this.gitRefreshes++; }),
 			configuration.onDidRootConfigChange,
 			Event.filter(configuration.onDidSessionConfigChange, event => event.session === context.session),
 		));
@@ -833,25 +842,44 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 
 	/** Verifies the recording chat's checkout, which merging only unchanged pull requests requires to stay clean. */
 	private async refreshWorkspaces(): Promise<void> {
-		const revision = ++this.workspaceRevision;
 		const core = this.resource.snapshot.get().core.value;
 		const chat = this.context.artifact.origin?.chat ?? this.stateManager.getSessionState(this.context.session)?.defaultChat;
 		if (!core || core.state !== 'open' || !chat) {
+			this.workspaceRevision++;
+			this.lastWorkspaceProbe = undefined;
 			this.workspaces.set({}, undefined);
 			return;
 		}
+		const directories = this.configuration.getEffectiveWorkingDirectories(chat);
+		const probe = JSON.stringify([chat, directories, core.headRef, core.headSha, core.repositoryNameWithOwner, core.headRepositoryNameWithOwner, this.gitRefreshes]);
+		if (probe === this.lastWorkspaceProbe || probe === this.probingWorkspace) {
+			return;
+		}
+		const revision = ++this.workspaceRevision;
+		this.lastWorkspaceProbe = undefined;
+		this.probingWorkspace = probe;
+		let conclusive = false;
 		const workspaces: Record<string, WorkspaceState> = {};
 		try {
-			const checkout = await this.checkout(chat, core);
+			// The Git state the host keeps already says when a chat in a single folder is on another branch.
+			const knownBranch = directories?.length === 1 ? this.gitState.getSessionGitState?.(chat)?.branchName : undefined;
+			const checkout = knownBranch !== undefined && knownBranch !== core.headRef ? undefined : await this.checkout(chat, core);
 			workspaces[chat] = checkout ? { kind: 'ready', checkout } : { kind: 'missing' };
+			conclusive = true;
 		} catch (error) {
 			this.logService.warn('[GitHubPullRequestArtifact] Could not verify chat checkout', error);
 			workspaces[chat] = { kind: 'unavailable', reason: toErrorMessage(error) };
+		}
+		if (revision === this.workspaceRevision) {
+			this.probingWorkspace = undefined;
 		}
 		const currentCore = this.resource.snapshot.get().core.value;
 		if (!this._store.isDisposed && revision === this.workspaceRevision && currentCore?.state === 'open' && currentCore.headSha === core.headSha) {
 			this.workspaces.set(workspaces, undefined);
 			this.automationError.set(undefined, undefined);
+			if (conclusive) {
+				this.lastWorkspaceProbe = probe;
+			}
 		}
 	}
 

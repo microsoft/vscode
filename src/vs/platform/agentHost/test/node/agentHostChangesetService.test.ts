@@ -1637,6 +1637,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		isolation?: 'folder' | 'worktree';
 		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error; /** Recorded storage when it is not the creation-time one. */ storage?: string };
 		sessionOpenError?: Error;
+		/** Receives the resource of each session database that is opened. */
+		dbOpens?: string[];
 	}): { svc: TestAgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const resource = options.session?.resource ?? sessionStr;
 		const log = options.log ?? new RecordingLogService();
@@ -1660,6 +1662,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				...sessionDataService,
 				openDatabase: resource => {
 					if (!options.peer || (options.peer.storage ?? options.peer.resource) !== resource.toString()) {
+						options.dbOpens?.push(resource.toString());
 						if (options.sessionOpenError) {
 							throw options.sessionOpenError;
 						}
@@ -1762,7 +1765,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}
 	}
 
-	for (const failure of ['unavailable', 'error', 'removedWorktree', 'databaseUnavailable'] as const) {
+	for (const failure of ['unavailable', 'error', 'removedWorktree'] as const) {
 		for (const stored of [false, true]) {
 			test(`a branch computation without a result or an earlier one ends in an error, not computing (${failure}, ${stored ? 'with' : 'without'} an older build's stored branch diffs)`, async () => {
 				// Stored branch diffs are not read back after a restart, so a computation without a result has nothing to restore.
@@ -1782,12 +1785,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					if (failure === 'error') {
 						throw new Error('branch diff failed');
 					}
-					return failure === 'databaseUnavailable' ? [gitDiff('/repo/live.ts')] : undefined;
+					return undefined;
 				};
-				const { svc, stateManager } = build({
-					workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db,
-					sessionOpenError: failure === 'databaseUnavailable' ? new Error('database unavailable') : undefined,
-				});
+				const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, db });
 				const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
 
 				svc.refreshBranchChangeset(sessionStr);
@@ -1801,14 +1801,137 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 					error: {
 						errorType: 'computeFailed',
 						message: failure === 'removedWorktree' ? 'Branch changes are unavailable because the session\'s folder is not a Git repository or no longer exists.'
-							: failure === 'databaseUnavailable' ? 'database unavailable'
-								: 'Branch changes could not be computed.',
+							: 'Branch changes could not be computed.',
 					},
 					files: [],
 				});
 			});
 		}
 	}
+
+	/** A Git service that counts its calls by method, whose Branch diff and fingerprint are controlled by the test. */
+	function createCountingBranchGitService(state: { fingerprint: string | undefined; failDiff?: boolean; /** Holds the first diff computation until it settles. */ holdFirstDiff?: Promise<void> }): { git: IAgentHostGitService; calls: string[] } {
+		const calls: string[] = [];
+		const target = createNoopGitService();
+		target.getRepositoryRoot = async workingDirectory => workingDirectory;
+		target.getBranchDiffFingerprint = async () => state.fingerprint;
+		let diffs = 0;
+		target.computeSessionFileDiffs = async () => {
+			if (++diffs === 1) {
+				await state.holdFirstDiff;
+			}
+			if (state.failDiff) {
+				throw new Error('diff failed');
+			}
+			return [gitDiff('/repo/a.ts')];
+		};
+		const git = new Proxy(target, {
+			get: (instance, property: keyof IAgentHostGitService) => {
+				const member = instance[property];
+				return typeof member === 'function' ? (...args: unknown[]) => { calls.push(String(property)); return (member as (...args: unknown[]) => unknown).apply(instance, args); } : member;
+			},
+		});
+		return { git, calls };
+	}
+
+	async function refreshBranch(svc: TestAgentHostChangesetService, owner: string, options?: { force?: boolean }): Promise<void> {
+		svc.refreshBranchChangeset(owner, options);
+		// Computations run asynchronously; let every queued one finish.
+		await timeout(20);
+	}
+
+	test('a branch refresh while its repository, base and working tree are unchanged recomputes nothing and opens no database', async () => {
+		const state = { fingerprint: 'tree-1' as string | undefined };
+		const { git, calls } = createCountingBranchGitService(state);
+		const dbOpens: string[] = [];
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, dbOpens });
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));
+		const statuses: ChangesetStatus[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === changesetUri && envelope.action.type === ActionType.ChangesetStatusChanged) {
+				statuses.push(envelope.action.status);
+			}
+		}));
+
+		await refreshBranch(svc, sessionStr);
+		const first = { diffs: calls.filter(call => call === 'computeSessionFileDiffs').length, dbOpens: dbOpens.length, status: stateManager.getChangesetState(changesetUri)?.status };
+		const statusesAfterFirst = statuses.length;
+		for (let i = 0; i < 40; i++) {
+			await refreshBranch(svc, sessionStr);
+		}
+
+		assert.deepStrictEqual({
+			first,
+			diffsAfterRepeats: calls.filter(call => call === 'computeSessionFileDiffs').length,
+			fingerprintsAfterRepeats: calls.filter(call => call === 'getBranchDiffFingerprint').length,
+			dbOpens: dbOpens.length,
+			// The changeset is not announced as recomputing when it is found to be current.
+			statusChangesAfterRepeats: statuses.length - statusesAfterFirst,
+		}, {
+			first: { diffs: 1, dbOpens: 0, status: ChangesetStatus.Ready },
+			diffsAfterRepeats: 1,
+			fingerprintsAfterRepeats: 41,
+			dbOpens: 0,
+			statusChangesAfterRepeats: 0,
+		});
+	});
+
+	test('a branch refresh recomputes when the working tree, a commit or the base changed, or when forced', async () => {
+		const state = { fingerprint: 'tree-1' as string | undefined };
+		const { git, calls } = createCountingBranchGitService(state);
+		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const diffs = () => calls.filter(call => call === 'computeSessionFileDiffs').length;
+
+		await refreshBranch(svc, sessionStr);
+		await refreshBranch(svc, sessionStr);
+		const unchanged = diffs();
+		state.fingerprint = 'tree-2';
+		await refreshBranch(svc, sessionStr);
+		const changed = diffs();
+		await refreshBranch(svc, sessionStr);
+		const settled = diffs();
+		await refreshBranch(svc, sessionStr, { force: true });
+		const forced = diffs();
+
+		assert.deepStrictEqual({ unchanged, changed, settled, forced }, { unchanged: 1, changed: 2, settled: 2, forced: 3 });
+	});
+
+	test('a forced branch refresh arriving during a computation is not satisfied by that computation', async () => {
+		const release = new DeferredPromise<void>();
+		const state = { fingerprint: 'tree-1' as string | undefined, holdFirstDiff: release.p };
+		const { git, calls } = createCountingBranchGitService(state);
+		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+
+		svc.refreshBranchChangeset(sessionStr);
+		await timeout(20);
+		// E.g. a file was marked reviewed while the first computation reads the review state.
+		svc.refreshBranchChangeset(sessionStr, { force: true });
+		await release.complete();
+		await timeout(40);
+
+		assert.strictEqual(calls.filter(call => call === 'computeSessionFileDiffs').length, 2);
+	});
+
+	test('a branch refresh always recomputes when no fingerprint can be determined or the last computation failed', async () => {
+		const state: { fingerprint: string | undefined; failDiff: boolean } = { fingerprint: undefined, failDiff: false };
+		const { git, calls } = createCountingBranchGitService(state);
+		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const diffs = () => calls.filter(call => call === 'computeSessionFileDiffs').length;
+
+		await refreshBranch(svc, sessionStr);
+		await refreshBranch(svc, sessionStr);
+		const withoutFingerprint = diffs();
+		state.fingerprint = 'tree-1';
+		state.failDiff = true;
+		await refreshBranch(svc, sessionStr);
+		await refreshBranch(svc, sessionStr);
+		const failing = diffs();
+		state.failDiff = false;
+		await refreshBranch(svc, sessionStr);
+		await refreshBranch(svc, sessionStr);
+
+		assert.deepStrictEqual({ withoutFingerprint, failing, recovered: diffs() }, { withoutFingerprint: 2, failing: 4, recovered: 5 });
+	});
 
 	test('a branch refresh without a replacement restores the prior error and cached files', async () => {
 		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });

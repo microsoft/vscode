@@ -29,6 +29,7 @@ import { IPullRequestResources } from '../../../github/common/pullRequestResourc
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { arePullRequestArtifactChecksReady, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
@@ -193,7 +194,11 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 		const isolatedGithub = store.add(new AgentHostGitHubService({}, authentication, endpoint, logService, NullTelemetryService));
 		github.captureSessionCredentialSource = (...args) => isolatedGithub.captureSessionCredentialSource(...args);
 	}
-	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint);
+	const gitRefreshes = store.add(new Emitter<string>());
+	const gitState = new class extends mock<IAgentHostGitStateService>() {
+		override readonly onDidRefreshSessionGitState = gitRefreshes.event;
+	};
+	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint, gitState);
 	const registry = store.add(new ArtifactIntegrationRegistry());
 	store.add(registry.register(integration, 'test'));
 	let stored: string | undefined;
@@ -244,8 +249,11 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			commit = value.commit ?? commit;
 			dirty = value.dirty ?? dirty;
 			remote = value.remote ?? remote;
+			// A checkout that changed is announced by the Git state refresh that observed it.
+			gitRefreshes.fire(session);
 			configuration.updateSessionConfig(session, { checkoutRevision: ++request });
 		},
+		refreshGitState: () => gitRefreshes.fire(session),
 		setAccount: (id: string) => { accountId = id; invalidated.fire({ reason: 'account' }); },
 		reauthenticate: () => {
 			credentialError = undefined;
@@ -811,6 +819,24 @@ suite('GitHub pull request artifact integration', () => {
 			]);
 		}));
 	}
+
+	test('probes the checkout once for unchanged inputs and again when a Git state refresh observed a change', () => run(async store => {
+		const open = itemActionSnapshot();
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
+
+		for (let i = 0; i < 10; i++) {
+			f.snapshot.set({ ...open }, undefined);
+			await timeout(60);
+		}
+		const afterEvents = f.checkoutRequests.length - initial;
+		f.refreshGitState();
+		await timeout(100);
+
+		assert.deepStrictEqual({ afterEvents, afterGitRefresh: f.checkoutRequests.length - initial }, { afterEvents: 0, afterGitRefresh: 1 });
+	}));
 
 	test('does not publish an in-flight checkout after the pull request closes', () => run(async store => {
 		const open = itemActionSnapshot();

@@ -81,6 +81,15 @@ export interface ITrackedSessionDatabases extends IDisposable {
 
 export const IAgentHostChangesetService = createDecorator<IAgentHostChangesetService>('agentHostChangesetService');
 
+/** Options for {@link IAgentHostChangesetService.refreshBranchChangeset}. */
+export interface IRefreshBranchChangesetOptions {
+	/**
+	 * Recompute even when the repository, base branch and working tree are as they were at the last computation. Set it
+	 * when something the Branch changeset shows changed without them, such as a file's review state.
+	 */
+	readonly force?: boolean;
+}
+
 /**
  * Owns the lifecycle of static and per-turn changesets for the agent host:
  * registers the `<session>/changeset/{uncommitted,session,turn/<id>}` URIs
@@ -167,8 +176,9 @@ export interface IAgentHostChangesetService {
 	 * the working directory is unavailable; {@link onWorkingDirectoryAvailable}
 	 * recomputes the current subscriptions after materialization or restore.
 	 * Git-only; does not accept a strategy or fall back to tracked edits.
+	 * A computation whose inputs equal those of the last one is skipped unless forced.
 	 */
-	refreshBranchChangeset(session: ProtocolURI): void;
+	refreshBranchChangeset(session: ProtocolURI, options?: IRefreshBranchChangesetOptions): void;
 
 	/**
 	 * Refreshes the session changeset once its working directory is available.
@@ -196,7 +206,8 @@ export interface IAgentHostChangesetService {
 	 * is dispatched to its kind-specific recompute (branch / session / uncommitted
 	 * / turn); the individual recomputes skip when the working directory is
 	 * not yet known. Used as the session-level refresh entry point after
-	 * materialization and git-state changes.
+	 * materialization. A git-state refresh recomputes only the Branch and
+	 * Uncommitted Changes of the refreshed folder instead.
 	 */
 	recomputeSubscribedChangesets(session: ProtocolURI): void;
 

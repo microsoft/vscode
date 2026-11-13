@@ -31,17 +31,30 @@ export interface IAgentHostFileMonitorOptions {
 	readonly debounceMs?: number;
 }
 
+/** The most distinct resources a monitor remembers for one notification; a notification beyond it reports none. */
+const MAX_REPORTED_CHANGED_RESOURCES = 20_000;
+
+/**
+ * Called once a folder has been quiet for the debounce period after a change.
+ * `changedResources` are the distinct resources that changed under the folder and were not
+ * excluded, or `undefined` when too many changed to list.
+ */
+export type AgentHostFileMonitorCallback = (changedResources: readonly URI[] | undefined) => void;
+
 export interface IAgentHostFileMonitorService extends IDisposable {
 	readonly _serviceBrand: undefined;
-	acquire(folder: URI, callback: () => void, options?: IAgentHostFileMonitorOptions): IDisposable | undefined;
+	acquire(folder: URI, callback: AgentHostFileMonitorCallback, options?: IAgentHostFileMonitorOptions): IDisposable | undefined;
 }
 
 interface IMonitorEntry extends IDisposable {
 	readonly folder: URI;
-	readonly callbacks: Set<() => void>;
+	readonly callbacks: Set<AgentHostFileMonitorCallback>;
 	readonly debounce: MutableDisposable<IDisposable>;
 	readonly debounceMs: number;
 	readonly excludeMatcher: ParsedExpression;
+	/** What changed since the last notification. */
+	readonly changed: Map<string, URI>;
+	changedOverflowed: boolean;
 }
 
 function normalizeExcludes(excludes: readonly string[]): readonly string[] {
@@ -74,7 +87,7 @@ export class AgentHostFileMonitorService extends Disposable implements IAgentHos
 		}));
 	}
 
-	acquire(folder: URI, callback: () => void, options: IAgentHostFileMonitorOptions = {}): IDisposable | undefined {
+	acquire(folder: URI, callback: AgentHostFileMonitorCallback, options: IAgentHostFileMonitorOptions = {}): IDisposable | undefined {
 		const canonicalFolder = this._canonicalizeFolder(folder);
 		const excludes = normalizeExcludes(options.excludes ?? DEFAULT_AGENT_HOST_WATCH_EXCLUDES);
 		const debounceMs = options.debounceMs ?? AgentHostFileMonitorService._DEFAULT_DEBOUNCE_MS;
@@ -108,10 +121,10 @@ export class AgentHostFileMonitorService extends Disposable implements IAgentHos
 		const disposable = new DisposableStore();
 		try {
 			const debounce = disposable.add(new MutableDisposable<IDisposable>());
-			const callbacks = new Set<() => void>();
+			const callbacks = new Set<AgentHostFileMonitorCallback>();
 			const excludeMatcher = parseExcludes(excludes);
 			disposable.add(this._fileService.watch(folder, { recursive: true, excludes: [...excludes] }));
-			return { folder, callbacks, debounce, debounceMs, excludeMatcher, dispose: () => disposable.dispose() };
+			return { folder, callbacks, debounce, debounceMs, excludeMatcher, changed: new Map(), changedOverflowed: false, dispose: () => disposable.dispose() };
 		} catch (err) {
 			disposable.dispose();
 			throw err;
@@ -129,14 +142,17 @@ export class AgentHostFileMonitorService extends Disposable implements IAgentHos
 		if (!entry || entry.callbacks.size === 0) {
 			return;
 		}
-		if (!event.affects(entry.folder) || !this._hasRelevantRawChange(entry, event)) {
+		if (!event.affects(entry.folder) || !this._collectRelevantRawChanges(entry, event)) {
 			return;
 		}
 		entry.debounce.value = disposableTimeout(() => {
 			entry.debounce.clear();
+			const changedResources = entry.changedOverflowed ? undefined : [...entry.changed.values()];
+			entry.changed.clear();
+			entry.changedOverflowed = false;
 			for (const callback of [...entry.callbacks]) {
 				try {
-					callback();
+					callback(changedResources);
 				} catch (err) {
 					this._logService.warn('[AgentHostFileMonitorService] Folder change callback failed', err);
 				}
@@ -144,22 +160,23 @@ export class AgentHostFileMonitorService extends Disposable implements IAgentHos
 		}, entry.debounceMs);
 	}
 
-	private _hasRelevantRawChange(entry: IMonitorEntry, event: FileChangesEvent): boolean {
-		return this._hasRelevantRawResources(entry, event.rawAdded)
-			|| this._hasRelevantRawResources(entry, event.rawUpdated)
-			|| this._hasRelevantRawResources(entry, event.rawDeleted);
-	}
-
-	private _hasRelevantRawResources(entry: IMonitorEntry, resources: readonly URI[]): boolean {
-		for (const resource of resources) {
-			if (!extUriBiasedIgnorePathCase.isEqualOrParent(resource, entry.folder)) {
-				continue;
-			}
-			if (!this._isExcluded(entry, resource)) {
-				return true;
+	/** Remembers the relevant changes of `event` for the next notification. Returns whether there were any. */
+	private _collectRelevantRawChanges(entry: IMonitorEntry, event: FileChangesEvent): boolean {
+		let relevant = false;
+		for (const resources of [event.rawAdded, event.rawUpdated, event.rawDeleted]) {
+			for (const resource of resources) {
+				if (!extUriBiasedIgnorePathCase.isEqualOrParent(resource, entry.folder) || this._isExcluded(entry, resource)) {
+					continue;
+				}
+				relevant = true;
+				if (entry.changed.size >= MAX_REPORTED_CHANGED_RESOURCES) {
+					entry.changedOverflowed = true;
+				} else {
+					entry.changed.set(resource.toString(), resource);
+				}
 			}
 		}
-		return false;
+		return relevant;
 	}
 
 	private _isExcluded(entry: IMonitorEntry, resource: URI): boolean {
