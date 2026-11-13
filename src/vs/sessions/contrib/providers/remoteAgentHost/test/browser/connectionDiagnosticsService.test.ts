@@ -13,6 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { traceConnectionOperation, type IRemoteConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostPendingConnection, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -101,10 +102,19 @@ suite('ConnectionDiagnosticsService', () => {
 		const logFile = URI.parse('test:/window.log');
 		instantiation.stub(IFileService, files);
 		instantiation.stub(IWorkbenchEnvironmentService, { logFile });
+		const sharing = new class extends mock<IRemoteGitHubEnvironmentSharingService>() {
+			confirm = true;
+			readonly confirmations: string[] = [];
+			override async confirmDisconnect(address: string, name: string): Promise<boolean> {
+				this.confirmations.push(`${address}/${name}`);
+				return this.confirm;
+			}
+		}();
+		instantiation.stub(IRemoteGitHubEnvironmentSharingService, sharing);
 		const service = store.add(instantiation.createInstance(class extends ConnectionDiagnosticsService {
 			protected override get isWebPlatform(): boolean { return web; }
 		}));
-		return { service, remote, tunnels, changes, pendingChanges, configuration, instantiation, filter, files, logFile };
+		return { service, remote, tunnels, changes, pendingChanges, configuration, instantiation, filter, files, logFile, sharing };
 	}
 
 	function values(snapshot: IConnectionDiagnosticsSnapshot, title: string): Record<string, string> {
@@ -232,19 +242,23 @@ suite('ConnectionDiagnosticsService', () => {
 	});
 
 	test('manages selectable and hidden hosts from current state', async () => {
-		const { service, remote, filter, tunnels } = createService();
+		const { service, remote, filter, tunnels, sharing } = createService();
 		remote.connections = [{ address: 'tunnel:mock', name: 'Mock host', status: RemoteAgentHostConnectionStatus.connected }];
 		filter.hosts = [{ id: 'host', address: 'tunnel:mock', label: 'Mock host', providerIds: ['mock'], grouped: false, connectable: true, icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected }];
 		tunnels.suppressed.add('mock');
 		tunnels.dismissed.add('hidden');
 
 		const before = service.getHostManagementState();
+		sharing.confirm = false;
+		await service.runHostAction('host', 'disconnect');
+		sharing.confirm = true;
 		await service.runHostAction('host', 'disconnect');
 		await service.runHostAction('host', 'reconnect');
 		await service.runHostAction('tunnel:hidden', 'restore');
 
 		assert.deepStrictEqual({
 			before,
+			confirmations: sharing.confirmations,
 			filterDisconnects: filter.disconnects,
 			tunnelDisconnects: tunnels.disconnects,
 			reconnects: filter.reconnects,
@@ -276,6 +290,7 @@ suite('ConnectionDiagnosticsService', () => {
 				}],
 				isDiscovering: false,
 			},
+			confirmations: ['tunnel:mock/Mock host', 'tunnel:mock/Mock host'],
 			filterDisconnects: ['host'],
 			tunnelDisconnects: [],
 			reconnects: ['host'],
