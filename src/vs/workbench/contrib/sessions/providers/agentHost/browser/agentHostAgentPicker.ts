@@ -7,7 +7,7 @@ import { BaseActionViewItem, IActionViewItemOptions } from '../../../../../../ba
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import * as nls from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId } from '../../../../../../platform/actions/common/actions.js';
@@ -18,6 +18,7 @@ import { IStorageService, StorageScope } from '../../../../../../platform/storag
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { registerAgentPickerSpotlight } from '../../../../chat/browser/onboarding/agentPickerSpotlight.js';
+import { AgentsWindowUsage } from '../../../../chat/common/agentsWindowUsage.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatMode, IChatMode } from '../../../../chat/common/chatModes.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
@@ -48,6 +49,9 @@ const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
 	ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
 );
+
+/** Agents Window requests a user sends before the custom agents spotlight can show, so it does not overwhelm new users. */
+const AGENT_PICKER_SPOTLIGHT_MIN_REQUESTS = 3;
 
 // -- Agent Host Agent Picker Action --
 
@@ -234,6 +238,8 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			&& !isCustomAgentSelected(chat, reader);
 
 		if (environmentService.isSessionsWindow) {
+			const usage = new AgentsWindowUsage(storageService);
+			const hasEnoughRequests = observableFromEvent(this, usage.onDidChangeRequestCount(this._store), () => usage.requestCount >= AGENT_PICKER_SPOTLIGHT_MIN_REQUESTS);
 			const widgetsChanged = observableSignalFromEvent(this, Event.any(
 				chatWidgetService.onDidAddWidget,
 				chatWidgetService.onDidRemoveWidget,
@@ -244,6 +250,9 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 			this._register(registerAgentPickerSpotlight(derived(this, reader => {
 				widgetsChanged.read(reader);
 				configurationChanged.read(reader);
+				if (!hasEnoughRequests.read(reader)) {
+					return [];
+				}
 				const host = focusedSessionHostService.focusedHost.read(reader);
 				const session = host.session.read(reader);
 				const chat = host.chat.read(reader);

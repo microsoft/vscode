@@ -91,4 +91,19 @@ suite('AgentsWindowUsage', () => {
 		storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 2, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		assert.deepStrictEqual(active, [false, true]);
 	});
+
+	test('counts requests from created sessions until one is recorded, and publishes changes', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const usage = new AgentsWindowUsage(storage);
+		const store = disposables.add(new DisposableStore());
+		const counts: number[] = [];
+		store.add(usage.onDidChangeRequestCount(store)(count => counts.push(count)));
+		const newUser = usage.requestCount;
+		storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 2, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const recorded = usage.recordRequest();
+		storage.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 5, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		assert.deepStrictEqual({ newUser, recorded, current: usage.requestCount, counts, synced: storage.keys(StorageScope.APPLICATION, StorageTarget.USER) }, {
+			newUser: 0, recorded: 3, current: 3, counts: [2, 3, 3], synced: [],
+		});
+	});
 });
