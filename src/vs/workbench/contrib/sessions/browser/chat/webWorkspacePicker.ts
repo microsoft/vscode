@@ -130,7 +130,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 
 	override showPicker(force = false, anchor?: HTMLElement, preferredGroup?: string, attachesContext?: boolean): void {
 		const trigger = anchor ?? this._triggerElement;
-		if (!trigger) {
+		if (!trigger || this._isReadOnly()) {
 			return;
 		}
 		// On phone, render the picker as a bottom sheet instead of the
@@ -155,7 +155,8 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			trigger,
 			items,
 			item => this._dispatchPickerItem(item),
-			this._getAllBrowseActions(),
+			// Restricted to its allowed folders, it offers no other workspace to browse to
+			this._getAllowedFolders() ? [] : this._getAllBrowseActions(),
 			attachesContext !== true,
 			cancellation.token,
 			undefined,
@@ -206,6 +207,10 @@ export class WebWorkspacePicker extends WorkspacePicker {
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
+		const restricted = this.options.allowedFolders && this._buildRestrictedItems();
+		if (restricted) {
+			return restricted;
+		}
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
 		const scoped = this._agentHostFilterService.selectedHost;

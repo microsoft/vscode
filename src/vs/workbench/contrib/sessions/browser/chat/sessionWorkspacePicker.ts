@@ -1817,9 +1817,9 @@ export class WorkspacePicker extends Disposable {
 	 * recent folders.
 	 */
 	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
-		const allowedFolders = this._getAllowedFolders();
-		if (allowedFolders) {
-			return this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(this._buildAllowedFolderItems(allowedFolders))));
+		const restricted = this._buildRestrictedItems();
+		if (restricted) {
+			return restricted;
 		}
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 		const environment = this._getEnvironment();
@@ -2833,8 +2833,17 @@ export class WorkspacePicker extends Disposable {
 		return !this._getAllowedFolders() && !this.isNoWorkspaceSelected() && (this.options.canRestoreWorkspace?.() ?? true);
 	}
 
+	/**
+	 * The items of a picker restricted to its allowed folders ({@link IWorkspacePickerOptions.allowedFolders}): No Workspace,
+	 * the folders and New Worktree, with no recent workspace and no browse action. Undefined for a picker that is not.
+	 */
+	protected _buildRestrictedItems(): IActionListItem<IWorkspacePickerItem>[] | undefined {
+		const allowedFolders = this._getAllowedFolders();
+		return allowedFolders && this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(this._buildAllowedFolderItems(allowedFolders))));
+	}
+
 	/** The folders the picker is restricted to; none restrict it. */
-	private _getAllowedFolders(): readonly URI[] | undefined {
+	protected _getAllowedFolders(): readonly URI[] | undefined {
 		const allowedFolders = this.options.allowedFolders?.get();
 		return allowedFolders?.length ? allowedFolders : undefined;
 	}

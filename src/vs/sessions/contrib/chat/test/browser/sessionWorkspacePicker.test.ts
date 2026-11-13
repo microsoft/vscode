@@ -8956,3 +8956,67 @@ suite('WorkspacePicker - Allowed folders', () => {
 		assert.strictEqual(picker.selectedFolderUri?.path, '/local/tools');
 	});
 });
+
+suite('WebWorkspacePicker - Allowed folders', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** A web picker of an editor window's composer, with a recent workspace outside the window's folders it must not offer. */
+	function createPicker(folders: readonly string[], phone: boolean) {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: URI.file('/local/recent'), providerId: provider.id, checked: false }]);
+		const workbench = document.createElement('div');
+		workbench.classList.toggle('phone-layout', phone);
+		document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		let shows = 0;
+		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { shows++; }, updateItems: () => { } });
+		const picker = createTestPicker(
+			disposables, providersService, storage, undefined, TestWebWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders: constObservable(folders.map(folder => URI.file(folder))) },
+			undefined, actionWidgetService, undefined, upcastPartial<IAgentHostFilterService>({ onDidChange: Event.None, selectedHost: hostEntry(provider.id), rediscover: async () => false }),
+			upcastPartial<IWorkbenchLayoutService>({ mainContainer: workbench }),
+		);
+		assert.ok(picker instanceof TestWebWorkspacePicker);
+		picker.setSelectedWorkspace(URI.file(folders[0]), { fireEvent: false });
+		const trigger = document.createElement('button');
+		workbench.appendChild(trigger);
+		const open = async () => {
+			picker.showPicker(false, trigger);
+			await timeout(0);
+			const sheet = workbench.querySelector('.mobile-picker-sheet');
+			const state = {
+				items: picker.getItems().map(item => item.item?.folderUri?.path ?? item.label ?? item.kind),
+				popups: shows,
+				sheet: sheet ? Array.from(sheet.querySelectorAll('.mobile-picker-sheet-label')).map(row => row.textContent) : undefined,
+			};
+			workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+			await timeout(300);
+			return state;
+		};
+		return { open };
+	}
+
+	test('on a desktop browser, offers only the window\'s folders and does not open for one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const oneFolder = await createPicker(['/local/vscode'], false).open();
+		const twoFolders = await createPicker(['/local/vscode', '/local/tools'], false).open();
+
+		assert.deepStrictEqual({ oneFolder, twoFolders }, {
+			oneFolder: { items: ['/local/vscode'], popups: 0, sheet: undefined },
+			twoFolders: { items: ['/local/vscode', '/local/tools'], popups: 1, sheet: undefined },
+		});
+	}));
+
+	test('on a phone, opens no sheet for one folder, and a sheet of only the window\'s folders, without browse actions, for several', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const oneFolder = await createPicker(['/local/vscode'], true).open();
+		const twoFolders = await createPicker(['/local/vscode', '/local/tools'], true).open();
+
+		assert.deepStrictEqual({ oneFolder, twoFolders }, {
+			oneFolder: { items: ['/local/vscode'], popups: 0, sheet: undefined },
+			twoFolders: { items: ['/local/vscode', '/local/tools'], popups: 0, sheet: ['local/vscode', 'local/tools'] },
+		});
+	}));
+});

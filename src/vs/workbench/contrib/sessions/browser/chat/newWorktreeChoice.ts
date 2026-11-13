@@ -29,6 +29,14 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 
 	/** The drafts the user chose New Worktree for. */
 	private readonly _chosen = new Set<string>();
+	/**
+	 * The drafts whose isolation it set to their folder by default once: it does not set it again by itself, also where
+	 * the agent keeps a new worktree, which then shows as selected. The user's own choice still writes.
+	 */
+	private readonly _defaulted = new Set<string>();
+	/** The latest of the user's choices per draft, which alone is undone as the agent rejects it. */
+	private readonly _latestChoice = new Map<string, number>();
+	private _choices = 0;
 
 	constructor(
 		private readonly _session: IObservable<ISession | undefined>,
@@ -50,23 +58,32 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 		}
 		// The choice is known before the agent takes it: its configuration can change, and apply the default, meanwhile
 		const sessionId = draft.session.sessionId;
+		const wasChosen = this._chosen.has(sessionId);
 		if (selected) {
 			this._chosen.add(sessionId);
 		} else {
 			this._chosen.delete(sessionId);
 		}
+		const choice = ++this._choices;
+		this._latestChoice.set(sessionId, choice);
 		this._write(draft, selected, () => {
-			// The agent did not take it: the draft is as before
-			if (selected) {
-				this._chosen.delete(sessionId);
+			// The agent did not take it: unless the user chose again since, the draft is as before
+			if (this._latestChoice.get(sessionId) === choice) {
+				if (wasChosen) {
+					this._chosen.add(sessionId);
+				} else {
+					this._chosen.delete(sessionId);
+				}
 			}
 		});
 	}
 
-	/** Makes the current draft work in its folder, unless the user chose New Worktree for it. */
+	/** Makes the current draft work in its folder, once, unless the user chose New Worktree for it. */
 	applyDefault(): void {
 		const draft = this._draftIsolation();
-		if (draft?.isolation === 'worktree' && !this._chosen.has(draft.session.sessionId)) {
+		const sessionId = draft?.session.sessionId;
+		if (draft && sessionId && draft.isolation === 'worktree' && !this._chosen.has(sessionId) && !this._defaulted.has(sessionId)) {
+			this._defaulted.add(sessionId);
 			this._write(draft, false);
 		}
 	}

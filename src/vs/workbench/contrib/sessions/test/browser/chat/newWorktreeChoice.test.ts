@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -23,11 +25,12 @@ suite('NewWorktreeChoice', () => {
 	 * Drafts of the local agent host, whose isolation starts as its agent remembers it, a new worktree, until their
 	 * configuration resolves; the writes the choice makes apply as the agent takes them, later.
 	 */
-	function create(options?: { readOnly?: boolean; synchronous?: boolean }) {
+	function create(options?: { readOnly?: boolean; synchronous?: boolean; ignoresWrites?: boolean; deferred?: boolean; initial?: string }) {
 		const values = new Map<string, Record<string, unknown>>();
 		const resolved = new Set<string>();
 		const writes: string[] = [];
 		const pending: (() => void)[] = [];
+		const rejects: (() => void)[] = [];
 		const provider = upcastPartial<IAgentHostSessionsProvider>({
 			id: LOCAL_AGENT_HOST_PROVIDER_ID,
 			getCreateSessionConfig: sessionId => values.get(sessionId),
@@ -38,6 +41,15 @@ suite('NewWorktreeChoice', () => {
 			setSessionConfigValue: async (sessionId, _chat, property, value) => {
 				writes.push(`${sessionId}=${value}`);
 				const apply = () => values.set(sessionId, { ...values.get(sessionId), [property]: value });
+				if (options?.ignoresWrites) {
+					// An agent that keeps its isolation: its configuration resolves again, unchanged, and it tells of it
+					onDidChangeSessionConfig();
+					return;
+				}
+				if (options?.deferred) {
+					// A write the agent does not take, as one it cancels, which is not reported as an unexpected error
+					return new Promise<void>((_resolve, reject) => rejects.push(() => reject(new CancellationError())));
+				}
 				if (options?.synchronous) {
 					// As the agent host's provider does: its cache changes and it tells at once, which applies the default
 					apply();
@@ -55,7 +67,7 @@ suite('NewWorktreeChoice', () => {
 		// As the composer does on each change of its draft's configuration
 		const onDidChangeSessionConfig = () => choice.applyDefault();
 		const draft = (sessionId: string) => {
-			values.set(sessionId, { isolation: 'worktree' });
+			values.set(sessionId, { isolation: options?.initial ?? 'worktree' });
 			return upcastPartial<ISession>({
 				sessionId,
 				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
@@ -69,6 +81,8 @@ suite('NewWorktreeChoice', () => {
 			resolve: (sessionId: string) => resolved.add(sessionId),
 			applyWrites: () => pending.splice(0).forEach(apply => apply()),
 			writes,
+			rejects,
+			remember: (sessionId: string, isolation: string) => values.set(sessionId, { isolation }),
 			state: () => ({ available: choice.isAvailable(), selected: choice.isSelected() }),
 		};
 	}
@@ -137,5 +151,45 @@ suite('NewWorktreeChoice', () => {
 		choice.applyDefault();
 
 		assert.deepStrictEqual({ state: state(), writes }, { state: { available: false, selected: false }, writes: [] });
+	});
+
+	test('sets a draft to its folder by default once: where its agent keeps a new worktree and tells of it again, it writes no more, and shows the new worktree', () => {
+		const { choice, show, resolve, writes, state } = create({ ignoresWrites: true });
+		show('a');
+		resolve('a');
+		choice.applyDefault();
+		choice.applyDefault();
+
+		assert.deepStrictEqual({ state: state(), writes }, { state: { available: true, selected: true }, writes: ['a=folder'] });
+	});
+
+	test('undoes only the user\'s latest choice as its agent rejects it', async () => {
+		const { choice, show, resolve, writes, rejects, remember } = create({ deferred: true, initial: 'folder' });
+		show('a');
+		resolve('a');
+		// New Worktree, then the folder and New Worktree again before the agent answers: the user's latest choice stands
+		// as the agent rejects the first
+		choice.setSelected(true);
+		choice.setSelected(false);
+		choice.setSelected(true);
+		rejects.shift()!();
+		await timeout(0);
+		remember('a', 'worktree');
+		choice.applyDefault();
+		const afterStaleRejection = [...writes];
+
+		// A draft whose latest choice is rejected is as before: it works in its folder by default
+		show('b');
+		resolve('b');
+		choice.setSelected(true);
+		rejects.pop()!();
+		await timeout(0);
+		remember('b', 'worktree');
+		choice.applyDefault();
+
+		assert.deepStrictEqual({ afterStaleRejection, writes }, {
+			afterStaleRejection: ['a=worktree', 'a=worktree'],
+			writes: ['a=worktree', 'a=worktree', 'b=worktree', 'b=folder'],
+		});
 	});
 });
