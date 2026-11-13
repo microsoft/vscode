@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Sequencer } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -88,7 +89,9 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		this.deleteOrphans();
 
 		this._register(this.folderLocationService.onDidChangeLocation(() => this.reconcile()));
-		this._register(this.workingCopyService.onDidRegister(() => {
+
+		// A restored backup makes its editor dirty, and an unregistered working copy discards its backup
+		this._register(Event.any(this.workingCopyService.onDidChangeDirty, this.workingCopyService.onDidUnregister)(() => {
 			if (this.deferred) {
 				this.reconcile();
 			}
@@ -127,7 +130,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 				return;
 			}
 
-			// Closing an editor whose backup is not restored yet discards the backup: retried once working copies register
+			// Closing an editor whose backup is not restored yet discards the backup: retried once its editor turns dirty
 			this.deferred = await this.hasUnrestoredBackups();
 			if (this.deferred || this.disposed) {
 				if (this.deferred) {
@@ -140,7 +143,12 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		}).catch(error => this.logService.error('[folderLocation] Failed to switch the editors', error));
 	}
 
-	/** Whether an editor that applying a working set would close has a backup whose working copy is not restored yet. Dirty editors stay open. */
+	/**
+	 * Whether an editor that applying a working set would close has a backup that is not restored yet.
+	 * A backup only exists for unsaved content and a restored one makes its editor dirty, while dirty
+	 * editors stay open: so a backup of an editor that is not dirty is not restored yet, also when its
+	 * working copy is already registered. A backup whose editor never restores keeps the switch deferred.
+	 */
 	private async hasUnrestoredBackups(): Promise<boolean> {
 		const closing = this.editorGroupsService.parts
 			.filter(part => !part.isTransient)
@@ -151,7 +159,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		}
 
 		const backups = await this.workingCopyBackupService.getBackups();
-		return backups.some(backup => !this.workingCopyService.has(backup) && closing.some(editor => this.uriIdentityService.extUri.isEqual(editor.resource, backup.resource)));
+		return backups.some(backup => closing.some(editor => this.uriIdentityService.extUri.isEqual(editor.resource, backup.resource)));
 	}
 
 	private async switchWorkingSet(leaving: string, entering: string): Promise<void> {
