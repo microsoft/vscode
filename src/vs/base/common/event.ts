@@ -1209,7 +1209,7 @@ export class Emitter<T> {
 		this._options = options;
 		if (_globalLeakWarningThreshold > 0 || this._options?.leakWarningThreshold) {
 			this._leakWarningThreshold = this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold;
-			this._leakWarningName = this._options?.leakWarningName ?? nextLeakageMonitorName();
+			this._leakWarningName = this._options?.leakWarningName;
 			this._leakWarningErrorHandler = this._options?.onListenerError ?? onUnexpectedError;
 		}
 		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
@@ -1217,7 +1217,7 @@ export class Emitter<T> {
 	}
 
 	private _getLeakageMonitor(): LeakageMonitor | undefined {
-		if (this._leakWarningThreshold === undefined || this._leakWarningName === undefined || this._leakWarningErrorHandler === undefined) {
+		if (this._leakWarningThreshold === undefined || this._leakWarningErrorHandler === undefined) {
 			return undefined;
 		}
 		return this._leakageMon ??= new LeakageMonitor(this._leakWarningErrorHandler, this._leakWarningThreshold, this._leakWarningName);
