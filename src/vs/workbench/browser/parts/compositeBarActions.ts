@@ -283,6 +283,9 @@ export class CompositeBarActionViewItem extends BaseActionViewItem {
 		append(indicator, $('.tab-connected-edge')).setAttribute('aria-hidden', 'true');
 		append(container, $('span.tab-divider')).setAttribute('aria-hidden', 'true');
 
+		// outline
+		append(container, $('.action-label-outline'));
+
 		hide(this.badge);
 
 		this.update();
