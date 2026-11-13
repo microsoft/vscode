@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,7 +15,7 @@ import { ILabelService, IWorkspaceLabelDecorator } from '../../../../../platform
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../platform/workspace/common/folderLocations.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
 import { WorkspaceFolderLocationService } from '../../common/workspaceFolderLocationService.js';
@@ -118,5 +119,40 @@ suite('WorkspaceFolderLocationService', () => {
 		assert.deepStrictEqual(
 			{ before, current: decorator.getFolderLocationLabel(a), byIdentity: decorator.getFolderLocationLabel(primary), other: decorator.getFolderLocationLabel(b), changed },
 			{ before: undefined, current: 'A', byIdentity: 'A', other: undefined, changed: ['/a'] });
+	});
+
+	test('canSetLocation is true only for the folder of a local single-folder workspace', () => {
+		const service = (workspace: Workspace) => disposables.add(createService(workspace));
+		const remote = URI.from({ scheme: 'vscode-remote', authority: 'host', path: '/r' });
+		const multiRoot = new Workspace('id', [folder(a), folder(b)], false, URI.file('/w.code-workspace'), () => false);
+
+		assert.deepStrictEqual({
+			singleFolder: service(new Workspace('id', [folder(primary)], false, null, () => false)).canSetLocation(folder(primary)),
+			atAlternate: service(atAlternate()).canSetLocation(folder(a)),
+			otherFolder: service(atAlternate()).canSetLocation(folder(b)),
+			multiRoot: service(multiRoot).canSetLocation(folder(a)),
+			empty: service(new Workspace('id', [], false, null, () => false)).canSetLocation(folder(a)),
+			remote: service(new Workspace('id', [folder(remote)], false, null, () => false)).canSetLocation(folder(remote))
+		}, { singleFolder: true, atAlternate: true, otherFolder: false, multiRoot: false, empty: false, remote: false });
+	});
+
+	test('onDidChangeCanSetLocation fires when the workspace folders or state change', () => {
+		const folders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const state = disposables.add(new Emitter<WorkbenchState>());
+		const contextService = new class extends mock<IWorkspaceContextService>() {
+			override onDidChangeWorkspaceFolders = folders.event;
+			override onDidChangeWorkbenchState = state.event;
+		}();
+		const labelService = new class extends mock<ILabelService>() {
+			override registerWorkspaceLabelDecorator() { return toDisposable(() => { }); }
+		}();
+		const service = disposables.add(new WorkspaceFolderLocationService(disposables.add(new UriIdentityService(disposables.add(new FileService(new NullLogService())))), contextService, labelService));
+		let fired = 0;
+		disposables.add(service.onDidChangeCanSetLocation(() => fired++));
+
+		folders.fire({ added: [], removed: [], changed: [] });
+		state.fire(WorkbenchState.WORKSPACE);
+
+		assert.strictEqual(fired, 2);
 	});
 });

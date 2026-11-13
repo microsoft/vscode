@@ -1339,22 +1339,42 @@ export class ClaudeAgentSession extends Disposable implements IRematerializer {
 		/** Phase 12 step 5 — when the confirmation belongs to a subagent context, route it to the subagent session. */
 		readonly parentToolCallId?: string;
 	}): Promise<boolean> {
-		if (!this._pipeline || this._pipeline.isAborted) {
+		const pipeline = this._pipeline;
+		if (!pipeline || pipeline.isAborted) {
 			return Promise.resolve(false);
 		}
-		return this._pendingPermissions.registerAndFire(args.toolUseID, () => {
+		const fire = async () => {
+			let mcpServerName: string | undefined;
+			let mcpToolName: string | undefined;
+			if (args.permissionKind === AgentPermissionKind.Mcp) {
+				try {
+					const serverNames = await pipeline.getMcpServerNames();
+					const matches = [...new Set(serverNames)].filter(name => args.state.toolName.startsWith(`mcp__${toClaudeMcpToolServerName(name)}__`));
+					if (matches.length === 1) {
+						mcpServerName = matches[0];
+						mcpToolName = args.state.toolName.slice(`mcp__${toClaudeMcpToolServerName(mcpServerName)}__`.length);
+					}
+				} catch (error) {
+					this._logService.warn(`[Claude:${this.sessionId}] Failed to resolve MCP permission identity`, error);
+				}
+			}
+			if (!this._pendingPermissions.has(args.toolUseID)) {
+				return;
+			}
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
 				state: args.state,
 				permissionKind: args.permissionKind,
+				...(mcpServerName !== undefined ? { mcpServerName, mcpToolName } : {}),
 				...(args.permissionPath !== undefined ? { permissionPath: args.permissionPath } : {}),
 				...(args.permissionUrl !== undefined ? { permissionUrl: args.permissionUrl } : {}),
 				...(args.shellLanguage !== undefined ? { shellLanguage: args.shellLanguage } : {}),
 				...(args.shellCommand !== undefined ? { shellCommand: args.shellCommand } : {}),
 				...(args.parentToolCallId !== undefined ? { parentToolCallId: args.parentToolCallId } : {}),
 			});
-		});
+		};
+		return this._pendingPermissions.registerAndFire(args.toolUseID, () => { void fire(); });
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): boolean {

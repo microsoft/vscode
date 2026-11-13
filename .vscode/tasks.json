@@ -508,7 +508,7 @@
 			],
 			"group": "build",
 			"label": "tsec-compile-check",
-			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+			"detail": "Runs the tsec security rules over src/tsconfig.tsec.json"
 		},
 		{
 			"label": "Launch Monaco Editor Vite",

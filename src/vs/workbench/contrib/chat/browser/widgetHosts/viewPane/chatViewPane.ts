@@ -1365,7 +1365,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return { modelRef: undefined };
 		}
 
-		const modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, debugOwner);
+		let modelRef: IChatModelReference | undefined;
+		try {
+			modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, token, debugOwner);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			// The persisted session may be gone, for example when its agent host was replaced; start a new one instead.
+			this.logService.warn(`ChatViewPane: failed to restore ${sessionResource.toString()}, starting a new session`, error);
+		}
 		if (!modelRef) {
 			return {
 				modelRef: undefined,

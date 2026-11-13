@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, Visitor } from '@oxlint/plugins';
 
 /**
  * Checks for potentially unsafe usage of `DisposableStore` / `MutableDisposable`.
  *
  * These have been the source of leaks in the past.
  */
-export default new class implements eslint.Rule.RuleModule {
+export default new class implements CreateRule {
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		function checkVariableDeclaration(inNode: ESTree.Node) {
 			context.report({
 				node: inNode,
@@ -31,25 +29,24 @@ export default new class implements eslint.Rule.RuleModule {
 
 		const disposableNameRegex = /DisposableStore|MutableDisposable/;
 
-		function getName(node: TSESTree.Node | null | undefined): string | undefined {
+		function getName(node: ESTree.Node | null | undefined): string | undefined {
 			return node && 'name' in node && typeof node.name === 'string' ? node.name : undefined;
 		}
 
-		function getNewExpressionCalleeName(node: TSESTree.Node | null | undefined): string | undefined {
-			return node?.type === AST_NODE_TYPES.NewExpression ? getName(node.callee) : undefined;
+		function getNewExpressionCalleeName(node: ESTree.Node | null | undefined): string | undefined {
+			return node?.type === 'NewExpression' ? getName(node.callee) : undefined;
 		}
 
 		return {
 			// VariableDeclaration[kind!="const"] > VariableDeclarator > NewExpression[callee.name="DisposableStore"]
-			VariableDeclarator: (inNode: ESTree.VariableDeclarator) => {
-				const node = inNode as TSESTree.VariableDeclarator;
-				if (node.parent.kind !== 'const' && getNewExpressionCalleeName(node.init) === 'DisposableStore') {
-					checkVariableDeclaration(node.init as ESTree.Node);
+			VariableDeclarator: (node: ESTree.VariableDeclarator) => {
+				// The parent of a declarator is always a declaration
+				if ((node.parent as ESTree.VariableDeclaration).kind !== 'const' && getNewExpressionCalleeName(node.init) === 'DisposableStore') {
+					checkVariableDeclaration(node.init!);
 				}
 			},
 
-			PropertyDefinition: (inNode: ESTree.PropertyDefinition) => {
-				const node = inNode as TSESTree.PropertyDefinition;
+			PropertyDefinition: (node: ESTree.PropertyDefinition) => {
 				if (node.readonly === true) {
 					return;
 				}
@@ -58,14 +55,14 @@ export default new class implements eslint.Rule.RuleModule {
 				const type = node.typeAnnotation?.typeAnnotation;
 				const typeName = type && 'typeName' in type ? getName(type.typeName) : undefined;
 				if (typeName !== undefined && disposableNameRegex.test(typeName)) {
-					checkProperty(inNode);
+					checkProperty(node);
 				}
 
 				// PropertyDefinition[readonly!=true] > NewExpression[callee.name=/DisposableStore|MutableDisposable/]
 				for (const child of [node.key, node.value]) {
 					const calleeName = getNewExpressionCalleeName(child);
 					if (calleeName !== undefined && disposableNameRegex.test(calleeName)) {
-						checkProperty(child as ESTree.Node);
+						checkProperty(child!);
 					}
 				}
 			},

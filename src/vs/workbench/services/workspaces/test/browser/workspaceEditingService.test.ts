@@ -114,6 +114,7 @@ suite('WorkspaceEditingService', () => {
 				},
 				undefined, undefined, undefined,
 				{
+					canSetLocation: () => (options.state ?? WorkbenchState.FOLDER) === WorkbenchState.FOLDER,
 					resolveLocation: async (_primary: URI, location: URI) => { resolved.push(location); return { uri: location, label: 'L', providerId: 'test', builtIn: options.builtIn ?? true }; },
 					setLocation: (_folder: unknown, _location: unknown, reason?: string) => { reasons.push(reason); }
 				},
@@ -172,7 +173,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
 				undefined, undefined, undefined,
-				{ resolveLocation: () => resolution.p, setLocation: () => { } },
+				{ canSetLocation: () => true, resolveLocation: () => resolution.p, setLocation: () => { } },
 				{ isWorkspaceTrustEnabled: () => true }
 			));
 
@@ -197,7 +198,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
 				undefined, undefined, undefined,
-				{ resolveLocation: () => resolution.p, setLocation: () => { } },
+				{ canSetLocation: () => true, resolveLocation: () => resolution.p, setLocation: () => { } },
 				{ isWorkspaceTrustEnabled: () => true }
 			));
 
@@ -253,7 +254,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: false }), setLocation: () => { } },
+				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: false }), setLocation: () => { } },
 				{ isWorkspaceTrustEnabled: () => true }
 			));
 
@@ -282,7 +283,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: (uri: URI) => extUri.isEqual(uri, primary) ? trustInfo.p : Promise.resolve({ trusted: false }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } },
+				{ canSetLocation: () => true, resolveLocation: async (_primary: URI, location: URI) => ({ uri: location, label: 'Alt', providerId: 'test', builtIn: true }), setLocation: (_folder: unknown, location: IResolvedFolderLocation | undefined) => { currentLocations.push(location); } },
 				{ isWorkspaceTrustEnabled: () => true }
 			));
 			return {
@@ -332,7 +333,7 @@ suite('WorkspaceEditingService', () => {
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
 				undefined, undefined, undefined,
-				{ resolveLocation: (_primary: URI, location: URI) => resolutions.get(location.toString())!.p, setLocation: () => { } },
+				{ canSetLocation: () => true, resolveLocation: (_primary: URI, location: URI) => resolutions.get(location.toString())!.p, setLocation: () => { } },
 				{ isWorkspaceTrustEnabled: () => true }
 			));
 

@@ -803,8 +803,17 @@
 		max-width: 100%;
 		font-size: var(--vscode-fontSize-label1);
 		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
+
+		> span:not(.codicon) {
+			min-width: 0;
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		> .codicon {
+			flex-shrink: 0;
+		}
 	}
 
 	&[hidden] {

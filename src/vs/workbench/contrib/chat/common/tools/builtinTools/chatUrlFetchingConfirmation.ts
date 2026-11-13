@@ -9,7 +9,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IQuickInputButton, IQuickInputService, IQuickTreeItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { extractUrlPatterns, getPatternLabel, isUrlApproved, IUrlApprovalSettings } from '../../../../../../platform/url/common/urlApprovalPatterns.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -293,18 +293,36 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 			}
 
 			const item: ILanguageModelToolConfirmationContributionQuickTreeItem = {
+				id: `url/${pattern}`,
 				label,
 				description,
 				buttons: [trashButton],
-				checked: true,
-				onDidChangeChecked: (checked) => {
-					if (checked) {
-						approvedUrls[pattern] = settings;
+				// The checkbox controls fetching without asking; response approval is kept as is.
+				checked: getUrlApproval(settings).request,
+				onDidChangeChecked: checked => this._updateApprovals((approvals, target) => {
+					const defaultSettings = this._getDefaultApprovedUrls()[pattern];
+					const next = { request: checked, response: getUrlApproval(this._getApprovedUrls()[pattern] ?? settings).response };
+					const matchesDefault = target === ConfigurationTarget.USER && (defaultSettings !== undefined
+						? getUrlApproval(defaultSettings).request === next.request && getUrlApproval(defaultSettings).response === next.response
+						: !next.request && !next.response);
+					if (matchesDefault) {
+						delete approvals[pattern];
 					} else {
-						delete approvedUrls[pattern];
+						approvals[pattern] = next.request === next.response ? next.request : { approveRequest: next.request, approveResponse: next.response };
 					}
-
-					this._configurationService.updateValue(ChatConfiguration.AutoApprovedUrls, approvedUrls);
+				}, pattern),
+				onDidTriggerItemButton: button => {
+					if (button !== trashButton) {
+						return;
+					}
+					return this._updateApprovals(approvals => {
+						if (this._getDefaultApprovedUrls()[pattern] !== undefined) {
+							// Default patterns cannot be deleted, so override them instead.
+							approvals[pattern] = false;
+						} else {
+							delete approvals[pattern];
+						}
+					}, pattern);
 				}
 			};
 
@@ -313,8 +331,30 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 
 		items.push({
 			pickable: false,
+			label: localize('addUrlPattern', "Add URL Pattern..."),
+			onDidOpen: async () => {
+				const pattern = (await this._quickInputService.input({
+					prompt: localize('addUrlPatternPrompt', "Enter a domain or URL pattern to fetch without approval, e.g. example.com or https://example.com/docs/*"),
+					validateInput: async value => value.trim() ? undefined : localize('urlPatternRequired', "Enter a domain or URL pattern.")
+				}))?.trim();
+				if (!pattern) {
+					return;
+				}
+				await this._updateUserApprovals(approvals => {
+					const existing = approvals[pattern] ?? this._getDefaultApprovedUrls()[pattern];
+					approvals[pattern] = {
+						approveRequest: true,
+						approveResponse: typeof existing === 'boolean' ? existing : existing?.approveResponse === true
+					};
+				});
+			}
+		});
+
+		items.push({
+			pickable: false,
 			label: localize('moreOptionsManage', "More Options..."),
 			description: localize('openSettings', "Open settings"),
+			closesPicker: true,
 			onDidOpen: () => {
 				this._preferencesService.openUserSettings({ query: ChatConfiguration.AutoApprovedUrls });
 			}
@@ -335,4 +375,35 @@ export class ChatUrlFetchingConfirmationContribution implements ILanguageModelTo
 			ChatConfiguration.AutoApprovedUrls
 		) || {};
 	}
+
+	private _getDefaultApprovedUrls(): Readonly<Record<string, boolean | IUrlApprovalSettings>> {
+		return this._configurationService.inspect<Record<string, boolean | IUrlApprovalSettings>>(ChatConfiguration.AutoApprovedUrls).defaultValue ?? {};
+	}
+
+	/** Edits only the user value, so default patterns are not copied into user settings. */
+	private _updateUserApprovals(update: (approvals: Record<string, boolean | IUrlApprovalSettings>) => void): Promise<void> {
+		return this._updateApprovals(update);
+	}
+
+	private _updateApprovals(update: (approvals: Record<string, boolean | IUrlApprovalSettings>, target: ConfigurationTarget) => void, pattern?: string): Promise<void> {
+		const inspected = this._configurationService.inspect<Record<string, boolean | IUrlApprovalSettings>>(ChatConfiguration.AutoApprovedUrls);
+		let target = ConfigurationTarget.USER;
+		let value = inspected.userValue;
+		if (pattern !== undefined && inspected.workspaceFolderValue?.[pattern] !== undefined) {
+			target = ConfigurationTarget.WORKSPACE_FOLDER;
+			value = inspected.workspaceFolderValue;
+		} else if (pattern !== undefined && inspected.workspaceValue?.[pattern] !== undefined) {
+			target = ConfigurationTarget.WORKSPACE;
+			value = inspected.workspaceValue;
+		}
+		const approvals = { ...value };
+		update(approvals, target);
+		return this._configurationService.updateValue(ChatConfiguration.AutoApprovedUrls, approvals, target);
+	}
+}
+
+function getUrlApproval(settings: boolean | IUrlApprovalSettings): { readonly request: boolean; readonly response: boolean } {
+	return typeof settings === 'boolean'
+		? { request: settings, response: settings }
+		: { request: !!settings.approveRequest, response: !!settings.approveResponse };
 }
