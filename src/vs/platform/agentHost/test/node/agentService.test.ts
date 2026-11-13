@@ -1804,7 +1804,7 @@ suite('AgentService (node dispatcher)', () => {
 		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
 		const chat = URI.parse(buildDefaultChatUri(session.toString()));
 		const resource = buildCanvasUri(chat, 'preview');
-		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/preview' };
 		const stateManager = getStateManager(service);
 		stateManager.setCanvasState(chat.toString(), resource.toString(), canvas);
 		service.restoreSession = async () => { throw new Error('Canvas subscriptions must not restore a provider'); };
@@ -1815,7 +1815,7 @@ suite('AgentService (node dispatcher)', () => {
 		await assert.rejects(service.subscribe(resource, 'missing-viewer'),
 			error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
 		service.unsubscribe(resource, 'canvas-viewer');
-		assert.deepStrictEqual(snapshot.state, canvas);
+		assert.deepStrictEqual(snapshot.state, { ...canvas, url: 'https://example.test/preview' });
 	});
 
 	test('subscribing checks writer ownership and Retry refreshes shared input state without a turn', async () => {
@@ -15078,10 +15078,13 @@ suite('AgentService (node dispatcher)', () => {
 				renamed: renamed?.title,
 				directories: [renamed?.workingDirectories, metadata?.workingDirectories],
 				notified: additions.some(notification => notification.summary.resource === session.toString()),
+				annotations: additions.find(notification => notification.summary.resource === session.toString())?.summary.annotations,
 				materialized: !!getStateManager(svc).getSessionState(session.toString()),
 			}, {
 				initial: 'Initial title', external: true, recency: new Date(now + 60_000).toISOString(), renamed: 'Renamed',
-				directories: [['file:///new-project'], ['file:///moved-project']], notified: true, materialized: false,
+				directories: [['file:///new-project'], ['file:///moved-project']], notified: true,
+				annotations: { resource: buildAnnotationsUri(session.toString()), annotationCount: 0, entryCount: 0 },
+				materialized: false,
 			});
 		});
 
@@ -24427,7 +24430,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot', session: URI.parse('ahp-session:/annotations-migration') });
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			// The shape written before annotations carried an origin: a
 			// top-level `turnId` and no owning session.

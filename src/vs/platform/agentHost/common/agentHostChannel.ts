@@ -8,8 +8,9 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { vNumber, vObj, vObjAny, vString } from '../../../base/common/validation.js';
-import { AgentHostChannelDelivery, AgentHostChannelScheduler, readChannelFlowControl, validateChannelLimits } from './agentHostChannelDelivery.js';
+import { AgentHostChannelDelivery, AgentHostChannelScheduler, readChannelFlowControl } from './agentHostChannelDelivery.js';
 import { AgentHostChannelError, AgentHostChannelErrorCode } from './agentHostChannelTelemetry.js';
+import { readChannelReceiveLimits, withLegacyChannelReceiveLimits } from './agentHostProtocolTransition.js';
 import { countsAgainstWindow } from './state/protocol/window-exempt.generated.js';
 import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
 import type { ChannelFlowControl, ChannelReceiveLimits } from './state/protocol/common/state.js';
@@ -38,10 +39,10 @@ export interface IAgentHostChannelPolicy {
 }
 
 /** Limits for windowed state channels: the client's offer and the host's maximum. */
-export const agentHostStateReceiveLimits: Readonly<ChannelReceiveLimits> = {
+export const agentHostStateReceiveLimits: Readonly<ChannelReceiveLimits> = withLegacyChannelReceiveLimits({
 	windowBytes: 1024 * 1024,
-	maximumFrameBytes: 16 * 1024 * 1024,
-};
+	maxFrameBytes: 16 * 1024 * 1024,
+});
 
 /**
  * Host: accepts a client's receive offer, lowered to `maximum`. Returns
@@ -50,20 +51,20 @@ export const agentHostStateReceiveLimits: Readonly<ChannelReceiveLimits> = {
  * if the offer is invalid.
  */
 export function negotiateChannelFlowControl(channel: string, offer: ChannelReceiveLimits, maximum: ChannelReceiveLimits): ChannelFlowControl | undefined {
-	validateChannelLimits(offer);
-	const clientReceive = {
+	offer = readChannelReceiveLimits(offer);
+	const clientReceive = withLegacyChannelReceiveLimits({
 		windowBytes: Math.min(offer.windowBytes, maximum.windowBytes),
-		maximumFrameBytes: Math.min(offer.maximumFrameBytes, maximum.maximumFrameBytes),
-	};
+		maxFrameBytes: Math.min(offer.maxFrameBytes, maximum.maxFrameBytes),
+	});
 	// The smallest useful fragment carries one character, which may need a six-character escape.
 	const frame = { jsonrpc: '2.0', method: 'channel/frame', params: { channel, data: '\u0000', final: false } };
-	return JSON.stringify(frame).length * 2 > clientReceive.maximumFrameBytes ? undefined : { clientReceive, hostReceive: { ...maximum } };
+	return JSON.stringify(frame).length * 2 > clientReceive.maxFrameBytes ? undefined : { clientReceive, hostReceive: withLegacyChannelReceiveLimits(maximum) };
 }
 
 /** Client: reads the limits a host accepted, which must not exceed the client's offer. */
 export function readAcceptedChannelFlowControl(value: unknown, offer: ChannelReceiveLimits): ChannelFlowControl {
 	const flowControl = readChannelFlowControl(value);
-	if (flowControl.clientReceive.windowBytes > offer.windowBytes || flowControl.clientReceive.maximumFrameBytes > offer.maximumFrameBytes) {
+	if (flowControl.clientReceive.windowBytes > offer.windowBytes || flowControl.clientReceive.maxFrameBytes > offer.maxFrameBytes) {
 		throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Host increased the offered receive limits');
 	}
 	return flowControl;
