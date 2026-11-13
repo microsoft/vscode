@@ -29,8 +29,6 @@ export interface ISelectWorkspaceOptions {
 }
 
 export interface ISelectNoWorkspaceOptions {
-	readonly providerId?: string;
-	readonly sessionTypeId?: string;
 	readonly userSelection?: boolean;
 	readonly preserveNavigation?: boolean;
 	/** Only replace an automatic default in a fresh, empty composer. */

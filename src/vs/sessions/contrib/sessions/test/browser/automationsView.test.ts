@@ -80,11 +80,9 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
-import { CloudSandboxEnabledSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
@@ -95,7 +93,7 @@ import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING }
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
-import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -838,7 +836,6 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IAutomationRunner, runner);
 		instantiationService.stub(ISessionsService, sessionsService);
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
-		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
 		instantiationService.stub(IMissionControlEnvironmentService, missionControlEnvironmentService);
@@ -1364,41 +1361,6 @@ suite('AutomationsCardsWidget', () => {
 				});
 			});
 		}
-	}
-
-	for (const scenario of [
-		{ sessionType: SessionType.CopilotCloud, sandbox: false, remotes: true, fallback: true },
-		{ sessionType: SessionType.CopilotCloud, sandbox: true, remotes: false, fallback: true },
-		{ sessionType: SessionType.CopilotCloud, sandbox: true, remotes: true, fallback: false },
-		{ sessionType: SessionType.AgentHostCopilot, sandbox: false, remotes: true, fallback: false },
-		{ sessionType: 'remote-copilot', sandbox: false, remotes: true, fallback: false },
-	]) {
-		test(`Create with Agent only switches original Cloud to Copilot (${scenario.sessionType}, sandbox: ${scenario.sandbox}, remotes: ${scenario.remotes})`, async () => {
-			const { commandService, configurationService, instantiationService } = setup();
-			let revealed = 0;
-			let focused = 0;
-			configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, scenario.sandbox);
-			configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, scenario.remotes);
-			instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-				activeSession: constObservable(upcastPartial<ITestSessionWithChat>({ sessionType: scenario.sessionType })),
-				focusActiveSession: () => { focused++; },
-			}));
-			instantiationService.stub(ICustomViewService, { hideCustomView: () => { revealed++; } });
-			stubMissingSessionHostsFromSessionsService(instantiationService);
-			const execute = stub(commandService, 'executeCommand').resolves();
-			disposables.add(toDisposable(() => execute.restore()));
-
-			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
-
-			assert.deepStrictEqual({ commands: execute.args, revealed, focused }, {
-				commands: [['workbench.action.sessions.newChat', {
-					prompt: '/automate ', prefillPrompt: true,
-					...(scenario.fallback ? { noWorkspace: true, agentHostProvider: SessionType.CopilotCLI } : {}),
-				}]],
-				revealed: scenario.fallback ? 1 : 0,
-				focused: scenario.fallback ? 1 : 0,
-			});
-		});
 	}
 
 	for (const chatEnabled of [true, false]) {

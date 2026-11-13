@@ -33,7 +33,6 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -85,10 +84,9 @@ import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } fro
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { INewSessionInAgentsWindowOptions, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { INewSessionInAgentsWindowOptions } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { readNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
-import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
@@ -3171,10 +3169,6 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		const dialogService = accessor.get(IDialogService);
-		const configurationService = accessor.get(IConfigurationService);
-		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
-		const customViewService = accessor.get(ICustomViewService);
-		const sessionsService = accessor.get(ISessionsService);
 		const mountedDraftHasInput = accessor.get(INewSessionComposerService).hasDraftInput;
 		const savedDraft = mountedDraftHasInput === undefined ? readNewChatDraftState(accessor.get(IStorageService)) : undefined;
 		if (mountedDraftHasInput ?? (!!savedDraft?.inputText || !!savedDraft?.attachments.length)) {
@@ -3187,18 +3181,11 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 				return;
 			}
 		}
-		const activeSession = mainWindowHost.session.get();
-		const useLocalCopilot = activeSession?.sessionType === SessionType.CopilotCloud && !isCloudSandboxEnabled(configurationService);
 		const options: INewSessionInAgentsWindowOptions = {
 			prompt: '/automate ',
 			prefillPrompt: true,
-			...(useLocalCopilot ? { noWorkspace: true, agentHostProvider: SessionType.CopilotCLI } : {}),
 		};
 		await commandService.executeCommand(NEW_SESSION_ACTION_ID, options);
-		if (useLocalCopilot) {
-			customViewService.hideCustomView();
-			sessionsService.focusActiveSession();
-		}
 	}
 });
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -28,8 +28,6 @@ import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../.
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { NewChatInSessionsWindowAction } from '../../../../../workbench/contrib/sessions/browser/chat/newSessionAction.js';
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
-import { ISessionView, ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
-import { ISelectNoWorkspaceOptions } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { appendNewSessionTitleBarMenuItem } from '../../browser/newSessionTitleBarMenu.js';
 import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
@@ -37,14 +35,9 @@ suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.parse(`${SessionType.AgentHostCopilot}:/new-session`);
 
-	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; selectionApplied?: boolean } = {}) {
+	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
-		const prefilled: string[] = [];
-		const selections: (ISelectNoWorkspaceOptions | undefined)[] = [];
-		const currentSession = observableValue<ITestSessionWithChat | undefined>('currentSession', options.active ? upcastPartial<ITestSessionWithChat>({
-			providerId: 'other-provider', sessionType: 'other-agent',
-		}) : undefined);
 		let navigations = 0;
 		instantiationService.stub(INewSessionComposerService, {
 			notifyUserNavigation: () => { navigations++; },
@@ -53,26 +46,16 @@ suite('NewChatInSessionsWindowAction', () => {
 			isQuickChatTargetAvailable: () => options.available ?? true,
 		});
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: currentSession,
+			activeSession: constObservable(options.active ? upcastPartial<ITestSessionWithChat>({
+				providerId: 'other-provider',
+				sessionType: 'other-agent',
+			}) : undefined),
 			openQuickChat: (target, preserveNavigation) => {
 				opened.push({ target, preserveNavigation });
 				return options.creationFailed ? undefined : upcastPartial<NonNullable<ReturnType<ISessionsService['openQuickChat']>>>({ resource });
 			},
 		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
-		instantiationService.stub(ISessionsPartService, {
-			getSessionView: () => upcastPartial<ISessionView>({
-				prefillInput: (text: string) => { prefilled.push(text); },
-				selectNoWorkspace: selection => {
-					selections.push(selection);
-					if (!options.selectionApplied) {
-						return 'notReady';
-					}
-					currentSession.set(upcastPartial<ITestSessionWithChat>({ resource }), undefined);
-					return 'applied';
-				},
-			}),
-		});
 		if (!CommandsRegistry.getCommand(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID)) {
 			store.add(registerAction2(NewChatInSessionsWindowAction));
 		}
@@ -80,8 +63,6 @@ suite('NewChatInSessionsWindowAction', () => {
 		assert.ok(command);
 		return {
 			opened,
-			prefilled,
-			selections,
 			get navigations() { return navigations; },
 			run: (args: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
 		};
@@ -122,18 +103,6 @@ suite('NewChatInSessionsWindowAction', () => {
 			result: resource,
 			opened: [{ target: { providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' }, preserveNavigation: true }],
 			navigations: 1,
-		});
-	});
-
-	test('selects an explicit local target through the current composer so its environment and workspace agree', async () => {
-		const fixture = createCommand({ active: true, selectionApplied: true });
-		const result = await fixture.run({ noWorkspace: true, agentHostProvider: SessionType.CopilotCLI, prompt: '/automate ', prefillPrompt: true });
-
-		assert.deepStrictEqual({ result, opened: fixture.opened, selections: fixture.selections, prefilled: fixture.prefilled }, {
-			result: resource,
-			opened: [],
-			selections: [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: SessionType.CopilotCLI, userSelection: false, preserveNavigation: true }],
-			prefilled: ['/automate '],
 		});
 	});
 
