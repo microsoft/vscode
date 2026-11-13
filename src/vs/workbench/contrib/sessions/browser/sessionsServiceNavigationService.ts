@@ -10,11 +10,11 @@ import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js'
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { ISessionsNavigationHost } from './sessionsNavigationHost.js';
+import { ISessionsNavigationService } from './sessionsNavigationService.js';
 import { IOpenChatOptions, IOpenSessionOptions, ISessionsService } from './sessionsService.js';
 
 /** The navigation of the Agents window: its grid, through {@link ISessionsService}. */
-export class SessionsServiceNavigationHost implements ISessionsNavigationHost {
+export class SessionsServiceNavigationService implements ISessionsNavigationService {
 
 	declare readonly _serviceBrand: undefined;
 

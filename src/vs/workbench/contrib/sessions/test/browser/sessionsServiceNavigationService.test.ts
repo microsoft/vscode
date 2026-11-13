@@ -12,10 +12,10 @@ import { ISessionGridPane } from '../../../../services/sessions/browser/sessionG
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsPartService, ISessionView } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
-import { SessionsServiceNavigationHost } from '../../browser/sessionsServiceNavigationHost.js';
+import { SessionsServiceNavigationService } from '../../browser/sessionsServiceNavigationService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 
-suite('SessionsServiceNavigationHost', () => {
+suite('SessionsServiceNavigationService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = upcastPartial<ISession>({ sessionId: 'a', resource: URI.parse('session:/a') });
@@ -41,7 +41,7 @@ suite('SessionsServiceNavigationHost', () => {
 		});
 		const pane = active && upcastPartial<ISessionGridPane>({ session: constObservable(active.session), tabs: upcastPartial<ISessionGridPane['tabs']>({ openChats: constObservable(active.openChats) }) });
 		const sessionsPartService = upcastPartial<ISessionsPartService>({ getActiveSessionView: () => pane && upcastPartial<ISessionView>({ pane: constObservable(pane) }) });
-		return { host: new SessionsServiceNavigationHost(sessionsService, sessionsPartService), calls, gridHost, slotPanes };
+		return { host: new SessionsServiceNavigationService(sessionsService, sessionsPartService), calls, gridHost, slotPanes };
 	}
 
 	test('forwards every navigation to the sessions service of the Agents window as is', async () => {
