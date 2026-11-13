@@ -210,6 +210,7 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 import { ICanvas } from '../../../../../common/canvasReference.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 type ILegacyTimedChatAction =
 	| { type: 'chat/turnComplete'; turnId: string; endedAt: string }
@@ -1099,7 +1100,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IProgressService, { withProgress: <R,>(_options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>) => task({ report: () => { } }) });
 	instantiationService.stub(IWorkspaceContextService, {
 		getWorkbenchState: () => workspaceFolders.length > 1 ? WorkbenchState.WORKSPACE : workspaceFolders.length === 1 ? WorkbenchState.FOLDER : WorkbenchState.EMPTY,
-		getWorkspace: () => ({ id: '', folders: workspaceFolders.map((uri, index) => ({ uri, name: uri.path, index, toResource: () => uri })) }),
+		getWorkspace: () => (testIWorkspace({ id: '', folders: workspaceFolders.map((uri, index) => ({ uri, name: uri.path, index, toResource: () => uri })) })),
 		getWorkspaceFolder: resource => {
 			const index = workspaceFolders.findIndex(folder => extUriBiasedIgnorePathCase.isEqualOrParent(resource, folder));
 			const uri = workspaceFolders[index];
@@ -6427,7 +6428,7 @@ suite('AgentHostChatContribution', () => {
 			const folder = URI.file('/src/repo');
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.FOLDER,
-				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] }),
+				getWorkspace: () => (testIWorkspace({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7220,7 +7221,7 @@ suite('AgentHostChatContribution', () => {
 			const workspaceFolder = URI.file('/workspace/root');
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.FOLDER,
-				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
+				getWorkspace: () => (testIWorkspace({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7256,7 +7257,7 @@ suite('AgentHostChatContribution', () => {
 			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => folders.length === 0 ? WorkbenchState.EMPTY : folders.length === 1 ? WorkbenchState.FOLDER : WorkbenchState.WORKSPACE,
-				getWorkspace: () => ({ id: '', folders: [...folders] }),
+				getWorkspace: () => (testIWorkspace({ id: '', folders: [...folders] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			});
@@ -7294,7 +7295,7 @@ suite('AgentHostChatContribution', () => {
 			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => folders.length === 0 ? WorkbenchState.EMPTY : WorkbenchState.FOLDER,
-				getWorkspace: () => ({ id: '', folders: [...folders] }),
+				getWorkspace: () => (testIWorkspace({ id: '', folders: [...folders] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			});
@@ -7335,7 +7336,7 @@ suite('AgentHostChatContribution', () => {
 			const onDidChangeWorkspaceFolders = disposables.add(new Emitter<{ readonly added: never[]; readonly removed: never[]; readonly changed: never[] }>());
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.WORKSPACE,
-				getWorkspace: () => ({ id: 'workspace', configuration, folders: folders.map((uri, index) => ({ uri, name: uri.path, index, toResource: () => uri })) }),
+				getWorkspace: () => (testIWorkspace({ id: 'workspace', configuration, folders: folders.map((uri, index) => ({ uri, name: uri.path, index, toResource: () => uri })) })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
 			});
@@ -7403,7 +7404,7 @@ suite('AgentHostChatContribution', () => {
 
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.EMPTY,
-				getWorkspace: () => ({ id: 'empty', folders: [] }),
+				getWorkspace: () => (testIWorkspace({ id: 'empty', folders: [] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7436,7 +7437,7 @@ suite('AgentHostChatContribution', () => {
 			const folder = URI.file('/workspace/a');
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.FOLDER,
-				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'a', index: 0, toResource: () => folder }] }),
+				getWorkspace: () => (testIWorkspace({ id: 'folder', folders: [{ uri: folder, name: 'a', index: 0, toResource: () => folder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7470,7 +7471,7 @@ suite('AgentHostChatContribution', () => {
 			const folder = URI.file('/src/repo');
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.FOLDER,
-				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] }),
+				getWorkspace: () => (testIWorkspace({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7515,7 +7516,7 @@ suite('AgentHostChatContribution', () => {
 			const folder = URI.file('/src/repo');
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.FOLDER,
-				getWorkspace: () => ({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] }),
+				getWorkspace: () => (testIWorkspace({ id: 'folder', folders: [{ uri: folder, name: 'repo', index: 0, toResource: () => folder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7544,7 +7545,7 @@ suite('AgentHostChatContribution', () => {
 			const workspaceFolder = URI.file('/workspace/root');
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.FOLDER,
-				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
+				getWorkspace: () => (testIWorkspace({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7718,7 +7719,7 @@ suite('AgentHostChatContribution', () => {
 			const workspaceFolder = URI.from({ scheme: 'file', path: '/workspace/root' });
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.FOLDER,
-				getWorkspace: () => ({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] }),
+				getWorkspace: () => (testIWorkspace({ id: '', folders: [{ uri: workspaceFolder, name: 'root', index: 0, toResource: () => workspaceFolder }] })),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7889,12 +7890,12 @@ suite('AgentHostChatContribution', () => {
 			const folderB = URI.from({ scheme: 'file', path: '/workspace/b' });
 			instantiationService.stub(IWorkspaceContextService, {
 				getWorkbenchState: () => WorkbenchState.WORKSPACE,
-				getWorkspace: () => ({
+				getWorkspace: () => (testIWorkspace({
 					id: '', folders: [
 						{ uri: folderA, name: 'a', index: 0, toResource: () => folderA },
 						{ uri: folderB, name: 'b', index: 1, toResource: () => folderB },
 					]
-				}),
+				})),
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			});
@@ -7938,12 +7939,12 @@ suite('AgentHostChatContribution', () => {
 			const folderB = URI.from({ scheme: 'file', path: '/workspace/b' });
 			const workspace: Partial<IWorkspaceContextService> = {
 				getWorkbenchState: () => WorkbenchState.WORKSPACE,
-				getWorkspace: () => ({
+				getWorkspace: () => (testIWorkspace({
 					id: '', folders: [
 						{ uri: folderA, name: 'a', index: 0, toResource: () => folderA },
 						{ uri: folderB, name: 'b', index: 1, toResource: () => folderB },
 					]
-				}) as unknown as IWorkspace,
+				})) as unknown as IWorkspace,
 				getWorkspaceFolder: () => null,
 				onDidChangeWorkspaceFolders: Event.None,
 			};

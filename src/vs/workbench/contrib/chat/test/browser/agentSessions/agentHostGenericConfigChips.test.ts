@@ -56,6 +56,7 @@ import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 function createSubscription<T>(): IAgentSubscription<T> {
 	return {
@@ -948,7 +949,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IPreferencesService, {});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
-		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
+		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => (testIWorkspace({ id: 'test', folders: [] })) });
 		instantiationService.set(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
