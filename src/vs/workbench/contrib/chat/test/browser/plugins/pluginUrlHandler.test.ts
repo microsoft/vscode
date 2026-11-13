@@ -14,7 +14,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../../platform/configuration/common/configuration.js';
@@ -38,12 +39,14 @@ import { AICustomizationManagementCommands } from '../../../common/aiCustomizati
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
 import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('PluginUrlHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const desktopTest = isWeb ? test.skip : test;
+	const sessionResource = URI.parse(`${SessionType.AgentHostCopilot}:/existing`);
 
 	function createHandler(options: {
 		harness?: 'copilot' | 'vscode';
@@ -60,7 +63,17 @@ suite('PluginUrlHandler', () => {
 		installResult?: { success: boolean; message?: string };
 		remoteAuthority?: string;
 		isSessionsWindow?: boolean;
-		failure?: 'list' | 'add' | 'browse' | 'install';
+		failure?: 'list' | 'add' | 'browse' | 'agentFinderQuery' | 'install';
+		agentFinderAvailable?: boolean;
+		agentFinderEnabled?: boolean;
+		agentFinderMatchCount?: number;
+		agentFinderIdentity?: string | null;
+		agentFinderProviderPlugin?: boolean;
+		agentFinderProviderPluginSource?: string;
+		agentFinderBrowseError?: boolean;
+		agentFinderBrowseDuplicate?: boolean;
+		agentFinderPaginated?: boolean;
+		agentFinderSourceError?: boolean;
 		cancelled?: boolean;
 	} = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
@@ -100,6 +113,62 @@ suite('PluginUrlHandler', () => {
 				fail('install');
 			},
 		});
+		const marketplaceSources = options.agentFinderAvailable ? [CustomizationMarketplaceSources.AgentFinderPublicFeed] : [];
+		const agentFinderProviderPlugin = {
+			identifier: 'agentFinder/accessibility-agents',
+			displayName: 'Accessibility Agents',
+			description: '',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: {
+				kind: 'providerPlugin' as const,
+				name: 'accessibility-agents',
+				marketplace: 'awesome-copilot',
+				marketplaceSource: options.agentFinderProviderPluginSource ?? 'GitHub: github/awesome-copilot',
+			},
+		};
+		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = marketplaceSources;
+			override async query(query: ICustomizationMarketplaceQuery) {
+				calls.push(`agentFinderQuery:${query.query ?? ''}:${query.cursor?.token ?? ''}`);
+				fail('agentFinderQuery');
+				const paginatedFirstPage = options.agentFinderPaginated && !query.cursor;
+				return {
+					items: Array.from({ length: options.agentFinderMatchCount ?? 1 }, (_, index) => ({
+						identifier: `agentFinder/my-plugin-${index}`,
+						displayName: 'My Plugin',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+						sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+						installation: {
+							kind: 'providerCatalog' as const,
+							resourceKind: 'plugin' as const,
+							selectionId: `my-plugin-${index}`,
+							catalogIdentity: options.agentFinderIdentity === null ? undefined : options.agentFinderIdentity ?? `urn:air:github.com:github:awesome-copilot:${paginatedFirstPage ? 'other-plugin' : 'my-plugin'}`,
+						},
+					})),
+					...(paginatedFirstPage ? { nextCursor: { token: 'next' } } : {}),
+					...(options.agentFinderSourceError ? { sourceErrors: [{ sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id, message: 'feed failed' }] } : {}),
+				};
+			}
+			override async getBrowseSections() {
+				calls.push('agentFinderBrowse');
+				return {
+					sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+					sections: options.agentFinderProviderPlugin ? [
+						{ id: 'featured', title: 'Featured', items: [agentFinderProviderPlugin] },
+						...(options.agentFinderBrowseDuplicate ? [{ id: 'more', title: 'More', items: [agentFinderProviderPlugin] }] : []),
+					] : [],
+					...(options.agentFinderBrowseError ? { error: 'browse failed' } : {}),
+				};
+			}
+		}());
 		const marketplaceChanges = store.add(new Emitter<void>());
 		const managementProvider = new class extends mock<ICustomizationMarketplaceManagementProvider>() {
 			override readonly onDidChange = Event.None;
@@ -113,9 +182,16 @@ suite('PluginUrlHandler', () => {
 				return marketplace;
 			}
 		}();
-		const sessionResource = URI.parse(`${SessionType.AgentHostCopilot}:/existing`);
+		const installProvider = new class extends mock<ICustomizationMarketplaceInstallProvider>() {
+			override readonly onDidChange = Event.None;
+			override async install(session: URI, resource: Parameters<ICustomizationMarketplaceInstallProvider['install']>[1]) {
+				calls.push(`install:${session}:${resource.identifier}`);
+				fail('install');
+			}
+		}();
 		const descriptor: IHarnessDescriptor = {
 			id: SessionType.AgentHostCopilot, label: 'Copilot', icon: { id: 'copilot' }, marketplaceManagementProvider: managementProvider,
+			marketplaceInstallProvider: options.installUnavailable ? undefined : installProvider,
 		};
 		const harnessService = instantiationService.stub(ICustomizationHarnessService, {
 			activeHarness: observableValue('harness', descriptor.id),
@@ -158,6 +234,8 @@ suite('PluginUrlHandler', () => {
 		}({
 			[ChatConfiguration.PluginsEnabled]: options.pluginsEnabled ?? true,
 			[ChatConfiguration.PluginMarketplaces]: options.existingMarketplaceSource ? [options.existingMarketplaceSource] : [],
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: options.agentFinderEnabled ?? true,
 		});
 		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: options.hidden, disabledInWorkspace: options.disabledInWorkspace } });
@@ -326,6 +404,259 @@ suite('PluginUrlHandler', () => {
 			]);
 		});
 	}
+
+	for (const source of [
+		'github/awesome-copilot',
+		'GitHub:github/awesome-copilot',
+		'GitHub: github/awesome-copilot',
+		'URL:https://github.com/GitHub/Awesome-Copilot.git',
+		'URL: https://github.com/GitHub/Awesome-Copilot.git',
+	]) {
+		desktopTest(`resolves a legacy Awesome Copilot plugin name through Agent Finder: ${source}`, async () => {
+			const fixture = createHandler({ agentFinderAvailable: true, managementUnavailable: true, agentFinderIdentity: 'urn:air:github.com:github:awesome-copilot:MY-PLUGIN' });
+			await fixture.handler.handleURL(uri('/install', `source=${encodeURIComponent(source)}&plugin=my-plugin`));
+			assert.deepStrictEqual({
+				calls: fixture.calls,
+				errors: fixture.errors,
+				commands: fixture.commands,
+			}, {
+				calls: [
+					'agentFinderQuery:my-plugin:',
+					`install:${sessionResource}:agentFinder/my-plugin-0`,
+				],
+				errors: [],
+				commands: [{
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ showDiscover: true, sessionType: SessionType.AgentHostCopilot, searchQuery: 'my-plugin' }],
+				}],
+			});
+		});
+	}
+
+	desktopTest('keeps an explicit VS Code target on its source installer when Agent Finder is available', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin&harness=vscode'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [['vscodeInstall', 'github/awesome-copilot', { plugin: 'my-plugin' }]],
+			errors: [],
+		});
+	});
+
+	desktopTest('adds an Awesome Copilot marketplace without using Agent Finder or creating a session', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true });
+		await fixture.handler.handleURL(uri('/add-marketplace', 'ref=github%2Fawesome-copilot&harness=copilot'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [
+				['list', 'copilotcli', undefined, undefined],
+				['add', 'copilotcli', undefined, 'github/awesome-copilot', undefined],
+			],
+			errors: [],
+		});
+	});
+
+	desktopTest('resolves a full Awesome Copilot catalog identity through Agent Finder', async () => {
+		const catalogIdentity = 'urn:air:github.com:github:awesome-copilot:my-plugin';
+		const fixture = createHandler({ agentFinderAvailable: true, managementUnavailable: true, agentFinderIdentity: catalogIdentity.toUpperCase() });
+		await fixture.handler.handleURL(uri('/install', `source=github%2Fawesome-copilot&plugin=${encodeURIComponent(catalogIdentity)}`));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors,
+		}, {
+			calls: [
+				`agentFinderQuery:${catalogIdentity}:`,
+				`install:${sessionResource}:agentFinder/my-plugin-0`,
+			],
+			errors: [],
+		});
+	});
+
+	desktopTest('rejects an external listing with the same name from another Agent Finder marketplace', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderProviderPlugin: true,
+			agentFinderProviderPluginSource: 'GitHub: other/marketplace',
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=accessibility-agents'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors.length,
+			commands: fixture.commands,
+		}, {
+			calls: [
+				'agentFinderQuery:accessibility-agents:',
+				'agentFinderBrowse',
+			],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	for (const options of [
+		{ agentFinderAvailable: false },
+		{ agentFinderAvailable: true, agentFinderEnabled: false },
+	]) {
+		desktopTest(`falls back to the configured Awesome Copilot marketplace when Agent Finder is unavailable: ${JSON.stringify(options)}`, async () => {
+			const fixture = createHandler(options);
+			await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+			assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+				calls: [
+					['list', 'copilotcli', undefined, undefined],
+					['add', 'copilotcli', undefined, 'github/awesome-copilot', undefined],
+					['browse', 'copilotcli', undefined, 'catalog', undefined],
+					['install', 'copilotcli', { source: 'my-plugin@catalog' }, undefined, undefined],
+				],
+				errors: [],
+			});
+		});
+	}
+
+	desktopTest('resolves an external Awesome Copilot listing through Agent Finder browse metadata', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			managementUnavailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderProviderPlugin: true,
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=accessibility-agents'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors,
+			commands: fixture.commands,
+		}, {
+			calls: [
+				'agentFinderQuery:accessibility-agents:',
+				'agentFinderBrowse',
+				`install:${sessionResource}:agentFinder/accessibility-agents`,
+			],
+			errors: [],
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ showDiscover: true, sessionType: SessionType.AgentHostCopilot, searchQuery: 'accessibility-agents' }],
+			}],
+		});
+	});
+
+	for (const options of [
+		{ agentFinderMatchCount: 0 },
+		{ agentFinderMatchCount: 2 },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: 'my-plugin' },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: 'other-plugin' },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: 'urn:air:github.com:other:awesome-copilot:my-plugin' },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: null },
+		{ agentFinderMatchCount: 1, agentFinderSourceError: true },
+	] as const) {
+		desktopTest(`rejects invalid Agent Finder resolution without adding the legacy marketplace: ${JSON.stringify(options)}`, async () => {
+			const fixture = createHandler({ agentFinderAvailable: true, ...options });
+			await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+			assert.deepStrictEqual({
+				calls: fixture.calls,
+				errors: fixture.errors.length,
+				commands: fixture.commands,
+			}, {
+				calls: options.agentFinderMatchCount === 0 || options.agentFinderIdentity === 'my-plugin' ||
+					options.agentFinderIdentity === 'other-plugin' ||
+					options.agentFinderIdentity === 'urn:air:github.com:other:awesome-copilot:my-plugin' ||
+					options.agentFinderIdentity === null
+					? ['agentFinderQuery:my-plugin:', 'agentFinderBrowse']
+					: ['agentFinderQuery:my-plugin:'],
+				errors: 1,
+				commands: [],
+			});
+		});
+	}
+
+	desktopTest('rejects a full Agent Finder identity from another repository', async () => {
+		const catalogIdentity = 'urn:air:github.com:other:awesome-copilot:my-plugin';
+		const fixture = createHandler({ agentFinderAvailable: true, agentFinderIdentity: catalogIdentity });
+		await fixture.handler.handleURL(uri('/install', `source=github%2Fawesome-copilot&plugin=${encodeURIComponent(catalogIdentity)}`));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors.length,
+			commands: fixture.commands,
+		}, {
+			calls: [`agentFinderQuery:${catalogIdentity}:`],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	desktopTest('surfaces Agent Finder browse failures without adding the legacy marketplace', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderBrowseError: true,
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors.length,
+			commands: fixture.commands,
+		}, {
+			calls: ['agentFinderQuery:my-plugin:', 'agentFinderBrowse'],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	desktopTest('deduplicates an external Awesome Copilot listing across Agent Finder browse sections', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			managementUnavailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderProviderPlugin: true,
+			agentFinderBrowseDuplicate: true,
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=accessibility-agents'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors,
+		}, {
+			calls: [
+				'agentFinderQuery:accessibility-agents:',
+				'agentFinderBrowse',
+				`install:${sessionResource}:agentFinder/accessibility-agents`,
+			],
+			errors: [],
+		});
+	});
+
+	desktopTest('follows Agent Finder pagination to find an exact catalog identity', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true, agentFinderPaginated: true });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [
+				'agentFinderQuery:my-plugin:',
+				'agentFinderQuery:my-plugin:next',
+				`install:${sessionResource}:agentFinder/my-plugin-0`,
+			],
+			errors: [],
+		});
+	});
+
+	desktopTest('surfaces Agent Finder query failures without adding the legacy marketplace', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true, failure: 'agentFinderQuery' });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors.length, commands: fixture.commands }, {
+			calls: ['agentFinderQuery:my-plugin:'],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	desktopTest('preserves a pinned Awesome Copilot reference on the configured marketplace path', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot%23v1.2.3&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [
+				['list', 'copilotcli', undefined, undefined],
+				['add', 'copilotcli', undefined, 'github/awesome-copilot#v1.2.3', undefined],
+				['browse', 'copilotcli', undefined, 'catalog', undefined],
+				['install', 'copilotcli', { source: 'my-plugin@catalog' }, undefined, undefined],
+			],
+			errors: [],
+		});
+	});
 
 	desktopTest('does not duplicate a configured VS Code marketplace', async () => {
 		const fixture = createHandler({ harness: 'vscode', existingMarketplaceSource: 'https://github.com/ACME/plugins.git#feature/beta' });

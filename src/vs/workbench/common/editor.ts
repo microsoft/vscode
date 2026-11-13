@@ -508,7 +508,7 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 /**
  * Where a new untitled text editor is created from. Only used for telemetry.
  */
-export type UntitledTextEditorOrigin = 'newFileCommand' | 'tabBarDoubleClick' | 'emptyGroupDoubleClick' | 'extensionApi' | 'chat';
+export type UntitledTextEditorOrigin = 'newFileCommand' | 'tabBarDoubleClick' | 'emptyGroupDoubleClick' | 'newTabButton' | 'extensionApi' | 'chat';
 
 /**
  * A resource side by side editor input shows 2 editors side by side but

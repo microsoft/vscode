@@ -37,13 +37,8 @@
 	-webkit-tap-highlight-color: transparent;
 }
 
-.host-picker-row:focus {
+.host-picker-row:focus:not(:focus-visible) {
 	outline: none;
-}
-
-.host-picker-row:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .host-picker-row:active {
@@ -206,10 +201,6 @@
 	cursor: pointer;
 	touch-action: manipulation;
 	-webkit-tap-highlight-color: transparent;
-}
-
-.host-picker-section-action:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 }
 
 .host-picker-section-action:active {

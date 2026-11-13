@@ -4,11 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IPinnedCanvasService } from './pinnedCanvases.js';
 import { ISessionsListPresentation, SessionNameKind } from './sessionsListPresentation.js';
 
 export class DefaultSessionsListPresentation implements ISessionsListPresentation {
 	declare readonly _serviceBrand: undefined;
 	readonly sectionRowHeight = undefined;
+
+	constructor(
+		@IPinnedCanvasService public readonly pinnedCanvases: IPinnedCanvasService,
+	) { }
 
 	editName(_kind: SessionNameKind, _value: string, editInline: () => boolean): boolean {
 		return editInline();

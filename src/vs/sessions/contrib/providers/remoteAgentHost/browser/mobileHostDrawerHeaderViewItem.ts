@@ -53,7 +53,7 @@ export class MobileHostDrawerHeaderViewItem extends BaseActionViewItem {
 		}
 		this.element.classList.add('host-drawer-header');
 
-		const button = this._row = dom.append(this.element, $('button.host-drawer-header-row', { type: 'button' })) as HTMLButtonElement;
+		const button = this._row = dom.append(this.element, $('button.host-drawer-header-row.agent-sessions-interactive.agent-sessions-interactive-list', { type: 'button' })) as HTMLButtonElement;
 		button.setAttribute('aria-haspopup', 'dialog');
 		this._tile = dom.append(button, $('span.host-drawer-header-tile'));
 		const text = dom.append(button, $('span.host-drawer-header-text'));

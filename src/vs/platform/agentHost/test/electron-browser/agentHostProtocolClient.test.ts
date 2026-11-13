@@ -43,7 +43,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
+import { CompletionItemKind, ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
@@ -455,6 +455,38 @@ suite('AgentHostProtocolClient', () => {
 			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: meta },
 		});
 		await connectPromise;
+	}
+
+	for (const nativeHost of [true, false]) {
+		test(`normalizes legacy skill completions only for VS Code hosts (native=${nativeHost})`, async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, nativeHost ? { 'vscode.agentHost': true } : {});
+			const legacy = {
+				insertText: '/review ', rangeStart: 0, rangeEnd: 1,
+				attachment: {
+					type: MessageAttachmentKind.Simple, label: '/review',
+					_meta: { uri: 'file:///skills/review/SKILL.md', argumentHint: 'Files', description: 'Review changes' },
+				},
+			};
+			const resource = {
+				insertText: '/current ',
+				attachment: {
+					type: MessageAttachmentKind.Resource, label: '/current', displayKind: 'skill', uri: 'custom-skill:/current',
+					_meta: { uri: 'file:///not-the-resource/SKILL.md' },
+				},
+			};
+			const sent = Event.toPromise(Event.filter(transport.onDidSend, () => transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'completions')));
+			const completion = client.completions({ kind: CompletionItemKind.UserMessage, channel: 'custom-session:/session', text: '/', offset: 1 });
+			await sent;
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'completions')!;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { items: [legacy, resource] } });
+			assert.deepStrictEqual(await completion, {
+				items: [nativeHost ? {
+					...legacy,
+					attachment: { ...legacy.attachment, type: MessageAttachmentKind.Resource, displayKind: 'skill', uri: legacy.attachment._meta.uri },
+				} : legacy, resource],
+			});
+		});
 	}
 
 	test('artifact integration capability is independent of timing and session import', async () => {

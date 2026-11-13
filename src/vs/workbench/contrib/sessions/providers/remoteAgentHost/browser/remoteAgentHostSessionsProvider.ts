@@ -421,6 +421,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.hostGroup = config.hostGroup;
 		this._storageKey = config.sessionCacheKey ?? `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
+			supportsOneTimeAutomation: false,
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only automation store's client-to-host mapper
 			toHost: resource => fromAgentHostUri(resource),
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only automation store's host-to-client mapper
@@ -433,6 +434,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				const identity = this.agentHostConnectionsService.resolveSessionResourceIdentity(resource);
 				return identity?.backendSessionIsAdvertised && identity.connectionAuthority === this._connectionAuthority ? identity.backendSession : undefined;
 			},
+			resolveBackendChat: resource => this.getBackendChatResource(resource),
+			conversationFromHost: (session, chat) => this.getAutomationConversation(session, chat),
 			onDidChangeSessionResolution: this.agentHostConnectionsService.onDidChangeSessionResolution,
 			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
 			providerForResourceScheme: scheme => {

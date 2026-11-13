@@ -26,7 +26,7 @@ The view factory also owns optional chat-background presentation for the session
 
 View factories receive the owning host's instantiation service for each view. Mobile headers use that same scope; they must not capture a global service or reuse another view's scope.
 
-`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; the experimental implementation prompts before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options.
+`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; the experimental implementation prompts before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options. Its optional `pinnedCanvases` model is supplied by the entry that selects pinning; shared views do not require the pinned-canvas service.
 
 `IChatEditPresentationService` owns text-edit rendering and external-edit opening. The regular entry selects compare editors and ordinary editor navigation; the experimental entry selects edit rows and mobile overlays. Shared chat owns compare-model creation, and each returned presentation owns its rendering resources. Mobile diff overlays read through the standard text-model service, including in-memory snapshots.
 

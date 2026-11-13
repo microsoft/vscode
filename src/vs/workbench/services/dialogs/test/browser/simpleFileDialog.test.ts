@@ -8,7 +8,6 @@ import { timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../base/common/path.js';
-import { OperatingSystem } from '../../../../../base/common/platform.js';
 import * as resources from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -483,10 +482,6 @@ suite('SimpleFileDialog', () => {
 				},
 			},
 			pathService: {
-				getOperatingSystem: async (uri: URI) => {
-					semanticRequests.push(`os:${uri.toString()}`);
-					return OperatingSystem.Windows;
-				},
 				getPath: async (uri: URI) => {
 					semanticRequests.push(`path:${uri.toString()}`);
 					return win32;
@@ -534,7 +529,6 @@ suite('SimpleFileDialog', () => {
 			separator: '\\',
 			isWindows: true,
 			semanticRequests: [
-				'os:vscode-agent-host://windows-host/',
 				'path:vscode-agent-host://windows-host/',
 			],
 		});
@@ -552,7 +546,6 @@ suite('SimpleFileDialog', () => {
 				},
 			},
 			pathService: {
-				getOperatingSystem: async () => OperatingSystem.Linux,
 				getPath: async () => posix,
 			},
 		}) as unknown as {
@@ -585,7 +578,6 @@ suite('SimpleFileDialog', () => {
 				},
 			},
 			pathService: {
-				getOperatingSystem: async () => undefined,
 				getPath: async () => undefined,
 			},
 		}) as unknown as {

@@ -12,6 +12,10 @@ on:
         description: Whether the pull request can affect the Copilot shim crate, whose job is skipped when false
         type: boolean
         default: true
+      runner:
+        description: The runner of the jobs. The merge queue and the pull requests to release branches pass dedicated runners (see the top of pr.yml)
+        type: string
+        default: vscode-large-runners-ubuntu-8-core
 
 env:
   RUSTUP_TOOLCHAIN: ${{ inputs.rustup_toolchain }}
@@ -27,7 +31,7 @@ jobs:
   cli:
     name: CLI
     if: ${{ inputs.cli_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       CRATE_DIRECTORY: cli
     steps: &steps
@@ -88,7 +92,7 @@ jobs:
   copilot-shim:
     name: Copilot Shim
     if: ${{ inputs.copilot_shim_affected }}
-    runs-on: vscode-large-runners-ubuntu-8-core
+    runs-on: ${{ inputs.runner }}
     env:
       CRATE_DIRECTORY: copilot_shim
       CHECK_FORMATTING: 'true'

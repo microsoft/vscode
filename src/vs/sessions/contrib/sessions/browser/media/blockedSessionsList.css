@@ -3,21 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Blocked-sessions list, shown below the command center box via the context view. */
-.agent-sessions-blocked-list {
+/* Sessions list shown below the command center box via the context view. */
+.agent-sessions-command-center-list {
 	display: flex;
 	flex-direction: column;
 	/* A small gap so the dropdown reads as separate from the command center box. */
 	margin-top: var(--vscode-spacing-size60);
 	background-color: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-editorWidget-border);
-	border-radius: var(--vscode-cornerRadius-medium);
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	overflow: hidden;
 }
 
+.monaco-workbench.monaco-enable-motion .agent-sessions-command-center-list {
+	animation: agent-sessions-command-center-list-open 150ms cubic-bezier(0.22, 1, 0.36, 1);
+	transform-origin: top center;
+}
+
+.monaco-workbench.monaco-enable-motion .agent-sessions-command-center-list.agent-sessions-command-center-list-closing {
+	animation: agent-sessions-command-center-list-close 100ms ease-out both;
+	pointer-events: none;
+}
+
+@keyframes agent-sessions-command-center-list-open {
+	from {
+		opacity: 0;
+		transform: scale(0.97);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+@keyframes agent-sessions-command-center-list-close {
+	from {
+		opacity: 1;
+		transform: scale(1);
+	}
+
+	to {
+		opacity: 0;
+		transform: scale(0.99);
+	}
+}
+
 /* Header row: title on the left, a toolbar of contributed actions on the right. */
-.agent-sessions-blocked-list .agent-sessions-blocked-list-header {
+.agent-sessions-command-center-list .agent-sessions-blocked-list-header {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
@@ -25,7 +59,7 @@
 	border-bottom: 1px solid var(--vscode-editorWidget-border);
 }
 
-.agent-sessions-blocked-list .agent-sessions-blocked-list-title {
+.agent-sessions-command-center-list .agent-sessions-blocked-list-title {
 	flex: 1 1 auto;
 	min-width: 0;
 	overflow: hidden;
@@ -35,18 +69,18 @@
 	color: var(--vscode-foreground);
 }
 
-.agent-sessions-blocked-list .agent-sessions-blocked-list-header-actions {
+.agent-sessions-command-center-list .agent-sessions-blocked-list-header-actions {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
 	margin-left: auto;
 }
 
-.agent-sessions-blocked-list .agent-sessions-blocked-list-rows {
+.agent-sessions-command-center-list .agent-sessions-blocked-list-rows {
 	overflow: hidden;
 }
 
-.agent-sessions-blocked-list .agent-sessions-blocked-list-rows .sessions-list-control .monaco-list-row:has(.session-item) {
+.agent-sessions-command-center-list .agent-sessions-blocked-list-rows .sessions-list-control .monaco-list-row:has(.session-item) {
 	border-radius: 0;
 	margin: 0;
 	width: 100%;
@@ -63,7 +97,8 @@
 	background-color: color-mix(in srgb, var(--vscode-charts-orange) 7%, transparent);
 }
 
-.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input:hover {
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input:hover,
+.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input.agent-sessions-titlebar-dropdown-open {
 	color: var(--vscode-charts-orange);
 	border-color: color-mix(in srgb, var(--vscode-charts-orange) 60%, var(--vscode-commandCenter-border));
 	background-color: color-mix(in srgb, var(--vscode-charts-orange) 12%, transparent);
@@ -100,12 +135,6 @@
 	}
 }
 
-.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input.agent-sessions-titlebar-blink {
+.monaco-workbench.monaco-enable-motion .command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input.agent-sessions-titlebar-blink {
 	animation: agent-sessions-titlebar-attention-blink 450ms ease-in-out 2;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.command-center .agent-sessions-titlebar-container.agent-sessions-titlebar-requires-input.agent-sessions-titlebar-blink {
-		animation: none;
-	}
 }

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../../base/common/errors.js';
-import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -32,6 +32,8 @@ import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSess
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
+import { Position } from '../../../../../../services/layout/browser/layoutService.js';
+import { ViewContainerLocation } from '../../../../../../common/views.js';
 
 suite('ChatViewPane sessions refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +70,50 @@ suite('ChatViewPane sessions refresh', () => {
 		update.call(host);
 		assert.deepStrictEqual(visibility, [false, true, false, true, false, false]);
 	});
+
+	test('sessions layout telemetry reports the settled layout once shown and restored, then only changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const events: unknown[] = [];
+		const host = {
+			sessionsContainer: document.createElement('div'),
+			lastDimensions: { width: 1000, height: 600 },
+			bodyVisible: false,
+			isBodyVisible: () => host.bodyVisible,
+			restoringSession: Promise.resolve() as Promise<void> | undefined,
+			_loadingSessionCount: 0,
+			_sessionsListSuppressionCount: 0,
+			getViewPositionAndLocation: () => ({ position: Position.RIGHT, location: ViewContainerLocation.AuxiliaryBar }),
+			sessionsViewerOrientationConfiguration: 'sideBySide',
+			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
+			sessionsViewerVisible: true,
+			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true }),
+			layoutService: { isAuxiliaryBarMaximized: () => false },
+			telemetryService: { publicLog2: (eventName: string, data: object) => events.push({ eventName, ...data }) },
+			lastReportedSessionsLayout: undefined,
+		};
+		const report = Reflect.get(ChatViewPane.prototype, 'reportSessionsLayout') as (this: typeof host) => void;
+		const scheduler = store.add(new RunOnceScheduler(() => report.call(host), 1000));
+		const settle = async (change: () => void = () => { }) => { change(); scheduler.schedule(); await timeout(1000); };
+		const setOrientation = (orientation: AgentSessionsViewerOrientation) => () => host.sessionsViewerOrientation = orientation;
+
+		await settle();												// hidden view: nothing
+		await settle(() => host.bodyVisible = true);					// shown but still restoring: nothing
+		await settle(() => host.restoringSession = undefined);		// restored: initial
+
+		setOrientation(AgentSessionsViewerOrientation.Stacked)();	// resize flips and returns before settling: nothing
+		scheduler.schedule();
+		await settle(setOrientation(AgentSessionsViewerOrientation.SideBySide));
+
+		await settle(() => { host._loadingSessionCount = 1; host.sessionsViewerVisible = false; });	// transient state while loading: nothing
+		await settle(() => host._sessionsListSuppressionCount = 1);									// transient state while transitioning: nothing
+		await settle(() => { host._loadingSessionCount = 0; host._sessionsListSuppressionCount = 0; host.sessionsViewerVisible = true; });	// settled unchanged: nothing
+		await settle(setOrientation(AgentSessionsViewerOrientation.Stacked));							// settled change: orientationChanged
+
+		const layout = { configuredOrientation: 'sideBySide', sessionsVisible: true, sessionsEnabled: true, position: 'right', chatViewLocation: 'auxiliaryBar', chatViewMaximized: false };
+		assert.deepStrictEqual(events, [
+			{ eventName: 'chatViewSessionsLayout', ...layout, effectiveOrientation: 'sideBySide', reason: 'initial' },
+			{ eventName: 'chatViewSessionsLayout', ...layout, effectiveOrientation: 'stacked', reason: 'orientationChanged' },
+		]);
+	}));
 
 	test('window focus refreshes automatically while the toolbar retains explicit refresh intent', async () => {
 		const focusChanged = store.add(new Emitter<boolean>());
