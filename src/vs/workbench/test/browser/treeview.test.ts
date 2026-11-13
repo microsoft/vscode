@@ -86,6 +86,32 @@ suite('TreeView', function () {
 		assert.strictEqual(container.querySelectorAll('.monaco-list-row').length, 10);
 	});
 
+	test('issue #347994 - a refresh served from the cache keeps the children of every expanded node', async () => {
+		const childrenByHandle = new Map<string, ITreeItem[]>();
+		const item = (handle: string, children: ITreeItem[] = []): ITreeItem => {
+			childrenByHandle.set(handle, children);
+			return { handle, accessibilityInformation: { label: handle }, collapsibleState: children.length ? TreeItemCollapsibleState.Expanded : TreeItemCollapsibleState.None };
+		};
+		// The first expanded node has an expanded child, so its children are refreshed while its siblings are still waiting for theirs
+		const roots = [item('P1', [item('folder', [item('file1')])]), item('P2', [item('file2')]), item('P3', [item('file3')])];
+		const cachedTreeView = disposables.add(instantiationService.createInstance(TreeView, 'cachedRefreshTree', 'Test Title'));
+		cachedTreeView.dataProvider = {
+			getChildren: async (element?: ITreeItem) => element ? childrenByHandle.get(element.handle) : roots
+		};
+		const container = mainWindow.document.body.appendChild($('.monaco-workbench'));
+		disposables.add(toDisposable(() => container.remove()));
+
+		cachedTreeView.setVisibility(true); // starts loading the tree
+		cachedTreeView.show(container);
+		cachedTreeView.layout(300, 300);
+		await cachedTreeView.refresh(); // waits for the initial load, which caches every node's children, then refreshes from that cache
+
+		assert.deepStrictEqual(
+			[...container.querySelectorAll('.monaco-list-row')].map(row => row.getAttribute('aria-label')),
+			['P1', 'folder', 'file1', 'P2', 'file2', 'P3', 'file3']
+		);
+	});
+
 
 });
 

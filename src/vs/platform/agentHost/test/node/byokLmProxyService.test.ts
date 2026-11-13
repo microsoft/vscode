@@ -539,6 +539,54 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
+	test('keeps the effort a configuration_update selected when recovering a tool continuation', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const user = (text: string) => ({ type: 'message', role: 'user', content: [{ type: 'input_text', text }] });
+		const initialInput = [user('first'), { type: 'configuration_update', reasoning: { effort: 'high' } }, user('second')];
+		const replayedInput = [
+			...initialInput,
+			{ type: 'function_call', call_id: 'call_1', name: 'tool', arguments: '{}' },
+			{ type: 'function_call_output', call_id: 'call_1', output: 'done' },
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return captured.length === 1
+					? { responseId: 'resp_provider_1', output: [{ type: 'function_call', callId: 'call_1', name: 'tool', argumentsJson: '{}' }] }
+					: { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				for (const input of [initialInput, replayedInput]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', reasoning: { effort: 'medium' }, input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual(captured.map(request => ({
+			previousResponseId: request.previousResponseId,
+			reasoningEffort: request.reasoningEffort,
+			input: request.input,
+		})), [
+			{
+				previousResponseId: undefined,
+				reasoningEffort: 'high',
+				input: ['first', 'second'].map(text => ({ type: 'message', role: 'user', content: [{ type: 'text', text }] })),
+			},
+			{
+				previousResponseId: 'resp_provider_1',
+				reasoningEffort: 'high',
+				input: [{ type: 'function_call_output', callId: 'call_1', output: 'done' }],
+			},
+		]);
+	});
+
 	test('consumes an explicit continuation only after a successful bridge result', async () => {
 		const captured: IByokLmChatRequest[] = [];
 		const output = { type: 'function_call_output', call_id: 'call_1', output: 'done' };

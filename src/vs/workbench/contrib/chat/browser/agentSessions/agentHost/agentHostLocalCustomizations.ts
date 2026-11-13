@@ -69,6 +69,8 @@ export interface ILocalCustomizationFile {
 	readonly disabled: boolean;
 	readonly pluginUri?: URI;
 	readonly extensionId?: string;
+	/** Display name of the contributing extension, when {@link extensionId} is set. */
+	readonly extensionLabel?: string;
 }
 
 /**
@@ -137,6 +139,7 @@ export async function enumerateLocalCustomizationsForHarness(
 						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
+						extensionLabel: file.extension ? file.extension.displayName || file.extension.identifier.value : undefined,
 						disabled: syncProvider.isDisabled(file.uri) || (userToggleable && userDisabled.has(file.uri)),
 					});
 				}
@@ -246,6 +249,11 @@ async function getOverridingSkillNames(
  * the picker before that state exists, so this mirrors the same eligibility
  * rules used by {@link resolveCustomizationRefs} without waiting for the host
  * to parse the plugin or synthetic bundle.
+ *
+ * Pass `enumerated` when the caller already ran
+ * {@link enumerateLocalCustomizationsForHarness} for the same session type
+ * and options, to avoid listing every customization folder again. Its roots
+ * don't matter here, as they only filter built-in skills.
  */
 export async function resolveLocalCustomAgents(
 	fileService: IFileService,
@@ -254,12 +262,13 @@ export async function resolveLocalCustomAgents(
 	agentPluginService: IAgentPluginService,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
+	enumerated?: readonly ILocalCustomizationFile[],
 ): Promise<readonly AgentCustomization[]> {
 	const plugins = agentPluginService.plugins.get();
 	const result: AgentCustomization[] = [];
 	const parser = new PromptFileParser();
 	const pending: Promise<void>[] = [];
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+	enumerated ??= await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 
 	for (const agent of enumerated) {
 		if (agent.type !== PromptsType.agent || agent.disabled) {
@@ -351,12 +360,18 @@ function isStandaloneSkillOrAgent(file: ISyncableFile): boolean {
  * message.
  *
  * Every eligible local file is synced unless the user opted out. Files
- * belonging to installed plugins are de-duped to a single plugin ref;
+ * belonging to client-provided plugins are de-duped to a single plugin ref;
+ * Copilot discovers its SDK-managed installations natively;
  * remaining loose files are bundled into a synthetic Open Plugin. Standalone
  * user and workspace skills and agents, together with the MCP servers that
  * VS Code forwards (user, workspace, or extension-contributed), go into a
  * separate standalone bundle so that the host does not deliver them as
  * plugin-provided content.
+ *
+ * Pass `enumerated` when the caller already ran
+ * {@link enumerateLocalCustomizationsForHarness} for the same session type,
+ * options and `workingDirectories`, to avoid listing every customization
+ * folder again.
  */
 export async function resolveCustomizationRefs(
 	fileService: IFileService,
@@ -370,8 +385,9 @@ export async function resolveCustomizationRefs(
 	options: ILocalCustomizationSyncOptions | undefined,
 	workingDirectories?: readonly URI[],
 	windowRemoteAuthority: string | null = null,
+	enumerated?: readonly ILocalCustomizationFile[],
 ): Promise<ClientPluginCustomization[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, workingDirectories);
+	enumerated ??= await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, workingDirectories);
 	const enabled = enumerated.filter(e => !e.disabled);
 
 	const plugins = agentPluginService.plugins.get();
@@ -380,6 +396,7 @@ export async function resolveCustomizationRefs(
 
 	const addPluginRef = (plugin: IAgentPlugin) => {
 		if (plugin.copilotCliInstallation && isCopilotAgentHostProvider(parseAgentHostHarness(sessionType) ?? sessionType)) {
+			// Native installations use SDK enablement; legacy client decisions are not migrated.
 			return;
 		}
 		const key = plugin.uri.toString();
@@ -421,7 +438,7 @@ export async function resolveCustomizationRefs(
 			}
 			addPluginRef(plugin);
 		} else {
-			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, pluginUri: entry.pluginUri });
+			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, extensionLabel: entry.extensionLabel, pluginUri: entry.pluginUri });
 		}
 	}
 

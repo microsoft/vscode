@@ -26,28 +26,12 @@ suite('Agent authentication account metadata', () => {
 		});
 	});
 
-	test('round-trips a display label without changing the account identity', () => {
-		const account = { providerId: 'microsoft', accountId: 'opaque-account', label: 'Selected account' };
-		const metadata = JSON.parse(JSON.stringify(authenticationAccountMeta(account)));
-		const read = readAuthenticationAccount({ _meta: metadata });
-		const renamed = readAuthenticationAccount({ _meta: authenticationAccountMeta({ ...account, label: 'Renamed account' }) });
-		assert.deepStrictEqual({
-			read,
-			key: authenticationAccountId(read),
-			renamedKey: authenticationAccountId(renamed),
-		}, {
-			read: account,
-			key: '["microsoft","opaque-account",null]',
-			renamedKey: '["microsoft","opaque-account",null]',
-		});
-	});
-
-	test('omits absent or blank display labels and rejects malformed display metadata', () => {
+	test('ignores a display label sent by an older client', () => {
 		const account = { providerId: 'microsoft', accountId: 'opaque-account' };
-		const labels = [undefined, '', ' \t ', null, 42, false, {}, []];
+		const labels = ['Selected account', '', null, 42];
 		assert.deepStrictEqual(labels.map(label => readAuthenticationAccount({
 			_meta: { 'vscode.authentication.account': { ...account, label } },
-		})), [account, account, account, undefined, undefined, undefined, undefined, undefined]);
+		})), labels.map(() => account));
 	});
 
 	test('rejects malformed optional metadata', () => {

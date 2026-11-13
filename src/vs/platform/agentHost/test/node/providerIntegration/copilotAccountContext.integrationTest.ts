@@ -7,7 +7,7 @@ import assert from 'assert';
 import { once } from 'events';
 import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CopilotClient, CopilotRequestHandler, RuntimeConnection } from '@github/copilot-sdk';
+import { CopilotClient, CopilotRequestHandler, RuntimeConnection, type CopilotSession } from '@github/copilot-sdk';
 import { join } from '../../../../../base/common/path.js';
 import { isLinux } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,8 +24,12 @@ import { waitForState } from '../../../../../base/common/observable.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../../node/agentHostAuthenticationService.js';
 import { CopilotAccountService } from '../../../node/copilot/copilotAccountService.js';
+import { ActiveClientToolSet } from '../../../node/activeClientState.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { toCopilotAccountModelCatalog } from '../../../node/copilot/copilotAccountModelCatalog.js';
+import { CopilotGitHubSessionCredentials } from '../../../node/copilot/copilotGitHubCredentials.js';
+import { createTestLauncher, testRuntime } from '../copilotSessionLauncherTestHelpers.js';
+import type { CopilotSessionLaunchPlan } from '../../../node/copilot/copilotSessionLauncher.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
 class LocalAccountRequests extends CopilotRequestHandler {
@@ -46,8 +50,8 @@ suite('Copilot account context native SDK', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Native Entra accounts support Windows/macOS only; see e2e/KNOWN_ISSUES.md.
-	(isLinux ? test.skip : test)('uses the confirmed setup account for the catalog without global login', async function () {
-		this.timeout(60_000);
+	(isLinux ? test.skip : test)('authenticates and configures a new conversation and resumes its live SDK binding without global login', async function () {
+		this.timeout(90_000);
 		const { createServer } = await import('http');
 		const home = await mkdtemp(join(tmpdir(), 'copilot-account-context-'));
 		const modelId = 'account-fixture-model';
@@ -120,14 +124,14 @@ suite('Copilot account context native SDK', () => {
 			}();
 			const discovery: AuthenticateParams = {
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
 			};
 			const challenged = waitForState(accounts.authentication!.authenticationRequired, requirement => requirement?.resource.resource === copilotEntraResources.get(copilotEntraM365Audience));
 			const discovering = authentication.authenticate(discovery, [provider]);
 			await challenged;
 			assert.deepStrictEqual(await authentication.authenticate({
 				resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
 			}, [provider]), { authenticated: true });
 			assert.deepStrictEqual(await discovering, { authenticated: true });
 			const context = accounts.requireReady();
@@ -136,15 +140,78 @@ suite('Copilot account context native SDK', () => {
 			await assert.rejects(client.rpc.models.list({ selectionId: context.choice.selectionId }), /Selected authentication is no longer available/);
 			// The runtime cannot resolve this account's managed settings yet, so the host applies none to its catalog.
 			await assert.rejects(client.rpc.managedSettings.resolve({ selectionId: context.choice.selectionId, clientName: 'vscode-agent-host' }), /Selected authentication is no longer available/);
+			const policyRequests: Parameters<CopilotClient['rpc']['managedSettings']['resolve']>[0][] = [];
+			let policyCompletions = 0;
+			const resolvePolicy = client.rpc.managedSettings.resolve;
+			client.rpc.managedSettings.resolve = async request => {
+				policyRequests.push(request);
+				const result = await resolvePolicy(request);
+				policyCompletions++;
+				return result;
+			};
+			const launcher = createTestLauncher(undefined, {}, undefined, undefined, undefined, undefined, undefined, accounts);
+			const opens: string[] = [];
+			const plan = {
+				client: {
+					rpc: client.rpc,
+					createSession: config => { opens.push(`create:${config?.sessionId}`); return runtime.createSession(config); },
+					resumeSession: (id, config) => { opens.push(`resume:${id}`); return runtime.resumeSession(id, config); },
+					deleteSession: id => runtime.deleteSession(id),
+				} satisfies CopilotSessionLaunchPlan['client'],
+				sessionId: 'account-conversation', workingDirectory: URI.file(home), resolvedAgentName: undefined, isEphemeral: true,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined), accountContext: context,
+			};
+			const activeAccount = async (session: CopilotSession) => {
+				const active = await session.rpc.accounts.get({ query: { kind: 'activeAccount' } });
+				return active.kind === 'activeAccount' ? active.account?.kind : undefined;
+			};
+			const conversation = store.add(await launcher.launch({ ...plan, kind: 'create', model: { id: modelId } }, testRuntime));
+			assert.deepStrictEqual({ requests: policyRequests, completions: policyCompletions }, {
+				requests: [{ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath }], completions: 1,
+			});
+			const conversationAccount = await activeAccount(conversation.session);
+			const conversationModels = toCopilotAccountModelCatalog(await conversation.session.rpc.model.list());
+			const resumed = store.add(await launcher.launch({ ...plan, kind: 'resume', fallback: { model: { id: modelId } } }, testRuntime));
+			const resumedAccount = await activeAccount(resumed.session);
+			const resumedModels = toCopilotAccountModelCatalog(await resumed.session.rpc.model.list());
+			const currentModel = await resumed.session.rpc.model.getCurrent();
+			const tools = await resumed.session.rpc.tools.getBuiltinDescriptors({});
+			await resumed.session.disconnect();
+			await client.deleteSession('account-conversation');
+			// A conversation closed before its first message has no history, so the runtime rejects its resume and a replacement is created and signed in.
+			const draftPlan = { ...plan, sessionId: 'account-draft' };
+			const draft = store.add(await launcher.launch({ ...draftPlan, kind: 'create', model: { id: modelId } }, testRuntime));
+			await draft.disconnect();
+			const reopened = store.add(await launcher.launch({ ...draftPlan, kind: 'resume', fallback: { model: { id: modelId } } }, testRuntime));
+			const reopenedAccount = await activeAccount(reopened.session);
+			const reopenedModels = toCopilotAccountModelCatalog(await reopened.session.rpc.model.list());
+			await reopened.session.disconnect();
+			await client.deleteSession('account-draft');
 			assert.deepStrictEqual({
+				opens, reopenedAccount, reopenedModels: reopenedModels.models.map(model => model.id),
 				service: context.choice.service,
 				setupModels: catalog.models.map(model => model.id),
+				conversationModels: conversationModels.models.map(model => model.id),
+				resumedModels: resumedModels.models.map(model => model.id),
+				conversationAccount, resumedAccount,
+				selectedModel: currentModel.modelId,
+				readToolAvailable: tools.tools.some(tool => tool.name === 'view'),
+				policyRequests,
+				policyCompletions,
 				globalAuthentication: (await client.getAuthStatus()).isAuthenticated,
 				sourceUnchanged: accounts.requireReady() === context,
 				catalogFetched: requests.some(request => request.path === '/models'),
 				authenticatedRequests: requests.every(request => request.authenticated),
 			}, {
-				service: 'm365', setupModels: [modelId],
+				opens: ['create:account-conversation', 'resume:account-conversation', 'create:account-draft', 'resume:account-draft', 'create:account-draft'],
+				reopenedAccount: 'loki', reopenedModels: [modelId],
+				service: 'm365', setupModels: [modelId], conversationModels: [modelId], resumedModels: [modelId],
+				conversationAccount: 'loki', resumedAccount: 'loki',
+				selectedModel: modelId, readToolAvailable: true,
+				policyRequests: Array.from({ length: 4 }, () => ({ clientName: 'vscode-agent-host', workingDirectory: plan.workingDirectory.fsPath })),
+				policyCompletions: 4,
 				globalAuthentication: false, sourceUnchanged: true, catalogFetched: true, authenticatedRequests: true,
 			});
 			await accounts.reset();

@@ -7,6 +7,7 @@ import assert from 'assert';
 import type { CopilotClient, CopilotSession, EntraTokenProvider } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -114,6 +115,61 @@ suite('Copilot account resource authentication', () => {
 		return { context, state, session, client, runtime, credential, authenticate };
 	}
 
+	function conversationSession(scenario: 'normal' | 'automatic' | 'duplicate' | 'wrong-host' | 'declined' | 'missing-active' | 'wrong-active-service' | 'wrong-active-handle' | 'wrong-active-login' = 'normal') {
+		const calls: string[] = [];
+		const offered = choices.map(choice => ({ ...choice, selectionId: `conversation-${choice.selectionId}`, login: `conversation-${choice.login}` }));
+		if (scenario === 'duplicate') {
+			offered.push({ ...offered[0], selectionId: 'duplicate' });
+		}
+		if (scenario === 'wrong-host') {
+			offered[0] = { ...offered[0], host: 'https://other.example' };
+		}
+		let selected = offered[0];
+		const session = new class extends mock<CopilotSession>() {
+			override get sessionId() { return 'conversation'; }
+			override get rpc() {
+				return upcastPartial<CopilotSession['rpc']>({
+					accounts: {
+						login: {
+							begin: async request => {
+								calls.push(`begin:${request.kind}`);
+								return {
+									flowId: 'conversation-flow', step: scenario === 'automatic'
+										? { kind: 'completed', result: { status: 'completed', host: selected.host, login: selected.login } }
+										: { kind: 'awaiting' },
+								};
+							},
+							advance: async request => {
+								if (scenario === 'declined') {
+									return { kind: 'completed', result: { status: 'declined' } };
+								}
+								if (!request.input) {
+									return { kind: 'completed', result: { status: 'needs-account-selection', accounts: offered } };
+								}
+								calls.push(`select:${request.input}`);
+								selected = offered.find(choice => choice.selectionId === request.input)!;
+								return { kind: 'completed', result: { status: 'completed', host: selected.host, login: selected.login } };
+							},
+							cancel: async () => { calls.push('cancel'); },
+						},
+						get: async () => ({
+							kind: 'activeAccount', account: scenario === 'missing-active' ? undefined : {
+								...(scenario === 'wrong-active-service' ? offered[1] : selected),
+								...(scenario === 'wrong-active-handle' ? { selectionId: 'other-flow-selection' } : {}),
+								...(scenario === 'wrong-active-login' ? { login: 'other-flow-login' } : {}),
+								active: true, derivedFrom: 'conversation-specific-lineage',
+							},
+						}),
+						enumerate: async () => ({ kind: 'accounts', items: [] }),
+						set: async () => { assert.fail('Restoration must never switch account'); },
+					},
+				});
+			}
+			override async disconnect() { calls.push('disconnect'); }
+		}();
+		return { session, calls };
+	}
+
 	for (const service of ['github', 'm365'] as const) {
 		test(`ordinary resource authentication discovers and activates ${service} without operation metadata`, async () => {
 			const f = fixture();
@@ -172,6 +228,25 @@ suite('Copilot account resource authentication', () => {
 		});
 	});
 
+	test('a ready conversation returns a credential challenge without waiting and retries after delivery', async () => {
+		const f = fixture();
+		await f.authenticate();
+		await f.authenticate(f.credential('github'));
+		const context = f.context.requireReady();
+		const credential = f.credential('m365');
+		const request: Parameters<EntraTokenProvider>[0] = {
+			kind: 'token', clientId: copilotEntraClientId, accountId: 'entra-identity', reason: 'renewal',
+			audience: copilotEntraM365Audience, scopes: [...credential.scopes!], skipCachedAccessToken: false,
+		};
+		const challenged = await f.context.authenticationOptions!.tokenProvider!(request, CancellationToken.None as Parameters<EntraTokenProvider>[1]);
+		const accepted = await f.authenticate(credential);
+		const retried = await f.context.authenticationOptions!.tokenProvider!(request, CancellationToken.None as Parameters<EntraTokenProvider>[1]);
+		assert.deepStrictEqual({ challenged, accepted, retried, selectionUnchanged: f.context.state.get() === context }, {
+			challenged: { kind: 'unavailable' }, accepted: { authenticated: true },
+			retried: { kind: 'token', accountId: 'entra-identity', accessToken: 'synthetic-only' }, selectionUnchanged: true,
+		});
+	});
+
 	test('credential waiting honors SDK cancellation without a second client operation', async () => {
 		const f = fixture();
 		f.state.discovery = new DeferredPromise<LoginStep>();
@@ -226,6 +301,99 @@ suite('Copilot account resource authentication', () => {
 			afterTransientFailure: true, state: { kind: 'error', entraAccountId: 'entra-identity', stage: 'discovery' }, released: 3,
 		});
 	});
+
+	test('a new conversation authenticates the selected service using its own offered handle', async () => {
+		const f = fixture();
+		await f.authenticate();
+		await f.authenticate(f.credential('m365'));
+		const conversation = conversationSession();
+		await f.context.authenticateSession(conversation.session, f.client, f.context.requireReady(), CancellationToken.None);
+		assert.deepStrictEqual(conversation.calls, ['begin:entra', 'select:conversation-opaque-m365', 'cancel']);
+	});
+
+	test('signing in a new conversation restores the setup session and keeps the ready context', async () => {
+		const f = fixture();
+		await f.authenticate();
+		await f.authenticate(f.credential('m365'));
+		const context = f.context.requireReady();
+		await f.context.releaseSession();
+		const conversation = conversationSession();
+		await f.context.authenticateSession(conversation.session, f.client, context, CancellationToken.None);
+		assert.deepStrictEqual({ contextUnchanged: f.context.state.get() === context, calls: conversation.calls, created: f.state.created }, {
+			contextUnchanged: true, calls: ['begin:entra', 'select:conversation-opaque-m365', 'cancel'], created: 2,
+		});
+	});
+
+	test('a new conversation accepts automatic login with its own registration and completion', async () => {
+		const f = fixture();
+		await f.authenticate();
+		await f.authenticate(f.credential('m365'));
+		const conversation = conversationSession('automatic');
+		await f.context.authenticateSession(conversation.session, f.client, f.context.requireReady(), CancellationToken.None);
+		assert.deepStrictEqual(conversation.calls, ['begin:entra', 'cancel']);
+	});
+
+	for (const scenario of ['duplicate', 'wrong-host', 'declined', 'missing-active', 'wrong-active-service', 'wrong-active-handle', 'wrong-active-login'] as const) {
+		test(`new conversation rejects ${scenario} and ends its login without changing setup`, async () => {
+			const f = fixture();
+			await f.authenticate();
+			await f.authenticate(f.credential('m365'));
+			const context = f.context.requireReady();
+			const conversation = conversationSession(scenario);
+			await assert.rejects(f.context.authenticateSession(conversation.session, f.client, context, CancellationToken.None));
+			assert.deepStrictEqual({ loginEnded: conversation.calls.at(-1), setupUnchanged: f.context.state.get() === context }, { loginEnded: 'cancel', setupUnchanged: true });
+		});
+	}
+
+	test('a conversation is not signed in to an account that is no longer selected', async () => {
+		const f = fixture();
+		await f.authenticate();
+		await f.authenticate(f.credential('m365'));
+		const stale = f.context.requireReady();
+		await f.context.reset();
+		await f.authenticate();
+		await f.authenticate(f.credential('m365'));
+		const conversation = conversationSession();
+		await assert.rejects(f.context.authenticateSession(conversation.session, f.client, stale, CancellationToken.None), isCancellationError);
+		assert.deepStrictEqual(conversation.calls, []);
+	});
+
+	for (const source of ['request', 'authority'] as const) {
+		test(`${source} cancellation ends a pending conversation login and its late flow`, async () => {
+			const f = fixture();
+			await f.authenticate();
+			await f.authenticate(f.credential('m365'));
+			const started = new DeferredPromise<void>();
+			const begin = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['accounts']['login']['begin']>>>();
+			const cancelled = new DeferredPromise<void>();
+			const cancellation = store.add(new CancellationTokenSource());
+			const calls: string[] = [];
+			const conversation = upcastPartial<CopilotSession>({
+				sessionId: 'conversation',
+				rpc: upcastPartial<CopilotSession['rpc']>({
+					accounts: upcastPartial<CopilotSession['rpc']['accounts']>({
+						login: {
+							begin: async () => { started.complete(); return begin.p; },
+							advance: async () => { assert.fail('Cancelled login cannot advance'); },
+							cancel: async () => { calls.push('cancel'); cancelled.complete(); },
+						},
+					}),
+				}),
+			});
+			const rejected = assert.rejects(f.context.authenticateSession(conversation, f.client, f.context.requireReady(), cancellation.token), isCancellationError);
+			await started.p;
+			if (source === 'request') {
+				cancellation.cancel();
+			} else {
+				await f.context.reset();
+			}
+			await rejected;
+			const beforeLateFlow = [...calls];
+			begin.complete({ flowId: 'late', step: { kind: 'awaiting' } });
+			await cancelled.p;
+			assert.deepStrictEqual({ beforeLateFlow, calls }, { beforeLateFlow: [], calls: ['cancel'] });
+		});
+	}
 
 	test('failed discovery exposes neither invented choices nor readiness', async () => {
 		const f = fixture();

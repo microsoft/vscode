@@ -144,6 +144,8 @@ export interface INewChatComposerInputOptions {
 	readonly confirmSend?: (query: string) => Promise<boolean>;
 	readonly inputVisible?: IObservable<boolean>;
 	readonly hostVisible?: IObservable<boolean>;
+	/** Shows the chat widget only while {@link inputVisible} and {@link hostVisible} are both `true`. */
+	readonly hideChatWidgetWhileHidden?: boolean;
 	readonly canSendRequest: IObservable<boolean>;
 	readonly canSubmitWithoutSession?: IObservable<boolean>;
 	readonly hasAdditionalSendContent?: IObservable<boolean>;

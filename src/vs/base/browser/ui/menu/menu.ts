@@ -5,7 +5,7 @@
 
 import { getVisibleWCOTitlebarAreaRect, isFirefox } from '../../browser.js';
 import { EventType as TouchEventType, Gesture } from '../../touch.js';
-import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
+import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventLike, EventType, getActiveElement, getDomNodeZoomLevel, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM, ModifierKeyEmitter } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { StandardMouseEvent } from '../../mouseEvent.js';
@@ -137,13 +137,14 @@ export class Menu extends ActionBar {
 		this._register(Gesture.addTarget(menuElement));
 
 		this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			this.setKeyboardNavigation(true);
 			const event = new StandardKeyboardEvent(e);
 
 			// Stop tab navigation of menus
 			if (event.equals(KeyCode.Tab)) {
 				e.preventDefault();
 			}
-		}));
+		}, true));
 
 		if (options.enableMnemonics) {
 			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
@@ -198,54 +199,62 @@ export class Menu extends ActionBar {
 			}
 		}));
 
+		const resolveActionItem = (eventTarget: EventTarget | null): HTMLElement | undefined => {
+			let target = eventTarget as HTMLElement | null;
+			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+				return undefined;
+			}
+
+			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
+				target = target.parentElement;
+			}
+
+			return target.classList.contains('action-item') ? target : undefined;
+		};
+
 		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_MOVE, e => {
 			if (e.movementX === 0 && e.movementY === 0) {
 				return;
 			}
+			const target = resolveActionItem(e.target);
+			if (!target) {
+				return;
+			}
+			this.setKeyboardNavigation(false);
 
-			let target = e.target as HTMLElement;
-			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+			const lastFocusedItem = this.focusedItem;
+			// Moving within the focused item is the common case; skip the item lookup for it
+			if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
 				return;
 			}
 
-			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
-				target = target.parentElement;
-			}
+			this.setFocusedItem(target);
 
-			if (target.classList.contains('action-item')) {
-				const lastFocusedItem = this.focusedItem;
-				// Moving within the focused item is the common case; skip the item lookup for it
-				if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
-					return;
-				}
-
-				this.setFocusedItem(target);
-
-				if (lastFocusedItem !== this.focusedItem) {
-					this.updateFocus();
-				}
+			if (lastFocusedItem !== this.focusedItem) {
+				this.updateFocus();
 			}
 		}));
+
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_DOWN, e => {
+			if (resolveActionItem(e.target)) {
+				this.setKeyboardNavigation(false);
+			}
+		}, true));
 
 		// Support touch on actions list to focus items (needed for submenus)
 		this._register(Gesture.addTarget(this.actionsList));
 		this._register(addDisposableListener(this.actionsList, TouchEventType.Tap, e => {
-			let target = e.initialTarget as HTMLElement;
-			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
+			const target = resolveActionItem(e.initialTarget);
+			if (!target) {
 				return;
 			}
+			this.setKeyboardNavigation(false);
 
-			while (target.parentElement !== this.actionsList && target.parentElement !== null) {
-				target = target.parentElement;
-			}
+			const lastFocusedItem = this.focusedItem;
+			this.setFocusedItem(target);
 
-			if (target.classList.contains('action-item')) {
-				const lastFocusedItem = this.focusedItem;
-				this.setFocusedItem(target);
-
-				if (lastFocusedItem !== this.focusedItem) {
-					this.updateFocus();
-				}
+			if (lastFocusedItem !== this.focusedItem) {
+				this.updateFocus();
 			}
 		}));
 
@@ -286,7 +295,8 @@ export class Menu extends ActionBar {
 		}));
 
 		const window = getWindow(container);
-		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
+		const containerZoom = getDomNodeZoomLevel(container);
+		menuElement.style.maxHeight = `${Math.max(10, (window.innerHeight - container.getBoundingClientRect().top - 35) / containerZoom)}px`;
 
 		this.push(cleanMenuActions(actions, options.submenuIds, options.getGroupTitle), { icon: true, label: true, isMenu: true });
 
@@ -319,6 +329,11 @@ export class Menu extends ActionBar {
 			}
 			this.scrollableElement.scanDomNode();
 		}));
+	}
+
+	private setKeyboardNavigation(keyboardNavigation: boolean): void {
+		this.menuElement.classList.toggle('keyboard-navigation', keyboardNavigation);
+		this.menuElement.classList.toggle('mouse-navigation', !keyboardNavigation);
 	}
 
 	private initializeOrUpdateStyleSheet(container: HTMLElement, style: IMenuStyles): void {
@@ -1012,7 +1027,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		this.submenuContainer.style.left = '0';
 		const window = getWindow(this.element);
 		const computedStyles = window.getComputedStyle(this.parentData.parent.domNode);
-		const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
+		const submenuZoom = getDomNodeZoomLevel(this.submenuContainer);
+		const paddingTop = (parseFloat(computedStyles.paddingTop || '0') || 0) * submenuZoom;
 		const entryBox = this.element.getBoundingClientRect();
 		const entryBoxUpdated = {
 			top: entryBox.top - paddingTop,
@@ -1028,8 +1044,8 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			{ width: viewBox.width, height: viewBox.height },
 			layoutResult
 		);
-		this.submenuContainer.style.left = `${left - viewBox.left}px`;
-		this.submenuContainer.style.top = `${top - viewBox.top}px`;
+		this.submenuContainer.style.left = `${(left - viewBox.left) / submenuZoom}px`;
+		this.submenuContainer.style.top = `${(top - viewBox.top) / submenuZoom}px`;
 	}
 
 	private updateAriaExpanded(value: string): void {
@@ -1490,18 +1506,40 @@ ${formatRule(Codicon.menuSubmenu)}
 	outline-offset: 0 !important;
 }
 
-/* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
+/* High contrast themes show a solid selection border for keyboard focus. Pointer navigation overrides it with the dashed hover boundary below. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
 .hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
 .hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
-	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
-	outline-offset: -1px !important;
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px)) !important;
+}
+
+.hc-black .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item,
+.hc-light .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item {
+	outline-style: dashed !important;
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-menu-selectionBorder)) !important;
+}
+
+.hc-black .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']),
+.hc-light .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']) {
+	outline-style: solid !important;
 }
 
 /* Keep :host-context separate because WebKit otherwise rejects the valid selectors above. */
 :host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
 :host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
-	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
-	outline-offset: -1px !important;
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px)) !important;
+}
+
+:host-context(.hc-black) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused:is(:hover, .hovered) > .action-menu-item {
+	outline-style: dashed !important;
+	outline-color: var(--vscode-contrastActiveBorder, var(--vscode-menu-selectionBorder)) !important;
+}
+
+:host-context(.hc-black) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']),
+:host-context(.hc-light) .monaco-menu.monaco-menu.mouse-navigation .monaco-action-bar.vertical .action-item.focused > .action-menu-item:is([aria-expanded='true'], [aria-pressed='true']) {
+	outline-style: solid !important;
 }
 
 /* Vertical Action Bar Styles */

@@ -16,7 +16,7 @@ import { ISessionGridPane } from '../../../../../workbench/services/sessions/bro
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -103,16 +103,69 @@ suite('Sessions - SessionsViewPane', () => {
 		});
 	});
 
+	test('applies and restores Worktree grouping only outside the Agents window, which keeps its default and its stored grouping', () => {
+		const setWorktreeGrouping = (allowWorktreeGrouping: boolean) => {
+			const configurationService = new TestConfigurationService();
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const storageService = disposables.add(new InMemoryStorageService());
+			storageService.store('sessionsViewPane.grouping', SessionsGrouping.Workspace, StorageScope.PROFILE, StorageTarget.USER);
+			const host = {
+				currentGrouping: SessionsGrouping.Workspace as SessionsGrouping | undefined,
+				allowWorktreeGrouping,
+				configurationService,
+				storageService,
+				get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+				updateHeaderLayout: () => { },
+			};
+			const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
+			setGrouping.call(host, SessionsGrouping.Worktree);
+			return { grouping: host.currentGrouping, stored: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE) };
+		};
+
+		const restore = (stored: string | undefined, allowWorktreeGrouping: boolean) => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			if (stored !== undefined) {
+				storageService.store('sessionsViewPane.grouping', stored, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			const readStoredGrouping = Reflect.get(SessionsView.prototype, 'readStoredGrouping') as (this: object) => SessionsGrouping | undefined;
+			return readStoredGrouping.call({ storageService, allowWorktreeGrouping });
+		};
+
+		assert.deepStrictEqual({
+			editorWindow: setWorktreeGrouping(true),
+			agentsWindow: setWorktreeGrouping(false),
+			restored: {
+				editorWindow: restore(SessionsGrouping.Worktree, true),
+				agentsWindow: restore(SessionsGrouping.Worktree, false),
+				unknown: restore('unknown-grouping', true),
+				none: restore(undefined, false),
+				known: Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree).map(grouping => restore(grouping, false)),
+			},
+		}, {
+			editorWindow: { grouping: SessionsGrouping.Worktree, stored: SessionsGrouping.Worktree },
+			agentsWindow: { grouping: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace },
+			restored: {
+				editorWindow: SessionsGrouping.Worktree,
+				agentsWindow: undefined,
+				unknown: undefined,
+				none: undefined,
+				known: Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree),
+			},
+		});
+	});
+
 	test('layout refresh keeps the chosen placement independent of navigation and phone transitions', () => {
 		const container = mainWindow.document.createElement('div');
 		const location = observableValue<ChatCustomizationsLocation>(disposables, 'chatInput');
 		const navigation = observableValue(disposables, true);
+		const customizationsAtBottom = observableValue(disposables, false);
 		const calls: Array<[string, boolean]> = [];
 		const host = {
 			layoutService: { mainContainer: container },
 			scopedContextKeyService: { contextMatchesRules: () => true },
 			chatEntitlementService: { sentimentObs: constObservable({ hidden: false }) },
 			separateNavigation: navigation,
+			customizationsAtBottom,
 			customizationsLocation: location,
 			updateCustomizationsPresentation: (presentation: string, shortcuts: boolean) => calls.push([presentation, shortcuts]),
 		};
@@ -128,7 +181,13 @@ suite('Sessions - SessionsViewPane', () => {
 		location.set('sidebar', undefined);
 		navigation.set(true, undefined);
 		refresh.call(host);
-		assert.deepStrictEqual(calls, [['hidden', true], ['hidden', false], ['hidden', true], ['treatment', false], ['control', true]]);
+		location.set('auto', undefined);
+		refresh.call(host);
+		customizationsAtBottom.set(true, undefined);
+		refresh.call(host);
+		navigation.set(false, undefined);
+		refresh.call(host);
+		assert.deepStrictEqual(calls, [['hidden', true], ['hidden', false], ['hidden', true], ['treatment', false], ['control', true], ['treatment', true], ['control', true], ['control', false]]);
 	});
 
 	test('floating toolbar view items follow their own draft rather than the focused session', () => {

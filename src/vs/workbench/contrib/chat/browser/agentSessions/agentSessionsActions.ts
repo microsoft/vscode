@@ -54,6 +54,8 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.toggleShowAgentSessions',
 			title: localize2('chat.showSessions', "Show Sessions"),
+			// The sessions of the Chat view, which does not show while the Agents view replaces it
+			precondition: ChatContextKeys.agentsViewActive.negate(),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
@@ -87,7 +89,7 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
 			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -110,7 +112,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
 			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -1286,6 +1288,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1309,6 +1312,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1329,7 +1333,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentsViewActive.negate()),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
 		});
@@ -1360,7 +1364,8 @@ export class FocusAgentSessionsAction extends Action2 {
 			title: localize2('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			category: AGENT_SESSIONS_CATEGORY,
 			f1: true,

@@ -211,7 +211,7 @@ export const npmScriptsGenerator: Fig.Generator = {
 	script: [
 		'bash',
 		'-c',
-		'until [[ -f package.json ]] || [[ $PWD = \' / \' ]]; do cd ..; done; cat package.json',
+		'until [[ -f package.json ]] || [[ $PWD = \'/\' ]]; do cd ..; done; cat package.json',
 	],
 	postProcess: function (out, [npmClient]) {
 		if (out.trim() === '') {

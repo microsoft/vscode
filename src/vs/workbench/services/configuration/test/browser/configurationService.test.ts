@@ -1218,6 +1218,38 @@ suite('WorkspaceContextService - Folder', () => {
 
 	test('workspace is complete', () => testObject.getCompleteWorkspace());
 
+	test('a window started at a persisted alternate location keeps the opened folder as uri', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
+
+		const alternate = joinPath(ROOT, 'Alternate');
+		await fileService.createFolder(folder);
+
+		const environmentService = TestEnvironmentService;
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
+		const userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		const restored = disposables.add(new WorkspaceService(
+			{ configurationCache: new ConfigurationCache() },
+			environmentService,
+			userDataProfileService,
+			userDataProfilesService,
+			fileService,
+			disposables.add(new RemoteAgentService(new RemoteSocketFactoryService(), userDataProfileService, environmentService, TestProductService, disposables.add(new RemoteAuthorityResolverService(false, undefined, undefined, undefined, TestProductService, logService)), new SignService(TestProductService), new NullLogService())),
+			uriIdentityService,
+			new NullLogService(),
+			new NullPolicyService()));
+		await restored.initialize(convertToWorkspacePayload(folder), alternate);
+
+		const workspace = restored.getWorkspace();
+		assert.deepStrictEqual(
+			{ id: workspace.id, folder: workspace.folders[0].uri.toString(), uri: workspace.uri, isCurrent: restored.isCurrentWorkspace(folder) },
+			{ id: convertToWorkspacePayload(folder).id, folder: alternate.toString(), uri: folder, isCurrent: true });
+	}));
+
 	test('uri is the opened folder and survives a switch to an alternate location', async () => {
 		const initial = testObject.getWorkspace();
 		const opened = { uri: initial.uri, folder: initial.folders[0].uri.toString() };

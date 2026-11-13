@@ -27,10 +27,12 @@ export const enum ScreenshotToolEntryPoint {
 	BrowserScreenshot = 'browserScreenshot',
 	BrowserAreaScreenshot = 'browserAreaScreenshot',
 	BrowserFullPageScreenshot = 'browserFullPageScreenshot',
+	/** A command or the Add Context item of chat that attach a screenshot of the window of another app. */
+	ChatAppWindow = 'chatAppWindow',
 }
 
 /** What a screenshot shows; `none` when it was cancelled or failed before anything was captured. */
-export type ScreenshotToolMode = 'window' | 'area' | 'page' | 'fullPage' | 'none';
+export type ScreenshotToolMode = 'window' | 'area' | 'page' | 'fullPage' | 'appWindow' | 'none';
 
 export type ScreenshotToolOutcome = 'attached' | 'cancelled' | 'failed';
 
