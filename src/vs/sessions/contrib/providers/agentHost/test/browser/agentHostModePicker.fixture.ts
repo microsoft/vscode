@@ -15,7 +15,6 @@ import { IAgentHostEnablementService } from '../../../../../../platform/agentHos
 import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { getAgentHostOperatingSystem } from '../../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -53,7 +52,7 @@ import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/
 import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatInput.css';
 import '../../../../../browser/media/style.css';
-import { ITestSessionWithChat, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHosts, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly primary?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number; readonly withheld?: 'policy' | 'unattributed' } = {}): Promise<void> {
 	const { editor = false, openMode = false, newChat = false, primary = false, compact = false, combined = true, phoneWidth, withheld } = options;
@@ -141,6 +140,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override readonly activeChat = constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilotcli:/fixture') }));
 	}());
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme, additionalServices: registerWorkbenchServices });
+	stubSessionHosts(instantiationService, disposableStore, { session });
 	const connection = new class extends mock<IAgentConnection>() {
 		override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 			return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
@@ -255,7 +255,6 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			permissionPicker.render(permissionActionItem);
 			showSeparatePermissions = () => permissionPicker.show(permissionActionItem);
 		}
-		await getAgentHostOperatingSystem(hostService);
 	} else {
 		const picker = disposableStore.add(instantiationService.createInstance(AgentHostModePicker, testChatSourceOf(session)));
 		picker.render(actionItem);
@@ -274,7 +273,6 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 				showSeparatePermissions = () => permissionPicker.show();
 			}
 		}
-		await getAgentHostOperatingSystem(connection);
 	}
 	if (openPermissions || editor || openMode) {
 		await dom.getWindow(toolbar).document.fonts.ready;

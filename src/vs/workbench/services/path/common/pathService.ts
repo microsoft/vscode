@@ -119,16 +119,6 @@ export abstract class AbstractPathService implements IPathService {
 	}
 
 	async getOperatingSystem(resource: URI): Promise<OperatingSystem | undefined> {
-		const providers = this.pathProviders.get(resource.scheme.toLowerCase());
-		if (providers) {
-			for (let index = providers.length - 1; index >= 0; index--) {
-				const operatingSystem = await providers[index].getOperatingSystem(resource);
-				if (operatingSystem !== undefined) {
-					return operatingSystem;
-				}
-			}
-		}
-
 		if (resource.scheme === Schemas.file) {
 			return OS;
 		}
@@ -139,6 +129,16 @@ export abstract class AbstractPathService implements IPathService {
 	}
 
 	async getPath(resource: URI): Promise<IPath | undefined> {
+		const providers = this.pathProviders.get(resource.scheme.toLowerCase());
+		if (providers) {
+			for (let index = providers.length - 1; index >= 0; index--) {
+				const path = await providers[index].getPath(resource);
+				if (path !== undefined) {
+					return path;
+				}
+			}
+		}
+
 		const operatingSystem = await this.getOperatingSystem(resource);
 		return operatingSystem === undefined ? undefined : this.pathForOperatingSystem(operatingSystem);
 	}

@@ -5,14 +5,15 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { $, append, registerWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, registerWindow } from '../../../../base/browser/dom.js';
 import { ObjectTree } from '../../../../base/browser/ui/tree/objectTree.js';
 import { unthemedInboxStyles } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Event } from '../../../../base/common/event.js';
-import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar.js';
@@ -199,6 +200,32 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 			return { supportsWidget: Reflect.has(control, 'widget'), contentAttached: content.isConnected };
 		});
 		assert.deepStrictEqual(states, controls.map(() => ({ supportsWidget: false, contentAttached: false })));
+	});
+
+	test('quick tree checkbox clicks retain focus and selection when listeners replace items', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickTree());
+		picker.sortByLabel = false;
+		picker.setItemTree([
+			{ id: 'first', label: 'First', checked: false },
+			{ id: 'second', label: 'Second', checked: false },
+		]);
+		store.add(picker.onDidChangeCheckboxState(() => {
+			picker.setItemTree(picker.itemTree.map(item => ({ ...item })));
+		}));
+		picker.show();
+		const list = fixture.querySelector<HTMLElement>('.quick-input-tree > .monaco-list')!;
+		const tree = getRegisteredLists().find(widget => widget.getHTMLElement() === list);
+		if (!(tree instanceof ObjectTree)) {
+			throw new Error('Expected the Quick Input tree');
+		}
+		fixture.querySelectorAll<HTMLElement>('.quick-input-tree-entry .monaco-checkbox')[1].click();
+		const replacement = picker.itemTree[1];
+		assert.deepStrictEqual({
+			checked: picker.checkedLeafItems.map(item => item.id),
+			focused: tree.getFocus()[0] === replacement,
+			selected: tree.getSelection()[0] === replacement,
+		}, { checked: ['second'], focused: true, selected: true });
 	});
 
 	test('quick widgets retain their content when shown again without disturbing focus on updates', () => {
@@ -662,6 +689,42 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		});
 	});
 
+	test('overlay picker follows its anchor when the anchor is resized while open', async () => {
+		fixture.style.width = '600px';
+		fixture.style.height = '400px';
+		controller.layout({ width: 600, height: 400 }, 0);
+
+		const anchor = document.createElement('div');
+		anchor.style.position = 'absolute';
+		anchor.style.left = '80px';
+		anchor.style.top = '40px';
+		anchor.style.width = '300px';
+		anchor.style.height = '26px';
+		fixture.appendChild(anchor);
+
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.anchor = anchor;
+		quickpick.anchorPosition = 'overlay';
+		quickpick.show();
+
+		const input = fixture.querySelector<HTMLElement>('.quick-input-filter .monaco-inputbox')!;
+		const initialWidth = input.getBoundingClientRect().width;
+
+		anchor.style.width = '200px';
+		let frame = 0;
+		try {
+			await raceTimeout(new Promise<void>(resolve => {
+				const check = () => input.getBoundingClientRect().width === 200 ? resolve() : frame = mainWindow.requestAnimationFrame(check);
+				check();
+			}), 2000);
+		} finally {
+			mainWindow.cancelAnimationFrame(frame);
+		}
+
+		assert.deepStrictEqual({ initialWidth, resizedWidth: input.getBoundingClientRect().width }, { initialWidth: 300, resizedWidth: 200 });
+		quickpick.hide();
+	});
+
 	test('positions an anchored picker below its anchor when requested', () => {
 		fixture.style.width = '600px';
 		fixture.style.height = '400px';
@@ -971,6 +1034,10 @@ suite('QuickInput item hover layout', () => {
 	let hoverService: HoverService;
 	let fixture: HTMLElement;
 	let showHoverResult: 'hover' | 'undefined';
+	// Whether the picker stays open when focus leaves it
+	let ignoreFocusOut: boolean;
+	// Where focus returns to when the picker hides without a previously focused element to restore
+	let returnFocusTarget: HTMLElement | undefined;
 	// Quick inputs are disposed (and hidden) before the controller that shows them
 	let inputs: DisposableStore;
 
@@ -1001,20 +1068,43 @@ suite('QuickInput item hover layout', () => {
 			mightProducePrintableCharacter() { return false; },
 			softDispatch() { return NoMatchingKb; },
 			lookupKeybinding() { return undefined; },
+			resolveKeyboardEvent() {
+				return {
+					getLabel() { return ''; },
+					getAriaLabel() { return ''; },
+					getElectronAccelerator() { return null; },
+					getUserSettingsLabel() { return null; },
+					isWYSIWYG() { return false; },
+					hasMultipleChords() { return false; },
+					getDispatchChords() { return [null]; },
+					getSingleModifierDispatchChords() { return []; },
+					getChords() { return []; }
+				};
+			},
 		});
+		// Link-producing stub of the markdown renderer, so that markdown tooltips contain a focusable link
 		instantiationService.stub(IMarkdownRendererService, {
-			render() { return { element: document.createElement('div'), dispose() { } }; },
+			render(markdown: IMarkdownString) {
+				const element = document.createElement('div');
+				const link = document.createElement('a');
+				link.href = '#';
+				link.textContent = markdown.value;
+				element.appendChild(link);
+				return { element, dispose() { } };
+			},
 			setDefaultCodeBlockRenderer() { }
 		});
 		hoverService = store.add(instantiationService.createInstance(HoverService));
 
 		inputs = store.add(new DisposableStore());
 		showHoverResult = 'hover';
+		ignoreFocusOut = true;
+		returnFocusTarget = undefined;
 		controller = store.add(instantiationService.createInstance(QuickInputController, {
 			container: fixture,
 			idPrefix: 'testQuickInputHover',
-			ignoreFocusOut() { return true; },
-			returnFocus() { },
+			ignoreFocusOut() { return ignoreFocusOut; },
+			returnFocus() { returnFocusTarget?.focus(); },
 			backKeybindingLabel() { return undefined; },
 			setContextKey() { return undefined; },
 			linkOpenerDelegate() { },
@@ -1039,9 +1129,9 @@ suite('QuickInput item hover layout', () => {
 		return element;
 	}
 
-	async function showPicker(labels: string[]): Promise<IQuickPick<IQuickPickItem>> {
+	async function showPicker(labels: string[], tooltip: (label: string) => string | IMarkdownString = label => `Tooltip of ${label}`): Promise<IQuickPick<IQuickPickItem>> {
 		const picker = inputs.add(controller.createQuickPick<IQuickPickItem>());
-		picker.items = labels.map(label => ({ label, tooltip: `Tooltip of ${label}` }));
+		picker.items = labels.map(label => ({ label, tooltip: tooltip(label) }));
 		picker.show();
 		const container = widget();
 		// Stands in for `.modern-ui .quick-input-widget { overflow: hidden }` (roundedCorners.css),
@@ -1241,6 +1331,127 @@ suite('QuickInput item hover layout', () => {
 			hoverShown: !!fixture.querySelector('.workbench-hover'),
 			focusReturned: mainWindow.document.activeElement === focusedBeforeHover,
 		}, { focusedBeforeHoverInPicker: true, hoverFocused: true, hoverShown: false, focusReturned: true });
+	});
+
+	function pressEscape(target: HTMLElement, shiftKey = false): void {
+		target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, shiftKey, bubbles: true, cancelable: true }));
+	}
+
+	/**
+	 * Focuses an element outside of the picker, as an editor would be, and shows the picker
+	 * from there with the hover of its first item. Escape hides the picker the way the
+	 * `quickInput.hide` keybinding does: in the same dispatch, after the hover handled it.
+	 */
+	async function showPickerFromOutside(): Promise<{ outside: HTMLElement; hidden: () => boolean }> {
+		ignoreFocusOut = false;
+		const outside = append(fixture, $('input'));
+		outside.focus();
+		// The test window may not have focus, in which case focus events carry no related target
+		// for the picker to remember, so it returns focus the way the workbench would
+		returnFocusTarget = outside;
+		const picker = await showPicker(['first'], label => new MarkdownString(`[Link of ${label}](https://example.com)`));
+		await settle();
+		let hidden = false;
+		inputs.add(picker.onDidHide(() => hidden = true));
+		// Stands in for the keybinding dispatcher, which the stubbed keybinding service does not provide
+		inputs.add(addDisposableListener(mainWindow, EventType.KEY_DOWN, e => {
+			if (e.key === 'Escape') {
+				controller.currentQuickInput?.hide();
+			}
+		}));
+		controller.toggleHover();
+		return { outside, hidden: () => hidden };
+	}
+
+	async function pressEscapeOn(target: HTMLElement, outside: HTMLElement, hidden: () => boolean) {
+		target.focus();
+		const targetFocused = mainWindow.document.activeElement === target;
+		pressEscape(target);
+		// The focus tracker of the picker reports blur asynchronously
+		await timeout(50);
+		return {
+			targetFocused,
+			hoverShown: !!fixture.querySelector('.workbench-hover'),
+			pickerHidden: hidden(),
+			focusRestored: mainWindow.document.activeElement === outside,
+		};
+	}
+
+	const escapeDismissedPicker = { targetFocused: true, hoverShown: false, pickerHidden: true, focusRestored: true };
+
+	test('closes the picker and restores focus when Escape is pressed on a link in the item hover', async () => {
+		const { outside, hidden } = await showPickerFromOutside();
+		const link = fixture.querySelector<HTMLElement>('.workbench-hover a');
+		assert.ok(link);
+		assert.deepStrictEqual(await pressEscapeOn(link, outside, hidden), escapeDismissedPicker);
+	});
+
+	test('closes the picker and restores focus when Escape is pressed on the item hover itself', async () => {
+		const { outside, hidden } = await showPickerFromOutside();
+		const hover = fixture.querySelector<HTMLElement>('.monaco-hover');
+		assert.ok(hover);
+		assert.deepStrictEqual(await pressEscapeOn(hover, outside, hidden), escapeDismissedPicker);
+	});
+
+	test('closes the picker and restores focus when Escape is pressed in the picker input while the item hover is shown', async () => {
+		const { outside, hidden } = await showPickerFromOutside();
+		const input = widget().querySelector<HTMLElement>('.quick-input-box input');
+		assert.ok(input);
+		// The hover is not dismissed by Escape here, but hidden along with the picker that contains it
+		const { targetFocused, pickerHidden, focusRestored } = await pressEscapeOn(input, outside, hidden);
+		assert.deepStrictEqual({ targetFocused, pickerHidden, focusRestored }, { targetFocused: true, pickerHidden: true, focusRestored: true });
+	});
+
+	test('keeps focus on a link in the item hover when Shift+Escape is pressed', async () => {
+		ignoreFocusOut = false;
+		await showPicker(['first'], label => new MarkdownString(`[Link of ${label}](https://example.com)`));
+		await settle();
+		controller.toggleHover();
+		const link = fixture.querySelector<HTMLElement>('.workbench-hover a');
+		assert.ok(link);
+		link.focus();
+
+		pressEscape(link, true);
+		await timeout(50);
+
+		assert.deepStrictEqual({
+			hoverShown: !!fixture.querySelector('.workbench-hover'),
+			linkFocused: mainWindow.document.activeElement === link,
+		}, { hoverShown: true, linkFocused: true });
+	});
+
+	test('focuses the list when Escape is pressed in the item hover after the previously focused element was removed', async () => {
+		ignoreFocusOut = false;
+		const picker = await showPicker(['first'], label => new MarkdownString(`[Link of ${label}](https://example.com)`));
+		await settle();
+		let hidden = false;
+		inputs.add(picker.onDidHide(() => hidden = true));
+		// Focused when the hover is shown, so focus would return to it
+		const transient = append(widget(), $('button'));
+		transient.focus();
+		controller.toggleHover();
+		const link = fixture.querySelector<HTMLElement>('.workbench-hover a');
+		assert.ok(link);
+		link.focus();
+		transient.remove();
+		const beforeEscape = { linkFocused: mainWindow.document.activeElement === link, transientConnected: transient.isConnected };
+
+		pressEscape(link);
+		await timeout(50);
+
+		const list = fixture.querySelector<HTMLElement>('.quick-input-list');
+		assert.ok(list);
+		assert.deepStrictEqual({
+			beforeEscape,
+			hoverShown: !!fixture.querySelector('.workbench-hover'),
+			focusInList: list.contains(mainWindow.document.activeElement),
+			pickerHidden: hidden,
+		}, {
+			beforeEscape: { linkFocused: true, transientConnected: false },
+			hoverShown: false,
+			focusInList: true,
+			pickerHidden: false,
+		});
 	});
 
 	test('keeps the widget settled when a visible picker is replaced and animates a new show', async () => {

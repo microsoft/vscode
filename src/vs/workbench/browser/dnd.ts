@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/dnd.css';
 import { DataTransfers, IDragAndDropData } from '../../base/browser/dnd.js';
-import { DragAndDropObserver, EventType, addDisposableListener, getActiveWindow, onDidRegisterWindow } from '../../base/browser/dom.js';
+import { $, DragAndDropObserver, EventType, addDisposableListener, append, getActiveWindow, getWindow, onDidRegisterWindow } from '../../base/browser/dom.js';
 import { DragMouseEvent } from '../../base/browser/mouseEvent.js';
+import { renderFormattedText } from '../../base/browser/formattedTextRenderer.js';
 import { IListDragAndDrop } from '../../base/browser/ui/list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../base/browser/ui/list/listView.js';
 import { ITreeDragOverReaction } from '../../base/browser/ui/tree/tree.js';
@@ -38,22 +40,49 @@ import { IEditorOptions } from '../../platform/editor/common/editor.js';
 import { mainWindow } from '../../base/browser/window.js';
 import { BroadcastDataChannel } from '../../base/browser/broadcast.js';
 
-const inputDropTargets = new Set<HTMLElement>();
+/**
+ * An input, such as a chat input, that takes the drags it accepts before the placement targets of the pane that
+ * encloses it, such as a grid that opens what is dropped on it.
+ */
+export interface IInputDropTarget {
 
-/** Registers an input that handles drops before its enclosing pane's placement targets. */
-export function registerInputDropTarget(element: HTMLElement): IDisposable {
-	inputDropTargets.add(element);
-	return toDisposable(() => inputDropTargets.delete(element));
+	/** Whether the input takes the drag: placement takes a drag that the input does not, also over the input. */
+	accepts(event: DragEvent): boolean;
+
+	/**
+	 * The element around the input, such as the whole chat widget of a chat input, whose drags the input takes too where
+	 * nothing around it takes them, such as a drag that a placement overlay lets through while a key is held. Only the
+	 * input itself when not set.
+	 */
+	readonly area?: HTMLElement;
+
+	/**
+	 * What a placement overlay that covers the input says over it, such as that a drag over it attaches what is dragged,
+	 * as formatted text (see {@link renderFormattedText}). With a `passThroughModifier`, the key that lets the drag
+	 * through the overlay into the input's {@link area} where it is, it also says that holding that key does the same.
+	 */
+	getHint(passThroughModifier: string | undefined): string;
+}
+
+const inputDropTargets = new Map<HTMLElement, IInputDropTarget>();
+
+/** Registers an input that takes the drags it accepts before its enclosing pane's placement targets. */
+export function registerInputDropTarget(element: HTMLElement, target: IInputDropTarget): IDisposable {
+	inputDropTargets.set(element, target);
+	return toDisposable(() => {
+		if (inputDropTargets.get(element) === target) {
+			inputDropTargets.delete(element);
+		}
+	});
 }
 
 /**
- * Whether `element` is (in) a registered input drop target, or `point` is over
- * one, such as while an overlay covers it. With a `scope`, only inputs inside
- * it count for `point`: an input that something else covers, such as a modal
- * over the main editor area, does not.
+ * Whether the drag is over a registered input that takes it: `element` is (in) such an input, or the drag's position is
+ * over one, such as while an overlay covers it. With a `scope`, only inputs inside it count for the position: an input
+ * that something else covers, such as a modal over the main editor area, does not.
  */
-export function isInputDropTarget(element: HTMLElement, point?: { readonly clientX: number; readonly clientY: number }, scope?: HTMLElement): boolean {
-	return isRegisteredDropTarget(inputDropTargets, element, point, scope);
+export function isInputDropTarget(element: HTMLElement, event: DragEvent, scope?: HTMLElement): boolean {
+	return isRegisteredDropTarget(inputDropTargets, element, event, scope, input => !!inputDropTargets.get(input)?.accepts(event));
 }
 
 const contentDropTargets = new Set<HTMLElement>();
@@ -75,43 +104,155 @@ export function isContentDropTarget(element: HTMLElement, point?: { readonly cli
 	return isRegisteredDropTarget(contentDropTargets, element, point, scope);
 }
 
-function isRegisteredDropTarget(targets: ReadonlySet<HTMLElement>, element: HTMLElement, point: { readonly clientX: number; readonly clientY: number } | undefined, scope: HTMLElement | undefined): boolean {
-	for (let target: HTMLElement | null = element; target; target = target.parentElement) {
-		if (targets.has(target)) {
+const passThroughDropTargets = new Map<HTMLElement, (event: DragEvent) => boolean>();
+
+/**
+ * Registers a pane, such as the editor area, whose placement overlay lets the drags that `letsThrough` tells through to
+ * what it covers, such as a drag dropped into an editor while a key is held.
+ */
+export function registerPassThroughDropTarget(element: HTMLElement, letsThrough: (event: DragEvent) => boolean): IDisposable {
+	passThroughDropTargets.set(element, letsThrough);
+	return toDisposable(() => {
+		if (passThroughDropTargets.get(element) === letsThrough) {
+			passThroughDropTargets.delete(element);
+		}
+	});
+}
+
+/**
+ * Whether the drag reaches `element` as a pane around it lets it through, such as the chat of a chat editor while the key
+ * to drop into the editor is held: an input there that takes the drag shows so, as it does with the drag over it.
+ */
+export function isPassThroughDrag(element: HTMLElement, event: DragEvent): boolean {
+	for (const [pane, letsThrough] of passThroughDropTargets) {
+		if (pane.contains(element) && letsThrough(event)) {
 			return true;
 		}
-	}
-	if (point) {
-		return [...targets].some(target => {
-			if (scope && !scope.contains(target)) {
-				return false;
-			}
-			const bounds = target.getBoundingClientRect();
-			return target.ownerDocument === element.ownerDocument && bounds.width > 0 && bounds.height > 0
-				&& point.clientX >= bounds.left && point.clientX <= bounds.right && point.clientY >= bounds.top && point.clientY <= bounds.bottom;
-		});
 	}
 	return false;
 }
 
-export function getInputDropTargets(container: HTMLElement): readonly HTMLElement[] {
-	return [...inputDropTargets].filter(target => container.contains(target));
+/**
+ * @param accepts whether a registered target takes the drag; asked last, for the targets under the drag only, as it runs
+ * on every `dragover` and can cost more than the position checks.
+ */
+function isRegisteredDropTarget(targets: ReadonlySet<HTMLElement> | ReadonlyMap<HTMLElement, unknown>, element: HTMLElement, point: { readonly clientX: number; readonly clientY: number } | undefined, scope: HTMLElement | undefined, accepts?: (target: HTMLElement) => boolean): boolean {
+	for (let target: HTMLElement | null = element; target; target = target.parentElement) {
+		if (targets.has(target) && (!accepts || accepts(target))) {
+			return true;
+		}
+	}
+	if (point) {
+		for (const target of targets.keys()) {
+			if ((!scope || scope.contains(target)) && target.ownerDocument === element.ownerDocument && isOver(target, point) && (!accepts || accepts(target))) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
-/** Leaves registered inputs outside a placement overlay's pointer hit region. */
-export function getInputDropTargetClipPath(container: HTMLElement, overlay: HTMLElement = container): string {
-	const bounds = overlay.getBoundingClientRect();
-	const holes = getInputDropTargets(container).flatMap(input => {
-		const rect = input.getBoundingClientRect();
-		const left = Math.max(0, rect.left - bounds.left);
-		const top = Math.max(0, rect.top - bounds.top);
-		const right = Math.min(bounds.width, rect.right - bounds.left);
-		const bottom = Math.min(bounds.height, rect.bottom - bounds.top);
-		return right > left && bottom > top
-			? [`${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px, ${left}px ${top}px, 0 0`]
-			: [];
-	});
-	return holes.length ? `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${holes.join(', ')})` : '';
+/** Whether `point` is over `element`, which shows. */
+function isOver(element: HTMLElement, point: { readonly clientX: number; readonly clientY: number }): boolean {
+	const bounds = element.getBoundingClientRect();
+	return bounds.width > 0 && bounds.height > 0
+		&& point.clientX >= bounds.left && point.clientX <= bounds.right && point.clientY >= bounds.top && point.clientY <= bounds.bottom;
+}
+
+interface IInputDropTargetHint {
+	readonly element: HTMLElement;
+	readonly label: HTMLElement;
+	text: string | undefined;
+}
+
+/**
+ * Shows, on a placement overlay that covers the registered inputs inside `scope` that take the drag, where they are: an
+ * outline around each with its {@link IInputDropTarget.getHint hint}. The overlay takes the drag until it moves over such
+ * an input, which then takes it instead (see {@link isInputDropTarget}).
+ */
+export class InputDropTargetHints extends Disposable {
+
+	private readonly element: HTMLElement;
+	private readonly hints = new Map<HTMLElement, IInputDropTargetHint>();
+
+	private _inputTakesPassThrough = false;
+
+	/**
+	 * Whether, where the drag last was, an input takes the drag that the `passThroughModifier` lets through: its hint says
+	 * so, in place of what the overlay says holding the key does.
+	 */
+	get inputTakesPassThrough(): boolean {
+		return this._inputTakesPassThrough;
+	}
+
+	/**
+	 * @param passThroughModifier the key, as it shows, that lets a drag through the overlay to what the overlay covers,
+	 * such as into an editor, while it is held
+	 */
+	constructor(private readonly scope: HTMLElement, overlay: HTMLElement, private readonly passThroughModifier?: string) {
+		super();
+
+		this.element = append(overlay, $('.input-drop-target-hints', { 'aria-hidden': 'true' }));
+		this._register(toDisposable(() => this.element.remove()));
+	}
+
+	/** Shows the hints over the inputs that take the drag, or none without a drag, such as for one that no input takes. */
+	update(event: DragEvent | undefined): void {
+		// Measures everything before it changes the DOM, as this runs on every `dragover`: the window then lays out once,
+		// not once per input.
+		const layouts = new Map<HTMLElement, { readonly rect: DOMRect; readonly borderRadius: string; readonly text: string }>();
+		let inputTakesPassThrough = false;
+		const bounds = this.element.getBoundingClientRect();
+		if (event) {
+			for (const [input, target] of inputDropTargets) {
+				if (!this.scope.contains(input)) {
+					continue;
+				}
+				const rect = input.getBoundingClientRect();
+				if (rect.width <= 0 || rect.height <= 0 || !target.accepts(event)) {
+					continue;
+				}
+
+				// The drag that the key lets through goes to what is under it: the input takes it there inside its area only.
+				const takesPassThrough = !!this.passThroughModifier && isOver(target.area ?? input, event);
+				inputTakesPassThrough ||= takesPassThrough;
+				layouts.set(input, {
+					rect,
+					// Shaped as the input is, whose corners depend on where it shows and on what is docked on it.
+					borderRadius: getWindow(input).getComputedStyle(input).borderRadius,
+					text: target.getHint(takesPassThrough ? this.passThroughModifier : undefined),
+				});
+			}
+		}
+		this._inputTakesPassThrough = inputTakesPassThrough;
+
+		for (const [input, hint] of this.hints) {
+			if (!layouts.has(input)) {
+				hint.element.remove();
+				this.hints.delete(input);
+			}
+		}
+
+		for (const [input, { rect, borderRadius, text }] of layouts) {
+			let hint = this.hints.get(input);
+			if (!hint) {
+				const element = append(this.element, $('.input-drop-target-hint'));
+				hint = { element, label: append(element, $('span.input-drop-target-hint-label')), text: undefined };
+				this.hints.set(input, hint);
+			}
+
+			if (hint.text !== text) {
+				hint.text = text;
+				renderFormattedText(text, undefined, hint.label);
+			}
+
+			hint.element.style.top = `${rect.top - bounds.top}px`;
+			hint.element.style.left = `${rect.left - bounds.left}px`;
+			hint.element.style.width = `${rect.width}px`;
+			hint.element.style.height = `${rect.height}px`;
+			hint.element.style.borderRadius = borderRadius;
+		}
+	}
 }
 
 //#region Editor / Resources DND

@@ -78,6 +78,18 @@ export function getFilesDetailsState(editor: EditorInput, workspace: ISessionWor
 		: FilesDetailsState.Available;
 }
 
+/** Files remain useful alongside built-in Markdown webviews in floating presentation. */
+export function getFloatingMarkdownDetailsState(editor: EditorInput, workspace: ISessionWorkspace): FilesDetailsState | undefined {
+	if (!(editor instanceof WebviewInput)
+		|| (editor.viewType !== 'vscode.markdown.editor'
+			&& editor.viewType !== 'vscode.markdown.preview.editor'
+			&& editor.viewType !== 'mainThreadWebview-markdown.preview'
+			&& editor.providerId !== 'markdown.preview')) {
+		return undefined;
+	}
+	return editor instanceof CustomEditorInput ? getFilesDetailsState(editor, workspace) : FilesDetailsState.Active;
+}
+
 /** Whether `editor` owns its full presentation and must hide the docked Details panel. */
 export function isEditorWithoutDockedDetails(editor: EditorInput): boolean {
 	return editor instanceof BrowserEditorInput

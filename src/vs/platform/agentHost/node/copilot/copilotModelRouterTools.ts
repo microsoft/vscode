@@ -11,13 +11,14 @@ import type { ILogService } from '../../../log/common/log.js';
 import type { IAgentModelInfo } from '../../common/agent.js';
 import { readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { readAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
-import { isRoutableModel, modelRouterNameFromFileName, parseModelRouter, resolveModelRouter, supportedModelEfforts, type IModelRouterDiagnostic } from '../../common/modelRouter.js';
+import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
+import { isRoutableModel, modelContextSizes, modelRouterNameFromFileName, parseModelRouter, resolveModelRouter, supportedModelEfforts, type IModelRouterDiagnostic } from '../../common/modelRouter.js';
 import { PolicyState } from '../../common/state/protocol/channels-root/state.js';
 import type { IModelRouterFile } from './copilotModelRouterCatalog.js';
 
 export const CheckModelRouterToolName = 'check_model_router';
 
-const checkModelRouterDescription = 'Check model router files (.model-router.yaml) against their format and the models this account can use. Call it with no arguments to list the routers and available models (ids, effort levels, retirements), and with `path` after every edit to a router file. Read-only.';
+const checkModelRouterDescription = 'Check model router files (.model-router.yaml) against their format and the models this account can use. Call it with no arguments to list the routers and available models (ids, effort levels, context sizes, retirements), and with `path` after every edit to a router file. Read-only.';
 
 /** What the check tool needs from the Copilot agent. */
 export interface IModelRouterToolHost {
@@ -44,7 +45,7 @@ export interface IModelRouterCheck {
 	readonly path: string;
 	readonly valid: boolean;
 	readonly diagnostics: readonly ICheckedDiagnostic[];
-	readonly routes?: readonly { readonly route: number; readonly model: string; readonly matched: string; readonly effort?: string; readonly supportedEfforts: readonly string[]; readonly retiring?: string }[];
+	readonly routes?: readonly { readonly route: number; readonly name?: string; readonly model: string; readonly matched: string; readonly effort?: string; readonly supportedEfforts: readonly string[]; readonly contextSize?: string; readonly retiring?: string }[];
 }
 
 export function createCopilotModelRouterTools(enabled: boolean, host: IModelRouterToolHost, logService: ILogService): Tool<unknown>[] {
@@ -111,7 +112,7 @@ async function checkRouter(host: IModelRouterToolHost, file: IModelRouterFile, m
 
 function check(name: string, uri: URI, router: IModelRouterFile['router'], parseDiagnostics: readonly IModelRouterDiagnostic[], models: readonly IAgentModelInfo[], content: string | undefined): IModelRouterCheck {
 	const resolution = router ? resolveModelRouter(router, models) : undefined;
-	const diagnostics = [...parseDiagnostics, ...resolution?.diagnostics ?? []].map(diagnostic => ({
+	const diagnostics = [...parseDiagnostics, ...resolution?.diagnostics ?? []].map((diagnostic: IModelRouterDiagnostic) => ({
 		severity: diagnostic.severity,
 		message: diagnostic.message,
 		...(content !== undefined && diagnostic.startOffset !== undefined ? { line: lineOf(content, diagnostic.startOffset) } : {}),
@@ -124,10 +125,12 @@ function check(name: string, uri: URI, router: IModelRouterFile['router'], parse
 		...(router && resolution ? {
 			routes: resolution.routes.map(resolved => ({
 				route: router.routes.indexOf(resolved.route) + 1,
+				...(resolved.route.name ? { name: resolved.route.name } : {}),
 				model: resolved.reference,
 				matched: readAgentModelByokIdentifier(resolved.model) ?? resolved.model.id,
 				...(resolved.effort ? { effort: resolved.effort } : {}),
 				supportedEfforts: resolved.supportedEfforts,
+				...(resolved.contextSize ? { contextSize: resolved.contextSize } : {}),
 				...(resolved.retiring ? { retiring: resolved.retiring } : {}),
 			})),
 		} : {}),
@@ -137,14 +140,29 @@ function check(name: string, uri: URI, router: IModelRouterFile['router'], parse
 function describeModels(models: readonly IAgentModelInfo[]) {
 	return models.filter(isRoutableModel).map(model => {
 		const retiring = readAgentModelNoticesMeta(model).warningText?.model_pending_deprecation;
+		const contextSizes = modelContextSizes(model);
 		return {
 			id: readAgentModelByokIdentifier(model) ?? model.id,
 			name: model.name,
 			efforts: supportedModelEfforts(model),
+			// Listed only when `context-size: long` would change something.
+			...(contextSizes.length > 1 ? { contextSizes, ...(longContextCostsMore(model) ? { longContextCostsMore: true } : {}) } : {}),
 			...(retiring ? { retiring } : {}),
 			...(model.policyState === PolicyState.Disabled ? { disabledByPolicy: true } : {}),
 		};
 	});
+}
+
+/** Whether any long-context price is higher than its standard one. Long-context prices are published only when they differ, in either direction. */
+function longContextCostsMore(model: IAgentModelInfo): boolean {
+	const pricing = readAgentModelPricingMeta(model);
+	const prices: readonly (readonly [number | undefined, number | undefined])[] = [
+		[pricing.longContextInputCost, pricing.inputCost],
+		[pricing.longContextOutputCost, pricing.outputCost],
+		[pricing.longContextCacheCost, pricing.cacheCost],
+		[pricing.longContextCacheWriteCost, pricing.cacheWriteCost],
+	];
+	return prices.some(([long, standard]) => long !== undefined && standard !== undefined && long > standard);
 }
 
 function lineOf(content: string, offset: number): number {

@@ -180,6 +180,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** Reject an unavailable connection instead of retaining the request for reconnection. */
+	readonly requireConnected?: boolean;
 	/** Initial configuration resolved by the target provider before its first turn. */
 	readonly sessionConfig?: Readonly<Record<string, unknown>>;
 	/** UI-only response observation, forwarded to the chat service rather than the backend. */
@@ -745,6 +747,7 @@ export interface ISessionsProvider {
 	/** Returns undefined when cleanup status and retry are not supported by this session's host. */
 	readonly supportsForceWorktreeCleanup?: boolean;
 	sessionWorktreeCleanup?(sessionId: string, retry: boolean, force?: boolean): Promise<IAgentHostWorktreeCleanupStatus | undefined>;
+	prepareSessionWorktreeCleanup?(sessionId: string): Promise<void>;
 	listManagedWorktrees?(repositories?: readonly URI[]): Promise<IAgentHostManagedWorktree[]>;
 	cleanupManagedWorktree?(worktree: IAgentHostManagedWorktree, force?: boolean): Promise<void>;
 	managedWorktreeExists?(worktree: IAgentHostManagedWorktree): Promise<boolean | undefined>;

@@ -11,7 +11,7 @@ import { CancellationError, getErrorMessage, isCancellationError } from '../../.
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { basename, extUri } from '../../../../../base/common/resources.js';
+import { basename, extUri, extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { IAgentHostWorktreeCleanupStatus } from '../../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { isAgentWorktreeBranch } from '../../../../../platform/agentHost/common/worktreePaths.js';
@@ -20,7 +20,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
@@ -44,27 +44,73 @@ type WorktreeCleanupOwner =
 	| { readonly session?: undefined; readonly unlinkedWorktree: IManagedSessionWorktree };
 
 export type ISessionWorktreeCleanupCandidate = WorktreeCleanupOwner & {
+	/** All sessions sharing these checkouts, including the representative session. */
+	readonly sessions?: readonly ISession[];
+	readonly worktreeId?: string;
 	readonly sizeBytes: number | undefined;
 	readonly worktreeCount: number;
 	/** False for retained verification records absent from the current host inventory. */
 	readonly isListedByHost?: boolean;
 };
 
+export function getWorktreeCleanupSessions(owner: WorktreeCleanupOwner & { readonly sessions?: readonly ISession[] }): readonly ISession[] {
+	return owner.sessions ?? (owner.session ? [owner.session] : []);
+}
+
+export function getWorktreeCleanupLastActivity(candidate: ISessionWorktreeCleanupCandidate): Date | undefined {
+	const sessions = getWorktreeCleanupSessions(candidate);
+	return sessions.length ? new Date(Math.max(...sessions.map(session => session.updatedAt.get().getTime()))) : undefined;
+}
+
+function getPhysicalWorktreeId(providerId: string, repository: URI, worktree: URI): string {
+	const key = (uri: URI) => extUriBiasedIgnorePathCase.getComparisonKey(extUri.removeTrailingPathSeparator(extUri.normalizePath(uri)));
+	return JSON.stringify([providerId, key(repository), key(worktree)]);
+}
+
+function getSessionWorktreeIds(session: ISession): readonly string[] {
+	return [...new Set(session.workspace.get()?.folders.flatMap(folder => folder.gitRepository?.workTreeUri
+		? [getPhysicalWorktreeId(session.providerId, folder.gitRepository.uri, folder.gitRepository.workTreeUri)] : []) ?? [])];
+}
+
+function groupWorktreeSessions(sessions: readonly ISession[]): readonly (readonly ISession[])[] {
+	// Archiving is session-scoped, so overlapping multi-folder sessions must be selected together.
+	const byWorktree = new Map<string, Set<ISession>>();
+	for (const session of sessions) {
+		const ids = getSessionWorktreeIds(session);
+		const group = new Set<ISession>([session]);
+		for (const id of ids) {
+			for (const member of byWorktree.get(id) ?? []) {
+				group.add(member);
+			}
+		}
+		for (const member of group) {
+			for (const id of getSessionWorktreeIds(member)) {
+				byWorktree.set(id, group);
+			}
+		}
+	}
+	return [...new Set(byWorktree.values())].map(group => [...group]);
+}
+
 export function isWorktreeCleanupBranchSupported(owner: WorktreeCleanupOwner): boolean {
 	if (owner.unlinkedWorktree) {
 		const { branch, worktree, repository } = owner.unlinkedWorktree;
 		return isAgentWorktreeBranch(branch, URI.parse(worktree), URI.parse(repository));
 	}
-	return owner.session.workspace.get()?.folders.every(folder => !folder.gitRepository?.workTreeUri
+	return getWorktreeCleanupSessions(owner).every(session => session.workspace.get()?.folders.every(folder => !folder.gitRepository?.workTreeUri
 		|| folder.gitRepository.branchName === undefined
-		|| isAgentWorktreeBranch(folder.gitRepository.branchName, folder.gitRepository.workTreeUri, folder.gitRepository.uri)) !== false;
+		|| isAgentWorktreeBranch(folder.gitRepository.branchName, folder.gitRepository.workTreeUri, folder.gitRepository.uri)) !== false);
 }
 
 export function getWorktreeCleanupId(worktree: ISessionWorktreeCleanupCandidate): string {
-	return worktree.session ? worktree.session.sessionId : `managed:${worktree.unlinkedWorktree.providerId}:${worktree.unlinkedWorktree.worktree}`;
+	return worktree.worktreeId ?? (worktree.session ? worktree.session.sessionId : `managed:${worktree.unlinkedWorktree.providerId}:${worktree.unlinkedWorktree.worktree}`);
 }
 
 export function getWorktreeCleanupTitle(worktree: ISessionWorktreeCleanupCandidate): string {
+	if (worktree.sessions && worktree.sessions.length > 1) {
+		return [...new Set(worktree.sessions.flatMap(session => session.workspace.get()?.folders.flatMap(folder => folder.gitRepository?.workTreeUri
+			? [folder.gitRepository.branchName || basename(folder.gitRepository.workTreeUri)] : []) ?? []))].join(', ');
+	}
 	return worktree.session?.title.get() || (worktree.unlinkedWorktree ? worktree.unlinkedWorktree.branch || basename(URI.parse(worktree.unlinkedWorktree.worktree)) : localize('sessionWorktreeCleanup.untitled', "Untitled session"));
 }
 
@@ -72,7 +118,7 @@ export function getWorktreeCleanupTitle(worktree: ISessionWorktreeCleanupCandida
 export function getWorktreeCleanupDiskUsage(worktrees: readonly ISessionWorktreeCleanupCandidate[]): number | undefined {
 	let total = 0;
 	for (const worktree of worktrees) {
-		if (worktree.session?.isArchived.get() || worktree.sizeBytes === undefined) {
+		if ((worktree.session && getWorktreeCleanupSessions(worktree).every(session => session.isArchived.get())) || worktree.sizeBytes === undefined) {
 			return undefined;
 		}
 		total += worktree.sizeBytes;
@@ -205,7 +251,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			this._updateSuggestion();
 		}));
 		this._register(this.sessionsManagementService.onDidUnarchiveSession(session => {
-			this._cleanupOperations.set(this._cleanupOperations.get().filter(operation => operation.candidate.session?.sessionId !== session.sessionId), undefined);
+			this._cleanupOperations.set(this._cleanupOperations.get().filter(operation => !getWorktreeCleanupSessions(operation.candidate).some(candidate => candidate.sessionId === session.sessionId)), undefined);
 			this._lastMeasuredWorktrees = undefined;
 			this._lastScanAt = -Infinity;
 			this._updateSuggestion();
@@ -304,9 +350,21 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			&& session.workspace.get()?.folders.every(folder => !folder.gitRepository?.workTreeUri || folder.gitRepository.workTreeUri.scheme === Schemas.file)
 			&& isWorktreeCleanupBranchSupported({ session })
 		);
-		const totalWorktrees = worktreeSessions.reduce((total, session) => total + (session.isArchived.get() ? 0 : this._countWorktrees(session)), 0);
+		const groups = groupWorktreeSessions(worktreeSessions);
+		const candidates = groups.map(sessions => {
+			const sorted = [...sessions].sort((a, b) => Number(a.isArchived.get()) - Number(b.isArchived.get()) || b.updatedAt.get().getTime() - a.updatedAt.get().getTime());
+			const ids = [...new Set(sessions.flatMap(getSessionWorktreeIds))].sort();
+			return {
+				session: sorted[0],
+				...(sessions.length > 1 ? { sessions, worktreeId: `worktrees:${JSON.stringify(ids)}` } : {}),
+				sizeBytes: undefined,
+				worktreeCount: ids.length,
+				isMeasuring: sorted.some(session => !session.isArchived.get()),
+			};
+		});
+		const totalWorktrees = candidates.reduce((total, candidate) => total + (candidate.isMeasuring ? candidate.worktreeCount : 0), 0);
 		let scannedWorktrees = 0;
-		const measured: (IMeasuredSessionWorktree | undefined)[] = worktreeSessions.map(session => session.isArchived.get() ? undefined : { session, sizeBytes: undefined, worktreeCount: this._countWorktrees(session), isMeasuring: true });
+		const measured: (IMeasuredSessionWorktree | undefined)[] = candidates.map(candidate => candidate.isMeasuring ? candidate : undefined);
 		onProgress({ scannedWorktrees, totalWorktrees, worktrees: coalesce(measured) });
 
 		if (worktreeSessions.length === 0) {
@@ -314,14 +372,41 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		}
 
 		const limiter = new Limiter<IMeasuredSessionWorktree>(2);
-		return Promise.all(worktreeSessions.map((session, index) => limiter.queue(async () => {
-			const worktreeCount = measured[index]?.isMeasuring ? this._countWorktrees(session) : 0;
-			const worktree = await this._measureSessionWorktree(session, token);
+		return Promise.all(candidates.map((candidate, index) => limiter.queue(async () => {
+			const worktreeCount = candidate.isMeasuring ? candidate.worktreeCount : 0;
+			const worktree = await this._measureWorktreeGroup(candidate, token);
 			measured[index] = worktree;
 			scannedWorktrees += worktreeCount;
 			onProgress({ scannedWorktrees, totalWorktrees, worktrees: coalesce(measured) });
 			return worktree;
 		})));
+	}
+
+	private async _measureWorktreeGroup(candidate: IMeasuredSessionWorktree, token: CancellationToken): Promise<IMeasuredSessionWorktree> {
+		const sessions = getWorktreeCleanupSessions(candidate);
+		const measuredIds = new Set<string>();
+		const results: IMeasuredSessionWorktree[] = [];
+		let overlapping = false;
+		for (const session of [...sessions].sort((a, b) => Number(a.isArchived.get()) - Number(b.isArchived.get()) || b.updatedAt.get().getTime() - a.updatedAt.get().getTime())) {
+			const ids = getSessionWorktreeIds(session);
+			if (ids.every(id => measuredIds.has(id)) && !sessions.every(session => session.isArchived.get())) {
+				continue;
+			}
+			overlapping ||= ids.some(id => measuredIds.has(id));
+			results.push(await this._measureSessionWorktree(session, token));
+			ids.forEach(id => measuredIds.add(id));
+		}
+		const status = ['failed', 'running', 'pending', 'inUse', 'skipped', 'unknown'].flatMap(state => results.flatMap(result => result.cleanupStatus?.state === state ? [result.cleanupStatus] : []))[0];
+		return {
+			...candidate,
+			sizeBytes: !overlapping && results.every(result => result.sizeBytes !== undefined) ? results.reduce((total, result) => total + result.sizeBytes!, 0) : undefined,
+			isMeasuring: false,
+			measurementFailed: results.some(result => result.measurementFailed),
+			cleanupStatus: status,
+			cleanupStatusError: results.find(result => result.cleanupStatusError)?.cleanupStatusError,
+			worktreeExists: results.every(result => result.worktreeExists === false) ? false : results.some(result => result.worktreeExists) ? true : undefined,
+			worktreeCheckError: results.find(result => result.worktreeCheckError)?.worktreeCheckError,
+		};
 	}
 
 	private async _measureSessionWorktree(session: ISession, token: CancellationToken): Promise<IMeasuredSessionWorktree> {
@@ -360,6 +445,8 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				}
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to read cleanup status for session ${session.sessionId}`, error);
 			}
+		}
+		if (session.isArchived.get() || sizeBytes === 0) {
 			try {
 				worktreeExists = await this.sessionsManagementService.sessionWorktreeExists?.(session, token);
 			} catch (error) {
@@ -368,6 +455,10 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				}
 				worktreeCheckError = getErrorMessage(error);
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to check worktree existence for session ${session.sessionId}`, error);
+			}
+			if (sizeBytes === 0 && worktreeExists === undefined) {
+				sizeBytes = undefined;
+				measurementFailed = true;
 			}
 		}
 		return { session, sizeBytes: session.isArchived.get() ? undefined : sizeBytes, worktreeCount: this._countWorktrees(session), isMeasuring: false, measurementFailed: !session.isArchived.get() && measurementFailed, cleanupStatus, cleanupStatusError, worktreeExists, worktreeCheckError };
@@ -385,9 +476,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		const pendingIds = new Set(sessionIds);
 		const updated = [...cached];
 		let published = cached;
-		await Promise.all(cached.map((worktree, index) => pendingIds.has(worktree.session.sessionId) && worktree.session.isArchived.get()
+		await Promise.all(cached.map((worktree, index) => (pendingIds.has(getWorktreeCleanupId(worktree)) || pendingIds.has(worktree.session.sessionId)) && getWorktreeCleanupSessions(worktree).every(session => session.isArchived.get())
 			? limiter.queue(async () => {
-				updated[index] = await this._measureSessionWorktree(worktree.session, token);
+				updated[index] = await this._measureWorktreeGroup(worktree, token);
 				// Another full scan or refresh may have superseded this snapshot while the request ran.
 				if (this._lastMeasuredWorktrees === published) {
 					published = [...updated];
@@ -576,11 +667,20 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	private _withCleanupState(worktrees: readonly IMeasuredSessionWorktree[], minimumAgeDays: number): readonly ISessionWorktree[] {
 		const cutoff = Date.now() - minimumAgeDays * DAY_MS;
-		return worktrees.filter(isWorktreeCleanupBranchSupported).map(worktree => ({
-			...worktree,
-			...(worktree.session.isArchived.get() ? { sizeBytes: worktree.worktreeExists === false ? 0 : undefined, isMeasuring: false, measurementFailed: false } : { worktreeExists: undefined, worktreeCheckError: undefined }),
-			cleanupState: this._getCleanupState(worktree.session, worktree.sizeBytes, cutoff),
-		}));
+		return worktrees.filter(isWorktreeCleanupBranchSupported).map(worktree => {
+			const states = getWorktreeCleanupSessions(worktree).map(session => this._getCleanupState(session, cutoff));
+			const archived = states.every(state => state === 'archived');
+			const blocked = states.find(state => state === 'running' || state === 'pinned' || state === 'recent' || state === 'untitled' || state === 'error');
+			const active = states.find(state => state === 'active' || state === 'needsInput');
+			const hasCurrentExistenceCheck = archived || worktree.sizeBytes === 0 || worktree.measurementFailed === true;
+			return {
+				...worktree,
+				worktreeExists: hasCurrentExistenceCheck ? worktree.worktreeExists : undefined,
+				worktreeCheckError: hasCurrentExistenceCheck ? worktree.worktreeCheckError : undefined,
+				...(archived ? { sizeBytes: worktree.worktreeExists === false ? 0 : undefined, isMeasuring: false, measurementFailed: false } : {}),
+				cleanupState: blocked ?? (archived ? 'archived' : worktree.measurementFailed ? 'unavailable' : active ?? states.find(state => state !== 'archived') ?? 'unavailable'),
+			};
+		});
 	}
 
 	private _getWorktreeSessionSignature(includeActivity = true): string {
@@ -595,12 +695,9 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			.join('\n');
 	}
 
-	private _getCleanupState(session: ISession, sizeBytes: number | undefined, cutoff: number): SessionWorktreeCleanupState {
+	private _getCleanupState(session: ISession, cutoff: number): SessionWorktreeCleanupState {
 		if (session.isArchived.get()) {
 			return 'archived';
-		}
-		if (sizeBytes === undefined) {
-			return 'unavailable';
 		}
 		// A worktree that any window shows is never offered for cleanup.
 		if (this.sessionHostService.isShown(session.resource)) {
@@ -629,8 +726,8 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 
 	private _getCleanupCandidates(worktrees: readonly ISessionWorktree[]): readonly (ISessionWorktreeCleanupCandidate & { readonly sizeBytes: number })[] {
 		return worktrees
-			.filter((worktree): worktree is ISessionWorktree & { readonly session: ISession; readonly sizeBytes: number } => !!worktree.session && worktree.cleanupState === 'eligible' && worktree.sizeBytes !== undefined)
-			.map(worktree => ({ session: worktree.session, sizeBytes: worktree.sizeBytes, worktreeCount: worktree.worktreeCount }))
+			.filter((worktree): worktree is ISessionWorktree & { readonly session: ISession; readonly sizeBytes: number } => !!worktree.session && worktree.cleanupState === 'eligible' && worktree.sizeBytes !== undefined && worktree.worktreeExists !== false && !worktree.worktreeCheckError)
+			.map(worktree => ({ ...worktree }))
 			.sort((a, b) => a.session.updatedAt.get().getTime() - b.session.updatedAt.get().getTime());
 	}
 
@@ -764,7 +861,6 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			throw new Error(localize('worktreeCleanup.alreadyScheduled', "Cleanup is already scheduled for a selected worktree. Refresh its status before trying again."));
 		}
 
-		const selectedBytes = getWorktreeCleanupDiskUsage(selected);
 		const worktreeCount = selected.reduce((total, candidate) => total + candidate.worktreeCount, 0);
 		const confirmation = await this.dialogService.confirm({
 			message: force
@@ -777,10 +873,8 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 			detail: force
 				? localize('worktreeCleanup.forceDetail', "This permanently deletes the selected worktrees and all uncommitted changes, including ignored and untracked files, without saving them. This cannot be undone. Worktrees will be removed even if another session or chat is using them or their branch changed since they were listed. Those sessions or chats may stop working. Committed changes, branches, and session history are kept.")
 				: selected.some(candidate => candidate.unlinkedWorktree)
-					? localize('worktreeCleanup.confirm.unlinkedDetail', "Selected sessions will be marked as done. Worktrees with no matching session are removed only if the host verifies they are unused. Uncommitted changes are saved to their branch before removal; branches are kept. Ignored files are deleted. No session history will be created for these worktrees.")
-					: selectedBytes === undefined
-						? localize('worktreeCleanup.confirm.unmeasuredDetail', "This schedules worktree cleanup and marks the selected sessions as done. Disk usage is not measured for sessions already marked as done. You can restore a session later to recreate its worktree.")
-						: localize('worktreeCleanup.confirm.diskUsageDetail', "Estimated disk usage: {0}. Actual freed space may be lower. The selected sessions will be marked as done. You can restore a session later to recreate its worktree.", ByteSize.formatSize(selectedBytes)),
+					? localize('worktreeCleanup.confirm.managedDetail', "Sessions will be marked as done. Changes are saved to their branches; ignored files are deleted. Worktrees without a session have no session history to restore.")
+					: localize('worktreeCleanup.confirm.sessionDetail', "Sessions will be marked as done. Changes are saved to their branches; ignored files are deleted. You can restore sessions later."),
 			primaryButton: force ? localize('worktreeCleanup.forcePrimary', "Force Remove") : localize('worktreeCleanup.confirm.primary', "Clean Up"),
 		});
 		if (!confirmation.confirmed) {
@@ -795,12 +889,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		onProgress?.({ state: 'started' });
 		const failures: string[] = [];
 		let failedWorktrees = 0;
-		await this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: worktreeCount === 1
-				? localize('worktreeCleanup.cleaning.one', "Scheduling cleanup for 1 agent session worktree...")
-				: localize('worktreeCleanup.cleaning.many', "Scheduling cleanup for {0} agent session worktrees...", worktreeCount),
-		}, async progress => {
+		const schedule = async (progress: IProgress<IProgressStep>) => {
 			let completedWorktrees = 0;
 			for (const candidate of selected) {
 				const id = getWorktreeCleanupId(candidate);
@@ -809,7 +898,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 					continue;
 				}
 				try {
-					if (force && candidate.session && !candidate.session.isArchived.get()) {
+					if (force && getWorktreeCleanupSessions(candidate).some(session => !session.isArchived.get())) {
 						throw new Error(localize('worktreeCleanup.forceNotArchived', "Only sessions marked as done can have their worktrees forcibly removed."));
 					}
 					if (candidate.unlinkedWorktree) {
@@ -820,16 +909,39 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 						await this.sessionsManagementService.cleanupManagedWorktree(candidate.unlinkedWorktree, force || undefined);
 						this._unlinkedWorktrees = this._unlinkedWorktrees.map(worktree => getWorktreeCleanupId(worktree) === getWorktreeCleanupId(candidate)
 							? { ...worktree, cleanupStatus: { state: 'pending' } } : worktree);
-					} else if (candidate.session.isArchived.get()) {
-						const result = await this.sessionsManagementService.sessionWorktreeCleanup?.(candidate.session, true, force || undefined);
-						if (!result) {
+					} else {
+						const sessions = getWorktreeCleanupSessions(candidate);
+						const alreadyArchived = sessions.every(session => session.isArchived.get());
+						for (const session of sessions) {
+							if (isCancelled()) {
+								break;
+							}
+							await this.sessionsManagementService.prepareSessionWorktreeCleanup(session);
+						}
+						for (const session of sessions) {
+							if (isCancelled()) {
+								break;
+							}
+							if (!session.isArchived.get()) {
+								await this.sessionsManagementService.archiveSession(session);
+							}
+						}
+						if (!isCancelled() && this.sessionsManagementService.sessionWorktreeCleanup) {
+							for (const session of sessions) {
+								if (isCancelled()) {
+									break;
+								}
+								const result = await this.sessionsManagementService.sessionWorktreeCleanup(session, true, force || undefined);
+								if (!result || (!force && result.state === 'unknown' && await this.sessionsManagementService.sessionWorktreeExists?.(session) !== false)) {
+									throw new Error(localize('worktreeCleanup.notScheduled', "Worktree cleanup was not confirmed. Refresh the inventory and try again."));
+								}
+								this._lastMeasuredWorktrees = this._lastMeasuredWorktrees?.map(worktree => getWorktreeCleanupId(worktree) === getWorktreeCleanupId(candidate)
+									? { ...worktree, cleanupStatus: result, cleanupStatusError: undefined }
+									: worktree);
+							}
+						} else if (alreadyArchived) {
 							throw new Error(localize('worktreeCleanup.retryUnavailable', "Retrying worktree cleanup is unavailable for this session."));
 						}
-						this._lastMeasuredWorktrees = this._lastMeasuredWorktrees?.map(worktree => worktree.session.sessionId === candidate.session?.sessionId
-							? { ...worktree, cleanupStatus: result, cleanupStatusError: undefined }
-							: worktree);
-					} else {
-						await this.sessionsManagementService.archiveSession(candidate.session);
 					}
 				} catch (error) {
 					const message = getErrorMessage(error);
@@ -850,11 +962,21 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				onProgress?.({ state: 'scheduled', candidate });
 				completedWorktrees += candidate.worktreeCount;
 				progress.report({
-					increment: candidate.worktreeCount / worktreeCount * 100,
-					message: localize('worktreeCleanup.cleaningProgress', "scheduled {0} of {1} worktrees", completedWorktrees, worktreeCount),
+					increment: candidate.worktreeCount,
+					message: localize('worktreeCleanup.cleaningProgress', "{0} of {1} worktrees scheduled", completedWorktrees, worktreeCount),
 				});
 			}
-		});
+		};
+		if (onProgress) {
+			await schedule(Progress.None);
+		} else {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('worktreeCleanup.cleaning', "Scheduling worktree cleanup..."),
+				total: worktreeCount,
+				delay: 300,
+			}, schedule);
+		}
 		this._lastScanAt = 0;
 		if (failures.length > 0) {
 			throw new Error(localize('worktreeCleanup.schedulingFailed', "Couldn't schedule cleanup for {0} worktrees.\n{1}", failedWorktrees, failures.join('\n')));

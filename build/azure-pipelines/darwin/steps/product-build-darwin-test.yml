@@ -11,6 +11,14 @@ parameters:
   - name: VSCODE_RERUN_FAILED_TESTS
     type: boolean
     default: false
+  # Whether the job has the packaged client, and builds the extensions of the integration tests. A CI
+  # test job builds only what its tests use (see product-build-darwin-ci.yml).
+  - name: VSCODE_BUILD_CLIENT
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_INTEGRATION_TESTS
+    type: boolean
+    default: true
 
 # Each test task records a checkpoint once it passes, and retries of the job
 # skip the test tasks that already passed in an earlier attempt of the same run.
@@ -77,46 +85,51 @@ steps:
           displayName: 🧪 Run unit tests (Browser, Webkit)
           timeoutInMinutes: 30
 
-  - script: |
-      set -e
-      pnpm run gulp \
-        compile-extension:configuration-editing \
-        compile-extension:css-language-features-server \
-        compile-extension:emmet \
-        compile-extension:git \
-        compile-extension:git-base \
-        compile-extension:github-authentication \
-        compile-extension:html-language-features-server \
-        compile-extension:ipynb \
-        compile-extension:notebook-renderers \
-        compile-extension:json-language-features-client \
-        compile-extension:json-language-features-server \
-        compile-extension:markdown-language-features \
-        compile-extension-media \
-        compile-extension:microsoft-authentication \
-        compile-extension:typescript-language-features \
-        compile-extension:vscode-api-tests \
-        compile-extension:vscode-colorize-tests \
-        compile-extension:vscode-colorize-perf-tests \
-        compile-extension:vscode-test-resolver
-    displayName: Build integration tests
+  - ${{ if eq(parameters.VSCODE_BUILD_INTEGRATION_TESTS, true) }}:
+    - script: |
+        set -e
+        pnpm run gulp \
+          compile-extension:configuration-editing \
+          compile-extension:css-language-features-server \
+          compile-extension:emmet \
+          compile-extension:git \
+          compile-extension:git-base \
+          compile-extension:github-authentication \
+          compile-extension:html-language-features-server \
+          compile-extension:ipynb \
+          compile-extension:notebook-renderers \
+          compile-extension:json-language-features-client \
+          compile-extension:json-language-features-server \
+          compile-extension:markdown-language-features \
+          compile-extension-media \
+          compile-extension:microsoft-authentication \
+          compile-extension:typescript-language-features \
+          compile-extension:vscode-api-tests \
+          compile-extension:vscode-colorize-tests \
+          compile-extension:vscode-colorize-perf-tests \
+          compile-extension:vscode-test-resolver
+      displayName: Build integration tests
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-agent-host-e2e') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-agent-host-e2e
         testStep:
-          script: |
-            # Figure out the full absolute path of the product we just built
-            # including the remote server and configure the integration tests
-            # to run with these builds instead of running out of sources.
-            set -e
-            APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
-            APP_NAME="`ls $APP_ROOT | head -n 1`"
-            ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
-            BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
-            INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME" \
-            ./scripts/test-agent-host-e2e.sh --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
+          ${{ if eq(parameters.VSCODE_BUILD_CLIENT, true) }}:
+            script: |
+              # Figure out the full absolute path of the product we just built
+              # including the remote server and configure the integration tests
+              # to run with these builds instead of running out of sources.
+              set -e
+              APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+              APP_NAME="`ls $APP_ROOT | head -n 1`"
+              ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
+              BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
+              INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME" \
+              ./scripts/test-agent-host-e2e.sh --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
+          # The runner only uses out-build and .build/electron, so it doesn't need the packaged client
+          ${{ else }}:
+            script: ./scripts/test-agent-host-e2e.sh --build --tfs "Integration Tests"${{ iif(eq(parameters.VSCODE_RERUN_FAILED_TESTS, true), ' --rerun-failed-files 2', '') }}
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
@@ -175,7 +188,7 @@ steps:
           displayName: 🧪 Run integration tests (Remote)
           timeoutInMinutes: 30
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
     - script: ps -ef
       displayName: Diagnostics before smoke test run
       continueOnError: true
@@ -196,7 +209,7 @@ steps:
           timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Electron)
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy')) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-basic-proxy')) }}:
     - script: brew list squid >/dev/null 2>&1 || brew install squid
       displayName: Install Squid for network-isolated smoke tests
 
@@ -226,6 +239,19 @@ steps:
           timeoutInMinutes: 40
           displayName: 🧪 Run Agents Window smoke tests through Kerberos-authenticated macOS PAC proxy
 
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-basic-proxy') }}:
+    - template: ../../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: smoke-agents-basic-proxy
+        testStep:
+          script: |
+            set -e
+            APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+            APP_NAME="`ls $APP_ROOT | head -n 1`"
+            bash test/smoke/scripts/run-agents-window-network-proxy.sh --basic --build "$APP_ROOT/$APP_NAME"
+          timeoutInMinutes: 40
+          displayName: 🧪 Run Agents Window smoke tests through Basic-authenticated proxy from the http.proxy setting
+
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
@@ -253,16 +279,11 @@ steps:
           timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Remote)
 
-  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-kerberos-pac-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-agents-basic-proxy'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
     - script: ps -ef
       displayName: Diagnostics after smoke test run
       continueOnError: true
       condition: succeededOrFailed()
-
-  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
-    - template: ../../copilot/test-integration-steps.yml@self
-      parameters:
-        OS: darwin
 
   - script: node build/azure-pipelines/common/testCheckpoint.ts collect-results
     displayName: Check test output availability

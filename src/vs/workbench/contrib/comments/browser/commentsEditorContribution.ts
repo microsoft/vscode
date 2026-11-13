@@ -27,7 +27,7 @@ import { CommentCommandId } from '../common/commentCommandIds.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
+import { CommentWidgetFocus } from './commentThreadEditorWidget.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { CommentThread, CommentThreadCollapsibleState, CommentThreadState } from '../../../../editor/common/languages.js';
 

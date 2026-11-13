@@ -677,6 +677,11 @@ export class TabbedModelPicker extends Disposable {
 		return derived.autoModel.model;
 	}
 
+	/** Whether the picker's Auto model is presented as Copilot Fusion, which the on-device rows and pages then name. */
+	private _isAutoModelFusion(context: ITabbedModelPickerContext): boolean {
+		return !!this._autoModel(context)?.metadata.autoModelFusion;
+	}
+
 	/**
 	 * The HydraFusion routing models this build can run, HydraFusion before HydraFusion Max.
 	 * The host only offers HydraFusion Max with HydraFusion v2, and Fusion only offers
@@ -783,7 +788,7 @@ export class TabbedModelPicker extends Disposable {
 			selectedModelId: context.selectedModelId,
 			organizationDefaultModelId: this._getOrganizationDefaultModel(context)?.identifier,
 			pinnedModelIds: context.pinnedModelIds,
-			controlModels: context.controlModels,
+			controlModels: isBuiltIn ? context.controlModels : {},
 			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
 			// gets a tab of its own, which is already the whole of what it offers.
@@ -848,6 +853,7 @@ export class TabbedModelPicker extends Disposable {
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
+				preserveFocus: true,
 				render: !comparison.state.get() && !comparison.summary.get() && comparison.renderToggle
 					? button => comparison.renderToggle!(button)
 					: undefined,
@@ -1098,6 +1104,7 @@ export class TabbedModelPicker extends Disposable {
 			models: this._localDirectModels(context),
 			selectedModelId: context.selectedModelId,
 			configurationAccess: context.configurationAccess,
+			autoModelFusion: this._isAutoModelFusion(context),
 			select: model => {
 				this._selectionVersion++;
 				this._applyModelSelection(model, this._context ?? context);
@@ -1117,7 +1124,8 @@ export class TabbedModelPicker extends Disposable {
 
 	/** The detail page content of an on-device family, with its direct model and the chat's configuration of it. */
 	private _getLocalModelDetails(familyId: string, context: ITabbedModelPickerContext): ILocalModelDetails | undefined {
-		const details = context.localModels?.getDetails(familyId);
+		const localDetails = context.localModels?.getDetails(familyId);
+		const details = localDetails && { ...localDetails, autoModelFusion: this._isAutoModelFusion(context) };
 		const model = details && this._getLocalDirectModel(familyId, context);
 		if (!details || !model) {
 			return details;

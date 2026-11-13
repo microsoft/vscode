@@ -71,6 +71,17 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 
 	const clientOptions: lsp.LanguageClientOptions = {
 		documentSelector: markdownLanguageIds,
+		middleware: {
+			didOpen: (document, next) => {
+				if (document.languageId === 'markdown') {
+					return next(document);
+				}
+
+				const markdownDocument = Object.create(document) as vscode.TextDocument;
+				Object.defineProperty(markdownDocument, 'languageId', { value: 'markdown' });
+				return next(markdownDocument);
+			},
+		},
 		synchronize: {
 			configurationSection: ['markdown'],
 			fileEvents: vscode.workspace.createFileSystemWatcher(mdFileGlob),

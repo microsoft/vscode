@@ -11,7 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { logExperimentTrigger, logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
@@ -34,18 +34,32 @@ type AgentsBannerClickedClassification = {
 export interface IAgentsBannerResult {
 	readonly element: HTMLElement;
 	readonly disposables: DisposableStore;
-	/** Whether the banner is shown, see {@link canShowAgentsBanner}. */
+	/** Whether the banner is shown, that is, whether {@link isAgentsWindowAvailable} holds. */
 	readonly visible: IObservable<boolean>;
 }
 
-/** Returns whether the desktop Agents window is available and agent mode and AI features are enabled. */
-export function canShowAgentsBanner(chatEntitlementService: IChatEntitlementService, configurationService: IConfigurationService): boolean {
+/**
+ * Returns whether the desktop Agents window is available and agent mode and AI features are enabled.
+ * The banner is shown while this holds, and its button either offers GitHub sign-in or opens the
+ * Agents window (see {@link createAgentsBanner}).
+ *
+ * Matches `OPEN_AGENTS_WINDOW_PRECONDITION`: chat that is merely disabled does not count as
+ * unavailable, because new profiles keep the chat extension disabled until chat setup completes.
+ */
+export function isAgentsWindowAvailable(chatEntitlementService: IChatEntitlementService, configurationService: IConfigurationService): boolean {
 	const sentiment = chatEntitlementService.sentiment;
-	if (sentiment.hidden || sentiment.disabled || configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
+	if (sentiment.hidden || sentiment.disabledInWorkspace || configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
 		return false;
 	}
 	return !!CommandsRegistry.getCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID);
 }
+
+/**
+ * The experiment trigger that the banner logs in every arm of the {@link ChatConfiguration.WelcomePageAgentsWindowGraphic}
+ * experiment when the graphic could be seen while more than one editor window is open. Only then does the `auto` graphic
+ * differ from `windowComparison` (it shows `manyWindowsToOne`), so this limits an analysis to where these arms differ.
+ */
+export const AGENTS_WINDOW_GRAPHIC_MULTIPLE_EDITOR_WINDOWS_TREATMENT = `config.${ChatConfiguration.WelcomePageAgentsWindowGraphic}.multipleEditorWindows`;
 
 export interface IAgentsBannerOptions {
 	/** Dot-separated CSS classes for the banner container (e.g. 'my-banner' or 'foo.bar'). */
@@ -59,8 +73,16 @@ export interface IAgentsBannerOptions {
 	 * The trigger of {@link ChatConfiguration.WelcomePageAgentsWindowSectionStyle} is logged in the same
 	 * moment once `shownDesign` has a value, since that style only applies while a graphic is shown. It
 	 * doesn't wait for the page to decide whether the graphic fits, because the style changes that decision.
+	 *
+	 * {@link AGENTS_WINDOW_GRAPHIC_MULTIPLE_EDITOR_WINDOWS_TREATMENT} is logged in the same moment once
+	 * `hasMultipleEditorWindows` is true.
 	 */
-	readonly graphic?: { readonly element: HTMLElement; readonly shownDesign: IObservable<unknown>; readonly isExposed: IObservable<boolean> };
+	readonly graphic?: {
+		readonly element: HTMLElement;
+		readonly shownDesign: IObservable<unknown>;
+		readonly isExposed: IObservable<boolean>;
+		readonly hasMultipleEditorWindows: IObservable<boolean | undefined>;
+	};
 }
 
 /**
@@ -83,14 +105,14 @@ export function createAgentsBanner(
 	const element = $(`.${options.cssClass}`, {}, ...(options.graphic ? [options.graphic.element] : []), button);
 	const visible = observableValue<boolean>('agentsBannerVisible', false);
 	const updateVisibility = () => {
-		const isVisible = canShowAgentsBanner(chatEntitlementService, configurationService);
+		const isVisible = isAgentsWindowAvailable(chatEntitlementService, configurationService);
 		setVisibility(isVisible, element);
 		button.disabled = !isVisible;
 		visible.set(isVisible, undefined);
 	};
 	updateVisibility();
 	if (options.graphic) {
-		const { shownDesign, isExposed } = options.graphic;
+		const { shownDesign, isExposed, hasMultipleEditorWindows } = options.graphic;
 		disposables.add(autorun(reader => {
 			if (!visible.read(reader) || !isExposed.read(reader)) {
 				return;
@@ -98,6 +120,9 @@ export function createAgentsBanner(
 			logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageAgentsWindowGraphic);
 			if (shownDesign.read(reader) !== undefined) {
 				logSettingExperimentTrigger(telemetryService, ChatConfiguration.WelcomePageAgentsWindowSectionStyle);
+			}
+			if (hasMultipleEditorWindows.read(reader)) {
+				logExperimentTrigger(telemetryService, AGENTS_WINDOW_GRAPHIC_MULTIPLE_EDITOR_WINDOWS_TREATMENT);
 			}
 		}));
 	}
