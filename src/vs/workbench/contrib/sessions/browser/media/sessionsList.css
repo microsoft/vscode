@@ -1561,11 +1561,6 @@
 		color: var(--vscode-strongForeground);
 	}
 
-	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored,
-	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored .session-section-label {
-		color: inherit;
-	}
-
 	&.session-section-focus-from-pointer {
 		.monaco-list-row.session-list-section-row.focused,
 		.monaco-list-row.session-list-section-row.selected,

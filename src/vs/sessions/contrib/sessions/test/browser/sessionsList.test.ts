@@ -2316,10 +2316,14 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('row feedback', () => {
-		for (const compact of [false, true]) {
-			test(`group label colors preserve contrast, selection and reset (${compact ? 'compact' : 'default'})`, () => {
+		for (const { compact, customGroup } of [false, true].flatMap(compact => [false, true].map(customGroup => ({ compact, customGroup })))) {
+			test(`group label colors persist across interaction states and preserve contrast and reset (${compact ? 'compact' : 'default'}, ${customGroup ? 'custom group' : 'workspace'})`, () => {
 				const session = createTestSession('Session').session;
-				const harness = createListHarness(disposables, [session]);
+				const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
+				const harness = createListHarness(disposables, [session], customGroup ? {
+					groups: [group],
+					memberships: new Map([[session.sessionId, group.id]]),
+				} : {});
 				const themeService = new TestThemeService();
 				harness.instantiationService.stub(IThemeService, themeService);
 				const container = harness.createContainer();
@@ -2330,15 +2334,18 @@ suite('Sessions - SessionsList', () => {
 					onSessionOpen: () => { },
 				}));
 				list.layout(700, 400);
+				container.style.setProperty('--vscode-terminal-ansiYellow', '#e5e510');
 				const label = () => [...container.querySelectorAll<HTMLElement>('.session-section-label')]
-					.find(label => label.textContent === 'Workspace')!;
+					.find(label => label.textContent === (customGroup ? group.name : 'Workspace'))!;
 				const appearance = () => ({
 					color: label().style.getPropertyValue('--session-group-foreground'),
-					colored: label().closest('.session-section')!.classList.contains('session-group-colored'),
 				});
 				const initial = appearance();
 				const groupsService = harness.instantiationService.get(ISessionGroupsService);
-				groupsService.setSectionColor('workspace:Workspace', 'terminal.ansiYellow');
+				const setColor = (color: string | undefined) => customGroup
+					? groupsService.setGroupColor(group.id, color)
+					: groupsService.setSectionColor('workspace:Workspace', color);
+				setColor('terminal.ansiYellow');
 				const contrasts = [];
 				for (const background of ['#181818', '#ffffff']) {
 					for (const color of ['#000000', '#cd3131', '#0dbc79', '#e5e510', '#2472c8', '#bc3fbc', '#11a8cd', '#ffffff', '#11a8cd66', '#ffffff00']) {
@@ -2356,17 +2363,28 @@ suite('Sessions - SessionsList', () => {
 						);
 					}
 				}
-				const row = label().closest<HTMLElement>('.monaco-list-row')!;
-				row.classList.add('selected', 'hovered');
-				row.style.color = 'rgb(12, 34, 56)';
-				const selectedColor = mainWindow.getComputedStyle(label()).color;
-				row.classList.remove('selected', 'hovered');
-				const focusedColors = [false, true].map(hovered => {
-					row.classList.add('focused');
-					row.classList.toggle('hovered', hovered);
-					return mainWindow.getComputedStyle(label()).color;
+				themeService.setTheme(new TestColorTheme({
+					'agents.background': '#181818',
+					'list.hoverBackground': '#88888822',
+					'terminal.ansiYellow': '#e5e510',
+				}));
+				const interactionColors = [false, true].flatMap(collapsed => {
+					if (collapsed) {
+						list.collapseAllSections();
+					}
+					const row = label().closest<HTMLElement>('.monaco-list-row')!;
+					row.style.color = 'rgb(12, 34, 56)';
+					return [[], ['hovered'], ['focused'], ['selected'], ['focused', 'hovered'], ['selected', 'hovered']].map(classes => {
+						row.classList.remove('focused', 'selected', 'hovered');
+						row.classList.add(...classes);
+						const icon = label().closest('.session-section')!.querySelector<HTMLElement>('.session-section-icon')!;
+						return {
+							label: mainWindow.getComputedStyle(label()).color,
+							icon: mainWindow.getComputedStyle(icon).color,
+						};
+					});
 				});
-				row.classList.remove('focused', 'hovered');
+				label().closest('.monaco-list-row')!.classList.remove('focused', 'selected', 'hovered');
 				const highContrast = [ColorScheme.HIGH_CONTRAST_DARK, ColorScheme.HIGH_CONTRAST_LIGHT].map(type => {
 					themeService.setTheme(new TestColorTheme({}, type));
 					return appearance();
@@ -2382,15 +2400,14 @@ suite('Sessions - SessionsList', () => {
 					'agents.background': '#181818',
 					'terminal.ansiYellow': '#e5e510',
 				}));
-				groupsService.setSectionColor('workspace:Workspace', undefined);
-				assert.deepStrictEqual({ initial, contrasts, selectedColor, focusedColors, highContrast, translucentBackgrounds, reset: appearance() }, {
-					initial: { color: '', colored: false },
+				setColor(undefined);
+				assert.deepStrictEqual({ initial, contrasts, interactionColors, highContrast, translucentBackgrounds, reset: appearance() }, {
+					initial: { color: '' },
 					contrasts: Array(40).fill(true),
-					selectedColor: 'rgb(12, 34, 56)',
-					focusedColors: ['rgb(12, 34, 56)', 'rgb(12, 34, 56)'],
-					highContrast: [{ color: '', colored: false }, { color: '', colored: false }],
-					translucentBackgrounds: [{ color: '', colored: false }, { color: '', colored: false }, { color: '', colored: false }],
-					reset: { color: '', colored: false },
+					interactionColors: Array(12).fill({ label: 'rgb(229, 229, 16)', icon: 'rgb(229, 229, 16)' }),
+					highContrast: [{ color: '' }, { color: '' }],
+					translucentBackgrounds: [{ color: '' }, { color: '' }, { color: '' }],
+					reset: { color: '' },
 				});
 			});
 		}

@@ -2698,14 +2698,12 @@ class SessionHeaderLabelColor extends Themable {
 		const preserveForeground = isHighContrast(this.theme.type) || background?.isOpaque() === false;
 		const foreground = preserveForeground ? '' : color && background ? background.ensureConstrast(color.flatten(background), 4.5).toString() : asCssVariable(this.colorId);
 		const hoverForeground = preserveForeground ? '' : color && hoverBackground ? hoverBackground.ensureConstrast(color.flatten(hoverBackground), 4.5).toString() : foreground;
-		this.template.container.classList.toggle('session-group-colored', !preserveForeground);
 		this.template.label.style.setProperty('--session-group-foreground', foreground);
 		this.template.label.style.setProperty('--session-group-hover-foreground', hoverForeground);
 	}
 
 	override dispose(): void {
 		super.dispose();
-		this.template.container.classList.remove('session-group-colored');
 		this.template.label.style.removeProperty('--session-group-foreground');
 		this.template.label.style.removeProperty('--session-group-hover-foreground');
 	}
