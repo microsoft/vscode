@@ -13,7 +13,43 @@ export interface LineChange {
 	readonly modifiedEndLineNumber: number;
 }
 
-export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
+/**
+ * A line-addressable view over a string, providing the subset of `TextDocument`
+ * behavior that {@link applyLineChanges} relies on. It lets the staged result be
+ * computed from freshly read content rather than a `TextDocument`.
+ */
+class LineIndex {
+	private readonly lineStarts: number[] = [0];
+	private readonly lineEnds: number[] = [];
+
+	constructor(private readonly text: string) {
+		const eol = /\r\n|\r|\n/g;
+		let match: RegExpExecArray | null;
+		while ((match = eol.exec(text))) {
+			this.lineEnds.push(match.index);
+			this.lineStarts.push(match.index + match[0].length);
+		}
+		this.lineEnds.push(text.length);
+	}
+
+	get lineCount(): number {
+		return this.lineStarts.length;
+	}
+
+	lineLength(line: number): number {
+		return this.lineEnds[line] - this.lineStarts[line];
+	}
+
+	getText(startLine: number, startCharacter: number, endLine: number, endCharacter: number): string {
+		// Lines past the end clamp to the end of the content, like TextDocument.getText.
+		const offset = (line: number, character: number) => line < this.lineStarts.length ? this.lineStarts[line] + character : this.text.length;
+		return this.text.slice(offset(startLine, startCharacter), offset(endLine, endCharacter));
+	}
+}
+
+export function applyLineChanges(original: string, modified: string, diffs: LineChange[]): string {
+	const originalContent = new LineIndex(original);
+	const modifiedContent = new LineIndex(modified);
 	const result: string[] = [];
 	let currentLine = 0;
 
@@ -27,12 +63,12 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 		// if this is a deletion at the very end of the document,then we need to account
 		// for a newline at the end of the last line which may have been deleted
 		// https://github.com/microsoft/vscode/issues/59670
-		if (isDeletion && diff.originalEndLineNumber === original.lineCount) {
+		if (isDeletion && diff.originalEndLineNumber === originalContent.lineCount) {
 			endLine -= 1;
-			endCharacter = original.lineAt(endLine).range.end.character;
+			endCharacter = originalContent.lineLength(endLine);
 		}
 
-		result.push(original.getText(new Range(currentLine, 0, endLine, endCharacter)));
+		result.push(originalContent.getText(currentLine, 0, endLine, endCharacter));
 
 		if (!isDeletion) {
 			let fromLine = diff.modifiedStartLineNumber - 1;
@@ -41,18 +77,18 @@ export function applyLineChanges(original: TextDocument, modified: TextDocument,
 			// if this is an insertion at the very end of the document,
 			// then we must start the next range after the last character of the
 			// previous line, in order to take the correct eol
-			if (isInsertion && diff.originalStartLineNumber === original.lineCount) {
+			if (isInsertion && diff.originalStartLineNumber === originalContent.lineCount) {
 				fromLine -= 1;
-				fromCharacter = modified.lineAt(fromLine).range.end.character;
+				fromCharacter = modifiedContent.lineLength(fromLine);
 			}
 
-			result.push(modified.getText(new Range(fromLine, fromCharacter, diff.modifiedEndLineNumber, 0)));
+			result.push(modifiedContent.getText(fromLine, fromCharacter, diff.modifiedEndLineNumber, 0));
 		}
 
 		currentLine = isInsertion ? diff.originalStartLineNumber : diff.originalEndLineNumber;
 	}
 
-	result.push(original.getText(new Range(currentLine, 0, original.lineCount, 0)));
+	result.push(originalContent.getText(currentLine, 0, originalContent.lineCount, 0));
 
 	return result.join('');
 }
