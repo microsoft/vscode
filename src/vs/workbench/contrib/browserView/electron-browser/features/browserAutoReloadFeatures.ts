@@ -15,7 +15,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { BrowserViewCommandId, fileUrlToRemoteUri, IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, fileUrlToRemoteUri } from '../../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
@@ -38,11 +38,6 @@ function getFileUri(url: string): URI | undefined {
 
 	const uri = URI.parse(url);
 	return uri.scheme === Schemas.file ? uri.with({ query: null, fragment: null }) : undefined;
-}
-
-/** Sessions on a remote network serve `file:` URLs from the remote's file system, which the window reads by remote or agent host URI. */
-function toWatchUri(fileUri: URI, network: IBrowserViewNetwork | undefined, browserViewWorkbenchService: IBrowserViewWorkbenchService): URI {
-	return network ? fileUrlToRemoteUri(network, browserViewWorkbenchService.getNetworkFileSystem(network).scheme, fileUri) : fileUri;
 }
 
 interface IBrowserAutoReloadStateChangeEvent {
@@ -118,7 +113,8 @@ export class BrowserAutoReloadWatcher extends Disposable {
 		if (!fileUri) {
 			return;
 		}
-		const uri = toWatchUri(fileUri, model.network, this._browserViewWorkbenchService);
+		// Sessions on a remote network serve `file:` URLs from the remote's file system, which the window reads by remote or agent host URI.
+		const uri = model.network ? fileUrlToRemoteUri(model.network, this._browserViewWorkbenchService.getNetworkFileSystem(model.network).scheme, fileUri) : fileUri;
 
 		const store = new DisposableStore();
 		const scheduler = store.add(new RunOnceScheduler(() => {

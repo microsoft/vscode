@@ -19,7 +19,7 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
-import { authorizeRemoteFilePath, toRemoteFileAccessKey, type IRemoteFileAccess } from './browserSessionFiles.js';
+import { authorizeRemoteFilePath, type IRemoteFileAccess } from './browserSessionFiles.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
@@ -277,7 +277,7 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Set the trusted paths on the file system of each remote, keyed by {@link toRemoteFileAccessKey}.
+	 * Set the trusted paths on the file system of each remote, keyed by network authority.
 	 * Used for the `file:` requests of sessions bound to that remote's network.
 	 */
 	static setRemoteFileAccess(remotes: ReadonlyMap<string, IRemoteFileAccess>): void {
@@ -347,7 +347,7 @@ export class BrowserSession {
 
 	/** Whether the file system of this session's remote network distinguishes paths by case (strict if unknown), or `undefined` for the local network, which follows the client. */
 	get isPathCaseSensitive(): boolean | undefined {
-		return this._network && (BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(this._network.authority))?.caseSensitive ?? true);
+		return this._network && (BrowserSession._remoteFileAccess.get(this._network.authority)?.caseSensitive ?? true);
 	}
 
 	/** The options that select this session. */
@@ -447,7 +447,7 @@ export class BrowserSession {
 	 * through the file service of a window connected to that remote.
 	 */
 	private async handleRemoteFileRequest(authority: string, uri: URI): Promise<GlobalResponse> {
-		const access = BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(authority));
+		const access = BrowserSession._remoteFileAccess.get(authority);
 		const path = access && authorizeRemoteFilePath(access, uri);
 		if (!access || path === undefined) {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });

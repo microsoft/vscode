@@ -22,7 +22,7 @@ suite('computeRemoteFileAccess', () => {
 	test('merges what windows contribute per authority', () => {
 		const remotes = computeRemoteFileAccess([
 			{ 'Host-A': network(['/repo']), 'host-b': network(['/other'], { caseSensitive: false }) },
-			{ 'host-a': network(['/more', '/bad\\root'], { trustAllFiles: true, caseSensitive: false }) },
+			{ 'Host-A': network(['/more', '/bad\\root'], { trustAllFiles: true, caseSensitive: false }) },
 			undefined,
 		]);
 		const paths = ['/repo/a', '/REPO/a', '/more/a', '/bad/a', '/other/a', '/OTHER/a'];
@@ -30,7 +30,7 @@ suite('computeRemoteFileAccess', () => {
 			trustAllFiles: remote.trustAllFiles, scheme: remote.scheme, caseSensitive: remote.caseSensitive,
 			trusted: paths.filter(path => remote.roots.findSubstr(path)),
 		}])), {
-			'host-a': { trustAllFiles: true, scheme: AGENT_HOST_SCHEME, caseSensitive: false, trusted: ['/repo/a', '/REPO/a', '/more/a'] },
+			'Host-A': { trustAllFiles: true, scheme: AGENT_HOST_SCHEME, caseSensitive: false, trusted: ['/repo/a', '/REPO/a', '/more/a'] },
 			'host-b': { trustAllFiles: false, scheme: AGENT_HOST_SCHEME, caseSensitive: false, trusted: ['/other/a', '/OTHER/a'] },
 		});
 	});
