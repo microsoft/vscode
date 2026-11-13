@@ -26,7 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
-import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
 import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type Message, type SessionActiveClient } from '../../common/state/sessionState.js';
@@ -48,7 +48,7 @@ import { SCHEDULED_WORK_WAKE_NETWORK_CAP_MS, SCHEDULED_WORK_WAKE_SETTLE_MS } fro
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { getAgentHostAutomationHistoryState, withAgentHostAutomationHistoryState } from '../../common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, getAgentHostOneTimeRun, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from '../../common/meta/agentHostAutomationsMeta.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -56,6 +56,10 @@ class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	override publicLog2(name?: string, data?: Record<string, unknown>): void {
 		this.events.push({ name: name ?? '', data: data ?? {} });
 	}
+}
+
+function scheduledChatMeta(conversation?: IAgentHostScheduledChatConversation): Record<string, unknown> {
+	return withAgentHostScheduledChat(undefined, conversation ? { conversation } : {});
 }
 
 suite('AgentHostAutomationService', () => {
@@ -2450,9 +2454,9 @@ suite('AgentHostAutomationService', () => {
 		const service = createService({
 			createSession: async (_template, run) => {
 				creates++;
-				const stored = storageService.get<{ catalog: { automations: { oneTimeRun?: string; nextRunAt?: string }[] } }>('automations')!;
-				assert.deepStrictEqual({ receipt: stored.catalog.automations[0].oneTimeRun, next: stored.catalog.automations[0].nextRunAt, purpose: run.purpose },
-					{ receipt: run.resource, next: undefined, purpose: 'scheduledChat' });
+				const stored = storageService.get<{ catalog: { automations: AutomationEntry[] } }>('automations')!;
+				assert.deepStrictEqual({ receipt: getAgentHostOneTimeRun(stored.catalog.automations[0]), next: stored.catalog.automations[0].nextRunAt, scheduledChat: getAgentHostScheduledChat(run) },
+					{ receipt: run.resource, next: undefined, scheduledChat: {} });
 				return URI.parse('mock:/once');
 			},
 			startSession: async (_session, message) => {
@@ -2462,7 +2466,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await service.handleCreate({
 			...createAction(),
-			definition: { ...definition(), purpose: 'scheduledChat', message: request, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+			definition: { ...definition(), _meta: scheduledChatMeta(), message: request, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
 		});
 		await started.p;
 		await timeout(0);
@@ -2471,8 +2475,8 @@ suite('AgentHostAutomationService', () => {
 		await restarted.handleConfigurationChanged();
 		await timeout(120_000);
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual({ creates, next: entry.nextRunAt, runs: entry.runs.length, status: entry.runs[0].lifecycle.status, editable: entry.operations.includes(AutomationOperation.Update), dispatchedAt: entry.oneTimeDispatchedAt },
-			{ creates: 1, next: undefined, runs: 1, status: AutomationRunStatus.Failed, editable: false, dispatchedAt: '2026-01-01T00:01:00.000Z' });
+		assert.deepStrictEqual({ creates, next: entry.nextRunAt, runs: entry.runs.length, status: entry.runs[0].lifecycle.status, editable: entry.operations.includes(AutomationOperation.Update), session: entry.runs[0].primarySession },
+			{ creates: 1, next: undefined, runs: 1, status: AutomationRunStatus.Failed, editable: false, session: 'mock:/once' });
 	}));
 
 	test('scheduled follow-up queues the exact busy peer chat once and never owns or deletes its session', async () => {
@@ -2514,22 +2518,21 @@ suite('AgentHostAutomationService', () => {
 		});
 		await service.handleCreate({
 			...createAction(),
-			definition: { ...definition(), purpose: 'scheduledChat', conversation, message, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+			definition: { ...definition(), _meta: scheduledChatMeta(conversation), message, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
 		});
 		const [first, second] = await Promise.all(['one', 'two'].map(requestId => service.runAutomation({
 			channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId,
 		})));
 		await timeout(0);
-		const entry = stateManager.getAutomationCatalogState()!.entries[0];
 		const run = stateManager.getAutomationRunState(first.resource)!;
 		const peer = stateManager.getChatState(conversation.chat)!;
 		assert.deepStrictEqual({
 			sameRun: first.resource === second.resource, submissions, status: run.lifecycle.status,
-			sessions: run.sessions, dispatched: !!entry.oneTimeDispatchedAt,
+			sessions: run.sessions,
 			active: peer.activeTurn?.id, queued: peer.queuedMessages,
 			mainQueue: stateManager.getChatState(mainChat)?.queuedMessages,
 		}, {
-			sameRun: true, submissions: 1, status: AutomationRunStatus.Completed, sessions: [], dispatched: true,
+			sameRun: true, submissions: 1, status: AutomationRunStatus.Completed, sessions: [],
 			active: 'unrelated',
 			queued: [{ id: first.resource, kind: PendingMessageKind.Queued, message: { text: message.text, origin: message.origin, attachments: message.attachments, _meta: message._meta } }],
 			mainQueue: undefined,
@@ -2553,7 +2556,7 @@ suite('AgentHostAutomationService', () => {
 		});
 		await service.handleCreate({
 			...createAction(),
-			definition: { ...definition(), purpose: 'scheduledChat', conversation: { session: 'mock:/existing', chat: 'ahp-chat:/peer' }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+			definition: { ...definition(), _meta: scheduledChatMeta({ session: 'mock:/existing', chat: 'ahp-chat:/peer' }), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
 		});
 		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'cancel-followup' });
 		await resolving.p;
@@ -2564,7 +2567,7 @@ suite('AgentHostAutomationService', () => {
 			{ submitted: false, status: AutomationRunStatus.Cancelled });
 	});
 
-	test('follow-up target failure has a positive safe recovery receipt but uncertain submission does not', async () => {
+	test('follow-up target or submission failure fails the run without owning a session', async () => {
 		for (const attempted of [false, true]) {
 			const resource = `ahp-automation:/followup-${attempted}`;
 			const service = createService({
@@ -2579,13 +2582,13 @@ suite('AgentHostAutomationService', () => {
 
 			await service.handleCreate({
 				...createAction(resource),
-				definition: { ...definition(), purpose: 'scheduledChat', conversation: { session: 'mock:/deleted', chat: 'ahp-chat:/deleted' }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+				definition: { ...definition(), _meta: scheduledChatMeta({ session: 'mock:/deleted', chat: 'ahp-chat:/deleted' }), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
 			});
 			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: resource, requestId: resource });
 			await timeout(0);
 			const entry = stateManager.getAutomationCatalogState()!.entries.find(entry => entry.resource === resource)!;
-			assert.deepStrictEqual({ status: entry.runs[0].lifecycle.status, rejected: !!entry.oneTimeDispatchRejectedAt, dispatched: !!entry.oneTimeDispatchedAt },
-				{ status: AutomationRunStatus.Failed, rejected: !attempted, dispatched: false });
+			assert.deepStrictEqual({ status: entry.runs[0].lifecycle.status, sessions: entry.runs[0].sessionCount },
+				{ status: AutomationRunStatus.Failed, sessions: 0 });
 			service.dispose();
 		}
 	});
@@ -2595,12 +2598,21 @@ suite('AgentHostAutomationService', () => {
 			{ session: 'mock:/missing', chat: 'ahp-chat:/missing' }, definition().message, 'followup'), /deleted, moved, or is unavailable/);
 	});
 
-	test('existing-conversation scheduling is absent and rejected without explicit host support', async () => {
-		const service = createService();
-		assert.strictEqual(service.capabilities?.existingConversation, undefined);
+	test('malformed existing-conversation target is rejected instead of creating a new session', async () => {
+		const service = createService({ supportsExistingConversation: true, prepareConversation: async () => () => { } });
 		await assert.rejects(service.handleCreate({
 			...createAction(),
-			definition: { ...definition(), purpose: 'scheduledChat', conversation: { session: 'mock:/existing', chat: 'ahp-chat:/peer' }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+			definition: { ...definition(), _meta: { 'vscode.scheduledChat': { conversation: { session: 'mock:/existing' } } }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		}), /requires supported/);
+		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries.length ?? 0, 0);
+	});
+
+	test('existing-conversation scheduling is absent and rejected without explicit host support', async () => {
+		const service = createService();
+		assert.strictEqual(service.supportsExistingConversation, false);
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta({ session: 'mock:/existing', chat: 'ahp-chat:/peer' }), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
 		}), /requires supported/);
 	});
 
@@ -2610,7 +2622,7 @@ suite('AgentHostAutomationService', () => {
 			...createAction(),
 			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
 		}), /unavailable on this host/);
-		assert.deepStrictEqual({ once: service.capabilities?.oneTime, conversation: service.capabilities?.existingConversation }, { once: undefined, conversation: undefined });
+		assert.deepStrictEqual({ once: service.capabilities?.oneTime, conversation: service.supportsExistingConversation }, { once: undefined, conversation: false });
 	});
 
 	test('one-time restart catches up once only after provider and wake readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
@@ -2644,6 +2656,22 @@ suite('AgentHostAutomationService', () => {
 		});
 	}));
 
+	test('one-time skip misfire policy drops an occurrence missed while unavailable', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		let creates = 0;
+		const service = createService({ createSession: async () => { creates++; return URI.parse('mock:/skipped'); } });
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z', misfirePolicy: AutomationMisfirePolicy.Skip }] },
+		});
+		await timeout(180_000);
+		systemWake.setFullyAwake(true);
+		await timeout(60_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ creates, runs: entry.runs.length, next: entry.nextRunAt, receipt: getAgentHostOneTimeRun(entry) },
+			{ creates: 0, runs: 0, next: undefined, receipt: undefined });
+	}));
+
 	test('one-time Send Now consumes the due occurrence and rejects a competing edit or cancel', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 		const started = new DeferredPromise<void>();
 		const service = createService({
@@ -2660,22 +2688,20 @@ suite('AgentHostAutomationService', () => {
 		await assert.rejects(service.handleRemove({ type: ActionType.AutomationRemoved, resource: createAction().resource }));
 		await timeout(120_000);
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual({ sameRun: first.resource === second.resource, receipt: entry.oneTimeRun, next: entry.nextRunAt, runs: entry.runs.length },
+		assert.deepStrictEqual({ sameRun: first.resource === second.resource, receipt: getAgentHostOneTimeRun(entry), next: entry.nextRunAt, runs: entry.runs.length },
 			{ sameRun: true, receipt: first.resource, next: undefined, runs: 1 });
 	}));
 
-	test('one-time cancel wins before due admission and stale reschedule is rejected', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+	test('one-time cancel wins before due admission', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 		const service = createService();
 		await service.handleCreate({
 			...createAction(),
 			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
 		});
-		const expectedModifiedAt = stateManager.getAutomationCatalogState()!.entries[0].modifiedAt;
-		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, expectedModifiedAt, changes: { enabled: false } });
-		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, expectedModifiedAt, changes: { enabled: true } }), /changed before/);
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { enabled: false } });
 		await timeout(120_000);
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual({ enabled: entry.definition.enabled, receipt: entry.oneTimeRun, runs: entry.runs.length, next: entry.nextRunAt },
+		assert.deepStrictEqual({ enabled: entry.definition.enabled, receipt: getAgentHostOneTimeRun(entry), runs: entry.runs.length, next: entry.nextRunAt },
 			{ enabled: false, receipt: undefined, runs: 0, next: undefined });
 	}));
 
@@ -2696,6 +2722,11 @@ suite('AgentHostAutomationService', () => {
 			},
 		}), /cannot be saved/);
 		assert.strictEqual(writeAttempts, 0);
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.5+01:30' }] },
+		});
+		assert.strictEqual(stateManager.getAutomationCatalogState()!.entries[0].nextRunAt, '2027-01-01T08:30:00.500Z');
 	});
 
 	test('confirmed scheduled-chat cancellation cannot be re-enabled or manually dispatched by another client', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
@@ -2703,7 +2734,7 @@ suite('AgentHostAutomationService', () => {
 		const action = {
 			...createAction(),
 			definition: {
-				...definition(), purpose: 'scheduledChat',
+				...definition(), _meta: scheduledChatMeta(),
 				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }],
 			} satisfies AutomationDefinition,
 		};
@@ -2721,13 +2752,66 @@ suite('AgentHostAutomationService', () => {
 		});
 	}));
 
+	test('scheduled-chat purpose and target cannot be changed through definition metadata', async () => {
+		const service = createService({ supportsExistingConversation: true, prepareConversation: async () => () => { } });
+		const conversation = { session: 'mock:/existing', chat: 'ahp-chat:/peer' };
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: scheduledChatMeta(conversation), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		});
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { _meta: scheduledChatMeta() } }), /existing conversation target/);
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { _meta: {} } }), /existing conversation target/);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual(getAgentHostScheduledChat(entry.definition), { conversation });
+	});
+
+	test('migrates scheduled-chat fields stored before one-time triggers were standardized', async () => {
+		const automation = createAction().resource;
+		const conversation = { session: 'mock:/existing', chat: 'ahp-chat:/peer' };
+		const run = {
+			resource: 'ahp-automation-run:/legacy', automation, purpose: 'scheduledChat',
+			origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'once', scheduledFor: '2027-01-01T10:00:00.000Z' },
+			lifecycle: { status: AutomationRunStatus.Completed, createdAt: new Date(0).toISOString(), startedAt: new Date(0).toISOString(), completedAt: new Date(0).toISOString() },
+			sessions: [],
+		};
+		storageService.set('automations', {
+			catalog: {
+				automations: [{
+					resource: automation,
+					definition: { ...definition(), purpose: 'scheduledChat', conversation, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+					oneTimeRun: run.resource, oneTimeDispatchedAt: '2027-01-01T10:00:01.000Z',
+					runs: [], operations: [], createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				}],
+			},
+			runs: [run],
+		});
+		await storageService.whenIdle();
+		const service = createService({ supportsExistingConversation: true, prepareConversation: async () => () => { } });
+		await service.handleConfigurationChanged();
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		const legacy = entry as AutomationEntry & { oneTimeRun?: unknown; definition: { purpose?: unknown; conversation?: unknown } };
+		assert.deepStrictEqual({
+			scheduledChat: getAgentHostScheduledChat(entry.definition),
+			oneTimeRun: getAgentHostOneTimeRun(entry),
+			runScheduledChat: getAgentHostScheduledChat(stateManager.getAutomationRunState(run.resource)),
+			legacyFields: [legacy.oneTimeRun, legacy.definition.purpose, legacy.definition.conversation],
+			editable: entry.operations.includes(AutomationOperation.Update),
+		}, {
+			scheduledChat: { conversation },
+			oneTimeRun: run.resource,
+			runScheduledChat: {},
+			legacyFields: [undefined, undefined, undefined],
+			editable: false,
+		});
+	});
+
 	test('lost creation acknowledgement can be replayed after its one-time instant passes', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 		systemWake.setFullyAwake(false);
 		const service = createService();
 		const action = {
 			...createAction(),
 			definition: {
-				...definition(), purpose: 'scheduledChat',
+				...definition(), _meta: scheduledChatMeta(),
 				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }],
 			} satisfies AutomationDefinition,
 		};

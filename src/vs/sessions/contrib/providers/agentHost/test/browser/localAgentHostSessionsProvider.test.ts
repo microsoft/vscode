@@ -34,7 +34,7 @@ import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/com
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
-import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostAutonomousAutomationsCapabilityMetaKey, agentHostAutomationSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -6215,7 +6215,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [
 			{ ...createSession('cached-run', { summary: 'Cached run' }), origin: automationOrigin },
-			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: { ...automationOrigin, purpose: 'scheduledChat' } },
+			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: agentHostAutomationSessionOrigin(automationOrigin.automation, automationOrigin.run, true) },
 			createSession('cached-plain', { summary: 'Cached plain' }),
 		]);
 		const nextHost = new MockAgentHostService();

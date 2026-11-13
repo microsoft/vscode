@@ -20,7 +20,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { nextAutomationCronOccurrence } from '../../../../../../platform/agentHost/common/automationCron.js';
-import { withAgentHostAutomationHistoryState } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -460,7 +460,8 @@ suite('AgentHostAutomationStore', () => {
 				conversationFromHost: (session, chat) => session.toString() === backend.session.toString() && chat.toString() === backend.chat.toString() ? conversation : undefined,
 			});
 			const connection = disposables.add(new TestAutomationConnection());
-			connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {}, existingConversation: {}, customizations: {} } }, undefined);
+			const initializeResult = connection.initializeResult.get()!;
+			connection.initializeResult.set({ ...initializeResult, automations: { create: {}, oneTime: {}, customizations: {} }, _meta: { ...initializeResult._meta, [AgentHostScheduledChatExistingConversationCapabilityMetaKey]: true } }, undefined);
 			store.setConnection(connection);
 			const request: Message = {
 				text: 'Review changes', origin: { kind: MessageKind.Automation },
@@ -475,22 +476,34 @@ suite('AgentHostAutomationStore', () => {
 			assert.ok(action.type === ActionType.AutomationCreateRequested);
 			assert.deepStrictEqual({
 				supported: store.supportsExistingChatAutomation.get(), projected: created.conversation, template: created.sessionTemplate,
-				target: action.definition.conversation, model: action.definition.session.model, config: action.definition.session.config,
+				target: getAgentHostScheduledChat(action.definition)?.conversation, model: action.definition.session.model, config: action.definition.session.config,
 				customizations: action.definition.session.customizations, request: created.request,
 			}, {
 				supported: true, projected: conversation, template: undefined,
 				target: { session: backend.session.toString(), chat: backend.chat.toString() },
 				model: undefined, config: undefined, customizations: undefined, request,
 			});
-			const rejectedAt = '2027-01-01T10:00:01.000Z';
-			connection.setAutomation({
-				resource: action.resource, definition: action.definition, operations: [AutomationOperation.Remove], runs: [],
-				createdAt: created.createdAt, modifiedAt: created.updatedAt, oneTimeRun: 'ahp-automation-run:/rejected', oneTimeDispatchRejectedAt: rejectedAt,
-			});
-			assert.deepStrictEqual({
-				rejectedAt: store.getAutomation(created.id)?.oneTimeDispatchRejectedAt,
-				dispatchedAt: store.getAutomation(created.id)?.oneTimeDispatchedAt,
-			}, { rejectedAt, dispatchedAt: undefined });
+			const run = 'ahp-automation-run:/followup';
+			const queuedAt = '2027-01-01T10:00:01.000Z';
+			const delivery = (lifecycle: AutomationRunSummary['lifecycle']) => {
+				connection.setAutomation({
+					resource: action.resource, definition: action.definition, operations: [AutomationOperation.Remove],
+					createdAt: created.createdAt, modifiedAt: created.updatedAt, _meta: withAgentHostOneTimeRun(undefined, run),
+					runs: [{
+						resource: run, automation: action.resource, origin: { kind: AutomationRunOriginKind.Manual }, sessionCount: 0,
+						lifecycle,
+					}],
+				});
+				const automation = store.getAutomation(created.id);
+				return { dispatchedAt: automation?.oneTimeDispatchedAt, rejectedAt: automation?.oneTimeDispatchRejectedAt };
+			};
+			assert.deepStrictEqual([
+				delivery({ status: AutomationRunStatus.Completed, createdAt: created.createdAt, startedAt: queuedAt, completedAt: queuedAt }),
+				delivery({ status: AutomationRunStatus.Failed, createdAt: created.createdAt, startedAt: queuedAt, completedAt: queuedAt, error: { errorType: 'targetUnavailable', message: 'Target deleted' } }),
+			], [
+				{ dispatchedAt: queuedAt, rejectedAt: undefined },
+				{ dispatchedAt: undefined, rejectedAt: undefined },
+			]);
 		});
 	}
 
@@ -501,9 +514,11 @@ suite('AgentHostAutomationStore', () => {
 				toHost: resource => resource, fromHost: resource => resource, resourceSchemeForProvider: provider => provider,
 			});
 			const connection = disposables.add(new TestAutomationConnection());
+			const initializeResult = connection.initializeResult.get()!;
 			connection.initializeResult.set({
-				...connection.initializeResult.get()!,
-				automations: { create: {}, oneTime: {}, ...(!eligible ? { existingConversation: {} } : {}) },
+				...initializeResult,
+				automations: { create: {}, oneTime: {} },
+				_meta: { ...initializeResult._meta, ...(!eligible ? { [AgentHostScheduledChatExistingConversationCapabilityMetaKey]: true } : {}) },
 			}, undefined);
 			store.setConnection(connection);
 			await assert.rejects(store.createAutomation({
@@ -514,7 +529,7 @@ suite('AgentHostAutomationStore', () => {
 			assert.deepStrictEqual({ supported: store.supportsExistingChatAutomation.get(), dispatches: connection.dispatched.length }, { supported: false, dispatches: 0 });
 		}
 	});
-	test('one-time dispatch receipt survives history eviction and uses the projected run identity', async () => {
+	test('one-time delivery state is derived from the run', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {} } }, undefined);
 		const { store } = reconnectable();
@@ -525,23 +540,29 @@ suite('AgentHostAutomationStore', () => {
 		});
 		const create = connection.dispatched[0].action;
 		assert.ok(create.type === ActionType.AutomationCreateRequested);
-		const oneTimeRun = 'ahp-automation-run:/once';
-		const oneTimeDispatchedAt = '2027-01-01T10:00:01.000Z';
-		const entry: AutomationEntry = {
-			resource: create.resource, definition: create.definition, operations: [AutomationOperation.Remove], oneTimeRun, oneTimeDispatchedAt,
-			createdAt: created.createdAt, modifiedAt: created.updatedAt,
-			runs: [{
-				resource: oneTimeRun, automation: create.resource, origin: { kind: AutomationRunOriginKind.Manual },
-				lifecycle: { status: AutomationRunStatus.Completed, createdAt: created.createdAt, startedAt: oneTimeDispatchedAt, completedAt: oneTimeDispatchedAt }, sessionCount: 1,
-			}],
+		const run = 'ahp-automation-run:/once';
+		const at = '2027-01-01T10:00:01.000Z';
+		const project = (lifecycle: AutomationRunSummary['lifecycle'], primarySession?: string) => {
+			connection.setAutomation({
+				resource: create.resource, definition: create.definition, operations: [AutomationOperation.Remove], _meta: withAgentHostOneTimeRun(undefined, run),
+				createdAt: created.createdAt, modifiedAt: created.updatedAt,
+				runs: [{ resource: run, automation: create.resource, origin: { kind: AutomationRunOriginKind.Manual }, lifecycle, sessionCount: primarySession ? 1 : 0, ...(primarySession ? { primarySession } : {}) }],
+			});
+			const descriptor = store.getAutomation(created.id)!;
+			return { run: descriptor.oneTimeRunId === store.runs.get()[0]?.id, dispatchedAt: descriptor.oneTimeDispatchedAt, rejectedAt: descriptor.oneTimeDispatchRejectedAt };
 		};
-		connection.setAutomation(entry);
-		const projectedRun = store.runs.get()[0];
-		connection.setAutomation({ ...entry, runs: [] });
-		const descriptor = store.getAutomation(created.id)!;
-		assert.deepStrictEqual({ receipt: descriptor.oneTimeRunId, dispatchedAt: descriptor.oneTimeDispatchedAt }, {
-			receipt: projectedRun.id, dispatchedAt: oneTimeDispatchedAt,
-		});
+		const error = { errorType: 'failed', message: 'Failed' };
+		assert.deepStrictEqual([
+			project({ status: AutomationRunStatus.Running, createdAt: at, startedAt: at }),
+			project({ status: AutomationRunStatus.Running, createdAt: at, startedAt: at }, 'ahp-session:/once'),
+			project({ status: AutomationRunStatus.Failed, createdAt: at, startedAt: at, completedAt: at, error }),
+			project({ status: AutomationRunStatus.Failed, createdAt: at, startedAt: at, completedAt: at, error }, 'ahp-session:/once'),
+		], [
+			{ run: true, dispatchedAt: undefined, rejectedAt: undefined },
+			{ run: true, dispatchedAt: at, rejectedAt: undefined },
+			{ run: true, dispatchedAt: undefined, rejectedAt: at },
+			{ run: true, dispatchedAt: undefined, rejectedAt: undefined },
+		]);
 	});
 
 	test('one-time scheduling requires an explicit capability and rejects client-dependent attachments', async () => {
