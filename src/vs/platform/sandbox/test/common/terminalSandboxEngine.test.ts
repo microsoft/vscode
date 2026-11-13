@@ -418,6 +418,63 @@ suite('TerminalSandboxEngine', () => {
 		deepStrictEqual(config.network, { allowedDomains: [], deniedDomains: [], enabled: false });
 	});
 
+	test('detects local-address denials before sandbox network relaxation', async () => {
+		setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*']);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['localhost']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		const cases = [
+			['localhost', 'localhost'],
+			['127.0.0.2', '127.0.0.2'],
+			['127.1.2.3', '127.1.2.3'],
+			['0', '0.0.0.0'],
+			['[::1]', '[::1]'],
+			['[::]', '[::]'],
+			['[::ffff:127.0.0.2]', '[::ffff:7f00:2]'],
+			['allowed.example.test', undefined],
+			['sub.localhost', undefined],
+		] as const;
+		const results = [];
+		for (const [authority] of cases) {
+			const wrapped = await engine.wrapCommand(`curl http://${authority}:8080/`);
+			results.push({
+				isSandboxWrapped: wrapped.isSandboxWrapped,
+				requiresAllowNetworkConfirmation: wrapped.requiresAllowNetworkConfirmation,
+				blockedDomains: wrapped.blockedDomains,
+				deniedDomains: wrapped.deniedDomains,
+			});
+		}
+
+		deepStrictEqual(results, cases.map(([, domain]) => ({
+			isSandboxWrapped: true,
+			requiresAllowNetworkConfirmation: domain ? true : undefined,
+			blockedDomains: domain ? [domain] : undefined,
+			deniedDomains: domain ? [domain] : undefined,
+		})));
+	});
+
+	test('removing local-address denials preserves exact sandbox allow patterns', async () => {
+		setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['127.0.0.1']);
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['::1']);
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, createHost()));
+		const results = [await engine.wrapCommand('curl http://127.0.0.1:8080/')];
+
+		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
+		results.push(
+			await engine.wrapCommand('curl http://127.0.0.1:8080/'),
+			await engine.wrapCommand('curl http://127.0.0.2:8080/'),
+		);
+
+		deepStrictEqual(results.map(wrapped => ({
+			requiresAllowNetworkConfirmation: wrapped.requiresAllowNetworkConfirmation,
+			blockedDomains: wrapped.blockedDomains,
+			deniedDomains: wrapped.deniedDomains,
+		})), [
+			{ requiresAllowNetworkConfirmation: true, blockedDomains: ['127.0.0.1'], deniedDomains: ['127.0.0.1'] },
+			{ requiresAllowNetworkConfirmation: undefined, blockedDomains: undefined, deniedDomains: undefined },
+			{ requiresAllowNetworkConfirmation: true, blockedDomains: ['127.0.0.2'], deniedDomains: [] },
+		]);
+	});
+
 	test('detects Unicode URL domains denied by sandbox policy before network relaxation', async () => {
 		setSandboxSetting(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.example.test']);
 		setSandboxSetting(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['*.b\u00fccher.example.test']);

@@ -255,6 +255,13 @@ export function extractDomainFromUri(uri: URI): string | undefined {
 	return normalizeUriAuthority(uri.authority);
 }
 
+/** Checks explicit deny entries, including the loopback and unspecified-host class. */
+export function isDomainDenied(domain: string, deniedPatterns: readonly string[]): boolean {
+	const isLocalHost = isLoopbackOrUnspecifiedHost(domain);
+	return deniedPatterns.some(pattern => matchesDomainPattern(domain, pattern)
+		|| (isLocalHost && isLoopbackOrUnspecifiedHost(normalizeDomainPattern(pattern))));
+}
+
 /**
  * Determines whether a domain is allowed based on allow and deny lists.
  *
@@ -277,9 +284,7 @@ export function isDomainAllowed(domain: string, allowedPatterns: readonly string
 	}
 
 	// Denied patterns take precedence.
-	const isLocalHost = isLoopbackOrUnspecifiedHost(domain);
-	if (deniedPatterns.some(pattern => matchesDomainPattern(domain, pattern)
-		|| (isLocalHost && isLoopbackOrUnspecifiedHost(normalizeDomainPattern(pattern))))) {
+	if (isDomainDenied(domain, deniedPatterns)) {
 		return false;
 	}
 
