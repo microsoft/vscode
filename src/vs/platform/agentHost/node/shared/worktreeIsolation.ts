@@ -1141,17 +1141,17 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 				}),
 			};
 		}
-		const [branches, currentBranch, defaultBranch] = await Promise.all([
+		const [branches, currentBranchName, defaultBranch] = await Promise.all([
 			this._gitService.getBranches(workingDirectory, { pattern: ['refs/heads'], sort: 'committerdate' }),
-			this._gitService.getCurrentBranch(workingDirectory),
+			this._gitService.getCurrentBranchName?.(workingDirectory),
 			this._gitService.getDefaultBranch(workingDirectory),
 		]);
 		const branchNames = new Set(branches.map(branch => branch.name));
-		if (currentBranch) {
-			branchNames.add(currentBranch);
+		if (currentBranchName) {
+			branchNames.add(currentBranchName);
 		}
 		const branchCompletions = getBranchCompletions([...branchNames], {
-			currentBranch,
+			currentBranch: currentBranchName,
 			defaultBranch: defaultBranch?.name,
 		});
 

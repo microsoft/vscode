@@ -129,6 +129,7 @@ suite('WorktreeIsolation', () => {
 			getRepositoryRoot: async () => repoRoot,
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
+			getCurrentBranchName: async () => 'feature',
 			getHEAD: async () => headCommit ? localBranch('feature') : undefined,
 			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
 			getDefaultBranch2: async () => localBranch('main'),
@@ -764,11 +765,22 @@ suite('WorktreeIsolation', () => {
 	test('branchCompletions includes the current branch before the first commit', async () => {
 		const gitService = createGitService();
 		gitService.getBranches = async () => [];
-		gitService.getCurrentBranch = async () => 'newbranch';
+		gitService.getCurrentBranchName = async () => 'newbranch';
 		const isolation = createIsolation(disposables, { gitService });
 		assert.deepStrictEqual(await isolation.branchCompletions(repoRoot), {
 			items: [{ value: 'newbranch', label: 'newbranch' }],
 		});
+	});
+
+	test('branchCompletions excludes the detached HEAD commit from branch names', async () => {
+		const gitService = createGitService();
+		gitService.getCurrentBranch = async () => 'abc1234';
+		gitService.getCurrentBranchName = async () => undefined;
+		gitService.getBranches = async () => [];
+		gitService.getDefaultBranch = async () => undefined;
+		const isolation = createIsolation(disposables, { gitService });
+
+		assert.deepStrictEqual(await isolation.branchCompletions(repoRoot), { items: [] });
 	});
 
 	for (const detached of [false, true]) {
