@@ -2,7 +2,7 @@
 
 ## Scope
 
-The Agents Window is a narrow renderer owner of direct user system-wide keybindings for `workbench.action.openAgentsWindow` and `workbench.action.chat.attachAppWindowScreenshot`. This keeps those shortcuts active when the Agents Window remains after all standard editor windows close.
+The Agents Window is a narrow renderer owner of direct user system-wide keybindings for `workbench.action.openAgentsWindow`, `workbench.action.agentsLauncher` and `workbench.action.chat.attachAppWindowScreenshot`. This keeps those shortcuts active when the Agents Window remains after all standard editor windows close.
 
 The shared selection, renderer synchronization, native-host IPC, and Electron main-process
 registration mechanisms are specified in
@@ -10,7 +10,7 @@ registration mechanisms are specified in
 
 ## Ownership
 
-The Agents Window runs the shared global first-binding-wins selection before retaining direct candidates for Open Agents Window and Attach Screenshot of App Window. It does not own `runCommands` wrappers or system-wide bindings for other commands.
+The Agents Window runs the shared global first-binding-wins selection before retaining direct candidates for Open Agents Window, Show Agents Launcher and Attach Screenshot of App Window. It does not own `runCommands` wrappers or system-wide bindings for other commands.
 
 When an editor window and the Agents Window both own an accelerator, a trigger goes to the focused owner, then to the owner that was active last, then to the lowest window id (see the shared specification). While another app is in front, Attach Screenshot of App Window therefore attaches the screenshot to a chat in the window that the user just left.
 
@@ -29,7 +29,7 @@ later keybinding changes.
 Open Agents Window force-reveals the window through the native host, because a system-wide trigger
 usually fires while VS Code is inactive or hidden and does not focus any window itself.
 
-Rejected bindings for either command are logged in the Agents Window. OS registration failures are
+Rejected bindings for these commands are logged in the Agents Window. OS registration failures are
 reported by each renderer owner so an Agents-only process retains a visible failure surface. When
 an editor and the Agents Window both own the same failing accelerator, both windows may display the
 same warning.
