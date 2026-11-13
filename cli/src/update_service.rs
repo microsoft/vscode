@@ -85,7 +85,7 @@ impl UpdateService {
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/versions/{}/{}/{}",
-			&update_endpoint,
+			update_endpoint,
 			version,
 			download_segment,
 			quality_download_segment(quality),
@@ -122,7 +122,7 @@ impl UpdateService {
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/latest/{}/{}",
-			&update_endpoint,
+			update_endpoint,
 			download_segment,
 			quality_download_segment(quality),
 		);
@@ -155,7 +155,7 @@ impl UpdateService {
 
 		let download_url = format!(
 			"{}/commit:{}/{}/{}",
-			&update_endpoint,
+			update_endpoint,
 			release.commit,
 			download_segment,
 			quality_download_segment(release.quality),
