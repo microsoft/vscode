@@ -35,7 +35,7 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, SessionsViewWorktreeGroupingContext } from './sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -1765,6 +1765,59 @@ export function registerSessionsListActions(): IDisposable {
 			when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext),
 		}));
 	}
+
+	return store;
+}
+
+/**
+ * Registers what a Sessions view that offers {@link SessionsGrouping.Worktree} (see `allowWorktreeGrouping`) needs on top of
+ * {@link registerSessionsListActions}: its Grouping entry, and the Show submenu and its entries while it groups by worktree,
+ * until the returned disposable is disposed. The Agents window does not register it.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
+export function registerSessionsListWorktreeGroupingActions(): IDisposable {
+	const store = new DisposableStore();
+	const GroupedByWorktreeContext = SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree);
+
+	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
+		constructor() {
+			super({
+				id: 'sessionsViewPane.groupByWorktree',
+				title: localize2('groupByWorktree', "Worktree"),
+				category: SessionsCategories.Sessions,
+				toggled: GroupedByWorktreeContext,
+				precondition: SessionsViewWorktreeGroupingContext,
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: SessionsViewWorktreeGroupingContext }],
+			});
+		}
+		override run(accessor: ServicesAccessor) {
+			const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+			view?.setGrouping(SessionsGrouping.Worktree);
+		}
+	}));
+
+	// Worktree grouping caps its sections as the other groupings by section do, which Show switches between Recent and All
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+		submenu: Menus.SessionsViewShow,
+		title: localize2('showSessions', "Show"),
+		when: GroupedByWorktreeContext,
+		group: '1_presentation',
+		order: 2,
+	}));
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
+		command: { id: 'sessionsViewPane.showRecentSessions', title: localize2('recent', "Recent"), toggled: IsWorkspaceGroupCappedContext },
+		group: '1_show',
+		order: 0,
+		when: GroupedByWorktreeContext,
+	}));
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
+		command: { id: 'sessionsViewPane.showAllSessions', title: localize2('all', "All"), toggled: IsWorkspaceGroupCappedContext.negate() },
+		group: '1_show',
+		order: 1,
+		when: GroupedByWorktreeContext,
+	}));
 
 	return store;
 }

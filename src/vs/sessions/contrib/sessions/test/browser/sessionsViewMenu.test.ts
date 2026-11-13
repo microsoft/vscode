@@ -56,9 +56,9 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, SessionsViewWorktreeGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
-import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { registerSessionsListWorktreeGroupingActions, SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 
 suite('Sessions - View Menu', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -860,6 +860,33 @@ suite('Sessions - View Menu', () => {
 				checked: ['Last 30 Days', 'Show in External Section'],
 			},
 			ungrouped: { title: 'Created Externally', checked: ['Last 30 Days'] },
+		});
+	});
+
+	test('offers Worktree grouping, and Show while grouping by worktree, only where a window registers it and its view allows it', () => {
+		const { snapshot, contextKeyService, grouping } = createMenu();
+		const state = () => ({
+			grouping: snapshot(Menus.SessionsViewGrouping).map(item => item.title),
+			show: snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Show'),
+			showEntries: snapshot(Menus.SessionsViewShow).map(item => item.title),
+		});
+		grouping.set(SessionsGrouping.Worktree);
+		// The Agents window registers no Worktree grouping, also if a grouping of worktree were set
+		const agentsWindow = state();
+		const registration = registerSessionsListWorktreeGroupingActions();
+		grouping.set(SessionsGrouping.Workspace);
+		const registeredNotAllowed = snapshot(Menus.SessionsViewGrouping).map(item => item.title);
+		SessionsViewWorktreeGroupingContext.bindTo(contextKeyService).set(true);
+		const allowed = snapshot(Menus.SessionsViewGrouping).map(item => item.title);
+		grouping.set(SessionsGrouping.Worktree);
+		const byWorktree = state();
+		registration.dispose();
+
+		assert.deepStrictEqual({ agentsWindow, registeredNotAllowed, allowed, byWorktree }, {
+			agentsWindow: { grouping: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'], show: false, showEntries: [] },
+			registeredNotAllowed: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'],
+			allowed: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'],
+			byWorktree: { grouping: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'], show: true, showEntries: ['Recent', 'All'] },
 		});
 	});
 
