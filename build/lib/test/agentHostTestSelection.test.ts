@@ -274,8 +274,8 @@ suite('Agent Host PR test selection', () => {
 				});
 				return {
 					needs: 'changes',
-					// Only the merge queue runs the Windows jobs.
-					if: platform === 'linux' ? '${{ !cancelled() }}' : '${{ !cancelled() && github.event_name == \'merge_group\' }}',
+					// Pull requests to main skip the Windows jobs, which the merge queue runs.
+					if: platform === 'linux' ? '${{ !cancelled() }}' : '${{ !cancelled() && (github.event_name == \'merge_group\' || github.base_ref != \'main\') }}',
 					profile,
 					reason,
 					// Linux runs it in its own job, Windows in three shards, when the plan also selects one of its suites.

@@ -411,7 +411,7 @@ suite('Detect Changes', () => {
 		const tests = testJobs();
 		const declaredOutputs = Object.keys(jobs.changes.outputs ?? {});
 		// The calling jobs always run, and the jobs of their reusable workflows skip (see the test jobs in pr.yml), except
-		// the Windows one, which only the merge queue runs.
+		// the Windows one, which pull requests to main skip, as the merge queue runs it.
 		const callsOn = (name: string, condition = '!cancelled()') => ({ name, needs: 'changes', if: `\${{ ${condition} }}` });
 		const skipsWhenUnaffected = (output: string) => `\${{ needs.changes.result != 'success' || needs.changes.outputs.${output} == 'true' }}`;
 		assert.deepStrictEqual({
@@ -422,7 +422,7 @@ suite('Detect Changes', () => {
 			callers: {
 				'linux-rust-tests': callsOn('Linux'),
 				'linux-tests': callsOn('Linux'),
-				'windows-tests': callsOn('Windows', `!cancelled() && github.event_name == 'merge_group'`),
+				'windows-tests': callsOn('Windows', `!cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main')`),
 			},
 			checks: {
 				'Linux / CLI': skipsWhenUnaffected('cli'),
@@ -487,7 +487,7 @@ suite('Detect Changes', () => {
 		]);
 	});
 
-	test('only the merge queue runs the Windows jobs, and it runs every job on runners of its own', () => {
+	test('pull requests to main skip the Windows jobs, which the merge queue runs with every other job on runners of its own', () => {
 		const { jobs } = loadWorkflow();
 		const runner = (os: string) => `\${{ github.event_name == 'merge_group' && 'vscode-large-runners-${os}-8-core-merge-queue' || 'vscode-large-runners-${os}-8-core' }}`;
 		const runsOn = [
@@ -496,12 +496,12 @@ suite('Detect Changes', () => {
 			...Object.values(loadWorkflow('component-fixtures.yml').jobs).map(job => job['runs-on']),
 		].filter(value => value !== undefined);
 		assert.deepStrictEqual({
-			// The jobs that require a merge group, rather than also allow one (Cancel Run).
-			mergeQueueOnly: Object.entries(jobs).filter(([, job]) => /github\.event_name == 'merge_group' (&&|\}\})/.test(job.if ?? '')).map(([id]) => id),
+			// Pull requests to release branches, which have no merge queue, run them.
+			skippedByPullRequestsToMain: Object.entries(jobs).filter(([, job]) => job.if?.includes(`(github.event_name == 'merge_group' || github.base_ref != 'main')`)).map(([id]) => id),
 			// Windows / Electron-Smoke (WSL) runs on its 1ES pool.
 			runners: [...new Set(runsOn.filter(value => typeof value === 'string'))].sort(),
 		}, {
-			mergeQueueOnly: ['windows-tests', 'copilot-windows-tests', 'chat-lib-windows-tests'],
+			skippedByPullRequestsToMain: ['windows-tests', 'copilot-windows-tests', 'chat-lib-windows-tests'],
 			runners: [runner('ubuntu'), runner('windows')].sort(),
 		});
 	});

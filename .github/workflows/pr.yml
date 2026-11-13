@@ -5,9 +5,13 @@ on:
     branches:
       - main
       - 'release/*'
+  # Only main has a merge queue (see .github/rulesets/main-merge-queue.json): pull requests to
+  # release branches merge without one, and run every check.
   merge_group:
     types:
       - checks_requested
+    branches:
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,9 +28,10 @@ jobs:
   # The workflow is: Detect Changes (the plan) -> the jobs that run what the plan
   # selects -> PR Gate, which reports their results as a single check.
   #
-  # It runs for pull requests and for the merge groups of the merge queue. Pull requests
-  # run every job except the Windows ones, which only the merge queue runs ("Windows / *",
-  # "Copilot - Test (Windows)" and "chat-lib - Test (Windows)"). The merge queue runs every
+  # It runs for pull requests and for the merge groups of the merge queue of main. Pull
+  # requests to main run every job except the Windows ones ("Windows / *", "Copilot - Test
+  # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs. Pull requests to
+  # release branches, which have no merge queue, run them too. The merge queue runs every
   # job, on runners of its own, so that the pull requests cannot hold up the merges:
   #
   # |         | Pull requests                       | Merge queue                                     |
@@ -424,10 +429,16 @@ jobs:
       # Hygiene and oxlint check only the changed files, so they take seconds and fail the job
       # before the compilation checks start. --continue-on-error reports both when both fail.
       # oxlint runs the rules of eslint.config.js (see oxlint.config.ts). It stays out of the
-      # compilation checks so that the memory of its processes doesn't overlap theirs.
+      # compilation checks so that the memory of its processes doesn't overlap theirs. A merge
+      # group has no base when Detect Changes failed, and then they check every file.
       - name: Hygiene & oxlint
         id: hygiene
-        run: pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "oxlint --changed-since $PR_BASE_SHA"
+        run: |
+          if [ -n "$PR_BASE_SHA" ]; then
+            pnpm exec npm-run-all2 -lp --continue-on-error "hygiene --changed-since $PR_BASE_SHA" "oxlint --changed-since $PR_BASE_SHA"
+          else
+            pnpm exec npm-run-all2 -lp --continue-on-error hygiene oxlint
+          fi
 
       # core-ci-pr skips the minified bundles that only the product build uses.
       - name: Compile
@@ -436,11 +447,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Without a base (see Hygiene & oxlint), it checks the client whether or not its inputs changed.
       - name: Check Codex protocol client is in sync
         id: codex-sync
         run: |
-          git fetch --no-tags --depth=1 origin "$CODEX_SYNC_BASE" || true
-          node build/codex/check-protocol-sync.ts --if-changed --base "$CODEX_SYNC_BASE"
+          if [ -n "$CODEX_SYNC_BASE" ]; then
+            git fetch --no-tags --depth=1 origin "$CODEX_SYNC_BASE" || true
+            node build/codex/check-protocol-sync.ts --if-changed --base "$CODEX_SYNC_BASE"
+          else
+            node build/codex/check-protocol-sync.ts
+          fi
         env:
           CODEX_SYNC_BASE: ${{ github.event.pull_request.base.sha || needs.changes.outputs.merge-group-base }}
 
@@ -591,8 +607,8 @@ jobs:
   # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names, run on
   # the runner that the calling job passes, and skip when the changes cannot affect them (the
   # *_affected inputs). The calling jobs always run, as GitHub reports a skipped calling job under its
-  # own name only, except the Windows one, which only the merge queue runs: pull requests report a
-  # single skipped Windows check.
+  # own name only, except the Windows one, which pull requests to main skip, as the merge queue runs
+  # it: they report a single skipped Windows check.
   linux-rust-tests:
     name: Linux
     needs: changes
@@ -665,7 +681,7 @@ jobs:
   windows-tests:
     name: Windows
     needs: changes
-    if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main') }}
     # actions: read finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
     permissions:
       contents: read
@@ -883,8 +899,8 @@ jobs:
   copilot-windows-tests:
     name: Copilot - Test (Windows)
     needs: changes
-    # Only the merge queue runs the Windows checks (see the top of the workflow).
-    if: ${{ !cancelled() && github.event_name == 'merge_group' && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    # Pull requests to main skip the Windows checks, which the merge queue runs (see the top of the workflow).
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: *windows-runner
     # actions: read finds and downloads the workspace image (see Compile & Hygiene)
     permissions:
@@ -1013,8 +1029,8 @@ jobs:
   chat-lib-windows-tests:
     name: chat-lib - Test (Windows)
     needs: changes
-    # Only the merge queue runs the Windows checks (see the top of the workflow).
-    if: ${{ !cancelled() && github.event_name == 'merge_group' && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
+    # Pull requests to main skip the Windows checks, which the merge queue runs (see the top of the workflow).
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || github.base_ref != 'main') && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: *windows-runner
     timeout-minutes: 30
     # actions: read finds and downloads the workspace image (see Compile & Hygiene)
@@ -1070,9 +1086,9 @@ jobs:
   # requests and of the merge groups of the merge queue:
   # Detect Changes plans the changes, the jobs above run what the plan
   # selects, and this gate passes when every job succeeded or was skipped
-  # because the changes cannot affect it, or because only the merge queue runs
-  # it. Detect Changes fails open: when it fails, every job runs, so its
-  # failure does not fail the gate (yet).
+  # because the changes cannot affect it, or because the merge queue runs it.
+  # Detect Changes fails open: when it fails, every job runs, so its failure
+  # does not fail the gate (yet).
   # Uses always() so that the gate also reports when a job failed or the run
   # was cancelled, as a skipped required check would pass.
   # Every job of this workflow must be listed in needs.
@@ -1114,7 +1130,7 @@ jobs:
               *:success)
                 echo "$job succeeded." ;;
               *:skipped)
-                echo "$job was skipped because the changes cannot affect it, or only the merge queue runs it." ;;
+                echo "$job was skipped because the changes cannot affect it, or the merge queue runs it." ;;
               changes:failure)
                 echo "::warning::Detect Changes failed, so every job ran." ;;
               *)

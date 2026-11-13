@@ -4,7 +4,7 @@ The JSON files in this folder define rulesets of microsoft/vscode, in the format
 
 | File | Ruleset |
 | --- | --- |
-| [main-merge-queue.json](main-merge-queue.json) | The merge queue of `main`, whose merge groups [pr.yml](../workflows/pr.yml) and [component-fixtures.yml](../workflows/component-fixtures.yml) check |
+| [main-merge-queue.json](main-merge-queue.json) | The merge queue of `main` (`~DEFAULT_BRANCH`), whose merge groups [pr.yml](../workflows/pr.yml) and [component-fixtures.yml](../workflows/component-fixtures.yml) check. Release branches have no merge queue. |
 
 [rulesets.ts](rulesets.ts) matches a file with the live ruleset of the same `name`. Every value of the file must equal the live one, while the live ruleset may have fields that the file omits, such as its id. It compares the rules by type, and a live rule that the file lacks is a difference too.
 
