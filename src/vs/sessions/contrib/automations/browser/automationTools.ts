@@ -220,8 +220,10 @@ export class ListAutomationsTool implements IToolImpl {
 					scheduling: {
 						supportsOneTime, supportsExistingChat: store.supportsExistingChatAutomation?.get() === true,
 						canSchedule, currentTime: new Date().toISOString(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-						...(!canSchedule ? { unavailableReason: !supportsOneTime ? 'This provider does not support one-time requests.'
-							: !this.scheduledChatsService.enabled.get() ? 'Send Later is disabled.' : unavailableReason ?? 'The provider is not ready to schedule requests.' } : {}),
+						...(!canSchedule ? {
+							unavailableReason: !supportsOneTime ? 'This provider does not support one-time requests.'
+								: !this.scheduledChatsService.enabled.get() ? 'Send Later is disabled.' : unavailableReason ?? 'The provider is not ready to schedule requests.'
+						} : {}),
 					},
 				} : {}),
 				...(pending.length ? { pendingScheduledRequests: pending.map(request => ({ ...request, conversation: serializeConversation(request.conversation) })) } : {}),
