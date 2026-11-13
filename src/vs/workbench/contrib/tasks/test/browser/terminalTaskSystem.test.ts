@@ -199,10 +199,12 @@ suite('TerminalTaskSystem workspace trust', () => {
 				await pending.p;
 				return undefined;
 			},
-			_terminalService: { createTerminal: async () => {
-				launches.push('create');
-				return { instanceId: 1, shellLaunchConfig: { type: 'Task' }, onDisposed: Event.None };
-			} },
+			_terminalService: {
+				createTerminal: async () => {
+					launches.push('create');
+					return { instanceId: 1, shellLaunchConfig: { type: 'Task' }, onDisposed: Event.None };
+				}
+			},
 			_logService: { trace: () => { } }
 		}) as { _createTerminal(task: Task, resolver: { taskSystemInfo: undefined }, folder: WorkspaceFolder): Promise<[ITerminalInstance | undefined, Error | undefined]> };
 		const execution = system._createTerminal(createTask('test'), { taskSystemInfo: undefined }, folder);
