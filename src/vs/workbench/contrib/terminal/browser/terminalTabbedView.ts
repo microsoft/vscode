@@ -235,7 +235,7 @@ export class TerminalTabbedView extends Disposable {
 		const ctx = offscreenCanvas.getContext('2d');
 		if (ctx) {
 			const style = dom.getWindow(this._tabListElement).getComputedStyle(this._tabListElement);
-			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
+			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`.trimStart();
 			const maxInstanceWidth = this._terminalGroupService.instances.reduce((p, c) => {
 				return Math.max(p, ctx.measureText(c.title + (c.description || '')).width + this._getAdditionalWidth(c));
 			}, 0);

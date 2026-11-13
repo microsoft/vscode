@@ -50,7 +50,7 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { updateTerminalFontRendering } from './terminalFontRendering.js';
+import { ensureCanvasFontLeadingWhitespaceFix, updateTerminalFontRendering } from './terminalFontRendering.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -981,6 +981,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			customGlyphs
 		});
 		this._webglWindow = dom.getWindow(this.raw.element);
+		ensureCanvasFontLeadingWhitespaceFix(this._webglWindow);
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
