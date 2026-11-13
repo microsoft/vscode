@@ -91,6 +91,12 @@ export const enum AgentHostIpcChannels {
 	RemoteProxy = 'agentHostProxy',
 }
 
+/**
+ * IPC connection context of the Electron main process's connection to the local agent host. Unlike a renderer's
+ * connection, whose context is its client id, it serves none of the client channels, such as the proxy channel.
+ */
+export const AgentHostMainProcessConnectionContext = 'agentHost';
+
 /** VS Code IPC-only connection options, never forwarded over the Agent Host Protocol. */
 export interface IAgentHostIpcConnectionOptions {
 	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
@@ -944,9 +950,9 @@ export interface IAgentHostManagementService {
 	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Local-only bridge for retrying the plugins a live chat's managed settings require. */
 	retryManagedPlugins(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
-	listPluginMarketplaces(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
-	addPluginMarketplace(provider: AgentProvider, session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
-	browsePluginMarketplace(provider: AgentProvider, session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	listPluginMarketplaces(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	addPluginMarketplace(provider: AgentProvider, session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	browsePluginMarketplace(provider: AgentProvider, session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
 	removePluginMarketplace(provider: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
 	refreshPluginMarketplaces(provider: AgentProvider, session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]>;
 	searchCustomizationMarketplace(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
@@ -1066,9 +1072,9 @@ export interface IAgentService {
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
 	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 	retryManagedPlugins?(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
-	listPluginMarketplaces?(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
-	addPluginMarketplace?(provider: AgentProvider, session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
-	browsePluginMarketplace?(provider: AgentProvider, session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	listPluginMarketplaces?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	addPluginMarketplace?(provider: AgentProvider, session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	browsePluginMarketplace?(provider: AgentProvider, session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
 	removePluginMarketplace?(provider: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
 	refreshPluginMarketplaces?(provider: AgentProvider, session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]>;
 	searchCustomizationMarketplace?(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
@@ -1681,9 +1687,9 @@ export interface IAgentHostService extends IAgentConnection {
 	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Retry the plugins a live chat's managed settings require through its local Agent Host provider. */
 	retryManagedPlugins?(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
-	listPluginMarketplaces?(provider: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
-	addPluginMarketplace?(provider: AgentProvider, session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
-	browsePluginMarketplace?(provider: AgentProvider, session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	listPluginMarketplaces?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	addPluginMarketplace?(provider: AgentProvider, session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	browsePluginMarketplace?(provider: AgentProvider, session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
 	removePluginMarketplace?(provider: AgentProvider, session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
 	refreshPluginMarketplaces?(provider: AgentProvider, session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]>;
 	searchCustomizationMarketplace?(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;

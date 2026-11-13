@@ -12174,7 +12174,7 @@ suite('CopilotAgentSession', () => {
 					modelCallId: 'call', created_at: undefined, model_call_id: undefined, exp_assignment_context: undefined,
 					session_id: session.sessionId, sdk_session_id: session.sessionId, copilot_tracking_id: undefined,
 					kind: 'response.success', restricted: false, copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a',
-					usageStatus: 'notReported', turnId: 'child-turn',
+					initiatorClientType: 'unknown', usageStatus: 'notReported', turnId: 'child-turn',
 				},
 			});
 		});

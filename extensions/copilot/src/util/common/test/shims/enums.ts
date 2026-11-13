@@ -72,3 +72,15 @@ export enum FileType {
 	Directory = 2,
 	SymbolicLink = 64
 }
+
+export enum StructuralDiffClassification {
+	Declaration = 1,
+	Header = 2,
+	Implementation = 3,
+	Dependency = 4,
+	Other = 5,
+}
+
+export enum StructuralDiffTag {
+	Test = 1,
+}

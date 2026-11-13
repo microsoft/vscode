@@ -243,7 +243,7 @@ suite('AgentHostProcessManager', () => {
 			heartbeat: { heapUsedMb: 50, heapLimitMb: 4096, externalMb: 4, arrayBuffersMb: 2, rssMb: 110, activeTurns: 0, runningToolCalls: 0, loadedSessions: 0, connectedClients: 1, activity: 'idle' },
 			heartbeatAgeMs: 1200,
 			peakHeapUsedMb: 60,
-			context: { msSinceResume: 5000, systemSuspended: false, quitRequested: false, lifecyclePhase: 3, windowCount: 1, osSessionEnd: 'shutdown', msSinceOsSessionEnd: 70000 },
+			context: { msSinceResume: 5000, systemSuspended: false, quitRequested: false, lifecyclePhase: 3, windowCount: 1, agentsWindowConnected: true, osSessionEnd: 'shutdown', msSinceOsSessionEnd: 70000 },
 		});
 		await starter.waitForStartCount(2);
 
@@ -287,6 +287,7 @@ suite('AgentHostProcessManager', () => {
 				quitRequested: false,
 				lifecyclePhase: 3,
 				windowCount: 1,
+				agentsWindowConnected: true,
 				osSessionEnd: 'shutdown',
 				msSinceOsSessionEnd: 70000,
 			},
