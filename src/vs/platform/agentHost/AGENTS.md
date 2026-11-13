@@ -150,6 +150,8 @@ Submitted values and secrets must never appear in reviews, errors or logs. The r
 
 The runtime does not own local package (stdio) installs, or remote installs from MCP Gallery cards (their plans are not session-bound), yet. For those the host writes the configuration with `mcp.config.add` after verifying the card against the plan's digest. Only non-secret values are supported on this path; anything needing a secret fails closed until the runtime can store it.
 
+The host downloads MCP Gallery cards itself (no redirects, 1 MiB bounded read) and plans from an `embedded` card holding those exact bytes, because the runtime refuses to download card URLs at private network addresses and a configured gallery may be on one. Configuration reuses the embedded bytes rather than downloading again. The plan's provenance authority is then `caller-supplied`; nothing on the Gallery path compares it, because these installs are host-written configuration rather than runtime-owned installations. Browse and feed catalogue installs keep their candidate sources.
+
 ### SDK hook and MCP discovery
 
 `SessionCustomizationDiscovery` publishes `hooks.discover` and `mcp.discover` from the selected host's SDK client and primary working directory. Hook actions retain their opaque IDs and individual enablement; warnings and partial errors produce a degraded inventory, and RPC failures remain visible without discarding successful discovery of other kinds. Filesystem hook locations remain writable creation targets and refresh triggers, not an independent action inventory.
