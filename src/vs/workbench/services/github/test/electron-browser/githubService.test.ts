@@ -107,28 +107,25 @@ suite('Native workbench GitHub API clients', () => {
 		result.dispose();
 	});
 
-	for (const selection of ['authorization', 'session'] as const) {
-		test(`forwards an explicitly selected ${selection} through IPC without choosing the default account`, async () => {
-			const { service, requests, client, accounts } = setup();
-			accounts.currentDefaultAccount = null;
-			const authorization = { providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'] };
-			const result = selection === 'authorization'
-				? await service.acquireAccountApiClient(authorization, signal())
-				: await service.acquireAccountApiClient('github', {
-					id: 'other', account: { id: 'other', label: 'Other' }, scopes: ['repo'], accessToken: 'never-forwarded',
-				}, signal());
-			assert.deepStrictEqual({ sameClient: result === client, requests }, {
-				sameClient: true, requests: [{ ...authorization, authorizationServer: undefined }],
-			});
-			result.dispose();
+	test('forwards an explicitly selected session through IPC without choosing the default account', async () => {
+		const { service, requests, client, accounts } = setup();
+		accounts.currentDefaultAccount = null;
+		const result = await service.acquireAccountApiClient('github', {
+			id: 'other', account: { id: 'other', label: 'Other' }, scopes: ['repo'], accessToken: 'never-forwarded',
+		}, signal());
+		assert.deepStrictEqual({ sameClient: result === client, requests }, {
+			sameClient: true, requests: [{ providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'], authorizationServer: undefined }],
 		});
-	}
+		result.dispose();
+	});
 
 	test('disposes an explicit shared-process lease that arrives after cancellation', async () => {
 		const { service, client, delay, pending, started, disposed } = setup();
 		delay();
 		const controller = new AbortController();
-		const rejected = assert.rejects(service.acquireAccountApiClient({ providerId: 'github', sessionId: 'other', accountId: 'other', scopes: ['repo'] }, controller.signal));
+		const rejected = assert.rejects(service.acquireAccountApiClient('github', {
+			id: 'other', account: { id: 'other', label: 'Other' }, scopes: ['repo'], accessToken: 'never-forwarded',
+		}, controller.signal));
 		await started.p;
 		controller.abort(new Error('cancelled'));
 		await pending.complete(client);

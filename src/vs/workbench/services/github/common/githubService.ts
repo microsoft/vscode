@@ -17,10 +17,7 @@ export const IWorkbenchGitHubService = refineServiceDecorator<IGitHubService, IW
 export interface IWorkbenchGitHubService extends IGitHubService {
 	readonly onDidChangeDefaultClient: Event<void>;
 	acquireAnonymousApiClient(signal: AbortSignal): Promise<IGitHubAnonymousClient>;
-	acquireAccountApiClient(...args:
-		| [authorization: GitHubAuthorizationContext, signal: AbortSignal]
-		| [providerId: string, session: AuthenticationSession, signal: AbortSignal]
-	): Promise<IGitHubAccountClient>;
+	acquireAccountApiClient(providerId: string, session: AuthenticationSession, signal: AbortSignal): Promise<IGitHubAccountClient>;
 	acquireDefaultAccountClient(signal: AbortSignal): Promise<IReference<IGitHubClient>>;
 	acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient>;
 }

@@ -22,7 +22,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { IAuthenticationService } from '../../authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../common/githubService.js';
 import { getWorkbenchMissionControlOptions, WorkbenchGitHubCredentialProvider } from './githubCredentialProvider.js';
 
@@ -95,12 +95,8 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		return this.acquireClient(options);
 	}
 
-	async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<IGitHubAccountClient> {
-		if (args.length === 3) {
-			const [providerId, session, signal] = args;
-			return this.acquireAccountApiClient(toGitHubAuthorizationContext(providerId, session), signal);
-		}
-		const [authorization, signal] = args;
+	async acquireAccountApiClient(providerId: string, session: AuthenticationSession, signal: AbortSignal): Promise<IGitHubAccountClient> {
+		const authorization = toGitHubAuthorizationContext(providerId, session);
 		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
 		const options = await withGitHubCredentialDeadline(combinedSignal, signal => this._credentialProvider.resolveClient(authorization, signal));
 		combinedSignal.throwIfAborted();

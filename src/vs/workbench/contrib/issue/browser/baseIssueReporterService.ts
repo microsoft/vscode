@@ -1289,10 +1289,11 @@ export class BaseIssueReporterService extends Disposable {
 		let issueUrl: string;
 		try {
 			const sessions = await withGitHubCredentialDeadline(this.disposeSignal, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
-			if (!authorization || !sessions.some(session => isEqualAuthorization(authorization, toGitHubAuthorizationContext('github', session)))) {
+			const session = authorization && sessions.find(session => isEqualAuthorization(authorization, toGitHubAuthorizationContext('github', session)));
+			if (!session) {
 				throw new GitHubRequestError(localize('issueReporter.githubSessionUnavailable', "The GitHub session selected for this issue report is no longer available. Sign in again or preview the report on GitHub."), 'authentication');
 			}
-			issueUrl = await this.issueFormService.createGitHubIssue(authorization, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
+			issueUrl = await this.issueFormService.createGitHubIssue('github', session, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
 			this.disposeSignal.throwIfAborted();
 		} catch (error) {
 			this.disposeSignal.throwIfAborted();
