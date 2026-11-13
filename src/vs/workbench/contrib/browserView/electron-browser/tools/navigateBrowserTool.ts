@@ -5,7 +5,6 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IBrowserViewNetwork, remoteUrlToFileUrl } from '../../../../../platform/browserView/common/browserView.js';
@@ -100,7 +99,7 @@ export class NavigateBrowserTool implements IToolImpl {
 				}
 
 				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
-				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(this.getPageNetwork(params.pageId, context.chatSessionResource), params.url), this.agentNetworkFilterService);
+				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(this.getPageNetwork(params.pageId, context.chatSessionResource?.toString() ?? '<default>'), params.url), this.agentNetworkFilterService);
 				if (networkPolicyError) {
 					throw new Error(networkPolicyError);
 				}
@@ -134,7 +133,7 @@ export class NavigateBrowserTool implements IToolImpl {
 			case 'forward':
 				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.goForward({ waitUntil: 'domcontentloaded' }));
 			default: {
-				const network = this.getPageNetwork(params.pageId, invocation.context?.sessionResource);
+				const network = this.getPageNetwork(params.pageId, sessionId);
 				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
 				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(network, params.url!), this.agentNetworkFilterService);
 				if (networkPolicyError) {
@@ -172,8 +171,8 @@ export class NavigateBrowserTool implements IToolImpl {
 	}
 
 	/** The network of the page, or the one a new page of the session would use before it has a model. */
-	private getPageNetwork(pageId: string, sessionResource: URI | undefined): IBrowserViewNetwork | undefined {
+	private getPageNetwork(pageId: string, sessionId: string): IBrowserViewNetwork | undefined {
 		const model = this.browserViewService.getKnownBrowserViews().get(pageId)?.model;
-		return model ? model.network : this.browserViewService.resolveNetwork({ type: 'agent', sessionId: sessionResource?.toString() ?? '<default>' });
+		return model ? model.network : this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
 	}
 }
