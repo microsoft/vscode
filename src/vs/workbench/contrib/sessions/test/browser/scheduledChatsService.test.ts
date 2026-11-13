@@ -9,9 +9,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { parse } from '../../../../../base/common/marshalling.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
@@ -34,7 +35,7 @@ import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../chat/common/automations/automation.js';
 import { AutomationMutationGuard, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions } from '../../../chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../chat/common/automations/automationsEnabled.js';
-import { ScheduledChatsService } from '../../browser/scheduledChatsService.js';
+import { IScheduledChatRequestOptions, ScheduledChatsService } from '../../browser/scheduledChatsService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
 import { ISessionDraftsService } from '../../browser/sessionDraftsService.js';
 import { ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -52,8 +53,8 @@ suite('Scheduled chat handoffs', () => {
 		override readonly sessionType = 'copilot';
 	};
 
-	function create(sendLater = true, savedDrafts = true, pickerWait?: Promise<void>) {
-		const storage = disposables.add(new InMemoryStorageService());
+	function create(sendLater = true, savedDrafts = true, pickerWait?: Promise<void>, existingStorage?: InMemoryStorageService) {
+		const storage = existingStorage ?? disposables.add(new InMemoryStorageService());
 		const config = new TestConfigurationService({
 			[SESSIONS_SEND_LATER_ENABLED_SETTING]: sendLater,
 			[SESSIONS_DRAFTS_ENABLED_SETTING]: savedDrafts,
@@ -85,6 +86,7 @@ suite('Scheduled chat handoffs', () => {
 			override readonly availableProviders = constObservable([{ id: 'local', label: 'Local', supportsOneTimeAutomation: true, supportsExistingChatAutomation: true }]);
 			override canCreateAutomation() { return true; }
 			override canRunAutomation() { return true; }
+			override getAutomation(id: string) { return automations.get().find(automation => automation.id === id); }
 			override async refresh() { calls.push('refresh'); }
 			override async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 				guard?.();
@@ -523,6 +525,160 @@ suite('Scheduled chat handoffs', () => {
 			schedule: stored.handoffs[0].schedule, accepted: stored.handoffs[0].automationId,
 			creationId: stored.handoffs[0].id, picks: fixture.picks,
 		}, { prompt: input.inputText, model: 'chosen-model', schedule: request.schedule, accepted: 'opaque:definition', creationId: request.creationId, picks: 1 });
+	});
+
+	function toolRequest(conversation?: IAutomationDescriptor['conversation']): IScheduledChatRequestOptions {
+		return {
+			name: 'Check build', prompt: input.inputText,
+			schedule: { interval: 'once', runAt: '2099-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local', sessionTypeId: 'copilot' },
+			conversation,
+		};
+	}
+
+	test('tool scheduling uses durable handoffs without opening a picker or claiming composer input', async () => {
+		const fixture = create();
+		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/peer') };
+		const result = await fixture.service.scheduleRequest(toolRequest(conversation), 'chat/call');
+		assert.deepStrictEqual({
+			status: result.status, picks: fixture.picks, claimed: [...fixture.service.claimedDraftIds.get()],
+			pending: fixture.service.hasPendingHandoff('composer', input),
+			conversation: fixture.requests[0].conversation, request: fixture.requests[0].request,
+			recovered: fixture.recoveredInputs,
+		}, {
+			status: 'accepted', picks: 0, claimed: [], pending: false, conversation,
+			request: { text: input.inputText, origin: { kind: 'user' } }, recovered: [],
+		});
+	});
+
+	test('tool retries after reload reuse the saved identity and do not duplicate accepted schedules', async () => {
+		const first = create();
+		first.failCreate = true;
+		const unknown = await first.service.scheduleRequest(toolRequest(), 'chat/call');
+		const pending = first.service.getPendingRequests();
+		first.service.dispose();
+		const restored = create(true, true, undefined, first.storage);
+		const accepted = await restored.service.scheduleRequest(toolRequest(), 'chat/call');
+		await restored.service.scheduleRequest(toolRequest(), 'chat/call');
+		assert.deepStrictEqual({
+			outcomes: [unknown.status, accepted.status],
+			pendingIds: pending.map(request => request.automationId),
+			creates: restored.requests,
+			remaining: restored.service.getPendingRequests(),
+			composerClaim: restored.service.hasPendingHandoff('composer', input),
+		}, {
+			outcomes: ['unknown', 'accepted'], pendingIds: ['opaque:definition'],
+			creates: [first.requests[0]], remaining: [], composerClaim: false,
+		});
+	});
+
+	test('tool operation identities serialize duplicates but allow intentionally identical new requests', async () => {
+		const fixture = create();
+		await Promise.all([
+			fixture.service.scheduleRequest(toolRequest(), 'chat/call'),
+			fixture.service.scheduleRequest(toolRequest(), 'chat/call'),
+		]);
+		await fixture.service.scheduleRequest(toolRequest(), 'chat/another-call');
+		assert.deepStrictEqual({ count: fixture.requests.length, identities: new Set(fixture.requests.map(request => request.creationId)).size, picks: fixture.picks }, { count: 2, identities: 2, picks: 0 });
+	});
+
+	test('a restored overdue tool handoff reuses captured configuration instead of reading live settings again', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const first = create();
+		first.failCreate = true;
+		const options = { ...toolRequest(), schedule: { ...toolRequest().schedule, runAt: new Date(Date.now() + 60_000).toISOString() } };
+		await first.service.scheduleRequest(options, 'chat/call', undefined, async () => ({ modelId: 'original', config: { autoApprove: 'default' } }));
+		first.service.dispose();
+		await timeout(60_001);
+		const restored = create(true, true, undefined, first.storage);
+		const result = await restored.service.scheduleRequest(options, 'chat/call', undefined, async () => {
+			throw new Error('Live configuration is unavailable');
+		});
+		assert.deepStrictEqual({ status: result.status, template: restored.requests[0].sessionTemplate }, {
+			status: 'accepted', template: { modelId: 'original', config: { autoApprove: 'default' } },
+		});
+	}));
+
+	test('tool replay compares resource identity and persisted templates rather than URI caches or undefined keys', async () => {
+		for (const existingChat of [false, true]) {
+			const first = create();
+			const folderUri = URI.file('/workspace');
+			const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/peer') };
+			const options: IScheduledChatRequestOptions = existingChat ? toolRequest(conversation) : {
+				...toolRequest(), sessionTemplate: { modelId: undefined, config: { mode: 'plan' } },
+				target: { kind: 'workspace', folderUri, isolation: { kind: 'default' }, providerId: 'local', sessionTypeId: 'copilot' },
+			};
+			folderUri.toString();
+			void folderUri.fsPath;
+			conversation.chatResource.toString();
+			first.failCreate = true;
+			await first.service.scheduleRequest(options, 'chat/call');
+			first.service.dispose();
+			const restored = create(true, true, undefined, first.storage);
+			const replay = await restored.service.scheduleRequest({
+				...options,
+				...(options.target.kind === 'workspace' ? { target: { ...options.target, folderUri: URI.file('/workspace') } } : {}),
+				conversation: existingChat ? {
+					sessionResource: URI.parse('agent-host-copilot:/session'),
+					chatResource: URI.parse('agent-host-copilot:/peer'),
+				} : undefined,
+			}, 'chat/call');
+			assert.deepStrictEqual({ status: replay.status, creates: restored.requests.length }, { status: 'accepted', creates: 1 });
+		}
+	});
+
+	test('catalogue reconciliation durably records lost acknowledgements before definition removal', async () => {
+		const fixture = create();
+		fixture.failCreate = true;
+		await fixture.service.scheduleRequest(toolRequest(), 'chat/call');
+		fixture.automations.set([{
+			...fixture.requests[0], id: 'opaque:definition', enabled: true,
+			createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+		}], undefined);
+		const acceptedId = parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs[0].automationId;
+		fixture.automations.set([], undefined);
+		fixture.service.dispose();
+		const restored = create(true, true, undefined, fixture.storage);
+		await assert.rejects(restored.service.scheduleRequest(toolRequest(), 'chat/call'), /already accepted.*will not be recreated/);
+		assert.deepStrictEqual({ acceptedId, pending: restored.service.getPendingRequests(), creates: restored.requests }, {
+			acceptedId: 'opaque:definition', pending: [], creates: [],
+		});
+	});
+
+	for (const complete of [false, true]) {
+		test(`tool ${complete ? 'dispatch' : 'recovery'} compacts payloads to durable replay receipts`, async () => {
+			const fixture = create();
+			await fixture.service.scheduleRequest({ ...toolRequest(), sessionTemplate: { modelId: 'captured' } }, 'chat/call');
+			if (complete) {
+				fixture.automations.set(fixture.automations.get().map(automation => ({ ...automation, oneTimeDispatchedAt: '2026-01-01T00:00:00.000Z' })), undefined);
+			} else {
+				await fixture.service.items.get()[0].open();
+			}
+			const handoffs = parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs;
+			const receipts = parse(fixture.storage.get('sessions.scheduledChatReceipts', StorageScope.PROFILE)!).receipts;
+			assert.deepStrictEqual({ handoffs, receipts, pending: fixture.service.getPendingRequests(), known: fixture.service.hasRequest('chat/call') }, {
+				handoffs: [], receipts: [{ operationId: 'chat/call', automationId: 'opaque:definition' }], pending: [], known: true,
+			});
+		});
+	}
+
+	test('tool scheduling rejects past instants and changed operations without replaying a different request', async () => {
+		const fixture = create();
+		await assert.rejects(fixture.service.scheduleRequest({ ...toolRequest(), schedule: { ...toolRequest().schedule, runAt: '2000-01-01T00:00:00.000Z' } }, 'past'), /future send time/);
+		await fixture.service.scheduleRequest(toolRequest(), 'chat/call');
+		await assert.rejects(fixture.service.scheduleRequest({ ...toolRequest(), prompt: 'Different request' }, 'chat/call'), /different saved request/);
+		await assert.rejects(fixture.service.scheduleRequest({ ...toolRequest(), sessionTemplate: { modelId: 'different-model' } }, 'chat/call'), /different saved request/);
+		fixture.automations.set([], undefined);
+		await assert.rejects(fixture.service.scheduleRequest(toolRequest(), 'chat/call'), /will not be recreated/);
+		assert.deepStrictEqual({ creates: fixture.requests.length, pending: fixture.service.getPendingRequests() }, { creates: 1, pending: [] });
+	});
+
+	test('tool prompt edits update recovery content as well as the durable request', async () => {
+		const fixture = create();
+		await fixture.service.scheduleRequest(toolRequest(), 'chat/call');
+		const automation = fixture.automations.get()[0];
+		await fixture.service.updateRequest(automation, { prompt: 'Changed', request: { ...automation.request!, text: 'Changed' } });
+		const stored = parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!);
+		assert.deepStrictEqual({ request: stored.handoffs[0].request.text, recovery: stored.handoffs[0].input.inputText, host: fixture.automations.get()[0].request?.text }, { request: 'Changed', recovery: 'Changed', host: 'Changed' });
 	});
 
 	test('lost acknowledgements replay the same identity, time and captured message without asking for a new time', async () => {

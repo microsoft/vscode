@@ -2136,6 +2136,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Session listing via notifications -------
 
+	test('lists only the sessions of its listing scope, hides one that leaves it without removing it, and still finds every session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost);
+		const folders = observableValue<readonly URI[]>('folders', [URI.parse('file:///work/repo')]);
+		provider.setListingScope({ folders, repositories: constObservable([]) });
+		await timeout(0);
+		const ids = (sessions: readonly ISession[]) => sessions.map(session => AgentSession.id(session.resource)).sort().join(',');
+		const changes: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
+
+		fireSessionAdded(agentHost, 'here', { workingDirectory: 'file:///work/repo' });
+		fireSessionAdded(agentHost, 'worktree', { workingDirectory: 'file:///work/repo.worktrees/x' });
+		fireSessionAdded(agentHost, 'elsewhere', { workingDirectory: 'file:///other' });
+		await timeout(100);
+		const elsewhere = provider.getAllSessions().find(session => AgentSession.id(session.resource) === 'elsewhere');
+		const scoped = { listed: ids(provider.getSessions()), all: ids(provider.getAllSessions()), found: !!elsewhere && provider.getSessionByResource(elsewhere.resource) === elsewhere };
+		folders.set([URI.parse('file:///other')], undefined);
+		const otherFolder = ids(provider.getSessions());
+
+		assert.deepStrictEqual({ scoped, otherFolder, changes }, {
+			scoped: { listed: 'here,worktree', all: 'elsewhere,here,worktree', found: true },
+			otherFolder: 'elsewhere',
+			changes: [
+				'added=here,worktree removed= changed=',
+				'added=elsewhere removed= changed=here,worktree',
+			],
+		});
+	}));
+
+
 	test('batches session added and removed notifications', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);
@@ -16487,6 +16516,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('a scoped listing lists the session a draft graduates into, not the draft, once the draft was listed', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		// Who learns of the replacement, such as the sessions management service, subscribed before the scope was set
+		const atReplacement: string[][] = [];
+		disposables.add(provider.onDidReplaceSession(({ from, to }) => atReplacement.push(provider.getSessions().map(listed => listed === to ? 'committed' : listed === from ? 'draft' : listed.sessionId))));
+		// Every folder: the scope lists every session, through its own listing
+		provider.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const ownRawId = AgentSession.id(chat.resource);
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		const draftListed = provider.getSessions().some(listed => listed.sessionId === session.sessionId);
+
+		fireSessionAdded(agentHost, ownRawId, { title: 'Own Session' });
+		const committed = await request;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			draftListed,
+			atReplacement,
+			listed: provider.getSessions().map(listed => listed === committed ? 'committed' : listed.sessionId === session.sessionId ? 'draft' : listed.sessionId),
+			all: provider.getAllSessions().map(listed => listed === committed ? 'committed' : listed.sessionId),
+		}, { draftListed: true, atReplacement: [['committed']], listed: ['committed'], all: ['committed'] });
+	});
+
 	test('sendRequest ignores same-type session-added notifications until its own session appears', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
@@ -16812,6 +16870,49 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	// ---- Running session config seeding (from SessionState.config) -------
+
+	test('Automation capture snapshots a running session without copying definition-owned configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('capture-running', { summary: 'Capture Running' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'Capture Running')!;
+		provider.getSessionOwnConfig(session.sessionId);
+		let resolved = false;
+		const capture = provider.getAutomationSessionConfiguration(session.sessionId).then(value => {
+			resolved = true;
+			return value;
+		});
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Approvals', chatMutable: true },
+					isolation: { type: 'string', title: 'Isolation' },
+					mode: { type: 'string', title: 'Mode' },
+				},
+			},
+			values: { autoApprove: 'autoApprove', isolation: 'worktree', mode: 'plan' },
+		};
+		const chat = { resource: 'ahp-chat:/captured-main', title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		const model = { id: 'test-model', config: { reasoningEffort: 'high' } };
+		agentHost.setSessionState('capture-running', 'copilotcli', {
+			provider: 'copilotcli', title: 'Capture Running', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat: chat.resource, chats: [chat], config,
+		});
+		await timeout(0);
+		const resolvedBeforeChat = resolved;
+		agentHost.setChatState(chat.resource, { ...chat, turns: [], config: { values: { autoApprove: 'default' } }, draft: { text: '', origin: { kind: MessageKind.User }, model } });
+		const captured = await capture;
+		config.values.mode = 'agent';
+		model.config.reasoningEffort = 'low';
+		assert.deepStrictEqual({ resolvedBeforeChat, template: captured?.sessionTemplate }, {
+			resolvedBeforeChat: false,
+			template: {
+				modelId: 'agent-host-copilotcli:test-model', modelConfiguration: { reasoningEffort: 'high' },
+				config: { autoApprove: 'default', mode: 'plan' },
+			},
+		});
+	}));
 
 	test('getSessionConfig seeds running config from session state subscription with full schema', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('seed-1', { summary: 'Seeded Session' }));
