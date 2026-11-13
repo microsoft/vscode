@@ -49,6 +49,7 @@ jobs:
       agent-host-test-profile-reason: ${{ steps.detect-agent-host-e2e.outputs.reason }}
       ripple-changed: ${{ steps.ripple.outputs.changed }}
       ripple-failed: ${{ steps.ripple.outputs.failed }}
+      registration-findings: ${{ steps.registrations.outputs.findings }}
       # macOS runs Agent Host E2E in the Electron integration tests job. Commented out with the macOS
       # jobs (see macos-tests).
       # electron-tests: ${{ steps.detect.outputs.product-tests == 'true' || steps.detect-agent-host-e2e.outputs.affected == 'true' }}
@@ -145,6 +146,26 @@ jobs:
           name: test-plan
           path: .build/test-plan
           retention-days: 7
+
+      # Unit tests that read a registry entry that nothing they load registers, which the pull
+      # request introduces (see `ripple registrations` in build/ripple/README.md). They pass in a
+      # full run only because another test file loads the module that registers the entry. Like
+      # the steps above, this never fails the job: the Test Registrations job reports findings.
+      - name: Check test registrations
+        id: registrations
+        if: steps.plan.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          set +e
+          build/ripple/target/release/ripple registrations --config build/ripple/vscode.jsonc --base HEAD^1 --rev HEAD
+          code=$?
+          # 2 reports findings; any other failure is a broken ripple, which must not block the pull request.
+          if [ "$code" = 2 ]; then
+            echo "findings=true" >> "$GITHUB_OUTPUT"
+          elif [ "$code" != 0 ]; then
+            exit "$code"
+          fi
 
       # The ripple steps above never fail the job, so that a broken ripple cannot block unrelated
       # pull requests: their unit test jobs run every unit test instead. The Ripple job reports a
@@ -538,6 +559,20 @@ jobs:
             exit 1
           fi
           echo "ripple built, passed its tests and planned the tests in Detect Changes."
+
+  # Fails when the pull request adds a unit test that reads a registry entry that nothing it loads
+  # registers, or stops registering an entry that a test reads (see the Check test registrations
+  # step of Detect Changes, which annotates the tests). Skipped otherwise.
+  registrations:
+    name: Test Registrations
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.registration-findings == 'true' }}
+    runs-on: vscode-large-runners-ubuntu-8-core
+    steps:
+      - name: Check that every test loads the registrations it reads
+        run: |
+          echo "::error::A unit test reads a registry entry that nothing it loads registers, so it passes only when another test file loads the module that registers it. See the Check test registrations step of the Detect Changes job: import that module in the test, or register the entry in the test."
+          exit 1
 
   # The test jobs below report "<OS> / <job>" checks, for example "Windows / Electron-Unit", whether
   # they run or not. Each calls the reusable workflow of its OS, whose jobs have fixed names and skip
@@ -1024,6 +1059,7 @@ jobs:
       - monaco-editor
       - telemetry
       - ripple
+      - registrations
       - linux-rust-tests
       - linux-tests
       # - macos-tests

@@ -68,6 +68,78 @@ struct File {
 	implicit_methods: Vec<String>,
 	#[serde(default)]
 	module_loaders: Vec<String>,
+	#[serde(default)]
+	registries: Option<Registries>,
+}
+
+/// Registries that tests read by key (see `ripple registrations`).
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Registries {
+	/// The function that returns a registry by its id, such as `Registry.as`.
+	#[serde(default)]
+	pub accessor: Option<String>,
+	/// The registries to check, by the name that findings report.
+	pub keyed: BTreeMap<String, KeyedRegistry>,
+}
+
+/// A registry whose entries are registered and read by a key.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct KeyedRegistry {
+	/// The registry, as `<module>#<name>` or `<module>#<name>.<member>`: the object whose methods
+	/// read and register entries, or the id that code passes to the accessor to get it.
+	pub registry: String,
+	/// The methods of the registry that read an entry by the key in their first argument.
+	pub read: Vec<String>,
+	/// The property of the entries that tests filter a read's result by, such as `command.id` in
+	/// `MenuRegistry.getMenuItems(menu).filter(item => item.command.id === ID)`: the test depends
+	/// on the entry for that refinement of the key (see `Registration::refine`).
+	#[serde(default)]
+	pub read_filter: Option<String>,
+	/// The calls that register entries.
+	pub register: Vec<Registration>,
+	/// Whether every key is registered once, like a command id: a read of a key that a
+	/// registration names must reach that registration, not just one whose key the analysis cannot
+	/// resolve. Reads that `readFilter` refines are treated the same.
+	#[serde(default)]
+	pub unique: bool,
+}
+
+/// Calls that register entries of a registry, and where their first argument holds the keys.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct Registration {
+	/// A method of the registry.
+	#[serde(default)]
+	pub method: Option<String>,
+	/// Or a function, `<module>#<name>`, or a method of another object, `<module>#<name>.<method>`.
+	#[serde(default)]
+	pub call: Option<String>,
+	/// Where the first argument holds the keys: `""` for the argument itself, `id` for a property of
+	/// it, `menu.id` for a property of a property, and `[]` for the elements of an array, such as
+	/// `menu[].id`.
+	pub keys: Vec<String>,
+	/// The first argument is a class (or a `new` expression), whose constructor passes the
+	/// descriptor that holds the keys to `super` (or the argument of the `new` expression).
+	#[serde(default)]
+	pub class: bool,
+	/// Whether every call registers an entry, so that a call without any of the keys registers an
+	/// entry that the analysis cannot tell, rather than none.
+	#[serde(default = "default_true")]
+	pub required: bool,
+	/// Where the arguments hold the refinement of the key that `readFilter` filters by, such as
+	/// `@1.command.id` for the command of a menu item in the second argument.
+	#[serde(default)]
+	pub refine: Option<String>,
+	/// A fixed key, `<module>#<name>.<member>`, that the call registers when one of `keys` is
+	/// `true`, such as the Command Palette for an action with `f1: true`.
+	#[serde(default)]
+	pub registers: Option<String>,
+}
+
+fn default_true() -> bool {
+	true
 }
 
 #[derive(Default, Deserialize)]
@@ -164,6 +236,11 @@ pub struct Config {
 	/// Methods called without their name at the call site.
 	pub implicit_methods: Vec<String>,
 	module_loaders: HashSet<String>,
+	/// Registries that tests read by key.
+	pub registries: Option<Registries>,
+	/// The names of the methods and the functions whose calls the analysis records for them.
+	registry_methods: HashSet<String>,
+	registry_functions: HashSet<String>,
 }
 
 impl Config {
@@ -175,6 +252,36 @@ impl Config {
 
 	pub fn parse(text: &str) -> Result<Self> {
 		let file: File = serde_json::from_str(&strip_jsonc(text))?;
+		let mut registry_methods = HashSet::new();
+		let mut registry_functions = HashSet::new();
+		for (name, registry) in file.registries.iter().flat_map(|r| &r.keyed) {
+			registry.registry.split_once('#').with_context(|| {
+				format!(
+					"registry '{name}': '{}' is not <module>#<name>",
+					registry.registry
+				)
+			})?;
+			registry_methods.extend(registry.read.iter().cloned());
+			for registration in &registry.register {
+				match (&registration.method, &registration.call) {
+					(Some(method), None) => {
+						registry_methods.insert(method.clone());
+					}
+					(None, Some(call)) => {
+						let (_, path) = call.split_once('#').with_context(|| {
+							format!("registry '{name}': call '{call}' is not <module>#<name>")
+						})?;
+						match path.rsplit_once('.') {
+							Some((_, method)) => registry_methods.insert(method.to_owned()),
+							None => registry_functions.insert(path.to_owned()),
+						};
+					}
+					_ => anyhow::bail!(
+						"registry '{name}': a registration needs either a method or a call"
+					),
+				}
+			}
+		}
 		let mut aliases: Vec<(String, String)> = file.path_aliases.into_iter().collect();
 		aliases.sort_by_key(|(prefix, _)| std::cmp::Reverse(prefix.len()));
 		let groups = |groups: BTreeMap<String, Vec<String>>| -> Result<Vec<(String, Patterns)>> {
@@ -199,7 +306,29 @@ impl Config {
 			pure_objects: file.pure.objects.into_iter().collect(),
 			implicit_methods: file.implicit_methods,
 			module_loaders: file.module_loaders.into_iter().collect(),
+			registry_methods,
+			registry_functions,
+			registries: file.registries,
 		})
+	}
+
+	/// The object and the function of the registry accessor, such as `("Registry", "as")`.
+	pub fn registry_accessor(&self) -> Option<(&str, &str)> {
+		self.registries
+			.as_ref()?
+			.accessor
+			.as_deref()?
+			.split_once('.')
+	}
+
+	/// Whether the analysis records the calls of a method of that name (see `registries`).
+	pub fn is_registry_method(&self, name: &str) -> bool {
+		self.registry_methods.contains(name)
+	}
+
+	/// Whether the analysis records the calls of a function of that name (see `registries`).
+	pub fn is_registry_function(&self, name: &str) -> bool {
+		self.registry_functions.contains(name)
 	}
 
 	pub fn role(&self, path: &str) -> Role {
@@ -360,6 +489,32 @@ pub fn for_tests() -> &'static Config {
 				"pure": { "functions": ["localize"], "objects": ["URI"] },
 				"implicitMethods": ["dispose"],
 				"moduleLoaders": ["loadModule"],
+				"registries": {
+					"accessor": "Registry.as",
+					"keyed": {
+						"view": { "registry": "src/registry.ts#Extensions.Views", "read": ["get"], "register": [{ "method": "register", "keys": ["id"] }] },
+						"command": {
+							"registry": "src/commands.ts#Commands",
+							"read": ["getCommand"],
+							"unique": true,
+							"register": [
+								{ "method": "registerCommand", "keys": ["", "id"] },
+								{ "call": "src/actions.ts#registerAction", "keys": ["id"], "class": true },
+							],
+						},
+						"menu": {
+							"registry": "src/actions.ts#Menus",
+							"read": ["getMenuItems"],
+							"readFilter": "command.id",
+							"register": [
+								{ "method": "appendMenuItem", "keys": [""], "refine": "@1.command.id" },
+								{ "method": "appendMenuItems", "keys": ["[].id"], "refine": "[].item.command.id" },
+								{ "call": "src/actions.ts#registerAction", "keys": ["menu.id", "menu[].id"], "class": true, "required": false, "refine": "id" },
+								{ "call": "src/actions.ts#registerAction", "keys": ["f1"], "class": true, "required": false, "refine": "id", "registers": "src/actions.ts#MenuId.CommandPalette" },
+							],
+						},
+					},
+				},
 			}"#,
 		)
 		.unwrap()

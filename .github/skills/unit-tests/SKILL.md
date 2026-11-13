@@ -118,6 +118,8 @@ Runs every test file of the run (`--run`, `--runList`, `--runGlob` or all) alone
 ./scripts/test.sh --isolate --workers 4 --runList .build/affected-tests.txt
 ```
 
+To find statically, without running tests, the unit tests that read a registry entry that nothing they load registers, run `ripple registrations` (see [build/ripple/README.md](../../../build/ripple/README.md#test-registrations)); pull request CI fails when a pull request introduces one.
+
 ### Integration tests
 
 Integration tests (files ending in `.integrationTest.ts` or located in `extensions/`) are **not run** by `scripts/test.sh`. Use `scripts/test-integration.sh` (or `scripts/test-integration.bat`) instead. See the `integration-tests` skill for details.

@@ -12,7 +12,8 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use crate::analyze::{
-	ExportTarget, FileFacts, Heritage, IMPLICIT_METHODS, Imported, Ref, TypeOrigin, name_id,
+	DescriptorKeys, ExportTarget, FileFacts, Heritage, IMPLICIT_METHODS, Imported, Ref,
+	RegistryKey, TypeOrigin, name_id,
 };
 use crate::config::{Config, Role};
 
@@ -264,6 +265,50 @@ impl<'s> Linker<'s> {
 		members
 			.binary_search_by(|(n, _)| (**n).cmp(member))
 			.map_or(v, |i| self.base[f] + members[i].1)
+	}
+
+	/// Whether a node stands for an exported name or an `export * from` list (see
+	/// `FileFacts::export_decls`) rather than for a declaration.
+	fn is_export_node(&self, v: u32) -> bool {
+		if v >= self.file_nodes_end {
+			return false;
+		}
+		let f = self.base.partition_point(|&b| b <= v) - 1;
+		let Some(facts) = self.snap.entries[f].facts.as_deref() else {
+			return false;
+		};
+		let d = v - self.base[f];
+		facts.star_decl == Some(d) || facts.export_decls.iter().any(|&(_, e)| e == d)
+	}
+
+	/// A registry id or key of module `f` with what it refers to resolved to the declarations,
+	/// without the export nodes along the way, which other members of the same object share.
+	fn registry_key(&mut self, f: u32, key: &RegistryKey) -> Key {
+		match key {
+			RegistryKey::Literal(s) => Key::Literal(s.clone()),
+			RegistryKey::Ref(r, member) => {
+				let mut nodes = match r {
+					Ref::Local(t) => vec![self.base[f as usize] + t],
+					Ref::Import { binding, member } => {
+						self.resolve_binding(f, *binding, member.as_deref(), 0)
+					}
+					_ => Vec::new(),
+				};
+				nodes.retain(|&v| !self.is_export_node(v));
+				nodes.sort_unstable();
+				nodes.dedup();
+				Key::Nodes {
+					nodes,
+					member: member.clone(),
+				}
+			}
+		}
+	}
+
+	fn descriptor_keys(&mut self, f: u32, keys: &DescriptorKeys) -> Vec<(Box<str>, Option<Key>)> {
+		keys.iter()
+			.map(|(path, k)| (path.clone(), k.as_ref().map(|k| self.registry_key(f, k))))
+			.collect()
 	}
 
 	fn package(&mut self, spec: &str) -> Res {
@@ -608,6 +653,92 @@ impl Csr<u32> {
 	}
 }
 
+/// A registry id or key (see `RegistryKey`), resolved: a string, or the declarations a name
+/// refers to, with the member that the code names. A name of a constant that holds a string,
+/// directly or through other constants, is that string.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Key {
+	Literal(Box<str>),
+	Nodes {
+		nodes: Vec<u32>,
+		member: Option<Box<str>>,
+	},
+}
+
+impl Key {
+	/// Whether two keys name the same value: equal strings, or names of the same declaration and
+	/// member. A name that does not resolve matches nothing.
+	pub fn matches(&self, other: &Key) -> bool {
+		match (self, other) {
+			(Key::Literal(a), Key::Literal(b)) => a == b,
+			(
+				Key::Nodes {
+					nodes: a,
+					member: m,
+				},
+				Key::Nodes {
+					nodes: b,
+					member: n,
+				},
+			) => m == n && a.iter().any(|v| b.binary_search(v).is_ok()),
+			_ => false,
+		}
+	}
+}
+
+/// The strings that constants hold, directly or through other constants, by node.
+fn string_values(values: &[(u32, Key)]) -> HashMap<u32, Box<str>> {
+	let mut strings: HashMap<u32, Box<str>> = values
+		.iter()
+		.filter_map(|(v, key)| match key {
+			Key::Literal(s) => Some((*v, s.clone())),
+			Key::Nodes { .. } => None,
+		})
+		.collect();
+	// Aliases of aliases: as many rounds as the longest chain, but not forever for a cycle.
+	for _ in 0..8 {
+		let mut changed = false;
+		for (v, key) in values {
+			if let Key::Nodes { nodes, .. } = key {
+				if !strings.contains_key(v) {
+					if let Some(s) = nodes.iter().find_map(|t| strings.get(t)).cloned() {
+						strings.insert(*v, s);
+						changed = true;
+					}
+				}
+			}
+		}
+		if !changed {
+			break;
+		}
+	}
+	strings
+}
+
+/// A registry call (see `analyze::RegistryCall`) with its receiver and keys resolved.
+#[derive(Clone, Debug)]
+pub struct RegistryCall {
+	pub file: u32,
+	/// The declaration whose code makes the call.
+	pub node: u32,
+	pub line: u32,
+	pub receiver: Key,
+	pub method: Option<Box<str>>,
+	/// The keys of the first argument by their path in it, `None` where it cannot be resolved.
+	pub keys: Vec<(Box<str>, Option<Key>)>,
+	/// The keys of what a class or `new` expression constructs from (see
+	/// `analyze::RegistryCall::constructed`).
+	pub constructed: Option<Vec<(Box<str>, Option<Key>)>>,
+	/// See `analyze::RegistryCall::forwarded`.
+	pub forwarded: bool,
+	/// See `analyze::RegistryCall::filters`.
+	pub filters: Vec<(Box<str>, Key)>,
+	/// See `analyze::RegistryCall::absent`.
+	pub absent: bool,
+	/// See `analyze::RegistryCall::ignored`.
+	pub ignored: bool,
+}
+
 /// Reusable buffers for `Graph::reaches`.
 #[derive(Default)]
 pub struct Scratch {
@@ -663,6 +794,8 @@ pub struct Graph {
 	pub effectful: Vec<bool>,
 	/// Name ids of the methods code calls without naming them (see `IMPLICIT_METHODS`).
 	implicit: Vec<u64>,
+	/// The registry calls of all modules, with their ids and keys resolved.
+	pub registry_calls: Vec<RegistryCall>,
 	pub edges: usize,
 	pub unresolved: u32,
 }
@@ -701,6 +834,14 @@ impl Graph {
 		let mut edges: Vec<(u32, u32)> = Vec::new();
 		let mut files_all: Vec<(u32, u32)> = Vec::new();
 		let mut files_runtime: Vec<(u32, u32)> = Vec::new();
+		let mut registry_calls: Vec<RegistryCall> = Vec::new();
+		// The value of each constant that holds a string or another constant (`FileFacts::values`).
+		let mut values: Vec<(u32, Key)> = Vec::new();
+		// The descriptor of each top-level class, and the registry calls whose first argument names
+		// a class whose descriptor is only known once every module is linked.
+		let mut class_descriptors: HashMap<u32, Vec<(Box<str>, Option<Key>)>> = HashMap::new();
+		let mut call_classes: Vec<(usize, Vec<u32>)> = Vec::new();
+		let mut class_supers: HashMap<u32, Vec<u32>> = HashMap::new();
 		let mut unresolved = 0;
 		for f in 0..n as u32 {
 			let Some(facts) = snap.entries[f as usize].facts.as_deref() else {
@@ -764,6 +905,49 @@ impl Graph {
 						}
 					}
 				}
+			}
+			for (d, value) in &facts.values {
+				values.push((b + d, linker.registry_key(f, value)));
+			}
+			for (d, keys) in &facts.class_descriptors {
+				class_descriptors.insert(b + d, linker.descriptor_keys(f, keys));
+			}
+			for (d, superclass) in &facts.class_supers {
+				if let Key::Nodes { nodes, .. } = linker.registry_key(f, superclass) {
+					class_supers.insert(b + d, nodes);
+				}
+			}
+			for call in &facts.registry_calls {
+				let receiver = linker.registry_key(f, &call.receiver);
+				let keys = linker.descriptor_keys(f, &call.keys);
+				let constructed = call
+					.constructed
+					.as_ref()
+					.map(|keys| linker.descriptor_keys(f, keys));
+				if constructed.is_none() {
+					if let Some(Key::Nodes { nodes, .. }) =
+						call.class.as_ref().map(|k| linker.registry_key(f, k))
+					{
+						call_classes.push((registry_calls.len(), nodes));
+					}
+				}
+				registry_calls.push(RegistryCall {
+					file: f,
+					node: b + call.decl,
+					line: call.line,
+					receiver,
+					method: call.method.clone(),
+					keys,
+					constructed,
+					forwarded: call.forwarded,
+					filters: call
+						.filters
+						.iter()
+						.map(|(path, k)| (path.clone(), linker.registry_key(f, k)))
+						.collect(),
+					absent: call.absent,
+					ignored: call.ignored,
+				});
 			}
 			let mut targets = Vec::new();
 			let mut order = Vec::new();
@@ -981,6 +1165,48 @@ impl Graph {
 				);
 			}
 		}
+		// The descriptor of a class, or of the nearest superclass that has one.
+		let descriptor_of = |classes: &[u32]| {
+			let mut classes = classes.to_vec();
+			for _ in 0..8 {
+				if let Some(d) = classes.iter().find_map(|v| class_descriptors.get(v)) {
+					return Some(d.clone());
+				}
+				classes = classes
+					.iter()
+					.filter_map(|v| class_supers.get(v))
+					.flatten()
+					.copied()
+					.collect();
+			}
+			None
+		};
+		for (i, classes) in call_classes {
+			registry_calls[i].constructed = descriptor_of(&classes);
+		}
+		// Registry keys that name constants holding strings compare by the strings (see `Key`).
+		let strings = string_values(&values);
+		let normalize = |key: &mut Key| {
+			if let Key::Nodes { nodes, .. } = key {
+				if let Some(s) = nodes.iter().find_map(|v| strings.get(v)) {
+					*key = Key::Literal(s.clone());
+				}
+			}
+		};
+		for call in &mut registry_calls {
+			for (_, key) in call
+				.keys
+				.iter_mut()
+				.chain(call.constructed.iter_mut().flatten())
+			{
+				if let Some(key) = key {
+					normalize(key);
+				}
+			}
+			for (_, key) in &mut call.filters {
+				normalize(key);
+			}
+		}
 		let swapped: Vec<(u32, u32)> = edges.iter().copied().collect();
 		Self {
 			reads,
@@ -994,6 +1220,7 @@ impl Graph {
 				.map(|m| name_id(m))
 				.chain(config.implicit_methods.iter().map(|m| name_id(m)))
 				.collect(),
+			registry_calls,
 			forward: Csr::group(total, &swapped),
 			gate,
 			uses: Csr::group(total, &uses),
@@ -1081,6 +1308,49 @@ impl Graph {
 		out
 	}
 
+	/// The modules closest to `seeds` whose initializers depend on them: the modules that run
+	/// them when they load, directly or through the fewest declarations in between.
+	pub fn nearest_initializers(&self, seeds: &[u32]) -> Vec<u32> {
+		let mut seen: HashSet<u32> = seeds.iter().copied().collect();
+		let mut level: Vec<u32> = seeds.to_vec();
+		while !level.is_empty() {
+			let mut files: Vec<u32> = level
+				.iter()
+				.filter_map(|&v| {
+					let f = self.node_file[v as usize];
+					(f != u32::MAX && self.base[f as usize] == v).then_some(f)
+				})
+				.collect();
+			if !files.is_empty() {
+				files.sort_unstable();
+				files.dedup();
+				return files;
+			}
+			let mut next = Vec::new();
+			for &v in &level {
+				for &u in self.nodes.of(v) {
+					if seen.insert(u) {
+						next.push(u);
+					}
+				}
+			}
+			level = next;
+		}
+		Vec::new()
+	}
+
+	/// Visits everything that the code of an entry can reach (see `reaches`), so that `visited`
+	/// tells whether it reaches a node, until the next search with the same `scratch`.
+	pub fn visit(&self, file: u32, scratch: &mut Scratch) {
+		let roots: Vec<u32> = self.file_nodes(file as usize).collect();
+		self.search::<false>(&roots, &[], &[], scratch, &mut Trace::default());
+	}
+
+	/// Whether the last `visit` with `scratch` reached a node.
+	pub fn visited(&self, scratch: &Scratch, v: u32) -> bool {
+		scratch.visited.get(v as usize) == Some(&scratch.stamp)
+	}
+
 	/// Whether the code of an entry can reach a target node, opening an instance method only once
 	/// the closure uses its name. Reaching a class does not reach its methods by itself.
 	pub fn reaches(&self, file: u32, targets: &[bool], scratch: &mut Scratch) -> bool {
@@ -1159,7 +1429,7 @@ impl Graph {
 		} else {
 			queue.pop()
 		} {
-			if targets[n as usize] {
+			if targets.get(n as usize) == Some(&true) {
 				return Some(n);
 			}
 			for &name in self.uses.of(n) {

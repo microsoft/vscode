@@ -13,10 +13,11 @@ use std::collections::{HashMap, HashSet};
 use oxc_allocator::Allocator;
 use oxc_ast::{AstKind, ast::*};
 use oxc_parser::{Parser, config::TokensParserConfig};
-use oxc_semantic::SemanticBuilder;
+use oxc_semantic::{AstNodes, Scoping, SemanticBuilder};
 use oxc_span::{GetSpan, SourceType, Span};
 use oxc_syntax::{
-	operator::UnaryOperator,
+	node::NodeId,
+	operator::{BinaryOperator, UnaryOperator},
 	scope::ScopeId,
 	symbol::{SymbolFlags, SymbolId},
 };
@@ -105,6 +106,55 @@ pub enum ExportTarget {
 	Namespace(u32),
 }
 
+/// A registry id or key: a string, or what a name or `name.member` refers to, with the member.
+#[derive(Debug, Clone)]
+pub enum RegistryKey {
+	Literal(Box<str>),
+	Ref(Ref, Option<Box<str>>),
+}
+
+/// The keys of a registration or read argument by their path in it (see `descriptor_keys`), with
+/// `None` for a value at a path that may be a key but that the analysis cannot resolve.
+pub type DescriptorKeys = Vec<(Box<str>, Option<RegistryKey>)>;
+
+/// A call that may read or register registry entries (see `registries` in the configuration): a
+/// method of `Registry.as(<id>)` (directly or through a `const` that holds it) or of an object that
+/// the module imports or declares, or a function that it imports or declares.
+#[derive(Debug, Clone)]
+pub struct RegistryCall {
+	/// The declaration whose code makes the call.
+	pub decl: u32,
+	/// The 1-based line of the call.
+	pub line: u32,
+	/// The id passed to `Registry.as`, the object whose method is called, or the function.
+	pub receiver: RegistryKey,
+	/// The method, or none for a function call.
+	pub method: Option<Box<str>>,
+	/// The keys of the first argument.
+	pub keys: DescriptorKeys,
+	/// When the first argument is a class or a `new` expression: the keys of what its
+	/// constructor passes to `super`, or of the `new` expression's first argument. `None` when the
+	/// analysis cannot find that, such as for an imported class (see `class`).
+	pub constructed: Option<DescriptorKeys>,
+	/// The class whose descriptor applies when `constructed` is `None`: the first argument when it
+	/// names a class, or the superclass of a class expression without a constructor (`class
+	/// extends SomeAction {}`), which `FileFacts::class_descriptors` gives.
+	pub class: Option<RegistryKey>,
+	/// A key of the first argument (or of what it constructs from) that the analysis cannot resolve
+	/// comes from a parameter or `this`: the call is part of a helper that registers what its
+	/// caller passes, which is where the key is.
+	pub forwarded: bool,
+	/// For a read: the filters applied to its result, `result.filter(item => item.<path> === key)`
+	/// (or `find`, `some`, ...), as (path, key).
+	pub filters: Vec<(Box<str>, RegistryKey)>,
+	/// For a read: an assertion expects the result to be missing (`assert.strictEqual(<read>,
+	/// undefined)`, `assert(!<read>)`), so the test does not depend on the entry.
+	pub absent: bool,
+	/// The call's line or the line before has a `ripple-ignore-registration` comment: a read that
+	/// does not depend on the entry, such as a test that checks that an entry is missing.
+	pub ignored: bool,
+}
+
 /// A runtime declaration of a module, or a member of one. Index 0 is the module initializer,
 /// which holds the statements that run when the module is loaded.
 #[derive(Debug, Clone, Default)]
@@ -157,6 +207,17 @@ pub struct FileFacts {
 	/// The types that the module declares or exports (interfaces, type aliases, classes and
 	/// re-exports), with the types they extend, are aliases of or re-export, sorted by name.
 	pub type_decls: Vec<(String, Vec<TypeOrigin>)>,
+	/// The calls that may read or register registry entries, in source order.
+	pub registry_calls: Vec<RegistryCall>,
+	/// The keys of what the constructor of each top-level class passes to `super` (see
+	/// `RegistryCall::constructed`), by the class's declaration.
+	pub class_descriptors: Vec<(u32, DescriptorKeys)>,
+	/// The superclass of each top-level class without a constructor that calls `super`, whose
+	/// descriptor it inherits.
+	pub class_supers: Vec<(u32, RegistryKey)>,
+	/// The declarations and members that hold a string or another constant (`const ID = 'a'`,
+	/// `static readonly ID = OTHER_ID`), so that registry keys can be compared by their strings.
+	pub values: Vec<(u32, RegistryKey)>,
 	pub error: bool,
 }
 
@@ -1061,6 +1122,10 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	}
 
 	// Value-level references between declarations.
+	// What the value reference at each position refers to, for registry ids and keys, with the
+	// member of `name.member`; and the object itself, for the receivers of registry methods.
+	let mut ref_at: HashMap<u32, Ref> = HashMap::new();
+	let mut object_at: HashMap<u32, Ref> = HashMap::new();
 	for (sym, target) in &targets {
 		for &rid in scoping.get_resolved_reference_ids(*sym) {
 			let reference = scoping.get_reference(rid);
@@ -1096,13 +1161,23 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 			match target {
 				SymbolTarget::Binding(b) => {
 					facts.bindings[*b as usize].value_used = true;
-					facts.decls[src as usize].refs.push(Ref::Import {
+					object_at.insert(
+						span.start,
+						Ref::Import {
+							binding: *b,
+							member: None,
+						},
+					);
+					let r = Ref::Import {
 						binding: *b,
 						member,
-					});
+					};
+					ref_at.insert(span.start, r.clone());
+					facts.decls[src as usize].refs.push(r);
 				}
 				SymbolTarget::Locals(locals) => {
 					for &t in locals {
+						object_at.entry(span.start).or_insert(Ref::Local(t));
 						let members = &facts.decls[t as usize].members;
 						let t = match &member {
 							Some(m) => members
@@ -1110,11 +1185,93 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 								.map_or(t, |i| members[i].1),
 							None => t,
 						};
+						ref_at.entry(span.start).or_insert(Ref::Local(t));
 						if t != src {
 							facts.decls[src as usize].refs.push(Ref::Local(t));
 						}
 					}
 				}
+			}
+		}
+	}
+
+	if config.registries.is_some() {
+		facts.registry_calls = registry_calls(
+			nodes, scoping, source, config, &ref_at, &object_at, &node_at,
+		);
+		// Top-level constants, and the members whose span is that of a property or enum member.
+		for (sym, target) in &targets {
+			let SymbolTarget::Locals(locals) = target else {
+				continue;
+			};
+			if locals.len() != 1
+				|| !scoping
+					.symbol_flags(*sym)
+					.contains(SymbolFlags::ConstVariable)
+			{
+				continue;
+			}
+			if let AstKind::VariableDeclarator(v) =
+				nodes.get_node(scoping.symbol_declaration(*sym)).kind()
+			{
+				if let Some(k) = v.init.as_ref().and_then(|e| registry_key(e, &ref_at)) {
+					facts.values.push((locals[0], k));
+				}
+			}
+		}
+		for (sym, target) in &targets {
+			let SymbolTarget::Locals(locals) = target else {
+				continue;
+			};
+			if let (1, AstKind::Class(c)) = (
+				locals.len(),
+				nodes.get_node(scoping.symbol_declaration(*sym)).kind(),
+			) {
+				if super_argument(c).is_none() {
+					if let Some(k) = c
+						.heritage
+						.as_ref()
+						.and_then(|h| registry_key(&h.expression, &ref_at))
+					{
+						facts.class_supers.push((locals[0], k));
+					}
+				}
+				if let Some(descriptor) = super_argument(c) {
+					let mut keys = Vec::new();
+					if let Some(d) = descriptor {
+						KeyResolver {
+							nodes,
+							scoping,
+							ref_at: &ref_at,
+							bindings: HashMap::new(),
+						}
+						.descriptor_keys(
+							d,
+							String::new(),
+							0,
+							&|_| false,
+							&mut keys,
+							&mut false,
+						);
+					}
+					facts.class_descriptors.push((locals[0], keys));
+				}
+			}
+		}
+		let member_with_span =
+			|span: Span| member_spans.iter().find(|m| m.span == span).map(|m| m.decl);
+		for node in nodes.iter() {
+			let (span, value) = match node.kind() {
+				AstKind::PropertyDefinition(p) if p.r#static => (p.span, p.value.as_ref()),
+				AstKind::ObjectProperty(p) if !p.computed => (p.span, Some(&p.value)),
+				AstKind::TSEnumMember(m) => (m.span, m.initializer.as_ref()),
+				_ => continue,
+			};
+			if let (Some(d), Some(k)) = (
+				member_with_span(span),
+				value.and_then(|e| registry_key(e, &ref_at)),
+			) {
+				facts.values.push((d, k));
 			}
 		}
 	}
@@ -2463,6 +2620,693 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 	facts.exports = exports;
 	add_export_decls(&mut facts);
 	facts
+}
+
+/// Resolves registry keys in a module (see `registry_key`), also through local `const` strings,
+/// template literals of strings and the values of loop variables in one iteration of a loop over
+/// an array literal (see `loop_iterations`).
+#[derive(Clone)]
+struct KeyResolver<'c, 'a> {
+	nodes: &'c AstNodes<'a>,
+	scoping: &'c Scoping,
+	ref_at: &'c HashMap<u32, Ref>,
+	bindings: HashMap<SymbolId, &'a Expression<'a>>,
+}
+
+impl<'c, 'a> KeyResolver<'c, 'a> {
+	fn symbol(&self, id: &IdentifierReference) -> Option<SymbolId> {
+		id.reference_id
+			.get()
+			.and_then(|r| self.scoping.get_reference(r).symbol_id())
+	}
+
+	fn key(&self, e: &Expression) -> Option<RegistryKey> {
+		self.key_at(e, 0)
+	}
+
+	fn key_at(&self, e: &Expression, depth: u32) -> Option<RegistryKey> {
+		if depth > 8 {
+			return None;
+		}
+		let e = e.get_inner_expression();
+		if let Expression::Identifier(id) = e {
+			if let Some(value) = self.symbol(id).and_then(|s| self.bindings.get(&s)) {
+				return self.key_at(value, depth + 1);
+			}
+		}
+		if let Some(k) = registry_key(e, self.ref_at) {
+			return Some(k);
+		}
+		match e {
+			// The string of a local `const` (`const id = 'a'` in a test).
+			Expression::Identifier(id) => {
+				let sym = self.symbol(id)?;
+				if !self
+					.scoping
+					.symbol_flags(sym)
+					.contains(SymbolFlags::ConstVariable)
+				{
+					return None;
+				}
+				match self
+					.nodes
+					.get_node(self.scoping.symbol_declaration(sym))
+					.kind()
+				{
+					AstKind::VariableDeclarator(v) => {
+						match v.init.as_ref()?.get_inner_expression() {
+							init @ (Expression::StringLiteral(_)
+							| Expression::TemplateLiteral(_)) => self.key_at(init, depth + 1),
+							_ => None,
+						}
+					}
+					_ => None,
+				}
+			}
+			// `` `prefix.${name}` `` when every part is a string.
+			Expression::TemplateLiteral(t) => {
+				let mut out = String::new();
+				for (i, q) in t.quasis.iter().enumerate() {
+					out.push_str(&js_str(q.value.cooked.as_ref()?));
+					if let Some(x) = t.expressions.get(i) {
+						match self.key_at(x, depth + 1)? {
+							RegistryKey::Literal(s) => out.push_str(&s),
+							RegistryKey::Ref(..) => return None,
+						}
+					}
+				}
+				Some(RegistryKey::Literal(out.into()))
+			}
+			_ => None,
+		}
+	}
+
+	/// The same, with a loop or callback variable bound to a value.
+	fn with(&self, sym: SymbolId, value: &'a Expression<'a>) -> Self {
+		let mut r = self.clone();
+		r.bindings.insert(sym, value);
+		r
+	}
+
+	/// Collects the keys of a registration or read argument by their path in it: `""` for the
+	/// value itself, `id` for a property of an object literal, `menu.id` for a property of a
+	/// property and `[i]` for the element at index `i` of an array literal (`menu[0].id`), also
+	/// as the result of mapping one (`[A, B].map(id => ({ id }))`). The configuration names
+	/// elements as `[]` (see `registries::matches_path`). A value that may be a key but that cannot
+	/// be resolved, such as a variable or a call, is collected as `None`, and `true` as the
+	/// string `true`.
+	fn descriptor_keys(
+		&self,
+		e: &'a Expression<'a>,
+		path: String,
+		depth: u32,
+		is_forwarded: &dyn Fn(&Expression) -> bool,
+		out: &mut DescriptorKeys,
+		forwarded: &mut bool,
+	) {
+		if let Some(k) = self.key(e) {
+			out.push((path.into(), Some(k)));
+			return;
+		}
+		match e.get_inner_expression() {
+			Expression::ObjectExpression(o) if depth < 4 => {
+				for p in &o.properties {
+					let ObjectPropertyKind::ObjectProperty(p) = p else {
+						continue;
+					};
+					if p.computed {
+						continue;
+					}
+					if let Some(name) = p
+						.key
+						.static_name()
+						.and_then(|n| n.as_str().map(str::to_owned))
+					{
+						let child = if path.is_empty() {
+							name
+						} else {
+							format!("{path}.{name}")
+						};
+						self.descriptor_keys(
+							&p.value,
+							child,
+							depth + 1,
+							is_forwarded,
+							out,
+							forwarded,
+						);
+					}
+				}
+			}
+			Expression::ArrayExpression(a) if depth < 4 => {
+				for (i, element) in a.elements.iter().enumerate() {
+					if let Some(e) = element.as_expression() {
+						self.descriptor_keys(
+							e,
+							format!("{path}[{i}]"),
+							depth + 1,
+							is_forwarded,
+							out,
+							forwarded,
+						);
+					}
+				}
+			}
+			// `[A, B].map(x => ...)`: the elements of the result, for each element of the array.
+			Expression::CallExpression(c) if depth < 4 => {
+				let mapped = match c.callee.get_inner_expression() {
+					Expression::StaticMemberExpression(m) if m.property.name == "map" => {
+						match (
+							m.object.get_inner_expression(),
+							c.arguments.first().and_then(|a| a.as_expression()),
+						) {
+							(
+								Expression::ArrayExpression(array),
+								Some(Expression::ArrowFunctionExpression(f)),
+							) => {
+								match (
+									f.params.items.first().map(|p| &p.pattern),
+									f.body.as_expression(),
+								) {
+									(Some(BindingPattern::BindingIdentifier(b)), Some(body)) => {
+										b.symbol_id.get().map(|sym| (array, sym, body))
+									}
+									_ => None,
+								}
+							}
+							_ => None,
+						}
+					}
+					_ => None,
+				};
+				match mapped {
+					Some((array, sym, body)) => {
+						for (i, element) in array.elements.iter().enumerate() {
+							if let Some(element) = element.as_expression() {
+								self.with(sym, element).descriptor_keys(
+									body,
+									format!("{path}[{i}]"),
+									depth + 1,
+									is_forwarded,
+									out,
+									forwarded,
+								);
+							}
+						}
+					}
+					None => {
+						*forwarded |= is_forwarded(e);
+						out.push((path.into(), None));
+					}
+				}
+			}
+			// A flag that registers a fixed key (see `registers` in the configuration).
+			Expression::BooleanLiteral(b) => {
+				if b.value {
+					out.push((path.into(), Some(RegistryKey::Literal("true".into()))));
+				}
+			}
+			// Values that are never keys.
+			Expression::NumericLiteral(_)
+			| Expression::NullLiteral(_)
+			| Expression::ArrowFunctionExpression(_)
+			| Expression::FunctionExpression(_)
+			| Expression::ClassExpression(_)
+			| Expression::ObjectExpression(_)
+			| Expression::ArrayExpression(_) => {}
+			e => {
+				*forwarded |= is_forwarded(e);
+				out.push((path.into(), None));
+			}
+		}
+	}
+}
+
+/// The values of the loop variables in each iteration of the innermost `for (const x of [...])`
+/// or `for (const [a, b] of [[...], ...])` loop around a node, over an array literal; none
+/// without one.
+fn loop_iterations<'a>(
+	nodes: &AstNodes<'a>,
+	id: NodeId,
+	span: Span,
+) -> Vec<HashMap<SymbolId, &'a Expression<'a>>> {
+	let mut current = id;
+	for _ in 0..64 {
+		let parent = nodes.parent_id(current);
+		if parent == current {
+			break;
+		}
+		current = parent;
+		let AstKind::ForOfStatement(f) = nodes.get_node(parent).kind() else {
+			continue;
+		};
+		if !(f.body.span().start <= span.start && span.end <= f.body.span().end) {
+			continue;
+		}
+		let ForStatementLeft::VariableDeclaration(d) = &f.left else {
+			return Vec::new();
+		};
+		let (Some(declarator), Expression::ArrayExpression(array)) =
+			(d.declarations.first(), f.right.get_inner_expression())
+		else {
+			return Vec::new();
+		};
+		let mut iterations = Vec::new();
+		for element in &array.elements {
+			let Some(element) = element.as_expression() else {
+				continue;
+			};
+			let mut bindings = HashMap::new();
+			match &declarator.id {
+				BindingPattern::BindingIdentifier(b) => {
+					if let Some(sym) = b.symbol_id.get() {
+						bindings.insert(sym, element);
+					}
+				}
+				BindingPattern::ArrayPattern(p) => {
+					if let Expression::ArrayExpression(tuple) = element.get_inner_expression() {
+						for (i, item) in p.elements.iter().enumerate() {
+							if let (Some(BindingPattern::BindingIdentifier(b)), Some(value)) =
+								(item, tuple.elements.get(i).and_then(|v| v.as_expression()))
+							{
+								if let Some(sym) = b.symbol_id.get() {
+									bindings.insert(sym, value);
+								}
+							}
+						}
+					}
+				}
+				_ => {}
+			}
+			iterations.push(bindings);
+		}
+		return iterations;
+	}
+	Vec::new()
+}
+
+/// The registry calls of a module (see `RegistryCall`). `ref_at` gives what the value reference
+/// at a position refers to, and `node_at` the declaration that owns a position. A call in a loop
+/// over an array literal is recorded once for each element (see `loop_iterations`).
+fn registry_calls<'a>(
+	nodes: &AstNodes<'a>,
+	scoping: &Scoping,
+	source: &str,
+	config: &Config,
+	ref_at: &HashMap<u32, Ref>,
+	object_at: &HashMap<u32, Ref>,
+	node_at: &dyn Fn(u32) -> Option<u32>,
+) -> Vec<RegistryCall> {
+	let accessor = config.registry_accessor();
+	let base = KeyResolver {
+		nodes,
+		scoping,
+		ref_at,
+		bindings: HashMap::new(),
+	};
+	// The id of `accessor(<id>)`.
+	let registry_id = |e: &Expression| -> Option<RegistryKey> {
+		let (object, function) = accessor?;
+		let Expression::CallExpression(c) = e.get_inner_expression() else {
+			return None;
+		};
+		let Expression::StaticMemberExpression(m) = c.callee.get_inner_expression() else {
+			return None;
+		};
+		let Expression::Identifier(o) = m.object.get_inner_expression() else {
+			return None;
+		};
+		if o.name != object || m.property.name != function {
+			return None;
+		}
+		base.key(c.arguments.first()?.as_expression()?)
+			.filter(|k| matches!(k, RegistryKey::Ref(..)))
+	};
+	// The declaration of a local symbol that a name refers to.
+	let declaration = |id: &IdentifierReference| {
+		let sym = base.symbol(id)?;
+		Some((sym, nodes.get_node(scoping.symbol_declaration(sym)).kind()))
+	};
+	// Whether a value comes from a parameter or `this` (see `RegistryCall::forwarded`).
+	fn rooted_at_parameter(
+		e: &Expression,
+		declaration: &dyn Fn(&IdentifierReference) -> bool,
+	) -> bool {
+		match e.get_inner_expression() {
+			Expression::ThisExpression(_) => true,
+			Expression::Identifier(id) => declaration(id),
+			Expression::StaticMemberExpression(m) => rooted_at_parameter(&m.object, declaration),
+			Expression::ComputedMemberExpression(m) => rooted_at_parameter(&m.object, declaration),
+			_ => false,
+		}
+	}
+	let is_parameter = |id: &IdentifierReference| {
+		declaration(id).is_some_and(|(_, kind)| matches!(kind, AstKind::FormalParameter(_)))
+	};
+	let is_forwarded = |e: &Expression| rooted_at_parameter(e, &is_parameter);
+	// What a method is called on: `accessor(<id>)` or a `const` initialized with it (the id), or
+	// an object that the module imports or declares.
+	let receiver = |e: &Expression| -> Option<RegistryKey> {
+		if let Some(r) = registry_id(e) {
+			return Some(r);
+		}
+		let Expression::Identifier(id) = e.get_inner_expression() else {
+			return None;
+		};
+		// A `const` that holds `accessor(<id>)`, at module scope too, is that registry rather than
+		// the declaration that holds it.
+		if let Some((sym, AstKind::VariableDeclarator(v))) = declaration(id) {
+			if scoping
+				.symbol_flags(sym)
+				.contains(SymbolFlags::ConstVariable)
+			{
+				if let Some(r) = v.init.as_ref().and_then(registry_id) {
+					return Some(r);
+				}
+			}
+		}
+		object_at
+			.get(&id.span.start)
+			.map(|r| RegistryKey::Ref(r.clone(), None))
+	};
+	// What a class or `new` expression constructs from: see `RegistryCall::constructed`.
+	let constructed =
+		|resolver: &KeyResolver<'_, 'a>, e: &'a Expression<'a>| -> Option<DescriptorKeys> {
+			let class = |e: &Expression<'a>| -> Option<Option<&'a Expression<'a>>> {
+				match e.get_inner_expression() {
+					Expression::Identifier(id) => match declaration(id)?.1 {
+						AstKind::Class(c) => super_argument(c),
+						_ => None,
+					},
+					_ => None,
+				}
+			};
+			let descriptor = match e.get_inner_expression() {
+				// `new X(desc)`, or `new (class extends ... { constructor() { super(desc) } })()`
+				Expression::NewExpression(n) => {
+					match (n.arguments.first(), n.callee.get_inner_expression()) {
+						(Some(a), _) => a.as_expression(),
+						(None, Expression::ClassExpression(c)) => super_argument(c)?,
+						(None, callee) => class(callee)?,
+					}
+				}
+				Expression::ClassExpression(c) => super_argument(c)?,
+				other => class(other)?,
+			};
+			let mut keys = Vec::new();
+			if let Some(d) = descriptor {
+				resolver.descriptor_keys(d, String::new(), 0, &is_forwarded, &mut keys, &mut false);
+			}
+			Some(keys)
+		};
+	let line_starts: Vec<u32> = std::iter::once(0)
+		.chain(
+			source
+				.bytes()
+				.enumerate()
+				.filter(|&(_, b)| b == b'\n')
+				.map(|(i, _)| i as u32 + 1),
+		)
+		.collect();
+
+	let ignored_lines: HashSet<u32> = source
+		.lines()
+		.enumerate()
+		.filter(|(_, line)| line.contains("ripple-ignore-registration"))
+		.map(|(i, _)| i as u32 + 1)
+		.collect();
+
+	let mut calls = Vec::new();
+	for node in nodes.iter() {
+		let AstKind::CallExpression(c) = node.kind() else {
+			continue;
+		};
+		let (receiver, method) = match c.callee.get_inner_expression() {
+			Expression::StaticMemberExpression(m)
+				if config.is_registry_method(&m.property.name) =>
+			{
+				let Some(r) = receiver(&m.object) else {
+					continue;
+				};
+				(r, Some(m.property.name.as_str().into()))
+			}
+			Expression::Identifier(f) if config.is_registry_function(&f.name) => {
+				let Some(r) = ref_at.get(&f.span.start) else {
+					continue;
+				};
+				(RegistryKey::Ref(r.clone(), None), None)
+			}
+			_ => continue,
+		};
+		let Some(decl) = node_at(c.span.start) else {
+			continue;
+		};
+		let line = line_starts.partition_point(|&s| s <= c.span.start) as u32;
+		let ignored = ignored_lines.contains(&line) || ignored_lines.contains(&(line - 1));
+		let first = c.arguments.first().and_then(|a| a.as_expression());
+		let mut iterations = loop_iterations(nodes, node.id(), c.span);
+		if iterations.is_empty() {
+			iterations.push(HashMap::new());
+		}
+		for bindings in iterations {
+			let resolver = KeyResolver {
+				bindings,
+				..base.clone()
+			};
+			let mut keys = Vec::new();
+			let mut forwarded = false;
+			if let Some(first) = first {
+				resolver.descriptor_keys(
+					first,
+					String::new(),
+					0,
+					&is_forwarded,
+					&mut keys,
+					&mut forwarded,
+				);
+			}
+			// The second argument's keys, by paths that start with `@1`, such as the
+			// `@1.command.id` of `MenuRegistry.appendMenuItem(menu, { command: { id } })`.
+			if let Some(second) = c.arguments.get(1).and_then(|a| a.as_expression()) {
+				resolver.descriptor_keys(
+					second,
+					"@1".into(),
+					0,
+					&is_forwarded,
+					&mut keys,
+					&mut false,
+				);
+			}
+			let (filters, absent) = result_use(nodes, node.id(), c.span, &|e| resolver.key(e));
+			calls.push(RegistryCall {
+				decl,
+				line,
+				receiver: receiver.clone(),
+				method: method.clone(),
+				keys,
+				constructed: first.and_then(|e| constructed(&resolver, e)),
+				forwarded,
+				filters,
+				absent,
+				class: first.and_then(|e| match e.get_inner_expression() {
+					Expression::Identifier(_) => resolver.key(e),
+					Expression::ClassExpression(c) => c
+						.heritage
+						.as_ref()
+						.and_then(|h| resolver.key(&h.expression)),
+					Expression::NewExpression(n) => match n.callee.get_inner_expression() {
+						Expression::ClassExpression(c) => c
+							.heritage
+							.as_ref()
+							.and_then(|h| resolver.key(&h.expression)),
+						callee => resolver.key(callee),
+					},
+					_ => None,
+				}),
+				ignored,
+			});
+		}
+	}
+	calls
+}
+
+/// A registry id or key: a string, or what a name or `name.member` refers to (see `ref_at` in
+/// `analyze`).
+fn registry_key(e: &Expression, ref_at: &HashMap<u32, Ref>) -> Option<RegistryKey> {
+	match e.get_inner_expression() {
+		Expression::StringLiteral(s) => Some(RegistryKey::Literal(js_str(&s.value).into())),
+		Expression::TemplateLiteral(t) if t.expressions.is_empty() => t.quasis[0]
+			.value
+			.cooked
+			.as_ref()
+			.map(|c| RegistryKey::Literal(js_str(c).into())),
+		Expression::Identifier(id) => ref_at
+			.get(&id.span.start)
+			.map(|r| RegistryKey::Ref(r.clone(), None)),
+		// The reference to the object records the member too.
+		Expression::StaticMemberExpression(m)
+			if matches!(m.object.get_inner_expression(), Expression::Identifier(_)) =>
+		{
+			ref_at
+				.get(&m.object.span().start)
+				.map(|r| RegistryKey::Ref(r.clone(), Some(m.property.name.as_str().into())))
+		}
+		_ => None,
+	}
+}
+
+/// How a test uses the result of a read at `id` (see `RegistryCall::filters` and `absent`).
+fn result_use(
+	nodes: &AstNodes,
+	id: NodeId,
+	span: Span,
+	key: &dyn Fn(&Expression) -> Option<RegistryKey>,
+) -> (Vec<(Box<str>, RegistryKey)>, bool) {
+	let mut filters = Vec::new();
+	let (mut current, mut current_span) = (id, span);
+	let mut negated = false;
+	for _ in 0..8 {
+		let parent = nodes.parent_id(current);
+		if parent == current {
+			break;
+		}
+		match nodes.get_node(parent).kind() {
+			// `<result>.filter(callback)`, and the same for the result of that
+			AstKind::StaticMemberExpression(m) if m.object.span() == current_span => {
+				let call = nodes.parent_id(parent);
+				let AstKind::CallExpression(c) = nodes.get_node(call).kind() else {
+					break;
+				};
+				if c.callee.span() != m.span
+					|| !matches!(
+						m.property.name.as_str(),
+						"filter" | "find" | "findIndex" | "some" | "every"
+					) {
+					break;
+				}
+				if let Some(filter) = c
+					.arguments
+					.first()
+					.and_then(|a| a.as_expression())
+					.and_then(|f| callback_filter(f, key))
+				{
+					filters.push(filter);
+				}
+				(current, current_span) = (call, c.span);
+			}
+			AstKind::TSNonNullExpression(e) => (current, current_span) = (parent, e.span),
+			AstKind::ParenthesizedExpression(e) => (current, current_span) = (parent, e.span),
+			AstKind::UnaryExpression(u) if u.operator == UnaryOperator::LogicalNot => {
+				negated = !negated;
+				(current, current_span) = (parent, u.span);
+			}
+			AstKind::CallExpression(c) if c.callee.span() != current_span => {
+				return (filters, is_absence_assertion(c, current_span, negated));
+			}
+			_ => break,
+		}
+	}
+	(filters, false)
+}
+
+/// Whether a call asserts that the value at `span`, one of its arguments, is missing:
+/// `assert.strictEqual(value, undefined)` and the like, or `assert(!value)` when `negated`.
+fn is_absence_assertion(c: &CallExpression, span: Span, negated: bool) -> bool {
+	let method = match c.callee.get_inner_expression() {
+		Expression::Identifier(id) if id.name == "assert" => "ok",
+		Expression::StaticMemberExpression(m) if matches!(m.object.get_inner_expression(), Expression::Identifier(id) if id.name == "assert") => {
+			m.property.name.as_str()
+		}
+		_ => return false,
+	};
+	match method {
+		"ok" => negated,
+		"strictEqual" | "equal" | "deepStrictEqual" | "deepEqual" => c.arguments.iter().any(|a| {
+			a.span() != span
+				&& matches!(a.as_expression().map(|e| e.get_inner_expression()), Some(Expression::Identifier(id)) if id.name == "undefined")
+		}),
+		_ => false,
+	}
+}
+
+/// The filter of a callback `item => item.<path> === key` (or `key === item.<path>`), as (path,
+/// key).
+fn callback_filter(
+	f: &Expression,
+	key: &dyn Fn(&Expression) -> Option<RegistryKey>,
+) -> Option<(Box<str>, RegistryKey)> {
+	let Expression::ArrowFunctionExpression(a) = f.get_inner_expression() else {
+		return None;
+	};
+	let BindingPattern::BindingIdentifier(param) = &a.params.items.first()?.pattern else {
+		return None;
+	};
+	let body = match (a.body.as_expression(), &a.body) {
+		(Some(e), _) => e,
+		(None, ArrowFunctionBody::FunctionBody(body)) => match body.statements.as_slice() {
+			[Statement::ReturnStatement(r)] => r.argument.as_ref()?,
+			_ => return None,
+		},
+		_ => return None,
+	};
+	let Expression::BinaryExpression(b) = body.get_inner_expression() else {
+		return None;
+	};
+	if !matches!(
+		b.operator,
+		BinaryOperator::StrictEquality | BinaryOperator::Equality
+	) {
+		return None;
+	}
+	// The path of `param.a.b` as `a.b`.
+	let path_of = |e: &Expression| -> Option<String> {
+		let mut names = Vec::new();
+		let mut e = e.get_inner_expression();
+		while let Expression::StaticMemberExpression(m) = e {
+			names.push(m.property.name.as_str());
+			e = m.object.get_inner_expression();
+		}
+		match e {
+			Expression::Identifier(id) if id.name == param.name && !names.is_empty() => {
+				names.reverse();
+				Some(names.join("."))
+			}
+			_ => None,
+		}
+	};
+	match (path_of(&b.left), path_of(&b.right)) {
+		(Some(path), None) => Some((path.into(), key(&b.right)?)),
+		(None, Some(path)) => Some((path.into(), key(&b.left)?)),
+		_ => None,
+	}
+}
+
+/// The first argument of `super(...)` in the constructor of a class, if the constructor calls it.
+fn super_argument<'b, 'a>(class: &'b Class<'a>) -> Option<Option<&'b Expression<'a>>> {
+	class.body.body.iter().find_map(|element| {
+		let ClassElement::MethodDefinition(m) = element else {
+			return None;
+		};
+		if m.kind != MethodDefinitionKind::Constructor {
+			return None;
+		}
+		m.value
+			.body
+			.as_ref()?
+			.statements
+			.iter()
+			.find_map(|statement| {
+				let Statement::ExpressionStatement(e) = statement else {
+					return None;
+				};
+				match e.expression.get_inner_expression() {
+					Expression::CallExpression(c) if matches!(c.callee, Expression::Super(_)) => {
+						Some(c.arguments.first().and_then(|a| a.as_expression()))
+					}
+					_ => None,
+				}
+			})
+	})
 }
 
 /// Adds a node per exported name, whose content is what the name is bound to, and one for the
