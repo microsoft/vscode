@@ -112,6 +112,32 @@ suite('Notebook Folding', () => {
 		);
 	});
 
+	test('Folding based on HTML header tags', async function () {
+		await withTestNotebook(
+			[
+				['<h1>HTML Header 1</h1>', 'markdown', CellKind.Markup, [], {}],
+				['body', 'markdown', CellKind.Markup, [], {}],
+				['<h2>HTML Header 2.1</h2>', 'markdown', CellKind.Markup, [], {}],
+				['body 2', 'markdown', CellKind.Markup, [], {}],
+				['body 3', 'markdown', CellKind.Markup, [], {}],
+				['<h2>HTML Header 2.2</h2>', 'markdown', CellKind.Markup, [], {}],
+				['var e = 7;', 'markdown', CellKind.Markup, [], {}],
+			],
+			(editor, viewModel, ds) => {
+				const foldingController = ds.add(new FoldingModel());
+				foldingController.attachViewModel(viewModel);
+
+				assert.strictEqual(foldingController.regions.findRange(1), 0);
+				assert.strictEqual(foldingController.regions.findRange(2), 0);
+				assert.strictEqual(foldingController.regions.findRange(3), 1);
+				assert.strictEqual(foldingController.regions.findRange(4), 1);
+				assert.strictEqual(foldingController.regions.findRange(5), 1);
+				assert.strictEqual(foldingController.regions.findRange(6), 2);
+				assert.strictEqual(foldingController.regions.findRange(7), 2);
+			}
+		);
+	});
+
 	test('Folding', async function () {
 		await withTestNotebook(
 			[
