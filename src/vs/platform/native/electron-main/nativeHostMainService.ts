@@ -28,7 +28,7 @@ import { createDecorator, IInstantiationService } from '../../instantiation/comm
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindow, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
-import { excludeOwnWindowSources, findRecentAppWindow, getScreenWindowId, getWindowSourceId, orderAppWindowSources } from '../common/appWindows.js';
+import { excludeOwnWindowSources, getScreenWindowId, getWindowSourceId, OrderedAppWindow, orderAppWindows } from '../common/appWindows.js';
 import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions, IAppWindowCaptureOverlay } from './appWindowCaptureFeedback.js';
 import { captureMacWindow, getMacScreenWindows } from './macScreenWindows.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
@@ -946,22 +946,38 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const ownSourceIds = BrowserWindow.getAllWindows().filter(window => !window.isDestroyed()).map(window => window.getMediaSourceId());
 		const others = excludeOwnWindowSources(sources, ownSourceIds);
 		const screen = await screenWindows;
-		const ordered = screen ? orderAppWindowSources(others, screen, process.pid) : others.map(source => ({ source, bounds: undefined, eligible: true }));
-		const windows: INativeAppWindow[] = ordered.map(({ source, bounds }) => ({
+		const ordered: OrderedAppWindow<Electron.DesktopCapturerSource>[] = screen ? orderAppWindows(others, screen, process.pid) : others.map(source => ({ source, window: undefined }));
+		// Desktop media sources leave out the windows that the screen doesn't show, which take their application's icon.
+		const appPaths = new Set<string>();
+		for (const { source, window } of ordered) {
+			if (!source && window.appPath) {
+				appPaths.add(window.appPath);
+			}
+		}
+		const appIcons = new Map(await Promise.all(Array.from(appPaths, async path => [path, await this.getAppIconDataUrl(path)] as const)));
+		const windows = ordered.map(({ source, window }): INativeAppWindow => source ? {
 			sourceId: source.id,
 			title: source.name,
 			iconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32, height: 32, quality: 'best' }).toDataURL() : undefined,
-			bounds,
-		}));
-		// In full screen, VS Code has a Space of its own, where the screen shows no window of another app. Then a capture
-		// takes the window that the user left for VS Code, which desktop media sources leave out, as it is off screen.
-		const recent = screen && !ordered[0]?.eligible ? findRecentAppWindow(screen, process.pid) : undefined;
-		if (recent) {
-			const sourceId = getWindowSourceId(recent);
-			windows.unshift({ sourceId, title: recent.title ?? '', bounds: recent.bounds });
-			return { kind: 'windows', windows: windows.filter((window, index) => index === 0 || excludeOwnWindowSources([{ id: window.sourceId }], [sourceId]).length) };
-		}
+			bounds: window?.bounds,
+		} : {
+			sourceId: getWindowSourceId(window),
+			title: window.title ?? '',
+			iconDataUrl: window.appPath ? appIcons.get(window.appPath) : undefined,
+			bounds: window.bounds,
+		});
 		return { kind: 'windows', windows };
+	}
+
+	/** Returns the icon of the application at the path, at the size of the icons of desktop media sources, as a PNG `data:` URL. */
+	private async getAppIconDataUrl(path: string): Promise<string | undefined> {
+		try {
+			const icon = await app.getFileIcon(path, { size: 'normal' });
+			return icon.isEmpty() ? undefined : icon.toDataURL();
+		} catch (error) {
+			this.logService.trace('[AppWindows] Getting the icon of an application failed:', error);
+			return undefined;
+		}
 	}
 
 	private appWindowCaptureFeedback: AppWindowCaptureFeedback | undefined;

@@ -11,6 +11,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { IAction } from '../../../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
@@ -113,6 +114,8 @@ export interface INewSessionDraftHost {
 	 * offers no other. Unset, it offers any workspace.
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/** How its workspace picker shows one of its {@link allowedFolders}, such as a linked checkout of a window's folder. */
+	getFolderPresentation?(folderUri: URI): IFolderLocation | undefined;
 	/** Opens a session the composer started in the background, in the composer's own window. */
 	openStartedSession(session: ISession): Promise<void>;
 	/**

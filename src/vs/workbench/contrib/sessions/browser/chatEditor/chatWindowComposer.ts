@@ -11,6 +11,7 @@ import { derived, IObservable, observableValue } from '../../../../../base/commo
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -187,6 +188,8 @@ export interface IChatWindowComposerInit {
 	 * folder of its {@link target}. None restrict it, as in a window without folders.
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/** How it shows one of its {@link allowedFolders}, such as a linked checkout of the window's folder. */
+	readonly getFolderPresentation?: (folderUri: URI) => IFolderLocation | undefined;
 }
 
 /**
@@ -231,6 +234,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	readonly groupId: string | undefined;
 
 	readonly allowedFolders: IObservable<readonly URI[]> | undefined;
+	private readonly _getFolderPresentation: ((folderUri: URI) => IFolderLocation | undefined) | undefined;
 
 	constructor(
 		readonly resource: URI,
@@ -242,6 +246,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	) {
 		super();
 		this.groupId = init.groupId;
+		this._getFolderPresentation = init.getFolderPresentation;
 		const windowFolders = init.allowedFolders;
 		const targetFolder = init.target?.folderUri;
 		this.allowedFolders = windowFolders && derived(this, reader => {
@@ -288,6 +293,10 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		if (reason === 'user') {
 			this._targetGeneration++;
 		}
+	}
+
+	getFolderPresentation(folderUri: URI): IFolderLocation | undefined {
+		return this._getFolderPresentation?.(folderUri);
 	}
 
 	openStartedSession(session: ISession): Promise<void> {
@@ -477,7 +486,7 @@ export class ChatWindowComposers extends Disposable {
 	 * longer follows. It stays stored until the chat it restores as opens in a window ({@link didOpen}), so that a window
 	 * that fails to open loses nothing.
 	 */
-	async restore(resource: URI, openStartedSession: (session: ISession) => Promise<void>, allowedFolders?: IObservable<readonly URI[]>): Promise<RestoredChatWindowComposer | undefined> {
+	async restore(resource: URI, openStartedSession: (session: ISession) => Promise<void>, folders?: Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'>): Promise<RestoredChatWindowComposer | undefined> {
 		const key = resource.toString();
 		const stored = this._stored.get(key);
 		if (!stored || this._live.has(key) || this._restoring.has(key)) {
@@ -499,7 +508,7 @@ export class ChatWindowComposers extends Disposable {
 		}
 		const input = stored.attempt?.input ?? stored.input;
 		this._restoredAs.set(key, key);
-		return { kind: 'composer', composer: this.create(resource, { target: stored.target, groupId: stored.groupId, input: { input }, allowedFolders }, openStartedSession) };
+		return { kind: 'composer', composer: this.create(resource, { target: stored.target, groupId: stored.groupId, input: { input }, ...folders }, openStartedSession) };
 	}
 
 	/** The session that a foreground send of the stored composer of `resource` went out with, if any. */

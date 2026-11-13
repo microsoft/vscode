@@ -999,6 +999,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	titleHeight!: IEditorGroupTitleHeight;
 
 	isEmpty = true;
+	isOpeningEditor = false;
 
 	readonly onWillDispose: Event<void> = Event.None;
 	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;

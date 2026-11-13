@@ -9,6 +9,7 @@ import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, o
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { CanvasDefinitionOpener, CanvasInput, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasService, ICanvasWorkingSets, isCanvasOwner } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasDefinitionStore } from '../../../../workbench/contrib/canvases/common/canvasDefinitionStore.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -22,7 +23,8 @@ import { ISessionsManagementService } from '../../../../workbench/contrib/sessio
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
-import { canvasOwnerKey, ICanvas, ICanvasOwner, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
+import { canvasOwnerKey, ICanvas, ICanvasOpenOptions, ICanvasOwner, ICanvasReference } from '../../../../workbench/common/canvasReference.js';
+import { CanvasExtensionConsentDeniedError, notifyCanvasExtensionConsentDenied } from '../../../../workbench/contrib/canvases/common/agentHostCanvasConsent.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
@@ -75,7 +77,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 				const definitionProvider = supportsCanvases ? {
 					onDidChangeDefinitions: Event.fromObservableLight(canvases),
 					listCanvases: () => this.sessionsManagementService.listCanvases(session, chat),
-					openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId),
+					openCanvas: (canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions) => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId, options),
 				} : undefined;
 				contexts.push({ owner, canvases, openRequests, definitionProvider, background });
 			};
@@ -263,6 +265,7 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ICanvasService private readonly canvasService: ICanvasService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService logService: ILogService,
 	) {
 		super();
@@ -301,8 +304,27 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		if (!chat) {
 			return;
 		}
+		try {
+			await this.openCanvasIn(session, chat, canvas);
+		} catch (error) {
+			if (!(error instanceof CanvasExtensionConsentDeniedError)) {
+				throw error;
+			}
+			notifyCanvasExtensionConsentDenied(this.notificationService, error, () => this.retryOpenCanvas(session, chat, canvas));
+		}
+	}
+
+	/** Asks about the declined extension of `canvas` again, if the session still presents canvases. */
+	private async retryOpenCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition): Promise<void> {
+		if (!this.canvasService.enabled.get() || session.capabilities.get().supportsCanvases !== true) {
+			return;
+		}
+		await this.openCanvasIn(session, chat, canvas, { retryDeniedConsent: true });
+	}
+
+	private openCanvasIn(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, options?: ICanvasOpenOptions): Promise<void> {
 		const owner: ICanvasOwner = { providerId: session.providerId, session: session.resource, chat: chat.resource };
-		await this.opener.open(owner, canvas, chat.canvases?.get() ?? [], instanceId => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId));
+		return this.opener.open(owner, canvas, chat.canvases?.get() ?? [], instanceId => this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId, options));
 	}
 }
 

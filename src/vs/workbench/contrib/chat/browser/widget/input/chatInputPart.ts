@@ -125,7 +125,7 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { IChatLayoutService } from '../../../common/widget/chatLayoutService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
-import { ChatEditingSessionSubmitAction, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction } from '../../actions/chatExecuteActions.js';
+import { ChatEditingSessionSubmitAction, ChatSessionPrimaryPickerAction, ChatSubmitAction, createChatInputToolbarContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenPermissionPickerAction, OpenSessionTargetPickerAction } from '../../actions/chatExecuteActions.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../voiceInputMode/voiceInputModeActionViewItem.js';
 import { ChatCustomizationsActionViewItem, ChatCustomizationsHover } from '../../aiCustomization/chatCustomizationsHover.js';
 import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -4282,7 +4282,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					} else if (registeredFactory && showRegisteredOverflowPicker(registeredFactory, action, anchor)) {
 						return;
 					} else {
-						void action.run({ widget } satisfies IChatExecuteActionContext);
+						void action.run(createChatInputToolbarContext(widget));
 					}
 				}, 0);
 			});
@@ -4404,7 +4404,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
-		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this.inputActionsToolbar.context = createChatInputToolbarContext(widget);
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
 			this._onDidChangeAttachContextButton.fire();
 			this.updateChatSessionPickerContainer();
@@ -4504,7 +4504,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 		}));
 		this.executeToolbar.getElement().classList.add('chat-execute-toolbar');
-		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		this.executeToolbar.context = createChatInputToolbarContext(widget);
 		// The lone dictation / Voice Mode control drops its circular border and
 		// only regains it when both share the row (see the matching rules in
 		// chat.css). Count the voice-input actions from the toolbar's action
@@ -4545,7 +4545,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 			this.inputSideToolbarContainer = toolbarSide.getElement();
 			toolbarSide.getElement().classList.add('chat-side-toolbar');
-			toolbarSide.context = { widget } satisfies IChatExecuteActionContext;
+			toolbarSide.context = createChatInputToolbarContext(widget);
 		}
 
 		// Secondary toolbar (permissions) — below the input box.
@@ -4727,7 +4727,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}));
 			this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
-			this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
+			this.secondaryToolbar.context = createChatInputToolbarContext(widget);
 			this._register(Event.runAndSubscribe(this.secondaryToolbar.onDidChangeMenuItems, () => {
 				if (!this.secondaryToolbar.hasPrimaryAction(OpenAgentHostAutoApprovePickerAction.ID)) {
 					agentHostPermissions.clear();
@@ -4751,7 +4751,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				hoverDelegate,
 			}));
 			statusToolbar.getElement().classList.add('chat-input-status-toolbar');
-			statusToolbar.context = { widget } satisfies IChatExecuteActionContext;
+			statusToolbar.context = createChatInputToolbarContext(widget);
 		}
 
 		const inputToolbarElement = this.inputActionsToolbar.getElement();
