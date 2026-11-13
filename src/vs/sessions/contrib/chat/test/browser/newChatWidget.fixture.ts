@@ -130,6 +130,8 @@ import { ChatVoiceInputModeAction } from '../../../../../workbench/contrib/chat/
 import { ModelPickerToolbarsContribution } from '../../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
 import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import '../../browser/modelPicker.js';
+import '../../browser/sharedChatInputComposer.contribution.js';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;

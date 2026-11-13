@@ -527,6 +527,7 @@ export function setup(logger: Logger, quality: Quality) {
 		const context = setupAgentHostSuite(logger, {
 			serverLabel: 'Local Basic PAC proxy AgentHost',
 			mockServerHost: '0.0.0.0',
+			proxyLoginCredentials: basicPacProxyCredentials,
 			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
 				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
 				registerScenario(`${scenario}-new-password`, new ScenarioBuilder().emit(newPasswordReply).build());
@@ -538,7 +539,8 @@ export function setup(logger: Logger, quality: Quality) {
 			this.timeout(10 * 60 * 1000);
 			const app = this.app as Application;
 			const requestTag = `[proxy-request:${randomUUID()}]`;
-			const logins = app.workbench.agentsWindow.fillProxyAuthenticationDialogs(basicPacProxyCredentials.username, basicPacProxyCredentials.password);
+			const logins = context.proxyLogins;
+			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
 			try {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
@@ -567,7 +569,8 @@ export function setup(logger: Logger, quality: Quality) {
 	});
 
 	// The http.proxy setting names the proxy with a stale password: after the proxy rejects it, the login dialog asks
-	// for the current one.
+	// for the current one. Requests of the app itself use the setting too, so in a product build the dialog may open
+	// for one of those first; the Agent Host then gets the credentials typed into it without another dialog.
 	const basicPacProxyUrl = basicPacProxyScheme && process.env.VSCODE_SMOKE_TEST_PROXY_URL ? new URL(process.env.VSCODE_SMOKE_TEST_PROXY_URL) : undefined;
 	const staleHttpProxy = basicPacProxyUrl && `${basicPacProxyUrl.protocol}//${encodeURIComponent(basicPacProxyCredentials.username)}:stale-${randomUUID()}@${basicPacProxyUrl.host}`;
 	(staleHttpProxy ? describe : describe.skip)('Agents Window (local AgentHost, Basic PAC proxy, stale http.proxy credentials)', () => {
@@ -576,6 +579,7 @@ export function setup(logger: Logger, quality: Quality) {
 		const context = setupAgentHostSuite(logger, {
 			serverLabel: 'Local Basic PAC proxy AgentHost with stale http.proxy credentials',
 			mockServerHost: '0.0.0.0',
+			proxyLoginCredentials: basicPacProxyCredentials,
 			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
 				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
 			},
@@ -588,7 +592,8 @@ export function setup(logger: Logger, quality: Quality) {
 			this.timeout(10 * 60 * 1000);
 			const app = this.app as Application;
 			const agentHostLogPath = path.join(context.logsPath, 'agenthost.log');
-			const logins = app.workbench.agentsWindow.fillProxyAuthenticationDialogs(basicPacProxyCredentials.username, basicPacProxyCredentials.password);
+			const logins = context.proxyLogins;
+			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
 			try {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
@@ -623,6 +628,7 @@ export function setup(logger: Logger, quality: Quality) {
 			mockServerHost: '0.0.0.0',
 			remoteTransport: 'wsl',
 			wslClientProxy: 'agentHost',
+			proxyLoginCredentials: basicPacProxyCredentials,
 			registerScenarios: ({ ScenarioBuilder, registerScenario }) => {
 				registerScenario(scenario, new ScenarioBuilder().emit(reply).build());
 				registerScenario(`${scenario}-new-password`, new ScenarioBuilder().emit(newPasswordReply).build());
@@ -638,7 +644,8 @@ export function setup(logger: Logger, quality: Quality) {
 			const fixture = context.remoteFixture;
 			assert.ok(fixture, 'Expected the WSL connection fixture');
 			const requestTag = `[proxy-request:${randomUUID()}]`;
-			const logins = app.workbench.agentsWindow.fillProxyAuthenticationDialogs(basicPacProxyCredentials.username, basicPacProxyCredentials.password);
+			const logins = context.proxyLogins;
+			assert.ok(logins, 'Expected the suite to fill the proxy login dialogs');
 			try {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.connectWSLHost(fixture.name, fixture.workspacePath ?? app.workspacePathOrFolder, '.git');
@@ -1000,6 +1007,8 @@ interface IAgentHostSuiteContext {
 	readonly mockServer: MockLlmServer;
 	readonly logsPath: string;
 	readonly remoteFixture?: IRemoteDevContainerFixture;
+	/** Fills the proxy login dialogs from the start of the app, when the suite passes `proxyLoginCredentials`. */
+	readonly proxyLogins?: { stop(): Promise<string[]> };
 }
 
 /**
@@ -1021,9 +1030,15 @@ function setupAgentHostSuite(logger: Logger, config: {
 	readonly wslClientProxy?: 'agentHost' | 'server';
 	readonly prepareWorkspace?: (workspacePath: string, options: ApplicationOptions) => Promise<void> | void;
 	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
+	/**
+	 * Credentials to fill the proxy login dialogs with from the start of the app: requests of the app itself can open
+	 * one before the first window is ready, which keyboard input to it would otherwise cancel.
+	 */
+	readonly proxyLoginCredentials?: { readonly username: string; readonly password: string };
 }): IAgentHostSuiteContext {
 	let mockServer: MockLlmServer;
 	let logsPath: string;
+	let proxyLogins: ReturnType<Application['workbench']['agentsWindow']['fillProxyAuthenticationDialogs']> | undefined;
 	let workspacePath: string | undefined;
 	let remoteFixture: IRemoteDevContainerFixture | undefined;
 	let remoteFixtureSetup: Promise<IRemoteDevContainerFixture> | undefined;
@@ -1150,6 +1165,13 @@ function setupAgentHostSuite(logger: Logger, config: {
 		}
 
 		await (this.app as Application).start();
+		if (config.proxyLoginCredentials) {
+			proxyLogins = (this.app as Application).workbench.agentsWindow.fillProxyAuthenticationDialogs(config.proxyLoginCredentials.username, config.proxyLoginCredentials.password);
+		}
+	});
+
+	after(async function () {
+		await proxyLogins?.stop();
 	});
 
 	installAppAfterHandler(undefined, async () => {
@@ -1181,6 +1203,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		}
 		const app = this.app as Application;
 		cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+		await proxyLogins?.whenIdle();
 		const windowsBefore = app.code.driver.getAllWindows().length;
 		await app.workbench.agentsWindow.openCurrentFolderInAgentsWindow();
 		await app.workbench.agentsWindow.switchToAgentsWindow(windowsBefore);
@@ -1196,6 +1219,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		get mockServer() { return mockServer; },
 		get logsPath() { return logsPath; },
 		get remoteFixture() { return remoteFixture; },
+		get proxyLogins() { return proxyLogins; },
 	};
 }
 

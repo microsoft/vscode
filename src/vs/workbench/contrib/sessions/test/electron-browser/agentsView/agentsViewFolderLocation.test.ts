@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { SESSION_WORKTREE_ICON } from '../../../common/sessionWorktreeIcon.js';
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -186,14 +186,14 @@ suite('AgentsViewFolderLocation', () => {
 		instantiationService.stub(IWorkspaceEditingService, workspaceEditingService);
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>(folderLocationService));
 		instantiationService.stub(IStorageService, options?.storage ?? disposables.add(new InMemoryStorageService()));
-		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
+		const sessionsChanged = disposables.add(new Emitter<readonly ISessionChange[]>());
 		const sessionReplaced = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeAllSessions: sessionsChanged.event, onDidReplaceSession: sessionReplaced.event }));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({ onDidChangeSession: sessionsChanged.event, onDidReplaceSession: sessionReplaced.event }));
 
 		const service = disposables.add(instantiationService.createInstance(AgentsViewFolderLocationService));
 		service.start();
 		const setFolders = (folders: URI[]) => { otherFolders = folders; onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] }); };
-		return { service, workspaceEditingService, moves, trusted, notifications, telemetry, setFolders, removeSession: (session: ISession) => sessionsChanged.fire({ added: [], removed: [session], changed: [] }), replaceSession: (from: ISession, to: ISession) => sessionReplaced.fire({ from, to }), hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
+		return { service, workspaceEditingService, moves, trusted, notifications, telemetry, setFolders, removeSession: (session: ISession) => sessionsChanged.fire([{ session, kind: 'removed' }]), replaceSession: (from: ISession, to: ISession) => sessionReplaced.fire({ from, to }), hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
 	}
 
 	/** The recall of a location's last session over `service`, with a chat part that moves the folder as it opens a session, unless asked to keep it. */

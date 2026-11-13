@@ -21,7 +21,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
-import { getWorktreeSectionFolder, ISessionSection, QUICK_CHATS_SECTION_ID, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
+import { ISessionSection, QUICK_CHATS_SECTION_ID, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationManagementCommands } from '../../../chat/common/aiCustomizationWorkspaceService.js';
@@ -182,12 +182,16 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			});
 		}
 		async run(accessor: ServicesAccessor, section?: ISessionSection): Promise<void> {
-			const folderUri = section && getWorktreeSectionFolder(section.id);
+			// Not in its Other section, of the sessions without a local checkout or worktree
+			if (!section?.id.startsWith('worktree:') || section.id === 'worktree:other') {
+				return;
+			}
+			// In the section's checkout or worktree, which its sessions work in, as its latest session, such as with the same agent
+			const latest = [...section.sessions].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0);
+			const folderUri = latest && getSessionFolder(latest);
 			if (!folderUri) {
 				return;
 			}
-			// As its latest session, such as with the same agent
-			const latest = [...section.sessions].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).at(0);
 			await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(folderUri, latest), { newComposer: true });
 		}
 	}));

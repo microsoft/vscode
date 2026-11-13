@@ -11,14 +11,14 @@ import { ISessionHost } from '../../../services/sessions/browser/sessionHost.js'
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from './sessionsService.js';
 
-export const ISessionsNavigationHost = createDecorator<ISessionsNavigationHost>('sessionsNavigationHost');
+export const ISessionsNavigationService = createDecorator<ISessionsNavigationService>('sessionsNavigationService');
 
 /**
  * What the sessions list and the session hosts need from the window that shows sessions: where its sessions and chats
  * open, and which of them it shows. The Agents window shows them in its grid; another window, such as an editor window
  * with the Sessions view, shows them in its own way.
  */
-export interface ISessionsNavigationHost {
+export interface ISessionsNavigationService {
 	readonly _serviceBrand: undefined;
 
 	/** The host of the window's main surface, whose session the sessions list reveals. */

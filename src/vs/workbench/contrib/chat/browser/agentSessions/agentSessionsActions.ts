@@ -29,7 +29,8 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -41,7 +42,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
-import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../common/chatSessionCommands.js';
+import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID, SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
@@ -54,6 +55,8 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.toggleShowAgentSessions',
 			title: localize2('chat.showSessions', "Show Sessions"),
+			// The sessions of the Chat view, which does not show while the Agents view replaces it
+			precondition: ChatContextKeys.agentsViewActive.negate(),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
@@ -87,7 +90,7 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
 			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -110,7 +113,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
 			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -480,6 +483,28 @@ abstract class BaseAgentSessionAction extends Action2 {
 	abstract runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> | void;
 }
 
+/** Whether `target` is what the sessions list of the sessions service shows: a session, or a chat of a session (`{ session, chat }`). */
+function isSessionsListTarget(target: unknown): boolean {
+	if (!target || typeof target !== 'object') {
+		return false;
+	}
+	const candidate = target as { session?: unknown; chat?: unknown; sessionId?: unknown; mainChat?: unknown };
+	return hasKey(candidate, { session: true, chat: true }) || hasKey(candidate, { sessionId: true, mainChat: true });
+}
+
+/**
+ * Runs the sessions list's command that marks `context` read or unread, when the window registers it and `context` is what
+ * the sessions list shows, such as a session of the Sessions view or a chat of a chat tab; `undefined` otherwise.
+ */
+function runSessionsListReadState(accessor: ServicesAccessor, context: unknown, isRead: boolean): Promise<unknown> | undefined {
+	const commandId = isRead ? SESSIONS_LIST_MARK_READ_COMMAND_ID : SESSIONS_LIST_MARK_UNREAD_COMMAND_ID;
+	const isTarget = Array.isArray(context) ? context.length > 0 && context.every(isSessionsListTarget) : isSessionsListTarget(context);
+	if (!isTarget || !CommandsRegistry.getCommand(commandId)) {
+		return undefined;
+	}
+	return accessor.get(ICommandService).executeCommand(commandId, context);
+}
+
 export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
 	protected override readonly supportsChildSessions = true;
@@ -504,6 +529,15 @@ export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 				),
 			}
 		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+		const listed = runSessionsListReadState(accessor, context, false);
+		if (listed) {
+			await listed;
+		} else {
+			await super.run(accessor, context);
+		}
 	}
 
 	runWithSessions(sessions: IAgentSession[]): void {
@@ -537,6 +571,15 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 				),
 			}
 		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
+		const listed = runSessionsListReadState(accessor, context, true);
+		if (listed) {
+			await listed;
+		} else {
+			await super.run(accessor, context);
+		}
 	}
 
 	runWithSessions(sessions: IAgentSession[]): void {
@@ -1286,6 +1329,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1309,6 +1353,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1329,7 +1374,6 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			// The sessions of the Chat view, which does not show while the Agents view replaces it
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentsViewActive.negate()),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1362,7 +1406,6 @@ export class FocusAgentSessionsAction extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
-				// The sessions of the Chat view, which does not show while the Agents view replaces it
 				ChatContextKeys.agentsViewActive.negate(),
 			),
 			category: AGENT_SESSIONS_CATEGORY,

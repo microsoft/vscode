@@ -12,19 +12,10 @@ import { AgentHostCopilotCliSettingsContribution } from '../../../../../workbenc
 import { AgentHostSignedOutCompatibilityContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutCompatibilityContribution.js';
 import { AgentHostSdkSetupNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { AgentHostSignedOutModelsNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
-import { registerLocalAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 import './codexCustomizationSettings.contribution.js';
+import { registerLocalAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 
-/**
- * Registers the {@link LocalAgentHostSessionsProvider} when the Agent Host is
- * available in this runtime.
- *
- * {@link AgentHostContribution} handles all the heavy lifting — agent discovery,
- * session handler registration, language model providers, customization harness —
- * via {@link IChatSessionsService}. This contribution only bridges the session
- * listing and lifecycle to the {@link ISessionsProvidersService} layer used by
- * the Sessions app's UI.
- */
+/** Registers the local agent host sessions provider of the Agents window. */
 class LocalAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.localAgentHostContribution';

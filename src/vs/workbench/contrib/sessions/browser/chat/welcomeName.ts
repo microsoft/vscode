@@ -17,7 +17,7 @@ import { NEW_SESSION_WELCOME_NAME_SETTING } from '../../common/chatConstants.js'
 
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
 
-/** The configured name; none where the setting is not registered, such as in an editor window. */
+/** The configured name; none where the setting is not registered, such as in a window that does not register it. */
 function getConfiguredWelcomeName(configurationService: IConfigurationService): string {
 	return configurationService.getValue<string | undefined>(NEW_SESSION_WELCOME_NAME_SETTING)?.trim() ?? '';
 }

@@ -34,6 +34,7 @@ import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/wid
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
+import { IChatUserImageAttachmentService } from '../../../../contrib/chat/browser/attachments/chatUserImageAttachments.js';
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
@@ -375,6 +376,10 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 			reg.defineInstance(IChatInputNoticeHubService, new class extends mock<IChatInputNoticeHubService>() {
 				override registerHost() { return Disposable.None; }
 				override toggleNoticeFocus() { return false; }
+			}());
+			reg.defineInstance(IChatUserImageAttachmentService, new class extends mock<IChatUserImageAttachmentService>() {
+				override readonly onDidAttachImages = Event.None;
+				override didAttachImages() { }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;

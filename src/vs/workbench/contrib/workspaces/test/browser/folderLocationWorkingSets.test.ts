@@ -4,19 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { VSBuffer, bufferToReadable } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { extUriIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MockScopableContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
+import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
-import { IWorkingCopyBackupService } from '../../../../services/workingCopy/common/workingCopyBackup.js';
-import { IWorkingCopyIdentifier } from '../../../../services/workingCopy/common/workingCopy.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
+import { IUntitledTextEditorService } from '../../../../services/untitled/common/untitledTextEditorService.js';
+import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from '../../../../services/workingCopy/common/workingCopyBackup.js';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from '../../../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
+import { createEditorParts, TestFileEditorInput, TestWorkingCopyBackupService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { FOLDER_LOCATION_MAX_WORKING_SETS, FOLDER_LOCATION_WORKING_SET_NAME_PREFIX, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, FolderLocationWorkingSetsContribution } from '../../browser/folderLocationWorkingSets.js';
 
 suite('FolderLocationWorkingSetsContribution', () => {
@@ -43,7 +58,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		/** The editors of the main part, for the backup checks. */
 		editors: { resource: URI; dirty?: boolean }[] = [];
 		backups: IWorkingCopyIdentifier[] = [];
-		readonly registered = new Set<string>();
+		backupsGate: Promise<void> | undefined;
 
 		saved(): Record<string, string> {
 			return Object.fromEntries([...this.sets.values()].map(set => [set.name, set.content]));
@@ -54,7 +69,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		const errors: string[] = [];
 		const infos: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
-		const onDidRegisterWorkingCopy = ds.add(new Emitter<{ resource: URI }>());
+		const onDidChangeDirty = ds.add(new Emitter<{ resource: URI }>());
 		const storage = options?.storage ?? ds.add(new InMemoryStorageService());
 		const area = options?.area ?? new EditorArea();
 		let folderUri = options?.folder ?? primary;
@@ -63,7 +78,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		const editorGroupsService = {
 			whenRestored: options?.whenRestored ?? Promise.resolve(),
 			parts: [
-				{ get groups() { return [{ count: area.content ? 1 : 0, editors: area.editors.map(editor => ({ resource: editor.resource, isDirty: () => !!editor.dirty })) }]; } },
+				{ get groups() { return [{ count: area.content ? 1 : 0, editors: area.editors.map(editor => ({ resource: editor.resource, isDirty: () => !!editor.dirty, isSaving: () => false })) }]; } },
 				{ get groups() { return [{ count: area.auxiliaryEditors, editors: [] }]; } },
 				{ isTransient: true, groups: [{ count: 5, editors: [] }] }
 			],
@@ -94,14 +109,15 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			storage as unknown as IStorageService,
 			{ asCanonicalUri: (uri: URI) => uri, extUri: extUriIgnorePathCase } as unknown as IUriIdentityService,
 			{ error: (message: string) => errors.push(message), info: (message: string) => infos.push(message) } as unknown as ILogService,
-			{ getBackups: async () => area.backups } as unknown as IWorkingCopyBackupService,
-			{ has: (identifier: IWorkingCopyIdentifier) => area.registered.has(identifier.resource.toString()), onDidRegister: onDidRegisterWorkingCopy.event } as unknown as IWorkingCopyService
+			{ getBackups: async () => { await area.backupsGate; return area.backups; } } as unknown as IWorkingCopyBackupService,
+			{ onDidChangeDirty: onDidChangeDirty.event, onDidUnregister: Event.None } as unknown as IWorkingCopyService,
+			{ onDidEditorsChange: Event.None } as unknown as IEditorService
 		));
 
 		return {
 			area, errors, infos, storage, contribution,
 			switchTo(uri: URI, reason: 'user' | 'programmatic' = 'programmatic') { folderUri = uri; onDidChangeCurrentLocation.fire({ reason }); },
-			registerWorkingCopy(resource: URI) { area.registered.add(resource.toString()); onDidRegisterWorkingCopy.fire({ resource }); },
+			restoreBackup(resource: URI) { area.editors = area.editors.map(editor => editor.resource.toString() === resource.toString() ? { ...editor, dirty: true } : editor); onDidChangeDirty.fire({ resource }); },
 			holdApply() { let release!: () => void; area.gate = new Promise<void>(resolve => release = resolve); return () => { area.gate = undefined; release(); }; },
 			stored() { return JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE)!); }
 		};
@@ -454,13 +470,32 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			if (name === 'unrestored backup') {
 				results.stored = String(fixture.storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE));
 				results.infos = String(fixture.infos.length);
-				fixture.registerWorkingCopy(untitled);
+				fixture.restoreBackup(untitled);
 				await settle();
-				results.afterRegister = fixture.area.content;
+				results.afterRestored = fixture.area.content;
 			}
 		}
 
-		assert.deepStrictEqual(results, { 'unrestored backup': 'P', stored: 'undefined', infos: '1', afterRegister: '', 'dirty editor': '', 'no backup': '' });
+		assert.deepStrictEqual(results, { 'unrestored backup': 'P', stored: 'undefined', infos: '1', afterRestored: '', 'dirty editor': '', 'no backup': '' });
+	});
+
+	test('an editor whose backup is restored while the backups are queried does not keep the switch deferred', async () => {
+		const untitled = URI.from({ scheme: 'untitled', path: 'Untitled-1' });
+		const fixture = createFixture();
+		fixture.area.content = 'P';
+		fixture.area.editors = [{ resource: untitled }];
+		fixture.area.backups = [{ resource: untitled, typeId: '' }];
+		await settle();
+
+		let release!: () => void;
+		fixture.area.backupsGate = new Promise<void>(resolve => release = resolve);
+		fixture.switchTo(alternate);
+		await settle();
+		fixture.restoreBackup(untitled);
+		release();
+		await settle();
+
+		assert.deepStrictEqual({ content: fixture.area.content, saved: fixture.area.saved() }, { content: '', saved: { [prefix + p]: 'P' } });
 	});
 
 	test('stored locations that only differ in the casing of their path are the same location', async () => {
@@ -525,6 +560,216 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			content: 'P1',
 			saved: { [prefix + p]: 'P1', [prefix + a]: 'A1' },
 			partial: undefined
+		});
+	});
+});
+
+suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
+
+	const alternateKey = URI.file('/work/project-alt').toString();
+
+	const disposables = new DisposableStore();
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class HeldWorkingCopyBackupService extends TestWorkingCopyBackupService {
+		gate: Promise<void> | undefined;
+
+		override async resolve<T extends IWorkingCopyBackupMeta>(identifier: IWorkingCopyIdentifier): Promise<IResolvedWorkingCopyBackup<T> | undefined> {
+			await this.gate;
+			return super.resolve<T>(identifier);
+		}
+	}
+
+	/** A file editor whose save is running and can fail, which only its editor reports, not its working copy. */
+	class SavingFileEditorInput extends TestFileEditorInput {
+		saving = true;
+
+		override isSaving(): boolean {
+			return this.saving;
+		}
+
+		failSave(): void {
+			this.saving = false;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
+	/**
+	 * Switches the location while the backup of an untitled editor, which is only in an inactive tab of its own,
+	 * or of a diff editor as its modified or its original side, is being restored.
+	 */
+	async function createWorkbench() {
+		const backupService = disposables.add(new HeldWorkingCopyBackupService());
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService), workingCopyBackupService: () => backupService }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+		instantiationService.stub(IEditorService, editorService);
+		const container = parts.testMainPart.getContainer()!;
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+		const storage = instantiationService.invokeFunction(accessor => accessor.get(IStorageService));
+		const owner = (): string | undefined => JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE) ?? '{}').owner;
+
+		/** Starts the contribution at the primary location and returns a function that switches to the alternate one. */
+		const startAtPrimary = () => {
+			let folder = URI.file('/work/project');
+			const onDidChangeLocation = disposables.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
+			disposables.add(instantiationService.invokeFunction(accessor => new FolderLocationWorkingSetsContribution(
+				{ onDidChangeLocation: onDidChangeLocation.event, onDidChangeCanSetLocation: Event.None, canSetLocation: () => true } as unknown as IWorkspaceFolderLocationService,
+				{ getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: folder, name: 'project', index: 0 })], false, null, () => false) } as unknown as IWorkspaceContextService,
+				parts,
+				storage,
+				accessor.get(IUriIdentityService),
+				accessor.get(ILogService),
+				backupService,
+				accessor.get(IWorkingCopyService),
+				editorService
+			)));
+			return () => {
+				folder = URI.file('/work/project-alt');
+				onDidChangeLocation.fire({ reason: 'programmatic' });
+			};
+		};
+
+		return { backupService, instantiationService, parts, storage, owner, startAtPrimary };
+	}
+
+	async function switchWhileRestoring(tab: 'untitled' | 'diff' | 'diffOriginal') {
+		const { backupService, instantiationService, parts, storage, owner, startAtPrimary } = await createWorkbench();
+
+		// Restored inactive: the working copy of the untitled editor is registered and clean while its backup resolves
+		const model = disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IUntitledTextEditorService)).create());
+		const identifier = { resource: model.resource, typeId: model.typeId };
+		await backupService.backup(identifier, bufferToReadable(VSBuffer.fromString('backed up')));
+		let release!: () => void;
+		backupService.gate = new Promise<void>(resolve => release = resolve);
+		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
+		const active = disposables.add(new TestFileEditorInput(URI.file('/work/project/active.txt'), 'testTypeId'));
+		const file = disposables.add(new TestFileEditorInput(URI.file('/work/project/file.txt'), 'testTypeId'));
+		const inactive = tab === 'diff' ? disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, file, untitled, undefined))
+			: tab === 'diffOriginal' ? disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, untitled, file, undefined))
+				: untitled;
+		const group = parts.testMainPart.activeGroup;
+		await group.openEditor(active, { pinned: true });
+		await group.openEditor(inactive, { pinned: true, inactive: true });
+		const resolving = untitled.resolve();
+		await parts.whenRestored;
+
+		const switchToAlternate = startAtPrimary();
+
+		const editors = () => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor === inactive ? tab : editor === active ? 'active' : 'other');
+		// The entering location only becomes the owner once its editors are applied
+		const switched = Event.toPromise(Event.filter(storage.onDidChangeValue(StorageScope.WORKSPACE, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, disposables), () => JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE)!).owner === alternateKey), disposables);
+		switchToAlternate();
+		await timeout(50);
+		const whileRestoring = { editors: editors(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), backup: backupService.hasBackupSync(identifier) };
+
+		release();
+		if (tab === 'diffOriginal') {
+			// The diff closes while its original side is dirty: nothing switches, so wait for the retry the restore triggers
+			const restored = Event.toPromise(instantiationService.invokeFunction(accessor => accessor.get(IWorkingCopyService)).onDidChangeDirty, disposables);
+			await resolving;
+			await restored;
+			await timeout(50);
+		} else {
+			await resolving;
+			await switched;
+		}
+
+		return { whileRestoring, editors: editors(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), content: model.textEditorModel?.getValue(), backup: backupService.hasBackupSync(identifier), owner: owner() };
+	}
+
+	test('an inactive untitled editor whose backup is still being restored is neither closed nor discarded by a switch, and travels along once it is restored', async () => {
+		assert.deepStrictEqual(await switchWhileRestoring('untitled'), {
+			whileRestoring: { editors: ['active', 'untitled'], disposed: false, dirty: false, backup: true },
+			editors: ['untitled'],
+			disposed: false,
+			dirty: true,
+			content: 'backed up',
+			backup: true,
+			owner: alternateKey
+		});
+	});
+
+	test('an inactive diff editor whose original side is an untitled editor with a backup keeps a switch deferred while it is restored and once it is dirty, since closing the diff would dispose it', async () => {
+		assert.deepStrictEqual(await switchWhileRestoring('diffOriginal'), {
+			whileRestoring: { editors: ['active', 'diffOriginal'], disposed: false, dirty: false, backup: true },
+			editors: ['active', 'diffOriginal'],
+			disposed: false,
+			dirty: true,
+			content: 'backed up',
+			backup: true,
+			owner: undefined
+		});
+	});
+
+	test('an inactive diff editor whose original side is dirty keeps a switch deferred, since closing the diff would dispose it', async () => {
+		const { instantiationService, parts, owner, startAtPrimary } = await createWorkbench();
+		const model = disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IUntitledTextEditorService)).create({ initialValue: 'unsaved' }));
+		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
+		await untitled.resolve();
+		const active = disposables.add(new TestFileEditorInput(URI.file('/work/project/active.txt'), 'testTypeId'));
+		const file = disposables.add(new TestFileEditorInput(URI.file('/work/project/file.txt'), 'testTypeId'));
+		const diff = disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, untitled, file, undefined));
+		const group = parts.testMainPart.activeGroup;
+		await group.openEditor(active, { pinned: true });
+		await group.openEditor(diff, { pinned: true, inactive: true });
+		await parts.whenRestored;
+
+		startAtPrimary()();
+		await timeout(50);
+
+		assert.deepStrictEqual({ editors: group.count, diffDirty: diff.isDirty(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), content: model.textEditorModel?.getValue(), owner: owner() }, {
+			editors: 2, diffDirty: false, disposed: false, dirty: true, content: 'unsaved', owner: undefined
+		});
+	});
+
+	test('a switch deferred by a closing diff editor whose dirty modified side is saving proceeds when the save fails, and the diff travels along', async () => {
+		const { instantiationService, parts, storage, owner, startAtPrimary } = await createWorkbench();
+		const active = disposables.add(new TestFileEditorInput(URI.file('/work/project/active.txt'), 'testTypeId'));
+		const original = disposables.add(new TestFileEditorInput(URI.file('/work/project/original.txt'), 'testTypeId'));
+		const modified = disposables.add(new SavingFileEditorInput(URI.file('/work/project/modified.txt'), 'testTypeId'));
+		modified.setDirty();
+		const diff = disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, original, modified, undefined));
+		const group = parts.testMainPart.activeGroup;
+		await group.openEditor(active, { pinned: true });
+		await group.openEditor(diff, { pinned: true, inactive: true });
+		await parts.whenRestored;
+
+		const switched = Event.toPromise(Event.filter(storage.onDidChangeValue(StorageScope.WORKSPACE, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, disposables), () => owner() === alternateKey), disposables);
+		startAtPrimary()();
+		await timeout(50);
+		const whileSaving = { editors: group.count, owner: owner() };
+
+		modified.failSave();
+		await switched;
+
+		assert.deepStrictEqual({ whileSaving, editors: group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor === diff ? 'diff' : 'other'), dirty: modified.isDirty(), disposed: [diff.isDisposed(), modified.isDisposed()], owner: owner() }, {
+			whileSaving: { editors: 2, owner: undefined },
+			editors: ['diff'],
+			dirty: true,
+			disposed: [false, false],
+			owner: alternateKey
+		});
+	});
+
+	test('an inactive diff editor whose modified side is an untitled editor with a backup that is still being restored is not closed by a switch, and travels along once it is restored', async () => {
+		assert.deepStrictEqual(await switchWhileRestoring('diff'), {
+			whileRestoring: { editors: ['active', 'diff'], disposed: false, dirty: false, backup: true },
+			editors: ['diff'],
+			disposed: false,
+			dirty: true,
+			content: 'backed up',
+			backup: true,
+			owner: alternateKey
 		});
 	});
 });

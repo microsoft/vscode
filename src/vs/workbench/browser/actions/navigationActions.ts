@@ -18,7 +18,7 @@ import { ViewContainerLocation } from '../../common/views.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
-import { isAuxiliaryWindow } from '../../../base/browser/window.js';
+import { isAuxiliaryWindow, mainWindow } from '../../../base/browser/window.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -70,7 +70,9 @@ abstract class BaseNavigationAction extends Action2 {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 
-		const isEditorFocus = layoutService.hasFocus(Parts.EDITOR_PART);
+		// The chat part shows editors too: focus in it is not focus in the editor area
+		const isChatFocus = layoutService.hasFocus(Parts.CHAT_PART);
+		const isEditorFocus = !isChatFocus && layoutService.hasFocus(Parts.EDITOR_PART);
 		const isPanelFocus = layoutService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = layoutService.hasFocus(Parts.SIDEBAR_PART);
 		const isAuxiliaryBarFocus = layoutService.hasFocus(Parts.AUXILIARYBAR_PART);
@@ -85,6 +87,10 @@ abstract class BaseNavigationAction extends Action2 {
 			neighborPart = layoutService.getVisibleNeighborPart(Parts.EDITOR_PART, this.direction);
 		}
 
+		if (isChatFocus) {
+			neighborPart = layoutService.getVisibleNeighborPart(Parts.CHAT_PART, this.direction);
+		}
+
 		if (isPanelFocus) {
 			neighborPart = layoutService.getVisibleNeighborPart(Parts.PANEL_PART, this.direction);
 		}
@@ -97,7 +103,10 @@ abstract class BaseNavigationAction extends Action2 {
 			neighborPart = neighborPart = layoutService.getVisibleNeighborPart(Parts.AUXILIARYBAR_PART, this.direction);
 		}
 
-		if (neighborPart === Parts.EDITOR_PART) {
+		if (neighborPart === Parts.EDITOR_PART && isChatFocus) {
+			// The last active editor group can be one of the chat part's: the editor area is the main one
+			layoutService.focusPart(Parts.EDITOR_PART, mainWindow);
+		} else if (neighborPart === Parts.EDITOR_PART) {
 			if (!this.navigateBackToEditorGroup(this.toGroupDirection(this.direction), editorGroupService)) {
 				this.navigateToEditorGroup(this.direction === Direction.Right ? GroupLocation.FIRST : GroupLocation.LAST, editorGroupService);
 			}
@@ -107,6 +116,8 @@ abstract class BaseNavigationAction extends Action2 {
 			this.navigateToPanel(layoutService, paneCompositeService);
 		} else if (neighborPart === Parts.AUXILIARYBAR_PART) {
 			this.navigateToAuxiliaryBar(layoutService, paneCompositeService);
+		} else if (neighborPart === Parts.CHAT_PART) {
+			layoutService.focusPart(Parts.CHAT_PART);
 		}
 	}
 

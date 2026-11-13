@@ -3,18 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IDisposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
-import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { AgentHostContribution } from '../../../../chat/browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
+import { SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
 
 /**
- * Registers the {@link LocalAgentHostSessionsProvider} while the Agent Host is enabled in this runtime, with the working
+ * Registers the {@link LocalAgentHostSessionsProvider} while the Agent Host is available in this runtime, with the working
  * directory resolvers of its session types, until the returned disposable is disposed.
+ *
+ * {@link AgentHostContribution} handles all the heavy lifting — agent discovery,
+ * session handler registration, language model providers, customization harness —
+ * via {@link IChatSessionsService}. This only bridges the session
+ * listing and lifecycle to the {@link ISessionsProvidersService} layer used by
+ * the sessions UI.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerLocalAgentHostSessionsProvider(accessor: ServicesAccessor): IDisposable {
 	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);
@@ -23,6 +33,7 @@ export function registerLocalAgentHostSessionsProvider(accessor: ServicesAccesso
 	const workingDirectoryResolver = accessor.get(IAgentHostSessionWorkingDirectoryResolver);
 
 	const disposables = new DisposableStore();
+
 	const registration = disposables.add(new MutableDisposable<DisposableStore>());
 	const initialize = () => {
 		if (registration.value) {

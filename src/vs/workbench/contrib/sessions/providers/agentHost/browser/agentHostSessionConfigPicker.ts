@@ -1019,7 +1019,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const session = this._session.get();
 		return session?.sessionId === sessionId
 			? this._chat.get()?.resource
-			: (provider.getAllSessions?.() ?? provider.getSessions()).find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
+			: provider.getSessions().find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
 	}
 
 	private _requireChat(provider: IAgentHostSessionsProvider, sessionId: string): URI {
@@ -2201,8 +2201,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				isPhoneLayout(this._layoutService),
 			).filter(([property, schema]) =>
 				isRenderableSessionConfigProperty(property, schema, config.schema, isNewSession) &&
-				(isNewSession || schema.sessionMutable || property === workspace.isolation?.key || property === workspace.baseBranch?.key) &&
-				this.showsRepositoryProperty(property === workspace.isolation?.key, isNewSession)
+				this.showsRepositoryProperty(property === workspace.isolation?.key, isNewSession) &&
+				(isNewSession || schema.sessionMutable || property === workspace.isolation?.key || property === workspace.baseBranch?.key)
 			);
 			const branchIndex = properties.findIndex(([property]) => property === workspace.baseBranch?.key);
 			const isolationIndex = properties.findIndex(([property]) => property === workspace.isolation?.key);
@@ -2531,22 +2531,22 @@ export class RunningSessionModePickerAction extends Action2 {
 }
 
 /**
- * Registers the agent host's pickers of a new session and of a running session's chat input, until the returned
- * disposable is disposed. {@link AgentHostSessionConfigPickerContribution} renders them.
+ * Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerAgentHostSessionConfigPickerActions(): IDisposable {
 	const store = new DisposableStore();
-	for (const action of [
-		NewSessionApprovePickerAction,
-		NewSessionPermissionModePickerAction,
-		NewSessionCodexApprovalsPickerAction,
-		NewSessionModePickerAction,
-		RunningSessionConfigPickerAction,
-		RunningSessionPermissionModePickerAction,
-		RunningSessionCodexApprovalsPickerAction,
-		RunningSessionModePickerAction,
-	]) {
-		store.add(registerAction2(action));
-	}
+
+	store.add(registerAction2(NewSessionApprovePickerAction));
+	store.add(registerAction2(NewSessionPermissionModePickerAction));
+	store.add(registerAction2(NewSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(NewSessionModePickerAction));
+	store.add(registerAction2(RunningSessionConfigPickerAction));
+	store.add(registerAction2(RunningSessionPermissionModePickerAction));
+	store.add(registerAction2(RunningSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(RunningSessionModePickerAction));
+
 	return store;
 }

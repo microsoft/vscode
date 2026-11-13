@@ -13,8 +13,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { sessionsListConfiguration } from '../sessionsConfiguration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { sessionsListConfigurationProperties } from '../sessionsConfiguration.js';
 import { ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
@@ -29,7 +29,7 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { ChatViewOpenKeybindings } from '../../../chat/browser/chat.js';
 import { CHAT_OPEN_ACTION_ID } from '../../../chat/browser/actions/chatActions.js';
 import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
-import { registerSessionsListActions, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
+import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { AGENTS_VIEW_CONTAINER_ID, AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from './agentsView.js';
@@ -43,6 +43,12 @@ const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
 
 /** The editor window's Sessions view groups only by time, environment or worktree, by time until one is chosen. */
 export const EDITOR_WINDOW_SESSIONS_GROUPINGS = { offered: [SessionsGrouping.Date, SessionsGrouping.Environment, SessionsGrouping.Worktree], default: SessionsGrouping.Date };
+
+/** The settings of the sessions list and of the sessions it opens, as the Agents window registers them. */
+const sessionsListConfiguration: IConfigurationNode = {
+	id: 'sessionsList',
+	properties: sessionsListConfigurationProperties,
+};
 
 /** The container of the Sessions view in an editor window, whose title shows the actions of the sessions header. */
 class AgentsViewPaneContainer extends ViewPaneContainer {
@@ -88,6 +94,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		// The actions of the list and of the sessions it shows, once the Sessions view or the chat part first shows
 		this.registerOnFirstShown(instantiationService, () => {
 			this._register(registerSessionsListActions());
+			this._register(registerSessionsListReadStateMenus());
 			this._register(registerAgentsViewNewSessionActions());
 			this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
 		});

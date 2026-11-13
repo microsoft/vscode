@@ -38,7 +38,7 @@ import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
 import { isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
-import { INewSessionDraftSlot, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
@@ -213,7 +213,8 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeProviders: Event.None, onDidChangeLocation: Event.None, onDidChangeCanSetLocation: Event.None, canSetLocation: () => false, getLocations: async () => [] }));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
-		// The changes of the listed sessions, and of all sessions, also of those the providers' listing scope hides
+		// The changes of the listed sessions, and of each session, also of those the providers' listing scope hides
+		const toSessionChanges = (added: readonly ISession[], removed: readonly ISession[]): readonly ISessionChange[] => [...added.map(session => ({ session, kind: 'added' as const })), ...removed.map(session => ({ session, kind: 'removed' as const }))];
 		const sessionsChanged = store.add(new Emitter<never>());
 		const allSessionsChanged = store.add(new Emitter<never>());
 		let sessionListeners = 0;
@@ -232,8 +233,9 @@ suite('AgentsChatPartService', () => {
 		let nextSlot = 0;
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: counted(sessionsChanged),
-			onDidChangeAllSessions: counted(allSessionsChanged),
+			onDidChangeSession: counted(allSessionsChanged),
 			onDidAcceptNewSessionRequest: Event.None,
+			onDidReplaceSession: Event.None,
 			onDidReplaceNewDraftSession: Event.None,
 			getSessions: () => [],
 			getSession: resource => options?.sessions?.().find(candidate => isEqual(candidate.resource, resource)),
@@ -280,10 +282,10 @@ suite('AgentsChatPartService', () => {
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
 			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => {
 				sessionsChanged.fire({ added, removed, changed: [] } as never);
-				allSessionsChanged.fire({ added, removed, changed: [] } as never);
+				allSessionsChanged.fire(toSessionChanges(added, removed) as never);
 			},
 			/** Changes of sessions that the providers' listing scope hides, such as of another folder: they are not listed. */
-			fireHiddenSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => allSessionsChanged.fire({ added, removed, changed: [] } as never),
+			fireHiddenSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => allSessionsChanged.fire(toSessionChanges(added, removed) as never),
 			switchedTo,
 			automatic,
 			state: () => ({ tabs: part.groups.reduce((count, group) => count + group.editors.length, 0), liveSlots, sessionListeners, visible: partVisible }),

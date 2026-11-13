@@ -24,18 +24,19 @@ import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keyb
 import { getEnabledViewContainerContextKey } from '../../../../workbench/common/contextkeys.js';
 import { ChatViewContainerId, ChatViewOpenKeybindings } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_LIST_INDENT_ITEMS_SETTING, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsListStateMigrationContribution } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import { SessionsListToolsContribution } from './sessionsListTools.js';
 import './sessionDetailsAction.js';
 import './updateSessionFoldersAction.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
 import { AutomationSessionsListingContribution } from './automationSessionsListing.js';
 import { SessionsUnattendedRestartParticipant } from './sessionsUnattendedRestart.js';
 import { ISessionAttentionService } from '../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { SessionAttentionService } from '../../../../workbench/contrib/sessions/browser/sessionAttentionService.js';
-import { sessionsListConfiguration } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
-import { SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_LIST_AGENT_TOOLS_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, USE_WORKTREE_SETTING, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { sessionsListConfigurationProperties } from '../../../../workbench/contrib/sessions/browser/sessionsConfiguration.js';
 
 registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);
 
@@ -103,6 +104,7 @@ export const sessionsConfiguration = {
 			description: localize('sessions.sendLater.enabled', "Schedule requests from new-session and existing-chat inputs to be sent later in the Agents window. Requires Automations and a supported local agent host. Disabling this setting does not cancel scheduled requests; manage them in Automations."),
 			experiment: { mode: 'auto' },
 		},
+		[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INLINE_ACTIONS_SETTING],
 		[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: {
 			type: 'boolean',
 			tags: ['experimental'],
@@ -113,6 +115,15 @@ export const sessionsConfiguration = {
 				name: SESSIONS_LIST_REARRANGE_TREATMENT,
 			},
 		},
+		[SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			markdownDescription: localize('sessions.sidebar.customizationsAtBottom', "Controls whether Customizations remains a separate section below the Sessions list instead of joining the separate navigation list above the Sessions header. Only applies when `#sessions.sidebar.separateNavigation#` is enabled."),
+			default: false,
+			experiment: { mode: 'auto' },
+		},
+		[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING],
+		[SESSIONS_LIST_INBOX_ENABLED_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INBOX_ENABLED_SETTING],
 		[SESSIONS_LIST_AGENT_TOOLS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
@@ -120,6 +131,15 @@ export const sessionsConfiguration = {
 			default: true,
 			experiment: { mode: 'auto' }
 		},
+		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING],
+		[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING],
+		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING],
+		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING],
+		[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING],
+		[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING],
+		[SESSIONS_LIST_INDENT_ITEMS_SETTING]: sessionsListConfigurationProperties[SESSIONS_LIST_INDENT_ITEMS_SETTING],
+		[SESSIONS_CHAT_TABS_SETTING]: sessionsListConfigurationProperties[SESSIONS_CHAT_TABS_SETTING],
+		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: sessionsListConfigurationProperties[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING],
 		[NEW_SESSION_BUTTON_STYLE_SETTING]: {
 			type: 'string',
 			enum: ['default', 'lightweight', 'lightweightWithKeybindingBackground'],
@@ -133,11 +153,11 @@ export const sessionsConfiguration = {
 			},
 			description: localize('sessions.newSessionButton.style', "Controls the visual style of the New Session button."),
 		},
+		[USE_WORKTREE_SETTING]: sessionsListConfigurationProperties[USE_WORKTREE_SETTING],
 	},
 } satisfies IConfigurationNode;
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(sessionsConfiguration);
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(sessionsListConfiguration);
 
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);

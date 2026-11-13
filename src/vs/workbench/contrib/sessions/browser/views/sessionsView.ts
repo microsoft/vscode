@@ -50,7 +50,7 @@ import { Parts, IWorkbenchLayoutService } from '../../../../services/layout/brow
 import { PANEL_SECTION_BORDER } from '../../../../common/theme.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
+import { ISessionsService } from '../sessionsService.js';
 import { ISessionDraftsService } from '../sessionDraftsService.js';
 import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -62,7 +62,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
@@ -84,11 +84,11 @@ const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
 
-export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, treatment: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
+export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, navigationIncludesCustomizations: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
 	if (phoneLayout || !aiEnabled || aiHidden) {
 		return 'hidden';
 	}
-	const resolved = resolveChatCustomizationsLocation(location, true, treatment);
+	const resolved = resolveChatCustomizationsLocation(location, true, navigationIncludesCustomizations);
 	return resolved === 'sidebar' ? 'control' : resolved === 'sessionsHeader' ? 'treatment' : 'hidden';
 }
 
@@ -233,6 +233,7 @@ export class SessionsView extends ViewPane {
 	listNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly separateNavigation: IObservable<boolean>;
+	private readonly customizationsAtBottom: IObservable<boolean>;
 	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
@@ -275,7 +276,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionHostService sessionHostService: ISessionHostService,
-		@ISessionsNavigationHost private readonly sessionsService: ISessionsNavigationHost,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -294,6 +295,7 @@ export class SessionsView extends ViewPane {
 		this.scoped = options.scoped;
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
+		this.customizationsAtBottom = observableConfigValue(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, false, configurationService);
 		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
@@ -430,8 +432,8 @@ export class SessionsView extends ViewPane {
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			pinnedCanvases: this.presentation.pinnedCanvases,
 			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
-			findWidgetContainer,
 			scoped: this.scoped,
+			findWidgetContainer,
 			quickChatsInTimeGrouping: this.quickChatsInTimeGrouping,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);
@@ -682,8 +684,9 @@ export class SessionsView extends ViewPane {
 		const enabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
 		const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden === true;
 		const navigation = this.separateNavigation.read(reader);
+		const navigationIncludesCustomizations = navigation && !this.customizationsAtBottom.read(reader);
 		this.updateCustomizationsPresentation(
-			this.hideCustomizations ? 'hidden' : getCustomizationsPresentation(phone, enabled, hidden, navigation, this.customizationsLocation.read(reader)),
+			this.hideCustomizations ? 'hidden' : getCustomizationsPresentation(phone, enabled, hidden, navigationIncludesCustomizations, this.customizationsLocation.read(reader)),
 			navigation && !phone && enabled && !hidden,
 		);
 	}

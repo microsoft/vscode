@@ -15,9 +15,9 @@ import { ServiceIdentifier } from '../../../../../platform/instantiation/common/
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IFocusedSessionHostService, ISessionChatSource, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../services/sessions/browser/sessionHost.js';
 import { SessionHostService } from '../../browser/sessionHostService.js';
-import { SessionsServiceNavigationHost } from '../../browser/sessionsServiceNavigationHost.js';
+import { SessionsServiceNavigationService } from '../../browser/sessionsServiceNavigationService.js';
 import { ISessionsService } from '../../browser/sessionsService.js';
-import { ISessionsNavigationHost } from '../../browser/sessionsNavigationHost.js';
+import { ISessionsNavigationService } from '../../browser/sessionsNavigationService.js';
 import { ISessionsPartService, ISessionView } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../services/sessions/browser/sessionGridPane.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -125,7 +125,7 @@ export function stubSessionHosts(instantiationService: TestInstantiationService,
 		contextKeyService: upcastPartial<IContextKeyService>({}),
 		windowId: constObservable(mainWindow.vscodeWindowId),
 	});
-	const sessionHostService = store.add(new SessionHostService(navigationHostOf(sessionsServiceWithGridHost(mainHost)), options?.editorGroupsService ?? upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+	const sessionHostService = store.add(new SessionHostService(navigationServiceOf(sessionsServiceWithGridHost(mainHost)), options?.editorGroupsService ?? upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 	instantiationService.stub(ISessionHost, mainHost);
 	instantiationService.stub(ISessionHostService, sessionHostService);
 	return { mainHost, sessionHostService };
@@ -157,7 +157,7 @@ export function sessionHostServiceOf(store: Pick<DisposableStore, 'add'>, grid: 
 		});
 	};
 	const mainHost = hostOf(SessionHostKind.MainWindow, undefined, state.mainWindowActiveSession, mainWindow.vscodeWindowId);
-	const service = store.add(new SessionHostService(navigationHostOf(sessionsServiceWithGridHost(mainHost)), upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+	const service = store.add(new SessionHostService(navigationServiceOf(sessionsServiceWithGridHost(mainHost)), upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 	const registered = store.add(new DisposableMap<TestShown>());
 	store.add(autorun(reader => {
 		const shown = new Map<TestShown, SessionHostKind>();
@@ -404,13 +404,13 @@ export function testPaneContentOf(session: LegacyFakePaneState, close: () => voi
 }
 
 /** The navigation of the Agents window over `sessionsService`, with a grid that shows no session view. */
-export function navigationHostOf(sessionsService: ISessionsService): SessionsServiceNavigationHost {
-	return new SessionsServiceNavigationHost(sessionsService, upcastPartial<ISessionsPartService>({ getActiveSessionView: () => undefined }));
+export function navigationServiceOf(sessionsService: ISessionsService): SessionsServiceNavigationService {
+	return new SessionsServiceNavigationService(sessionsService, upcastPartial<ISessionsPartService>({ getActiveSessionView: () => undefined }));
 }
 
 /** Stubs `service` as the window's {@link ISessionsService} and its navigation, as the Agents window registers both. */
 export function stubSessionsService<T extends Partial<ISessionsService>>(instantiationService: TestInstantiationService, service: T): T {
 	instantiationService.stub(ISessionsService, service);
-	instantiationService.stub(ISessionsNavigationHost, navigationHostOf(upcastPartial<ISessionsService>(service)));
+	instantiationService.stub(ISessionsNavigationService, navigationServiceOf(upcastPartial<ISessionsService>(service)));
 	return service;
 }

@@ -1748,6 +1748,54 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 
 });
 
+suite('CopilotSessionLauncher runtime-default tool search', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		test(`preserves the client tool-search choice without pinning a model on ${kind}`, async () => {
+			const search = { name: CLIENT_TOOL_SEARCH_REFERENCE_NAME, inputSchema: { type: 'object' as const, properties: {} } };
+			const cases = [
+				{ name: 'enabled', tools: [search], values: {} },
+				{ name: 'disabled', tools: [], values: {} },
+				{ name: 'filtered', tools: [search], values: { modelCapabilityOverrides: { '*': { excludedTools: ['custom:toolSearch'] } } } },
+				{ name: 'app-tool', tools: [withAgentToolOrigin(search, 'mcpApp')], values: {} },
+				{ name: 'unsupported-family', tools: [search], values: { modelCapabilityOverrides: { '*': { family: 'preview-model-x' } } } },
+			];
+			const results = [];
+			for (const scenario of cases) {
+				let captured: ResumeSessionConfig | undefined;
+				const active: Record<string, boolean | undefined> = {};
+				const client = returningSession(upcastPartial<CopilotSession>({
+					sessionId: 'default-model', on: () => () => { }, disconnect: async () => { },
+					rpc: upcastPartial<CopilotSession['rpc']>({ agent: upcastPartial<CopilotSession['rpc']['agent']>(emptyAgentCatalog), options: { update: async () => ({ success: true }) } }),
+				}), config => { captured = config; });
+				const base = {
+					client, sessionId: 'default-model', workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+					snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: scenario.tools, plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				};
+				const plan: CopilotSessionLaunchPlan = kind === 'create'
+					? { ...base, kind, model: undefined }
+					: { ...base, kind, fallback: { model: undefined } };
+				store.add(await createTestLauncher(undefined, scenario.values).launch(plan, {
+					...testRuntime,
+					createClientSdkTools: enabled => { active.client = enabled; return []; },
+					createServerSdkTools: enabled => { active.server = enabled; return []; },
+					configureClientTools: configuration => { active.configured = configuration.toolSearchActive; },
+				}));
+				results.push({ name: scenario.name, model: captured?.model, toolSearch: captured?.toolSearch, ...active });
+			}
+			assert.deepStrictEqual(results, [
+				{ name: 'enabled', model: undefined, toolSearch: { enabled: true, deferThreshold: 1 }, client: true, server: true, configured: true },
+				...['disabled', 'filtered', 'app-tool', 'unsupported-family'].map(name => ({
+					name, model: undefined, toolSearch: { enabled: false }, client: false, server: false, configured: false,
+				})),
+			]);
+		});
+	}
+});
+
 suite('CopilotSessionLauncher MCP skills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 

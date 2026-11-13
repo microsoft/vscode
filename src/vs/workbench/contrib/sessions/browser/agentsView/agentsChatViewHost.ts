@@ -4,13 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { IChatViewHostDelegate, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions } from '../../../chat/browser/chatViewHost.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
@@ -22,11 +30,11 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 const WAIT_TIMEOUT = 5_000;
 
 /**
- * Shows in the chat part what the Chat view would show, which the chat part replaces in an editor window with the Agents
- * view: the window's active chat, a new-session composer, or the chat of a session. It shows the chats of sessions only:
- * not local chat, which the Agents view does not show.
+ * The host of the Chat view's chats in an editor window with the Agents view, whose chat part replaces the Chat view: it
+ * shows in the chat part the window's active chat, a new-session composer, or the chat of a session. It shows the chats of
+ * sessions only: not local chat, which the Agents view does not show.
  */
-export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
+export class AgentsChatViewHost implements IChatViewHost {
 
 	constructor(
 		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
@@ -37,6 +45,8 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IAgentsViewProvidersService private readonly _providers: IAgentsViewProvidersService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IChatService private readonly _chatService: IChatService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) { }
 
 	/** Whether it shows anything: not while chat is hidden or disabled, such as with AI features off. */
@@ -44,7 +54,7 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 		return this._contextKeyService.contextMatchesRules(AgentsViewAvailable);
 	}
 
-	async reveal(preserveFocus: boolean | undefined): Promise<IChatWidget | undefined> {
+	async reveal(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
 		if (!this._available) {
 			return undefined;
 		}
@@ -53,39 +63,81 @@ export class AgentsChatViewHostDelegate implements IChatViewHostDelegate {
 		return active ? this._waitForWidget(active.chat.resource) : this._chatPart.getComposerWidget();
 	}
 
-	async openSession(sessionResource: URI, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined> {
+	async revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
+		return this._chatPart.isShowing(sessionResource) ? this.openSession(sessionResource, options) : undefined;
+	}
+
+	async openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
 		if (!this._available) {
 			return undefined;
 		}
 		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			const owner = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
+			const owner = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSessionForChatResource(sessionResource));
 			if (!owner) {
 				return undefined;
 			}
-			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus });
+			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus });
 			return await this._waitForWidget(owner.chat.resource);
 		} finally {
 			hold.dispose();
 		}
 	}
 
-	async toggle(): Promise<void> {
+	async toggle(): Promise<boolean> {
 		if (this._layoutService.isVisible(Parts.CHAT_PART)) {
 			this._layoutService.setPartHidden(true, Parts.CHAT_PART);
-		} else if (this._available) {
-			await this._chatPart.show(this._composerTarget());
+			return false;
 		}
+		if (!this._available) {
+			return false;
+		}
+		await this._chatPart.show(this._composerTarget());
+		return true;
 	}
 
-	async newSession(sessionType: string | undefined, preserveFocus: boolean | undefined): Promise<IChatWidget | undefined> {
+	/**
+	 * Holds the session's model while its first request, if any, is sent, and shows the session in the chat part only once it
+	 * runs, became real or was given: a new session that did not run is not listed, so a new-session composer of its type
+	 * shows instead, where a request that did not run can be put back.
+	 */
+	async startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart> {
+		if (options.local) {
+			// It shows sessions, not local chat
+			this._notificationService.info(localize('agentsChatViewHost.localChatUnavailable', "Local chat sessions are not available while the Agents view is enabled."));
+			throw new CancellationError();
+		}
+		const model = await this._chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'AgentsChatViewHost#startSession', 'explicitOverride');
+		if (!model) {
+			throw new Error(`Unable to load the chat session ${sessionResource.toString()}`);
+		}
+		const sessionType = sessionResource.scheme;
+		let composer: Promise<IChatWidget | undefined> | undefined;
+		return {
+			moved: async () => { },
+			complete: async (resource, sent) => {
+				const given = !isUntitledChatSession(sessionResource);
+				const shown = (sent || given || !isEqual(resource, sessionResource)) && !!await this.openSession(resource);
+				if (!shown) {
+					// Shown before the start completes, and given back by createComposer
+					composer = this._openComposer(sessionType);
+					await composer;
+				}
+				return shown;
+			},
+			createComposer: () => composer ?? this._openComposer(sessionType),
+			dispose: () => model.dispose(),
+		};
+	}
+
+	/** Shows a new-session composer of `sessionType` and resolves to the widget of its input, whose submits create the session. */
+	private async _openComposer(sessionType: string): Promise<IChatWidget | undefined> {
 		if (!this._available) {
 			return undefined;
 		}
-		const target = this._composerTarget();
 		// A composer of its own: the one it shows may aim at sessions of another type
-		await this._chatPart.openComposer(sessionType ? { ...target, sessionTypeId: sessionType } : target, { preserveFocus, newComposer: !!sessionType });
+		await this._chatPart.openComposer({ ...this._composerTarget(), sessionTypeId: sessionType }, { newComposer: true });
 		return this._chatPart.getComposerWidget();
 	}
 

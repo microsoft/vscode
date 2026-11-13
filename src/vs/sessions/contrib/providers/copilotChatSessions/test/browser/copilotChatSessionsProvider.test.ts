@@ -1630,6 +1630,23 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 	});
 
+	test('tells who listens already how its listing changes as a listing scope is set', () => {
+		const repository = (name: string) => URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/owner/${name}` });
+		const session = (name: string) => createMockAgentSession(URI.from({ scheme: AgentSessionProviders.Cloud, path: `/${name}` }), { title: name, metadata: { owner: 'owner', name } });
+		model.addSession(session('here'));
+		model.addSession(session('elsewhere'));
+		const provider = createProvider(disposables, model);
+		provider.getSessions();
+		const titles = (sessions: readonly ISession[]) => sessions.map(session => session.title.get()).sort().join(',');
+		const changes: string[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(`added=${titles(e.added)} removed=${titles(e.removed)} changed=${titles(e.changed)}`)));
+
+		provider.setListingScope({ folders: constObservable([repository('here')]), repositories: constObservable([]) });
+		provider.setListingScope({ folders: constObservable([repository('elsewhere')]), repositories: constObservable([]) });
+
+		assert.deepStrictEqual(changes, ['added= removed= changed=elsewhere', 'added=elsewhere removed= changed=here']);
+	});
+
 	test('onDidChangeSessions fires when agent model changes', () => {
 		const provider = createProvider(disposables, model);
 		provider.getSessions(); // Initialize cache
@@ -3236,6 +3253,40 @@ suite('CopilotChatSessionsProvider', () => {
 		const restoredSession = restoredProvider.getSessions().find(candidate => candidate.resource.toString() === committedResource.toString());
 		assert.deepStrictEqual(serializeCreationReference(restoredSession?.createdBySession?.get()), serializeCreationReference(createdBySession));
 	});
+	test('a scoped listing lists the session a cloud draft commits into as its replacement is reported', async () => {
+		const committedResource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${generateUuid()}` });
+		const commitSubscribed = new DeferredPromise<void>();
+		const onDidCommit = disposables.add(new Emitter<{ original: URI; committed: URI }>({ onDidAddFirstListener: () => commitSubscribed.complete() }));
+		let resolveComplete!: () => void;
+		const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
+		const provider = createProviderForSendTests(disposables, model, async () => ({
+			kind: 'sent' as const,
+			data: {
+				responseCompletePromise,
+				responseCreatedPromise: new Promise<IChatResponseModel>(() => { /* never resolves */ }),
+				agent: new class extends mock<IChatAgentData>() { }(),
+			} as IChatSendRequestData,
+		}), { onDidCommitSession: onDidCommit.event });
+		// Who learns of the replacement, such as the sessions management service, subscribed before the scope was set
+		const atReplacement: string[][] = [];
+		disposables.add(provider.onDidReplaceSession(({ from, to }) => atReplacement.push(provider.getSessions().map(listed => listed === to ? 'committed' : listed === from ? 'draft' : listed.resource.toString()))));
+		provider.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+
+		const session = provider.createNewSession(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo/HEAD' }), CopilotCloudSessionType.id);
+		const added = waitForSessionAdded(provider);
+		const chat = await provider.createNewChat(session.sessionId);
+		const sendPromise = provider.sendRequest(session.sessionId, chat.resource, { query: 'hi' });
+		await added;
+		const draftListed = provider.getSessions().some(listed => listed.sessionId === session.sessionId);
+		resolveComplete();
+		model.addSession(createMockAgentSession(committedResource, { providerType: AgentSessionProviders.Cloud }));
+		await commitSubscribed.p;
+		onDidCommit.fire({ original: chat.resource, committed: committedResource });
+		const committed = await sendPromise;
+
+		assert.deepStrictEqual({ draftListed, atReplacement, committed: committed.resource.toString() }, { draftListed: true, atReplacement: [['committed']], committed: committedResource.toString() });
+	});
+
 	suite('cloud sandbox send path', () => {
 		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`), which is what
 		// `repoNwo` has to strip back down to `owner/repo`.

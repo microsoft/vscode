@@ -88,9 +88,9 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionsNavigationHost } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationHost.js';
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService, MainWindowSessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
-import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes, navigationHostOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
+import { ITestSessionWithChat, navigationServiceOf, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -107,6 +107,7 @@ import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructor
 import '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
+import '../../browser/views/sessionsViewActions.js';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsList.css';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 import '../../browser/media/newSessionActionViewItem.css';
@@ -813,7 +814,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 				readonly activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(undefined);
 			}();
 			reg.defineInstance(ISessionsService, sessionsService);
-			reg.defineInstance(ISessionsNavigationHost, navigationHostOf(sessionsService));
+			reg.defineInstance(ISessionsNavigationService, navigationServiceOf(sessionsService));
 			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable(visibleSessions), windowSessions: constObservable([]) }));
 			reg.define(ISessionHost, MainWindowSessionHost);
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {

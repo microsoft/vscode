@@ -88,13 +88,13 @@ import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/a
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
-import '../../browser/views/sessionsViewActions.js';
 import { HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
-import { ITestSessionWithChat, stubSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import '../../browser/views/sessionsViewActions.js';
 
 
 const AUTOMATION_ID = 'automation-1';

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { parseGitHubOrigin, readFolderGitRepository, WorkspaceFolderRepositories } from '../../../browser/agentsView/workspaceFolderRepositories.js';
-import { getSessionsInScopeFolders } from '../../../browser/sessionScope.js';
+import { SessionsListingScopeFilter } from '../../../browser/sessionScope.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { parseGitHubRepositoryFromGitConfig } from '../../../browser/gitHubRepositoryResolver.js';
@@ -131,6 +131,7 @@ suite('WorkspaceFolderRepositories', () => {
 		}));
 		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
 		const sessionIn = (root: string, workingDirectory: string) => upcastPartial<ISession>({
+			sessionId: `${root}|${workingDirectory}`,
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionWorkspace['folders'][number]>({ root: URI.file(root), workingDirectory: URI.file(workingDirectory) })] })),
 		});
 		const sessions = {
@@ -140,8 +141,9 @@ suite('WorkspaceFolderRepositories', () => {
 			elsewhere: sessionIn('/work/tools', '/work/tools'),
 		};
 		const listed = () => {
-			const scope = getSessionsInScopeFolders(Object.values(sessions), [folder.uri], undefined, repositories.repositories.get());
-			return Object.entries(sessions).filter(([, session]) => scope.includes(session)).map(([name]) => name);
+			const filter = store.add(new SessionsListingScopeFilter({ folders: constObservable([folder.uri]), repositories: constObservable(repositories.repositories.get()) }, () => Object.values(sessions), Event.None));
+			const scope = new Set(filter.getSessions());
+			return Object.entries(sessions).filter(([, session]) => scope.has(session)).map(([name]) => name);
 		};
 
 		await timeout(0);

@@ -23,8 +23,8 @@ import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycl
 import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
-import { IChatWidgetService } from '../../../chat/browser/chat.js';
-import { AgentsChatViewHostDelegate } from './agentsChatViewHostDelegate.js';
+import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
+import { AgentsChatViewHost } from './agentsChatViewHost.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 
 /**
@@ -39,19 +39,20 @@ export class AgentsChatPartContribution extends Disposable {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
+		@IChatViewHostService chatViewHostService: IChatViewHostService,
 		@IAgentsViewFolderLocationService folderLocationService: IAgentsViewFolderLocationService,
 	) {
 		super();
 
-		// It replaces the Chat view: what would show the Chat view shows the chat part instead. The delegate, with the chat part
+		// It replaces the Chat view: what would show the Chat view shows the chat part instead. The host, with the chat part
 		// and the sessions it shows, is created as the first request comes, not as the window starts
-		const delegate = new Lazy(() => instantiationService.createInstance(AgentsChatViewHostDelegate));
-		this._register(chatWidgetService.setChatViewHostDelegate({
-			reveal: preserveFocus => delegate.value.reveal(preserveFocus),
-			openSession: (sessionResource, preserveFocus) => delegate.value.openSession(sessionResource, preserveFocus),
-			toggle: () => delegate.value.toggle(),
-			newSession: (sessionType, preserveFocus) => delegate.value.newSession(sessionType, preserveFocus),
+		const host = new Lazy(() => instantiationService.createInstance(AgentsChatViewHost));
+		this._register(chatViewHostService.registerHost({
+			reveal: preserveFocus => host.value.reveal(preserveFocus),
+			revealIfShowing: (sessionResource, options) => host.value.revealIfShowing(sessionResource, options),
+			openSession: (sessionResource, options) => host.value.openSession(sessionResource, options),
+			toggle: () => host.value.toggle(),
+			startSession: (sessionResource, options) => host.value.startSession(sessionResource, options),
 		}));
 
 		// The part, before the workbench creates its grid: reading it creates the delayed frame

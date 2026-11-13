@@ -147,7 +147,13 @@ suite('Workbench layout chat part', () => {
 		readonly chat?: { readonly visible: boolean; readonly size: number } | 'noLayout';
 	}
 
-	function createLayout(configuration: ILayoutConfiguration) {
+	/** The state a window left, to start another window from, as after a reload. */
+	interface ISavedLayout {
+		readonly runtime: ReadonlyMap<string, unknown>;
+		readonly stored: string | undefined;
+	}
+
+	function createLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
 		const views = new Map<Parts, Part>();
 		const view = (id: Parts, minimumWidth = 0, minimumHeight = 0) => {
 			const element = $(`.part.${id.split('.').pop()}`);
@@ -178,7 +184,7 @@ suite('Workbench layout chat part', () => {
 			statusBarPartView: view(Parts.STATUSBAR_PART, 0, 22),
 			chatPartView: configuration.chat ? view(Parts.CHAT_PART, 280) : undefined,
 		};
-		const runtime = new Map<string, unknown>([
+		const runtime = saved ? new Map(saved.runtime) : new Map<string, unknown>([
 			['sideBar.position', configuration.sideBar],
 			['panel.position', configuration.panel],
 			['panel.alignment', configuration.alignment],
@@ -186,7 +192,7 @@ suite('Workbench layout chat part', () => {
 			['auxiliaryBar.hidden', false],
 		]);
 		const initialization = new Map<string, unknown>([['sideBar.size', 250], ['auxiliaryBar.size', 260], ['panel.size', 200]]);
-		const stored = configuration.chat && configuration.chat !== 'noLayout' ? JSON.stringify({ version: 1, ...configuration.chat }) : undefined;
+		let stored = saved ? saved.stored : configuration.chat && configuration.chat !== 'noLayout' ? JSON.stringify({ version: 1, ...configuration.chat }) : undefined;
 		const layout = store.add(new class extends Layout {
 			override isVisible(part: Parts, targetWindow?: Window): boolean {
 				return part === Parts.TITLEBAR_PART || super.isVisible(part, targetWindow);
@@ -199,7 +205,11 @@ suite('Workbench layout chat part', () => {
 			...parts,
 			_mainContainerDimension: { width: 1600, height: 900 },
 			telemetryService: NullTelemetryService,
-			storageService: { get: () => stored },
+			// No view containers: the side bar and the panel show and hide empty
+			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
+			viewDescriptorService: { getViewContainersByLocation: () => [] },
+			configurationService: { getValue: () => undefined },
+			storageService: { get: () => stored, store: (_key: string, value: string) => stored = value },
 			stateModel: {
 				getRuntimeValue: (key: { name: string; defaultValue: unknown }) => runtime.has(key.name) ? runtime.get(key.name) : key.defaultValue,
 				setRuntimeValue: (key: { name: string }, value: unknown) => runtime.set(key.name, value),
@@ -207,7 +217,11 @@ suite('Workbench layout chat part', () => {
 			},
 		});
 		const descriptor = (Reflect.get(layout, 'createGridDescriptor') as () => ISerializedGrid).call(layout);
-		return { layout, views, descriptor };
+		const save = (): ISavedLayout => {
+			(Reflect.get(layout, 'saveChatPartLayout') as () => void).call(layout);
+			return { runtime, stored };
+		};
+		return { layout, views, descriptor, save };
 	}
 
 	/** The parts of `node`, nested as the grid nests them, marking hidden parts. */
@@ -282,15 +296,43 @@ suite('Workbench layout chat part', () => {
 		assert.deepStrictEqual(chat.map(node => ({ part: shape(node), size: node.size })).filter(node => node.part === '(chat)'), [{ part: '(chat)', size: 480 }]);
 	});
 
-	function createGridLayout(configuration: ILayoutConfiguration) {
-		const { layout, views, descriptor } = createLayout(configuration);
+	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
+		const { layout, views, descriptor, save } = createLayout(configuration, saved);
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
 		grid.layout(1600, 900);
 		Object.assign(layout, { workbenchGrid: grid });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
-		return { layout, grid, middle };
+		return { layout, grid, middle, save };
 	}
+
+	test('the visible neighbors of the parts beside a chat part are the chat part, as long as it shows', () => {
+		const neighbors = (chat: ILayoutConfiguration['chat']) => {
+			const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat });
+			const neighbor = (part: Parts, direction: Direction) => layout.getVisibleNeighborPart(part, direction)?.split('.').pop();
+			return {
+				sideBarRight: neighbor(Parts.SIDEBAR_PART, Direction.Right),
+				editorLeft: neighbor(Parts.EDITOR_PART, Direction.Left),
+				chatLeft: chat ? neighbor(Parts.CHAT_PART, Direction.Left) : undefined,
+				chatRight: chat ? neighbor(Parts.CHAT_PART, Direction.Right) : undefined,
+			};
+		};
+		assert.deepStrictEqual({ shown: neighbors({ visible: true, size: 400 }), hidden: neighbors({ visible: false, size: 400 }), absent: neighbors(undefined) }, {
+			shown: { sideBarRight: 'chat', editorLeft: 'chat', chatLeft: 'sidebar', chatRight: 'editor' },
+			hidden: { sideBarRight: 'editor', editorLeft: 'sidebar', chatLeft: undefined, chatRight: undefined },
+			absent: { sideBarRight: 'editor', editorLeft: 'sidebar', chatLeft: undefined, chatRight: undefined },
+		});
+	});
+
+	test('the grid without a chat part is as before it existed', () => {
+		const { layout, descriptor } = createLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+		const bannerFirst = (Reflect.get(layout, 'shouldShowBannerFirst') as () => boolean).call(layout);
+		assert.deepStrictEqual(shape(descriptor.root), [
+			...(bannerFirst ? ['(banner)', 'titlebar'] : ['titlebar', '(banner)']),
+			['activitybar', 'sidebar', ['editor', 'panel'], 'auxiliarybar'],
+			'statusbar',
+		]);
+	});
 
 	test('keeps the chat part beside the editor as the side bar and the panel move', () => {
 		const { layout, middle } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
@@ -341,5 +383,35 @@ suite('Workbench layout chat part', () => {
 			closedAfterMaximize: { chat: false, editor: true, panel: true },
 			shownWhileMaximized: { chat: true, editor: true, panel: true },
 		});
+	});
+
+	test('a chat part hidden for a maximized panel or secondary side bar stays hidden after a reload, and shows again when that is restored', () => {
+		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } };
+		const reload = (toggleMaximized: (layout: Layout) => void) => {
+			const before = createGridLayout(configuration);
+			toggleMaximized(before.layout);
+			const { layout } = createGridLayout(configuration, before.save());
+			const reloaded = layout.isVisible(Parts.CHAT_PART);
+			toggleMaximized(layout);
+			return { reloaded, restored: layout.isVisible(Parts.CHAT_PART) };
+		};
+		assert.deepStrictEqual({
+			panel: reload(layout => layout.toggleMaximizedPanel()),
+			auxiliaryBar: reload(layout => layout.toggleMaximizedAuxiliaryBar()),
+		}, {
+			panel: { reloaded: false, restored: true },
+			auxiliaryBar: { reloaded: false, restored: true },
+		});
+	});
+
+	test('a chat part hidden for a maximized panel shows after a reload when the panel no longer opens maximized there, as for a justified bottom panel', () => {
+		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } };
+		const before = createGridLayout(configuration);
+		before.layout.toggleMaximizedPanel();
+		const saved = before.save();
+		// The panel alignment is kept per profile: another workspace justified it meanwhile
+		const runtime = new Map(saved.runtime).set('panel.alignment', 'justify');
+		const { layout } = createGridLayout(configuration, { ...saved, runtime });
+		assert.deepStrictEqual({ panelMaximized: layout.isPanelMaximized(), chat: layout.isVisible(Parts.CHAT_PART) }, { panelMaximized: false, chat: true });
 	});
 });

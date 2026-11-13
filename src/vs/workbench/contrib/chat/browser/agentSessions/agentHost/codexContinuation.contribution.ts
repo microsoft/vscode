@@ -6,6 +6,7 @@
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, NotificationsFilter, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
@@ -17,6 +18,7 @@ import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { ChatViewPane } from '../../widgetHosts/viewPane/chatViewPane.js';
 import { CODEX_CONTINUATION_DISABLE_LABEL, CODEX_CONTINUATION_LABEL, CODEX_CONTINUATION_MESSAGE, CodexContinuationGuide, ICodexContinuationNavigation } from './codexContinuationGuide.js';
 import { CodexContinuationPresenter } from './codexContinuationPresenter.js';
+import { surfacesAllLocalAgentHostAgents } from '../../../common/constants.js';
 
 class CodexContinuationContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.codexContinuation';
@@ -27,10 +29,11 @@ class CodexContinuationContribution extends Disposable {
 		@IChatWidgetService widgets: IChatWidgetService,
 		@ICodexContinuationService nudge: ICodexContinuationService,
 		@IViewsService views: IViewsService,
+		@IConfigurationService configuration: IConfigurationService,
 	) {
 		super();
-		// Its guide reveals the session in the Chat view's sessions, which do not show while something replaces the Chat view
-		if (environment.isSessionsWindow || widgets.chatViewHostDelegate) { return; }
+		// Its guide reveals the session in the Chat view's sessions, which do not show while the Agents view replaces the Chat view
+		if (surfacesAllLocalAgentHostAgents(environment, configuration)) { return; }
 		const guide = this._register(instantiation.createInstance(CodexContinuationGuide));
 		const navigation: ICodexContinuationNavigation = {
 			getActiveWidget: () => widgets.lastFocusedWidget,

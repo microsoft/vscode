@@ -9,7 +9,7 @@ import { ISessionGridPane } from '../../../../services/sessions/browser/sessionG
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
+import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
 import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
@@ -18,7 +18,7 @@ import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsV
  * The navigation of an editor window with the Sessions view: sessions and chats open in tabs of its chat part, beside the
  * editor area. The window has no grid of sessions: the active tab of the chat part is its active session.
  */
-export class EditorWindowSessionsNavigationHost implements ISessionsNavigationHost {
+export class EditorWindowSessionsNavigationHost implements ISessionsNavigationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -38,7 +38,7 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationHo
 		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(sessionResource));
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSession(sessionResource));
 			if (session) {
 				await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 			}

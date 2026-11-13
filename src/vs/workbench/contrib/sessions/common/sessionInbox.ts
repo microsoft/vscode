@@ -66,11 +66,8 @@ export function getSessionInboxSection(session: ISession, state?: SessionInboxSt
 		!chat.isArchived.read(reader)
 		&& chat.origin?.kind !== ChatOriginKind.Tool
 		&& chat.interactivity.read(reader) !== ChatInteractivity.Hidden);
-	if (chats.length > 1 && chats.some(chat => {
-		const status = chat.status.read(reader);
-		return status === SessionStatus.Completed || status === SessionStatus.NeedsInput || status === SessionStatus.Error;
-	}) && (attention?.tab === InboxTab.Working || !attention && session.status.read(reader) === SessionStatus.InProgress)) {
-		return SessionInboxSection.ReadyForYou;
+	if (session.status.read(reader) === SessionStatus.InProgress || chats.some(chat => chat.status.read(reader) === SessionStatus.InProgress)) {
+		return SessionInboxSection.Working;
 	}
 	if (attention) {
 		switch (attention.tab) {
@@ -78,14 +75,6 @@ export function getSessionInboxSection(session: ISession, state?: SessionInboxSt
 			case InboxTab.Working: return SessionInboxSection.Working;
 			case InboxTab.ReadyToMerge: return SessionInboxSection.ReadyToMerge;
 		}
-	}
-	const status = session.status.read(reader);
-	if (status === SessionStatus.NeedsInput || status === SessionStatus.Error) {
-		return SessionInboxSection.ReadyForYou;
-	}
-
-	if (status === SessionStatus.InProgress) {
-		return SessionInboxSection.Working;
 	}
 	return SessionInboxSection.ReadyForYou;
 }

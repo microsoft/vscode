@@ -60,6 +60,7 @@ import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/agentsViewGate.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - View Menu', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -359,14 +360,20 @@ suite('Sessions - View Menu', () => {
 
 	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
 		const { snapshot, contextKeyService } = createMenu();
-		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
-		const offered = (groupings: readonly SessionsGrouping[]) => {
+		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
+		const offered = (isSessionsWindow: boolean, groupings: readonly SessionsGrouping[]) => {
+			sessionsWindow.set(isSessionsWindow);
 			bindSessionsViewGroupings(contextKeyService, groupings);
 			return snapshot(Menus.SessionsViewGrouping).map(item => item.title);
 		};
-		assert.deepStrictEqual({ agentsWindow: offered(DEFAULT_SESSIONS_GROUPINGS), editorWindow: offered(EDITOR_WINDOW_SESSIONS_GROUPINGS.offered) }, {
+		assert.deepStrictEqual({
+			agentsWindow: offered(true, DEFAULT_SESSIONS_GROUPINGS),
+			editorWindow: offered(false, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
+			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
+		}, {
 			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'],
 			editorWindow: ['Time', 'Environment', 'Worktree'],
+			sessionsWindowOffering: ['Time', 'Environment'],
 		});
 	});
 
