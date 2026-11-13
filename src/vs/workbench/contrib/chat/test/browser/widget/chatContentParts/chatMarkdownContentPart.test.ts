@@ -506,7 +506,7 @@ suite('ChatMarkdownContentPart', () => {
 					{ text: 'column.ts', href: toAgentHostUri(URI.file('/remote/column.ts').with({ fragment: 'L42,7' }), 'my-host').toString() },
 					{ text: 'windows.ts', href: toAgentHostUri(URI.file('C:/remote/windows.ts').with({ fragment: 'L42' }), 'my-host').toString() },
 					{ text: 'unc.ts', href: toAgentHostUri(URI.file('//server/share/unc.ts').with({ fragment: 'L42' }), 'my-host').toString() },
-					{ text: 'skill', href: skillUri.toString() },
+					{ text: 'skill', href: skillUri.with({ query: `${skillUri.query}&vscodeLinkType=skill` }).toString() },
 					{ text: 'file-uri.ts', href: toAgentHostUri(URI.file('/remote/file-uri.ts').with({ fragment: 'L42' }), 'my-host').toString() },
 					{ text: 'session', href: 'agent-host-session://copilotcli/session-1' },
 					{ text: 'chat', href: 'agent-host-session://copilotcli/session-1?chat=chat-2' },

@@ -169,14 +169,18 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 	 */
 	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement, renderInlineAttachment?: ChatInlineAttachmentRenderer): IDisposable {
 		const store = new DisposableStore();
-		const fileWidgetOptions = { linkTypes: ['markdown-preview', 'skill'] };
+		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
+		const skillWidgetOptions = { linkTypes: ['skill'] };
+		const skillLinks = new Set(Object.entries(content.content.uris ?? {})
+			.filter(([key]) => key.startsWith(`${contentRefUrl}/skill-`))
+			.map(([, uri]) => URI.revive(uri).toString()));
 		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
-			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, fileWidgetOptions)) {
+			const href = a.getAttribute('data-href');
+			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, href && skillLinks.has(href) ? skillWidgetOptions : fileWidgetOptions)) {
 				return;
 			}
-			const href = a.getAttribute('data-href');
 			if (href) {
 				if (href.startsWith(agentRefUrl)) {
 					let args: IAgentWidgetArgs | undefined;
