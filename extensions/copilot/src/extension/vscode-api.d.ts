@@ -59,6 +59,7 @@
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.newSymbolNamesProvider.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.resolvers.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.speech.d.ts" />
+/// <reference path="../../../../src/vscode-dts/vscode.proposed.structuralDiff.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.tabInputMultiDiff.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.taskExecutionTerminal.d.ts" />
 /// <reference path="../../../../src/vscode-dts/vscode.proposed.taskProblemMatcherStatus.d.ts" />

@@ -10,15 +10,22 @@ import { Symbol as NativeSymbol, SymbolFlags, type NodeHandle, type Program, typ
 import {
 	findPrecedingToken,
 	getTokenAtPosition,
+	isAsExpression,
 	isBlock,
 	isClassDeclaration,
 	isInterfaceDeclaration,
 	isModuleBlock,
+	isNonNullExpression,
+	isParenthesizedExpression,
+	isPartiallyEmittedExpression,
+	isSatisfiesExpression,
 	isSourceFile,
 	isTypeAliasDeclaration,
+	isTypeAssertion,
 	isTypeReferenceNode,
 	isExpressionWithTypeArguments,
 	SyntaxKind,
+	type Expression,
 	type Node,
 	type SourceFile,
 	type TypeNode,
@@ -464,6 +471,15 @@ namespace tss {
 				current = current.parent;
 			}
 			return undefined;
+		}
+
+		export function skipOuterExpressions(expression: Expression): Expression {
+			let current = expression;
+			while (isParenthesizedExpression(current) || isAsExpression(current) || isSatisfiesExpression(current) || isTypeAssertion(current)
+				|| isNonNullExpression(current) || isExpressionWithTypeArguments(current) || isPartiallyEmittedExpression(current)) {
+				current = current.expression;
+			}
+			return current;
 		}
 	}
 

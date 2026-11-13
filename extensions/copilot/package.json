@@ -92,6 +92,7 @@
   "enabledApiProposals": [
     "agentSessionsWorkspace",
     "speech",
+    "structuralDiff",
     "agentsWindowConfiguration",
     "chatDebug",
     "chatHooks",
