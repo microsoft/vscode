@@ -530,9 +530,11 @@ export class ChatView extends AbstractChatView {
 				inputPlaceholder: options.input?.placeholder,
 				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
-				submitHandler: async query => {
+				validateInput: query => {
+					if (this.scheduledChatsService.enabled.get() && query !== this._widget.getInput()) {
+						throw new Error(localize('chat.inputChangedBeforeSend', "The input changed while preparing this request. Review it before sending again."));
+					}
 					this.scheduledChatsService.assertChatInputUnscheduled(this._widget, query);
-					return false;
 				},
 				sandboxToggleChecked: observeSessionSandboxToggle(this._currentSessionObs, this._currentChatResourceObs, this.sessionsProvidersService),
 				transcriptTabIndex: -1,

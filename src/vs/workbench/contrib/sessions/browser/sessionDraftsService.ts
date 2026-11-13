@@ -125,6 +125,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	private readonly sends = new Map<ISendRequestOptions, { draft: ISavedSessionDraft; sessionId: string }>();
 	private readonly openQueue = new Sequencer();
 	private opening = false;
+	private stowing = false;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -256,9 +257,15 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 		if (saved) {
 			this.clearLegacyInput(current.composer);
 			// Change identity before clearing: emptying the old identity would delete the saved draft.
-			current.composer.id = generateUuid();
-			current.composer.updateInput({ inputText: '', attachments: [] });
-			current.clear();
+			this.stowing = true;
+			try {
+				current.composer.id = generateUuid();
+				current.composer.updateInput({ inputText: '', attachments: [] });
+				current.clear();
+				this.sessionsService.setCurrentDraftId(undefined, true);
+			} finally {
+				this.stowing = false;
+			}
 		}
 		return saved;
 	}
@@ -326,7 +333,7 @@ export class SessionDraftsService extends Disposable implements ISessionDraftsSe
 	}
 
 	updateNavigation(composer: SessionDraftComposer): void {
-		if (!this.opening && this.current?.composer === composer) {
+		if (!this.opening && !this.stowing && this.current?.composer === composer) {
 			this.sessionsService.setCurrentDraftId(this.enabled.get() && hasSessionDraftContent(composer.input) ? composer.id : undefined);
 		}
 	}

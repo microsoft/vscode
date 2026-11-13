@@ -994,9 +994,9 @@ suite('SessionsNavigation', () => {
 		const after = recency.entries.map(getRecencyEntryKey);
 		nav.setCurrentDraftId(undefined);
 		assert.deepStrictEqual({ before, after, cleared: recency.entries }, {
-			before: ['["newSession","saved"]', 'newSession'],
-			after: ['["newSession","saved"]', 'newSession'],
-			cleared: [{ kind: 'newSession' }, { kind: 'newSession', draftId: 'saved' }],
+			before: ['["newSession","saved"]'],
+			after: ['["newSession","saved"]'],
+			cleared: [{ kind: 'newSession' }],
 		});
 	});
 
@@ -1051,7 +1051,26 @@ suite('SessionsNavigation', () => {
 		assert.deepStrictEqual({
 			cancelled, active: store.activeSession.get()?.sessionId,
 			drafts: recency.entries.filter(entry => entry.kind === 'newSession'),
-		}, { cancelled: true, active: 'last', drafts: [{ kind: 'newSession', draftId: 'saved' }, { kind: 'newSession' }] });
+		}, { cancelled: true, active: 'last', drafts: [{ kind: 'newSession', draftId: 'saved' }] });
+	});
+
+	test('typing replaces the composer entry and navigation retains the stowed draft', async () => {
+		const previous = stubSession('previous');
+		store.addSession(previous);
+		store.setActiveSession(previous);
+		await store.openNewSession();
+		nav.setCurrentDraftId('typed');
+		const afterTyping = recency.entries.map(getRecencyEntryKey);
+		nav.setCurrentDraftId(undefined, true);
+		store.setActiveSession(previous);
+		const afterStowing = recency.entries.map(getRecencyEntryKey);
+		await store.openNewSession();
+		nav.setCurrentDraftId('second');
+		assert.deepStrictEqual({ afterTyping, afterStowing, afterSecond: recency.entries.map(getRecencyEntryKey) }, {
+			afterTyping: ['["newSession","typed"]', getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource })],
+			afterStowing: [getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource }), '["newSession","typed"]'],
+			afterSecond: ['["newSession","second"]', getRecencyEntryKey({ kind: 'session', sessionResource: previous.resource, chatResource: stubChat.resource }), '["newSession","typed"]'],
+		});
 	});
 
 	test('failed saved draft restoration leaves the current destination and history intact', async () => {

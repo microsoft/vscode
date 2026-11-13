@@ -89,7 +89,10 @@ suite('Scheduled chat handoffs', () => {
 			override async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 				guard?.();
 				assert.ok(storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE), 'The complete handoff must be durable before dispatch');
-				requests.push(options);
+				const { onWillCreate, ...request } = options;
+				onWillCreate?.('opaque:definition');
+				requests.push(request);
+				assert.strictEqual(JSON.parse(storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs.at(-1).requestedAutomationId, 'opaque:definition');
 				const definition: IAutomationDescriptor = { ...options, id: 'opaque:definition', enabled: options.enabled ?? true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
 				if (!failCreate || publishBeforeFailure) {
 					automations.set([definition], undefined);
@@ -537,6 +540,7 @@ suite('Scheduled chat handoffs', () => {
 		fixture.failCreate = true;
 		fixture.publishBeforeFailure = true;
 		await assert.rejects(() => fixture.service.schedule(input, target, session, 'composition'), /Acknowledgement lost/);
+		fixture.automations.set(fixture.automations.get().map(automation => ({ ...automation, creationId: undefined })), undefined);
 		await fixture.service.schedule(input, target, session, 'composition');
 		assert.deepStrictEqual({ creates: fixture.requests.length, pending: fixture.service.hasPendingHandoff('composition', input) }, { creates: 1, pending: false });
 	});

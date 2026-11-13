@@ -2745,6 +2745,42 @@ suite('ChatWidget - acceptInput submission', () => {
 		}
 	});
 
+	for (const phase of ['save', 'attachments'] as const) {
+		test(`validates the captured user input immediately before dispatch after ${phase}`, async () => {
+			const fixture = createSubmissionWidget(undefined, 'Original input');
+			const entered = new DeferredPromise<void>();
+			const released = new DeferredPromise<void>();
+			const wait = async () => { entered.complete(); await released.p; };
+			if (phase === 'save') {
+				fixture.editorService.saveAll.callsFake(async () => {
+					await wait();
+					return { success: true, editors: [] };
+				});
+			} else {
+				Object.defineProperty(fixture.widget, '_resolveDirectoryImageAttachments', { value: async () => { await wait(); return []; } });
+			}
+			const validated: string[] = [];
+			let scheduling = false;
+			fixture.viewOptions.validateInput = query => {
+				validated.push(query);
+				if (scheduling) {
+					throw new Error('Scheduling handoff is pending');
+				}
+			};
+			const sending = fixture.widget.acceptInput();
+			const rejected = assert.rejects(sending, /Scheduling handoff is pending/);
+			await entered.p;
+			scheduling = true;
+			fixture.parsedInput.text = 'Scheduled input';
+			released.complete();
+			await rejected;
+			assert.deepStrictEqual({
+				validated, sent: fixture.chatService.sendRequest.callCount,
+				accepted: fixture.input.acceptInput.callCount, input: fixture.parsedInput.text,
+			}, { validated: ['Original input'], sent: 0, accepted: 0, input: 'Scheduled input' });
+		});
+	}
+
 	test('does not send an incomplete draft when paste fails', async () => {
 		const fixture = createSubmissionWidget();
 		fixture.pasteController.finishedPaste.rejects(new Error('Paste failed'));

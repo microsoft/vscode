@@ -259,6 +259,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			createdAt: now.toISOString(),
 			updatedAt: now.toISOString(),
 		};
+		options.onWillCreate?.(descriptor.id);
 		const state = await this._createDescriptor(resource, descriptor, mutationGuard, options.customizationIds);
 		return this._requireProjectedAutomation(state);
 	}

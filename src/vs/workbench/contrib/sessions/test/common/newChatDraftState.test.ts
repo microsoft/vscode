@@ -59,6 +59,23 @@ suite('New chat draft state', () => {
 		].sort());
 	});
 
+	test('unchanged drafts keep their revision and edits do not accumulate revision tombstones', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const drafts = store.add(new SavedSessionDrafts(storage));
+		const input = { inputText: 'same content', attachments: [] };
+		const target = { folderUri: URI.file('/workspace') };
+		const first = drafts.save(input, target);
+		const unchanged = drafts.save(input, target, first.id);
+		for (let i = 0; i < 10; i++) {
+			drafts.save({ ...input, inputText: `edit ${i}` }, target, first.id);
+		}
+		assert.deepStrictEqual({
+			unchanged: { revision: unchanged.revision, updatedAt: unchanged.updatedAt },
+			revisions: storage.keys(StorageScope.PROFILE).filter(key => key.startsWith('sessions.savedDrafts.revision.')).length,
+			tombstones: storage.keys(StorageScope.PROFILE).filter(key => key.startsWith('sessions.savedDrafts.removed.')).length,
+		}, { unchanged: { revision: first.revision, updatedAt: first.updatedAt }, revisions: 1, tombstones: 0 });
+	});
+
 	test('unsupported saved-draft data remains recoverable and is never replaced by a save', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const raw = '{"version":99,"drafts":[]}';

@@ -564,8 +564,10 @@ suite('AgentHostAutomationStore', () => {
 		const first = reconnectable().store;
 		first.setConnection(connection);
 		const creationId = 'c70b090b-6474-4081-a4b8-a7eb09e7054e';
+		const allocated: { id: string; dispatched: number }[] = [];
 		const options = {
 			...createOptions(), creationId, purpose: 'scheduledChat' as const,
+			onWillCreate: (id: string) => allocated.push({ id, dispatched: connection.dispatched.length }),
 			schedule: { ...createOptions().schedule, interval: 'once' as const, runAt: '2027-01-01T10:00:00.000Z' },
 		};
 		const created = await first.createAutomation(options);
@@ -573,8 +575,8 @@ suite('AgentHostAutomationStore', () => {
 		const second = reconnectable().store;
 		second.setConnection(connection);
 		const retry = await second.createAutomation(options);
-		assert.deepStrictEqual({ id: retry.id, receipt: retry.creationId, resources: connection.dispatched.map(entry => entry.action.type === ActionType.AutomationCreateRequested ? entry.action.resource : undefined) },
-			{ id: created.id, receipt: creationId, resources: [`ahp-automation:/scheduled-chat-${creationId}`, `ahp-automation:/scheduled-chat-${creationId}`] });
+		assert.deepStrictEqual({ id: retry.id, receipt: retry.creationId, allocated, resources: connection.dispatched.map(entry => entry.action.type === ActionType.AutomationCreateRequested ? entry.action.resource : undefined) },
+			{ id: created.id, receipt: creationId, allocated: [{ id: created.id, dispatched: 0 }, { id: created.id, dispatched: 1 }], resources: [`ahp-automation:/scheduled-chat-${creationId}`, `ahp-automation:/scheduled-chat-${creationId}`] });
 	});
 
 	function customizationConnection() {

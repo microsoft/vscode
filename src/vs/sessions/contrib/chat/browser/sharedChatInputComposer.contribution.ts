@@ -8,6 +8,8 @@ import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/action
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -18,6 +20,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
@@ -98,11 +101,18 @@ export class SendLaterAction extends Action2 {
 	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
 		const widget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
 		if (widget) {
-			const composer = SharedChatInputComposer.getBackgroundComposer(widget);
-			if (composer) {
-				await composer.schedule();
-			} else {
-				await accessor.get(IScheduledChatsService).scheduleChatInput(widget);
+			const notificationService = accessor.get(INotificationService);
+			try {
+				const composer = SharedChatInputComposer.getBackgroundComposer(widget);
+				if (composer) {
+					await composer.schedule();
+				} else {
+					await accessor.get(IScheduledChatsService).scheduleChatInput(widget);
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					notificationService.error(toErrorMessage(error));
+				}
 			}
 		}
 	}

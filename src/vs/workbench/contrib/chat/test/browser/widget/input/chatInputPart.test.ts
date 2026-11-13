@@ -86,15 +86,22 @@ suite('ChatInputPart', () => {
 			});
 			instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 			let labels: (string | undefined)[] = [];
+			let enabled: boolean[] = [];
 			let sendLaterIcon: { id: string | undefined; hidden: boolean | undefined } | undefined;
 			let selectLast: (() => void) | undefined;
 			instantiationService.stub(IActionWidgetService, {
 				hide() { },
 				show: (_user, _preview, items, delegate) => {
 					labels = items.map(item => item.label);
+					enabled = items.map(item => !item.disabled);
 					sendLaterIcon = { id: items.at(-1)?.group?.icon?.id, hidden: items.at(-1)?.hideIcon };
 					const last = items.at(-1)?.item;
-					selectLast = () => { if (last) { delegate.onSelect(last); } };
+					selectLast = () => {
+						if (last) {
+							delegate.onSelect(last);
+							delegate.onHide?.();
+						}
+					};
 				},
 			});
 			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock } }));
@@ -133,6 +140,11 @@ suite('ChatInputPart', () => {
 				sendLaterIcon: { id: Codicon.clock.id, hidden: false },
 				calls: [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }],
 			});
+			if (busy) {
+				ChatContextKeys.inputHasText.bindTo(contextKeyService).set(false);
+				dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				assert.deepStrictEqual(enabled, [true, false, false, true]);
+			}
 		});
 	}
 

@@ -132,8 +132,16 @@ export class SessionsNavigation extends Disposable {
 		});
 	}
 
-	setCurrentDraftId(draftId: string | undefined): void {
-		this._currentDraftId.set(draftId, undefined);
+	setCurrentDraftId(draftId: string | undefined, preserveCurrentEntry = false): void {
+		const previous = this._getNewSessionEntry();
+		transaction(tx => {
+			this._currentDraftId.set(draftId, tx);
+			if (!preserveCurrentEntry && this._currentKey.get() === getRecencyEntryKey(previous)) {
+				const entry = this._getNewSessionEntry();
+				this._recency.replace(previous, entry, tx);
+				this._currentKey.set(getRecencyEntryKey(entry), tx);
+			}
+		});
 	}
 
 	recordNewSessionOpened(): void {
@@ -190,8 +198,8 @@ export class SessionsNavigation extends Disposable {
 		this._draftNavigation.clear();
 	}
 
-	private _getNewSessionEntry(reader?: IReader): SessionRecencyEntry {
-		const draftId = this._currentDraftId.read(reader);
+	private _getNewSessionEntry(): SessionRecencyEntry {
+		const draftId = this._currentDraftId.get();
 		return draftId === undefined ? { kind: 'newSession' } : { kind: 'newSession', draftId };
 	}
 
@@ -204,7 +212,7 @@ export class SessionsNavigation extends Disposable {
 		const pane = this._activePane.read(reader);
 		const session = pane?.session.read(reader);
 		if (!pane || !session || session.status.read(reader) === SessionStatus.Untitled) {
-			return this._getNewSessionEntry(reader);
+			return this._getNewSessionEntry();
 		}
 
 		const chat = pane.chat.read(reader);

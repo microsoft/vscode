@@ -4245,6 +4245,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		let result: ChatSendResult;
 		try {
+			if (isUserQuery && !isEditing && !options.preserveInput) {
+				this.viewOptions.validateInput?.(inputValue);
+			}
 			result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 				onDidCreateResponse,
 				onDidExecuteSlashCommand: forkPromptSourceInput?.clear,

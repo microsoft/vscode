@@ -32,7 +32,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../common/theme.js';
 import { IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubmitRequestHandlerService.js';
 import { combineVoiceInput } from '../../../chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
-import { getDynamicVariablesForWidget, getInputDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../chat/browser/attachments/chatVariables.js';
+import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../chat/browser/attachments/chatVariables.js';
 import { IChatExecuteActionContext } from '../../../chat/browser/actions/chatExecuteActions.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { compactCodiconsIn } from '../../../chat/browser/chatIcons.js';
@@ -723,14 +723,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 	}
 
-	/**
-	 * The references that a draft keeps when the input shows inline attachment
-	 * pills. The draft saves a pill as a mention of its attachment by name,
-	 * which its reference binds to the attachment by id.
-	 */
 	private _getDraftReferences(widget: ChatWidget): IDynamicVariable[] | undefined {
-		const projection = widget.input.inlineAttachments?.project(getInputDynamicVariablesForWidget(widget));
-		return projection ? [...projection.references] : undefined;
+		const references = getDynamicVariablesForWidget(widget);
+		return references.length ? [...references] : undefined;
 	}
 
 	/** Binds the mentions of a draft to what they stand for, so that each becomes the pill it was. */
@@ -843,7 +838,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	}
 
 	setInputEnabled(enabled: boolean): void {
-		this._widget?.input.setInputEnabled(enabled);
+		this._widget?.input?.setInputEnabled(enabled);
 	}
 
 	async schedule(): Promise<void> {

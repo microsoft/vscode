@@ -58,6 +58,7 @@ interface IScheduledChatHandoff {
 	readonly automationTarget: AutomationTarget;
 	readonly request: Message;
 	readonly schedule: IAutomationSchedule;
+	readonly requestedAutomationId?: string;
 	readonly automationId?: string;
 	readonly conversation?: IAutomationDescriptor['conversation'];
 	readonly sourceTarget?: ISavedSessionDraftTarget;
@@ -447,7 +448,9 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 	private async retryHandoff(handoff: IScheduledChatHandoff): Promise<void> {
 		this.assertEnabled();
 		await this.automationService.refresh?.();
-		const existing = this.automationService.automations.get().find(automation => automation.creationId === handoff.id && automation.target.providerId === handoff.target.providerId);
+		const existing = this.automationService.automations.get().find(automation =>
+			(automation.id === handoff.requestedAutomationId || automation.creationId === handoff.id) &&
+			automation.target.providerId === handoff.target.providerId);
 		if (existing) {
 			this.writeHandoff({ ...handoff, automationId: existing.id });
 			status(localize('sendLater.reconciled', "The agent host has accepted this scheduled request."));
@@ -466,6 +469,10 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 		};
 		const automation = await this.automationService.createAutomation({
 			creationId: handoff.id,
+			onWillCreate: id => {
+				handoff = { ...handoff, requestedAutomationId: id };
+				this.writeHandoff(handoff);
+			},
 			name: handoff.input.inputText.trim().split('\n')[0].slice(0, 100) || localize('sendLater.attachmentTitle', "Scheduled Request"),
 			prompt: handoff.request.text,
 			purpose: 'scheduledChat',

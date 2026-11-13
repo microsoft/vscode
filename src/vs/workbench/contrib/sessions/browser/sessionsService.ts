@@ -446,8 +446,8 @@ export interface ISessionsService extends ISessionGridPanes {
 	/** Registers history restoration; return false without changing input when unavailable, and honor cancellation and preserveNavigation when opening. */
 	registerSavedDraftOpener(opener: (draftId: string, token: CancellationToken) => Promise<boolean>): IDisposable;
 
-	/** Identifies the main composer's current nonempty saved draft, or clears its identity when empty. */
-	setCurrentDraftId(draftId: string | undefined): void;
+	/** Identifies the current composition; preserve its history entry when clearing a draft during navigation. */
+	setCurrentDraftId(draftId: string | undefined, preserveCurrentEntry?: boolean): void;
 }
 
 export const ISessionsService = createDecorator<ISessionsService>('sessionsService');
@@ -2002,8 +2002,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		});
 	}
 
-	setCurrentDraftId(draftId: string | undefined): void {
-		this._navigation.setCurrentDraftId(draftId);
+	setCurrentDraftId(draftId: string | undefined, preserveCurrentEntry?: boolean): void {
+		this._navigation.setCurrentDraftId(draftId, preserveCurrentEntry);
 	}
 
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {

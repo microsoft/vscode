@@ -99,6 +99,21 @@ export class SessionsRecencyHistory extends Disposable {
 		this._bumpVersion(tx);
 	}
 
+	/** Replaces an identity in place without recording a navigation or duplicating a destination. */
+	replace(previous: SessionRecencyEntry, entry: SessionRecencyEntry, tx?: ITransaction): void {
+		const previousKey = getRecencyEntryKey(previous);
+		const key = getRecencyEntryKey(entry);
+		if (previousKey === key || !this._entries.some(candidate => getRecencyEntryKey(candidate) === previousKey)) {
+			return;
+		}
+		this._entries = this._entries.flatMap(candidate => {
+			const candidateKey = getRecencyEntryKey(candidate);
+			return candidateKey === previousKey ? [entry] : candidateKey === key ? [] : [candidate];
+		});
+		this._save();
+		this._bumpVersion(tx);
+	}
+
 	/** Remove every entry matching the given predicate. */
 	remove(predicate: (entry: SessionRecencyEntry) => boolean): void {
 		const next = this._entries.filter(e => !predicate(e));

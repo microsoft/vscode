@@ -509,13 +509,13 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Automation sessions --
 
 	isSessionListed(session: ISession, reader?: IReader, showAutomationRuns = false): boolean {
-		if (!session.isAutomation?.read(reader) || session.isScheduledChat?.read(reader)) {
+		if (!session.isAutomation?.read(reader)) {
 			return true;
 		}
 		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
 			return false;
 		}
-		if (showAutomationRuns) {
+		if (session.isScheduledChat?.read(reader) || showAutomationRuns) {
 			return true;
 		}
 		return this._shownAutomationSessionIds.read(reader).has(session.sessionId)

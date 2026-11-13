@@ -1361,6 +1361,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const session = URI.parse(conversation.session);
 				const registration = await this._orchestratorDatabase.getSessionV2Registration(conversation.session);
 				const owner = await this._chatOwnership.resolveChatOwner(conversation.chat);
+				await this._restoreCredentialPrincipal(conversation.session);
 				if (!registration || owner?.owner !== conversation.session || this._authService.getSessionCredentialPrincipal(conversation.session)
 					|| this._catalogSyncService.isSessionDeletionFenced(session) || this._sessionResidency.isBeingDisposed(session)) {
 					throw new Error('The scheduled conversation is deleted, moved, or requires an authenticated client.');

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { OS } from '../../../../../base/common/platform.js';
@@ -14,6 +15,7 @@ import { IContext } from '../../../../../platform/contextkey/common/contextkey.j
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -29,6 +31,20 @@ import { SendInBackgroundAction, SendLaterAction } from '../../browser/sharedCha
 
 suite('Send Later input actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports scheduling errors at the action boundary but ignores cancellation', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const widget = upcastPartial<IChatWidget>({});
+		const messages: string[] = [];
+		let failure = new Error('Host unavailable');
+		instantiation.stub(INotificationService, { error: message => { messages.push(String(message)); } });
+		instantiation.stub(IScheduledChatsService, { scheduleChatInput: async () => { throw failure; } });
+		const action = new SendLaterAction();
+		await instantiation.invokeFunction(accessor => action.run(accessor, { widget }));
+		failure = new CancellationError();
+		await instantiation.invokeFunction(accessor => action.run(accessor, { widget }));
+		assert.deepStrictEqual(messages, ['Host unavailable']);
+	});
 
 	test('contributes to the shared send dropdown, not the new-session toolbar, behind live gates', () => {
 		const item = MenuRegistry.getMenuItems(MenuId.ChatExecuteSecondary).find(item => isIMenuItem(item) && item.command.id === 'sessions.sendLater');
@@ -63,6 +79,7 @@ suite('Send Later input actions', () => {
 			: undefined);
 		instantiation.stub(IChatWidgetService, { lastFocusedWidget: focused });
 		instantiation.stub(IScheduledChatsService, { scheduleChatInput: async widget => { scheduled.push(widget); } });
+		instantiation.stub(INotificationService, { error: () => assert.fail('Scheduling should succeed') });
 		try {
 			const action = new SendLaterAction();
 			await instantiation.invokeFunction(accessor => action.run(accessor, { widget: fresh }));

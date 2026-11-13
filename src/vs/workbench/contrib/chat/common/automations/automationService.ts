@@ -128,6 +128,8 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
 export interface ICreateAutomationOptions {
 	/** Client-generated UUID retained across retries of a scheduled-chat handoff. */
 	readonly creationId?: string;
+	/** Called by a scheduled-chat store with its opaque descriptor id before dispatch; throwing aborts creation. */
+	readonly onWillCreate?: (id: string) => void;
 	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;

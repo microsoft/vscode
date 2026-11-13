@@ -184,6 +184,28 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
+	test('scheduling can finish after the source composer is disposed', async () => {
+		const accepted = new DeferredPromise<(() => void) | undefined>();
+		let released = false;
+		const { composer, widget, inputTransitions } = createComposer({ scheduleRequest: () => accepted.p });
+		const scheduling = composer.schedule();
+		composer.dispose();
+		widget.input = undefined;
+		accepted.complete(() => { released = true; });
+		await scheduling;
+		assert.deepStrictEqual({ released, inputTransitions }, {
+			released: false, inputTransitions: [{ enabled: false, preserveFocus: false }],
+		});
+	});
+
+	test('drafts retain ordinary inline references without attachment pills', () => {
+		const references: IDynamicVariable[] = [{ id: 'file', range: new Range(1, 1, 1, 8), data: URI.file('/workspace/file.ts') }];
+		const { composer, state } = createComposer({ text: '#file.ts', references });
+		const draft = composer.getDraft();
+		composer.setDraft(draft);
+		assert.deepStrictEqual({ references: draft.references, restored: state().restoredReferences }, { references, restored: references });
+	});
+
 	for (const preserveInputFocusOnSend of [false, true]) {
 		test(`retains editor focus during confirmation and sending only when opted in (${preserveInputFocusOnSend})`, async () => {
 			const confirmation = new DeferredPromise<boolean>();

@@ -364,6 +364,8 @@ export interface IChatWidgetViewOptions {
 	 * instead of silently dropping them.
 	 */
 	submitHandler?: (query: string, mode: ChatModeKind, attachedContext?: IChatRequestVariableEntry[], isVoiceModeInput?: boolean) => Promise<boolean>;
+	/** Revalidates a composer submission synchronously after preparation, immediately before dispatch. */
+	validateInput?: (query: string) => void;
 	/**
 	 * Horizontal space the input part reserves around itself. Hosts that render the
 	 * input flush with their own content set this to `0`.
