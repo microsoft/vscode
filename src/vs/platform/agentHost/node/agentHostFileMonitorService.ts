@@ -14,17 +14,25 @@ import { ILogService } from '../../log/common/log.js';
 
 export const IAgentHostFileMonitorService = createDecorator<IAgentHostFileMonitorService>('agentHostFileMonitorService');
 
-export const DEFAULT_AGENT_HOST_WATCH_EXCLUDES: readonly string[] = Object.freeze([
-	'**/.git',
-	'**/.git/lfs/**',
-	'**/.git/logs/**',
-	'**/.git/objects/**',
-	'**/.git/subtree-cache/**',
-	'**/.git/**/*.lock',
-	'**/.git/**/FETCH_HEAD',
-	'**/.git/**/fsmonitor--daemon/**',
-	'**/*.watchman-cookie-*',
-]);
+/**
+ * Excludes for repository metadata and watchman cookies in the watched folder
+ * and in the folders directly inside it. Watchers match every exclude against
+ * every path they find and every event they report, and an exclude that starts
+ * with `**` is a complex regular expression that is slow to match in large
+ * folders, so these only match at these two depths, like the defaults of
+ * `files.watcherExclude`.
+ */
+export const DEFAULT_AGENT_HOST_WATCH_EXCLUDES: readonly string[] = Object.freeze(['', '*/'].flatMap(prefix => [
+	`${prefix}.git`,
+	`${prefix}.git/lfs/**`,
+	`${prefix}.git/logs/**`,
+	`${prefix}.git/objects/**`,
+	`${prefix}.git/subtree-cache/**`,
+	`${prefix}.git/**/*.lock`,
+	`${prefix}.git/**/FETCH_HEAD`,
+	`${prefix}.git/**/fsmonitor--daemon/**`,
+	`${prefix}*.watchman-cookie-*`,
+]));
 
 export interface IAgentHostFileMonitorOptions {
 	readonly excludes?: readonly string[];
