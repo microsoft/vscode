@@ -1080,12 +1080,14 @@ suite('SessionsManagementService', () => {
 			await view.openChat(parent, child.resource);
 			await view.detachChat(view.activePane.get()!, child.resource);
 			view.closeSession(parent);
+			const paneElement = container.querySelector('.session-view');
 			await view.detachChat(view.activePane.get()!, child.resource);
 			assert.deepStrictEqual({
 				roots: slotSessionsOf(view).length,
 				panes: container.querySelectorAll('.session-view').length,
 				active: detachedChatOf(view.activePane.get())?.toString(),
-			}, { roots: 0, panes: 1, active: child.resource.toString() });
+				retained: !!paneElement && paneElement.isConnected && container.querySelector('.session-view') === paneElement,
+			}, { roots: 0, panes: 1, active: child.resource.toString(), retained: true });
 		});
 
 		for (const createDraft of [false, true]) {
