@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue, transaction, autorun } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -150,50 +150,6 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		});
 		return { backend, host, sessions, showPanes, feedback };
 	}
-	test('scoped observation shares and releases annotations without populating the persistent cache', async () => {
-		const sessionResource = URI.parse('agent-host-claude:/saved');
-		const annotationsUri = URI.parse('claude:/saved/annotations');
-		const operations: string[] = [];
-		const state: AnnotationsState = { annotations: [] };
-		let seq = 0;
-		const manager = store.add(new AgentSubscriptionManager('test', () => ++seq, () => { }, async resource => {
-			operations.push('subscribe');
-			return { resource: resource.toString(), state, fromSeq: 0 };
-		}, () => operations.push('unsubscribe')));
-		const connection = new class extends mock<IAgentConnection>() {
-			override readonly resourceUris = createAgentHostResourceUriMapper('test');
-			override getSubscription<T extends StateComponents>(kind: T, resource: URI, owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
-				return manager.getSubscription(kind, resource, owner);
-			}
-		}();
-		const provider = new class extends mock<IAgentHostSessionsProvider>() {
-			override getFeedbackAnnotationsChannel() { return { connection, annotationsUri }; }
-		}();
-		const session = new class extends mock<ISession>() {
-			override readonly providerId = 'agenthost-test';
-			override readonly sessionId = 'saved';
-		}();
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionsManagementService, {
-			onDidDeleteSession: Event.None, onDidChangeSessions: Event.None, getSession: () => session,
-		});
-		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { }(), 'getProvider', () => provider);
-		stubVisibleSessions(instantiationService, constObservable([]));
-		const backend = store.add(instantiationService.createInstance(AnnotationsAgentFeedbackItemsBackend));
-		const feedback = backend.getItemsObservable(sessionResource);
-		assert.deepStrictEqual(operations, []);
-		const first = store.add(autorun(reader => feedback.read(reader)));
-		const second = store.add(autorun(reader => feedback.read(reader)));
-		await timeout(0);
-		first.dispose();
-		const whileObserved = [...operations];
-		second.dispose();
-		await timeout(0);
-		assert.deepStrictEqual({ whileObserved, afterDisposal: operations, cachedSessions: backend.getSessionsWithItems() }, {
-			whileObserved: ['subscribe'], afterDisposal: ['subscribe', 'unsubscribe'], cachedSessions: [],
-		});
-	});
-
 	for (const initiallyAvailable of [false, true]) {
 		test(`suspends unavailable annotations without discarding cached feedback (cold=${!initiallyAvailable})`, async () => {
 			const sessionResource = URI.parse('agent-host-claude:/saved');

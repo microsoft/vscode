@@ -50,7 +50,6 @@ export const enum AutomationSessionsListMode {
 
 /** Whether agents get tools to read and organize the Agents window Sessions list. */
 export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
-export const SESSIONS_LIST_INLINE_ACTIONS_SETTING = 'sessions.list.inlineActions';
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
 

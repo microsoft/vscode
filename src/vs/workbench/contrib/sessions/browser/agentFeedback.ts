@@ -106,8 +106,6 @@ export interface ISubmitFeedbackOptions {
 	 * request goes to this chat.
 	 */
 	readonly targetChat?: URI;
-	/** Sends to the explicit target chat without a widget; accepts selected Created comments only on success and rejects on failure. */
-	readonly background?: boolean;
 	/** Submit Agent Host feedback without requiring or focusing a chat widget. */
 	readonly backgroundSubmit?: (query: string, attachment: IAgentFeedbackVariableEntry) => Promise<boolean>;
 	readonly onRequestAccepted?: () => void;
@@ -195,8 +193,6 @@ export interface IAgentFeedbackService {
 	 * Get all feedback items for a session.
 	 */
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
-	/** Observes existing feedback without keeping unopened sessions subscribed after the observer is disposed. */
-	getFeedbackObservable(sessionResource: URI): IObservable<readonly IAgentFeedback[]>;
 	/** Whether feedback for this session is owned by an Agent Host annotations channel. */
 	isAgentHostSession(sessionResource: URI): boolean;
 

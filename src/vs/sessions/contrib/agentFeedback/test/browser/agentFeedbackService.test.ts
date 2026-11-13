@@ -29,7 +29,7 @@ import { ISessionGridPane } from '../../../../../workbench/services/sessions/bro
 import { whenChatWidgetForSession } from '../../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
 import { IChat, ISession, ISessionFileChange, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider, ISendRequestOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
 import { ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
@@ -991,19 +991,11 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 	let loadSession: () => void;
 	/** The resources a chat widget was looked up for. */
 	let widgetLookups: string[];
-	let backgroundChat: IChat;
-	let backgroundCalls: { chat: IChat; options: ISendRequestOptions }[];
-	let backgroundAcceptance: DeferredPromise<void>;
 
 	setup(() => {
 		widgetOps = [];
 		addedEntries = [];
 		widgetLookups = [];
-		backgroundCalls = [];
-		backgroundAcceptance = new DeferredPromise<void>();
-		backgroundChat = new class extends mock<IChat>() {
-			override readonly resource = URI.parse('test:/session/1/peer');
-		}();
 		acceptInputSent = new DeferredPromise<void>();
 		acceptsRequest = true;
 		providerId = LOCAL_AGENT_HOST_PROVIDER_ID;
@@ -1023,11 +1015,7 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 			override onDidDeleteSession = Event.None;
 			override onDidChangeSessions = Event.None;
 			override getSession(_resource: URI) {
-				return { providerId, sessionId: 'session-1', chats: observableValue('chats', [backgroundChat]) } as unknown as ISession;
-			}
-			override async sendRequestInBackground(_session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
-				backgroundCalls.push({ chat, options });
-				await backgroundAcceptance.p;
+				return { providerId, sessionId: 'session-1' } as unknown as ISession;
 			}
 		});
 		instantiationService.stub(ISessionsService, { activeSession: observableValue<ITestSessionWithChat | undefined>('activeSession', undefined), visibleSessionPanes: observableValue<readonly ITestSessionWithChat[]>('visibleSessionPanes', []), panes: observableValue<readonly ISessionGridPane[]>('panes', []) } as unknown as ISessionsService);
@@ -1071,99 +1059,6 @@ suite('AgentFeedbackService - Submit (agent host)', () => {
 		session = URI.parse('test://session/1');
 		fileA = URI.parse('file:///a.ts');
 	});
-
-	for (const agentHost of [true, false]) {
-		test(`background feedback preserves attachment scope and waits for acceptance without a widget (agentHost=${agentHost})`, async () => {
-			if (!agentHost) {
-				providerId = 'legacy';
-			}
-			sessionLoaded = false;
-			const first = service.addFeedback(session, fileA, r(1), 'Selected');
-			const other = service.addFeedback(session, fileA, r(2), 'Other');
-			let accepted = false;
-			const pending = service.submitFeedback(session, {
-				targetChat: backgroundChat.resource, background: true, feedbackIds: [first.id], onRequestAccepted: () => { accepted = true; },
-			});
-			const before = service.getFeedback(session).map(item => item.state);
-			assert.strictEqual(accepted, false);
-			await backgroundAcceptance.complete();
-			await pending;
-			const attachment = backgroundCalls[0].options.attachedContext?.[0];
-			assert.deepStrictEqual({
-				target: backgroundCalls[0].chat,
-				query: backgroundCalls[0].options.query,
-				ids: attachment?.kind === 'agentFeedback' ? attachment.feedbackItems.map(item => item.id) : [],
-				before,
-				after: service.getFeedback(session).map(item => item.state),
-				accepted,
-				widgetLookups,
-			}, {
-				target: backgroundChat, query: '/act-on-feedback',
-				ids: agentHost ? [first.id] : [first.id, other.id],
-				before: [AgentFeedbackState.Accepted, AgentFeedbackState.Accepted],
-				after: agentHost ? [AgentFeedbackState.Submitted, AgentFeedbackState.Accepted] : [AgentFeedbackState.Resolved, AgentFeedbackState.Resolved],
-				accepted: true, widgetLookups: [],
-			});
-		});
-	}
-
-	test('rejected background feedback is not marked submitted or acknowledged', async () => {
-		const item = service.addFeedback(session, fileA, r(1), 'Selected');
-		let accepted = false;
-		const pending = service.submitFeedback(session, {
-			targetChat: backgroundChat.resource, background: true, feedbackIds: [item.id], onRequestAccepted: () => { accepted = true; },
-		});
-		const rejection = assert.rejects(pending, /Rejected/);
-		await backgroundAcceptance.error(new Error('Rejected'));
-		await rejection;
-		assert.deepStrictEqual({ states: service.getFeedback(session).map(item => item.state), accepted, widgetLookups }, {
-			states: [AgentFeedbackState.Accepted], accepted: false, widgetLookups: [],
-		});
-	});
-
-	for (const agentHost of [true, false]) {
-		test(`background submission preserves Created comments on failure and submits only the selection on retry (agentHost=${agentHost})`, async () => {
-			if (!agentHost) {
-				providerId = 'legacy';
-			}
-			const selected = service.addFeedback(session, fileA, r(1), 'Selected', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
-			service.addFeedback(session, fileA, r(2), 'Other', undefined, undefined, undefined, AgentFeedbackKind.AgentReview, AgentFeedbackState.Created);
-			const events: string[] = [];
-			store.add(service.onDidConvertFeedback(() => events.push('accepted')));
-			store.add(service.onDidSubmitFeedback(() => events.push('submitted')));
-			const options = { targetChat: backgroundChat.resource, background: true, feedbackIds: [selected.id], onRequestAccepted: () => events.push('sent') };
-			const pending = service.submitFeedback(session, options);
-			const before = service.getFeedback(session).map(item => item.state);
-			const rejection = assert.rejects(pending, /Unavailable/);
-			await backgroundAcceptance.error(new Error('Unavailable'));
-			await rejection;
-			const afterFailure = { states: service.getFeedback(session).map(item => item.state), events: [...events] };
-
-			backgroundAcceptance = new DeferredPromise<void>();
-			const retry = service.submitFeedback(session, options);
-			await backgroundAcceptance.complete();
-			await retry;
-
-			assert.deepStrictEqual({
-				before,
-				afterFailure,
-				afterRetry: service.getFeedback(session).map(item => item.state),
-				attachments: backgroundCalls.map(call => {
-					const attachment = call.options.attachedContext?.[0];
-					return attachment?.kind === 'agentFeedback' ? attachment.feedbackItems.map(item => item.id) : [];
-				}),
-				events,
-				widgetLookups,
-			}, {
-				before: [AgentFeedbackState.Created, AgentFeedbackState.Created],
-				afterFailure: { states: [AgentFeedbackState.Created, AgentFeedbackState.Created], events: [] },
-				afterRetry: [agentHost ? AgentFeedbackState.Submitted : AgentFeedbackState.Resolved, AgentFeedbackState.Created],
-				attachments: [[selected.id], [selected.id]],
-				events: ['accepted', 'submitted', 'sent'],
-				widgetLookups: [],
-			});
-		});
-	}
 
 	test('attaches the just-submitted feedback to the request and clears the attachment afterwards', async () => {
 		service.addFeedback(session, fileA, r(10), 'Please simplify');

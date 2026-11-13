@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -422,31 +422,6 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			return orderFeedbackItems(items);
 		}
 		return [];
-	}
-
-	/** Observes annotations only while subscribed, without retaining a session in the backend cache. */
-	getItemsObservable(sessionResource: URI): IObservable<readonly IAgentFeedback[]> {
-		const sessionsChanged = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSessions);
-		const channel = derived(this, reader => {
-			sessionsChanged.read(reader);
-			const session = this._sessionsManagementService.getSession(sessionResource);
-			const provider = session && this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
-			const resolved = session && provider?.getFeedbackAnnotationsChannel?.(session.sessionId);
-			if (!resolved) {
-				return undefined;
-			}
-			const ref = reader.delayedStore.add(resolved.connection.getSubscription(StateComponents.Annotations, resolved.annotationsUri, AnnotationsAgentFeedbackItemsBackend.OWNER));
-			return {
-				connection: resolved.connection,
-				subscription: ref.object,
-				changed: observableSignalFromEvent(this, ref.object.onDidChange),
-			};
-		});
-		return derived(this, reader => {
-			const current = channel.read(reader);
-			current?.changed.read(reader);
-			return current ? orderFeedbackItems(this._decode(current, sessionResource)) : [];
-		});
 	}
 
 	hasLoaded(sessionResource: URI): boolean {
