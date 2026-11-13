@@ -932,6 +932,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		session: activeSessionObservable,
 	}));
 	sessionViewContent.appendChild(view.element);
+	view.setVisible(true);
 	view.layout(width, height, 0, 0);
 	const targetWindow = dom.getWindow(container);
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
