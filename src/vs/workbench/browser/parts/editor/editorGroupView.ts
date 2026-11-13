@@ -1348,7 +1348,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return showEditorResult;
 		};
 
-		if (openEditorOptions.active && (!this.activeEditorPane?.input?.matches(editor) || options?.forceReload)) {
+		const editorToOpen = this.model.findEditor(editor, openEditorOptions)?.[0] ?? editor;
+		if (openEditorOptions.active && (!this.activeEditorPane?.input?.matches(editorToOpen) || options?.forceReload)) {
 			return this.withEditorActionsPending(showEditor);
 		}
 

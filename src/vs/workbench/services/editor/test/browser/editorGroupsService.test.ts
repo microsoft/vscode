@@ -79,7 +79,7 @@ suite('EditorGroupsService', () => {
 	}
 
 	async function createToolbarTestGroup() {
-		const [part] = await createPart();
+		const [part, instantiationService] = await createPart();
 		const group = part.activeGroup;
 		const change = disposables.add(new Emitter<void>());
 		const action = (label: string) => disposables.add(new Action(label, label));
@@ -100,6 +100,7 @@ suite('EditorGroupsService', () => {
 		return {
 			part,
 			group,
+			editorService: instantiationService.createInstance(TestServiceAccessor).editorService,
 			setActions(next: boolean | undefined) {
 				primary = next === undefined ? [] : next ? nextActions : previousActions;
 				layout = next === undefined ? [] : next ? nextLayoutActions : previousLayoutActions;
@@ -162,6 +163,24 @@ suite('EditorGroupsService', () => {
 			ready: { actions: ['New Action'], layout: ['New Layout'], inert: false },
 			liveUpdate: { actions: ['Old One', 'Old Two'], layout: ['Old Layout'], inert: false },
 		});
+	});
+
+	test('editor toolbar stays unchanged when reusing the current side-by-side editor', async () => {
+		const toolbar = await createToolbarTestGroup();
+		const input = toolbar.group.activeEditor!;
+		const sideBySide = disposables.add(new SideBySideEditorInput(undefined, undefined, input, input, toolbar.editorService));
+		await toolbar.group.openEditor(sideBySide, { pinned: true });
+		await toolbar.group.closeEditor(input);
+		const firstAction = toolbar.group.element.querySelector('.editor-actions .action-label');
+		const opening = toolbar.group.openEditor(input, { pinned: true });
+		const pending = toolbar.snapshot().inert;
+		await opening;
+
+		assert.deepStrictEqual({
+			pending,
+			retainedEditor: toolbar.group.activeEditor === sideBySide,
+			retainedAction: toolbar.group.element.querySelector('.editor-actions .action-label') === firstAction
+		}, { pending: false, retainedEditor: true, retainedAction: true });
 	});
 
 	test('editor toolbar ignores superseded editor completion in either order', async () => {
