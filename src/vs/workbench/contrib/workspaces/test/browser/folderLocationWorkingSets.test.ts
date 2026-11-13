@@ -203,6 +203,21 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		}
 	});
 
+	test('switching to another location and back while the first apply is pending restores the editors of the original location', async () => {
+		const fixture = createFixture();
+		fixture.area.content = 'P1';
+
+		const release = fixture.holdApply();
+		fixture.switchTo(alternate);
+		await settle();
+		fixture.switchTo(primary);
+		await settle();
+		release();
+		await settle();
+
+		assert.deepStrictEqual({ content: fixture.area.content, owner: fixture.stored().owner, errors: fixture.errors }, { content: 'P1', owner: p, errors: [] });
+	});
+
 	test('a window that starts at another location than the one it was closed at swaps the editors of the last session out', async () => {
 		const first = createFixture();
 		first.area.content = 'P1';

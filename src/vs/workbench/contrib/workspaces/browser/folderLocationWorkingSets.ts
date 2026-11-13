@@ -79,10 +79,8 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 	/** Makes the editor area hold the editors of the current location. */
 	private reconcile(): void {
-		if (!this.owner || this.owner === this.getCurrentKey()) {
-			return;
-		}
-
+		// Always queue: the owner can still change while an earlier apply is pending, so
+		// whether anything is left to do is decided once the earlier work has settled.
 		this.sequencer.queue(async () => {
 			const entering = this.getCurrentKey();
 			if (this.disposed || !this.owner || !entering || this.owner === entering) {
