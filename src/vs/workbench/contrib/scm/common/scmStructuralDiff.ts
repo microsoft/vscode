@@ -8,7 +8,7 @@ import { DeferredPromise, Limiter, Promises, RunOnceScheduler, raceCancellation,
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { observableFromEvent } from '../../../../base/common/observable.js';
+import { IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
@@ -207,7 +207,7 @@ export class SCMStructuralDiffModel extends Disposable {
 	private visible = true;
 
 	/** Whether any structural diff provider is registered, see {@link hasSCMStructuralDiffProvider}. */
-	readonly hasProvider = observableFromEvent(this, this.languageFeaturesService.structuralDiffProvider.onDidChange, () => hasSCMStructuralDiffProvider(this.languageFeaturesService));
+	readonly hasProvider: IObservable<boolean>;
 
 	private readonly entries = this._register(new DisposableMap<ISCMResource, StructuralDiffEntry>());
 	private readonly loadLimiter = this._register(new Limiter<readonly SCMStructuralDiffElement[]>(MAX_CONCURRENT_LOADS));
@@ -234,6 +234,7 @@ export class SCMStructuralDiffModel extends Disposable {
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
+		this.hasProvider = observableFromEvent(this, this.languageFeaturesService.structuralDiffProvider.onDidChange, () => hasSCMStructuralDiffProvider(this.languageFeaturesService));
 		this._register(this.languageFeaturesService.structuralDiffProvider.onDidChange(() => {
 			if (!this._enabled) {
 				return;
