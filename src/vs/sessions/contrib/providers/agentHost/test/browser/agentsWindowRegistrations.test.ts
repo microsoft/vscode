@@ -1,0 +1,65 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
+import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { AGENTS_WINDOW_REGISTRATIONS } from './agentsWindowRegistrations.snapshot.js';
+// The contributions whose registrations it snapshots
+import '../../../../sessions/browser/sessions.contribution.js';
+import '../../../../sessions/browser/views/sessionsViewActions.js';
+import '../../../../chat/browser/sharedChatInputComposer.contribution.js';
+import '../../../../chat/browser/modelPicker.js';
+import '../../browser/localAgentHost.contribution.js';
+import '../../browser/agentHostAgentPicker.contribution.js';
+import '../../browser/agentHostSessionConfigPicker.contribution.js';
+import '../../../copilotChatSessions/browser/copilotChatSessions.contribution.js';
+import '../../../copilotChatSessions/browser/copilotChatSessionsActions.js';
+
+/**
+ * What the registries hold, one line each, in the order they were registered: commands, the items of every menu,
+ * keybindings (with their weights, which order them), configuration keys and singletons.
+ */
+function registrations(): string[] {
+	const result: string[] = [];
+	for (const id of CommandsRegistry.getCommands().keys()) {
+		result.push(`command ${id}`);
+	}
+	// Every menu, also those that are not static members of MenuId, by id: the order the menus were created in does not matter
+	const menus = [...(MenuId as unknown as { readonly _instances: ReadonlyMap<string, MenuId> })._instances.values()].sort((a, b) => a.id.localeCompare(b.id));
+	for (const menu of menus) {
+		for (const item of MenuRegistry.getMenuItems(menu)) {
+			const target = isIMenuItem(item) ? `command ${item.command.id}${item.alt ? ` alt ${item.alt.id}` : ''}` : `submenu ${item.submenu.id}`;
+			result.push(`menu ${menu.id} ${target} group ${item.group ?? ''} order ${item.order ?? ''} when ${item.when?.serialize() ?? ''}`);
+		}
+	}
+	for (const keybinding of KeybindingsRegistry.getDefaultKeybindings()) {
+		result.push(`keybinding ${keybinding.command} ${keybinding.keybinding?.chords.map(chord => chord.getHashCode()).join(' ') ?? ''} weight ${keybinding.weight1}/${keybinding.weight2} when ${keybinding.when?.serialize() ?? ''}`);
+	}
+	for (const key of Object.keys(Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties())) {
+		result.push(`configuration ${key}`);
+	}
+	for (const [id] of getSingletonServiceDescriptors()) {
+		result.push(`singleton ${id}`);
+	}
+	return result;
+}
+
+suite('Agents window registrations', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the Agents window registers the same commands, menu items, keybindings, settings and services', () => {
+		// Each line holds what orders it: a menu item's group, order and when, a keybinding's weights and when. In which
+		// order other suites loaded these contributions, and so registered them, depends on the tests that run
+		const registered = registrations();
+
+		assert.deepStrictEqual(AGENTS_WINDOW_REGISTRATIONS.filter(registration => registered.filter(candidate => candidate === registration).length !== 1), []);
+	});
+});
