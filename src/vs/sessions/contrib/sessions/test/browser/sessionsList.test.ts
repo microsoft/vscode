@@ -5503,6 +5503,132 @@ suite('Sessions - SessionsList', () => {
 
 	suite('groupSessionsForList', () => {
 
+		for (const { count, index, expected } of [
+			{ count: 3, index: 0, expected: 'reply-1' },
+			{ count: 3, index: 1, expected: 'reply-2' },
+			{ count: 3, index: 2, expected: 'reply-1' },
+			{ count: 1, index: 0, expected: undefined },
+		]) {
+			test(`Inbox replies advance from item ${index + 1} of ${count} after acceptance`, async () => {
+				const built = Array.from({ length: count }, (_, i) => buildTestSession({ id: `reply-${i}`, title: `Reply ${i}`, minutesAgo: i }));
+				const source = built[index];
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				const harness = createListHarness(disposables, built.map(item => item.session));
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				const opened: { id: string; preserveFocus: boolean | undefined }[] = [];
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+					onSessionOpen: (resource, preserveFocus) => {
+						const session = harness.managementService.getSession(resource)!;
+						opened.push({ id: session.sessionId, preserveFocus });
+						shown.set({ session, chat: session.mainChat.get() }, undefined);
+					},
+				}));
+				list.layout(600, 400);
+				transaction(tx => {
+					source.status.set(SessionStatus.InProgress, tx);
+					source.mainChat.status.set(SessionStatus.InProgress, tx);
+				});
+				accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+				assert.deepStrictEqual({
+					opened,
+					sourceSection: getSessionInboxSection(source.session, model.getInboxState(source.session)),
+					emptyInboxFocused: !!list.getItemRow({ section: SessionInboxSection.ReadyForYou })?.classList.contains('focused'),
+					treeFocused: mainWindow.document.activeElement === list.element.querySelector('.monaco-list'),
+				}, {
+					opened: expected ? [{ id: expected, preserveFocus: false }] : [],
+					sourceSection: SessionInboxSection.Working,
+					emptyInboxFocused: !expected,
+					treeFocused: !expected,
+				});
+			});
+		}
+
+		for (const scenario of ['hidden', 'workspace', 'new', 'background', 'otherChat', 'working', 'pinned', 'navigated'] as const) {
+			test(`Inbox replies do not advance for ${scenario} sends`, async () => {
+				const source = buildTestSession({ id: 'source', title: 'Source', chats: [{ id: 'peer', title: 'Peer' }] });
+				const next = buildTestSession({ id: 'next', title: 'Next', minutesAgo: 1 });
+				const shown = observableValue<ITestShownChat | undefined>('shown', { session: source.session, chat: source.session.mainChat.get() });
+				const harness = createListHarness(disposables, [source.session, next.session]);
+				stubSessionHosts(harness.instantiationService, disposables, { session: shown });
+				const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+				harness.instantiationService.stub(IChatService, new class extends MockChatService {
+					override readonly onDidAcceptRequest = accepted.event;
+				});
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				if (scenario === 'pinned') {
+					model.pinSession(source.session);
+				}
+				let opened = 0;
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => scenario === 'workspace' ? SessionsGrouping.Workspace : SessionsGrouping.Inbox,
+					sorting: () => SessionsSorting.Updated, onSessionOpen: () => { opened++; },
+				}));
+				list.layout(600, 400);
+				if (scenario === 'hidden') {
+					list.setVisible(false);
+				}
+				if (scenario === 'working') {
+					source.status.set(SessionStatus.InProgress, undefined);
+					list.update();
+				}
+				accepted.fire({
+					chatSessionResource: scenario === 'background' ? next.session.mainChat.get().resource
+						: scenario === 'otherChat' ? source.chats.get('peer')!.chat.resource : source.session.mainChat.get().resource,
+					isNewSession: scenario === 'new',
+				});
+				if (scenario === 'navigated') {
+					shown.set({ session: next.session, chat: next.session.mainChat.get() }, undefined);
+				}
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				assert.strictEqual(opened, 0);
+			});
+		}
+
+		test('Inbox replies advance within the visible scope and attention order, skipping pinned and working sessions', async () => {
+			const workspaceResource = URI.file('/workspace');
+			const items = [
+				createTestSession('source', { workspaceResource, updatedAt: new Date(4) }),
+				createTestSession('working', { workspaceResource, status: SessionStatus.InProgress }),
+				createTestSession('pinned', { workspaceResource }),
+				createTestSession('out-of-scope', { updatedAt: new Date(3) }),
+				createTestSession('later', { workspaceResource, updatedAt: new Date(2) }),
+				createTestSession('urgent', { workspaceResource, status: SessionStatus.NeedsInput, updatedAt: new Date(1) }),
+			];
+			const source = items[0];
+			const harness = createListHarness(disposables, items.map(item => item.session));
+			stubSessionHosts(harness.instantiationService, disposables, {
+				session: constObservable({ session: source.session, chat: source.session.mainChat.get() }),
+			});
+			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+			harness.instantiationService.stub(IChatService, new class extends MockChatService {
+				override readonly onDidAcceptRequest = accepted.event;
+			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			model.pinSession(items[2].session);
+			const opened: string[] = [];
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated,
+				onSessionOpen: resource => { opened.push(harness.managementService.getSession(resource)!.sessionId); },
+			}));
+			list.layout(600, 400);
+			list.filters.setInboxWorkspace(getInboxWorkspaceFilter(source.session));
+			accepted.fire({ chatSessionResource: source.session.mainChat.get().resource, isNewSession: false });
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+
+			assert.deepStrictEqual(opened, ['later']);
+		});
+
 		for (const action of ['request', 'copy'] as const) {
 			test(`Inbox acknowledges ${action} but not opening, selecting, reading, or actions outside visible Inbox mode`, async () => {
 				const built = buildTestSession({ id: 'ready', title: 'Ready', isRead: false });
