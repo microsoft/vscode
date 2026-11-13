@@ -1002,11 +1002,6 @@ export class WorkspacePicker extends Disposable {
 	protected async _dispatchPickerItem(item: IWorkspacePickerItem): Promise<boolean> {
 		const generation = ++this._selectionGeneration;
 		this._reportPickerClosed(item);
-		// A folder works in itself, not in a new worktree of it
-		if (item.folderUri && this.options.newWorktree?.isSelected()) {
-			this.options.newWorktree.setSelected(false);
-			this._updateTriggerLabel();
-		}
 		if (item.run) {
 			item.run();
 			return true;
@@ -1105,6 +1100,11 @@ export class WorkspacePicker extends Disposable {
 			}
 			if (generation !== this._selectionGeneration) {
 				return false;
+			}
+			// A folder works in itself, not in a new worktree of it
+			if (this.options.newWorktree?.isSelected()) {
+				this.options.newWorktree.setSelected(false);
+				this._updateTriggerLabel();
 			}
 			this._selectedDevContainerFolderUri = item.preferDevContainer ? item.folderUri : undefined;
 			this._onDidSelectWorkspaceMode.fire({ folderUri: item.folderUri, preferDevContainer: item.preferDevContainer === true });
@@ -2853,10 +2853,10 @@ export class WorkspacePicker extends Disposable {
 		return !allowedFolders || allowedFolders.some(folder => this.uriIdentityService.extUri.isEqual(folder, folderUri));
 	}
 
-	/** Whether the picker only shows its one allowed folder, without offering any other choice, such as No Workspace. */
+	/** Whether the picker only shows its one allowed folder, once selected, without offering any other choice, such as No Workspace. */
 	protected _isReadOnly(): boolean {
 		const allowedFolders = this._getAllowedFolders();
-		return !!allowedFolders && allowedFolders.length <= 1 && !this._getNoWorkspaceOption() && !this.options.newWorktree?.isAvailable();
+		return !!allowedFolders && allowedFolders.length <= 1 && !!this._selectedFolderUri && !this._getNoWorkspaceOption() && !this.options.newWorktree?.isAvailable();
 	}
 
 	/** The items of a picker restricted to its allowed folders: one for each folder a provider resolves. */

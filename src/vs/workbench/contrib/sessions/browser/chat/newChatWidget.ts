@@ -414,7 +414,8 @@ export class NewChatWidget extends Disposable {
 		// which scopes recents to the active host and renders as a bottom
 		// sheet on phone-layout viewports. On Electron desktop, the regular
 		// {@link WorkspacePicker} is fine — phones never run there.
-		this._newWorktree = this._draftHost?.allowedFolders && this.instantiationService.createInstance(NewWorktreeChoice, this._session);
+		const draftHostAllowedFolders = this._draftHost?.allowedFolders;
+		this._newWorktree = draftHostAllowedFolders && this.instantiationService.createInstance(NewWorktreeChoice, this._session, derived(this, reader => draftHostAllowedFolders.read(reader).length > 0));
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			environment: this._environment,
@@ -441,7 +442,8 @@ export class NewChatWidget extends Disposable {
 				}
 				return undefined;
 			},
-			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
+			// A composer restricted to its folders, such as an editor window's, always creates its sessions in one
+			getNoWorkspaceOption: () => this._draftHost?.allowedFolders?.get().length ? undefined : this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
@@ -454,6 +456,7 @@ export class NewChatWidget extends Disposable {
 			providersChanged.read(reader);
 			const activeSession = this._session.read(reader);
 			activeSession?.isQuickChat?.read(reader);
+			this._draftHost?.allowedFolders?.read(reader);
 			this._newWorktree?.applyDefault();
 			this._workspacePicker.refreshTriggerLabel();
 			if (!activeSession) {
