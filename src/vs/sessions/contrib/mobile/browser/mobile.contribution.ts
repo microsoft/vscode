@@ -16,7 +16,6 @@ import { IAquariumService } from '../../../../workbench/contrib/sessions/browser
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { IScreenshotToolService } from '../../../../workbench/contrib/screenshotTool/browser/screenshotTool.js';
 import { IWorktreeSuggestionService } from '../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
-import { IPinnedCanvasService } from '../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { WindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvasService.js';
 import { MobileActionWidgetService } from './mobileActionWidgetService.js';
@@ -26,7 +25,6 @@ import { MobileNullAgentHostTerminalService } from './mobileNullAgentHostTermina
 import { MobileNullAquariumService } from './mobileNullAquariumService.js';
 import { MobileNullChatWindowService } from './mobileNullChatWindowService.js';
 import { MobileNullScreenshotToolService } from './mobileNullScreenshotToolService.js';
-import { MobileNullPinnedCanvasService } from './mobileNullPinnedCanvasService.js';
 import { MobileNullWorktreeSuggestionService } from './mobileNullWorktreeSuggestionService.js';
 import { MobileQuickInputService } from './mobileQuickInputService.js';
 import { ISessionsListPresentation } from '../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
@@ -78,7 +76,6 @@ registerSingleton(IAquariumService, MobileNullAquariumService, InstantiationType
 registerSingleton(IChatWindowService, MobileNullChatWindowService, InstantiationType.Delayed);
 registerSingleton(IScreenshotToolService, MobileNullScreenshotToolService, InstantiationType.Delayed);
 registerSingleton(IWorktreeSuggestionService, MobileNullWorktreeSuggestionService, InstantiationType.Delayed);
-registerSingleton(IPinnedCanvasService, MobileNullPinnedCanvasService, InstantiationType.Delayed);
 registerSingleton(IWindowCanvasService, WindowCanvasService, InstantiationType.Delayed);
 registerSingleton(ISessionsListPresentation, MobileSessionsListPresentation, InstantiationType.Delayed);
 registerSingleton(ISessionRepositoryPicker, MobileRepositoryPicker, InstantiationType.Delayed);

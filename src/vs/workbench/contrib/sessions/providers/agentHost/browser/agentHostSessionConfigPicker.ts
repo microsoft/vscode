@@ -24,7 +24,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -59,7 +59,7 @@ import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IChatPhoneInputPresenter } from '../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { createChatPhoneInputSessionContext } from '../../../browser/chatPhoneInputContext.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
@@ -89,7 +89,6 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { getChangedFileUri, getModifiedFilesSectionLabel, getUncommittedFilesDescription } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
-import { readPaneSessions } from '../../../../../services/sessions/browser/sessionGridPane.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
@@ -2046,6 +2045,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
@@ -2060,9 +2060,13 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		// because the classes are only accessed inside these factory
 		// callbacks, which run at `AfterRestored` — well after both
 		// modules have finished evaluating.
+		let shownKey: string | undefined;
 		this._register(autorun(reader => {
-			readPaneSessions(this._sessionsService.slotPanes, reader);
-			this._refreshRepositoryMenuItems(actionViewItemService);
+			const key = this._readShownSessions(reader).map(shown => `${shown.session.sessionId} ${shown.chat.toString()}`).join('\n');
+			if (key !== shownKey) {
+				shownKey = key;
+				this._refreshRepositoryMenuItems(actionViewItemService);
+			}
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }), actionViewItemService);
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
@@ -2151,25 +2155,37 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
-				if (readPaneSessions(this._sessionsService.slotPanes, undefined).some(session => session.sessionId === sessionId)) {
+				if (this._readShownSessions(undefined).some(shown => shown.session.sessionId === sessionId)) {
 					this._refreshRepositoryMenuItems(actionViewItemService);
 				}
 			}));
 		}
 	}
 
+	private _readShownSessions(reader: IReader | undefined): readonly { readonly session: ISession; readonly chat: URI }[] {
+		const shown = new Map<string, { readonly session: ISession; readonly chat: URI }>();
+		const add = (session: ISession | undefined, chat: IChat | undefined) => {
+			if (session && !shown.has(session.sessionId)) {
+				shown.set(session.sessionId, { session, chat: (chat ?? session.mainChat.read(reader)).resource });
+			}
+		};
+		for (const pane of this._sessionsService.slotPanes.read(reader)) {
+			add(pane.session.read(reader), pane.chat.read(reader));
+		}
+		for (const host of this._sessionHostService.hosts.read(reader)) {
+			add(host.session.read(reader), host.chat.read(reader));
+		}
+		return [...shown.values()];
+	}
+
 	private _refreshRepositoryMenuItems(actionViewItemService: IActionViewItemService): void {
 		this._repositoryMenuItems.clear();
-		for (const pane of this._sessionsService.slotPanes.get()) {
-			const session = pane.session.get();
-			if (!session) {
-				continue;
-			}
+		for (const { session, chat } of this._readShownSessions(undefined)) {
 			const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}
-			const config = provider.getSessionConfig(session.sessionId, (pane.chat.get() ?? session.mainChat.get()).resource);
+			const config = provider.getSessionConfig(session.sessionId, chat);
 			if (!config) {
 				continue;
 			}
@@ -2505,3 +2521,23 @@ export class RunningSessionModePickerAction extends Action2 {
 	}
 }
 
+/**
+ * Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
+export function registerAgentHostSessionConfigPickerActions(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(registerAction2(NewSessionApprovePickerAction));
+	store.add(registerAction2(NewSessionPermissionModePickerAction));
+	store.add(registerAction2(NewSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(NewSessionModePickerAction));
+	store.add(registerAction2(RunningSessionConfigPickerAction));
+	store.add(registerAction2(RunningSessionPermissionModePickerAction));
+	store.add(registerAction2(RunningSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(RunningSessionModePickerAction));
+
+	return store;
+}

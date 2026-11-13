@@ -21,6 +21,8 @@ import { ServiceCollection } from '../../../instantiation/common/serviceCollecti
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../networkFilter/common/networkFilterService.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import { IProtocolMainService } from '../../../protocol/electron-main/protocol.js';
+import { IWindowsMainService } from '../../../windows/electron-main/windows.js';
 import { BrowserViewStorageScope, IBrowserViewNetwork } from '../../common/browserView.js';
 import type { BrowserSession } from '../../electron-main/browserSession.js';
 
@@ -99,6 +101,8 @@ suite('BrowserSession network filtering', () => {
 		});
 		const instantiationService = store.add(new InstantiationService(new ServiceCollection(
 			[IAgentNetworkFilterService, filter],
+			[IWindowsMainService, upcastDeepPartial<IWindowsMainService>({})],
+			[IProtocolMainService, upcastDeepPartial<IProtocolMainService>({})],
 			[ILogService, store.add(new NullLogService())],
 		)));
 		const browserSession = instantiationService.createInstance(

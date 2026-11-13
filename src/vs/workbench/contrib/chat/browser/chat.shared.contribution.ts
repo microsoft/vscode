@@ -12,7 +12,7 @@ import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHos
 import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_THRESHOLD_SETTING } from '../../../services/agentHost/browser/codexContinuationService.js';
 import { Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
@@ -25,11 +25,11 @@ import { ChatPetJumpGameAccessibleView } from './accessibility/chatPetJumpGameAc
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAssistedApprovalInstructionsConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpGalleryServiceUrlConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotIncludeCoAuthoredBySettingId, AgentHostCopilotShellAuthenticationEnabledSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { copilotPolicyHelperConfigurationProperties } from './copilotPolicyHelperConfiguration.js';
 import { imageGenerationConfigurationProperties } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
@@ -235,6 +235,7 @@ import { ChatPasteTargetService } from './attachments/chatPasteTargetService.js'
 import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { EditorChatUsageContribution } from './editorChatUsage.contribution.js';
+import { ChatDailyUsageContribution } from './chatDailyUsage.contribution.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution, ChatPetEditingAchievementContribution } from './chatPetAchievements.contribution.js';
@@ -282,6 +283,8 @@ import './widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatFindAccessibilityHelp } from './widget/chatFind/chatFindAccessibilityHelp.js';
 import { ChatWidget } from './widget/chatWidget.js';
 import { ChatWidgetService } from './widget/chatWidgetService.js';
+import { IChatViewHostService } from './chatViewHost.js';
+import { ChatViewHostService } from './widgetHosts/viewPane/chatViewHostService.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import './widget/input/editor/agentHostInputCompletions.js';
 import './widget/input/editor/agentHostQuestionAnswerCompletions.js';
@@ -1089,6 +1092,13 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			markdownDescription: nls.localize('chat.btwTip.enabled', "Controls whether the Agents Window shows a tip about using `/btw` to ask side questions."),
 		},
+		[ChatConfiguration.AutomateTipEnabled]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			markdownDescription: nls.localize('chat.automateTip.enabled', "Controls whether the Agents Window shows a tip about using `/automate` to create recurring automations."),
+		},
 		[ChatConfiguration.SendInBackgroundTipEnabled]: {
 			type: 'boolean',
 			default: false,
@@ -1763,6 +1773,14 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			agentHost: { key: CopilotCliConfigKey.IncludeCoAuthoredBy },
 		},
+		[AgentHostCopilotShellAuthenticationEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.copilot.shellAuthentication.enabled', "Controls whether Copilot Agent Host sessions ask in chat for the passwords, passphrases, and confirmations that `sudo -A`, `ssh`, and `git` request. The answer goes only to that program and isn't sent to the model. Takes effect when a session starts or resumes."),
+			default: true,
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
+			agentHost: { key: CopilotCliConfigKey.ShellAuthentication },
+		},
 		[CopilotSkillCharBudgetSettingId]: {
 			type: 'number',
 			description: nls.localize('chat.copilot.skillCharBudget', "Maximum number of characters available for skill descriptions in the Copilot SDK system message."),
@@ -2006,6 +2024,8 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['usesOnlineServices', 'advanced'],
 			included: false,
+			// Installation is only offered by the local agent host, which downloads this gallery's server cards itself.
+			agentHost: { key: AgentHostMcpGalleryServiceUrlConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 			policy: {
 				name: 'McpGalleryServiceUrl',
 				category: PolicyCategory.InteractiveSession,
@@ -3006,6 +3026,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this.registerMaxRequestsSetting();
 		this.registerNewChatButtonIcon();
 		this.registerDefaultModeSetting();
+		this.registerSecurityReviewSecretDetectionSetting();
 	}
 
 
@@ -3035,6 +3056,38 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			});
 		};
 		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
+	}
+
+	/** Registered only for internal accounts. The agent host also checks the session's account at launch. */
+	private registerSecurityReviewSecretDetectionSetting(): void {
+		const node: IConfigurationNode = {
+			id: 'chatSidebar',
+			title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
+			type: 'object',
+			properties: {
+				[CopilotSecurityReviewSecretDetectionEnabledSettingId]: {
+					type: 'boolean',
+					markdownDescription: nls.localize('chat.copilot.securityReview.secretDetection.enabled', "When enabled, `/security-review` in Copilot SDK sessions also runs a purpose-built secret detection model alongside the existing analysis to find unstructured credentials, such as passwords without a recognizable token format. Available to GitHub and Microsoft staff only, and requires preview features to be allowed by your organization. Applies to new and resumed sessions."),
+					default: false,
+					tags: ['preview'],
+					scope: ConfigurationScope.APPLICATION,
+				},
+			}
+		};
+		let registered = false;
+		const update = () => {
+			const internal = this.entitlementService.isInternal;
+			if (internal !== registered) {
+				configurationRegistry.updateConfigurations(internal ? { add: [node], remove: [] } : { add: [], remove: [node] });
+				registered = internal;
+			}
+		};
+		this._register(Event.runAndSubscribe(this.entitlementService.onDidChangeEntitlement, update));
+		this._register(toDisposable(() => {
+			if (registered) {
+				configurationRegistry.deregisterConfigurations([node]);
+			}
+		}));
 	}
 
 	private registerNewChatButtonIcon(): void {
@@ -3331,6 +3384,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 registerWorkbenchContribution2(CopilotTelemetryContribution.ID, CopilotTelemetryContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(EditorChatUsageContribution.ID, EditorChatUsageContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatDailyUsageContribution.ID, ChatDailyUsageContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSpeechToTextInitContribution.ID, ChatSpeechToTextInitContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatDebugResolverContribution.ID, ChatDebugResolverContribution, WorkbenchPhase.BlockStartup);
@@ -3445,6 +3499,7 @@ registerSingleton(IVoiceCodeTranscriptionClient, VoiceCodeTranscriptionClient, I
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
+registerSingleton(IChatViewHostService, ChatViewHostService, InstantiationType.Delayed);
 registerSingleton(ISessionChatPillVisibilityService, SessionChatPillVisibility, InstantiationType.Delayed);
 registerSingleton(IChatSessionReviewPreferencesService, ChatSessionReviewPreferencesService, InstantiationType.Delayed);
 registerSingleton(IChatPasteTargetService, ChatPasteTargetService, InstantiationType.Delayed);

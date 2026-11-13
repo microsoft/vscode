@@ -46,6 +46,7 @@ import { ChatInputNoticeLane } from '../../../chat/browser/widget/input/chatInpu
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../chat/browser/widget/input/chatInputNoticeWidget.js';
 import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../chat/browser/widget/input/chatInputStack.js';
 import { shownChatOf } from '../../../../services/sessions/common/sessionPane.js';
+import { IChatWidget } from '../../../chat/browser/chat.js';
 
 // #region --- New Chat In Session Widget ---
 
@@ -571,6 +572,10 @@ export class NewChatInSessionWidget extends Disposable {
 			}
 			return false;
 		}
+	}
+
+	get chatWidget(): IChatWidget | undefined {
+		return this._newChatInput.widget;
 	}
 
 	layout(height: number, width: number): void {

@@ -68,6 +68,16 @@ export interface IManagedSettingsResponse {
 	readonly allowManagedMcpServersOnly?: boolean;
 	readonly allowManagedHooksOnly?: boolean;
 	readonly forceRemoteSettingsRefresh?: boolean;
+	/** VS Code-specific managed preferences, which the Copilot runtime preserves without interpreting. */
+	readonly vscode?: {
+		/**
+		 * Third-party harnesses (`claude`, `codex`) permitted while managed settings are present. A
+		 * present list denies the harnesses it does not name, so `[]` denies both. Other entries
+		 * are ignored.
+		 */
+		readonly allowedHarnesses?: readonly string[];
+		readonly [key: string]: unknown;
+	};
 	readonly telemetry?: {
 		readonly enabled?: boolean;
 		readonly endpoint?: string;

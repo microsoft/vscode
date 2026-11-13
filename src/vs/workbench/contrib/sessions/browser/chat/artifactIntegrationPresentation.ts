@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/artifactIntegrations.css';
-import { $, append, isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
+import { $, append, isAncestorOfActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions, isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { Action, toAction } from '../../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -22,19 +23,31 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { ChatPillActionViewItem, IChatInlinePillViewItemOptions, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../browser/chatPills.js';
+import { ChatPillActionViewItem, getChatPillEntryHoverOptions, IChatInlinePillViewItemOptions, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection, ArtifactDetailsViewState, IArtifactActionViewData } from './artifactDetailsView.js';
 
 export interface IArtifactDetailsHost {
 	readonly id: string;
 	readonly selected: IObservable<ArtifactIntegrationPresentation | undefined>;
+	/** The ID of the selected artifact's pill section that shows its details, if a section showed them. */
+	readonly activeSection: IObservable<string | undefined>;
 	/**
+	 * Shows an artifact's details, or hides them when activating what already shows them: the artifact without a
+	 * section, or its active section. Another section of the shown artifact keeps them open and becomes active.
 	 * @param target The control that shows the details, which receives focus back when they close. Defaults to the
 	 * focused element, such as a dropdown's pill after the dropdown closes.
+	 * @param selection The list, action or Autopilot to focus in the details.
+	 * @param sectionId The pill section that shows the details, which becomes the active section.
 	 */
-	toggle(presentation: ArtifactIntegrationPresentation, target?: HTMLElement, section?: ArtifactDetailsSelection): void;
+	toggle(presentation: ArtifactIntegrationPresentation, target?: HTMLElement, selection?: ArtifactDetailsSelection, sectionId?: string): void;
 	release(presentation: ArtifactIntegrationPresentation): void;
+	/**
+	 * Hides the details while another overlay that shares their context view, such as a group dropdown, takes their
+	 * place. They keep their artifact and active section, so activating that section again closes them. Disposing the
+	 * result closes the hidden details unless they were shown again.
+	 */
+	suspend(): IDisposable;
 }
 
 /** The number of Autopilot rules enabled across an artifact's integrations. */
@@ -62,46 +75,44 @@ export function getArtifactOpenAriaLabel(label: string): string {
  * The status sections an artifact shows beside its main part, which opens its resource: each integration section, a
  * Sign In section while authentication is required, and the number of enabled Autopilot rules. Activating one opens
  * the artifact's details on the matching list, action or Autopilot. Without any, a Details section toggles the
- * artifact's details, so they stay reachable.
+ * artifact's details, so they stay reachable. Only the active section, which shows the details, is expanded.
  */
-export function getArtifactStatusButtons(presentation: ArtifactIntegrationPresentation, snapshot: ArtifactSnapshot, expanded: boolean, open: (target: HTMLElement, selection: ArtifactDetailsSelection | undefined) => void): IArtifactButton[] {
+export function getArtifactStatusButtons(presentation: ArtifactIntegrationPresentation, snapshot: ArtifactSnapshot, activeSection: string | undefined, open: (target: HTMLElement, selection: ArtifactDetailsSelection | undefined, sectionId: string) => void): IArtifactButton[] {
 	const controls = presentation.detailsHost.id;
+	const toggle = (id: string, selection: ArtifactDetailsSelection | undefined) => ({
+		id, expanded: id === activeSection, controls,
+		run: (target: HTMLElement) => open(target, selection, id),
+	});
 	const buttons: IArtifactButton[] = snapshot.contributions.flatMap(contribution => contribution.view.sections.map(section => ({
-		id: JSON.stringify([contribution.integrationId, section.id]), label: section.label, icon: icon(section.icon),
+		label: section.label, icon: icon(section.icon),
 		description: section.description,
 		ariaLabel: localize('artifactSectionDetails', "Show details: {0}", section.description ?? section.label),
-		expanded, controls,
-		run: target => open(target, [contribution.integrationId, section.detailsId]),
+		...toggle(JSON.stringify([contribution.integrationId, section.id]), [contribution.integrationId, section.detailsId]),
 	})));
 	for (const contribution of snapshot.contributions) {
 		const authentication = presentation.authenticationButton(contribution);
 		if (authentication) {
-			buttons.push({
-				...authentication, enabled: true, expanded, controls,
-				run: target => open(target, [contribution.integrationId]),
-			});
+			buttons.push({ ...authentication, enabled: true, ...toggle(authentication.id, [contribution.integrationId]) });
 		}
 	}
 	const enabledAutomations = countEnabledArtifactAutomations(snapshot);
 	if (enabledAutomations) {
 		buttons.push({
-			id: 'artifact-automations', label: String(enabledAutomations), icon: Codicon.robot,
+			label: String(enabledAutomations), icon: Codicon.robot,
 			description: enabledAutomations === 1
 				? localize('artifactAutomationEnabled', "1 Autopilot rule enabled")
 				: localize('artifactAutomationsEnabled', "{0} Autopilot rules enabled", enabledAutomations),
 			ariaLabel: localize('artifactShowAutomations', "Show Autopilot: {0} enabled", enabledAutomations),
-			expanded, controls,
-			run: target => open(target, 'autopilot'),
+			...toggle('artifact-automations', 'autopilot'),
 		});
 	}
 	if (buttons.length === 0) {
 		const main = getArtifactMainContribution(snapshot)?.view.main;
 		buttons.push({
-			id: 'artifact-details', label: localize('artifactDetails', "Details"), icon: Codicon.chevronDown, iconOnly: true,
+			label: localize('artifactDetails', "Details"), icon: Codicon.info, iconOnly: true,
 			description: localize('artifactDetailsDescription', "Show Details"),
 			ariaLabel: localize('artifactShowDetails', "Show artifact details: {0}", main?.description ?? main?.label ?? snapshot.artifact.label),
-			expanded, controls,
-			run: target => open(target, undefined),
+			...toggle('artifact-details', undefined),
 		});
 	}
 	return buttons;
@@ -242,6 +253,8 @@ export class ArtifactIntegrationPresentation extends Disposable {
 
 class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
+	/** Identifies the rich hover, whose element content has no identity of its own, so moving within the main part keeps it. */
+	private readonly richHoverId = generateUuid();
 	private sections: ArtifactButtons | undefined;
 
 	constructor(
@@ -259,10 +272,10 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 
 	protected override renderContent(): void {
 		this.sections = this._register(new ArtifactButtons(append(this.element!, $('.chat-pill-sections.artifact-pill-sections')), this.hoverService, 'pill', this.hoverLifecycleOptions));
-		this._register(this.hoverService.setupDelayedHover(this.button!.element, () => ({
+		this._register(this.hoverService.setupDelayedHover(this.button!.element, () => this.richHoverOptions() ?? {
 			content: this.mainDescription(),
 			style: HoverStyle.Pointer,
-		}), this.hoverLifecycleOptions));
+		}, this.hoverLifecycleOptions));
 		this._register(autorun(reader => {
 			const snapshot = this.presentation.snapshot.read(reader);
 			const host = this.presentation.detailsHost;
@@ -277,8 +290,8 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 			}
 			this.element!.classList.toggle('artifact-pill-selected', selected);
 			// Autopilot and Details can disappear while the details they opened are shown, so those return focus to the main part.
-			const sections = getArtifactStatusButtons(this.presentation, snapshot, selected, (target, selection) =>
-				host.toggle(this.presentation, selection === 'autopilot' || selection === undefined ? this.button!.element : target, selection));
+			const sections = getArtifactStatusButtons(this.presentation, snapshot, selected ? host.activeSection.read(reader) : undefined, (target, selection, sectionId) =>
+				host.toggle(this.presentation, selection === 'autopilot' || selection === undefined ? this.button!.element : target, selection, sectionId));
 			this.sections!.update(sections);
 			this.element!.classList.toggle('chat-pill-segmented', sections.length > 0);
 			// Its own surface's trailing action, else that of the pill showing it as a lone entry, such as a pinned entry's Unpin.
@@ -299,6 +312,26 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 
 	private mainDescription(): string {
 		return getArtifactMainContribution(this.presentation.snapshot.get())?.view.main?.description ?? this.getLabelText();
+	}
+
+	/**
+	 * The rich hover of the entry the pill shows, such as a pull request's card, which the main part shows in place of
+	 * the integration's description. Like the other pills' rich hovers, its footer leaves out the entry's promoted action.
+	 */
+	private richHoverOptions(): IDelayedHoverOptions | undefined {
+		const entry = this.presentation.baseEntry;
+		const hover = entry?.pillHover;
+		const content = isManagedHoverTooltipHTMLElement(hover) ? hover.element(CancellationToken.None) : hover;
+		if (!entry || !isHTMLElement(content)) {
+			return undefined;
+		}
+		return {
+			...getChatPillEntryHoverOptions({ ...entry, promotedAction: undefined }),
+			id: this.richHoverId,
+			content,
+			...(isManagedHoverTooltipHTMLElement(hover) && hover.contentOwnsPadding ? { additionalClasses: ['managed-hover-content-owns-padding'] } : {}),
+			appearance: { showPointer: true },
+		};
 	}
 
 	protected override getAriaLabel(): string {

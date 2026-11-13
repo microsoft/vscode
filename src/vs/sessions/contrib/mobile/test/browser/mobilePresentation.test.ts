@@ -21,11 +21,9 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IChatExternalEdit } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ScreenshotContextValuePick } from '../../../../../workbench/contrib/chat/browser/actions/chatContext.js';
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { ICanvasReference } from '../../../../../workbench/common/canvasReference.js';
 import { IChatWindowProvider } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ScreenshotToolSurface } from '../../../../../workbench/contrib/screenshotTool/browser/screenshotTool.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
@@ -45,7 +43,6 @@ import { ISessionsPartContentHost } from '../../../../../workbench/browser/parts
 import { MobileChatEditPresenter } from '../../browser/mobileChatEditPresenter.js';
 import { MobileChatViewFactory } from '../../browser/mobileChatViewFactory.js';
 import { MobileNullChatWindowService } from '../../browser/mobileNullChatWindowService.js';
-import { MobileNullPinnedCanvasService } from '../../browser/mobileNullPinnedCanvasService.js';
 import { MobileNullScreenshotToolService } from '../../browser/mobileNullScreenshotToolService.js';
 import { MobileNullWorktreeSuggestionService } from '../../browser/mobileNullWorktreeSuggestionService.js';
 import { MobileSessionsListPresentation } from '../../browser/mobileSessionsListPresentation.js';
@@ -84,25 +81,13 @@ suite('Mobile presentation composition', () => {
 
 	test('unsupported worktree suggestions report failure instead of claiming to switch isolation', async () => {
 		const errors: string[] = [];
-		const suggestions = new MobileNullWorktreeSuggestionService(upcastPartial<INotificationService>({
+		const suggestions = new MobileNullWorktreeSuggestionService(upcastPartial<ConstructorParameters<typeof MobileNullWorktreeSuggestionService>[0]>({
 			error: message => errors.push(String(message)),
 		}));
 		const switched = await suggestions.useWorktree(WorktreeSuggestionVariant.SpotlightOnSend, upcastPartial<IWorktreeSuggestion>({}));
 		assert.deepStrictEqual({ switched, errors }, {
 			switched: false,
 			errors: ['Worktree suggestions are not available on this device.'],
-		});
-	});
-
-	test('unsupported canvas pinning reports failure instead of claiming to pin a canvas', () => {
-		const errors: string[] = [];
-		const canvases = new MobileNullPinnedCanvasService(upcastPartial<INotificationService>({
-			error: message => errors.push(String(message)),
-		}));
-		const pinned = canvases.pin(upcastPartial<ICanvasReference>({}));
-		assert.deepStrictEqual({ pinned, errors }, {
-			pinned: false,
-			errors: ['Pinned canvases are not available on this device.'],
 		});
 	});
 

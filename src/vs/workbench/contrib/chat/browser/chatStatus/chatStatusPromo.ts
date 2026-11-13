@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -91,9 +93,17 @@ export class ChatStatusPromo extends Disposable {
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._onDidChange.fire()));
+		// Offered only while the Chat view can show, as the views are
+		const agentsViewActiveKeys = new Set([ChatContextKeys.agentsViewActive.key]);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(agentsViewActiveKeys)) {
+				this._onDidChange.fire();
+			}
+		}));
 		for (const key of [DISMISSED_PROMOS_STORAGE_KEY, SEEN_PROMOS_STORAGE_KEY]) {
 			this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, key, this._store)(() => this._onDidChange.fire()));
 		}
@@ -215,6 +225,10 @@ export class ChatStatusPromo extends Disposable {
 	}
 
 	private getOpportunity(): IPromo | undefined {
+		// Trying a model opens it in the Chat view, which does not show while the Agents view replaces it
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.agentsViewActive.key)) {
+			return undefined;
+		}
 		const sessionType = this.resolveDefaultSessionType().sessionType;
 		if (this.viewsService.isViewVisible(ChatViewId)) {
 			const resource = this.viewsService.getViewWithId<ChatViewPane>(ChatViewId)?.widget?.viewModel?.sessionResource;

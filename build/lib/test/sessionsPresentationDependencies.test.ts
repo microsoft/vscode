@@ -148,7 +148,7 @@ suite('Sessions presentation entry isolation', () => {
 				presentation: desktopPresentation.filter(file => dependencies.has(file)),
 			}, {
 				canvas: ['IWindowCanvasService', 'WindowCanvasService'],
-				pinnedCanvas: ['IPinnedCanvasService', mobile ? 'MobileNullPinnedCanvasService' : 'PinnedCanvasService'],
+				pinnedCanvas: mobile ? undefined : ['IPinnedCanvasService', 'PinnedCanvasService'],
 				chatWindow: ['IChatWindowService', mobile ? 'MobileNullChatWindowService' : 'ChatWindowService'],
 				presentation: mobile ? [] : desktopPresentation,
 			});

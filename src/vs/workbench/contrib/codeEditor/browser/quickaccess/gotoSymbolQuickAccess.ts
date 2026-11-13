@@ -38,6 +38,7 @@ import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
 import { ChatOutline, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ISymbolVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { isRequestVM } from '../../../chat/common/model/chatViewModel.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 
 /**
  * A single navigable entry backing the "no text editor" symbol picks (chat
@@ -64,9 +65,10 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		@IOutlineService private readonly outlineService: IOutlineService,
 		@IOutlineModelService outlineModelService: IOutlineModelService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super(languageFeaturesService, outlineModelService, {
-			openSideBySideDirection: () => this.configuration.openSideBySideDirection
+			openSideBySideDirection: () => this.editorGroupService.supportsSplitting ? this.configuration.openSideBySideDirection : undefined
 		});
 		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
@@ -98,7 +100,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	protected override gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange; keyMods: IKeyMods; forceSideBySide?: boolean; preserveFocus?: boolean }): void {
 
 		// Check for sideBySide use
-		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
+		if (this.editorGroupService.supportsSplitting && (options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
 			context.restoreViewState?.(); // since we open to the side, restore view state in this editor
 
 			const editorOptions: ITextEditorOptions = {

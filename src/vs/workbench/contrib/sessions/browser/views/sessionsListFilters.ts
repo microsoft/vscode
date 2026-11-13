@@ -13,6 +13,8 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSessionApplication, UNKNOWN_SESSION_APPLICATION_ID } from '../../../../services/sessions/common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
+import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../common/sessionsProvider.js';
 
 export type SessionFilter =
 	| { readonly kind: 'harness' | 'environment'; readonly id: string }
@@ -109,6 +111,20 @@ export function getSessionEnvironments(environments: readonly ISessionEnvironmen
 	return [...byId.values()].sort(compareSessionEnvironments);
 }
 
+/** Sharing registrations of this computer are already represented by This Computer. */
+export function getSessionFilterEnvironments(providers: readonly ISessionsProvider[], reader?: IReader): { environments: ISessionEnvironment[]; localEnvironmentIds: ReadonlySet<string> } {
+	const environments: ISessionEnvironment[] = [];
+	const localEnvironmentIds = new Set<string>();
+	for (const provider of providers) {
+		if (isAgentHostProvider(provider) && provider.localRegistration?.read(reader)) {
+			localEnvironmentIds.add(provider.environment.id);
+		} else {
+			environments.push(provider.environment);
+		}
+	}
+	return { environments, localEnvironmentIds };
+}
+
 /**
  * The filter options for the given sessions. Only sessions the list includes, as
  * decided by `isSessionListed`, contribute their creating applications.
@@ -154,6 +170,7 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private static readonly INBOX_SCOPE_STORAGE_KEY = 'sessionsListControl.inboxScope';
 	private static readonly SHOW_AUTOMATION_RUNS_KEY = 'showAutomationRuns';
+	private static readonly SCHEDULED_ONLY_KEY = 'scheduledOnly';
 	private readonly excluded: Map<string, boolean>;
 	private _inboxScope: IInboxScope = {};
 	get inboxScope(): IInboxScope { return this._inboxScope; }
@@ -218,6 +235,15 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	setShowAutomationRuns(show: boolean): void {
 		this.excluded.set(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY, show);
+		this.save();
+	}
+
+	isScheduledOnly(): boolean {
+		return this.excluded.get(SessionsListFilters.SCHEDULED_ONLY_KEY) ?? false;
+	}
+
+	setScheduledOnly(scheduledOnly: boolean): void {
+		this.excluded.set(SessionsListFilters.SCHEDULED_ONLY_KEY, scheduledOnly);
 		this.save();
 	}
 

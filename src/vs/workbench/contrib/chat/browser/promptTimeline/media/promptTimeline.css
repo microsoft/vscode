@@ -754,8 +754,8 @@
 /* Hovering tints only the half under the pointer — that, and nothing else, is what tells the two
  * targets apart. No divider: at rest there is no boundary to draw (nothing is being interacted with),
  * and on hover the tinted half's own edge already is the boundary. */
-.prompt-timeline-gutter-row-jump:hover,
-.prompt-timeline-gutter-row-diff:hover {
+.prompt-timeline-gutter-row-jump:is(:hover, .hovered),
+.prompt-timeline-gutter-row-diff:is(:hover, .hovered) {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
@@ -792,10 +792,16 @@
 	border-radius: 0 var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0;
 }
 
-.prompt-timeline-gutter-row-jump:focus-visible,
-.prompt-timeline-gutter-row-diff:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.prompt-timeline-gutter-row-jump:is(:focus-visible, .focus-visible),
+.prompt-timeline-gutter-row-diff:is(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness, 1px) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-jump:is(:hover, .hovered):not(:focus-visible, .focus-visible),
+.monaco-workbench:is(.hc-black, .hc-light) .prompt-timeline-gutter-row-diff:is(:hover, .hovered):not(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 .prompt-timeline-gutter-row-label {
