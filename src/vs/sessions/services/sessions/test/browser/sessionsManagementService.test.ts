@@ -1075,12 +1075,13 @@ suite('SessionsManagementService', () => {
 			const a = created('a');
 			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
 			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
-			const { view, container } = harness([parent]);
+			const { content, view, container } = harness([parent]);
 			await view.openSession(parent.resource);
 			await view.openChat(parent, child.resource);
 			await view.detachChat(view.activePane.get()!, child.resource);
+			const activeElement = content.getActiveSessionView()?.element;
+			const paneElement = [...container.querySelectorAll('.session-view')].find(element => element !== activeElement);
 			view.closeSession(parent);
-			const paneElement = container.querySelector('.session-view');
 			await view.detachChat(view.activePane.get()!, child.resource);
 			assert.deepStrictEqual({
 				roots: slotSessionsOf(view).length,
