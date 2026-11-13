@@ -351,7 +351,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async setElementComments(id: string, update: IBrowserElementCommentsUpdate): Promise<void> {
-		this._getBrowserView(id).inspector.setElementComments(update);
+		await this._getBrowserView(id).inspector.setElementComments(update);
 	}
 
 	async toggleAreaSelection(id: string, enabled?: boolean): Promise<void> {
