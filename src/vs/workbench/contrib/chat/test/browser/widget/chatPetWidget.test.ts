@@ -2920,6 +2920,41 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet-despawning').length, 0);
 	});
 
+	test('subagent pets preserve waiting order when an earlier response changes', async () => {
+		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const makeTool = (id: string) => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		};
+		const olderTools = Array.from({ length: 11 }, (_, index) => makeTool(`older-${index}`));
+		const newerTools = [makeTool('newer')];
+		const requests = [olderTools, newerTools].map((parts, index) => {
+			const response = new class extends mock<IChatResponseModel>() {
+				override readonly onDidChange = index === 0 ? changed.event : Event.None;
+				override readonly isPendingConfirmation = constObservable(undefined);
+				override readonly response = new class extends mock<IResponse>() { override readonly value = parts; }();
+			}();
+			return new class extends mock<IChatRequestModel>() { override readonly id = `request-${index}`; override readonly response = response; }();
+		});
+		const model = new class extends mock<IChatModel>() {
+			override readonly onDidChange = Event.None;
+			override readonly hasActiveRequest = constObservable(true);
+			override readonly lastRequestObs = constObservable(requests[1]);
+			override getRequests(): IChatRequestModel[] { return requests; }
+		}();
+		widget.setHost({ ...firstHost, model: constObservable(model) });
+		olderTools.push(makeTool('later'));
+		changed.fire({ reason: 'other' });
+		olderTools[0].toolSpecificData = { kind: 'subagent', isActive: false };
+		changed.fire({ reason: 'other' });
+		await waitForPetAnimation(() => overlay.querySelectorAll('.chat-subagent-pet').length === 10);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Verify which waiting subagent received the slot.
+		const pets = widget['_subagentPets'];
+		assert.deepStrictEqual({ older: pets.has(JSON.stringify(['request-0', 'older-10'])), newer: pets.has(JSON.stringify(['request-1', 'newer'])) }, { older: true, newer: false });
+	});
+
 	test('shows one subagent pet per active subagent and removes it when it stops', async () => {
 		const { widget, firstHost, button, overlay, service } = createHostTransitionHarness();
 		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
