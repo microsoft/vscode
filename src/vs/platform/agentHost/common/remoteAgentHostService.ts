@@ -857,6 +857,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly status: RemoteAgentHostConnectionStatus;
 	/** Last user-visible failure; automatic retries retain it until they fail or succeed. */
 	readonly lastConnectionError?: string;
+	/** Whether setup is waiting for the user's approval of an unencrypted connection. */
+	readonly requiresConfirmation?: boolean;
 	/** Last path style advertised by this host. */
 	readonly pathStyle?: PathStyle;
 }

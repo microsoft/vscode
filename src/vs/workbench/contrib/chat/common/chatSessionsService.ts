@@ -52,7 +52,8 @@ export interface IAsyncChatSessionActivationContribution {
 	matchSessionType(sessionType: string): boolean;
 	/** Optional owner lifetime, captured before activation; cancellation also ends provider-registration waits. */
 	getActivationToken?(sessionType: string): CancellationToken;
-	waitForActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean>;
+	/** Cancellation releases this request's activation wait, not the shared provider. */
+	waitForActivation(accessor: ServicesAccessor, sessionType: string, token?: CancellationToken): Promise<boolean>;
 }
 
 export interface IAsyncChatSessionActivationRegistry {
@@ -1100,7 +1101,7 @@ export interface IChatSessionsService {
 	getContentProviderSchemes(): string[];
 
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
-	canResolveChatSession(sessionType: string): Promise<boolean>;
+	canResolveChatSession(sessionType: string, token?: CancellationToken): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 	updateChatSessionMetadata(sessionResource: URI, metadata: Record<string, unknown>): boolean;
 	/** Resolves a parsed response Markdown URI through its session content provider. */

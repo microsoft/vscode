@@ -35,7 +35,7 @@ import type { AuthenticateParams } from '../../common/agent.js';
 import { IDialogService, type IConfirmation, type IConfirmationResult } from '../../../dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../dialogs/test/common/testDialogService.js';
 import { confirmRemoteAgentHostConnection } from '../../common/remoteAgentHostWebSocket.js';
-import { INotificationService, NoOpNotification, type IPromptChoice, type NotificationMessage, Severity } from '../../../notification/common/notification.js';
+import { INotificationService, NoOpNotification, type IPromptChoice, type INotification } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 
 interface IRemoteAgentHostServiceTestAccess {
@@ -344,7 +344,8 @@ suite('RemoteAgentHostService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IDialogService, new TestDialogService({ confirmed: true }));
 		instantiationService.stub(INotificationService, new class extends TestNotificationService {
-			override prompt(_severity: Severity, _message: NotificationMessage, choices: IPromptChoice[]) {
+			override notify(value: INotification) {
+				const choices = value.actions?.primary?.map(action => ({ label: action.label, run: () => { void action.run(); } })) ?? [];
 				const notification = { choices, closed: false };
 				notifications.push(notification);
 				return new class extends NoOpNotification {
@@ -1013,6 +1014,54 @@ suite('RemoteAgentHostService', () => {
 			prompts: 1, afterFirst: false, afterLast: true, clients: 0, writes: 0,
 		});
 	});
+
+	for (const approval of ['local', 'external', 'disabled'] as const) {
+		test(`${approval} approval retries only eligible confirmation-blocked hosts on the same origin`, async () => {
+			const first = 'approval.example:8080/one';
+			const second = 'approval.example:8080/two';
+			const cancelled = 'approval.example:8080/cancelled';
+			let prompts = 0;
+			instantiationService.stub(IDialogService, new class extends TestDialogService {
+				override async confirm(): Promise<IConfirmationResult> {
+					return { confirmed: ++prompts > 1 };
+				}
+			}());
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+			configService.setRawEntries([first, second, cancelled, 'approval.example:8081/one', 'other-approval.example:8080/one'].map(address => ({ address, name: 'Host' })));
+			await timeout(0);
+			service.reconnect(cancelled, true);
+			await timeout(0);
+
+			if (approval === 'local') {
+				service.reconnect(first, true);
+			} else {
+				if (approval === 'disabled') {
+					configService.setEnabled(false);
+				}
+				const otherWindowStorage = disposables.add(new InMemoryStorageService());
+				await confirmRemoteAgentHostConnection(first, new TestDialogService({ confirmed: true }), otherWindowStorage);
+				for (const key of otherWindowStorage.keys(StorageScope.APPLICATION, StorageTarget.MACHINE)) {
+					storageService.store(key, otherWindowStorage.get(key, StorageScope.APPLICATION), StorageScope.APPLICATION, StorageTarget.MACHINE, true);
+				}
+			}
+			await timeout(0);
+			const beforeEnable = createdClients.map(client => client.mockAddress).sort();
+			if (approval === 'disabled') {
+				configService.setEnabled(true);
+				await timeout(0);
+			}
+			for (const client of createdClients) {
+				await client.connectDeferred.complete();
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ beforeEnable, connected: service.connections.filter(connection => connection.status.kind === 'connected').map(connection => connection.address).sort(), prompts }, {
+				beforeEnable: approval === 'disabled' ? [] : [first, second],
+				connected: approval === 'disabled' ? [cancelled, first, second] : [first, second],
+				prompts: approval === 'local' ? 2 : 1,
+			});
+		});
+	}
 
 	test('removing a pending-only connection wakes connection observers', async () => {
 		const confirmation = new DeferredPromise<IConfirmationResult>();

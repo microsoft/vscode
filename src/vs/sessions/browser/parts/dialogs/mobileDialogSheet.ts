@@ -5,6 +5,7 @@
 
 import { $, addDisposableListener, append, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -34,6 +35,7 @@ export interface IMobileDialogSheetOptions {
 	readonly defaultButtonIndex: number;
 	/** Optional checkbox row (e.g. "Do not ask me again"). */
 	readonly checkbox?: { readonly label: string; readonly checked?: boolean };
+	readonly token?: CancellationToken;
 }
 
 export interface IMobileDialogSheetResult {
@@ -57,6 +59,9 @@ export interface IMobileDialogSheetResult {
  */
 export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutService, options: IMobileDialogSheetOptions): Promise<IMobileDialogSheetResult> {
 	const cancelIndex = options.buttons.findIndex(button => button.isCancel);
+	if (options.token?.isCancellationRequested) {
+		return { button: cancelIndex, checkboxChecked: options.checkbox?.checked };
+	}
 
 	// Tracked across the whole interaction so both the dismiss path
 	// (backdrop / Escape) and a button tap return the live values, not a
@@ -119,6 +124,9 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 			// Move focus into the modal sheet for keyboard / screen reader users.
 			buttonToFocus?.focus();
 
+			if (options.token) {
+				store.add(options.token.onCancellationRequested(() => api.close()));
+			}
 			return store;
 		},
 		{ hideDoneButton: true },
@@ -128,6 +136,6 @@ export async function showMobileDialogSheet(layoutService: IWorkbenchLayoutServi
 		previouslyFocused.focus();
 	}
 
-	return { button: chosenButton, checkboxChecked };
+	return { button: options.token?.isCancellationRequested ? cancelIndex : chosenButton, checkboxChecked };
 }
 

@@ -376,7 +376,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			const resolvedType = getChatSessionType(editorModel.model.sessionResource);
 			let isContributedChatSession = false;
 			if (resolvedType !== localChatSessionType) {
-				await raceCancellationError(this.chatSessionsService.canResolveChatSession(resolvedType), token);
+				await raceCancellationError(this.chatSessionsService.canResolveChatSession(resolvedType, token), token);
 				const contribution = this.chatSessionsService.getChatSessionContribution(resolvedType);
 				if (contribution) {
 					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type, contribution.agentHostProviderId);

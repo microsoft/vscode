@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { toAction } from '../../../base/common/actions.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
@@ -57,7 +58,7 @@ import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type Connect
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getAgentHostPathStyle } from '../common/agentHostPathStyle.js';
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../common/agentHostAdvertisedAuthentication.js';
-import { confirmRemoteAgentHostConnection, RemoteAgentHostConnectionConfirmationRequiredError, requiresRemoteAgentHostConnectionConfirmation } from '../common/remoteAgentHostWebSocket.js';
+import { confirmRemoteAgentHostConnection, onDidChangeRemoteAgentHostConnectionApproval, RemoteAgentHostConnectionConfirmationRequiredError, requiresRemoteAgentHostConnectionConfirmation } from '../common/remoteAgentHostWebSocket.js';
 import { PathStyle } from '../common/state/protocol/common/commands.js';
 
 const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
@@ -295,6 +296,20 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._reconcileConnections();
 		}));
 
+		this._register(onDidChangeRemoteAgentHostConnectionApproval(this._storageService, this._store)(() => {
+			if (this._store.isDisposed || !this._remoteAgentHostsEnabled.get()) {
+				return;
+			}
+			for (const entry of this._configuredEntries.get()) {
+				const address = this._entryAddress(entry);
+				if (entry.connection.type === RemoteAgentHostEntryType.WebSocket
+					&& this._failedReconnects.get(address) instanceof RemoteAgentHostConnectionConfirmationRequiredError
+					&& this._shouldAutoConnect(entry)
+					&& !requiresRemoteAgentHostConnectionConfirmation(address, this._storageService)) {
+					this.reconnect(address, false);
+				}
+			}
+		}));
 	}
 
 	getDisplayNameOverride(address: string): string | undefined {
@@ -374,6 +389,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				defaultDirectory: entry.client?.defaultDirectory,
 				status: entry.status,
 				...(entry.lastConnectionError ? { lastConnectionError: entry.lastConnectionError } : {}),
+				...(this._failedReconnects.get(address) instanceof RemoteAgentHostConnectionConfirmationRequiredError ? { requiresConfirmation: true } : {}),
 				...(pathStyle === undefined ? {} : { pathStyle }),
 			});
 		}
@@ -840,16 +856,23 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._onDidChangePendingConnections.fire();
 			if (err instanceof RemoteAgentHostConnectionConfirmationRequiredError
 				|| isCancellationError(err) && entryToCreate.connection.type === RemoteAgentHostEntryType.WebSocket && requiresRemoteAgentHostConnectionConfirmation(address, this._storageService)) {
-				const notification = this._notificationService.prompt(Severity.Warning,
-					localize('remoteAgentHost.reviewUnencryptedConnection', "Remote agent host '{0}' uses an unencrypted connection. Review the warning before connecting.", entryToCreate.name),
-					[{
-						label: isCancellationError(err) ? localize('remoteAgentHost.retryConnection', "Retry") : localize('remoteAgentHost.connect', "Connect"),
-						run: () => {
-							if (this._entries.get(address) === entry && this._remoteAgentHostsEnabled.get()) {
-								this.reconnect(address, true);
-							}
-						},
-					}]);
+				const notification = this._notificationService.notify({
+					id: attemptId,
+					severity: Severity.Warning,
+					message: localize('remoteAgentHost.reviewUnencryptedConnection', "Remote agent host '{0}' uses an unencrypted connection. Review the warning before connecting.", entryToCreate.name),
+					actions: {
+						primary: [toAction({
+							id: 'remoteAgentHost.connect',
+							label: isCancellationError(err) ? localize('remoteAgentHost.retryConnection', "Retry") : localize('remoteAgentHost.connect', "Connect"),
+							run: () => {
+								notification.close();
+								if (this._entries.get(address) === entry && this._remoteAgentHostsEnabled.get()) {
+									this.reconnect(address, true);
+								}
+							},
+						})],
+					},
+				});
 				entry.store.add(toDisposable(() => notification.close()));
 			}
 			// Nothing else reports this failure: no entry was created, so consumers

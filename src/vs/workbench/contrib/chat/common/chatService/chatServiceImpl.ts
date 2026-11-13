@@ -984,7 +984,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (!await raceCancellationError(this.chatSessionService.canResolveChatSession(getChatSessionType(sessionResource)), token)) {
+		if (!await raceCancellationError(this.chatSessionService.canResolveChatSession(getChatSessionType(sessionResource), token), token)) {
 			return undefined;
 		}
 

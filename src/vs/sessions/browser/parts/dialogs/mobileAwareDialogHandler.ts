@@ -52,6 +52,7 @@ export class MobileAwareDialogHandler extends AbstractDialogHandler {
 			buttons: this._toSheetButtons(labels, cancelIndex),
 			defaultButtonIndex: cancelIndex,
 			checkbox: confirmation.checkbox,
+			token: confirmation.token,
 		});
 
 		return { confirmed: button === 0, checkboxChecked };

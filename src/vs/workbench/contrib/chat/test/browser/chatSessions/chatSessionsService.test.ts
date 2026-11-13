@@ -255,6 +255,30 @@ suite('ChatSessionsService - async activation', () => {
 		return store.add(toDisposable(() => provider.dispose()));
 	}
 
+	test('cancelling one resolution request releases its activation without cancelling another request', async () => {
+		const cancellation = store.add(new CancellationTokenSource());
+		const activation = new DeferredPromise<boolean>();
+		const tokens: (CancellationToken | undefined)[] = [];
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: (_accessor, _type, token?: CancellationToken) => {
+				tokens.push(token);
+				return activation.p;
+			},
+		}));
+		let firstSettled = false;
+		let secondSettled = false;
+		const first = service.canResolveChatSession(sessionType, cancellation.token).then(result => { firstSettled = true; return result; });
+		const second = service.canResolveChatSession(sessionType, CancellationToken.None).then(result => { secondSettled = true; return result; });
+		await timeout(0);
+		cancellation.cancel();
+		await timeout(0);
+		const beforeCompletion = { firstSettled, secondSettled, cancelled: tokens.map(token => token?.isCancellationRequested ?? false) };
+		await activation.complete(false);
+		await Promise.all([first, second]);
+		assert.deepStrictEqual(beforeCompletion, { firstSettled: true, secondSettled: false, cancelled: [true, false] });
+	});
+
 	test('does not wait after an opted-in activation lifetime ends before activation resolves', async () => {
 		const lifetime = store.add(new CancellationTokenSource());
 		store.add(registry.register({

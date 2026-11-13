@@ -6,6 +6,7 @@
 import { localize } from '../../../nls.js';
 import { raceCancellation } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { isLoopbackHost } from '../../remote/common/remoteHosts.js';
@@ -46,6 +47,11 @@ function getUnapprovedOrigin(address: string, storageService: IStorageService): 
 
 export function requiresRemoteAgentHostConnectionConfirmation(address: string, storageService: IStorageService): boolean {
 	return getUnapprovedOrigin(address, storageService) !== undefined;
+}
+
+export function onDidChangeRemoteAgentHostConnectionApproval(storageService: IStorageService, disposables: DisposableStore): Event<void> {
+	return Event.map(Event.filter(storageService.onDidChangeValue(StorageScope.APPLICATION, undefined, disposables),
+		event => event.key.startsWith(insecureConnectionApprovalPrefix)), () => undefined);
 }
 
 /** Shares a cancellable plaintext warning and remembers approval only while a request still needs it. */
