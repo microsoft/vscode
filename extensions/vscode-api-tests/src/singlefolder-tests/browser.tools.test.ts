@@ -171,8 +171,8 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		const agentNetworkConfig = vscode.workspace.getConfiguration('chat.agent.sandbox.network');
 
 		try {
-			await agentNetworkConfig.update('allowedDomains', ['*'], vscode.ConfigurationTarget.Global);
-			await agentNetworkConfig.update('deniedDomains', ['localhost'], vscode.ConfigurationTarget.Global);
+			await agentNetworkConfig.update('allowedDomains', ['127.0.0.1'], vscode.ConfigurationTarget.Global);
+			await agentNetworkConfig.update('deniedDomains', [], vscode.ConfigurationTarget.Global);
 			await agentConfig.update('networkFilter', true, vscode.ConfigurationTarget.Global);
 
 			await browserConfig.update('dataStorage', 'global', vscode.ConfigurationTarget.Global);
