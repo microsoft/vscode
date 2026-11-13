@@ -13,6 +13,7 @@ import { AGENTS_WINDOW_INVITATION_TOUR_ID } from '../../browser/tours/agentsWind
 import { NEW_SESSION_VIEW_V3_TOUR_ID, NEW_SESSION_VIEW_V3_VARIATIONS } from '../../browser/tours/newSessionViewV3Tour.js';
 import { registerSessionArchiveTourDescriptor, SESSION_ARCHIVE_TOUR_ID } from '../../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
 import { PARALLEL_TASKS_TOUR_ID } from '../../browser/tours/parallelTasksTour.js';
+import { AUTOMATIONS_TOUR_ID } from '../../browser/tours/automationsTour.js';
 
 suite('OnboardingTourDescriptors', () => {
 
@@ -31,6 +32,7 @@ suite('OnboardingTourDescriptors', () => {
 			NEW_SESSION_VIEW_V3_TOUR_ID,
 			SESSION_ARCHIVE_TOUR_ID,
 			PARALLEL_TASKS_TOUR_ID,
+			AUTOMATIONS_TOUR_ID,
 		].filter(id => !descriptors.has(id)), []);
 		assert.deepStrictEqual(NEW_SESSION_VIEW_V2_VARIATIONS, ['default', 'workspaceAndModel', 'mentalModelAndModels']);
 		assert.deepStrictEqual(descriptors.get(NEW_SESSION_VIEW_V2_TOUR_ID)?.developerModeVariations, ['default', 'workspaceAndModel', 'mentalModelAndModels']);
