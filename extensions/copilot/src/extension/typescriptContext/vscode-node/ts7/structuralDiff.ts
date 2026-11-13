@@ -219,7 +219,8 @@ function collectSource(file: ts.SourceFile, checkCancellation: () => void): Sour
 		for (const [kind, spans] of groups) {
 			checkCancellation();
 			const span = { start: spans[0].start, end: spans[spans.length - 1].end };
-			const children = parent.children.filter(child => spans.some(statement => contains(statement, child.span)));
+			const isInStatement = createContainmentLookup(spans);
+			const children = parent.children.filter(child => isInStatement(child.span));
 			const childSet = new Set(children);
 			parent.children.splice(0, parent.children.length, ...parent.children.filter(child => !childSet.has(child)));
 			parent.children.push({
@@ -373,8 +374,7 @@ function matchSiblings(original: readonly Entity[], modified: readonly Entity[],
 		}
 		const before = originalCandidates[0];
 		const after = candidates[0];
-		if (before.value.name !== after.value.name && changes.some(change =>
-			touchesName(change.original, before.rename!.name) && touchesName(change.modified, after.rename!.name))) {
+		if (before.value.name !== after.value.name && isNameChanged(changes, before.rename!.name, after.rename!.name)) {
 			matches.set(after, before);
 		}
 	}
@@ -419,6 +419,20 @@ function touchesName(change: Span, name: Span): boolean {
 	return change.start === change.end
 		? name.start <= change.start && change.start <= name.end
 		: change.start < name.end && name.start < change.end;
+}
+
+/**
+ * Returns whether one change touches both the original and the modified name. The changes are ordered and do not
+ * overlap, so a binary search finds the ones around the original name, and renaming many declarations does not check
+ * every change for each of them.
+ */
+function isNameChanged(changes: readonly TextChange[], originalName: Span, modifiedName: Span): boolean {
+	for (let index = findFirstIdxMonotonousOrArrLen(changes, change => change.original.end >= originalName.start); index < changes.length && changes[index].original.start <= originalName.end; index++) {
+		if (touchesName(changes[index].original, originalName) && touchesName(changes[index].modified, modifiedName)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function classify(tree: DiffTree, side: Side, source: Source, textChangeIndex: number, span: Span, checkCancellation: () => void): void {
@@ -558,6 +572,22 @@ function createContainmentCheck(spans: SortedSpans): (part: Span) => boolean {
 			index++;
 		}
 		return index < spans.length && contains(spans[index], part);
+	};
+}
+
+/**
+ * Returns a lookup whether a span lies within one of the given spans, which must be sorted by their start. Unlike
+ * {@link createContainmentCheck}, the spans can overlap and can be looked up in any order: the spans that start at or
+ * before a span contain it if the largest of their ends reaches its end, which a binary search finds.
+ */
+function createContainmentLookup(spans: readonly Span[]): (span: Span) => boolean {
+	const reaches: number[] = [];
+	for (const span of spans) {
+		reaches.push(Math.max(reaches[reaches.length - 1] ?? span.end, span.end));
+	}
+	return span => {
+		const count = findFirstIdxMonotonousOrArrLen(spans, candidate => candidate.start > span.start);
+		return count > 0 && reaches[count - 1] >= span.end;
 	};
 }
 

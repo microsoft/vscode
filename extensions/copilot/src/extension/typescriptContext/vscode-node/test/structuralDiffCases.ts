@@ -468,6 +468,19 @@ export function defineStructuralDiffCases(compute: ComputeStructuralDiff): void 
 		});
 	});
 
+	test('groups declarations within an export statement under Exports', async () => {
+		const original = [
+			'export { value };',
+			'function between() { return 1; }',
+			'export default { calculate() { return 1; } };',
+		].join('\n');
+		const modified = original.replaceAll('return 1', 'return 2');
+		const result = await compute(original, modified);
+		assert.deepStrictEqual(summarize(result, original, modified).map(node => node.path), [
+			['Exports'], ['Exports', 'calculate'], ['between'],
+		]);
+	});
+
 	test('omits unchanged import/export groups when only a declaration body changes', async () => {
 		const original = 'import { Value } from "dependency";\nexport function calculate() { return 1; }\nexport { Value };';
 		const modified = original.replace('return 1', 'return 2');
