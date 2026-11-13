@@ -1126,6 +1126,28 @@ suite('AgentHostEditReview', () => {
 		});
 	}
 
+	test('guards legacy isEditing files until an explicit canonical status settles them', async () => {
+		hostWrites('/a.ts', 'A\n');
+		const file = workingSetFile('/a.ts', 'a\n', 'A\n', 'tc1');
+		host.setWorkingSet([file]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+
+		const legacy: ChangesetFile = JSON.parse(JSON.stringify({ ...file, isEditing: true }));
+		host.setWorkingSet([legacy]);
+		const whileEditing = !!entry.isCurrentlyBeingModifiedBy.get();
+		await review.accept(URI.file('/a.ts'));
+		const invokedWhileEditing = [...host.invoked];
+		host.setWorkingSet([JSON.parse(JSON.stringify({ ...legacy, status: 0 }))]);
+		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
+		await review.accept(URI.file('/a.ts'));
+
+		assert.deepStrictEqual({ whileEditing, invokedWhileEditing, invoked: host.invoked, errors }, {
+			whileEditing: true, invokedWhileEditing: [], invoked: ['keep /a.ts @tc1'], errors: [],
+		});
+	});
+
 	test('marks an edit during recomputation immediately and an earlier diff cannot unlock a later edit', async () => {
 		hostWrites('/a.ts', 'A\nb\n');
 		const initial = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');

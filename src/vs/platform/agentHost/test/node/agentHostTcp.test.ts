@@ -392,22 +392,50 @@ suite('AHP windowed TCP', function () {
 		assert.strictEqual(accepted, 2);
 	});
 
-	test('concurrent re-subscriptions preserve pending data, counters, snapshots, and socket identity', async () => {
+	test('legacy-only concurrent re-subscriptions preserve pending data, counters, snapshots, and socket identity', async () => {
 		const input = randomBytes(512 * 1024);
 		let accepted = 0;
 		const h = await harness(socket => { accepted++; socket.end(input); });
 		const stream = store.add(await h.open());
 		// Equal windows keep the client's credit threshold valid; the test bypasses the client stream's own renegotiation.
-		await Promise.all([1024, 2048].map((maxFrameBytes, index) => h.wire.request({
+		const responses = await Promise.all([1024, 2048].map((maximumFrameBytes, index) => h.wire.request({
 			jsonrpc: '2.0', id: 900 + index, method: 'subscribe', params: {
-				channel: stream.resource, flowControl: { receive: { windowBytes: agentHostTcpReceiveLimits.windowBytes, maxFrameBytes } },
+				channel: stream.resource, flowControl: { receive: { windowBytes: 256 * 1024, maximumFrameBytes } },
 			}
+		})));
+		assert.deepStrictEqual(responses, [1024, 2048].map(maxFrameBytes => ({
+			flowControl: {
+				clientReceive: { windowBytes: 256 * 1024, maxFrameBytes, maximumFrameBytes: maxFrameBytes },
+				hostReceive: { windowBytes: 256 * 1024, maxFrameBytes: 16 * 1024, maximumFrameBytes: 16 * 1024 },
+			},
 		})));
 		assert.deepStrictEqual(await readAll(stream), input);
 		await stream.end();
 		await stream.drain();
 		assert.strictEqual(accepted, 1);
 		assert.strictEqual(h.wire.peer.sent.filter(message => hasKey(message, { method: true }) && message.method === 'channel/snapshot').length, 3);
+	});
+
+	test('offers both TCP frame limits and accepts legacy-only host limits', async () => {
+		const h = await harness(socket => socket.on('data', data => socket.end(data)));
+		h.wire.peer.rewriteMessage = message => {
+			if (hasKey(message, { result: true }) && message.result && typeof message.result === 'object' && hasKey(message.result, { flowControl: true })) {
+				return {
+					...message,
+					result: JSON.parse('{"flowControl":{"clientReceive":{"windowBytes":262144,"maximumFrameBytes":16384},"hostReceive":{"windowBytes":262144,"maximumFrameBytes":16384}}}'),
+				};
+			}
+			return message;
+		};
+		const stream = store.add(await h.open());
+		await stream.write(VSBuffer.fromString('legacy TCP'));
+		await stream.end();
+		const received = (await readAll(stream)).toString();
+		const subscribe = h.wire.sent.find(message => hasKey(message, { method: true }) && message.method === 'subscribe');
+		assert.deepStrictEqual({ offered: subscribe && hasKey(subscribe, { params: true }) ? subscribe.params : undefined, received }, {
+			offered: { channel: stream.resource, flowControl: { receive: { windowBytes: 262144, maxFrameBytes: 16384, maximumFrameBytes: 16384 } } },
+			received: 'legacy TCP',
+		});
 	});
 
 	test('a stalled reader does not block another stream or protocol ping', async () => {

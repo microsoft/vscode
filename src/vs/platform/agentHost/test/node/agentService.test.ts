@@ -1812,7 +1812,7 @@ suite('AgentService (node dispatcher)', () => {
 		await assert.rejects(service.subscribe(resource, 'missing-viewer'),
 			error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
 		service.unsubscribe(resource, 'canvas-viewer');
-		assert.deepStrictEqual(snapshot.state, canvas);
+		assert.deepStrictEqual(snapshot.state, { ...canvas, url: 'https://example.test/preview' });
 	});
 
 	test('subscribing checks writer ownership and Retry refreshes shared input state without a turn', async () => {

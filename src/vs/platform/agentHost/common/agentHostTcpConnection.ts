@@ -10,15 +10,16 @@ import { vEnum, vObj, vOptionalProp, vString } from '../../../base/common/valida
 import { AgentHostChannelSubscription, type IAgentHostChannelPolicy } from './agentHostChannel.js';
 import { AgentHostChannelScheduler, validateChannelLimits } from './agentHostChannelDelivery.js';
 import { AgentHostChannelError, AgentHostChannelErrorCode } from './agentHostChannelTelemetry.js';
+import { withLegacyChannelReceiveLimits } from './agentHostProtocolTransition.js';
 import type { ChannelFlowControl, ChannelReceiveLimits } from './state/protocol/common/state.js';
 import type { JsonRpcNotification } from './state/sessionProtocol.js';
 import type { IProtocolTransport } from './state/sessionTransport.js';
 
 export const agentHostTcpMaxConnections = 256;
-export const agentHostTcpReceiveLimits: Readonly<ChannelReceiveLimits> = {
+export const agentHostTcpReceiveLimits: Readonly<ChannelReceiveLimits> = withLegacyChannelReceiveLimits({
 	windowBytes: 256 * 1024,
 	maxFrameBytes: 16 * 1024,
-};
+});
 
 const agentHostTcpChannelPolicy: IAgentHostChannelPolicy = {
 	resetMethod: 'tcp/reset',
@@ -122,10 +123,10 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 
 	private _getSendLimits(limits: ChannelReceiveLimits): ChannelReceiveLimits {
 		validateChannelLimits(limits);
-		return {
+		return withLegacyChannelReceiveLimits({
 			windowBytes: Math.min(limits.windowBytes, agentHostTcpReceiveLimits.windowBytes),
 			maxFrameBytes: Math.min(limits.maxFrameBytes, agentHostTcpReceiveLimits.maxFrameBytes),
-		};
+		});
 	}
 
 	private _getChunkBytes(limits: ChannelReceiveLimits): number {

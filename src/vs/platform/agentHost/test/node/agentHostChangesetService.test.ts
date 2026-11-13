@@ -2204,7 +2204,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			file: { ...file, status: unknownStatus },
 		});
 
-		const statuses = () => stateManager.getChangesetState(workingSet)?.files.map(file => file.status);
+		const statuses = () => JSON.parse(JSON.stringify(stateManager.getChangesetState(workingSet)?.files)).map((file: { status?: number; isEditing?: boolean }) => ({ status: file.status, isEditing: file.isEditing }));
 		const writing = disposables.add(await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt')));
 		const whileWriting = statuses();
 		writing.dispose();
@@ -2212,9 +2212,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		await waitForChangesetReady(stateManager, workingSet);
 
 		assert.deepStrictEqual({ whileWriting, awaitingRefresh, afterWriting: statuses() }, {
-			whileWriting: [unknownStatus | ChangesetFileStatus.Editing],
-			awaitingRefresh: [unknownStatus | ChangesetFileStatus.Editing],
-			afterWriting: [unknownStatus],
+			whileWriting: [{ status: unknownStatus | ChangesetFileStatus.Editing, isEditing: true }],
+			awaitingRefresh: [{ status: unknownStatus | ChangesetFileStatus.Editing, isEditing: true }],
+			afterWriting: [{ status: unknownStatus, isEditing: false }],
 		});
 	});
 

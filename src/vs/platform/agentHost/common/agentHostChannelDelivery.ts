@@ -5,14 +5,14 @@
 
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, vUndefined } from '../../../base/common/validation.js';
+import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
 import { AgentHostChannelError, AgentHostChannelErrorCode } from './agentHostChannelTelemetry.js';
+import { readChannelReceiveLimits } from './agentHostProtocolTransition.js';
 import type { ChannelFlowControl, ChannelReceiveLimits } from './state/protocol/common/state.js';
 import { countsAgainstWindow, WINDOW_EXEMPT_METHODS } from './state/protocol/window-exempt.generated.js';
 import type { JsonRpcNotification } from './state/sessionProtocol.js';
 import { getProtocolMessageSize, type IProtocolTransport } from './state/sessionTransport.js';
 
-const receiveLimitsValidator = vObj({ windowBytes: vNumber(), maxFrameBytes: vNumber() });
 const notificationValidator = vObj({
 	jsonrpc: vEnum('2.0'), method: vString(), id: vOptionalProp(vUndefined()),
 	params: vObj({ channel: vString() }),
@@ -73,10 +73,8 @@ export function validateChannelLimits(limits: ChannelReceiveLimits): void {
 }
 
 export function readChannelFlowControl(value: unknown): ChannelFlowControl {
-	const result = vObj({ clientReceive: receiveLimitsValidator, hostReceive: receiveLimitsValidator }).validateOrThrow(value);
-	validateChannelLimits(result.clientReceive);
-	validateChannelLimits(result.hostReceive);
-	return result;
+	const result = vObj({ clientReceive: vUnknown(), hostReceive: vUnknown() }).validateOrThrow(value);
+	return { clientReceive: readChannelReceiveLimits(result.clientReceive), hostReceive: readChannelReceiveLimits(result.hostReceive) };
 }
 
 /** Routes windowed subscriptions and fairly schedules bounded transport bursts. */

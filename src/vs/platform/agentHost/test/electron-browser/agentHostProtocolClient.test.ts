@@ -1072,6 +1072,23 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('offers both frame-limit spellings to a pre-sync host and accepts its legacy-only limits', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const pending = client.subscribe(URI.parse(channel));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireWireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: JSON.parse('{"flowControl":{"clientReceive":{"windowBytes":1048576,"maximumFrameBytes":16777216},"hostReceive":{"windowBytes":65536,"maximumFrameBytes":1024}}}'),
+			});
+			const snapshot = { resource: channel, state, fromSeq: 5 };
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+			assert.deepStrictEqual({ offered: request.params, snapshot: await pending }, {
+				offered: { channel, flowControl: { receive: { windowBytes: 1048576, maxFrameBytes: 16777216, maximumFrameBytes: 16777216 } } },
+				snapshot,
+			});
+		});
+
 		test('cancels a late subscribe reply after unsubscribe and starts fresh counters', async () => {
 			const { client, transport } = createClient();
 			await connectClient(client, transport);
@@ -8821,6 +8838,29 @@ suite('AgentHostProtocolClient', () => {
 					});
 				});
 			}
+
+			test('reconnect sends both frame limits and accepts legacy-only window recovery', async () => {
+				const { client, transports, subscription } = await fixture();
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: {
+						type: ReconnectResultType.Replay, actions: [], missing: [],
+						windows: {
+							items: [{
+								channel, recovery: 'snapshot',
+								flowControl: JSON.parse('{"clientReceive":{"windowBytes":1048576,"maximumFrameBytes":16777216},"hostReceive":{"windowBytes":65536,"maximumFrameBytes":1024}}'),
+							}]
+						},
+					},
+				});
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Legacy recovery' }, fromSeq: 8 } } });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({ offered: (request.params as { windows?: unknown }).windows, title: subscription.object.verifiedValue?.title }, {
+					offered: { items: [{ channel, flowControl: { receive: { windowBytes: 1048576, maxFrameBytes: 16777216, maximumFrameBytes: 16777216 } } }] },
+					title: 'Legacy recovery',
+				});
+			});
 
 			test('does not resend an optimistic action whose echo was missed before windowed snapshot recovery', async () => {
 				const { client, transports, subscription } = await fixture();

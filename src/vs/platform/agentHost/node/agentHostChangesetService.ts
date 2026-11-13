@@ -29,6 +29,7 @@ import {
 	parseFolderChangesetOwnerUri,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
+import { getChangesetFileStatus, withLegacyChangesetFile } from '../common/agentHostProtocolTransition.js';
 import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateMirrorFlush, type ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
@@ -573,7 +574,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				// Clients can echo a file's nonce to bind an operation to the changes they showed.
 				// They also disable operations on a file while an agent edits it, see `_publishWorkingSetEditing`.
 				const nonces = new Map(files.map(file => [file.diff, file.nonce]));
-				const statuses = new Map(this._stateManager.getChangesetState(changesetUri)?.files.map(file => [file.id, file.status]));
+				const statuses = new Map(this._stateManager.getChangesetState(changesetUri)?.files.map(file => [file.id, getChangesetFileStatus(file)]));
 				this._publishChangesetDiffs(owner, changesetUri, files.map(file => file.diff), undefined, diff => {
 					const id = diff.after?.uri ?? diff.before?.uri;
 					return {
@@ -623,11 +624,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			for (const file of state.files) {
 				const id = file.edit.after?.uri ?? file.edit.before?.uri;
-				if (id && !!((file.status ?? 0) & ChangesetFileStatus.Editing) !== editing && getFileEditResourceKey(URI.parse(id)) === fileKey) {
+				if (id && !!(getChangesetFileStatus(file) & ChangesetFileStatus.Editing) !== editing && getFileEditResourceKey(URI.parse(id)) === fileKey) {
 					if (editing) {
 						this._stateManager.dispatchServerAction(changesetUri, {
 							type: ActionType.ChangesetFileSet,
-							file: { ...file, status: (file.status ?? 0) | ChangesetFileStatus.Editing },
+							file: withLegacyChangesetFile({ ...file, status: getChangesetFileStatus(file) | ChangesetFileStatus.Editing }),
 						});
 					} else {
 						const parsed = parseChangesetUri(changesetUri);
@@ -2368,7 +2369,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		this._stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetContentChanged,
-			files,
+			files: files.map(withLegacyChangesetFile),
 			operations: operations
 				? [...operations]
 				: undefined,

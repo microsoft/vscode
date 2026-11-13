@@ -3964,7 +3964,7 @@ suite('ProtocolServerHandler', () => {
 				channel: sessionUri, flowControl: {
 					receive: {
 						windowBytes: agentHostStateReceiveLimits.windowBytes * 2,
-						maxFrameBytes: agentHostStateReceiveLimits.maxFrameBytes * 2,
+						maximumFrameBytes: agentHostStateReceiveLimits.maxFrameBytes * 2,
 					}
 				}
 			}));
@@ -4201,7 +4201,7 @@ suite('ProtocolServerHandler', () => {
 				const reconnected = waitForResponse(transport, 2);
 				transport.simulateMessage(request(2, 'reconnect', {
 					clientId: 'reconnect-window', lastSeenServerSeq: replay ? lastSeenServerSeq : -1, subscriptions: [sessionUri],
-					windows: { items: [{ channel: sessionUri, flowControl: { receive: agentHostStateReceiveLimits } }] },
+					windows: { items: [{ channel: sessionUri, flowControl: { receive: { windowBytes: 1024 * 1024, maximumFrameBytes: 16 * 1024 * 1024 } } }] },
 				}));
 				await reconnected;
 				await timeout(0);

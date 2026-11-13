@@ -24,6 +24,7 @@ import { newAgentHostChatUri, newAgentHostSessionUri } from '../../../../../../p
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { isNativeAgentHost } from '../../../../../../platform/agentHost/common/meta/agentHostSessionUrisMeta.js';
+import { getSessionAnnotationsResource } from '../../../../../../platform/agentHost/common/agentHostProtocolTransition.js';
 import { localize } from '../../../../../../nls.js';
 import { AgentSession, type AgentProvider, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatWorkspace, type IAgentPluginInstallation, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn, type IAgentCreateChatRequestOptions } from '../../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../../platform/agentHost/common/agentMerge.js';
@@ -7903,11 +7904,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId || this._isAgentDisabledByPolicy(cached.agentProvider)) {
 			return undefined;
 		}
-		const annotations = cached.annotations;
-		if (!annotations) {
+		const root = connection.rootState.value;
+		const resource = getSessionAnnotationsResource(cached, cached.backendUri.toString(), connection.initializeResult.get(), root instanceof Error ? undefined : root);
+		if (resource === undefined) {
 			return undefined;
 		}
-		const annotationsUri = URI.parse(annotations.resource);
+		const annotationsUri = URI.parse(resource);
 		return { connection, annotationsUri };
 	}
 

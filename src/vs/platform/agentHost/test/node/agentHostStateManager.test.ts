@@ -270,6 +270,7 @@ suite('AgentHostStateManager', () => {
 		const actions: ActionEnvelope[] = [];
 		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
 		manager.setCanvasState(sessionChatUri, resource, canvas);
+		manager.setCanvasState(sessionChatUri, resource, canvas);
 		manager.dispatchServerAction(sessionChatUri, {
 			type: ActionType.ChatCanvasesChanged, canvases: [{ resource }],
 		});
@@ -283,7 +284,7 @@ suite('AgentHostStateManager', () => {
 			ready, cleared, references, removed: manager.getSnapshot(resource),
 			types: actions.map(action => action.action.type),
 		}, {
-			ready: canvas, cleared: unavailable, references: [{ resource }], removed: undefined,
+			ready: { ...canvas, url: canvas.uri }, cleared: unavailable, references: [{ resource }], removed: undefined,
 			types: [ActionType.CanvasStateChanged, ActionType.ChatCanvasesChanged, ActionType.CanvasStateChanged, ActionType.ChatCanvasesChanged],
 		});
 	});

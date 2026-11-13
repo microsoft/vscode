@@ -25,6 +25,7 @@ import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
 import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import type { CanvasState } from '../common/state/protocol/channels-canvas/state.js';
+import { withLegacyCanvasState } from '../common/agentHostProtocolTransition.js';
 import { parseCanvasChatUri } from '../common/canvasUri.js';
 import { URI as ResourceURI } from '../../../base/common/uri.js';
 import { preserveProviderBackedRootConfigValues } from '../common/agentCustomizationSettings.js';
@@ -416,7 +417,7 @@ export class AgentHostStateManager extends Disposable {
 	private readonly _annotations = new Map<string, AnnotationsState>();
 	private _automationCatalog: AutomationState | undefined;
 	private readonly _automationRuns = new Map<string, AutomationRunState>();
-	private readonly _canvases = new Map<string, { readonly chat: string; state: CanvasState }>();
+	private readonly _canvases = new Map<string, { readonly chat: string; readonly source: CanvasState; state: CanvasState }>();
 
 	/**
 	 * Active turns per session, keyed by session URI string with the value
@@ -1232,11 +1233,12 @@ export class AgentHostStateManager extends Disposable {
 			throw new Error(`Canvas channel does not belong to chat: ${resource}`);
 		}
 		const previous = this._canvases.get(resource);
-		if (previous?.state === state) {
+		if (previous?.source === state) {
 			return;
 		}
-		this._canvases.set(resource, { chat, state });
-		this.dispatchServerAction(resource, { type: ActionType.CanvasStateChanged, canvas: state });
+		const canvas = withLegacyCanvasState(state);
+		this._canvases.set(resource, { chat, source: state, state: canvas });
+		this.dispatchServerAction(resource, { type: ActionType.CanvasStateChanged, canvas });
 	}
 
 	private _pruneChatCanvases(chat: string, resources: ReadonlySet<string>): void {

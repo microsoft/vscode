@@ -65,6 +65,29 @@ suite('AgentHostChannelDelivery', () => {
 		assert.deepStrictEqual(readChannelFlowControl(JSON.parse(JSON.stringify(flowControl))), flowControl);
 	});
 
+	test('decodes legacy-only flow-control results with canonical field precedence', () => {
+		const legacy = JSON.parse('{"clientReceive":{"windowBytes":2048,"maximumFrameBytes":1024},"hostReceive":{"windowBytes":4096,"maximumFrameBytes":2048}}');
+		const mixed = JSON.parse('{"clientReceive":{"windowBytes":2048,"maxFrameBytes":1024,"maximumFrameBytes":8192},"hostReceive":{"windowBytes":4096,"maxFrameBytes":2048,"maximumFrameBytes":null}}');
+		const expected = { clientReceive: limits, hostReceive: { windowBytes: 4096, maxFrameBytes: 2048 } };
+		assert.deepStrictEqual([readChannelFlowControl(legacy), readChannelFlowControl(mixed)], [expected, expected]);
+	});
+
+	test('rejects missing and malformed legacy limits without masking an invalid canonical field', () => {
+		for (const receive of [
+			'null', '{}', '{"windowBytes":2048}', '{"windowBytes":0,"maximumFrameBytes":1024}',
+			'{"windowBytes":1.5,"maximumFrameBytes":1024}', '{"windowBytes":9007199254740992,"maximumFrameBytes":1024}',
+			'{"windowBytes":2048,"maximumFrameBytes":1023}', '{"windowBytes":2048,"maximumFrameBytes":1024.5}',
+			'{"windowBytes":2048,"maximumFrameBytes":"1024"}', '{"windowBytes":2048,"maximumFrameBytes":9007199254740992}',
+			'{"windowBytes":2048,"maxFrameBytes":null,"maximumFrameBytes":1024}',
+			'{"windowBytes":2048,"maxFrameBytes":0,"maximumFrameBytes":1024}',
+			'{"windowBytes":2048,"maxFrameBytes":"1024","maximumFrameBytes":1024}',
+		]) {
+			for (const side of ['clientReceive', 'hostReceive']) {
+				assert.throws(() => readChannelFlowControl({ clientReceive: limits, hostReceive: limits, [side]: JSON.parse(receive) }), /Invalid channel receive limits/);
+			}
+		}
+	});
+
 	test('sizes fragments to the remaining credit, even below the frame limit', async () => {
 		const sender = fixture();
 		const receiver = fixture({ receiveWindowBytes: 256, release: true });

@@ -1944,6 +1944,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}
 
 	test('feedback follows advertised annotation resources and gracefully handles their absence', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: undefined }, undefined);
 		const resource = URI.parse('ahp-session:/opaque-session');
 		const annotations = { resource: 'ahp-annotations://another-host/reviews?scope=one', annotationCount: 0, entryCount: 0 };
 		const metadata = { ...createSession('opaque-session'), session: resource, provider: 'copilotcli' };
@@ -2001,6 +2002,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}
 
 	test('feedback state hydration preserves newer catalogue resources until annotations change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: undefined }, undefined);
 		const annotations = { resource: 'ahp-annotations://another-host/original', annotationCount: 0, entryCount: 0 };
 		agentHost.addSession({ ...createSession('annotations-hydration', { summary: 'Saved', status: ProtocolSessionStatus.Idle }), annotations });
 		const provider = createRefreshableProvider(disposables, agentHost);
@@ -2034,6 +2036,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 			firstOmitted: annotations.resource, unchangedSnapshot: replacement.resource, observed: [changed.resource, undefined], removed: undefined,
 		});
 	}));
+
+	for (const identity of ['initialize metadata', 'root hostBuild', 'unmarked'] as const) {
+		test(`feedback falls back to the pre-sync annotations suffix only for a native host (${identity})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.initializeResult.set({
+				...agentHost.initializeResult.get(),
+				protocolVersion: '1.1.0',
+				_meta: identity === 'initialize metadata' ? JSON.parse('{"vscode.agentHost":true}') : undefined,
+			}, undefined);
+			if (identity === 'root hostBuild') {
+				const root = agentHost.rootState.value;
+				assert.ok(root && !(root instanceof Error));
+				agentHost.setRootState({ ...root, _meta: JSON.parse('{"hostBuild":{"version":"1.135.0-insider"}}') });
+			}
+			const provider = createRefreshableProvider(disposables, agentHost);
+			await provider.refreshForTest();
+			agentHost.fireNotification(JSON.parse('{"channel":"ahp-root://","type":"root/sessionAdded","summary":{"resource":"copilotcli:/pre-sync-feedback","provider":"copilotcli","title":"Pre-sync feedback","status":1,"createdAt":"2026-11-13T00:00:00Z","modifiedAt":"2026-11-13T00:00:00Z","chats":[]}}'));
+			const session = provider.getSessions()[0];
+			const resolve = () => provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+			const legacy = resolve();
+			const advertised: (string | undefined)[] = [];
+			for (const resource of ['review-store://elsewhere/opaque?generation=2', 'copilotcli:/another-session/annotations']) {
+				fireSessionSummaryChanged(agentHost, 'pre-sync-feedback', { annotations: { resource, annotationCount: 0, entryCount: 0 } });
+				advertised.push(resolve());
+			}
+			assert.deepStrictEqual({ legacy, advertised }, {
+				legacy: identity === 'unmarked' ? undefined : 'copilotcli:/pre-sync-feedback/annotations',
+				advertised: ['review-store://elsewhere/opaque?generation=2', 'copilotcli:/another-session/annotations'].map(resource => URI.parse(resource).toString()),
+			});
+		}));
+	}
 
 	for (const agentProvider of ['claude', 'codex']) {
 		for (const initiallyBlocked of [false, true]) {
