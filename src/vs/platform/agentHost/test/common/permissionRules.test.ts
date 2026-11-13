@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { type IUrlApprovalSettings } from '../../../url/common/urlApprovalPatterns.js';
 import { AgentPermissionKind } from '../../common/agent.js';
-import { IPermissionRequest, IPermissionRuleContext, isExactAbsolutePathRule, isWebFetchRule, matchesPermissionRule, matchesShellCommandLine, matchesShellSubCommand, parsePermissionGrantOptionId, pathRule, permissionGrantOptionId, PermissionGrantScope, shellExactRule, shellPrefixRule, webFetchRule, webFetchRuleToUrlPattern, urlApprovalsToWebFetchRules } from '../../common/permissionRules.js';
+import { IPermissionRequest, IPermissionRuleContext, isExactAbsolutePathRule, isWebFetchRule, matchesPermissionRule, matchesShellCommandLine, matchesShellSubCommand, mcpServerRule, mcpToolRule, parsePermissionGrantOptionId, pathRule, permissionGrantOptionId, PermissionGrantScope, shellExactRule, shellPrefixRule, webFetchRule, webFetchRuleToUrlPattern, urlApprovalsToWebFetchRules } from '../../common/permissionRules.js';
 
 suite('Permission rules', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -243,6 +243,52 @@ suite('Permission rules', () => {
 			['my_tool', { kind: undefined, toolName: 'my_tool' }, true],
 		];
 		assert.deepStrictEqual(cases.map(([rule, request]) => [rule, request, matchesPermissionRule(rule, request, context)]), cases);
+	});
+
+	test('Mcp rules match raw server and tool identity independently of provider tool names', () => {
+		const request: IPermissionRequest = { kind: AgentPermissionKind.Mcp, toolName: 'corp-get_me', mcpServerName: 'corp', mcpToolName: 'get_me' };
+		const cases: [string, IPermissionRequest, boolean][] = [
+			['Mcp(corp)', request, true],
+			['Mcp(corp/get_me)', request, true],
+			['Mcp', request, true],
+			['Mcp(*)', request, true],
+			['Mcp(corp)', { ...request, toolName: 'mcp__corp__get_me' }, true],
+			['Mcp(corp)', { ...request, mcpToolName: undefined }, true],
+			['Mcp(corp/get_me)', { ...request, mcpToolName: undefined }, false],
+			['Mcp(other)', request, false],
+			['Mcp(corp/other)', request, false],
+			['Mcp(Corp)', request, false],
+			['Mcp(corp/*)', request, false],
+			['Mcp(corp)', { ...request, kind: AgentPermissionKind.CustomTool }, false],
+			['Mcp(corp)', { ...request, mcpServerName: undefined }, false],
+			['Mcp', { ...request, mcpServerName: undefined }, true],
+			['Mcp(*)', { ...request, mcpServerName: undefined }, true],
+			['Mcp(corp/get_me)', { ...request, mcpServerName: 'corp/get_me' }, false],
+			['Mcp', { ...request, mcpServerName: 'corp/get_me' }, true],
+		];
+		assert.deepStrictEqual(cases.map(([rule, candidate]) => [rule, candidate, matchesPermissionRule(rule, candidate, context)]), cases);
+	});
+
+	test('MCP grant builders preserve literal names and reject malformed or ambiguous names', () => {
+		const mcpServerName = 'corp (prod)';
+		const mcpToolName = 'get_(me)';
+		const request: IPermissionRequest = { kind: AgentPermissionKind.Mcp, toolName: 'provider-specific', mcpServerName, mcpToolName };
+		const serverRule = mcpServerRule(mcpServerName);
+		const toolRule = mcpToolRule(mcpServerName, mcpToolName);
+		const invalidNames = ['', '  ', '*', 'corp(', 'corp)', ')corp('];
+		assert.deepStrictEqual({
+			serverRule,
+			toolRule,
+			matches: [serverRule, toolRule].map(rule => rule !== undefined && matchesPermissionRule(rule, request, context)),
+			invalid: invalidNames.map(name => [mcpServerRule(name), mcpToolRule(name, 'tool'), mcpToolRule('server', name)]),
+			ambiguous: [mcpServerRule('server/tool'), mcpToolRule('server/other', 'tool')],
+		}, {
+			serverRule: 'Mcp(corp (prod))',
+			toolRule: 'Mcp(corp (prod)/get_(me))',
+			matches: [true, true],
+			invalid: invalidNames.map(() => [undefined, undefined, undefined]),
+			ambiguous: [undefined, undefined],
+		});
 	});
 
 	test('path matching optionally ignores case for exact paths and globs', () => {
