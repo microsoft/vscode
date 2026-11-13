@@ -112,10 +112,17 @@ export function getSessionEnvironments(environments: readonly ISessionEnvironmen
 }
 
 /** Sharing registrations of this computer are already represented by This Computer. */
-export function getSessionFilterEnvironments(providers: readonly ISessionsProvider[], reader?: IReader): ISessionEnvironment[] {
-	return providers
-		.filter(provider => !isAgentHostProvider(provider) || !provider.localRegistration?.read(reader))
-		.map(provider => provider.environment);
+export function getSessionFilterEnvironments(providers: readonly ISessionsProvider[], reader?: IReader): { environments: ISessionEnvironment[]; localEnvironmentIds: ReadonlySet<string> } {
+	const environments: ISessionEnvironment[] = [];
+	const localEnvironmentIds = new Set<string>();
+	for (const provider of providers) {
+		if (isAgentHostProvider(provider) && provider.localRegistration?.read(reader)) {
+			localEnvironmentIds.add(provider.environment.id);
+		} else {
+			environments.push(provider.environment);
+		}
+	}
+	return { environments, localEnvironmentIds };
 }
 
 /**

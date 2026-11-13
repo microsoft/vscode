@@ -208,7 +208,7 @@ suite('Sessions - View Menu', () => {
 		list.setItemCollapsed({ section: 'pinned' }, false);
 		const connected = observableValue('connected', true);
 		const environments = observableValue<readonly ISessionEnvironment[]>('environments', [{ id: 'ssh:work', label: 'Workstation', isConnected: connected }]);
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments, constObservable(new Set<string>())));
 		const workspace = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const environment = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const icons = () => [workspace, environment].map(trigger => {
@@ -303,8 +303,9 @@ suite('Sessions - View Menu', () => {
 		const harness = createListHarness(store, []);
 		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
 		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const environmentOptions = derived(reader => getSessionFilterEnvironments(providers, reader));
 		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), menu.filters,
-			constObservable([]), derived(reader => getSessionFilterEnvironments(providers, reader))));
+			constObservable([]), derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds)));
 		const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const snapshot = () => {
 			trigger.click();
@@ -353,13 +354,77 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	for (const restored of [false, true]) {
+		test(`Inbox reconciles a ${restored ? 'restored' : 'selected'} local registration without losing unavailable remote selections`, () => {
+			const harness = createListHarness(store, []);
+			const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+			harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+			const storage = store.add(new InMemoryStorageService());
+			let filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+			const registration = observableValue<LocalAgentHostRegistration | undefined>('registration', undefined);
+			const localSession = buildTestSession({ id: 'local', title: 'Local', workspace: 'app' }).session;
+			const registrationSession = buildTestSession({ id: 'registration', title: 'Registration', workspace: 'app', environment: 'github' }).session;
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-github',
+				environment: { id: 'github', label: 'My Computer (GitHub)' },
+				localRegistration: registration,
+			});
+			const environmentOptions = derived(reader => getSessionFilterEnvironments([provider], reader));
+			if (restored) {
+				filters.setInboxEnvironment({ id: 'github', label: 'My Computer (GitHub)' });
+				filters.setInboxWorkspace({ environment: 'github', resource: 'file:///app', label: 'app' });
+				filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+				registration.set('githubEnvironment', undefined);
+			}
+			const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
+				constObservable([localSession, registrationSession]),
+				derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds)));
+			const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
+			if (!restored) {
+				trigger.click();
+				const item = [...mainWindow.document.querySelectorAll<HTMLElement>('.action-widget .monaco-list-row .title')]
+					.find(item => item.textContent === 'My Computer (GitHub)');
+				assert.ok(item);
+				item.click();
+				filters.setInboxWorkspace({ environment: 'github', resource: 'file:///app', label: 'app' });
+				registration.set('githubEnvironment', undefined);
+			}
+			trigger.click();
+			const rows = [...mainWindow.document.querySelectorAll('.action-widget .monaco-list-row .title')].map(row => row.textContent);
+			actionWidgetService.hide(true);
+			const normalized = {
+				scope: filters.inboxScope,
+				label: trigger.textContent,
+				workspace: scope.element.querySelector('.workspace-picker .action-label')?.textContent,
+				rows,
+				localMatches: filters.matchesInboxScope(localSession),
+				persisted: store.add(new SessionsListFilters(storage, store.add(new NullLogService()))).inboxScope,
+			};
+			filters.setInboxEnvironment({ id: 'missing', label: 'Other Computer' });
+			assert.deepStrictEqual({ normalized, unavailable: { scope: filters.inboxScope, label: trigger.textContent } }, {
+				normalized: {
+					scope: { environment: { id: 'local', label: 'This Computer' }, workspace: undefined },
+					label: 'This Computer',
+					workspace: 'All Workspaces',
+					rows: ['All Environments', 'This Computer', 'Cloud'],
+					localMatches: true,
+					persisted: { environment: { id: 'local', label: 'This Computer' } },
+				},
+				unavailable: {
+					scope: { environment: { id: 'missing', label: 'Other Computer' }, workspace: undefined },
+					label: 'Unavailable: Other Computer',
+				},
+			});
+		});
+	}
+
 	test('Inbox scope dropdowns cancel and close when hidden or disposed', () => {
 		const harness = createListHarness(store, []);
 		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
 		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
 		const container = harness.createContainer();
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([])));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>())));
 		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const open = () => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 		open();

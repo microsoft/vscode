@@ -401,7 +401,9 @@ export class SessionsView extends ViewPane {
 			scopeChanged.read(reader);
 			return getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 		});
-		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions, scopeEnvironments));
+		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
+			derived(reader => scopeEnvironments.read(reader).environments),
+			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds)));
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
@@ -792,7 +794,7 @@ export class SessionsView extends ViewPane {
 			readonly emptySourcesTitle: string | undefined;
 		}>({ owner: this, equalsFn: structuralEquals }, reader => {
 			changed.read(reader);
-			const environments = getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
+			const { environments } = getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 			const options = getSessionFilterOptions(
 				this.sessionsManagementService.getSessions(),
 				environments,
