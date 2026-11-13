@@ -49,6 +49,8 @@ suite('FolderLocationPersistenceContribution', () => {
 		const returns: URI[] = [];
 		const prompts: { readonly choices: string[]; run(): Promise<void>; closed(): boolean }[] = [];
 		const onDidChangeProviders = ds.add(new Emitter<void>());
+		const onDidChangeWorkbenchState = ds.add(new Emitter<void>());
+		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly folder: unknown; readonly reason: 'user' | 'programmatic' }>());
 		let currentLocation: IResolvedFolderLocation | undefined = options.confirmed;
 		let providerAvailable = !!options.providerAvailable;
@@ -69,7 +71,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		} as unknown as IWorkspaceFolderLocationService;
 
 		const contribution = ds.add(new FolderLocationPersistenceContribution(
-			{ getWorkspace } as unknown as IWorkspaceContextService,
+			{ getWorkspace, onDidChangeWorkbenchState: onDidChangeWorkbenchState.event, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
 			locationService,
 			{
 				setFolderLocation: options.setFolderLocation ?? (async (l: URI) => { returns.push(l); folderUri = l; })
@@ -97,7 +99,8 @@ suite('FolderLocationPersistenceContribution', () => {
 			setCurrent(location: IResolvedFolderLocation | undefined) { currentLocation = location; onDidChangeCurrentLocation.fire({ folder: getWorkspace().folders[0], reason: 'programmatic' }); },
 			hasProvidersListener: () => onDidChangeProviders.hasListeners(),
 			moveFolderTo(uri: URI) { folderUri = uri; },
-			enterMultiRoot() { multiRoot = true; }
+			enterMultiRoot() { multiRoot = true; onDidChangeWorkbenchState.fire(); onDidChangeWorkspaceFolders.fire(); },
+			dispose: () => contribution.dispose()
 		};
 	}
 
@@ -186,6 +189,35 @@ suite('FolderLocationPersistenceContribution', () => {
 		fixture.setCurrent(resolvedLocation);
 
 		assert.strictEqual(fixture.prompts[0].closed(), true);
+	}));
+
+	test('the offer to return is withdrawn when the contribution is disposed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		fixture.dispose();
+
+		assert.strictEqual(fixture.prompts[0].closed(), true);
+	}));
+
+	test('the offer to return is withdrawn when the workspace becomes multi-root', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		fixture.enterMultiRoot();
+		await fixture.prompts[0].run();
+
+		assert.deepStrictEqual({ closed: fixture.prompts[0].closed(), returns: fixture.returns }, { closed: true, returns: [] });
+	}));
+
+	test('the offer to return does nothing when the folder is no longer at the location', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		fixture.moveFolderTo(primary);
+		await fixture.prompts[0].run();
+
+		assert.deepStrictEqual(fixture.returns, []);
 	}));
 
 	test('a positive result after the deadline is ignored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

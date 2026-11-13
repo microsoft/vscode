@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
@@ -61,19 +62,44 @@ export interface IValidatedFolderLocation {
 	readonly folderLocationMissing?: { readonly label: string };
 }
 
+/** Whether a folder location is known to exist, known to be gone, or could not be determined. */
+export type FolderLocationExistence = 'exists' | 'missing' | 'unknown';
+
 /**
- * Decides, before the window is created, whether a window can start at an alternate location:
- * only an existing local directory qualifies. Otherwise the window opens at the primary location,
- * the remembered location is forgotten and the window is told, so that it can inform the user.
+ * Only a definite answer counts as missing (not found, or not a directory). Other failures
+ * such as permission or I/O errors are transient or unrelated to the folder being gone.
  */
-export async function validateStartupFolderLocation(primary: URI, candidate: IWindowFolderLocation | undefined, memory: Pick<FolderLocationMemory, 'set'>, isDirectory: (path: string) => Promise<boolean>): Promise<IValidatedFolderLocation> {
+export async function statFolderLocation(path: string, onUnknown?: (error: unknown) => void): Promise<FolderLocationExistence> {
+	try {
+		return (await fs.promises.stat(path)).isDirectory() ? 'exists' : 'missing';
+	} catch (error) {
+		const code = (error as NodeJS.ErrnoException).code;
+		if (code === 'ENOENT' || code === 'ENOTDIR') {
+			return 'missing';
+		}
+		onUnknown?.(error);
+		return 'unknown';
+	}
+}
+
+/**
+ * Decides, before the window is loaded, whether it can start at an alternate location:
+ * only a local directory that is not known to be gone qualifies. If it is gone, the window opens
+ * at the primary location, the remembered location is forgotten and the window is told, so that
+ * it can inform the user. If its existence cannot be determined, the window opens at the location
+ * and keeps it remembered; the window then offers to return if no provider confirms it.
+ */
+export async function validateStartupFolderLocation(primary: URI, candidate: IWindowFolderLocation | undefined, memory: Pick<FolderLocationMemory, 'set'>, existence: (path: string) => Promise<FolderLocationExistence>): Promise<IValidatedFolderLocation> {
 	if (!candidate) {
 		return {};
 	}
 
 	const location = URI.parse(candidate.uri);
-	if (location.scheme === Schemas.file && await isDirectory(location.fsPath)) {
-		return { folderLocation: candidate };
+	if (location.scheme === Schemas.file) {
+		const state = await existence(location.fsPath);
+		if (state !== 'missing') {
+			return { folderLocation: candidate };
+		}
 	}
 
 	memory.set(primary, undefined);

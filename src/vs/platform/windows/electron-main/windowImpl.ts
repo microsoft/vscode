@@ -40,6 +40,7 @@ import { IWorkspacesManagementMainService } from '../../workspaces/electron-main
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
 import { IPolicyService } from '../../policy/common/policy.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { statFolderLocation, validateStartupFolderLocation } from './folderLocationMemory.js';
 import { IStateService } from '../../state/node/state.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
@@ -1473,6 +1474,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Validate workspace
 		configuration.workspace = await this.validateWorkspaceBeforeReload(configuration);
+
+		// An alternate location that is gone is not reloaded, and a notice is only shown once
+		delete configuration.folderLocationMissing;
+		if (configuration.folderLocation && isSingleFolderWorkspaceIdentifier(configuration.workspace) && !configuration.remoteAuthority) {
+			const validated = await validateStartupFolderLocation(
+				configuration.workspace.uri,
+				configuration.folderLocation,
+				{ set: (primary, location) => this.windowsMainService.rememberFolderLocation(primary, location) },
+				path => statFolderLocation(path, error => this.logService.warn(`Could not determine whether the folder location ${path} exists`, error))
+			);
+			configuration.folderLocation = validated.folderLocation;
+			configuration.folderLocationMissing = validated.folderLocationMissing;
+		}
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;

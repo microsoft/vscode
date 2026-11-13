@@ -41,7 +41,7 @@ import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, I
 import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
-import { FolderLocationMemory, validateStartupFolderLocation } from './folderLocationMemory.js';
+import { FolderLocationMemory, statFolderLocation, validateStartupFolderLocation } from './folderLocationMemory.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -870,13 +870,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return {};
 		}
 
-		return validateStartupFolderLocation(workspace.uri, candidate, this.folderLocationMemory, async path => {
-			try {
-				return (await fs.promises.stat(path)).isDirectory();
-			} catch (error) {
-				return false;
-			}
-		});
+		return validateStartupFolderLocation(workspace.uri, candidate, this.folderLocationMemory, path => statFolderLocation(path, error => this.logService.warn(`Could not determine whether the folder location ${path} exists`, error)));
 	}
 
 	private async doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): Promise<ICodeWindow> {

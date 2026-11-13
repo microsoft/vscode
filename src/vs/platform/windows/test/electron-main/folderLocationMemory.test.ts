@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as fs from 'fs';
+import { tmpdir } from 'os';
+import { join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FolderLocationMemory, validateStartupFolderLocation } from '../../electron-main/folderLocationMemory.js';
+import { FolderLocationExistence, FolderLocationMemory, statFolderLocation, validateStartupFolderLocation } from '../../electron-main/folderLocationMemory.js';
 
 suite('FolderLocationMemory', () => {
 
@@ -71,7 +74,7 @@ suite('FolderLocationMemory', () => {
 
 	suite('validateStartupFolderLocation', () => {
 
-		const existing = async (path: string) => path === '/work/repo.wt/feature';
+		const existing = async (path: string): Promise<FolderLocationExistence> => path === '/work/repo.wt/feature' ? 'exists' : 'missing';
 
 		test('an existing local location is kept and remembered', async () => {
 			const { memory } = create();
@@ -84,7 +87,7 @@ suite('FolderLocationMemory', () => {
 			const { memory } = create();
 			memory.set(primary, location);
 
-			assert.deepStrictEqual({ result: await validateStartupFolderLocation(primary, location, memory, async () => false), memory: memory.get(primary) }, { result: { folderLocationMissing: { label: 'feature' } }, memory: undefined });
+			assert.deepStrictEqual({ result: await validateStartupFolderLocation(primary, location, memory, async () => 'missing'), memory: memory.get(primary) }, { result: { folderLocationMissing: { label: 'feature' } }, memory: undefined });
 		});
 
 		test('a remote location is not started at and is forgotten without a stat', async () => {
@@ -93,15 +96,47 @@ suite('FolderLocationMemory', () => {
 			let stats = 0;
 
 			assert.deepStrictEqual(
-				{ result: await validateStartupFolderLocation(primary, { ...location, uri: 'vscode-remote://host/work/repo.wt/feature' }, memory, async () => { stats++; return true; }), stats, memory: memory.get(primary) },
+				{ result: await validateStartupFolderLocation(primary, { ...location, uri: 'vscode-remote://host/work/repo.wt/feature' }, memory, async () => { stats++; return 'exists'; }), stats, memory: memory.get(primary) },
 				{ result: { folderLocationMissing: { label: 'feature' } }, stats: 0, memory: undefined });
+		});
+
+		test('a location that cannot be determined is kept, remembered and not reported', async () => {
+			const { memory } = create();
+			memory.set(primary, location);
+
+			assert.deepStrictEqual({ result: await validateStartupFolderLocation(primary, location, memory, async () => 'unknown'), memory: memory.get(primary) }, { result: { folderLocation: location }, memory: location });
 		});
 
 		test('without a location nothing is validated or cleared', async () => {
 			const { memory } = create();
 			memory.set(primary, location);
 
-			assert.deepStrictEqual({ result: await validateStartupFolderLocation(primary, undefined, memory, async () => false), memory: memory.get(primary) }, { result: {}, memory: location });
+			assert.deepStrictEqual({ result: await validateStartupFolderLocation(primary, undefined, memory, async () => 'missing'), memory: memory.get(primary) }, { result: {}, memory: location });
+		});
+	});
+
+	suite('statFolderLocation', () => {
+
+		test('a directory exists, a file or a missing path is missing, other failures are unknown', async () => {
+			const root = fs.mkdtempSync(join(tmpdir(), 'folderLocation'));
+			try {
+				const file = join(root, 'file');
+				fs.writeFileSync(file, '');
+				const unknownErrors: unknown[] = [];
+
+				assert.deepStrictEqual(
+					[
+						await statFolderLocation(root),
+						await statFolderLocation(file),
+						await statFolderLocation(join(root, 'missing')),
+						await statFolderLocation(join(file, 'child')),
+						await statFolderLocation(join(root, 'invalid\0path'), error => unknownErrors.push(error))
+					],
+					['exists', 'missing', 'missing', 'missing', 'unknown']);
+				assert.strictEqual(unknownErrors.length, 1);
+			} finally {
+				fs.rmSync(root, { recursive: true });
+			}
 		});
 	});
 });
