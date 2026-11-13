@@ -1083,7 +1083,7 @@ suite('Artifact Integration Presentation', () => {
 		}, {
 			before: { resourceOpens: 0, shellActions: 0 }, after: { resourceOpens: 1, shellActions: 2 },
 			title: 'Full title for artifact', description: 'The actual resource description.',
-			selected: true, expanded: 'true', controls: f.controller.id, rootId: f.controller.id, acquired: ['main', 'checks', 'comments'],
+			selected: true, expanded: 'false', controls: f.controller.id, rootId: f.controller.id, acquired: ['main', 'checks', 'comments'],
 			headerActions: ['Copy Link', 'Remove Artifact', 'Close Artifact Details'], headerText: ['', '', ''],
 			headerIcons: ['codicon-copy', 'codicon-trash', 'codicon-close'], footer: null,
 		});
@@ -1305,18 +1305,38 @@ suite('Artifact Integration Presentation', () => {
 			{ selected: undefined, focusedInput: true, released: ['main', 'checks', 'comments'] });
 	});
 
-	test('section clicks focus the corresponding list in the whole panel, including repeated clicks', async () => {
+	test('only the section that shows the details is expanded and tinted; it closes them, while another section switches to its list', async () => {
 		const f = fixture();
+		f.host.style.setProperty('--vscode-button-secondaryBackground', 'rgb(49, 49, 49)');
+		f.host.style.setProperty('--vscode-toolbar-activeBackground', 'rgba(255, 255, 255, 0.1)');
 		const a = f.artifact();
+		const normal = 'linear-gradient(rgb(49, 49, 49), rgb(49, 49, 49))';
+		const active = `linear-gradient(rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)), ${normal}`;
+		const state = () => ({
+			open: f.controller.selected.get() === a.presentation,
+			expanded: sections(a).map(section => section.getAttribute('aria-expanded')),
+			backgrounds: sections(a).map(section => mainWindow.getComputedStyle(section).backgroundImage),
+		});
 		const first = await open(f, a, 0);
-		const checksFocused = first.querySelector('.artifact-state-list .monaco-list') === getActiveElement();
-		const again = await open(f, a, 0);
-		const comments = await open(f, a, 1);
-		assert.deepStrictEqual({
-			same: first === again && first === comments, shows: f.contextShows(), checksFocused,
-			commentsFocused: comments.querySelectorAll('.artifact-state-list .monaco-list')[1] === getActiveElement(),
-			title: comments.querySelector('h2')?.textContent, actions: comments.querySelectorAll('.artifact-state-actions [role="button"]').length,
-		}, { same: true, shows: 1, checksFocused: true, commentsFocused: true, title: 'Full title for artifact', actions: 3 });
+		const checks = { ...state(), focusedList: first.querySelector('.artifact-state-list .monaco-list') === getActiveElement() };
+		const second = await open(f, a, 1);
+		const comments = { ...state(), samePanel: first === second, focusedList: second.querySelectorAll('.artifact-state-list .monaco-list')[1] === getActiveElement() };
+		sections(a)[1].click();
+		await settle(f);
+		const toggledClosed = { open: state().open, focusedSection: getActiveElement() === sections(a)[1] };
+		f.input.focus();
+		const afterToggle = state();
+		await open(f, a, 0);
+		f.input.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+		await settle(f);
+		assert.deepStrictEqual({ checks, comments, toggledClosed, afterToggle, afterOutsideClick: state(), shows: f.contextShows() }, {
+			checks: { open: true, expanded: ['true', 'false'], backgrounds: [active, normal], focusedList: true },
+			comments: { open: true, expanded: ['false', 'true'], backgrounds: [normal, active], samePanel: true, focusedList: true },
+			toggledClosed: { open: false, focusedSection: true },
+			afterToggle: { open: false, expanded: ['false', 'false'], backgrounds: [normal, normal] },
+			afterOutsideClick: { open: false, expanded: ['false', 'false'], backgrounds: [normal, normal] },
+			shows: 2,
+		});
 	});
 
 	test('Quick Pick renders above artifact details without replacing the artifact context view', async () => {
@@ -2177,7 +2197,7 @@ suite('Artifact Integration Presentation', () => {
 			}, { absent: true, initial: '3', retainedWhileUnavailable: true, multipleProviders: '4', hasAutomationIcon: true, removed: true });
 		});
 
-		test('the Autopilot pill section opens, expands and focuses Autopilot without toggling the panel closed', async () => {
+		test('the Autopilot pill section opens, expands and focuses Autopilot, and re-expands it when switching from another section', async () => {
 			const f = fixture();
 			const a = f.artifact();
 			updateContribution(a, contribution => ({ ...contribution, configuration: { ...contribution.configuration, values: { ...contribution.configuration.values, fix: true } } }));
@@ -2195,7 +2215,7 @@ suite('Artifact Integration Presentation', () => {
 			};
 			const focused = getActiveElement() === heading;
 			heading.click();
-			badge.click();
+			sections(a)[0].click();
 			badge.click();
 			await settle(f);
 			const expanded = heading.getAttribute('aria-expanded');
@@ -2359,10 +2379,10 @@ suite('Artifact Integration Presentation', () => {
 			}
 			press('Enter', 13);
 			const collapsedByEnter = { ...tabState(), listsHidden: panel.querySelector<HTMLElement>('.artifact-details-lists')!.hidden };
-			const section = a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]')[0];
-			section.click();
+			const pillSections = a.container.querySelectorAll<HTMLElement>('.artifact-pill-sections [role="button"]');
+			pillSections[1].click();
 			await settle(f);
-			section.click();
+			pillSections[0].click();
 			await settle(f);
 			assert.deepStrictEqual({
 				collapsedArrow, expandedByEnter, selected, collapsedByEnter, tabStops: tabs.map(tab => tab.tabIndex),

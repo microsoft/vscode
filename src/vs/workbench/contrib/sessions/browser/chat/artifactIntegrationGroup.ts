@@ -304,6 +304,7 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 			const members = this.group.members.read(reader);
 			const summary = this.group.summary.read(reader);
 			const selected = this.group.detailsHost.selected.read(reader);
+			const activeSection = this.group.detailsHost.activeSection.read(reader);
 			this.header.textContent = summary.title;
 			this.element.setAttribute('aria-label', summary.label);
 			const active = getActiveElement();
@@ -320,12 +321,13 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 				if (!row) {
 					row = new ArtifactIntegrationGroupRow(this.hoverService, this.hoverLifecycleOptions, {
 						open: entry => this.openResource(entry),
-						openDetails: (presentation, selection) => this.openDetails(presentation, selection),
+						openDetails: (presentation, selection, sectionId) => this.openDetails(presentation, selection, sectionId),
 						run: (action, keepOpen) => this.runAction(action, keepOpen),
 					});
 					this.rows.set(member.entry.id, row);
 				}
-				row.update(member, member.presentation.snapshot.read(reader), member.presentation === selected, index, members.length);
+				const isSelected = member.presentation === selected;
+				row.update(member, member.presentation.snapshot.read(reader), isSelected, isSelected ? activeSection : undefined, index, members.length);
 				if (next !== row.element) {
 					this.list.insertBefore(row.element, next);
 				}
@@ -400,12 +402,12 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 		entry.open();
 	}
 
-	private openDetails(presentation: ArtifactIntegrationPresentation, selection: ArtifactDetailsSelection | undefined): void {
+	private openDetails(presentation: ArtifactIntegrationPresentation, selection: ArtifactDetailsSelection | undefined, sectionId: string): void {
 		const button = this.button;
 		const host = this.group.detailsHost;
 		this.hide(false);
 		if (button.isConnected) {
-			host.toggle(presentation, button, selection);
+			host.toggle(presentation, button, selection, sectionId);
 		}
 	}
 
@@ -472,7 +474,7 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 
 interface IArtifactIntegrationGroupRowDelegate {
 	open(entry: IChatPillEntry): void;
-	openDetails(presentation: ArtifactIntegrationPresentation, selection: ArtifactDetailsSelection | undefined): void;
+	openDetails(presentation: ArtifactIntegrationPresentation, selection: ArtifactDetailsSelection | undefined, sectionId: string): void;
 	run(action: IChatPillAction, keepOpen: boolean): void;
 }
 
@@ -522,7 +524,7 @@ class ArtifactIntegrationGroupRow extends Disposable {
 		return this.member?.presentation;
 	}
 
-	update(member: IArtifactIntegrationGroupMember, snapshot: ArtifactSnapshot, selected: boolean, index: number, count: number): void {
+	update(member: IArtifactIntegrationGroupMember, snapshot: ArtifactSnapshot, selected: boolean, activeSection: string | undefined, index: number, count: number): void {
 		this.member = member;
 		const active = getActiveElement();
 		const focusedKey = isHTMLElement(active) ? [...this.controls].find(([, control]) => control === active)?.[0] : undefined;
@@ -539,7 +541,7 @@ class ArtifactIntegrationGroupRow extends Disposable {
 		this.title.textContent = title;
 		this.title.hidden = !title;
 
-		const statuses = getArtifactStatusButtons(member.presentation, snapshot, selected, (_target, selection) => this.delegate.openDetails(member.presentation, selection));
+		const statuses = getArtifactStatusButtons(member.presentation, snapshot, activeSection, (_target, selection, sectionId) => this.delegate.openDetails(member.presentation, selection, sectionId));
 
 		const actions = getArtifactGroupRowActions(member);
 
@@ -596,6 +598,9 @@ class ArtifactIntegrationGroupRow extends Disposable {
 		element.setAttribute('aria-label', status.ariaLabel ?? status.description ?? status.label);
 		if (status.controls) {
 			element.setAttribute('aria-controls', status.controls);
+		}
+		if (status.expanded !== undefined) {
+			element.setAttribute('aria-expanded', String(status.expanded));
 		}
 		this.content.add(this.hoverService.setupDelayedHover(element, () => ({ content: status.description ?? status.label, style: HoverStyle.Pointer }), this.hoverLifecycleOptions));
 		this.content.add(addDisposableListener(element, EventType.CLICK, event => {

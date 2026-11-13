@@ -154,7 +154,7 @@ suite('Session Artifacts', () => {
 			chat,
 			browserUrls,
 			gitHubReferences,
-			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
+			{ id: 'test-artifact-details', selected: constObservable(undefined), activeSection: constObservable(undefined), toggle() { }, release() { } },
 			new class extends mock<IClipboardService>() { }(),
 			configurationService,
 			new class extends mock<ILabelService>() {
