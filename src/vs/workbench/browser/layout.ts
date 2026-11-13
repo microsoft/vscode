@@ -2964,11 +2964,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let chatNode: ISerializedLeafNode | undefined;
 		if (this.chatPartView) {
 			const chatPartLayout = this.readChatPartLayout();
-			// Hidden by the layout for a maximized panel or secondary side bar, it stays hidden until that is restored
-			this.chatPartHiddenByLayout = chatPartLayout.visible && chatPartLayout.hiddenByLayout && (
-				this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED) ||
-				this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN)
-			);
+			// Hidden by the layout for a maximized panel or secondary side bar, it stays hidden only while that restores maximized
+			this.chatPartHiddenByLayout = chatPartLayout.visible && chatPartLayout.hiddenByLayout && (this.isAuxiliaryBarMaximized() || this.isPanelMaximized());
 			this.chatPartHidden = !chatPartLayout.visible || this.chatPartHiddenByLayout;
 			chatNode = {
 				type: 'leaf',

@@ -403,4 +403,15 @@ suite('Workbench layout chat part', () => {
 			auxiliaryBar: { reloaded: false, restored: true },
 		});
 	});
+
+	test('a chat part hidden for a maximized panel shows after a reload when the panel no longer opens maximized there, as for a justified bottom panel', () => {
+		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } };
+		const before = createGridLayout(configuration);
+		before.layout.toggleMaximizedPanel();
+		const saved = before.save();
+		// The panel alignment is kept per profile: another workspace justified it meanwhile
+		const runtime = new Map(saved.runtime).set('panel.alignment', 'justify');
+		const { layout } = createGridLayout(configuration, { ...saved, runtime });
+		assert.deepStrictEqual({ panelMaximized: layout.isPanelMaximized(), chat: layout.isVisible(Parts.CHAT_PART) }, { panelMaximized: false, chat: true });
+	});
 });
