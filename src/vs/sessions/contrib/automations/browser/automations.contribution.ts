@@ -56,18 +56,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			included: product.quality !== 'stable',
 			agentHost: { key: AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY },
 		},
-		'chat.automations.endDateInput': {
-			type: 'string',
-			enum: ['date', 'duration'],
-			default: 'date',
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-			description: localize('chat.automations.endDateInput', "Choose how to enter an automation's end date in Advanced Settings. Reopen the automation dialog after changing this setting. Both options save a fixed end date; changing the input style does not change existing automations."),
-			enumDescriptions: [
-				localize('chat.automations.endDateInput.date', "Run until a specific local date and time."),
-				localize('chat.automations.endDateInput.duration', "Disable after a number of calendar days, weeks, or months from saving a changed duration, or never."),
-			],
-		},
 	},
 });
 

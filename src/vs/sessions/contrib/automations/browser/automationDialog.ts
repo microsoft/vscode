@@ -6,12 +6,13 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionBar, ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
-import { IAction } from '../../../../base/common/actions.js';
+import { Action, IAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -19,6 +20,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, disposableObservableValue, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOptions } from '../../../../editor/common/config/editorOptions.js';
@@ -1528,97 +1530,85 @@ export function renderForm(
 	advancedSettingsChevron.setAttribute('aria-hidden', 'true');
 	DOM.append(advancedSettingsSummary, $('span', undefined, localize('automation.form.advancedSettings', "Advanced Settings")));
 
-	const endDateRow = DOM.append(advancedSettings, $('.automation-form-row.automation-form-end-date-row'));
+	const durationRow = DOM.append(advancedSettings, $('.automation-form-row.automation-form-duration-row'));
 	const endDateError = DOM.append(formContent, $('span.automation-form-hint', {
 		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
 	}));
-	const useDuration = configurationService.getValue<string>('chat.automations.endDateInput') === 'duration';
-	let refreshEndDate = (): string | undefined => undefined;
-	let setEndDateInvalid: (invalid: boolean) => void;
-	if (useDuration) {
-		const units: { value: 'never' | AutomationDurationUnit; label: string }[] = [
-			{ value: 'never', label: localize('automation.form.duration.never', "Never") },
-			{ value: 'days', label: localize('automation.form.duration.days', "Days") },
-			{ value: 'weeks', label: localize('automation.form.duration.weeks', "Weeks") },
-			{ value: 'months', label: localize('automation.form.duration.months', "Months") },
-		];
-		let unit = state.endDate === undefined ? units[0].value : units[1].value;
-		let durationChanged = false;
-		endDateRow.classList.add('automation-form-duration-row');
-		DOM.append(endDateRow, $('label.automation-form-label', { for: 'automation-duration' }, localize('automation.form.disablesAfter', "Disables after")));
-		const amountInput = disposables.add(new InputBox(endDateRow, contextViewService, {
-			type: 'number',
-			ariaLabel: localize('automation.form.duration.amount', "Disables after: duration"),
-			inputBoxStyles: defaultInputBoxStyles,
-		}));
-		amountInput.inputElement.id = 'automation-duration';
-		amountInput.inputElement.step = '1';
-		amountInput.value = state.endDate === undefined ? '1' : String(Math.max(0, Math.ceil((Date.parse(state.endDate) - Date.now()) / 86_400_000)));
-		amountInput.inputElement.min = amountInput.value === '0' ? '0' : '1';
-		DOM.setVisibility(unit !== 'never', amountInput.element);
-		const unitContainer = DOM.append(endDateRow, $('.automation-form-duration-unit'));
-		const unitSelect = disposables.add(new SelectBox(
-			units.map(option => ({ text: option.label })),
-			unit === 'never' ? 0 : 1,
-			contextViewService,
-			defaultSelectBoxStyles,
-			{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.duration.unit', "Disables after: unit") },
-		));
-		unitSelect.render(unitContainer);
-		const durationHint = DOM.append(advancedSettings, $('span.automation-form-hint.automation-form-duration-hint', { id: 'automation-duration-hint' }));
-		amountInput.inputElement.setAttribute('aria-describedby', `${endDateError.id} ${durationHint.id}`);
-		setEndDateInvalid = invalid => amountInput.inputElement.setAttribute('aria-invalid', String(invalid));
-		refreshEndDate = () => {
-			if (durationChanged) {
-				amountInput.inputElement.min = '1';
-				const date = unit === 'never' ? undefined : getAutomationDurationEndDate(amountInput.inputElement.valueAsNumber, unit);
-				if (unit !== 'never' && date === undefined) {
-					durationHint.textContent = '';
-					return localize('automation.form.duration.invalid', "Enter a positive whole number that produces an end date before year 10000.");
-				}
-				state.endDate = date;
+	const units: { value: 'never' | AutomationDurationUnit; label: string }[] = [
+		{ value: 'never', label: localize('automation.form.duration.never', "Never") },
+		{ value: 'days', label: localize('automation.form.duration.days', "Days") },
+		{ value: 'weeks', label: localize('automation.form.duration.weeks', "Weeks") },
+		{ value: 'months', label: localize('automation.form.duration.months', "Months") },
+	];
+	let unit = state.endDate === undefined ? units[0].value : units[1].value;
+	let durationChanged = false;
+	DOM.append(durationRow, $('label.automation-form-label', { for: 'automation-duration' }, localize('automation.form.disablesAfter', "Disables after")));
+	const amountInput = disposables.add(new InputBox(durationRow, contextViewService, {
+		type: 'number',
+		ariaLabel: localize('automation.form.duration.amount', "Disables after: duration"),
+		inputBoxStyles: defaultInputBoxStyles,
+	}));
+	amountInput.element.classList.add('automation-form-duration-input');
+	amountInput.inputElement.id = 'automation-duration';
+	amountInput.inputElement.step = '1';
+	amountInput.value = state.endDate === undefined ? '1' : String(Math.max(0, Math.ceil((Date.parse(state.endDate) - Date.now()) / 86_400_000)));
+	amountInput.inputElement.min = amountInput.value === '0' ? '0' : '1';
+	const stepAmount = (direction: 1 | -1) => {
+		const current = amountInput.inputElement.valueAsNumber;
+		amountInput.value = String(Number.isFinite(current)
+			? Math.max(1, direction > 0 ? Math.floor(current) + 1 : Math.ceil(current) - 1)
+			: 1);
+		amountInput.focus();
+	};
+	const increase = disposables.add(new Action('automation.duration.increase', localize('automation.form.duration.increase', "Increase Duration"), ThemeIcon.asClassName(Codicon.chevronUpCompact), true, () => stepAmount(1)));
+	const decrease = disposables.add(new Action('automation.duration.decrease', localize('automation.form.duration.decrease', "Decrease Duration"), ThemeIcon.asClassName(Codicon.chevronDownCompact), amountInput.inputElement.valueAsNumber > 1, () => stepAmount(-1)));
+	const stepper = disposables.add(new ActionBar(amountInput.element, {
+		orientation: ActionsOrientation.VERTICAL,
+		ariaLabel: localize('automation.form.duration.controls', "Duration controls"),
+		// The dialog captures keyup, so activate these actions on keydown.
+		triggerKeys: { keyDown: true },
+	}));
+	stepper.push([increase, decrease], { icon: true, label: false });
+	DOM.setVisibility(unit !== 'never', amountInput.element);
+	const unitContainer = DOM.append(durationRow, $('.automation-form-duration-unit'));
+	const unitSelect = disposables.add(new SelectBox(
+		units.map(option => ({ text: option.label })),
+		unit === 'never' ? 0 : 1,
+		contextViewService,
+		defaultSelectBoxStyles,
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.duration.unit', "Disables after: unit") },
+	));
+	unitSelect.render(unitContainer);
+	const durationHint = DOM.append(advancedSettings, $('span.automation-form-hint.automation-form-duration-hint', { id: 'automation-duration-hint' }));
+	amountInput.inputElement.setAttribute('aria-describedby', `${endDateError.id} ${durationHint.id}`);
+	const refreshEndDate = (): string | undefined => {
+		if (durationChanged) {
+			amountInput.inputElement.min = '1';
+			const date = unit === 'never' ? undefined : getAutomationDurationEndDate(amountInput.inputElement.valueAsNumber, unit);
+			if (unit !== 'never' && date === undefined) {
+				durationHint.textContent = '';
+				DOM.hide(durationHint);
+				return localize('automation.form.duration.invalid', "Enter a positive whole number that produces an end date before year 10000.");
 			}
-			durationHint.textContent = state.endDate === undefined
-				? localize('automation.form.duration.unlimited', "No end date. Scheduled runs continue until disabled.")
-				: durationChanged
-					? localize('automation.form.duration.preview', "Starts when saved. Estimated end date: {0}. Months follow the calendar, using the last day when needed.", new Date(state.endDate).toLocaleString())
-					: localize('automation.form.duration.existing', "Approximate days remaining. Saved end date: {0}. Only editing the duration starts a new countdown.", new Date(state.endDate).toLocaleString());
-			return undefined;
-		};
-		disposables.add(amountInput.onDidChange(() => {
-			durationChanged = true;
-			revalidate();
-		}));
-		disposables.add(unitSelect.onDidSelect(event => {
-			unit = units[event.index].value;
-			durationChanged = true;
-			DOM.setVisibility(unit !== 'never', amountInput.element);
-			revalidate();
-		}));
-	} else {
-		const endDateLabel = localize('automation.form.endDate', "Run until");
-		DOM.append(endDateRow, $('label.automation-form-label', { for: 'automation-end-date' }, endDateLabel));
-		const endDateInput = disposables.add(new InputBox(endDateRow, contextViewService, {
-			type: 'datetime-local',
-			ariaLabel: endDateLabel,
-			inputBoxStyles: defaultInputBoxStyles,
-		}));
-		endDateInput.inputElement.id = 'automation-end-date';
-		endDateInput.inputElement.step = '1';
-		if (state.endDate !== undefined) {
-			const date = new Date(state.endDate);
-			endDateInput.value = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
+			state.endDate = date;
 		}
-		disposables.add(DOM.addDisposableListener(endDateInput.inputElement, DOM.EventType.INPUT, () => {
-			const value = endDateInput.value;
-			const date = new Date(value);
-			state.endDate = endDateInput.inputElement.validity.badInput ? ''
-				: value ? Number.isFinite(date.getTime()) ? date.toISOString() : value : undefined;
-			revalidate();
-		}));
-		endDateInput.inputElement.setAttribute('aria-describedby', endDateError.id);
-		setEndDateInvalid = invalid => endDateInput.inputElement.setAttribute('aria-invalid', String(invalid));
-	}
+		durationHint.textContent = state.endDate === undefined
+			? ''
+			: localize('automation.form.duration.estimatedEndDate', "Estimated end date: {0}", new Date(state.endDate).toLocaleString());
+		DOM.setVisibility(state.endDate !== undefined, durationHint);
+		return undefined;
+	};
+	disposables.add(amountInput.onDidChange(() => {
+		decrease.enabled = amountInput.inputElement.valueAsNumber > 1;
+		durationChanged = true;
+		revalidate();
+	}));
+	disposables.add(unitSelect.onDidSelect(event => {
+		unit = units[event.index].value;
+		durationChanged = true;
+		DOM.setVisibility(unit !== 'never', amountInput.element);
+		revalidate();
+	}));
 
 	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
 		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
@@ -1627,14 +1617,12 @@ export function renderForm(
 	const refreshDisableConditionsWarning = () => {
 		validation.endDateError = refreshEndDate() ?? getAutomationEndDateError(state.endDate, getAutomationAfterDate(initialDisableConditions));
 		endDateError.textContent = validation.endDateError ?? '';
-		setEndDateInvalid(!!validation.endDateError);
+		amountInput.inputElement.setAttribute('aria-invalid', String(!!validation.endDateError));
 		DOM.setVisibility(!!validation.endDateError, endDateError);
 		const expired = state.enabled && isAutomationAfterDateExpired(buildAutomationDisableConditions(state.endDate));
 		DOM.setVisibility(expired, conditionsWarning);
 		const message = expired
-			? useDuration
-				? localize('automation.form.expiredDuration', "The end date has passed. Scheduling will stop immediately. Change the duration or select Never before re-enabling scheduling.")
-				: localize('automation.form.expiredConditions', "The end date has passed. Scheduling will stop immediately. Change or clear Run until to resume scheduling.")
+			? localize('automation.form.expiredDuration', "The end date has passed. Scheduling will stop immediately. Change the duration or select Never before re-enabling scheduling.")
 			: '';
 		if (conditionsWarning.textContent !== message) {
 			conditionsWarning.textContent = message;

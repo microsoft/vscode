@@ -67,18 +67,6 @@
 	outline: none;
 }
 
-.automation-dialog input[type="datetime-local"],
-.automation-dialog input[type="number"] {
-	color-scheme: light;
-}
-
-.vs-dark .automation-dialog input[type="datetime-local"],
-.hc-black .automation-dialog input[type="datetime-local"],
-.vs-dark .automation-dialog input[type="number"],
-.hc-black .automation-dialog input[type="number"] {
-	color-scheme: dark;
-}
-
 /*
  * Float the close-X over the titlebar so the title text sits flush
  * with the top edge of the modal (QuickInput-style). Without this,
@@ -527,24 +515,57 @@
 	transform: rotate(90deg);
 }
 
-.automation-form-row.automation-form-end-date-row {
+.automation-form-row.automation-form-duration-row {
 	flex-direction: row;
 	align-items: center;
 	gap: var(--vscode-spacing-size120);
 	margin-top: var(--vscode-spacing-size80);
 }
 
-.automation-form-end-date-row > .automation-form-label {
+.automation-form-duration-row > .automation-form-label {
 	margin-bottom: 0;
 }
 
-.automation-form-end-date-row > .monaco-inputbox {
+.automation-form-duration-row > .automation-form-duration-input {
+	display: flex;
+	align-items: center;
+	flex: 0 1 80px;
+	min-width: 0;
+}
+
+.automation-form-duration-input > .ibwrapper {
 	flex: 1;
 	min-width: 0;
 }
 
-.automation-form-duration-row > .monaco-inputbox {
-	flex: 0 1 80px;
+.automation-form-duration-row .automation-form-duration-input > .monaco-action-bar {
+	position: static;
+	height: auto;
+	margin-right: var(--vscode-spacing-size20);
+}
+
+.automation-dialog .automation-form-duration-input .monaco-action-bar .actions-container {
+	display: flex;
+	flex-direction: column;
+	padding-inline-start: 0;
+}
+
+.automation-form-duration-input .monaco-action-bar .action-item .codicon {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	font-size: var(--vscode-codiconFontSize-compact);
+	padding: 0 var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.automation-form-duration-input input[type="number"] {
+	appearance: textfield;
+}
+
+.automation-form-duration-input input[type="number"]::-webkit-inner-spin-button,
+.automation-form-duration-input input[type="number"]::-webkit-outer-spin-button {
+	appearance: none;
+	margin: 0;
 }
 
 .automation-form-duration-unit > .monaco-select-box {
