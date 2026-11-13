@@ -4772,6 +4772,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly inboxDemand = this._register(new MutableDisposable());
 	private readonly sessionChatsUpdate = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
+	private readonly pendingInboxAdvance = this._register(new MutableDisposable());
 	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
 	/** Reveals what a move started from the list moved, once the list shows it; see {@link watchMoveForReveal}. */
 	private readonly pendingMoveReveal = this._register(new MutableDisposable<DisposableStore>());
@@ -4983,7 +4984,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.acknowledgeInboxSessions([target.session]);
 			}
 		};
-		this._register(chatService.onDidAcceptRequest(event => acknowledgeChat(event.chatSessionResource)));
+		this._register(chatService.onDidAcceptRequest(event => {
+			if (!event.isNewSession && !event.agentHostMessageOrigin) {
+				this.advanceInboxAfterSend(event.chatSessionResource);
+			}
+			acknowledgeChat(event.chatSessionResource);
+		}));
 		this._register(chatService.onDidPerformUserAction(event => acknowledgeChat(event.sessionResource)));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
@@ -9322,6 +9328,47 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private canAcknowledgeInboxSession(session: ISession, reader?: IReader): boolean {
 		return this.isInboxLayout() && !session.isArchived.read(reader) && this.getInboxSection(session, reader) === SessionInboxSection.ReadyForYou;
+	}
+
+	private advanceInboxAfterSend(resource: URI): void {
+		if (!this.visible || !this.isInboxLayout() || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
+			return;
+		}
+		// Use the rendered placement: acceptance may already have changed the session's status to Working.
+		const inboxSessions = this.getVisibleSessions().filter(session => {
+			for (let parent = this.tree.getParentElement(session); parent; parent = this.tree.getParentElement(parent)) {
+				if (isSessionSection(parent)) {
+					return parent.id === SessionInboxSection.ReadyForYou;
+				}
+			}
+			return false;
+		});
+		const index = inboxSessions.findIndex(session => isEqual(session.resource, this._mainWindowShown.get()?.session.resource));
+		if (index < 0) {
+			return;
+		}
+		const candidates = [...inboxSessions.slice(index + 1), ...inboxSessions.slice(0, index).reverse()];
+		// Let the submitting widget finish accepting its input before moving focus to another conversation.
+		this.pendingInboxAdvance.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+			this.pendingInboxAdvance.clear();
+			if (!this.visible || !this.isInboxLayout() || this.pendingOpenRequest || !isEqual(this._mainWindowShown.get()?.chat.resource, resource)) {
+				return;
+			}
+			this.update();
+			const visible = new Set(this.getVisibleSessions());
+			const next = candidates.find(session => visible.has(session) && this.canAcknowledgeInboxSession(session));
+			if (next) {
+				this.openSession(next);
+			} else {
+				const inbox = this.findTreeElement((element): element is ISessionSection => isSessionSection(element) && element.id === SessionInboxSection.ReadyForYou);
+				if (inbox) {
+					this.tree.setSelection([]);
+					this.tree.setFocus([inbox]);
+					this.tree.reveal(inbox);
+					this.tree.domFocus();
+				}
+			}
+		});
 	}
 
 	private getInboxStateContext(session: ISession, reader?: IReader): string {
