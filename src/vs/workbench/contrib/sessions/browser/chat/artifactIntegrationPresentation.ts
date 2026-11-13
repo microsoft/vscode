@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/artifactIntegrations.css';
-import { $, append, isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
+import { $, append, isAncestorOfActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions, isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { Action, toAction } from '../../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -22,7 +23,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { ChatPillActionViewItem, IChatInlinePillViewItemOptions, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../browser/chatPills.js';
+import { ChatPillActionViewItem, getChatPillEntryHoverOptions, IChatInlinePillViewItemOptions, IChatPill, IChatPillAction, IChatPillEntry } from '../../../../browser/chatPills.js';
 import { ArtifactButtons, IArtifactButton } from './artifactButtons.js';
 import { ArtifactDetailsSelection, ArtifactDetailsViewState, IArtifactActionViewData } from './artifactDetailsView.js';
 
@@ -252,6 +253,8 @@ export class ArtifactIntegrationPresentation extends Disposable {
 
 class ArtifactIntegrationPill extends ChatPillActionViewItem {
 	private readonly hoverLifecycleOptions = { groupId: generateUuid() };
+	/** Identifies the rich hover, whose element content has no identity of its own, so moving within the main part keeps it. */
+	private readonly richHoverId = generateUuid();
 	private sections: ArtifactButtons | undefined;
 
 	constructor(
@@ -269,10 +272,10 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 
 	protected override renderContent(): void {
 		this.sections = this._register(new ArtifactButtons(append(this.element!, $('.chat-pill-sections.artifact-pill-sections')), this.hoverService, 'pill', this.hoverLifecycleOptions));
-		this._register(this.hoverService.setupDelayedHover(this.button!.element, () => ({
+		this._register(this.hoverService.setupDelayedHover(this.button!.element, () => this.richHoverOptions() ?? {
 			content: this.mainDescription(),
 			style: HoverStyle.Pointer,
-		}), this.hoverLifecycleOptions));
+		}, this.hoverLifecycleOptions));
 		this._register(autorun(reader => {
 			const snapshot = this.presentation.snapshot.read(reader);
 			const host = this.presentation.detailsHost;
@@ -309,6 +312,26 @@ class ArtifactIntegrationPill extends ChatPillActionViewItem {
 
 	private mainDescription(): string {
 		return getArtifactMainContribution(this.presentation.snapshot.get())?.view.main?.description ?? this.getLabelText();
+	}
+
+	/**
+	 * The rich hover of the entry the pill shows, such as a pull request's card, which the main part shows in place of
+	 * the integration's description. Like the other pills' rich hovers, its footer leaves out the entry's promoted action.
+	 */
+	private richHoverOptions(): IDelayedHoverOptions | undefined {
+		const entry = this.presentation.baseEntry;
+		const hover = entry?.pillHover;
+		const content = isManagedHoverTooltipHTMLElement(hover) ? hover.element(CancellationToken.None) : hover;
+		if (!entry || !isHTMLElement(content)) {
+			return undefined;
+		}
+		return {
+			...getChatPillEntryHoverOptions({ ...entry, promotedAction: undefined }),
+			id: this.richHoverId,
+			content,
+			...(isManagedHoverTooltipHTMLElement(hover) && hover.contentOwnsPadding ? { additionalClasses: ['managed-hover-content-owns-padding'] } : {}),
+			appearance: { showPointer: true },
+		};
 	}
 
 	protected override getAriaLabel(): string {
