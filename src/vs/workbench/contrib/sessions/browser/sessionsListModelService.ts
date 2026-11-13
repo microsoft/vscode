@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { equalSets } from '../../../../base/common/collections.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -228,10 +228,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}));
 		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
 
-		// Migrate identities before admitting completions so inherited triage takes precedence.
-		const catalog = observableFromEvent(this, this.sessionsManagementService.onDidChangeSessions, () => this.sessionsManagementService.getSessions());
+		// Read the sessions afresh: a replacement migrates its state before the change event, and a stale list would admit the replaced session.
+		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this._register(autorun(reader => {
-			const sessions = new Map(catalog.read(reader).map(session => [session.sessionId, session]));
+			sessionsChanged.read(reader);
+			const sessions = new Map(this.sessionsManagementService.getSessions().map(session => [session.sessionId, session]));
 			const state = this._inboxState.read(reader);
 			const attention = this.sessionAttentionService.sessionAttention.read(reader);
 			const next = new Map(state);
@@ -258,8 +259,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				}
 			}
 			for (const [id, session] of sessions) {
+				// Inherited triage takes precedence, so a session awaiting the migration of an earlier identity's state is not admitted yet.
 				if (!next.has(id) && attention.has(id) && !session.isArchived.read(reader)
-					&& session.status.read(reader) === SessionStatus.Completed && !this.getInboxState(session, reader)) {
+					&& session.status.read(reader) === SessionStatus.Completed && !this.getInboxState(session, reader)
+					&& !session.previousIdentities?.some(previous => state.has(previous.sessionId))) {
 					next.set(id, { kind: 'resumed' });
 				}
 			}
@@ -314,8 +317,17 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			move(this._sortOverrides.created, from, to);
 			move(this._sortOverrides.updated, from, to);
 			move(this._updatedDefaultPlacements, from, to);
-			if (inbox.has(from)) {
-				move(inbox, from, to);
+			const state = inbox.get(from);
+			if (state) {
+				if (!inbox.has(to)) {
+					// Acknowledged notification IDs are prefixed with the session ID.
+					const prefix = `${from}:`;
+					inbox.set(to, (state.kind === 'done' || state.kind === 'untilActivity') && state.notificationIds
+						? { ...state, notificationIds: state.notificationIds.map(id => id.startsWith(prefix) ? `${to}:${id.slice(prefix.length)}` : id) }
+						: state);
+				}
+				inbox.delete(from);
+				changed = true;
 				inboxChanged = true;
 			}
 		}

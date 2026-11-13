@@ -109,6 +109,38 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
+	test('an Inbox acknowledgement follows a session replaced by one with another ID, and back', () => {
+		const updatedAt = new Date();
+		const local = createSession('local', SessionStatus.Completed, { updatedAt });
+		const relay = createSession('relay', SessionStatus.Completed, { updatedAt });
+		const notify = (session: ISession) => attention.set(new Map([[session.sessionId, {
+			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: [`${session.sessionId}:failingCI:o/r#1:head`], isHistoricalCompletion: false,
+		}]]), undefined);
+		const handOff = (from: ISession, to: ISession) => {
+			sessions = [to];
+			sessionReplacedEmitter.fire({ from, to });
+			notify(to);
+			sessionsChangedEmitter.fire({ added: [], removed: [from], changed: [to] });
+		};
+		const acknowledged = (session: ISession) => {
+			const state = service.getInboxState(session);
+			return state?.kind === 'done' ? state.notificationIds : state?.kind;
+		};
+		sessions = [local];
+		notify(local);
+		sessionsChangedEmitter.fire({ added: [local], removed: [], changed: [] });
+		service.setInboxState([local], 'done');
+
+		handOff(local, relay);
+		const handedOff = acknowledged(relay);
+		handOff(relay, local);
+
+		assert.deepStrictEqual({ handedOff, handedBack: acknowledged(local) }, {
+			handedOff: ['relay:failingCI:o/r#1:head'],
+			handedBack: ['local:failingCI:o/r#1:head'],
+		});
+	});
+
 	test('migrates pin and manual order from a previous identity without reapplying later', () => {
 		const previous = createSession('previous');
 		service.pinSession(previous);
@@ -1275,7 +1307,7 @@ suite('SessionsListModelService', () => {
 			getSession: resource => resource.toString() === creator.resource.toString() ? creator : undefined,
 			onDidChangeSessions: Event.None,
 			onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
-		onDidReplaceSession: Event.None,
+			onDidReplaceSession: Event.None,
 		});
 
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
