@@ -6271,6 +6271,28 @@ suite('CopilotAgentSession', () => {
 		}]);
 	}));
 
+	test('does not wait for canvas readiness while an extension waits for consent to load', () => runWithFakedTimers({}, async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const captureRuntime: { current?: ICopilotSessionRuntime } = {};
+		let consent: Promise<unknown> | undefined;
+		const { session } = await createAgentSession(disposables, {
+			telemetryService,
+			captureRuntime,
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'user:demo', name: 'demo', source: 'user', status: 'starting' });
+				mock.onExtensionList = () => {
+					mock.onExtensionList = undefined;
+					consent = captureRuntime.current!.handlePermissionRequest({ kind: 'extension-env-access', extensionName: 'user:demo', environmentVariables: ['BLACKBIRD_AUTH_METIS_API_KEY'] }, { sessionId: 'test-session-1' });
+				};
+			},
+		});
+		session.dispose();
+		assert.deepStrictEqual({ events: canvasReadinessEvents(telemetryService), consent: await consent }, {
+			events: [{ schemaVersion: 1, launchKind: 'create', outcome: 'consentPending', extensionCount: 1, failedExtensionCount: 0, hasDuration: true }],
+			consent: { kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
+		});
+	}));
+
 	test('reports canvas readiness errors with only observed counts and preserves the rejection', async () => {
 		const results = [];
 		for (const stage of ['extensionList', 'canvasList'] as const) {
@@ -20477,7 +20499,7 @@ Use the attached image as context.
 						chatToolCallStart('turn-consent', '<consent-id>', 'extension_permission_consent', 'Extensions'),
 						{
 							type: ActionType.ChatToolCallReady, turnId: 'turn-consent', toolCallId: '<consent-id>',
-							invocationMessage: `Extension 'grove-agent-monitor' wants to load with these permissions: register hooks.`,
+							invocationMessage: `Extension 'grove-agent-monitor' (plugin:grove-agent-monitor:grove-agent-monitor) wants to load with these permissions: register hooks.`,
 							confirmationTitle: 'Allow Extension grove-agent-monitor?',
 							options: [
 								{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },

@@ -409,6 +409,33 @@ export interface IAgentCanvasOpenRequest {
 	readonly instanceId: string;
 }
 
+/** The choices a user can make about a Copilot extension that needs consent before it loads. */
+export const enum AgentExtensionConsentOption {
+	/** Allows the extension until the chat's runtime is replaced. */
+	Allow = 'allow-once',
+	AlwaysAllow = 'allow-extension-always',
+	NotNow = 'not-now',
+	Never = 'deny-extension-always',
+}
+
+/**
+ * A Copilot extension that waits for the user's consent before it loads: to read sensitive
+ * environment variables, or to load with privileged capabilities. Carries names only, never values.
+ */
+export interface IAgentExtensionConsentRequest {
+	/** Identifies this request until it is answered. */
+	readonly id: string;
+	readonly kind: 'environment' | 'capabilities';
+	/** Source-qualified extension identifier, such as `user:my-canvas`. */
+	readonly extensionName: string;
+	/** Short extension name for display. */
+	readonly displayName: string;
+	/** The requested environment variable names, or the requested capabilities. */
+	readonly items: readonly string[];
+	/** Whether the decision can be remembered for all sessions ({@link AgentExtensionConsentOption.AlwaysAllow} and {@link AgentExtensionConsentOption.Never}). */
+	readonly persistable: boolean;
+}
+
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
 export interface IAgentCanvasCloseRequest {
 	/** The canvas channel the chat advertised. It identifies one canvas lifetime: reopening a canvas advertises a new channel. */

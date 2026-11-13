@@ -987,7 +987,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostExtensionPermissionApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
 		type: 'object',
 		title: localize('agentHost.config.extensionPermissionApprovals.title', "Extension Permission Approvals"),
-		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, in all sessions on this agent host. Identities include the extension name and requested capabilities. Remove an entry to ask again."),
+		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, or read sensitive environment variables, in all sessions on this agent host. Identities include the extension name and the requested capabilities or variable names. Decisions about a project's extensions to read sensitive environment variables are never stored. Remove an entry to ask again."),
 		additionalProperties: { type: 'string', title: localize('agentHost.config.extensionPermissionApprovals.entry', "Extension Permission Decision"), enum: ['allow', 'deny'] },
 		default: {},
 	}),

@@ -64,7 +64,7 @@ import { copilotConnectorsScope } from '../../../github/common/connectors/connec
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
 import type { AgentMessageProvenance } from '../../common/agentMessageProvenance.js';
-import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, AgentExtensionConsentOption, type IAgentExtensionConsentRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { CopilotReasoningTiming } from './copilotReasoningTiming.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
@@ -797,6 +797,22 @@ export interface ICopilotAgentSessionOptions {
 	readonly canvasHandoff?: ICopilotCanvasHandoff;
 }
 
+/** A Copilot extension load that waits for the user's consent. */
+interface IExtensionConsentGate {
+	readonly consent: IAgentExtensionConsentRequest;
+	/** The key of a decision remembered for all sessions or for this runtime. */
+	readonly identity: string;
+	readonly decision: DeferredPromise<IExtensionConsentDecision>;
+	/** Whether a turn shows, or is about to show, the request. */
+	confirmingInTurn: boolean;
+}
+
+interface IExtensionConsentDecision {
+	readonly approved: boolean;
+	readonly optionId?: string;
+	readonly source?: PermissionDecisionSource;
+}
+
 /** A live canvas channel and its current presentation state. */
 interface ICopilotCanvasProjection {
 	readonly resource: URI;
@@ -1369,6 +1385,9 @@ export class CopilotAgentSession extends Disposable {
 		readonly acceptsFeedback?: true;
 	}>();
 	private readonly _extensionSessionApprovals = new Set<string>();
+	/** Extension consent requests waiting for the user's decision, by consent ID. */
+	private readonly _extensionConsentGates = new Map<string, IExtensionConsentGate>();
+	private readonly _onDidAddExtensionConsentGate = this._register(new Emitter<void>());
 	private readonly _onPermissionTurnReady = this._register(new Emitter<void>());
 	private readonly _mcpSkillSessionApprovals = new Set<string>();
 	private readonly _pendingMcpSkillConsents = new Map<string, DeferredPromise<boolean>>();
@@ -5400,9 +5419,15 @@ export class CopilotAgentSession extends Disposable {
 				this._canvasExtensions = extensions.extensions;
 			}
 			if (extensions.extensions.some(extension => extension.status === 'starting')) {
-				const ready = await raceTimeout(settled.p, 10_000);
-				outcome = ready === true ? 'settled' : 'timeout';
-				if (ready !== true) {
+				// An extension waiting for the user's consent stays starting until a turn shows the request.
+				const consentPending = Event.toPromise(this._onDidAddExtensionConsentGate.event);
+				try {
+					const ready = this._extensionConsentGates.size > 0 ? 'consentPending' : await raceTimeout(Promise.race([settled.p, consentPending.then(() => 'consentPending' as const)]), 10_000);
+					outcome = ready === true ? 'settled' : ready === 'consentPending' ? 'consentPending' : 'timeout';
+				} finally {
+					consentPending.cancel();
+				}
+				if (outcome === 'timeout') {
 					this._logService.warn(`[Copilot:${this.sessionId}] Canvas extensions did not settle before the readiness deadline`);
 				}
 			}
@@ -5857,7 +5882,7 @@ export class CopilotAgentSession extends Disposable {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('permissionRequest');
 				return measureAgentProviderOperation(recorder, 'permissionRequest', () => this._handlePermissionRequest(request, invocation));
-			}, attributePermissionResult({ kind: 'reject' }, 'unattended_fallback'), 'permission', request => request.kind === 'extension-permission-access' ? this._lifetimeCts.token : this._abortToken),
+			}, attributePermissionResult({ kind: 'reject' }, 'unattended_fallback'), 'permission', request => request.kind === 'extension-permission-access' || request.kind === 'extension-env-access' ? this._lifetimeCts.token : this._abortToken),
 			handleExitPlanModeRequest: this._guarded((request, invocation) => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('exitPlanModeRequest');
@@ -8464,8 +8489,8 @@ export class CopilotAgentSession extends Disposable {
 		request: PermissionRequest,
 		invocation?: Parameters<PermissionHandler>[1],
 	): Promise<PermissionRequestResult | AttributedPermissionResult> {
-		if (request.kind === 'extension-permission-access') {
-			return this._handleExtensionPermissionRequest(request);
+		if (request.kind === 'extension-permission-access' || request.kind === 'extension-env-access') {
+			return this._handleExtensionConsentRequest(request);
 		}
 		let sandboxRequestId: string | undefined;
 		let sandboxPathGrant: ISandboxPathGrant | undefined;
@@ -9635,47 +9660,143 @@ export class CopilotAgentSession extends Disposable {
 		return pending.p;
 	}
 
-	private async _handleExtensionPermissionRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
-		const identity = `${request.extensionName} (${[...request.capabilities].sort().join(', ')})`;
+	/**
+	 * Decides whether a Copilot extension may load with privileged capabilities or read sensitive environment variables.
+	 * The runtime asks while the extension starts, never for a tool call. A stored or session decision answers at once;
+	 * otherwise the request waits, without blocking resumes or turns, to be shown in the next turn.
+	 */
+	private async _handleExtensionConsentRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
+		const gate = this._createExtensionConsentGate(request);
 		const lifetimeToken = this._lifetimeCts.token;
-		let turn: CopilotTurn | undefined;
-		while (true) {
-			if (lifetimeToken.isCancellationRequested) {
-				return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
+		try {
+			while (!gate.decision.isSettled) {
+				if (lifetimeToken.isCancellationRequested) {
+					return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
+				}
+				const settled = this._settledExtensionConsent(gate);
+				if (settled) {
+					this._decideExtensionConsent(gate, settled);
+					break;
+				}
+				if (!this._extensionConsentGates.has(gate.consent.id)) {
+					this._extensionConsentGates.set(gate.consent.id, gate);
+					this._onDidAddExtensionConsentGate.fire();
+				}
+				const turn = this._currentTurn.value;
+				if (turn?.permissionPromptsReady && !this._abortToken.isCancellationRequested && !gate.confirmingInTurn) {
+					const unattended = this._unattendedExtensionConsent();
+					if (unattended) {
+						this._decideExtensionConsent(gate, unattended);
+						break;
+					}
+					void this._confirmExtensionConsentInTurn(turn, gate);
+				}
+				const ready = Event.toPromise(this._onPermissionTurnReady.event);
+				try {
+					await raceCancellation(Promise.race([ready, gate.decision.p]), lifetimeToken);
+				} finally {
+					ready.cancel();
+				}
 			}
-			const decision = this._configurationService.getRootValue(platformRootSchema, AgentHostExtensionPermissionApprovalsConfigKey)?.[identity];
-			if (decision === 'deny' || decision === 'allow' || this._extensionSessionApprovals.has(identity)) {
-				return attributePermissionResult({ kind: decision === 'deny' ? 'reject' : 'approve-once' }, 'host_policy');
-			}
-			turn = this._currentTurn.value;
-			if (turn?.permissionPromptsReady && !this._abortToken.isCancellationRequested) {
-				break;
-			}
-			const ready = Event.toPromise(this._onPermissionTurnReady.event);
-			await raceCancellation(ready, lifetimeToken);
-			ready.cancel();
+			const decision = gate.decision.value;
+			return attributePermissionResult({ kind: decision?.approved ? 'approve-once' : 'reject' }, decision?.source ?? 'human_response');
+		} finally {
+			this._extensionConsentGates.delete(gate.consent.id);
 		}
+	}
+
+	private _createExtensionConsentGate(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>): IExtensionConsentGate {
+		const environment = request.kind === 'extension-env-access';
+		const items = environment ? [...request.environmentVariables] : [...request.capabilities];
+		const sorted = [...items].sort().join(', ');
+		const identity = environment
+			? `${request.extensionName} (environment variables: ${sorted})`
+			: `${request.extensionName} (${sorted})`;
+		return {
+			consent: {
+				id: generateUuid(),
+				kind: environment ? 'environment' : 'capabilities',
+				extensionName: request.extensionName,
+				displayName: request.extensionName.split(':').at(-1) || request.extensionName,
+				items,
+				// Only a user extension's access to secrets is remembered across sessions: a project extension is named after its folder,
+				// which another repository can reuse, and a plugin after its package, which another source can reuse.
+				persistable: !environment || request.extensionName.startsWith('user:'),
+			},
+			identity,
+			decision: new DeferredPromise(),
+			confirmingInTurn: false,
+		};
+	}
+
+	/** The decision the user already made for all sessions or for this chat, if any. */
+	private _settledExtensionConsent(gate: IExtensionConsentGate): IExtensionConsentDecision | undefined {
+		const stored = gate.consent.persistable ? this._configurationService.getRootValue(platformRootSchema, AgentHostExtensionPermissionApprovalsConfigKey)?.[gate.identity] : undefined;
+		if (stored === 'deny' || stored === 'allow') {
+			return { approved: stored === 'allow', optionId: stored === 'allow' ? AgentExtensionConsentOption.AlwaysAllow : AgentExtensionConsentOption.Never, source: 'host_policy' };
+		}
+		return this._extensionSessionApprovals.has(gate.identity) ? { approved: true, source: 'host_policy' } : undefined;
+	}
+
+	/** The decision for an extension consent request when nobody is asked: Allow All approves it, Autopilot declines it. */
+	private _unattendedExtensionConsent(): IExtensionConsentDecision | undefined {
 		if (this._lastAppliedPermissionMode === 'allow-all') {
-			return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
+			return { approved: true, source: 'host_policy' };
 		}
 		if (this._isAutopilotMode()) {
-			return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
+			return { approved: false, source: 'unattended_fallback' };
 		}
-		const name = request.extensionName.split(':').at(-1) || request.extensionName;
-		const { approved, optionId, source } = await this._confirmEphemerally(turn, AgentHostExtensionPermissionApprovalsConfigKey, identity, {
-			toolName: 'extension_permission_consent',
+		return undefined;
+	}
+
+	/** Settles a consent request once, whichever surface answered it, and remembers the decision. */
+	private _decideExtensionConsent(gate: IExtensionConsentGate, decision: IExtensionConsentDecision): void {
+		if (gate.decision.isSettled) {
+			return;
+		}
+		const remembered = gate.consent.persistable && (decision.optionId === AgentExtensionConsentOption.AlwaysAllow || decision.optionId === AgentExtensionConsentOption.Never);
+		if (remembered && decision.source !== 'host_policy') {
+			this._persistConsentDecision(AgentHostExtensionPermissionApprovalsConfigKey, gate.identity, decision.approved);
+		}
+		if (decision.approved && !remembered && decision.source !== 'host_policy') {
+			this._extensionSessionApprovals.add(gate.identity);
+		}
+		gate.decision.complete(decision);
+	}
+
+	private async _confirmExtensionConsentInTurn(turn: CopilotTurn, gate: IExtensionConsentGate): Promise<void> {
+		const { displayName: name, extensionName, items } = gate.consent;
+		const environment = gate.consent.kind === 'environment';
+		gate.confirmingInTurn = true;
+		const result = await this._confirmEphemerally(turn, AgentHostExtensionPermissionApprovalsConfigKey, gate.identity, {
+			toolName: environment ? 'extension_env_consent' : 'extension_permission_consent',
 			displayName: localize('extensionPermissionConsentDisplayName', "Extensions"),
-			invocationMessage: localize('extensionPermissionConsentInvocation', "Extension '{0}' wants to load with these permissions: {1}.", name, request.capabilities.join(', ')),
-			confirmationTitle: localize('extensionPermissionConsentConfirmation', "Allow Extension {0}?", name),
+			invocationMessage: environment
+				? localize('extensionEnvConsentInvocation', "Extension '{0}' ({1}) wants to read these sensitive environment variables: {2}. Their values may be credentials, which the extension could send anywhere or pass to processes it starts.", name, extensionName, items.join(', '))
+				: localize('extensionPermissionConsentInvocation', "Extension '{0}' ({1}) wants to load with these permissions: {2}.", name, extensionName, items.join(', ')),
+			confirmationTitle: environment
+				? localize('extensionEnvConsentConfirmation', "Allow {0} to Read Sensitive Environment Variables?", name)
+				: localize('extensionPermissionConsentConfirmation', "Allow Extension {0}?", name),
 			optionPrefix: 'extension',
-			pastTenseMessage: approved => approved
-				? localize('extensionPermissionConsentAllowed', "Allowed extension {0}", name)
-				: localize('extensionPermissionConsentDeclined', "Did not allow extension {0}", name),
+			persistable: gate.consent.persistable,
+			pastTenseMessage: approved => environment
+				? approved
+					? localize('extensionEnvConsentAllowed', "Allowed {0} to read {1}", name, items.join(', '))
+					: localize('extensionEnvConsentDeclined', "Did not allow {0} to read {1}", name, items.join(', '))
+				: approved
+					? localize('extensionPermissionConsentAllowed', "Allowed extension {0}", name)
+					: localize('extensionPermissionConsentDeclined', "Did not allow extension {0}", name),
 		});
-		if (approved && optionId !== 'allow-extension-always') {
-			this._extensionSessionApprovals.add(identity);
+		gate.confirmingInTurn = false;
+		this._decideExtensionConsent(gate, result);
+	}
+
+	private _persistConsentDecision(approvalsKey: typeof AgentHostMcpSkillsServerApprovalsConfigKey | typeof AgentHostExtensionPermissionApprovalsConfigKey, identity: string, approved: boolean): void {
+		const approvals = this._configurationService.getRootValue(platformRootSchema, approvalsKey) ?? {};
+		const decision = approved ? 'allow' : 'deny';
+		if (approvals[identity] !== decision) {
+			this._configurationService.updateRootConfig({ [approvalsKey]: { ...approvals, [identity]: decision } });
 		}
-		return attributePermissionResult({ kind: approved ? 'approve-once' : 'reject' }, source ?? 'human_response');
 	}
 
 	private async _confirmEphemerally(turn: CopilotTurn, approvalsKey: typeof AgentHostMcpSkillsServerApprovalsConfigKey | typeof AgentHostExtensionPermissionApprovalsConfigKey, identity: string, options: {
@@ -9684,6 +9805,8 @@ export class CopilotAgentSession extends Disposable {
 		readonly invocationMessage: string;
 		readonly confirmationTitle: string;
 		readonly optionPrefix: string;
+		/** Whether to offer remembering the decision for all sessions. Defaults to `true`. */
+		readonly persistable?: boolean;
 		readonly pastTenseMessage: (approved: boolean) => string;
 	}): Promise<{ approved: boolean; optionId?: string; source?: PermissionDecisionSource }> {
 		const abortToken = this._abortToken;
@@ -9712,7 +9835,10 @@ export class CopilotAgentSession extends Disposable {
 				toolCallId,
 				invocationMessage: options.invocationMessage,
 				confirmationTitle: options.confirmationTitle,
-				options: [
+				options: options.persistable === false ? [
+					{ id: 'allow-once', label: localize('mcpSkillConsentAllowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
+					{ id: 'not-now', label: localize('mcpSkillConsentNotNow', "Not Now"), kind: ConfirmationOptionKind.Deny, group: 2 },
+				] : [
 					{ id: 'allow-once', label: localize('mcpSkillConsentAllowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
 					{ id: alwaysAllowOptionId, label: localize('mcpSkillConsentAlwaysAllow', "Always Allow"), kind: ConfirmationOptionKind.Approve, group: 1 },
 					{ id: 'not-now', label: localize('mcpSkillConsentNotNow', "Not Now"), kind: ConfirmationOptionKind.Deny, group: 2 },
@@ -9724,9 +9850,8 @@ export class CopilotAgentSession extends Disposable {
 				return { approved: false, source: 'unattended_fallback' };
 			}
 			approved = result.result.kind === 'approve-once';
-			if ((approved && result.selectedOptionId === alwaysAllowOptionId) || (!approved && result.selectedOptionId === neverOptionId)) {
-				const approvals = this._configurationService.getRootValue(platformRootSchema, approvalsKey) ?? {};
-				this._configurationService.updateRootConfig({ [approvalsKey]: { ...approvals, [identity]: approved ? 'allow' : 'deny' } });
+			if (options.persistable !== false && ((approved && result.selectedOptionId === alwaysAllowOptionId) || (!approved && result.selectedOptionId === neverOptionId))) {
+				this._persistConsentDecision(approvalsKey, identity, approved);
 			}
 			return { approved, optionId: result.selectedOptionId, source: result.source };
 		} finally {
