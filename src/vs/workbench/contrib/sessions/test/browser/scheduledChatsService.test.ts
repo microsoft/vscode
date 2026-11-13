@@ -515,6 +515,13 @@ suite('Scheduled chat handoffs', () => {
 		});
 	});
 
+	test('the first time option schedules the request in 10 minutes', () => runWithFakedTimers({}, async () => {
+		const fixture = create();
+		const now = Date.now();
+		await fixture.service.schedule(input, target, session, 'composition');
+		assert.strictEqual(fixture.requests[0].schedule.runAt, new Date(now + 10 * 60_000).toISOString());
+	}));
+
 	test('persists immutable input and configuration before accepting a schedule', async () => {
 		const fixture = create();
 		await fixture.service.schedule(input, target, session, 'composition');

@@ -69,6 +69,8 @@ export interface ILocalCustomizationFile {
 	readonly disabled: boolean;
 	readonly pluginUri?: URI;
 	readonly extensionId?: string;
+	/** Display name of the contributing extension, when {@link extensionId} is set. */
+	readonly extensionLabel?: string;
 }
 
 /**
@@ -137,6 +139,7 @@ export async function enumerateLocalCustomizationsForHarness(
 						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
+						extensionLabel: file.extension ? file.extension.displayName || file.extension.identifier.value : undefined,
 						disabled: syncProvider.isDisabled(file.uri) || (userToggleable && userDisabled.has(file.uri)),
 					});
 				}
@@ -433,7 +436,7 @@ export async function resolveCustomizationRefs(
 			}
 			addPluginRef(plugin);
 		} else {
-			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, pluginUri: entry.pluginUri });
+			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, extensionLabel: entry.extensionLabel, pluginUri: entry.pluginUri });
 		}
 	}
 

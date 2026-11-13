@@ -345,6 +345,30 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 		assert.strictEqual(refs[0].name, 'Open Plugin');
 	});
 
+	test('passes extension display names to the bundler', async () => {
+		const instructions = URI.file('/extensions/acme/instructions/team.instructions.md');
+		const promptsService = makePromptsService(new Map([
+			[`${PromptsType.instructions}/${PromptsStorage.extension}`, [{ ...makePromptPath(instructions, PromptsType.instructions, PromptsStorage.extension), extension: { identifier: new ExtensionIdentifier('acme.acme-chat-kit'), displayName: 'Acme Chat Kit' } } as IPromptPath]],
+		]));
+		const bundler = new FakeBundler();
+
+		await resolveCustomizationRefs(
+			makeFileService(),
+			promptsService,
+			new FakeSyncProvider(),
+			makeAgentPluginService(),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			toBundlers(bundler),
+			SessionType.CopilotCLI,
+			undefined,
+		);
+
+		assert.deepStrictEqual(bundler.received.flat().map(f => ({ uri: f.uri.toString(), extensionId: f.extensionId, extensionLabel: f.extensionLabel })), [
+			{ uri: instructions.toString(), extensionId: 'acme.acme-chat-kit', extensionLabel: 'Acme Chat Kit' },
+		]);
+	});
+
 	test('omits disabled built-in skills from the bundle', async () => {
 		const enabled = URI.file('/builtin/create-pr/SKILL.md');
 		const disabled = URI.file('/builtin/merge/SKILL.md');
