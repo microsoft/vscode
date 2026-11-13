@@ -592,6 +592,9 @@ export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
+/** Root config key forwarded from the renderer for the configured MCP Gallery service URL. */
+export const AgentHostMcpGalleryServiceUrlConfigKey = 'mcpGalleryServiceUrl';
+
 /** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
 export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
 
@@ -969,6 +972,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
 		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
 		default: false,
+	}),
+	[AgentHostMcpGalleryServiceUrlConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.mcpGalleryServiceUrl.title', "MCP Gallery Service URL"),
+		description: localize('agentHost.config.mcpGalleryServiceUrl.description', "The MCP Gallery service URL configured in VS Code. The agent host downloads MCP server details for installation from this gallery itself, including when it is on a private network. Empty when no gallery is configured."),
+		default: '',
 	}),
 	[AgentHostMcpSamplingAllowedServersConfigKey]: schemaProperty<string[]>({
 		type: 'array',

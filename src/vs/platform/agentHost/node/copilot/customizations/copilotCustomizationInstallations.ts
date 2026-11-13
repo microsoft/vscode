@@ -19,7 +19,7 @@ import { IRequestContext } from '../../../../../base/parts/request/common/reques
 import { localize } from '../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationAnswers, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationCatalogue, IAgentCustomizationInstallationChoice, IAgentCustomizationInstallationConfigurationRequest, IAgentCustomizationInstallationHandle, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationInstallationValuePrompt, IAgentCustomizationMarketplaceSearchItem, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult } from '../../../common/agent.js';
 import { ICopilotMcpServerConfiguration, toCopilotMcpServerConfiguration } from '../../../../mcp/common/mcpCopilotConfiguration.js';
-import { parseMcpGalleryServerConfiguration } from '../../../../mcp/common/mcpGalleryService.js';
+import { getUrlInMcpGallery, parseMcpGalleryServerConfiguration } from '../../../../mcp/common/mcpGalleryService.js';
 import { IMcpServerArgument, IMcpServerPackage, IMcpServerVariableInput, RegistryType, RemoteTransport, TransportType } from '../../../../mcp/common/mcpManagement.js';
 import { McpServerManifestParser } from '../../../../mcp/common/mcpManagementService.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
@@ -294,11 +294,15 @@ export class CopilotCustomizationInstallations extends Disposable {
 	 * session creation is never verified. Chat sessions are only verified if a
 	 * token change reaches them while live, so they are not guaranteed to have a
 	 * verified credential and must not be used as the policy session.
+	 * @param getMcpGalleryUrl Reads the MCP Gallery service URL configured in
+	 * VS Code. Only server cards of that gallery are downloaded by the host
+	 * rather than by the runtime.
 	 */
 	constructor(
 		private readonly getClient: () => Promise<ICopilotCustomizationInstallationClient>,
 		private readonly createPolicySession: (client: ICopilotCustomizationInstallationClient, sessionId: string) => Promise<ICopilotCustomizationPolicySession>,
 		private readonly requestService?: IRequestService,
+		private readonly getMcpGalleryUrl: () => string | undefined = () => undefined,
 	) {
 		super();
 	}
@@ -724,9 +728,12 @@ export class CopilotCustomizationInstallations extends Disposable {
 			throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an installation identity."));
 		}
 		if (request.installation.kind === 'mcp' && request.installation.source) {
-			// The runtime refuses card URLs at private network addresses, so the host downloads the card from the
-			// gallery the user configured and the runtime plans from those exact bytes.
-			const card = await this.downloadMcpGalleryCard(request.installation.source);
+			const source = request.installation.source;
+			// The runtime refuses card URLs at private network addresses, where a configured gallery may be. The host
+			// downloads only that gallery's cards, and the runtime plans from their exact bytes. The runtime retrieves
+			// any other URL itself, under its own protections.
+			const galleryCardUrl = getConfiguredMcpGalleryCardUrl(source.url, this.getMcpGalleryUrl());
+			const card = galleryCardUrl ? await this.downloadMcpGalleryCard(galleryCardUrl, source.mediaType) : source;
 			return this.prepareMcpInstall(
 				client,
 				policySessionId,
@@ -1189,15 +1196,12 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return toMcpPackageConfiguration(findMcpPackage(await this.readMcpCardServer(card, plan), plan, choice));
 	}
 
-	/**
-	 * Downloads an MCP Gallery card so the runtime can plan from its exact bytes as an embedded card.
-	 * The gallery is one the user configured, which may be on a private network the runtime refuses.
-	 */
-	private async downloadMcpGalleryCard(source: { readonly mediaType: McpServerCardEmbedded['mediaType']; readonly url: string }): Promise<McpServerCardEmbedded> {
-		const data = await this.downloadMcpCard(source.url, maxEmbeddedMcpCardBytes, 'copilotCustomizationInstallations.downloadMcpGalleryCard');
+	/** Downloads a card of the configured MCP Gallery so the runtime can plan from its exact bytes as an embedded card. */
+	private async downloadMcpGalleryCard(url: string, mediaType: McpServerCardEmbedded['mediaType']): Promise<McpServerCardEmbedded> {
+		const data = await this.downloadMcpCard(url, maxEmbeddedMcpCardBytes, 'copilotCustomizationInstallations.downloadMcpGalleryCard');
 		// Refuses invalid JSON before planning.
 		parseMcpCard(data);
-		return { kind: 'embedded', mediaType: source.mediaType, data };
+		return { kind: 'embedded', mediaType, data };
 	}
 
 	/** Reads the plan's card, downloading a URL card, and verifies it against the plan's digest. */
@@ -1767,6 +1771,23 @@ function isMatchingEffectiveMcpConfiguration(
 		&& changedFields.has('tools')
 		&& (Object.keys(effective.headers).length === 0 || changedFields.has('headers'))
 		&& structuralEquals(effective.tools, ['*']);
+}
+
+/**
+ * Normalizes `cardUrl` when it addresses a server in a versioned `servers` collection of the configured MCP Gallery,
+ * such as `<gallery>/v0.1/servers/<name>/versions/latest`. Dot segments are resolved first, so a gallery entry
+ * named `..`, whose card URL leaves that collection, is refused.
+ */
+function getConfiguredMcpGalleryCardUrl(cardUrl: string, galleryUrl: string | undefined): string | undefined {
+	if (!galleryUrl) {
+		return undefined;
+	}
+	const url = getUrlInMcpGallery(cardUrl, galleryUrl);
+	if (!url) {
+		return undefined;
+	}
+	const galleryPath = new URL(galleryUrl).pathname.replace(/\/+$/, '');
+	return /^\/[^/]+\/servers\/[^/]/.test(url.pathname.slice(galleryPath.length)) ? url.href : undefined;
 }
 
 /**

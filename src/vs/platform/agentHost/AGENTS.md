@@ -150,7 +150,9 @@ Submitted values and secrets must never appear in reviews, errors or logs. The r
 
 The runtime does not own local package (stdio) installs, or remote installs from MCP Gallery cards (their plans are not session-bound), yet. For those the host writes the configuration with `mcp.config.add` after verifying the card against the plan's digest. Only non-secret values are supported on this path; anything needing a secret fails closed until the runtime can store it.
 
-The host downloads MCP Gallery cards itself (no redirects, 1 MiB bounded read) and plans from an `embedded` card holding those exact bytes, because the runtime refuses to download card URLs at private network addresses and a configured gallery may be on one. Configuration reuses the embedded bytes rather than downloading again. The plan's provenance authority is then `caller-supplied`; nothing on the Gallery path compares it, because these installs are host-written configuration rather than runtime-owned installations. Browse and feed catalogue installs keep their candidate sources.
+The host downloads the cards of the MCP Gallery configured in VS Code itself (no redirects, 1 MiB bounded read) and plans from an `embedded` card holding those exact bytes, because the runtime refuses to download card URLs at private network addresses and a configured gallery may be on one. Configuration reuses the embedded bytes rather than downloading again. The plan's provenance authority is then `caller-supplied`; nothing on the Gallery path compares it, because these installs are host-written configuration rather than runtime-owned installations.
+
+That exception applies only to a card URL that, once normalized, addresses a server in a `servers` collection of the gallery in the `mcpGalleryServiceUrl` root config, which mirrors `chat.mcp.gallery.serviceUrl` (policy and application values, never a workspace's). The install request cannot widen it. The runtime retrieves every other card URL itself, under its own protections, including cards of the default gallery. Browse and feed catalogue installs keep their candidate sources.
 
 ### SDK hook and MCP discovery
 
