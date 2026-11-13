@@ -16,7 +16,6 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
 import { computeRemoteFileTrust } from './browserSessionFiles.js';
-import { Schemas } from '../../../base/common/network.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { IPermissionCategoryState } from '../common/browserPermissions.js';
 import { IntegratedBrowserOpenSource, logBrowserOpen } from '../common/browserViewTelemetry.js';
@@ -407,15 +406,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	private _recomputeTrustedFileRoots(): void {
 		const configurations = [...this._windowConfigurations.values()];
-		const localRoots = new Set<string>();
-		for (const { trustedFileRoots } of configurations) {
-			for (const components of trustedFileRoots) {
-				const root = URI.revive(components);
-				if (root.scheme === Schemas.file) {
-					localRoots.add(root.fsPath);
-				}
-			}
-		}
+		const localRoots = new Set(configurations.flatMap(configuration => configuration.trustedFileRoots));
 		BrowserSession.setTrustedLocalFileRoots([...localRoots], configurations.some(configuration => configuration.trustAllFiles));
 		BrowserSession.setTrustedRemoteFileRoots(computeRemoteFileTrust(configurations.map(configuration => configuration.remoteNetworks)));
 	}

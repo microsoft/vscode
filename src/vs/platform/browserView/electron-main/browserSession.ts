@@ -19,17 +19,12 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
-import { createRemoteRootTree, normalizeRemoteFilePath, toRemoteTrustKey, type IRemoteFileTrust } from './browserSessionFiles.js';
+import { normalizeRemoteFilePath, toRemoteTrustKey, type IRemoteFileTrust } from './browserSessionFiles.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
-
-/** The trust of a remote with its roots indexed for lookup. */
-interface ITrustedRemoteFiles extends Omit<IRemoteFileTrust, 'roots'> {
-	readonly roots: TernarySearchTree<string, true>;
-}
 
 /**
  * Holds an Electron session along with its storage scope and unique browser
@@ -266,7 +261,7 @@ export class BrowserSession {
 
 	private static readonly _trustedLocalFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
 	private static _trustAllLocalFiles = false;
-	private static _trustedRemoteFileRoots = new Map<string, ITrustedRemoteFiles>();
+	private static _trustedRemoteFileRoots = new Map<string, IRemoteFileTrust>();
 
 	/**
 	 * Set trusted file roots for sessions on the local network. Remote sessions use {@link setTrustedRemoteFileRoots}.
@@ -286,11 +281,7 @@ export class BrowserSession {
 	 * Used for the `file:` requests of sessions bound to that remote's network.
 	 */
 	static setTrustedRemoteFileRoots(remotes: ReadonlyMap<string, IRemoteFileTrust>): void {
-		BrowserSession._trustedRemoteFileRoots = new Map();
-		for (const [authority, remote] of remotes) {
-			const roots = createRemoteRootTree(remote.roots, remote.caseSensitive);
-			BrowserSession._trustedRemoteFileRoots.set(authority, { ...remote, roots });
-		}
+		BrowserSession._trustedRemoteFileRoots = new Map(remotes);
 	}
 
 	// #endregion

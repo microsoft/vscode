@@ -761,7 +761,7 @@ suite('BrowserViewWorkbenchService', () => {
 		await input.resolve();
 
 		const { remoteNetworks, trustedFileRoots, trustAllFiles } = windowConfigurations.at(-1)!;
-		assert.deepStrictEqual({ remoteNetworks, trustedFileRoots: trustedFileRoots.map(root => URI.revive(root).fsPath), trustAllFiles }, {
+		assert.deepStrictEqual({ remoteNetworks, trustedFileRoots, trustAllFiles }, {
 			remoteNetworks: { 'ssh-remote+host': { proxy: proxy(1), scheme: 'vscode-remote', trustedRoots: ['/repo'], trustAllFiles: true, caseSensitive: true } },
 			trustedFileRoots: [URI.file('/home/test/.copilot').fsPath, instantiationService.get(IWorkspaceContextService).getWorkspace().folders[0].uri.fsPath, URI.file('/local').fsPath],
 			trustAllFiles: false,

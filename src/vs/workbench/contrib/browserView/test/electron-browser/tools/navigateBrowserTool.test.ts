@@ -78,7 +78,7 @@ suite('NavigateBrowserTool', () => {
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		const navigationUrls: (string | undefined)[] = [];
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			getKnownBrowserViews: () => new Map(), isNetworkPathCaseSensitive: () => undefined,
+			getKnownBrowserViews: () => new Map(),
 			resolveNetwork: () => ({ authority: 'remote' }),
 		});
 		const tool = new NavigateBrowserTool(
@@ -138,7 +138,7 @@ suite('NavigateBrowserTool', () => {
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		let invocationCount = 0;
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			getKnownBrowserViews: () => new Map(), isNetworkPathCaseSensitive: () => undefined,
+			getKnownBrowserViews: () => new Map(),
 			resolveNetwork: () => undefined,
 		});
 		const tool = new NavigateBrowserTool(
@@ -187,7 +187,7 @@ suite('NavigateBrowserTool', () => {
 				},
 			}),
 			networkFilterService,
-			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map([['page', page]]), resolveNetwork: () => undefined, isNetworkPathCaseSensitive: () => undefined }),
+			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map([['page', page]]), resolveNetwork: () => undefined }),
 			upcastPartial<IRemoteExplorerService>({}),
 		);
 
@@ -221,7 +221,7 @@ suite('NavigateBrowserTool', () => {
 				},
 			}),
 			networkFilterService,
-			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map(), resolveNetwork: () => ({ authority: 'host-a' }), isNetworkPathCaseSensitive: () => undefined }),
+			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map(), resolveNetwork: () => ({ authority: 'host-a' }) }),
 			upcastPartial<IRemoteExplorerService>({}),
 		);
 		const parameters = { pageId: 'page', type: 'url', url: toAgentHostUri(URI.file('/repo/index.html'), 'host-a').toString() };
@@ -250,7 +250,7 @@ suite('NavigateBrowserTool', () => {
 		// A page created on a remote network keeps it, even when new pages would not use one.
 		const remotePage = upcastPartial<BrowserEditorInput>({ model: upcastPartial<IBrowserViewModel>({ network: { authority: 'remote' } }) });
 		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
-			getKnownBrowserViews: () => new Map([['remote-page', remotePage]]), isNetworkPathCaseSensitive: () => undefined,
+			getKnownBrowserViews: () => new Map([['remote-page', remotePage]]),
 			resolveNetwork: () => undefined,
 		});
 		const tool = new NavigateBrowserTool(
@@ -299,7 +299,7 @@ suite('NavigateBrowserTool', () => {
 			}),
 			networkFilterService,
 			upcastPartial<IBrowserViewWorkbenchService>({
-				getKnownBrowserViews: () => new Map(), isNetworkPathCaseSensitive: () => undefined,
+				getKnownBrowserViews: () => new Map(),
 				resolveNetwork: () => ({ authority: 'remote' }),
 			}),
 			upcastPartial<IRemoteExplorerService>({}),

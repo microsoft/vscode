@@ -185,7 +185,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			trust,
 		});
 		let changes = 0;
-		store.add(resolver.onDidChangeTrustedFileRoots!(() => changes++));
+		store.add(resolver.onDidChangeFileAccess!(() => changes++));
 		const roots = async () => {
 			await timeout(0);
 			return resolver.getTrustedFileRoots!().map(root => fromAgentHostUri(root).path);
@@ -225,7 +225,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			},
 		});
 		let changes = 0;
-		store.add(resolver.onDidChangeTrustedFileRoots!(() => changes++));
+		store.add(resolver.onDidChangeFileAccess!(() => changes++));
 		const caseSensitivity = () => ['posix-host', 'windows-host', 'unknown-host'].map(authority => resolver.isPathCaseSensitive!({ authority }));
 
 		await timeout(10);
@@ -242,7 +242,7 @@ suite('SessionBrowserNetworkContribution', () => {
 			initial: [true, undefined, undefined],
 			connecting: [true, undefined, undefined],
 			handshaken: [true, false, undefined],
-			changes: 2,
+			changes: 1,
 		});
 	});
 

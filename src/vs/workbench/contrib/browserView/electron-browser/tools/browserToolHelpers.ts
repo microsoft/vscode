@@ -6,7 +6,7 @@
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
@@ -79,8 +79,8 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 	}).join('\n');
 }
 
-export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string, caseSensitive?: boolean): string | undefined {
-	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target, editor.activeNetwork, caseSensitive)) {
+export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string): string | undefined {
+	if (!editor?.associatedResource || editor.isAssociatedResourceNavigation(target)) {
 		return undefined;
 	}
 
@@ -348,9 +348,7 @@ export function findExistingPagesByHost(
 		if (options?.sharingState && editor.model?.sharingState !== options.sharingState) {
 			continue;
 		}
-		// A page uses the network of its model once created, which may be the local network it fell back to.
-		const pageNetwork = editor.model ? editor.model.network : editor.network;
-		if (pageNetwork?.authority !== network?.authority) {
+		if (editor.activeNetwork?.authority !== network?.authority) {
 			continue;
 		}
 		if (browserViewUrlMatches(editor.url, url, options?.includeBlank)) {

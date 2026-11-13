@@ -9,7 +9,8 @@ import { IBrowserViewRemoteNetwork } from '../common/browserView.js';
 
 /** What sessions on a remote network may read from the remote's file system. */
 export interface IRemoteFileTrust {
-	readonly roots: ReadonlySet<string>;
+	/** The trusted folders, as normalized paths. Looks paths up with the remote's case rules. */
+	readonly roots: TernarySearchTree<string, true>;
 	readonly trustAll: boolean;
 	/** The scheme the remote's files are read with: `vscode-remote` or `vscode-agent-host`. */
 	readonly scheme: string;
@@ -26,33 +27,28 @@ export function toRemoteTrustKey(authority: string): string {
  * A window only contributes to the networks it is connected to.
  */
 export function computeRemoteFileTrust(windows: Iterable<{ readonly [authority: string]: IBrowserViewRemoteNetwork } | undefined>): Map<string, IRemoteFileTrust> {
-	const roots = new Map<string, Set<string>>();
-	const remotes = new Map<string, { trustAll: boolean; scheme: string; caseSensitive: boolean }>();
+	const merged = new Map<string, { roots: Set<string>; trustAll: boolean; scheme: string; caseSensitive: boolean }>();
 	for (const networks of windows) {
 		for (const [authority, network] of Object.entries(networks ?? {})) {
 			const key = toRemoteTrustKey(authority);
-			const remote = remotes.get(key) ?? { trustAll: false, scheme: network.scheme, caseSensitive: network.caseSensitive };
+			const remote = merged.get(key) ?? { roots: new Set<string>(), trustAll: false, scheme: network.scheme, caseSensitive: network.caseSensitive };
 			remote.trustAll ||= network.trustAllFiles;
 			remote.caseSensitive &&= network.caseSensitive;
-			remotes.set(key, remote);
-			const remoteRoots = roots.get(key) ?? new Set<string>();
-			// Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories.
-			network.trustedRoots.filter(root => normalizeRemoteFilePath(root) !== undefined).forEach(root => remoteRoots.add(root));
-			roots.set(key, remoteRoots);
+			for (const root of network.trustedRoots) {
+				// Roots with backslashes are dropped: they are separators to the tree, so one would authorize other directories.
+				const normalized = normalizeRemoteFilePath(root);
+				if (normalized) {
+					remote.roots.add(normalized);
+				}
+			}
+			merged.set(key, remote);
 		}
 	}
-	return new Map([...remotes].map(([key, remote]) => [key, { ...remote, roots: roots.get(key)! }]));
-}
-
-/** The tree that decides whether a normalized remote path is inside one of the trusted roots. */
-export function createRemoteRootTree(roots: Iterable<string>, caseSensitive: boolean): TernarySearchTree<string, true> {
-	const tree = TernarySearchTree.forPaths<true>(!caseSensitive);
-	for (const root of roots) {
-		if (root) {
-			tree.set(posix.normalize(root), true);
-		}
-	}
-	return tree;
+	return new Map([...merged].map(([key, { roots, ...remote }]) => {
+		const tree = TernarySearchTree.forPaths<true>(!remote.caseSensitive);
+		roots.forEach(root => tree.set(root, true));
+		return [key, { ...remote, roots: tree }];
+	}));
 }
 
 /**

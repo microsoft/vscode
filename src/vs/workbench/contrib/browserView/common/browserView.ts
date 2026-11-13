@@ -290,7 +290,7 @@ export interface IBrowserViewOpenHandler {
 }
 
 /** Resource schemes of HTML files that can be opened in the integrated browser. */
-export const BROWSER_FILE_SCHEMES: string[] = [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME];
+export const BROWSER_FILE_SCHEMES: readonly string[] = [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME];
 
 /** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
@@ -326,8 +326,8 @@ export interface IBrowserViewNetworkResolver {
 	 * Only asked for networks that are not the window's own remote.
 	 */
 	isPathCaseSensitive?(network: IBrowserViewNetwork): boolean | undefined;
-	/** Fires when {@link getTrustedFileRoots} or {@link isPathCaseSensitive} may have changed. */
-	readonly onDidChangeTrustedFileRoots?: Event<void>;
+	/** Fires when what tabs may read from the networks' file systems may have changed: {@link getTrustedFileRoots} or {@link isPathCaseSensitive}. */
+	readonly onDidChangeFileAccess?: Event<void>;
 	/** The status of a network this resolver resolves views to. */
 	getNetworkStatus(network: IBrowserViewNetwork): IBrowserViewNetworkStatus;
 	/** Fires when the status of any network may have changed. */

@@ -9,6 +9,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IBrowserViewNavigationEvent, IBrowserViewNetwork, IBrowserViewVisibilityEvent } from '../../../../../../platform/browserView/common/browserView.js';
@@ -19,7 +20,7 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../common
 import { BrowserAutoReloadService, BrowserAutoReloadWatcher } from '../../../electron-browser/features/browserAutoReloadFeatures.js';
 
 function networkFiles(remoteAuthority?: string) {
-	return { getNetworkFileScheme: (network: IBrowserViewNetwork) => network.authority === remoteAuthority ? 'vscode-remote' : 'vscode-agent-host' };
+	return upcastPartial<IBrowserViewWorkbenchService>({ getNetworkFileScheme: (network: IBrowserViewNetwork) => network.authority === remoteAuthority ? 'vscode-remote' : 'vscode-agent-host' });
 }
 
 suite('Browser Auto Reload Features', () => {

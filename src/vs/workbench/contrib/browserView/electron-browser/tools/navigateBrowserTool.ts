@@ -165,7 +165,7 @@ export class NavigateBrowserTool implements IToolImpl {
 
 	private getResourceNavigationError(pageId: string, target: string): string | undefined {
 		const editor = this.browserViewService.getKnownBrowserViews().get(pageId);
-		return getBrowserPageResourceNavigationError(editor, target, this.browserViewService.isNetworkPathCaseSensitive(editor?.activeNetwork));
+		return getBrowserPageResourceNavigationError(editor, target);
 	}
 
 	/** The network of the page, or the one a new page of the session would use before it has a model. */

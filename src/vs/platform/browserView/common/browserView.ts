@@ -173,10 +173,10 @@ export interface IBrowserViewWindowConfiguration {
 	readonly remoteNetworks?: { readonly [authority: string]: IBrowserViewRemoteNetwork };
 	/**
 	 * The window's contribution to the allowlist of `file:` requests of sessions on the local network,
-	 * as `file:` URIs. Main unions every window's contribution. Entries are dropped when the window is destroyed.
+	 * as file system paths. Main unions every window's contribution. Entries are dropped when the window is destroyed.
 	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its workspace folders.
 	 */
-	readonly trustedFileRoots: readonly UriComponents[];
+	readonly trustedFileRoots: readonly string[];
 	/**
 	 * Whether Workspace Trust is disabled entirely (`security.workspace.trust.enabled: false`) in a
 	 * window that is not connected to a remote. When `true`, every local `file://` request is allowed,
@@ -417,7 +417,7 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
  * The inverse of {@link remoteUrlToFileUrl} for a resource: maps a `file:` URI on the file system of the
  * remote {@link network} onto the `vscode-remote:` or `vscode-agent-host:` URI that reads it, as given by {@link scheme}.
  */
-export function fileUrlToRemoteUri(fileUri: URI, network: IBrowserViewNetwork, scheme: string): URI {
+export function fileUrlToRemoteUri(network: IBrowserViewNetwork, scheme: string, fileUri: URI): URI {
 	if (scheme === Schemas.vscodeRemote) {
 		return fileUri.with({ scheme, authority: network.authority });
 	}

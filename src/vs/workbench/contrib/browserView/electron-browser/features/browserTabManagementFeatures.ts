@@ -391,7 +391,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
-		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: BROWSER_FILE_SCHEMES, supportSideBySide: SideBySideEditor.PRIMARY });
+		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [...BROWSER_FILE_SCHEMES], supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!fileUri) {
 			return;
 		}

@@ -189,15 +189,24 @@ export class BrowserEditorInput extends EditorInput {
 		return this._initialData.session;
 	}
 
-	/** The remote network this view was opened for, or `undefined` for the local network. */
+	/** The remote network this tab was requested to open on, or `undefined` for the local network. Fixed by the saved session, unlike {@link activeNetwork}. */
 	get network(): IBrowserViewNetwork | undefined {
 		const session = this._initialData.session;
 		return session?.scope === BrowserViewStorageScope.Global ? undefined : session?.network;
 	}
 
-	/** The network the page actually runs on: the resolved model's, falling back to the request before resolution. */
+	/** The network the page actually runs on, which may be the local network the requested {@link network} fell back to. Falls back to the request before the model resolves. */
 	get activeNetwork(): IBrowserViewNetwork | undefined {
 		return this._model ? this._model.network : this.network;
+	}
+
+	/** Whether navigating to {@link target} keeps the page on the {@link associatedResource}, apart from its query and fragment. */
+	isAssociatedResourceNavigation(target: string): boolean {
+		if (!this._associatedResource) {
+			return false;
+		}
+		const network = this.activeNetwork;
+		return isBrowserViewAssociatedResourceNavigation(this._associatedResource, target, network, this.browserViewWorkbenchService.isNetworkPathCaseSensitive(network));
 	}
 
 	get url(): string | undefined {
@@ -405,11 +414,10 @@ export class BrowserEditorInput extends EditorInput {
 
 		const currentUrl = this.url;
 		let renamedUrl = currentUrl;
-		const network = this.activeNetwork;
-		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, network, this.browserViewWorkbenchService.isNetworkPathCaseSensitive(network))) {
+		if (currentUrl && this.isAssociatedResourceNavigation(currentUrl)) {
 			// Map the target to the URL the page displays first, then carry over the page's query and fragment as written.
 			const { query, fragment } = splitUrlSuffix(currentUrl);
-			renamedUrl = splitUrlSuffix(remoteUrlToFileUrl(network, target.toString())).base + query + fragment;
+			renamedUrl = splitUrlSuffix(remoteUrlToFileUrl(this.activeNetwork, target.toString())).base + query + fragment;
 		}
 		return {
 			editor: {

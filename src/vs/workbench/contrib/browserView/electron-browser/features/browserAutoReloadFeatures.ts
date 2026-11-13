@@ -41,8 +41,8 @@ function getFileUri(url: string): URI | undefined {
 }
 
 /** Sessions on a remote network serve `file:` URLs from the remote's file system, which the window reads by remote or agent host URI. */
-function toWatchUri(fileUri: URI, network: IBrowserViewNetwork | undefined, files: Pick<IBrowserViewWorkbenchService, 'getNetworkFileScheme'>): URI {
-	return network ? fileUrlToRemoteUri(fileUri, network, files.getNetworkFileScheme(network)) : fileUri;
+function toWatchUri(fileUri: URI, network: IBrowserViewNetwork | undefined, browserViewWorkbenchService: IBrowserViewWorkbenchService): URI {
+	return network ? fileUrlToRemoteUri(network, browserViewWorkbenchService.getNetworkFileScheme(network), fileUri) : fileUri;
 }
 
 interface IBrowserAutoReloadStateChangeEvent {
@@ -70,7 +70,7 @@ export class BrowserAutoReloadWatcher extends Disposable {
 		input: BrowserEditorInput,
 		enabled: boolean,
 		private readonly _fileService: IFileService,
-		private readonly _networkFiles: Pick<IBrowserViewWorkbenchService, 'getNetworkFileScheme'>,
+		private readonly _browserViewWorkbenchService: IBrowserViewWorkbenchService,
 	) {
 		super();
 		this._enabled = enabled;
@@ -118,7 +118,7 @@ export class BrowserAutoReloadWatcher extends Disposable {
 		if (!fileUri) {
 			return;
 		}
-		const uri = toWatchUri(fileUri, model.network, this._networkFiles);
+		const uri = toWatchUri(fileUri, model.network, this._browserViewWorkbenchService);
 
 		const store = new DisposableStore();
 		const scheduler = store.add(new RunOnceScheduler(() => {

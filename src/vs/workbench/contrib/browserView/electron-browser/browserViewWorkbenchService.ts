@@ -307,7 +307,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 		this._networkResolver = resolver;
 		const statusListener = resolver.onDidChangeNetworkStatus(() => this._onDidChangeNetworkStatus.fire());
-		const trustListener = resolver.onDidChangeTrustedFileRoots?.(() => void this._updateWindowConfiguration());
+		const trustListener = resolver.onDidChangeFileAccess?.(() => void this._updateWindowConfiguration());
 		this._onDidChangeNetworkStatus.fire();
 		void this._updateWindowConfiguration();
 		return toDisposable(() => {
@@ -945,21 +945,22 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	private _updateWindowConfiguration(): Promise<void> {
+		const trustedRoots = this._getTrustedFileRoots();
 		return this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
-			remoteNetworks: this._getRemoteNetworks(),
-			trustedFileRoots: this._getTrustedFileRoots().filter(root => root.scheme === Schemas.file),
+			remoteNetworks: this._getRemoteNetworks(trustedRoots),
+			trustedFileRoots: trustedRoots.filter(root => root.scheme === Schemas.file).map(root => root.fsPath),
 			// A remote window's trust applies to its own remote's files, not to the local disk.
 			trustAllFiles: !this.environmentService.remoteAuthority && !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
 	}
 
 	/** The remote networks with a published proxy, each with the trusted folders on its file system. */
-	private _getRemoteNetworks(): { [authority: string]: IBrowserViewRemoteNetwork } {
-		const remoteRoots = this._getTrustedFileRoots().flatMap(root => getBrowserViewRemoteRoot(root) ?? []);
+	private _getRemoteNetworks(trustedRoots: readonly URI[]): { [authority: string]: IBrowserViewRemoteNetwork } {
+		const remoteRoots = trustedRoots.flatMap(root => getBrowserViewRemoteRoot(root) ?? []);
 		const trustAllFiles = !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled();
 		const remoteNetworks: { [authority: string]: IBrowserViewRemoteNetwork } = {};
 		for (const [authority, entry] of this._networkProxies) {
@@ -1030,7 +1031,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		};
 	}
 
-	/** The candidate trusted roots on any file system. Local ones go to the window configuration as is; remote ones are grouped by network. */
+	/** The candidate trusted roots on any file system. Local ones go to the window configuration as paths; remote ones are matched to the network of their scheme and authority. */
 	private _getTrustedFileRoots(): URI[] {
 		// Trust Copilot roots so agents can create HTML files and open them in the browser.
 		const roots = getCopilotRootPaths(this.environmentService.userHome.fsPath, this.copilotHomeService.home.fsPath).map(path => URI.file(path));
@@ -1038,8 +1039,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			for (const folder of this.workspaceContextService.getWorkspace().folders) {
 				roots.push(folder.uri);
 			}
-			roots.push(...this._networkResolver?.getTrustedFileRoots?.() ?? []);
 		}
+		// The resolver applies workspace trust to each session folder itself.
+		roots.push(...this._networkResolver?.getTrustedFileRoots?.() ?? []);
 		roots.push(...this.workspaceTrustManagementService.getTrustedUris());
 		return roots;
 	}
