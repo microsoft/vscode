@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createConnection, isIP } from 'net';
+import { raceTimeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -20,13 +21,15 @@ import { IAgentNetworkFilterService, isFilteredNetworkScheme } from '../common/n
 
 export interface IAgentNetworkFilterSessionOptions {
 	readonly resolveProxy?: (url: string) => Promise<string>;
-	readonly connect?: (address: string, port: number) => Promise<ITunnelStream>;
+	/** Connects to a validated numeric address and observes cancellation. */
+	readonly connect?: (address: string, port: number, signal: AbortSignal) => Promise<ITunnelStream>;
 	readonly getRestrictions?: () => ISandboxNetworkRestrictions | undefined;
 	readonly isRemote?: () => boolean;
 }
 
 /** Enforces address restrictions on the sockets used by an isolated Chromium session. */
 export class AgentNetworkFilterSession extends Disposable {
+	private static readonly CONNECTION_ATTEMPT_TIMEOUT = 5000;
 	private static readonly _routingUpdates = new WeakMap<Electron.Session, Promise<void>>();
 	private readonly _proxy = this._register(new MutableDisposable<TunnelProxy>());
 	private _proxyInfo: ITunnelProxyInfo | undefined;
@@ -139,9 +142,21 @@ export class AgentNetworkFilterSession extends Disposable {
 				throw new CancellationError();
 			}
 			try {
-				const connection = await (this._options.connect
-					? this._options.connect(address, port)
-					: connectToAddress(address, port, this._connectionAbort.signal));
+				const attemptAbort = new AbortController();
+				const signal = AbortSignal.any([this._connectionAbort.signal, attemptAbort.signal]);
+				const connecting = (this._options.connect ?? connectToAddress)(address, port, signal).then(connection => {
+					if (signal.aborted) {
+						connection.stream.destroy();
+						throw new CancellationError();
+					}
+					return connection;
+				});
+				const connection = await raceTimeout(connecting, AgentNetworkFilterSession.CONNECTION_ATTEMPT_TIMEOUT, () => attemptAbort.abort());
+				if (!connection) {
+					const error: NodeJS.ErrnoException = new Error(localize('networkFilter.connectionTimedOut', "Connecting to a permitted network destination timed out."));
+					error.code = 'ETIMEDOUT';
+					throw error;
+				}
 				if (revision !== this._revision || this._store.isDisposed) {
 					connection.stream.destroy();
 					throw new CancellationError();
@@ -187,6 +202,9 @@ export class AgentNetworkFilterSession extends Disposable {
 					if (this._proxy.value === proxy) {
 						this._proxy.clear();
 					}
+					if (revision === this._revision && !this._store.isDisposed) {
+						this.update();
+					}
 					throw error;
 				}
 			});
@@ -202,10 +220,13 @@ export class AgentNetworkFilterSession extends Disposable {
 		this._connectionAbort = new AbortController();
 		this._proxy.clear();
 		this._setup = undefined;
-		this._restoring = this._modifiedProxy;
+		const closeConnections = this._modifiedProxy || this._filter.getDeniedIpAddresses(this._options.getRestrictions?.()).length > 0;
+		this._restoring = closeConnections;
 		const restore = async () => {
-			if (this._modifiedProxy) {
+			if (closeConnections) {
 				await this._session.closeAllConnections();
+			}
+			if (this._modifiedProxy) {
 				await this._session.setProxy({ mode: 'system' });
 				this._modifiedProxy = false;
 			}

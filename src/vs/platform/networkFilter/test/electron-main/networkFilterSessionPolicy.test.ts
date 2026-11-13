@@ -19,6 +19,48 @@ import { AgentNetworkFilterSession } from '../../electron-main/networkFilterSess
 suite('AgentNetworkFilterSession policy refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('closes direct connections when the first IP deny rule becomes active', async () => {
+		const configuration = new TestConfigurationService();
+		configuration.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
+		configuration.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
+		configuration.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example']);
+		const filter = store.add(new AgentNetworkFilterService(configuration));
+		let responseOpen = true;
+		let connectionClosures = 0;
+		let proxyChanges = 0;
+		const session = upcastPartial<Electron.Session>({
+			resolveHost: async () => ({ endpoints: [{ address: '127.0.0.2', family: 'ipv4' }] }),
+			setProxy: async () => { proxyChanges++; },
+			closeAllConnections: async () => {
+				connectionClosures++;
+				responseOpen = false;
+			},
+		});
+		const guard = store.add(new AgentNetworkFilterSession(session, { resolveProxy: async () => 'DIRECT' }, filter, store.add(new NullLogService())));
+		const update = (denied: string[]) => {
+			configuration.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, denied);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([AgentNetworkDomainSettingId.DeniedNetworkDomains]),
+				change: { keys: [AgentNetworkDomainSettingId.DeniedNetworkDomains], overrides: [] },
+				affectsConfiguration: key => key === AgentNetworkDomainSettingId.DeniedNetworkDomains,
+			});
+		};
+		update(['another-blocked.example']);
+		await guard.checkRequest(URI.parse('http://allowed.example/'));
+		const hostnameOnly = { responseOpen, connectionClosures, proxyChanges };
+
+		update(['another-blocked.example', '127.0.0.1']);
+		await assert.rejects(guard.checkRequest(URI.parse('http://127.0.0.1/')), /blocked by network domain policy/);
+		assert.deepStrictEqual({
+			hostnameOnly,
+			addressRestricted: { responseOpen, connectionClosures, proxyChanges },
+		}, {
+			hostnameOnly: { responseOpen: true, connectionClosures: 0, proxyChanges: 0 },
+			addressRestricted: { responseOpen: false, connectionClosures: 1, proxyChanges: 0 },
+		});
+	});
+
 	test('cancels stale resolutions without poisoning requests under the updated policy', async () => {
 		const configuration = new TestConfigurationService();
 		configuration.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
