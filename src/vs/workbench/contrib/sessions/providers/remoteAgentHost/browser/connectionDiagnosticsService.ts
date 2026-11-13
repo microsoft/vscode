@@ -11,6 +11,7 @@ import { isWeb } from '../../../../../../base/common/platform.js';
 import { localize } from '../../../../../../nls.js';
 import { normalizeRemoteAgentHostAddress } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ConnectionDiagnosticBuffer, formatConnectionDiagnosticError, getConnectionDiagnosticError, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelAgentHostService, ITunnelInfo, TUNNEL_ADDRESS_PREFIX } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -61,6 +62,7 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 		@IProductService private readonly _productService: IProductService,
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IRemoteGitHubEnvironmentSharingService private readonly _remoteSharing: IRemoteGitHubEnvironmentSharingService,
 	) {
 		super();
 		this._captureConnections();
@@ -185,6 +187,9 @@ export class ConnectionDiagnosticsService extends Disposable implements IConnect
 			throw new Error(localize('connectionDiagnostics.hostNotManageable', "The host does not have manual connection controls."));
 		}
 		if (action === 'disconnect') {
+			if (current.address && !await this._remoteSharing.confirmDisconnect(current.address, current.label)) {
+				return;
+			}
 			await this._filterService.disconnect(current.id);
 			return;
 		}
