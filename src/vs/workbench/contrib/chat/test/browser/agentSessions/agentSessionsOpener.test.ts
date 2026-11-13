@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, raceCancellation, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { IReference } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -13,6 +16,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -35,13 +39,19 @@ suite('AgentSessionsOpener', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createInstantiationService(): TestInstantiationService {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatWidgetService, {});
+		return instantiationService;
+	}
+
 	/** The opener consults the agent host to redirect legacy Copilot CLI resources. */
 	function stubAgentHost(instantiationService: TestInstantiationService): void {
 		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ ambientConnection: undefined }));
 	}
 
 	test('lets a participant handle a resource before legacy session lookup', async () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ILogService, new NullLogService());
 		stubAgentHost(instantiationService);
 		const resource = URI.parse('test-session://provider/session');
@@ -65,7 +75,7 @@ suite('AgentSessionsOpener', () => {
 	});
 
 	test('falls back to the legacy session opener when no participant handles the resource', async () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ILogService, new NullLogService());
 		stubAgentHost(instantiationService);
 		const resource = URI.parse('test-session://provider/session');
@@ -103,7 +113,7 @@ suite('AgentSessionsOpener', () => {
 		const twin = URI.parse('agent-host-copilotcli:/sess-1');
 		const twinSession = upcastPartial<IAgentSession>({ resource: twin });
 
-		const instantiationService = disposables.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -161,7 +171,7 @@ suite('AgentSessionsOpener', () => {
 		const legacySession = upcastPartial<IAgentSession>({ resource: legacy });
 		const twinSession = upcastPartial<IAgentSession>({ resource: twin });
 
-		const instantiationService = disposables.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -203,7 +213,7 @@ suite('AgentSessionsOpener', () => {
 		const resource = URI.parse('test-session://provider/session');
 		const session = upcastPartial<IAgentSession>({ resource, providerType: 'test-session', label: 'Session', setRead: () => { } });
 		const open = async (openInEditor: boolean, existing: 'none' | 'chatView' | 'editor', sideBySide = false) => {
-			const instantiationService = disposables.add(new TestInstantiationService());
+			const instantiationService = createInstantiationService();
 			instantiationService.stub(ILogService, new NullLogService());
 			stubAgentHost(instantiationService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.OpenSessionsInEditor]: openInEditor }));
@@ -244,8 +254,77 @@ suite('AgentSessionsOpener', () => {
 		});
 	});
 
+	for (const next of ['default', 'participant', 'resource participant', 'side-by-side', 'other window'] as const) {
+		const independent = next === 'side-by-side' || next === 'other window';
+		test(`a ${next} open ${independent ? 'preserves an independent' : 'supersedes a'} pending consent preflight`, async () => {
+			const instantiationService = createInstantiationService();
+			instantiationService.stub(ILogService, new NullLogService());
+			stubAgentHost(instantiationService);
+			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			const errors: string[] = [];
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); return undefined; } }));
+			const waiting = new DeferredPromise<void>();
+			const approved = new DeferredPromise<boolean>();
+			let requestToken: CancellationToken | undefined;
+			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+				activateChatSessionItemProvider: async () => { },
+				canResolveChatSession: (_type, token = CancellationToken.None) => {
+					requestToken = token;
+					void waiting.complete();
+					return raceCancellation(approved.p, token, false);
+				},
+			}));
+			const first = upcastPartial<IAgentSession>({
+				resource: URI.parse('remote-consent-copilot:/first'), providerType: 'remote-consent-copilot', label: 'First', setRead: () => { },
+			});
+			const second = upcastPartial<IAgentSession>({
+				resource: URI.from({ scheme: Schemas.vscodeChatEditor, path: '/second' }), providerType: 'local', label: 'Second', setRead: () => { },
+			});
+			const opened: string[] = [];
+			const createWidgetService = () => upcastPartial<IChatWidgetService>({
+				openSession: async resource => { opened.push(resource.path); return undefined; },
+			});
+			instantiationService.stub(IChatWidgetService, createWidgetService());
+			const nextInstantiationService = next === 'other window'
+				? disposables.add(instantiationService.createChild(new ServiceCollection([IChatWidgetService, createWidgetService()])))
+				: instantiationService;
+			if (next === 'participant' || next === 'resource participant') {
+				disposables.add(sessionOpenerRegistry.registerParticipant({
+					handleOpenSession: async (_accessor, session) => {
+						if (session === second) {
+							opened.push(session.resource.path);
+							return true;
+						}
+						return false;
+					},
+					handleOpenSessionResource: async (_accessor, resource) => {
+						opened.push(resource.path);
+						return true;
+					},
+				}));
+			}
+			let firstSettled = false;
+			const firstOpen = instantiationService.invokeFunction(openSession, first, next === 'side-by-side' ? { sideBySide: true } : undefined, true).then(() => { firstSettled = true; });
+			await waiting.p;
+			if (next === 'resource participant') {
+				await instantiationService.invokeFunction(openSessionByResource, second.resource);
+			} else {
+				await nextInstantiationService.invokeFunction(openSession, second, undefined, true);
+			}
+			await timeout(0);
+			const beforeApproval = { cancelled: requestToken?.isCancellationRequested, firstSettled, opened: [...opened] };
+			await approved.complete(true);
+			await firstOpen;
+			assert.deepStrictEqual({ beforeApproval, opened, errors }, {
+				beforeApproval: { cancelled: !independent, firstSettled: !independent, opened: ['/second'] },
+				opened: independent ? ['/second', '/first'] : ['/second'],
+				errors: [],
+			});
+		});
+	}
+
 	test('reports a migrated session refresh failure without swallowing it', async () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
+		const instantiationService = createInstantiationService();
 		const events: { name: string; data: unknown }[] = [];
 		const error = new Error('refresh failed');
 		instantiationService.stub(ILogService, new NullLogService());
@@ -364,7 +443,7 @@ suite('AgentSessionsOpener', () => {
 			const legacy = URI.parse('copilotcli:/sess-unlisted');
 			const twin = URI.parse('agent-host-copilotcli:/sess-unlisted');
 			const staleCachedLegacy = upcastPartial<IAgentSession>({ resource: legacy, providerType: 'copilotcli' });
-			const instantiationService = disposables.add(new TestInstantiationService());
+			const instantiationService = createInstantiationService();
 			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());

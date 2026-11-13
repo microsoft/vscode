@@ -856,6 +856,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._onDidChangePendingConnections.fire();
 			if (err instanceof RemoteAgentHostConnectionConfirmationRequiredError
 				|| isCancellationError(err) && entryToCreate.connection.type === RemoteAgentHostEntryType.WebSocket && requiresRemoteAgentHostConnectionConfirmation(address, this._storageService)) {
+				let connectRequested = false;
 				const notification = this._notificationService.notify({
 					id: attemptId,
 					severity: Severity.Warning,
@@ -865,6 +866,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 							id: 'remoteAgentHost.connect',
 							label: isCancellationError(err) ? localize('remoteAgentHost.retryConnection', "Retry") : localize('remoteAgentHost.connect', "Connect"),
 							run: () => {
+								connectRequested = true;
 								notification.close();
 								if (this._entries.get(address) === entry && this._remoteAgentHostsEnabled.get()) {
 									this.reconnect(address, true);
@@ -873,6 +875,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 						})],
 					},
 				});
+				entry.store.add(Event.once(notification.onDidClose)(() => {
+					if (!connectRequested && this._entries.get(address) === entry
+						&& this._failedReconnects.get(address) === err && err instanceof RemoteAgentHostConnectionConfirmationRequiredError) {
+						this._failedReconnects.set(address, new CancellationError());
+						entry.lastConnectionError = undefined;
+						this._onDidChangeConnections.fire();
+					}
+				}));
 				entry.store.add(toDisposable(() => notification.close()));
 			}
 			// Nothing else reports this failure: no entry was created, so consumers

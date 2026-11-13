@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $ } from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
@@ -42,6 +43,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { NotificationService } from '../../../../../services/notification/common/notificationService.js';
+import { NotificationsCenter } from '../../../../../browser/parts/notifications/notificationsCenter.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
@@ -113,7 +115,7 @@ suite('Remote Agent Host consent integration', () => {
 		return { instantiation, service, notifications, setConfiguration };
 	}
 
-	for (const outcome of ['approved', 'cancelled', 'removed', 'disabled', 'abandoned'] as const) {
+	for (const outcome of ['approved', 'cancelled', 'removed', 'disabled', 'abandoned', 'dismissed', 'cleared'] as const) {
 		test(`restored chat waits for consent and settles when ${outcome}`, async () => {
 			const context = fixture([address], outcome !== 'cancelled');
 			await timeout(0);
@@ -135,6 +137,10 @@ suite('Remote Agent Host consent integration', () => {
 				await context.setConfiguration(RemoteAgentHostsEnabledSettingId, false);
 			} else if (outcome === 'abandoned') {
 				cancellation.cancel();
+			} else if (outcome === 'dismissed') {
+				context.notifications.model.notifications[0].close();
+			} else if (outcome === 'cleared') {
+				store.add(context.instantiation.createInstance(NotificationsCenter, $('div'), context.notifications.model)).clearAll();
 			} else {
 				const connect = context.notifications.model.notifications[0]?.actions?.primary?.[0];
 				assert.ok(connect);

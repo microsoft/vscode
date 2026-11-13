@@ -1444,11 +1444,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private async _getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		const sessionType = getChatSessionType(sessionResource);
-		if (!(await raceCancellationError(this.canResolveChatSession(sessionType, token), token))) {
-			throw Error(`Cannot find provider '${sessionType}'`);
-		}
+		const canResolve = await raceCancellationError(this.canResolveChatSession(sessionType, token), token);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+		if (!canResolve) {
+			throw Error(`Cannot find provider '${sessionType}'`);
 		}
 
 		// Check again after async provider resolution
@@ -1546,7 +1547,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		const sessionType = getChatSessionType(sessionResource);
 		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
-		if (!(await raceCancellationError(this.canResolveChatSession(resolvedType, token), token))) {
+		const canResolve = await raceCancellationError(this.canResolveChatSession(resolvedType, token), token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!canResolve) {
 			throw Error(`Cannot find provider '${resolvedType}'`);
 		}
 		const provider = this._contentProviders.get(resolvedType);

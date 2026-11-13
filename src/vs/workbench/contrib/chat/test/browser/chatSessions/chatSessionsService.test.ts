@@ -2086,6 +2086,16 @@ suite('ChatSessionsService - lightweight history reads', () => {
 		assert.strictEqual(disposed, 1);
 	});
 
+	test('already-cancelled history reads reject with cancellation, not a missing provider', async () => {
+		const type = 'history-already-cancelled';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const counters = { provided: 0, disposed: 0 };
+		registerHistoryProvider(type, [], counters);
+
+		await assert.rejects(service.getChatSessionHistory(resource, CancellationToken.Cancelled), CancellationError);
+		assert.deepStrictEqual(counters, { provided: 0, disposed: 0 });
+	});
+
 	test('reads an already retained session without resolving it again', async () => {
 		const type = 'history-cached';
 		const resource = URI.from({ scheme: type, path: '/session-1' });
