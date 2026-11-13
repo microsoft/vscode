@@ -805,13 +805,20 @@ export interface ICopilotAgentSessionOptions {
 	readonly onConnectorRefreshRetryable?: (session: CopilotAgentSession) => void;
 	/** Live canvases handed over by the runtime this session replaces during a configuration refresh. */
 	readonly canvasHandoff?: ICopilotCanvasHandoff;
+	/**
+	 * The chat's extension consent approvals for this session, shared with the runtimes that replace this one
+	 * on a configuration refresh so they do not ask again. Omitted, approvals last as long as this runtime.
+	 */
+	readonly extensionSessionApprovals?: Set<string>;
 }
 
 /** A Copilot extension load that waits for the user's consent. */
 interface IExtensionConsentGate {
 	readonly consent: IAgentExtensionConsentRequest;
-	/** The key of a decision remembered for all sessions or for this runtime. */
+	/** The key of a decision remembered for all sessions. */
 	readonly identity: string;
+	/** The key of a session approval. */
+	readonly approvalKey: string;
 	readonly decision: DeferredPromise<IExtensionConsentDecision>;
 	/** Whether a turn shows, or is about to show, the request. */
 	confirmingInTurn: boolean;
@@ -1421,7 +1428,7 @@ export class CopilotAgentSession extends Disposable {
 		/** The prompt offered optional feedback about the Assisted permissions review. */
 		readonly acceptsFeedback?: true;
 	}>();
-	private readonly _extensionSessionApprovals = new Set<string>();
+	private readonly _extensionSessionApprovals: Set<string>;
 	/** Extension consent requests waiting for the user's decision, by consent ID. */
 	private readonly _extensionConsentGates = new Map<string, IExtensionConsentGate>();
 	private readonly _onDidAddExtensionConsentGate = this._register(new Emitter<void>());
@@ -1434,6 +1441,9 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _canvasOpens = new Set<ICanvasOpenOperation>();
 	/** The open each consent request shown to a client belongs to, by consent and instance ID; kept after the open settles so a late answer gets its outcome. */
 	private readonly _canvasConsentOpens = new LRUCache<string, ICanvasOpenOperation>(32);
+	/** The working directory the runtime discovered project extensions from; a later change applies only to its replacement. */
+	private readonly _launchWorkingDirectory: URI | undefined;
+	private _requiresExtensionConsentRetry = false;
 	private readonly _onPermissionTurnReady = this._register(new Emitter<void>());
 	private readonly _mcpSkillSessionApprovals = new Set<string>();
 	private readonly _pendingMcpSkillConsents = new Map<string, DeferredPromise<boolean>>();
@@ -2366,6 +2376,7 @@ export class CopilotAgentSession extends Disposable {
 		this._getSessionPathRoots = options.getSessionPathRoots ?? (() => []);
 		this.launchOwner = options.owner.get();
 		this._controlPlaneRpcTimeoutMs = options.controlPlaneRpcTimeoutMs ?? CONTROL_PLANE_RPC_TIMEOUT_MS;
+		this._extensionSessionApprovals = options.extensionSessionApprovals ?? new Set();
 		this._connectorRefreshTimeoutMs = options.connectorRefreshTimeoutMs ?? CONNECTOR_REFRESH_TIMEOUT_MS;
 		this._connectorOwnershipLookupTimeoutMs = options.connectorOwnershipLookupTimeoutMs ?? CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS;
 		this._onConnectorRefreshRetryable = options.onConnectorRefreshRetryable ?? (() => { });
@@ -2460,6 +2471,7 @@ export class CopilotAgentSession extends Disposable {
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.owner, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
+		this._launchWorkingDirectory = options.workingDirectory;
 		this._pathMapper = options.pathMapper;
 		this._customizationDirectory = options.customizationDirectory;
 		this._serverToolHost = options.serverToolHost;
@@ -5371,6 +5383,22 @@ export class CopilotAgentSession extends Disposable {
 	/** Whether a canvas open for `extensionId` would show the client a consent request that is already waiting. */
 	hasPendingExtensionConsent(extensionId: string | undefined): boolean {
 		return [...this._extensionConsentGates.values()].some(gate => !gate.decision.isSettled && (!extensionId || gate.consent.extensionName === extensionId));
+	}
+
+	/** Whether this runtime declined `extensionId` (any extension when absent) in a way a new runtime can ask about again. */
+	hasRetryableExtensionConsentDenial(extensionId: string | undefined): boolean {
+		return extensionId
+			? this._extensionConsentDenialFor(extensionId)?.retryable === true
+			: [...this._extensionConsentDenials.keys()].some(name => this._extensionConsentDenialFor(name)?.retryable);
+	}
+
+	/** Asks for a new runtime at the next refresh, which forgets this runtime's extension consent denials so the user can be asked again. */
+	requestExtensionConsentRetry(): void {
+		this._requiresExtensionConsentRetry = true;
+	}
+
+	get requiresExtensionConsentRetry(): boolean {
+		return this._requiresExtensionConsentRetry;
 	}
 
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
@@ -9870,6 +9898,8 @@ export class CopilotAgentSession extends Disposable {
 				persistable: !environment || request.extensionName.startsWith('user:'),
 			},
 			identity,
+			// Session approvals outlive this runtime. A project extension's approval only covers the folder this runtime found it in.
+			approvalKey: request.extensionName.startsWith('project:') ? `${identity} in ${this._launchWorkingDirectory?.toString() ?? ''}` : identity,
 			decision: new DeferredPromise(),
 			confirmingInTurn: false,
 			turnConfirmationId: undefined,
@@ -9883,7 +9913,7 @@ export class CopilotAgentSession extends Disposable {
 		if (stored === 'deny' || stored === 'allow') {
 			return { approved: stored === 'allow', optionId: stored === 'allow' ? AgentExtensionConsentOption.AlwaysAllow : AgentExtensionConsentOption.Never, source: 'host_policy' };
 		}
-		return this._extensionSessionApprovals.has(gate.identity) ? { approved: true, source: 'host_policy' } : undefined;
+		return this._extensionSessionApprovals.has(gate.approvalKey) ? { approved: true, source: 'host_policy' } : undefined;
 	}
 
 	/** The decision for an extension consent request when nobody is asked: Allow All approves it, Autopilot declines it. */
@@ -9907,7 +9937,7 @@ export class CopilotAgentSession extends Disposable {
 			this._persistConsentDecision(AgentHostExtensionPermissionApprovalsConfigKey, gate.identity, decision.approved);
 		}
 		if (decision.approved && !remembered && decision.source !== 'host_policy') {
-			this._extensionSessionApprovals.add(gate.identity);
+			this._extensionSessionApprovals.add(gate.approvalKey);
 		}
 		if (!decision.approved) {
 			this._extensionConsentDenials.set(gate.consent.extensionName, { consent: gate.consent, identity: gate.identity });

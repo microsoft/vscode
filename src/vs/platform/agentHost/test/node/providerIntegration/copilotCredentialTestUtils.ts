@@ -13,6 +13,11 @@ export const credentialEnvironmentSentinels = {
 	OPENAI_API_KEY: 'FAKE_SENTINEL_OPENAI_API_KEY',
 } as const;
 
+/** A credential-shaped variable that test extensions request; the runtime withholds it from extensions until the user consents. */
+export const extensionEnvironmentSentinels = {
+	BLACKBIRD_AUTH_METIS_API_KEY: 'FAKE_SENTINEL_BLACKBIRD_AUTH_METIS_API_KEY',
+} as const;
+
 const fakeCredentials = { A: 'scope-a', B: 'scope-b', L: 'legacy-l', AR: 'scope-a-rotated', STUB_CAPI: 'replay-copilot-token' };
 const fakeCapiCredentials = { A: 'FAKE_CAPI_A', B: 'FAKE_CAPI_B', L: 'FAKE_CAPI_L', AR: 'FAKE_CAPI_AR' };
 
@@ -32,7 +37,7 @@ export function labelTestCredential(value: string | undefined): string {
 			return `CAPI_${label}`;
 		}
 	}
-	for (const [key, fake] of Object.entries(credentialEnvironmentSentinels)) {
+	for (const [key, fake] of [...Object.entries(credentialEnvironmentSentinels), ...Object.entries(extensionEnvironmentSentinels)]) {
 		if (token === fake) {
 			return `ENV_${key}`;
 		}

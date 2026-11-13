@@ -1482,6 +1482,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	getUserMcpServers?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers']>;
 	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
+	extensionSessionApprovals?: Set<string>;
 	connectorRefreshTimeoutMs?: number;
 	connectorOwnershipLookupTimeoutMs?: number;
 	onConnectorRefreshRetryable?: () => void;
@@ -1998,6 +1999,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
+			extensionSessionApprovals: options?.extensionSessionApprovals,
 			connectorRefreshTimeoutMs: options?.connectorRefreshTimeoutMs,
 			connectorOwnershipLookupTimeoutMs: options?.connectorOwnershipLookupTimeoutMs,
 			onConnectorRefreshRetryable: options?.onConnectorRefreshRetryable,
@@ -20658,11 +20660,13 @@ Use the attached image as context.
 				const refused = await never.session.openCanvas(canvasRequest('user:demo'));
 				assert.deepStrictEqual({
 					asked: withoutId(asked), declined: withoutId(declined), refused: withoutId(refused),
+					retryable: [project.session.hasRetryableExtensionConsentDenial('project:demo'), never.session.hasRetryableExtensionConsentDenial('user:demo')],
 					rootConfigUpdates: [...project.rootConfigUpdates, ...never.rootConfigUpdates],
 				}, {
 					asked: { kind: 'consentRequired', consent: consent('project:demo', false) },
 					declined: { kind: 'consentDenied', consent: consent('project:demo', false), retryable: true },
 					refused: { kind: 'consentDenied', consent: consent('user:demo', true), retryable: false },
+					retryable: [true, false],
 					rootConfigUpdates: [],
 				});
 			});
@@ -20697,6 +20701,35 @@ Use the attached image as context.
 				});
 			});
 
+			test('session approvals shared with a replacement runtime keep a project approval in the folder the runtime found it in', async () => {
+				const approvals = new Set<string>();
+				const first = await createAgentSession(disposables, { extensionSessionApprovals: approvals, workingDirectory: URI.file('/repo-a') });
+				useLazyCanvas(first.mockSession, first.runtime);
+				// The runtime keeps the project extensions it found at launch after the chat moves to another folder.
+				first.mockSession.workingDirectorySetResults.push({ workingDirectory: '/repo-b' });
+				await first.session.setWorkingDirectory(URI.file('/repo-b'), noOpWorkingDirectoryChangeTransaction);
+				for (const extensionId of ['project:demo', 'user:demo']) {
+					const asked = await first.session.openCanvas(canvasRequest(extensionId));
+					assert.strictEqual(asked.kind, 'consentRequired');
+					await first.session.openCanvas(canvasRequest(extensionId), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.Allow });
+				}
+				const answers = [];
+				for (const folder of ['/repo-a', '/repo-b']) {
+					const replacement = await createAgentSession(disposables, { extensionSessionApprovals: approvals, workingDirectory: URI.file(folder) });
+					for (const extensionId of ['project:demo', 'user:demo']) {
+						const answer = await Promise.race([replacement.runtime.handlePermissionRequest(envRequest(extensionId)), timeout(0).then(() => 'asks again')]);
+						answers.push(`${folder} ${extensionId}: ${typeof answer === 'string' ? answer : answer.kind}`);
+					}
+					replacement.session.dispose();
+				}
+				assert.deepStrictEqual(answers, [
+					'/repo-a project:demo: approve-once',
+					'/repo-a user:demo: approve-once',
+					'/repo-b project:demo: asks again',
+					'/repo-b user:demo: approve-once',
+				]);
+			});
+
 			test('an answer only continues the open it was shown for, and a late answer returns that open\'s outcome', async () => {
 				const { session, runtime, mockSession, rootConfigUpdates } = await createAgentSession(disposables);
 				useLazyCanvas(mockSession, runtime);
@@ -20727,6 +20760,23 @@ Use the attached image as context.
 				assert.deepStrictEqual({ opened, rootConfigUpdates }, {
 					opened: { kind: 'opened' },
 					rootConfigUpdates: [{ [AgentHostExtensionPermissionApprovalsConfigKey]: { [`user:demo (environment variables: ${variable})`]: 'allow' } }],
+				});
+			});
+
+			test('a Never removed from the settings can be asked about again, and any declined extension can be retried', async () => {
+				const identity = `user:demo (environment variables: ${variable})`;
+				const { session, runtime, mockSession, setRootValue } = await createAgentSession(disposables, { rootValues: { [AgentHostExtensionPermissionApprovalsConfigKey]: { [identity]: 'deny' } } });
+				useLazyCanvas(mockSession, runtime);
+				const refused = await session.openCanvas(canvasRequest('user:demo'));
+				const retryable = () => [session.hasRetryableExtensionConsentDenial('user:demo'), session.hasRetryableExtensionConsentDenial(undefined)];
+				const whileStored = retryable();
+				const asked = await session.openCanvas(canvasRequest('user:other'));
+				assert.strictEqual(asked.kind, 'consentRequired');
+				await session.openCanvas(canvasRequest('user:other'), { kind: 'consent', consentId: asked.consent.id, optionId: AgentExtensionConsentOption.NotNow });
+				const withOtherDeclined = retryable();
+				setRootValue(AgentHostExtensionPermissionApprovalsConfigKey, {});
+				assert.deepStrictEqual({ refused: refused.kind === 'consentDenied' && refused.retryable, whileStored, withOtherDeclined, afterRemoval: retryable() }, {
+					refused: false, whileStored: [false, false], withOtherDeclined: [false, true], afterRemoval: [true, true],
 				});
 			});
 

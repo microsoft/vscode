@@ -411,7 +411,7 @@ export interface IAgentCanvasOpenRequest {
 
 /** The choices a user can make about a Copilot extension that needs consent before it loads. */
 export const enum AgentExtensionConsentOption {
-	/** Allows the extension until the chat's runtime is replaced. */
+	/** Allows the extension for the rest of the chat's runtime sessions. */
 	Allow = 'allow-once',
 	AlwaysAllow = 'allow-extension-always',
 	NotNow = 'not-now',
@@ -436,8 +436,10 @@ export interface IAgentExtensionConsentRequest {
 	readonly persistable: boolean;
 }
 
-/** Continues a canvas open that returned {@link AgentCanvasOpenResult} `consentRequired` with the user's answer. */
-export type AgentCanvasOpenAnswer = { readonly kind: 'consent'; readonly consentId: string; readonly optionId: AgentExtensionConsentOption };
+/** Continues a canvas open that returned {@link AgentCanvasOpenResult} `consentRequired`, or retries one that was denied. */
+export type AgentCanvasOpenAnswer =
+	| { readonly kind: 'consent'; readonly consentId: string; readonly optionId: AgentExtensionConsentOption }
+	| { readonly kind: 'retry' };
 
 /**
  * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;

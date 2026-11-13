@@ -618,7 +618,7 @@ interface IRuntimeProxyCredentials {
 
 /** What a configuration check runs for, and how it may wait. */
 interface ICopilotSessionRefreshCheckOptions {
-	readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer';
+	readonly operation: 'sendMessage' | 'resumeTurn' | 'startMcpServer' | 'openCanvas';
 	readonly token?: CancellationToken;
 	readonly launchedForTurn?: boolean;
 }
@@ -1431,6 +1431,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	/** Selections awaiting replay survive a failed replacement or model update. */
 	private readonly _pendingModelSelections = new Map<string, ModelSelection>();
+	/** Extension consent approvals by chat key, which outlive the chat's runtime across configuration refreshes. */
+	private readonly _extensionSessionApprovals = new Map<string, Set<string>>();
 	/** Canvases a configuration refresh is handing from a chat's previous runtime to its replacement. */
 	private readonly _canvasHandoffs = new ResourceMap<ICopilotCanvasHandoff>();
 	private readonly _releasedCanvasContinuities = new LinkedMap<string, IReleasedCanvasContinuity>();
@@ -3519,11 +3521,43 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			return live.openCanvas(request, answer);
 		}
-		if (live?.hasPendingExtensionConsent(request.extensionId)) {
+		if (!answer && live?.hasPendingExtensionConsent(request.extensionId)) {
 			return live.openCanvas(request);
+		}
+		if (answer?.kind === 'retry') {
+			await this._retryExtensionConsent(session, request, chat, operationContext);
 		}
 		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'openSessionCanvas');
 		return liveSession.openCanvas(request);
+	}
+
+	/**
+	 * Replaces the chat's runtime when it declined the canvas's extension, which latches the extension as failed
+	 * and keeps the user's Not Now for the rest of that runtime, so that opening the canvas again asks the user again.
+	 */
+	private async _retryExtensionConsent(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+		const busy = () => new Error(localize('copilot.extensionConsentRetryBusy', "Try again after the chat finishes its current work."));
+		await this._queueChat(context.lifetimeId, context.sequencerKey, 'retryExtensionConsent', async () => {
+			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+			const entry = current.target;
+			if (!entry || !isEqual(entry.ownerSessionUri, session) || !entry.hasRetryableExtensionConsentDenial(request.extensionId)) {
+				return;
+			}
+			// Replacing the runtime would also stop background subagents that outlive the response.
+			if (entry.hasActiveTurn || entry.hasActiveSubagents) {
+				throw busy();
+			}
+			entry.requestExtensionConsentRetry();
+			try {
+				await this._refreshSessionConfiguration(current, entry, undefined, { operation: 'openCanvas', allowRestart: 'whenIdle' });
+			} catch (error) {
+				if (error instanceof CopilotSessionConfigurationBusyError) {
+					throw busy();
+				}
+				throw error;
+			}
+		});
 	}
 
 	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
@@ -6885,6 +6919,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatBackings.delete(chatKey);
 		this._modelRouterGuidance.forget(chatKey);
 		this._pendingModelSelections.delete(chatKey);
+		this._extensionSessionApprovals.delete(chatKey);
 		this._persistedChatHistory.delete(chatKey);
 		this._credentialSources.delete(chatKey);
 		this._credentialPins.delete(chatKey);
@@ -8611,6 +8646,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
 			?? (entry.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined)
+			?? (entry.requiresExtensionConsentRetry ? 'extensionConsentRetry' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
 			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
@@ -8675,7 +8711,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			kind: 'sdkSession',
 			cause: refreshReason,
 			firstTurn: !entry.hasCompletedTurn,
-			phase: operation === 'startMcpServer' ? 'idle' : 'turnPrepare',
+			phase: operation === 'startMcpServer' || operation === 'openCanvas' ? 'idle' : 'turnPrepare',
 		}, entry.completedTurnHistory);
 		const canvasHandoff = entry.takeCanvasProjection() ?? this._canvasHandoffs.get(entry.chatChannelUri);
 		if (canvasHandoff) {
@@ -8705,6 +8741,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._settleCanvasHandoff(entry.chatChannelUri, canvasHandoff, replacement);
 			}
 		}
+	}
+
+	private _extensionSessionApprovalsForChat(chatKey: string): Set<string> {
+		let approvals = this._extensionSessionApprovals.get(chatKey);
+		if (!approvals) {
+			approvals = new Set();
+			this._extensionSessionApprovals.set(chatKey, approvals);
+		}
+		return approvals;
 	}
 
 	/** Commits handed-over canvases to the replacement the refresh kept, or closes them when there is none. */
@@ -9831,6 +9876,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._chatBackings.delete(chatKey);
 			this._modelRouterGuidance.forget(chatKey);
 			this._pendingModelSelections.delete(chatKey);
+			this._extensionSessionApprovals.delete(chatKey);
 			this._persistedChatHistory.delete(chatKey);
 			this._readOnlyChatInputErrors.delete(chatKey);
 			this._chatOwners.delete(chatKey);
@@ -10919,6 +10965,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				telemetryContext: () => this.getTelemetryContext(),
 				restrictedTelemetryEnabled: () => this._restrictedTelemetryEnabled,
 				canvasHandoff: this._canvasHandoffForChat(chatChannelUri),
+				extensionSessionApprovals: launchPlan.isEphemeral ? undefined : this._extensionSessionApprovalsForChat(chatKey),
 			},
 		);
 		return agentSession;
