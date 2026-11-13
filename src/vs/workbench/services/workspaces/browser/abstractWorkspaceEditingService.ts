@@ -173,7 +173,6 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		};
 
 		let resolved: IResolvedFolderLocation | undefined;
-		let trusted: boolean | undefined;
 		if (!this.uriIdentityService.extUri.isEqual(location, identity)) {
 			if (identity.scheme !== Schemas.file || location.scheme !== Schemas.file) {
 				throw new Error(localize('folderLocationLocalOnly', "Folder locations are only supported for local folders."));
@@ -188,62 +187,75 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 				return; // superseded by a newer invocation
 			}
 			validatePrimary(); // the workspace may have changed while resolving
+		}
 
-			// Settle the trust of the destination before switching, so its settings are never applied under another trust
-			const isFresh = () => {
-				if (request !== this.folderLocationRequest) {
-					return false; // superseded by a newer invocation
-				}
-				validatePrimary(); // the workspace may have changed meanwhile
-				return true;
-			};
+		// Whether this request is still the latest one for the same workspace; it never throws
+		const isCurrent = () => request === this.folderLocationRequest
+			&& this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
+			&& this.uriIdentityService.extUri.isEqual(getIdentity(), identity);
 
-			if (this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-				const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
-				let destinationTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(location)).trusted;
-				if (!isFresh()) {
-					return;
-				}
+		// Same, but a workspace change is an error
+		const isFresh = () => {
+			if (request !== this.folderLocationRequest) {
+				return false;
+			}
+			validatePrimary();
+			return true;
+		};
 
-				if (!destinationTrusted) {
-					if (resolved.builtIn) {
-						// A built-in provider vouches for its locations: they inherit the trust of the primary location
-						const primaryTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(identity)).trusted;
-						if (!isFresh()) {
-							return;
-						}
-						if (primaryTrusted) {
-							await this.workspaceTrustManagementService.setUrisTrust([location], true);
-							destinationTrusted = true;
-						}
-					} else if (wasTrusted) {
-						const { confirmed } = await this.dialogService.confirm({
-							type: Severity.Info,
-							message: localize('trustFolderLocationMessage', "Do you trust the authors of the files in this folder?"),
-							detail: localize('trustFolderLocationDetail', "You are switching a trusted workspace to a location whose files are not currently trusted. If you do not trust them, the workspace switches in Restricted Mode."),
-							cancelButton: localize('no', "No"),
-							custom: { icon: Codicon.shield }
-						});
-						if (!isFresh()) {
-							return; // a superseded request does not persist trust
-						}
-						if (confirmed) {
-							await this.workspaceTrustManagementService.setUrisTrust([location], true);
-							destinationTrusted = true;
-						}
+		// Settle the trust of the destination before switching, so its settings are never applied under another trust.
+		// This also applies to returning to the primary location, which has its own trust.
+		// A request superseded before its trust grant starts persists no trust: freshness is checked right before each grant.
+		// Once a grant has started (a built-in provider vouched for the location, or the user said yes) it completes,
+		// but the superseded switch itself is not applied.
+		let trusted: boolean | undefined;
+		const destinationIsCurrent = this.uriIdentityService.extUri.isEqual(location, currentFolder.uri);
+		if (!destinationIsCurrent && this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
+			const wasTrusted = this.workspaceTrustManagementService.isWorkspaceTrusted();
+			let destinationTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(location)).trusted;
+			if (!isFresh()) {
+				return;
+			}
+
+			if (!destinationTrusted) {
+				if (resolved?.builtIn) {
+					// A built-in provider vouches for its locations: they inherit the trust of the primary location
+					const primaryTrusted = (await this.workspaceTrustManagementService.getUriTrustInfo(identity)).trusted;
+					if (!isFresh()) {
+						return;
+					}
+					if (primaryTrusted) {
+						await this.workspaceTrustManagementService.setUrisTrust([location], true);
+						destinationTrusted = true;
+					}
+				} else if (wasTrusted) {
+					const { confirmed } = await this.dialogService.confirm({
+						type: Severity.Info,
+						message: localize('trustFolderLocationMessage', "Do you trust the authors of the files in this folder?"),
+						detail: localize('trustFolderLocationDetail', "You are switching a trusted workspace to a location whose files are not currently trusted. If you do not trust them, the workspace switches in Restricted Mode."),
+						cancelButton: localize('no', "No"),
+						custom: { icon: Codicon.shield }
+					});
+					if (!isFresh()) {
+						return; // a superseded request does not persist trust
+					}
+					if (confirmed) {
+						await this.workspaceTrustManagementService.setUrisTrust([location], true);
+						destinationTrusted = true;
 					}
 				}
-				trusted = destinationTrusted;
 			}
+			trusted = destinationTrusted;
 		}
 
-		if (request !== this.folderLocationRequest) {
-			return; // superseded by a newer invocation
+		if (!isFresh()) {
+			return; // superseded by a newer invocation, or the workspace changed
 		}
-		validatePrimary();
 
-		await this.contextService.setFolderLocation(location, { trusted });
-		this.workspaceFolderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved, reason);
+		// The queued switch is skipped when superseded while waiting for earlier workspace edits
+		if (await this.contextService.setFolderLocation(location, { trusted, isCurrent })) {
+			this.workspaceFolderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved, reason);
+		}
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
