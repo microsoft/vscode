@@ -1372,6 +1372,8 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	permissionPath?: string;
 	/** Normalized URL extracted from the request. */
 	permissionUrl?: string;
+	/** Raw MCP server name extracted from the request. */
+	mcpServerName?: string;
 	shellCommand?: string;
 } {
 	const path = request.kind === 'read' ? str(request.path) : request.kind === 'write' ? str(request.fileName) : undefined;
@@ -1480,6 +1482,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: path,
+				mcpServerName: serverName,
 			};
 		}
 		case 'read':

@@ -17,6 +17,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentProvider, type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
 import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
@@ -704,6 +705,27 @@ suite('AbstractAgentHostCustomizationService', () => {
 			{ name: 'not-an-object', hostConfiguration: undefined },
 			{ name: 'plugin-server', hostConfiguration: undefined },
 		]);
+	});
+
+	test('exposes host permissions only when their schema is writable', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const permissions = { allow: ['Mcp(server)'], deny: ['Write'], ask: ['Read'] };
+		const configs: IAgentHostCustomizationTarget['rootConfig'][] = [
+			undefined,
+			{ schema: { type: 'object', properties: {} }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions', readOnly: true } } }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions', readOnly: false } } }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions' } } }, values: {} },
+		];
+		const results = configs.map(config => {
+			sut.setTarget(session, new class extends FakeTarget {
+				readonly rootConfig = config;
+			}([]));
+			return sut.getHostPermissions(session);
+		});
+
+		assert.deepStrictEqual(results, [undefined, undefined, undefined, permissions, { allow: [], deny: [] }]);
 	});
 
 	test('preserves global and session decisions when re-enabling workspace enablement', () => {
