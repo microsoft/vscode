@@ -29,9 +29,10 @@ suite('ChatViewHostService', () => {
 		const calls: string[] = [];
 		const widget = upcastPartial<ChatWidget>({});
 		const created = new DeferredPromise<ChatWidget>();
+		let accesses = 0;
 		const view = upcastPartial<ChatViewPane>({
 			widget: options.widgetCreatedLater ? undefined : widget,
-			whenWidget: created.p,
+			get whenWidget() { accesses++; return created.p; },
 			loadSession: async (resource: URI, reason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}`); return undefined; },
 			startNewLocalSession: async () => { calls.push('startNewLocalSession'); return undefined; },
 			focus: () => { calls.push('focus'); },
@@ -48,7 +49,7 @@ suite('ChatViewHostService', () => {
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({
 			withProgress: (async (_options: unknown, task: () => Promise<void>) => { calls.push('progress'); await task(); calls.push('progress done'); }) as IProgressService['withProgress'],
 		}));
-		return { service: instantiationService.createInstance(ChatViewHostService), widget, view, created, calls };
+		return { service: instantiationService.createInstance(ChatViewHostService), widget, view, created, calls, accesses: () => accesses };
 	}
 
 	test('without a host that replaces it, the Chat view shows the chats as before', async () => {
@@ -121,12 +122,16 @@ suite('ChatViewHostService', () => {
 	});
 
 	test('reveal waits for the Chat view\'s widget, which its body creates as it first renders, only when asked to', async () => {
-		const { service, view, created } = createService({ widgetCreatedLater: true });
+		const { service, view, created, accesses } = createService({ widgetCreatedLater: true });
 		const unchanged = await service.reveal(false);
-		const pending = service.reveal(false, { waitForWidget: true });
+		let settled = false;
+		const pending = service.reveal(false, { waitForWidget: true }).then(widget => { settled = true; return widget; });
+		await timeout(0);
+		// It waits for the widget it asked the view for, which the view has not created yet
+		const waiting = { accesses: accesses(), settled };
 		const widget = upcastPartial<ChatWidget>({});
 		Object.assign(view, { widget });
 		created.complete(widget);
-		assert.deepStrictEqual({ unchanged, waited: await pending === widget }, { unchanged: undefined, waited: true });
+		assert.deepStrictEqual({ unchanged, waiting, revealed: await pending === widget }, { unchanged: undefined, waiting: { accesses: 1, settled: false }, revealed: true });
 	});
 });

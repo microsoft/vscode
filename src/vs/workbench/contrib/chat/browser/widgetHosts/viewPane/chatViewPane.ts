@@ -1062,7 +1062,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Chat Widget
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-		this._widget = this._register(scopedInstantiationService.createInstance(
+		const widget = this._register(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
 			{ viewId: this.id },
@@ -1099,7 +1099,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,
 			}));
-		this._widget.render(chatControlsContainer, parent);
+		this._widget = widget;
+		widget.render(chatControlsContainer, parent);
+		// What waits for the widget gets it once it is rendered, as the body renders, once
+		this._widgetCreated.complete(widget);
 		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this._widget, 'auto'));
 
 		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
@@ -1125,7 +1128,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			},
 			undefined
 		));
-		this._widgetCreated.complete(this._widget);
 
 		this._register(this.titleControl.onDidChangeHeight(() => {
 			this.relayout();
