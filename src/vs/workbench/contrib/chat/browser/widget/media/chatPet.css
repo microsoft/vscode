@@ -185,22 +185,8 @@
 	position: absolute;
 	width: 48px;
 	height: 48px;
-	transform: scale(var(--chat-pet-subagent-scale));
 	transform-origin: top left;
 	pointer-events: none;
-}
-
-.chat-pet-subagent.arriving {
-	animation: chat-pet-subagent-fall var(--chat-pet-subagent-fall-duration) cubic-bezier(0.42, 0, 1, 1) both;
-}
-
-@keyframes chat-pet-subagent-fall {
-	from { transform: translateY(calc(-1 * var(--chat-pet-subagent-fall-distance))) scale(var(--chat-pet-subagent-scale)); }
-	to { transform: translateY(0) scale(var(--chat-pet-subagent-scale)); }
-}
-
-.monaco-workbench.monaco-reduce-motion .chat-pet-subagent.arriving {
-	animation: none;
 }
 
 .chat-pet-subagent-canvas {
