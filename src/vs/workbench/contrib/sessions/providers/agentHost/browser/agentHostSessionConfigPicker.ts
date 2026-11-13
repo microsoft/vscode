@@ -24,7 +24,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -2521,3 +2521,23 @@ export class RunningSessionModePickerAction extends Action2 {
 	}
 }
 
+/**
+ * Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
+export function registerAgentHostSessionConfigPickerActions(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(registerAction2(NewSessionApprovePickerAction));
+	store.add(registerAction2(NewSessionPermissionModePickerAction));
+	store.add(registerAction2(NewSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(NewSessionModePickerAction));
+	store.add(registerAction2(RunningSessionConfigPickerAction));
+	store.add(registerAction2(RunningSessionPermissionModePickerAction));
+	store.add(registerAction2(RunningSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(RunningSessionModePickerAction));
+
+	return store;
+}
