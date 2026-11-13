@@ -19,6 +19,9 @@ export type CopilotManagedModelPolicy = Pick<ResolvedManagedSettings, 'values' |
 
 const modelOptionKeys = ['thinkingLevel', 'contextSize', 'tier'] as const;
 
+/** The runtime's provider id for Copilot models, which the catalog lists by their bare id. */
+const copilotModelProviderId = 'copilot';
+
 /** The managed default model as a catalog id, with Copilot Fusion read as `auto`. */
 function getManagedModelId(policy: CopilotManagedModelPolicy): string | undefined {
 	return normalizeManagedModelId(policy.values?.model);
@@ -105,14 +108,16 @@ export function createCopilotModelConfigurationReport(
 		return [model.id, { defaults: Object.fromEntries(defaults), readOnly, choices: Object.fromEntries(choices), ...(managedDefaults.length ? { managedDefaults } : {}) }];
 	});
 	const options = Object.fromEntries(entries);
-	const currentModelId = current.modelId && (current.providerId ? `${current.providerId}/${current.modelId}` : current.modelId);
+	// Other providers' models are cataloged as `provider/id`.
+	const currentModelId = current.modelId && (current.providerId && current.providerId !== copilotModelProviderId ? `${current.providerId}/${current.modelId}` : current.modelId);
 	const model = models.find(model => model.id === currentModelId);
 	const config: Record<string, JsonPrimitive> = {};
 	if (model && currentModelId) {
 		const properties = model.configSchema?.properties;
 		const values = {
 			thinkingLevel: current.reasoningEffort,
-			contextSize: current.contextTier === undefined ? undefined : current.contextTier === 'long_context' ? properties?.contextSize?.enum?.at(-1) : properties?.contextSize?.enum?.[0],
+			// The runtime runs a session without a context tier on the default tier.
+			contextSize: current.contextTier === 'long_context' ? properties?.contextSize?.enum?.at(-1) : properties?.contextSize?.enum?.[0],
 			tier: current.autoTier,
 		};
 		for (const key of modelOptionKeys) {

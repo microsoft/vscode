@@ -6648,12 +6648,13 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({ canceled: response?.isCanceled, completionTimestamp: response?.completionTimestamp }, { canceled: true, completionTimestamp: completedAt });
 		});
 
-		test('a cold restore waits for the transferred draft\'s model, not the history\'s last one', async () => {
+		test('a cold restore waits for the transferred draft\'s model and configuration, not the history\'s last model', async () => {
 			const draftModelId = 'agent-host-copilotcli:gpt-5.3-codex';
+			const configuration = { thinkingLevel: 'high', contextSize: 200_000 };
 			const { resource } = setupRemoteProvider({
 				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: 'agent-host-copilotcli:claude-opus-5.5' }],
 				// The live catalog is not loaded, so the draft arrives without its model's metadata.
-				transferredState: { editingSession: undefined, inputState: { attachments: [], contrib: {}, inputText: '', mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [] }, selectedModelId: draftModelId },
+				transferredState: { editingSession: undefined, inputState: { attachments: [], contrib: {}, inputText: '', mode: { id: 'agent', kind: ChatModeKind.Agent }, selectedModel: undefined, selections: [] }, selectedModelId: draftModelId, selectedModelConfiguration: configuration },
 			});
 
 			const testService = createChatService();
@@ -6665,7 +6666,7 @@ suite('ChatService', () => {
 				intended: ref.object.inputModel.intendedModel,
 				selected: ref.object.inputModel.state.get()?.selectedModel?.identifier,
 			}, {
-				intended: { modelId: draftModelId, reason: ModelSelectionReason.SessionRestore },
+				intended: { modelId: draftModelId, reason: ModelSelectionReason.SessionRestore, configuration },
 				selected: undefined,
 			});
 		});
