@@ -34,9 +34,10 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
-import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { IFolderLocationsMainService } from '../../windows/electron-main/folderLocationsMainService.js';
 import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
-import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { hasWSLFeatureInstalled } from '../../remote/node/wsl.js';
@@ -68,6 +69,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
@@ -492,6 +494,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 
 			window.win.setBounds(position);
+		}
+	}
+
+	async setWindowFolderLocation(windowId: number | undefined, location: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.codeWindowById(options?.targetWindowId ?? windowId);
+		if (window && isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && !window.remoteAuthority) {
+			this.folderLocationsMainService.updateFolderLocation(window.openedWorkspace.uri, location);
 		}
 	}
 

@@ -585,6 +585,22 @@ export interface IOSConfiguration {
 	readonly arch: string;
 }
 
+/**
+ * The alternate location a single-folder window was at, persisted so that
+ * the window can start at it again after a reload or restart.
+ */
+export interface IWindowFolderLocation {
+
+	/** The resource of the alternate location. */
+	readonly uri: string;
+
+	/** The label of the alternate location. */
+	readonly label: string;
+
+	/** The identifier of the provider that resolved the alternate location. */
+	readonly providerId: string;
+}
+
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
 	mainPid: number;
 	handle?: VSBuffer;
@@ -610,6 +626,12 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	partsSplash?: IPartsSplash;
 
 	workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
+	/** Set when the single-folder `workspace` (its primary location) is at an alternate location. */
+	folderLocation?: IWindowFolderLocation;
+
+	/** Set when the window was meant to start at an alternate location that no longer exists. */
+	folderLocationMissing?: { readonly label: string };
 
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;

@@ -35,7 +35,7 @@ import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
 import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
 import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
 import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { IColorScheme, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IColorScheme, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../../platform/window/common/window.js';
 import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -128,6 +128,7 @@ export class TestNativeHostService implements INativeHostService {
 	async isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean> { return false; }
 	async toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void> { }
 	async setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> { }
+	async setWindowFolderLocation(folderLocation: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void> { }
 	async getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
 	async showWindow(options?: INativeHostOptions): Promise<void> { }
