@@ -2032,6 +2032,7 @@ export class CopilotAgentSession extends Disposable {
 	private _offeredClientTools: readonly ToolDefinition[] | undefined;
 	/** Tool-search decision supplied by the launcher that built this SDK session. */
 	private _toolSearchActive = false;
+	private _clientToolReplacement: Promise<void> | undefined;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
@@ -2064,6 +2065,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Invalidates inventory snapshots when lifecycle events or authentication challenges arrive. */
 	private _mcpLifecycleVersion = 0;
 	private _mcpInventoryRequestVersion = 0;
+	private _mcpInventoryRefresh: Promise<void> = Promise.resolve();
 	/**
 	 * Servers reconnecting after an accepted OAuth token. The runtime reports their new connection's tools without a
 	 * `connected` status change, so their next tools-loaded event is treated as connected.
@@ -2150,6 +2152,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _mcpToolRoutingCache: CopilotMcpToolRoutingCache;
 	private readonly _mcpToolRoutingEnabled: boolean;
 	private readonly _configuredMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
+	private readonly _sdkMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
 	private readonly _mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
 	private readonly _mcpRoutingActivations = new Map<string, { readonly promise: Promise<void>; readonly cancellation: CancellationTokenSource }>();
 	/** Routing proxy calls per server on its current connection. */
@@ -4162,8 +4165,21 @@ export class CopilotAgentSession extends Disposable {
 		await this._replaceClientTools(tools, token);
 	}
 
-	private async _replaceClientTools(tools: readonly ToolDefinition[], token: CancellationToken, onlyIfRoutingChanged = false): Promise<void> {
-		if (token.isCancellationRequested) {
+	private _replaceClientTools(tools: readonly ToolDefinition[] | undefined, token: CancellationToken, onlyIfRoutingChanged = false): Promise<void> {
+		const replace = () => this._doReplaceClientTools(tools ?? this._appliedSnapshot.tools, token, onlyIfRoutingChanged);
+		// Preserve synchronous staging of the first replacement before SDK callbacks can arrive.
+		const operation = this._clientToolReplacement ? this._clientToolReplacement.then(replace, replace) : replace();
+		const pending = operation.finally(() => {
+			if (this._clientToolReplacement === pending) {
+				this._clientToolReplacement = undefined;
+			}
+		});
+		this._clientToolReplacement = pending;
+		return pending;
+	}
+
+	private async _doReplaceClientTools(tools: readonly ToolDefinition[], token: CancellationToken, onlyIfRoutingChanged: boolean): Promise<void> {
+		if (this.isDisposed || token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const configuration = this._clientToolConfiguration;
@@ -4470,9 +4486,9 @@ export class CopilotAgentSession extends Disposable {
 			return [];
 		}
 		const tools: Tool<Record<string, never>>[] = [];
-		for (const serverName of new Set([...this._configuredMcpRoutingServers.keys(), ...this._copilotConnectorServers.keys()])) {
+		for (const serverName of new Set([...this._configuredMcpRoutingServers.keys(), ...this._sdkMcpRoutingServers.keys(), ...this._copilotConnectorServers.keys()])) {
 			const server = this._mcpRoutingServer(serverName)!;
-			const cached = this._copilotConnectorServers.has(serverName) ? undefined : this._mcpToolRoutingCache.get(server);
+			const cached = this._configuredMcpRoutingServers.has(serverName) && !this._copilotConnectorServers.has(serverName) ? this._mcpToolRoutingCache.get(server) : undefined;
 			const name = getMcpRoutingProxyName(server);
 			const displayName = server.displayName ?? server.serverName;
 			proxies.set(name, { server });
@@ -4700,8 +4716,11 @@ export class CopilotAgentSession extends Disposable {
 		if (!proxy) {
 			return true;
 		}
-		const serverEnablement = this._mcpCustomizations.serverEnablement().find(server => server.serverName === proxy.server.serverName);
-		return serverEnablement?.enabled !== false && !availableTools?.some(tool => tool.mcpServerName === proxy.server.serverName);
+		const serverName = proxy.server.serverName;
+		const enabled = this._mcpConfiguredEnablement.get(serverName) ?? this._mcpCustomizations.enabledForServer(serverName);
+		return enabled !== false
+			&& this._getDesiredMcpServerEnablementByName([serverName]).get(serverName) !== false
+			&& !availableTools?.some(tool => tool.mcpServerName === serverName);
 	}
 
 	/** Builds routing hints without projecting SDK-owned user servers into the session configuration. */
@@ -4757,7 +4776,7 @@ export class CopilotAgentSession extends Disposable {
 			serverName,
 			displayName: localize('copilot.mcpRouting.connector', "{0} (Connector)", connector.displayName),
 			configuration: { connectorName: connector.connectorName },
-		} : this._configuredMcpRoutingServers.get(serverName);
+		} : this._configuredMcpRoutingServers.get(serverName) ?? this._sdkMcpRoutingServers.get(serverName);
 	}
 
 	private _refreshReadyMcpToolRoutingCaches(): void {
@@ -4807,7 +4826,7 @@ export class CopilotAgentSession extends Disposable {
 					if (def.topLevelChatOnly && (!toolCall || toolCall.parentToolCallId || this._unroutableSubagentToolCallIds.has(invocation.toolCallId))) {
 						throw new Error('This tool can only be called from a top-level chat with a known root tool-call origin.');
 					}
-					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
+					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args, invocation.toolCallId);
 					return { textResultForLlm: await text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -5932,7 +5951,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		if (this._mcpToolRoutingEnabled && this._clientToolConfiguration?.toolSearchActive) {
-			await this._replaceClientTools(this._appliedSnapshot.tools, this._lifetimeCts.token, true);
+			await this._replaceClientTools(undefined, this._lifetimeCts.token, true);
 		}
 	}
 
@@ -12215,8 +12234,21 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	/** Refreshes inventory, retrying snapshots overtaken by lifecycle events without superseding a newer refresh. */
+	/** Waits for the newest inventory read before returning to callers that may activate a server. */
 	private async _refreshMcpServersFromRpc(): Promise<void> {
+		let refresh = this._doRefreshMcpServersFromRpc();
+		this._mcpInventoryRefresh = refresh;
+		while (true) {
+			await refresh;
+			if (refresh === this._mcpInventoryRefresh) {
+				return;
+			}
+			refresh = this._mcpInventoryRefresh;
+		}
+	}
+
+	/** Retries snapshots overtaken by lifecycle events without superseding a newer refresh. */
+	private async _doRefreshMcpServersFromRpc(): Promise<void> {
 		const mcpRpc = this._wrapper.session.rpc?.mcp;
 		if (!mcpRpc) {
 			return;
@@ -12259,6 +12291,20 @@ export class CopilotAgentSession extends Disposable {
 				status: server.live?.status ?? 'stopped',
 				error: server.live?.error,
 			})));
+			this._sdkMcpRoutingServers.clear();
+			for (const server of result.servers) {
+				if (server.enabled) {
+					this._sdkMcpRoutingServers.set(server.name, {
+						serverName: server.name,
+						displayName: server.displayName,
+						// This identity is only for routing; SDK-owned configuration and tool metadata stay out of the shared cache.
+						configuration: { source: server.source, sourcePlugin: server.sourcePlugin, sourcePluginVersion: server.sourcePluginVersion },
+					});
+				}
+			}
+			if (this._mcpToolRoutingEnabled && this._clientToolConfiguration?.toolSearchActive) {
+				await this._replaceClientTools(undefined, this._lifetimeCts.token, true);
+			}
 			for (const server of result.servers) {
 				if (server.live?.status === 'connected' && this._mcpToolsLoaded.has(server.name)) {
 					void this._refreshMcpToolRoutingCache(server.name).catch(error => {

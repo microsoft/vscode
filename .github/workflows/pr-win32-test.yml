@@ -76,7 +76,7 @@ env:
 # - SMOKE_SHARD_INDEX and SMOKE_SHARD_TOTAL: the 1-based index of the Electron or remote smoke test
 #   shard to run, and the number of shards
 # - WSL_SMOKE_TESTS: with ELECTRON_TESTS and SMOKE_TESTS, provision WSL and run only the WSL Dev Container
-#   smoke suite and the WSL Kerberos proxy smoke tests, instead of a shard of the smoke tests
+#   smoke suite and the WSL Kerberos and Basic PAC proxy smoke tests, instead of a shard of the smoke tests
 # - ARTIFACT_NAME: identifies the job in the names of the artifacts that it publishes
 jobs:
   electron-unit:
@@ -584,6 +584,17 @@ jobs:
         timeout-minutes: 20
         shell: pwsh
         run: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_SMOKE_SERVER_PATH -Suites AgentsWindow
+        env:
+          WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
+          WSL_SMOKE_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}
+
+      # Trusts a test CA and configures a PAC on the elevated agent and reverts them afterwards. The local Agent Host runs
+      # this PR's code; the one in WSL runs the pinned server.
+      - name: 🧪 Run WSL Basic PAC proxy smoke tests (Electron)
+        if: ${{ env.WSL_SMOKE_TESTS == 'true' }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: .\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -Distribution $env:WSL_SMOKE_DISTRO -WslServerPath $env:WSL_SMOKE_SERVER_PATH
         env:
           WSL_SMOKE_DISTRO: ${{ steps.wsl-dev-container.outputs.distro }}
           WSL_SMOKE_SERVER_PATH: ${{ steps.wsl-dev-container.outputs.serverPath }}

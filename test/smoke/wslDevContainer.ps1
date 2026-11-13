@@ -38,8 +38,9 @@ if (-not $workspace -or $runId -notmatch '^\d+$' -or $runAttempt -notmatch '^\d+
 $rootfsUrl = 'https://cloud-images.ubuntu.com/wsl/jammy/20250318/ubuntu-jammy-wsl-amd64-ubuntu22.04lts.rootfs.tar.gz'
 $rootfsSha256 = '1483cc5c1dce13064f774834cbffdff226559fd522a67a381a8ea77d63fb4109'
 # The frontend is built from this PR; the unchanged backend uses a pinned published server. The WSL Kerberos proxy smoke
-# tests need a server with the agent host's client proxy, Kerberos and certificate support.
-$serverCommit = '67710841ad061a9e253214f87bf5415a185ab2ff'
+# tests need a server with the agent host's client proxy, Kerberos and certificate support, and the WSL Basic PAC proxy
+# smoke tests one with its Basic proxy authentication through the client.
+$serverCommit = '54ab79431a5858c9546c7161e5afe5fd9e8570d6'
 $aptPackages = 'ca-certificates curl git iproute2 procps docker.io libatomic1 libkrb5-3 krb5-kdc krb5-admin-server squid-openssl openssl'
 $devContainerImage = 'mcr.microsoft.com/devcontainers/base:ubuntu-24.04'
 $serverPath = '/opt/vscode-smoke-server'

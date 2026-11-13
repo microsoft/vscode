@@ -554,12 +554,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				} else {
 					throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
 				}
-			} else if (provider?.disconnect) {
-				await provider.disconnect();
-			} else if (provider?.remoteAddress) {
-				await this.remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
 			} else {
-				throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+				if (target.kind !== 'environment' && !await this.remoteSharing.confirmDisconnect(id, this._remotes.get().find(remote => remote.id === id)?.name ?? provider?.label ?? id)) {
+					return;
+				}
+				if (provider?.disconnect) {
+					await provider.disconnect();
+				} else if (provider?.remoteAddress) {
+					await this.remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
+				} else {
+					throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+				}
 			}
 		} finally {
 			if (!this._store.isDisposed) {

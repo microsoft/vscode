@@ -54,7 +54,7 @@ import { MOVE_CHAT_TO_SESSION_ACTION_ID, MOVE_SESSION_INTO_SESSION_ACTION_ID, PR
 import { NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import '../../../chatWindow/browser/openChatInWindow.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
-import { testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -1063,7 +1063,7 @@ suite('Sessions list context menus', () => {
 					return ' Renamed Peer ';
 				}
 			});
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 				readonly activeSession = constObservable(undefined);
 				readonly gridShown = constObservable([]);
 				override readonly slotPanes = testGridPanes(this.gridShown);

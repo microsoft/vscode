@@ -2085,13 +2085,13 @@ export interface IAgent {
 	retryManagedPlugins?(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
 
 	/** List plugin marketplaces through the provider that owns marketplace state. */
-	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	listPluginMarketplaces?(session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
 
 	/** Add a plugin marketplace through the provider that owns marketplace state. */
-	addPluginMarketplace?(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	addPluginMarketplace?(session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
 
 	/** Browse one plugin marketplace through the provider that owns marketplace state. */
-	browsePluginMarketplace?(session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	browsePluginMarketplace?(session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
 
 	/** Remove a plugin marketplace through the provider that owns marketplace state. */
 	removePluginMarketplace?(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;

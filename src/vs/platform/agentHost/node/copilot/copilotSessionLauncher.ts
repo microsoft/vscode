@@ -1629,8 +1629,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (modelFamily) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
-		// Tool search follows the client's `toolSearch` tool, which users toggle in Chat Customizations.
-		const toolSearchEnabled = agentHostModelSupportsToolSearch(effectiveModel?.id);
+		// An omitted model delegates selection to the runtime, rather than opting out of the client's tool-search choice.
+		const toolSearchEnabled = effectiveModel === undefined || agentHostModelSupportsToolSearch(effectiveModel.id);
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
 			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: TOOL_SEARCH_DEFER_THRESHOLD } : { enabled: false };
 		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;

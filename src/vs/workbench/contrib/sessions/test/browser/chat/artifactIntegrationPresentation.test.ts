@@ -235,7 +235,7 @@ suite('Artifact Integration Presentation', () => {
 		instantiation.stub(IKeybindingService, keybindingService);
 		const controller = store.add(instantiation.createInstance(ArtifactDetailsContextView, () => input, () => row, () => input.focus()));
 
-		function artifact(id = 'artifact') {
+		function artifact(id = 'artifact', baseEntry?: Pick<IChatPillEntry, 'pillHover'>) {
 			const snapshot = observableValue<ArtifactSnapshot>(id, {
 				authority: { id: 'client', targetHost: 'host', location: 'client' }, session: 'session',
 				artifact: { id, label: `Recorded ${id}`, resource: `https://example.test/${id}` }, mainIntegrationId: 'test', runs: [],
@@ -368,7 +368,7 @@ suite('Artifact Integration Presentation', () => {
 			const presentation = store.add(instantiation.createInstance(ArtifactIntegrationPresentation, model, reader => chat.read(reader), controller));
 			const copy = store.add(new Action('copy', 'Copy Link', 'codicon codicon-copy', true, async () => { shellActions++; }));
 			const remove = store.add(new Action('remove', 'Remove Artifact', 'codicon codicon-close', true, async () => { shellActions++; }));
-			const base: IChatPillEntry = { id, label: `Recorded ${id}`, toolbarActions: [copy], promotedAction: remove, open: () => { resourceOpens++; } };
+			const base: IChatPillEntry = { id, label: `Recorded ${id}`, toolbarActions: [copy], promotedAction: remove, ...baseEntry, open: () => { resourceOpens++; } };
 			const entry = derived(reader => presentation.decorate(base, reader));
 			const container = append(actions, $('.action-item'));
 			const item = entry.get().inlinePill!.createActionViewItem!({});
@@ -991,6 +991,26 @@ suite('Artifact Integration Presentation', () => {
 			hover: 'Open: compact status', acquired: [], inline: true, labels: ['#42', '1/2', '1'],
 			main: { label: 'Open #42', description: 'Open: compact status', popup: null },
 			sections: [{ popup: 'dialog', expanded: 'false' }, { popup: 'dialog', expanded: 'false' }],
+		});
+	});
+
+	test('the main part shows its entry\'s rich hover, such as a pull request card, in place of the integration description', () => {
+		const f = fixture();
+		const card = $('.rich-card');
+		const a = f.artifact('artifact', { pillHover: { element: () => card, contentOwnsPadding: true } });
+		const hover = f.hovers.get(a.main);
+		assert.ok(typeof hover === 'function');
+		const options = hover();
+		assert.deepStrictEqual({
+			card: options.content === card, stableIdentity: !!options.id && options.id === hover().id,
+			additionalClasses: options.additionalClasses, appearance: options.appearance, style: options.style,
+			actions: options.actions?.map(action => action.label), trapFocus: options.trapFocus,
+			description: a.main.getAttribute('aria-description'),
+		}, {
+			card: true, stableIdentity: true,
+			additionalClasses: ['managed-hover-content-owns-padding'], appearance: { showPointer: true }, style: undefined,
+			actions: ['Copy Link'], trapFocus: true,
+			description: 'Open: compact status',
 		});
 	});
 
