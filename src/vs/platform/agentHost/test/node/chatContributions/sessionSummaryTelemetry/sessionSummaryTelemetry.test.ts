@@ -256,6 +256,27 @@ suite('SessionSummaryTelemetryContribution', () => {
 		});
 	}));
 
+	test('restarts the idle timeout once a turn that outlasts it ends, without polling while it runs', () => runWithFakedTimers({}, async () => {
+		const { stateManager, start, complete, createStateSession, summaries } = createSummaries();
+		createStateSession();
+		complete(start());
+		// Runs in host state only, so only the session becoming idle can restart the timeout.
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'long', startedAt: new Date().toISOString(), message: { text: 'Hello', origin: { kind: MessageKind.User } } });
+		// Far more idle timeouts than the faked timers allow events, so a timer per timeout would fail the run.
+		await timeout(100 * SESSION_SUMMARY_IDLE_TIMEOUT_MS + minute);
+		const sentWhileActive = summaries().length;
+		stateManager.dispatchServerAction(chat, chatTurnComplete('long', 0));
+		await timeout(SESSION_SUMMARY_IDLE_TIMEOUT_MS - 1);
+		const sentBeforeTimeout = summaries().length;
+		await timeout(1);
+
+		assert.deepStrictEqual({
+			sentWhileActive,
+			sentBeforeTimeout,
+			summaryReasons: summaries().map(summary => summary.summaryReason),
+		}, { sentWhileActive: 0, sentBeforeTimeout: 0, summaryReasons: ['idle'] });
+	}));
+
 	test('sends once per archive, shutdown and deletion, numbering the periods of the session', () => {
 		const { contributions, stateManager, start, complete, dispatch, createStateSession, summaries } = createSummaries();
 		createStateSession();

@@ -236,6 +236,12 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 			this._send(session, 'deleted');
 			this._sessions.delete(session);
 		}));
+		// Restarts the timeout once the session has no active turn, also after a turn that no report covers.
+		this._register(this._stateManager.onDidChangeSessionActiveTurn(({ session, active }) => {
+			if (!active && this._periods.has(session)) {
+				this._armIdleTimer(session);
+			}
+		}));
 	}
 
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
@@ -282,9 +288,9 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 	}
 
 	private _onIdleTimeout(session: string): void {
-		// A turn that outlasts the timeout keeps the period open; its completion re-arms the timer.
+		// A turn that outlasts the timeout keeps the period open. Rather than polling, the timeout restarts once the session has no active turn.
 		if (this._stateManager.hasActiveTurn(session)) {
-			this._armIdleTimer(session);
+			this._idleTimers.deleteAndDispose(session);
 		} else {
 			this._send(session, 'idle');
 		}
