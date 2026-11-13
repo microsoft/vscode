@@ -218,7 +218,8 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 	}
 
 	private _resolveAtLocation(replacement: Replacement, { replaceKeyName, propertyName, object }: PropertyLocation, data: IResolvedValue, path: string[] = []) {
-		if (data.value === undefined) {
+		const resolvedValue = data.value;
+		if (resolvedValue === undefined) {
 			return;
 		}
 
@@ -228,14 +229,14 @@ export class ConfigurationResolverExpression<T> implements IConfigurationResolve
 		// note: in nested `this.parseString`, parse only the new substring for any replacements, don't reparse the whole string
 		if (replaceKeyName && typeof propertyName === 'string') {
 			const value = object[propertyName];
-			const newKey = propertyName.replaceAll(replacement.id, data.value);
+			const newKey = propertyName.replaceAll(replacement.id, () => resolvedValue);
 			delete object[propertyName];
 			object[newKey] = value;
 			this._renameKeyInLocations(object, propertyName, newKey);
-			this.parseString(object, newKey, data.value, true, path);
+			this.parseString(object, newKey, resolvedValue, true, path);
 		} else {
-			object[propertyName] = object[propertyName].replaceAll(replacement.id, data.value);
-			this.parseString(object, propertyName, data.value, false, path);
+			object[propertyName] = object[propertyName].replaceAll(replacement.id, () => resolvedValue);
+			this.parseString(object, propertyName, resolvedValue, false, path);
 		}
 
 		path.pop();
