@@ -27,11 +27,14 @@ suite('CustomAgentUsageContribution', () => {
 
 	const chatExtensionId = 'github.copilot-chat';
 	const sessionResource = URI.parse('vscode-chat-session://local/session');
-	const agents = new Map<string, IAgentSource>([
-		['file:///workspace/.github/agents/reviewer.agent.md', { storage: PromptsStorage.local }],
-		[`file:///extensions/${chatExtensionId}/agents/plan.agent.md`, { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(chatExtensionId) }],
-		['file:///host/builtin/ask.agent.md', { storage: PromptsStorage.builtIn }],
-	]);
+	const chatExtensionSource: IAgentSource = { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(chatExtensionId) };
+	const agents: { uri: string; source: IAgentSource; sourceUri?: string }[] = [
+		{ uri: 'file:///workspace/.github/agents/reviewer.agent.md', source: { storage: PromptsStorage.local } },
+		{ uri: `file:///extensions/${chatExtensionId}/agents/plan.agent.md`, source: chatExtensionSource },
+		{ uri: 'file:///host/builtin/ask.agent.md', source: { storage: PromptsStorage.builtIn } },
+		// An organization agent synced to an Agent Host is only recognizable by its original location.
+		{ uri: 'agent-host:/synced/agents/security.agent.md', source: chatExtensionSource, sourceUri: `file:///user/globalStorage/${chatExtensionId}/github/contoso/agents/security.agent.md` },
+	];
 
 	const defaultMode: IChatRequestModeInfo = { kind: ChatModeKind.Agent, isBuiltin: true, modeInstructions: undefined, telemetryModeId: 'agent', applyCodeBlockSuggestionId: undefined };
 	function customMode(uri: string): IChatRequestModeInfo {
@@ -44,7 +47,7 @@ suite('CustomAgentUsageContribution', () => {
 		disposables.add(new CustomAgentUsageContribution(
 			upcastPartial<IChatService>({ onDidAcceptRequest: accepted.event }),
 			upcastPartial<ICustomizationHarnessService>({
-				getCustomAgents: async () => [...agents].map(([uri, source]) => upcastPartial<ICustomAgent>({ id: uri, uri: URI.parse(uri), source })),
+				getCustomAgents: async () => agents.map(({ uri, source, sourceUri }) => upcastPartial<ICustomAgent>({ id: uri, uri: URI.parse(uri), source, sourceUri: sourceUri ? URI.parse(sourceUri) : undefined })),
 			}),
 			upcastPartial<IProductService>({ ...TestProductService, defaultChatAgent: upcastPartial<NonNullable<IProductService['defaultChatAgent']>>({ chatExtensionId }) }),
 			storage,
@@ -64,6 +67,7 @@ suite('CustomAgentUsageContribution', () => {
 			builtInExtensionAgent: await record(customMode(`file:///extensions/${chatExtensionId}/agents/plan.agent.md`)),
 			builtInHostAgent: await record(customMode('file:///host/builtin/ask.agent.md')),
 			workspaceAgent: await record(customMode('file:///workspace/.github/agents/reviewer.agent.md')),
+			syncedOrganizationAgent: await record(customMode('agent-host:/synced/agents/security.agent.md')),
 			unlistedAgent: await record(customMode('file:///removed.agent.md')),
 		}, {
 			noMode: { count: 0, recordedNow: false },
@@ -71,7 +75,8 @@ suite('CustomAgentUsageContribution', () => {
 			builtInExtensionAgent: { count: 0, recordedNow: false },
 			builtInHostAgent: { count: 0, recordedNow: false },
 			workspaceAgent: { count: 1, recordedNow: true },
-			unlistedAgent: { count: 2, recordedNow: true },
+			syncedOrganizationAgent: { count: 2, recordedNow: true },
+			unlistedAgent: { count: 3, recordedNow: true },
 		});
 	});
 });

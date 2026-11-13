@@ -32,7 +32,7 @@ async function isCustomAgentRequest(modeInfo: IChatRequestModeInfo | undefined, 
 	}
 	const agents = await customizationHarnessService.getCustomAgents(sessionResource, CancellationToken.None);
 	const agent = agents.find(agent => agent.id === uri.toString() || isEqual(agent.uri, uri));
-	return !agent || (agent.source.storage !== PromptsStorage.builtIn && !isBuiltinAgent(agent.source, agent.uri, productService));
+	return !agent || (agent.source.storage !== PromptsStorage.builtIn && !isBuiltinAgent(agent.source, agent.sourceUri ?? agent.uri, productService));
 }
 
 /** Records each request the user submits with a custom agent in any window. */
