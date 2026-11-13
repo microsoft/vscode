@@ -134,7 +134,11 @@ mod tests {
 
 	#[tokio::test]
 	async fn process_refresh_preserves_discovery_and_termination() {
-		let exe = std::env::current_exe().unwrap();
+		let directory = tempfile::tempdir().unwrap();
+		let exe = directory
+			.path()
+			.join(format!("process-fixture{}", std::env::consts::EXE_SUFFIX));
+		std::fs::copy(std::env::current_exe().unwrap(), &exe).unwrap();
 		let mut child = tokio::process::Command::new(&exe)
 			.args([
 				"--exact",
@@ -163,8 +167,7 @@ mod tests {
 			process_exists(pid),
 			process_at_path_exists(pid, &exe),
 			process_at_path_exists(pid, Path::new("not-the-process-executable")),
-			find_running_process(&exe)
-				.is_some_and(|found| found == pid || found == std::process::id()),
+			find_running_process(&exe).is_some_and(|found| process_at_path_exists(found, &exe)),
 		);
 		let waiting = wait_until_process_exits(Pid::from_u32(pid), 10);
 		tokio::pin!(waiting);
