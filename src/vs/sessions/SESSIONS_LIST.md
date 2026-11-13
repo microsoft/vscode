@@ -98,7 +98,7 @@ Selecting Inbox grouping enables Cmd/Ctrl+Enter for Send in Background and adds 
 
 `ISessionAttentionService.sessionAttention` owns notification-based classification and priority independently of list triage decisions. A visible Inbox-mode list acquires attention tracking and releases it on hiding, leaving the mode, or disposal. Its first activation establishes a persisted, profile-local completion cutoff so late-arriving history does not appear as new work. That demand respects disabled AI.
 
-Inbox categories have fixed order; rows prioritize the shared notification priority and then the selected created-time or updated-time ordering. A session with multiple unarchived chats remains available in Inbox while one chat is working if another has completed, needs input, or has failed. Session drops can pin, archive, put on hold, or resume into the category determined by current activity. They do not change saved custom-group membership or manual ordering, and comparison participants cannot be moved individually. Provider-owned nested chat moves are unchanged.
+Inbox categories have fixed order; rows prioritize the shared notification priority and then the selected created-time or updated-time ordering. Unless explicitly triaged, a session stays in Working while its aggregate status or any unarchived, user-visible, non-tool chat is working, even when another chat has completed, needs input, has failed, or has an attention notification. Session drops can pin, archive, put on hold, or resume into the category determined by current activity. They do not change saved custom-group membership or manual ordering, and comparison participants cannot be moved individually. Provider-owned nested chat moves are unchanged.
 
 ### Nested custom groups
 
