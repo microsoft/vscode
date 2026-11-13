@@ -1676,7 +1676,7 @@ export class ChatService extends Disposable implements IChatService {
 		const notifyAccepted = () => {
 			if (isSubmission && !options?.isSystemInitiated && !options?.hideFromTranscript) {
 				this._modelsWithAcceptedRequests.add(model);
-				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession });
+				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession, agentHostMessageOrigin: options?.agentHostMessageOrigin });
 				const provider = this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.agentHostProviderId;
 				if (isCopilotAgentHostProvider(provider)) {
 					// Copilot harness submissions bypass the extension's legacy usage signal, including queued sends in either window.

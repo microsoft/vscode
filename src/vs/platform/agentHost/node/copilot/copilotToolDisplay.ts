@@ -13,7 +13,7 @@ import { escapeIcons } from '../../../../base/common/iconLabels.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import { AgentPermissionKind } from '../../common/agent.js';
-import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, type ToolKind, type ViewedResourceType } from '../../common/meta/agentToolCallMeta.js';
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
@@ -116,6 +116,28 @@ export function getToolSummaryInputContract(toolName: string): typeof copilotCli
 		case CopilotToolName.Rg:
 		case CopilotToolName.Glob:
 			return copilotCliToolInputContract;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * What the path of a completed `view` call named, from the kind the runtime records for the
+ * call: the tool also lists directories, and its input does not say which it did. An image
+ * is a file. It is unknown for a kind this does not recognize, such as that of a failed call,
+ * and for a runtime that records none.
+ */
+export function getViewedResourceType(toolName: string, toolTelemetry: unknown): ViewedResourceType | undefined {
+	if (toolName !== CopilotToolName.View) {
+		return undefined;
+	}
+	const properties = isObject(toolTelemetry) ? (toolTelemetry as Record<string, unknown>).properties : undefined;
+	switch (isObject(properties) ? (properties as Record<string, unknown>).viewType : undefined) {
+		case 'file':
+		case 'image':
+			return 'file';
+		case 'directory':
+			return 'directory';
 		default:
 			return undefined;
 	}
@@ -1350,6 +1372,8 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	permissionPath?: string;
 	/** Normalized URL extracted from the request. */
 	permissionUrl?: string;
+	/** Raw MCP server name extracted from the request. */
+	mcpServerName?: string;
 	shellCommand?: string;
 } {
 	const path = request.kind === 'read' ? str(request.path) : request.kind === 'write' ? str(request.fileName) : undefined;
@@ -1458,6 +1482,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: path,
+				mcpServerName: serverName,
 			};
 		}
 		case 'read':

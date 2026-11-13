@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -76,6 +77,9 @@ suite('AgentHostFilterContribution', () => {
 		const instantiationService = createServices(disposables.add(new DisposableStore()), [
 			[IActionViewItemService, descriptor.ctor],
 			[IAgentHostFilterService, filterService],
+			[IRemoteGitHubEnvironmentSharingService, upcastPartial<IRemoteGitHubEnvironmentSharingService>({
+				confirmDisconnect: async address => { operations.push(`confirmDisconnect:${address}`); return true; },
+			})],
 			[IContextViewService, ContextViewService],
 			[IContextKeyService, MockContextKeyService],
 			[IKeybindingService, MockKeybindingService],
@@ -130,9 +134,9 @@ suite('AgentHostFilterContribution', () => {
 	}
 
 	for (const { status, label, operation, enabled } of [
-		{ status: AgentHostFilterConnectionStatus.Disconnected, label: 'Connect', operation: 'connect:First', enabled: true },
-		{ status: AgentHostFilterConnectionStatus.Connected, label: 'Disconnect', operation: 'disconnect:First', enabled: true },
-		{ status: AgentHostFilterConnectionStatus.Connecting, label: 'Connect', operation: undefined, enabled: false },
+		{ status: AgentHostFilterConnectionStatus.Disconnected, label: 'Connect', operation: ['connect:First'], enabled: true },
+		{ status: AgentHostFilterConnectionStatus.Connected, label: 'Disconnect', operation: ['confirmDisconnect:First', 'disconnect:First'], enabled: true },
+		{ status: AgentHostFilterConnectionStatus.Connecting, label: 'Connect', operation: [], enabled: false },
 	]) {
 		test(`single-host sidebar exposes refresh and ${status} connection controls`, async () => {
 			const { container, getMenuActions, operations } = await createPicker(Menus.SidebarAgentHost, ['First'], status);
@@ -150,7 +154,7 @@ suite('AgentHostFilterContribution', () => {
 			assert.deepStrictEqual({
 				popup: button.getAttribute('aria-haspopup'),
 				label: connection.label, enabled: connection.enabled, operations,
-			}, { popup: 'menu', label, enabled, operations: operation ? [operation, 'rediscover'] : ['rediscover'] });
+			}, { popup: 'menu', label, enabled, operations: [...operation, 'rediscover'] });
 		});
 	}
 

@@ -13,11 +13,12 @@ import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { isObject } from '../../../../../../base/common/types.js';
+import type { AuthenticateResult } from '../../../../../../platform/agentHost/common/agent.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { agentEntitlementHintMeta, readAgentEntitlementHint, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
-import { authenticationAccountLabelMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationLabel.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
@@ -74,6 +75,12 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
 	}
 	const selectedModel = agent.models.find(candidate => candidate.id === model.id);
 	return !selectedModel || readAgentModelByokIdentifier(selectedModel) === undefined;
+}
+
+function assertAuthenticationAccepted(result: unknown): void {
+	if (isObject(result) && (result as Partial<AuthenticateResult>).authenticated === false) {
+		throw new Error(localize('agentHost.credentialRejected', "The agent host did not accept the authentication credential."));
+	}
 }
 
 interface IForwardedAuthenticationIdentity {
@@ -134,7 +141,7 @@ export class AgentHostAuthTokenCache {
 		}
 
 		const promise = (async () => {
-			await authenticate();
+			assertAuthenticationAccepted(await authenticate());
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
@@ -740,11 +747,11 @@ async function forwardAuthenticationToken(
 		const identity = session?.id && session.account ? { sessionId: session.id, accountId: session.account.id } : undefined;
 		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), request.accountId, readAgentEntitlementHint(request), options.target, identity);
 	}
-	await options.authenticate(request);
+	assertAuthenticationAccepted(await options.authenticate(request));
 	return true;
 }
 
-function toAuthenticateRequest(
+export function toAuthenticateRequest(
 	resource: string,
 	scopes: readonly string[] | undefined,
 	session: IForwardedAuthenticationSession | undefined,
@@ -755,14 +762,13 @@ function toAuthenticateRequest(
 	const accountId = providerId && session?.account?.id
 		? JSON.stringify([providerId, session.account.id, session.authorizationServer?.toString()])
 		: undefined;
-	const accountLabel = accountId !== undefined && providerId === 'microsoft' ? session?.account?.label : undefined;
 	return {
 		resource,
 		scopes,
 		token: session?.accessToken ?? '',
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 		...(accountId !== undefined ? { accountId } : {}),
-		...((accountLabel || entitlement) ? { _meta: { ...(accountLabel ? authenticationAccountLabelMeta(accountLabel) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
+		...(entitlement ? { _meta: agentEntitlementHintMeta(entitlement) } : {}),
 	};
 }
 
@@ -995,6 +1001,9 @@ async function authenticateProtectedResourceWithServices(
 		logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
 		return false;
 	}
+	if (resource.required === false && !await isGrantedByDefaultSignIn(authenticationService, defaultAccountService, logService, resource, resolution, options)) {
+		return false;
+	}
 
 	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId, resolution.entitlement);
 	if (!authenticated) {
@@ -1003,6 +1012,37 @@ async function authenticateProtectedResourceWithServices(
 	}
 	logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 	return true;
+}
+
+/** Whether the default account's primary sign-in already grants an optional resource, so forwarding it needs no new consent. */
+async function isGrantedByDefaultSignIn(
+	authenticationService: IAuthenticationService,
+	defaultAccountService: IDefaultAccountService,
+	logService: ILogService,
+	resource: ProtectedResourceMetadata,
+	resolution: Extract<AuthenticationSessionResolution, { readonly kind: 'resolved' }>,
+	options: IResolvedAgentHostAuthenticationOptions,
+): Promise<boolean> {
+	const account = defaultAccountService.currentDefaultAccount;
+	if (!account || account.authenticationProvider.id !== resolution.providerId) {
+		logService.trace(`${options.logPrefix} Deferring optional authentication outside the default account: ${resource.resource}`);
+		return false;
+	}
+	const server = resource.authorization_servers?.[0];
+	const sessionOptions = {
+		account: resolution.session.account, silent: true,
+		authorizationServer: resolution.session.authorizationServer ?? (server ? URI.parse(server) : undefined),
+	};
+	const isGranted = (sessions: readonly AuthenticationSession[]) => sessions.some(session => session.id === account.sessionId && resource.scopes_supported?.every(scope => session.scopes.includes(scope)) !== false);
+	// A scoped query may only match exactly and an unscoped one may omit grants, so the primary sign-in is checked both ways.
+	const granted = isGranted(await authenticationService.getSessions(resolution.providerId, resource.scopes_supported ?? [], sessionOptions, true))
+		|| isGranted(await authenticationService.getSessions(resolution.providerId, undefined, sessionOptions, true));
+	throwIfAuthenticationStale(options);
+	throwIfDefaultAccountChanged(defaultAccountService, account);
+	if (!granted) {
+		logService.trace(`${options.logPrefix} Deferring optional permissions not supplied by the default sign-in: ${resource.resource}`);
+	}
+	return granted;
 }
 
 /**

@@ -1284,6 +1284,65 @@ suite('AgentHostEditReview', () => {
 		});
 	}
 
+	test('keeps reviewing a file whose changes are stashed and restored outside the session', async () => {
+		hostWrites('/a.ts', 'A\nb\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1')]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		const describe = async () => {
+			await review.resolveEntry(entry.modifiedURI);
+			return { state: entry.state.get(), changes: await getChanges(entry), reviewing: getEntry('/a.ts') === entry };
+		};
+		const shown = await describe();
+
+		// Like `git stash`, which the session doesn't record.
+		hostWrites('/a.ts', 'a\nb\n');
+		const stashed = await describe();
+
+		// Like `git stash pop`.
+		hostWrites('/a.ts', 'A\nb\n');
+		const restored = await describe();
+
+		assert.deepStrictEqual({ shown, stashed, restored, invoked: host.invoked, errors }, {
+			shown: { state: ModifiedFileEntryState.Modified, changes: ['[1,2)'], reviewing: true },
+			stashed: { state: ModifiedFileEntryState.Modified, changes: [], reviewing: true },
+			restored: { state: ModifiedFileEntryState.Modified, changes: ['[1,2)'], reviewing: true },
+			invoked: [],
+			errors: [],
+		});
+	});
+
+	test('keeps reviewing changes after the user undoes and redoes the reload of the agent edit', async () => {
+		const baseline = 'first\nmiddle\nlast\n';
+		const current = 'first\nMIDDLE\nlast\n';
+		const { model, files } = await useRealTextFiles(baseline);
+		// The document is open when the agent writes the file, and reloads it.
+		await files.writeFile(model.resource, VSBuffer.fromString(current));
+		await model.resolve({ forceReadFromFile: true });
+		host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+		await waitForEntries('/dirty.ts');
+		const entry = getEntry('/dirty.ts');
+		const describe = async () => {
+			await review.resolveEntry(model.resource);
+			return { state: entry.state.get(), changes: await getChanges(entry), text: model.textEditorModel.getValue() };
+		};
+		const shown = await describe();
+
+		await model.textEditorModel.undo();
+		const afterUndo = await describe();
+
+		await model.textEditorModel.redo();
+		const afterRedo = await describe();
+
+		assert.deepStrictEqual({ shown, afterUndo, afterRedo, invoked: host.invoked, errors }, {
+			shown: { state: ModifiedFileEntryState.Modified, changes: ['[2,3)'], text: current },
+			afterUndo: { state: ModifiedFileEntryState.Modified, changes: [], text: baseline },
+			afterRedo: { state: ModifiedFileEntryState.Modified, changes: ['[2,3)'], text: current },
+			invoked: [],
+			errors: [],
+		});
+	});
+
 	for (const otherAgentEdit of [false, true]) {
 		test(`undo/redo preserves user text adjacent to a removed agent edit (other agent edit: ${otherAgentEdit})`, async () => {
 			const suffix = otherAgentEdit ? 'unchanged\nlast\n' : '';

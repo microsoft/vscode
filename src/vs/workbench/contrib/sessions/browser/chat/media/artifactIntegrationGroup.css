@@ -115,6 +115,16 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+/* The status section that shows the artifact's details, marked like the expanded section of its pill. */
+.artifact-group-row-status[aria-expanded='true'] {
+	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .artifact-group-row-status[aria-expanded='true']:not(:focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 .artifact-group-row-title {
 	flex: 1;
 	min-width: 0;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { ILogService } from '../../log/common/log.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { equals, stableStringify } from '../../../base/common/objects.js';
@@ -59,6 +60,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -80,8 +82,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const source = scope?.sourceUri ?? owner;
 		const session = scope?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined);
 		await Promise.all([
-			this._gitStateService.refreshSessionGitState(source, undefined, credentials),
-			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session, undefined, credentials)] : []),
+			this._gitStateService.refreshSessionGitState(source, undefined, credentials, { force: true }),
+			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session, undefined, credentials, { force: true })] : []),
 		]);
 	}
 
@@ -494,6 +496,11 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				status: ChangesetOperationStatus.Error,
 				error: toChangesetOperationError(error),
 			});
+			// A failed operation may have changed the checkout part way, and its error status stands until the operations are published again.
+			const owner = parseChangesetUri(params.channel)?.ownerUri;
+			if (owner) {
+				this._refreshGitState(owner, source).catch(refreshError => this._logService.warn(`[AgentHostChangesetOperationService] Failed to refresh the Git state after ${params.operationId} failed`, refreshError));
+			}
 
 			throw error;
 		}

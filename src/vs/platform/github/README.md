@@ -72,7 +72,7 @@ Hint appearance or disappearance during renewal retains the same comparison cont
 
 VS Code sends its provider/account/authorization-server tuple only in the standard field. The private `_meta['vscode.authentication.account']` convention is neither emitted nor interpreted. Older hosts ignore the standard hint, and GitHub token authentication and renewal still work without it; mixed-version connections may keep the conservative bootstrap cooldown until token validation establishes an account switch. General `_meta` support, including unrelated authentication metadata, is unaffected.
 
-The Microsoft credential bridge requires the standard identifier for its account-bound credential flow and compares it without decoding it. Legacy Microsoft clients supplying only private account metadata must update. Its optional display label travels separately in `_meta['vscode.authentication.accountLabel']`; labels do not establish identity or affect account comparisons.
+The Microsoft credential bridge requires the standard identifier for its account-bound credential flow and compares it without decoding it. Legacy Microsoft clients supplying only private account metadata must update. No display label is sent.
 
 ## Typed domains
 

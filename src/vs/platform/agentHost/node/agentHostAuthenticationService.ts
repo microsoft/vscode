@@ -13,7 +13,6 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
 import type { ProtectedResourceMetadata } from '../common/state/protocol/state.js';
-import { authenticationAccountLabelMeta, readAuthenticationAccountLabel } from '../common/meta/agentAuthenticationLabel.js';
 import { isScopedCredentialUsable, normalizeAuthenticationScopes, type IAgentHostAuthenticationScope, type IAgentHostCredentialPrincipal, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../common/agentHostCredentials.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
@@ -29,7 +28,6 @@ export interface IAgentHostAuthCredential {
 	readonly token: string;
 	readonly scopes: readonly string[];
 	readonly accountId?: string;
-	readonly accountLabel?: string;
 	readonly expiresAt: number | undefined;
 }
 
@@ -90,6 +88,10 @@ interface ILocalCredentialsOptions {
 	readonly isEnabled: () => boolean;
 	readonly getResources: () => readonly ProtectedResourceMetadata[];
 	readonly onDidChange: Event<void>;
+}
+
+function isAccepted(result: PromiseSettledResult<boolean>): boolean {
+	return result.status === 'fulfilled' && result.value;
 }
 
 export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService, IAgentHostAuthenticationController {
@@ -196,7 +198,6 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	private async _authenticate(params: AuthenticateParams, providers: Iterable<IAgent>, scopes: readonly string[], key: string, request: IAuthenticationRequest, clientId: string | undefined): Promise<AuthenticateResult> {
 		this._logService.trace(`[AgentHostAuthenticationService] authenticate called: resource=${params.resource}`);
-		const accountLabel = readAuthenticationAccountLabel(params);
 		const expiresAt = getExpirationTime(params.expiresIn);
 		const providerList = [...providers];
 		// Multiple providers may share the same protected resource (e.g.
@@ -264,7 +265,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			const unhintedAccountId = previousSelection?.unhintedAccountId
 				?? (previousSelection && previousSelection.lastAccountId === undefined ? lastAccountId : undefined);
 			this._tokens.set(key, {
-				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId, accountLabel,
+				resource: params.resource, scopes, token: params.token, expiresAt, accountId: params.accountId,
 				clientId, lastAccountId, unhintedAccountId, ...(params.target ? { target: params.target } : {}),
 			});
 		}
@@ -278,7 +279,29 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		if (authenticated || previousToken !== token) {
 			this._onDidAuthenticate.fire({ resource: params.resource, scopes });
 		}
+		const accepting = new Set([
+			...matching.filter((_, index) => isAccepted(settled[index])),
+			...sessionResourceHandlers.filter((_, index) => isAccepted(sessionResourceSettled[index])),
+		]);
+		if (accepting.size) {
+			authenticated = await this._completeAuthentication(params, [...accepting]);
+		}
 		return { authenticated };
+	}
+
+	/** Lets accepting providers finish setup from the stored credential and reports whether any still accepts it. */
+	private async _completeAuthentication(params: AuthenticateParams, providers: readonly IAgent[]): Promise<boolean> {
+		const completed = await Promise.allSettled(providers.map(provider => provider.completeAuthentication?.(params)));
+		let accepted = false;
+		for (let i = 0; i < completed.length; i++) {
+			const result = completed[i];
+			if (result.status === 'rejected') {
+				this._logService.error(result.reason, `[AgentHostAuthenticationService] Provider '${providers[i].id}' failed to complete authentication`);
+			} else {
+				accepted = true;
+			}
+		}
+		return accepted;
 	}
 
 	async replay(provider: IAgent): Promise<void> {
@@ -305,7 +328,6 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn,
 				...(stored.target ? { target: stored.target } : {}),
 				...(stored.accountId !== undefined ? { accountId: stored.accountId } : {}),
-				...(stored.accountLabel !== undefined ? { _meta: authenticationAccountLabelMeta(stored.accountLabel) } : {}),
 			};
 			if (!stored.target && protectedResources.has(stored.resource)) {
 				try {

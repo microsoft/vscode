@@ -36,6 +36,7 @@ import { withAgentHostResources } from '../common/meta/agentHostResources.js';
 import { withRemoteSessionsCapability } from '../common/meta/agentRemoteSessionMeta.js';
 import { withAgentSessionGitHubReferences } from '../common/meta/agentSessionGitHubReferences.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { getSystemTurnActivity } from '../common/systemTurnActivity.js';
 import { collectAgentHostResources } from './agentHostResources.js';
 
 export interface IAgentHostStateManagerOptions {
@@ -3390,7 +3391,9 @@ export class AgentHostStateManager extends Disposable {
 	 * Aggregates a session's chat catalog into the derived session-summary
 	 * fields, promoting `InputNeeded` before `InProgress` over the default chat's
 	 * status (else the most recently modified chat's). Activity follows the
-	 * driving chat; `modifiedAt` is the max across chats.
+	 * driving chat; while that chat runs a turn the host sent for Agent Merge or
+	 * an artifact action and reports no activity of its own, it describes that
+	 * turn. `modifiedAt` is the max across chats.
 	 */
 	private _aggregateChatSummaries(chats: readonly ChatSummary[], defaultChat: URI | undefined): { status?: SessionStatus; activity?: string; modifiedAt?: number } {
 		if (chats.length === 0) {
@@ -3413,7 +3416,15 @@ export class AgentHostStateManager extends Disposable {
 			driver = inProgressChat;
 		}
 		const modifiedAt = chats.reduce((max, c) => Math.max(max, Date.parse(c.modifiedAt)), 0);
-		return { status, activity: driver.activity, modifiedAt };
+		// Derived here rather than set as the chat's own activity, which `session/chatUpdated` could not clear again
+		// once forwarded to the chat catalog.
+		const activity = driver.activity ?? (status === SessionStatus.InProgress ? this._getSystemTurnActivity(driver.resource) : undefined);
+		return { status, activity, modifiedAt };
+	}
+
+	private _getSystemTurnActivity(chat: URI): string | undefined {
+		const message = this._chatEntries.get(chat)?.state?.activeTurn?.message;
+		return message && getSystemTurnActivity(message);
 	}
 
 	/**

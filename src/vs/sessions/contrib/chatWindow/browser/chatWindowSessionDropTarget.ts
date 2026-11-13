@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatWindowSessionDropTarget.css';
-import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, getWindowId } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, getWindowId, isHTMLElement } from '../../../../base/browser/dom.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
 import { activeContrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { InputDropTargetHints, isInputDropTarget } from '../../../../workbench/browser/dnd.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag, SessionsDataTransfers } from '../../../../workbench/contrib/sessions/browser/dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../workbench/contrib/sessions/browser/dnd.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 
@@ -72,7 +73,8 @@ export class ChatWindowSessionDropTarget extends Themable {
 	}
 
 	private _onDragEnter(e: DragEvent): void {
-		if (isChatReferenceInputDrop(e)) {
+		// An input under the drag that takes it, such as a chat input that attaches the dragged chat, takes it here.
+		if (isHTMLElement(e.target) && isInputDropTarget(e.target, e)) {
 			this._hideOverlay();
 			return;
 		}
@@ -93,7 +95,6 @@ export class ChatWindowSessionDropTarget extends Themable {
 		overlay.style.top = `${bounds.top}px`;
 		overlay.style.width = `${bounds.width}px`;
 		overlay.style.height = `${bounds.height}px`;
-		overlay.style.clipPath = getChatReferenceDropClipPath(this._element, e);
 		const indicator = $('.chat-window-session-drop-overlay-indicator');
 		indicator.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
 		const border = this.getColor(activeContrastBorder);
@@ -104,9 +105,18 @@ export class ChatWindowSessionDropTarget extends Themable {
 		overlay.appendChild(indicator);
 		this._element.appendChild(overlay);
 		store.add(toDisposable(() => overlay.remove()));
+		const inputHints = store.add(new InputDropTargetHints(this._element, overlay));
+		inputHints.update(e);
 		store.add(addDisposableListener(getWindow(this._element), EventType.DRAG_END, () => this._hideOverlay()));
 		store.add(new DragAndDropObserver(overlay, {
 			onDragOver: ev => {
+				// An input that takes the drag takes it once the drag moves over it: the overlay, which covers the input
+				// until then, goes away.
+				if (isHTMLElement(ev.target) && isInputDropTarget(ev.target, ev, this._element)) {
+					this._hideOverlay();
+					return;
+				}
+				inputHints.update(ev);
 				if (ev.dataTransfer) {
 					ev.dataTransfer.dropEffect = 'move';
 				}

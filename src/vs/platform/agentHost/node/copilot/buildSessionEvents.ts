@@ -404,6 +404,9 @@ function toSdkAttachment(attachment: MessageAttachment): Attachment | undefined 
 		case MessageAttachmentKind.EmbeddedResource:
 			return { type: 'blob', data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
 		case MessageAttachmentKind.Resource: {
+			if (attachment.displayKind === 'skill') {
+				return undefined;
+			}
 			const uri = URI.parse(attachment.uri);
 			if (uri.scheme !== Schemas.file) {
 				return { type: 'blob', data: encodeBase64(VSBuffer.fromString(attachment.uri)), mimeType: 'text/plain', displayName: attachment.label };

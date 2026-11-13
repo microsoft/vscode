@@ -14,6 +14,7 @@ import { autorun, constObservable, derived, IObservable, IReader, observableValu
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { agentHostUri } from '../../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
@@ -303,6 +304,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * re-announced so the UI can repopulate.
 	 */
 	private _unpublished = false;
+	/** The connection whose session listing the cache last reconciled with; peer chats of sessions are known only from it. */
+	private _listedConnection: IAgentConnection | undefined;
+	/** Whether {@link adoptSession} declined to wait for {@link _listedConnection}, so its listing should prompt another attempt. */
+	private _adoptionAwaitsListing = false;
 	private readonly _detachedWorktreeDeletionTasks = new Map<string, Promise<void>>();
 	private _detachedWorktreeReconciliation = 0;
 
@@ -421,6 +426,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.hostGroup = config.hostGroup;
 		this._storageKey = config.sessionCacheKey ?? `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
+			supportsOneTimeAutomation: false,
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only automation store's client-to-host mapper
 			toHost: resource => fromAgentHostUri(resource),
 			// eslint-disable-next-line local/code-agent-host-uri-mapping -- defines this remote-only automation store's host-to-client mapper
@@ -433,6 +439,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				const identity = this.agentHostConnectionsService.resolveSessionResourceIdentity(resource);
 				return identity?.backendSessionIsAdvertised && identity.connectionAuthority === this._connectionAuthority ? identity.backendSession : undefined;
 			},
+			resolveBackendChat: resource => this.getBackendChatResource(resource),
+			conversationFromHost: (session, chat) => this.getAutomationConversation(session, chat),
 			onDidChangeSessionResolution: this.agentHostConnectionsService.onDidChangeSessionResolution,
 			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
 			providerForResourceScheme: scheme => {
@@ -800,6 +808,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override _onHostReconciledSessions(rawIds: ReadonlySet<string>): void {
+		this._listedConnection = this.connection;
+		if (this._adoptionAwaitsListing) {
+			this._adoptionAwaitsListing = false;
+			// Callers of `adoptSession` retry on a change of sessions; one fires after this hook only when the listing changed any session.
+			queueMicrotask(() => {
+				if (!this._store.isDisposed) {
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+				}
+			});
+		}
 		const scope = this._devContainerWorktreeScope;
 		if (!scope) {
 			return;
@@ -905,8 +923,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return remoteAgentHostSessionTypeId(this._connectionAuthority, provider);
 	}
 
-	override getSessions(): ISession[] {
-		return this._unpublished ? [] : super.getSessions();
+	override getAllSessions(): ISession[] {
+		return this._unpublished ? [] : super.getAllSessions();
 	}
 
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
@@ -1201,6 +1219,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._listedConnection = undefined;
 		this._passiveRelay.set(false, undefined);
 		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
@@ -1268,6 +1287,47 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		if (this._sessionCache.size > 0) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
 		}
+	}
+
+	/**
+	 * Continues a session that another provider listed for the same agent host
+	 * session, so that open views move to this provider's session.
+	 */
+	adoptSession(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean {
+		if (this._unpublished) {
+			return false;
+		}
+		// A cache restored from storage or listed over an earlier connection can lack the session's peer chats.
+		if (!this._connection || this._listedConnection !== this._connection) {
+			this._adoptionAwaitsListing = true;
+			this._ensureSessionCache();
+			return false;
+		}
+		this._ensureSessionCache();
+		const to = this._sessionCache.get(backendSession.toString());
+		if (!to) {
+			return false;
+		}
+		// Chat resources differ between providers; map them through the host's chat resources.
+		const chats = new ResourceMap<URI>();
+		chats.set(from.mainChat.get().resource, to.mainChat.get().resource);
+		if (backendChats?.size) {
+			const ownChats = new ResourceMap<URI>();
+			for (const chat of to.chats.get()) {
+				const backendChat = this.getBackendChatResource(chat.resource);
+				if (backendChat) {
+					ownChats.set(backendChat, chat.resource);
+				}
+			}
+			for (const [chat, backendChat] of backendChats) {
+				const ownChat = ownChats.get(backendChat);
+				if (ownChat) {
+					chats.set(chat, ownChat);
+				}
+			}
+		}
+		this._onDidReplaceSession.fire({ from, to, chats });
+		return true;
 	}
 
 	// -- Session-type sync ---------------------------------------------------

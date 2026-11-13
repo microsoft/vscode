@@ -30,6 +30,7 @@ import { enumerateLocalCustomizationsForHarness } from '../../../../../workbench
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatNativeComponentsRenderer, registerChatNativeComponentsRenderer } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ICustomizationSyncProvider } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { PromptsConfig } from '../../../../../workbench/contrib/chat/common/promptSyntax/config/config.js';
@@ -92,7 +93,7 @@ suite('Sessions - Appearance tools', () => {
 			findAgentSkills: async () => localSkills,
 		});
 		await Promise.all([
-			...['automate', 'commit', 'generate-chat-background', 'html-preview'].map(name => ({ name, uri: joinPath(BUILTIN_SKILLS_URI, name, 'SKILL.md') })),
+			...['automate', 'commit', 'generate-chat-background', 'html-preview', 'vscode-ui'].map(name => ({ name, uri: joinPath(BUILTIN_SKILLS_URI, name, 'SKILL.md') })),
 			...localSkills.map(skill => ({ name: skill.name, uri: skill.uri })),
 		].map(({ name, uri }) => files.writeFile(uri, VSBuffer.fromString(`---\nname: ${name}\ndescription: A test skill.\n---\nTest instructions.`))));
 
@@ -136,6 +137,28 @@ suite('Sessions - Appearance tools', () => {
 			})));
 		});
 	}
+
+	test('the vscode-ui skill is offered only where native components render, following their setting and AI enablement', async () => {
+		const fixture = await setup(false, undefined, true);
+		const visible = async () => Object.fromEntries(Object.entries(await fixture.snapshot()).map(([key, names]) => [key, names?.includes('vscode-ui') === true]));
+		await fixture.setSetting(ChatConfiguration.NativeComponentsEnabled, true);
+		// An entry without the renderer, such as the phone bundle, would show the skill's blocks as source.
+		const snapshots = [await visible()];
+		disposables.add(registerChatNativeComponentsRenderer(upcastPartial<IChatNativeComponentsRenderer>({})));
+		for (const [setting, value] of [
+			[ChatConfiguration.NativeComponentsEnabled, false],
+			[ChatConfiguration.NativeComponentsEnabled, true],
+			[ChatConfiguration.HtmlPreviewEnabled, false],
+			[ChatAIDisabledSettingId, true],
+			[ChatAIDisabledSettingId, false],
+		] as const) {
+			await fixture.setSetting(setting, value);
+			snapshots.push(await visible());
+		}
+		assert.deepStrictEqual(snapshots, [false, false, true, true, false, true].map(offered => ({
+			skills: offered, slashCommands: offered, allFiles: offered, builtinFiles: offered, forwarded: offered,
+		})));
+	});
 
 	for (const storage of [PromptsStorage.local, PromptsStorage.user] as const) {
 		test(`an html-preview ${storage} override takes precedence without being removed by the rendering setting`, async () => {

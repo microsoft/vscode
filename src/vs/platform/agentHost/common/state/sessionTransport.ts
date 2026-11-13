@@ -41,6 +41,7 @@ export const enum AgentHostTransportFailureReason {
 	Unknown = 'unknown',
 	HostNotRunning = 'hostNotRunning',
 	AuthenticationFailed = 'authenticationFailed',
+	SSHAuthenticationFailed = 'sshAuthenticationFailed',
 }
 
 /** Signals that reconnecting the transport cannot recover the connection. */

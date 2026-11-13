@@ -34,6 +34,14 @@ export enum IssueSource {
 	Unknown = 'unknown'
 }
 
+export const issueReporterLayoutSettingId = 'issueReporter.wizard.layout';
+
+/**
+ * How the new issue reporter asks for a report. Simple asks for screenshots and a description and
+ * leaves the rest to defaults. Detailed also asks for the target, category, title, and diagnostics.
+ */
+export type IssueReporterLayout = 'simple' | 'detailed';
+
 export interface IssueReporterStyles extends WindowStyles {
 	textLinkColor?: string;
 	textLinkActiveForeground?: string;
@@ -128,6 +136,8 @@ export interface IIssueReporterFileAttachment {
 export interface IIssueReporterScreenshot {
 	readonly dataUrl: string;
 	readonly annotatedDataUrl?: string;
+	/** The name of the image file that the screenshot was marked up from, which it keeps instead of a numbered name. */
+	readonly name?: string;
 }
 
 export interface IIssueReporterAttachmentUpload {

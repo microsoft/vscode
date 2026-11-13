@@ -14,11 +14,10 @@ import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduli
 import { NullLogService } from '../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../common/agent.js';
 import { copilotEntraAuthorizationServer, copilotEntraClientId, copilotEntraDiscoveryResource, copilotEntraEmuAudience, copilotEntraM365Audience, copilotEntraResources } from '../../common/copilotEntraAuthentication.js';
-import { authenticationAccountLabelMeta } from '../../common/meta/agentAuthenticationLabel.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthentication.js';
+import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from '../../node/copilot/copilotEntraAuthentication.js';
 
 suite('Copilot Entra authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,14 +40,13 @@ suite('Copilot Entra authentication', () => {
 		const tokenProvider = bridge.options.tokenProvider;
 		assert.ok(tokenProvider);
 		const acquire = (request: EntraTokenProviderArgs, token = CancellationToken.None) => tokenProvider(request, token as Parameters<EntraTokenProvider>[1]);
-		const credential = (resource = copilotEntraDiscoveryResource, scopes = ['User.Read'], accountId = 'selected', label?: string): AuthenticateParams => ({
+		const credential = (resource = copilotEntraDiscoveryResource, scopes = ['User.Read'], accountId = 'selected'): AuthenticateParams => ({
 			resource, scopes, token: 'synthetic-resource-credential', expiresIn: 3600, accountId,
-			...(label !== undefined ? { _meta: authenticationAccountLabelMeta(label) } : {}),
 		});
 		const authenticate = (params: AuthenticateParams) => authentication.authenticate(params, [provider]);
-		const signIn = async (label?: string) => {
+		const signIn = async () => {
 			assert.deepStrictEqual(await acquire(identity), { kind: 'unavailable' });
-			assert.deepStrictEqual(await authenticate(credential(undefined, undefined, undefined, label)), { authenticated: true });
+			assert.deepStrictEqual(await authenticate(credential()), { authenticated: true });
 			return acquire(identity);
 		};
 		return { bridge, authentication, provider, acquire, credential, authenticate, signIn };
@@ -66,23 +64,68 @@ suite('Copilot Entra authentication', () => {
 		});
 	});
 
-	test('returns the supplied identity and display metadata on sign-in and cached renewal', async () => {
+	test('discovery requires canonical acceptance rather than provider delivery alone', async () => {
 		const f = fixture();
-		const initial = await f.signIn('Selected account');
-		assert.deepStrictEqual([initial, await f.acquire({ ...identity, accountId: 'selected', reason: 'renewal' })], [
-			{ kind: 'identity', accountId: 'selected', username: 'Selected account' },
-			{ kind: 'identity', accountId: 'selected', username: 'Selected account' },
-		]);
+		await f.acquire(identity);
+		const credential = f.credential();
+		await f.bridge.authenticate(credential);
+		assert.throws(() => f.bridge.authorizeDiscovery(credential), /authority is unavailable/);
+		await f.authenticate(credential);
+		assert.deepStrictEqual({
+			accountId: f.bridge.authorizeDiscovery(credential),
+			identity: await f.acquire(identity),
+		}, { accountId: 'selected', identity: { kind: 'identity', accountId: 'selected' } });
 	});
 
-	test('opaque standard account identifiers do not require display or private account metadata', async () => {
-		for (const label of [undefined, '', ' \t ']) {
-			const f = fixture();
-			await f.acquire(identity);
-			const params = f.credential(undefined, undefined, 'opaque:account/selection', label);
-			await f.authenticate(params);
-			assert.deepStrictEqual(await f.acquire(identity), { kind: 'identity', accountId: params.accountId });
-		}
+	test('discovery authority returns the identity on sign-in and cached renewal', async () => {
+		const f = fixture();
+		await f.signIn();
+		const accountId = f.bridge.authorizeDiscovery(f.credential());
+		assert.deepStrictEqual({
+			accountId,
+			initial: await f.acquire(identity),
+			renewed: await f.acquire({ ...identity, reason: 'renewal', accountId }),
+			pending: f.bridge.authenticationRequired.get(),
+		}, {
+			accountId: 'selected',
+			initial: { kind: 'identity', accountId: 'selected' },
+			renewed: { kind: 'identity', accountId: 'selected' },
+			pending: undefined,
+		});
+	});
+
+	test('discovery and selection require the original account ID', async () => {
+		const f = fixture();
+		await f.signIn();
+		f.bridge.authorizeDiscovery(f.credential());
+		assert.throws(() => f.bridge.authorizeDiscovery(f.credential(undefined, undefined, 'other')), /original account/);
+		assert.throws(() => f.bridge.validateSelection(f.credential(undefined, undefined, 'other'), copilotEntraDiscoveryMetadata), /original account/);
+		f.bridge.validateSelection(f.credential(), copilotEntraDiscoveryMetadata);
+		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected' });
+	});
+
+	test('sign-out drops the identity so a replacement account can be established', async () => {
+		const f = fixture();
+		const before = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
+		await f.signIn();
+		f.bridge.authorizeDiscovery(f.credential());
+		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
+		const after = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
+		await f.acquire(identity);
+		await f.authenticate(f.credential(undefined, undefined, 'replacement'));
+		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, 'replacement'));
+		assert.deepStrictEqual({ before, after, replacement: await f.acquire(identity) }, {
+			before: { kind: 'unavailable' }, after: { kind: 'unavailable' },
+			replacement: { kind: 'identity', accountId: 'replacement' },
+		});
+	});
+
+	test('an opaque standard account identifier needs no private account metadata', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		const params = f.credential(undefined, undefined, 'opaque:account/selection');
+		await f.authenticate(params);
+		assert.deepStrictEqual(await f.acquire(identity), { kind: 'identity', accountId: params.accountId });
 	});
 
 	test('legacy account metadata cannot replace the standard account identifier', async () => {
@@ -94,9 +137,9 @@ suite('Copilot Entra authentication', () => {
 		}), /account identifier/);
 	});
 
-	test('replays standard account selection with display-only metadata', async () => {
+	test('replays the standard account selection without account metadata', async () => {
 		const f = fixture();
-		await f.signIn('Selected account');
+		await f.signIn();
 		const replayed: { accountId: string | undefined; metadata: Record<string, unknown> | undefined }[] = [];
 		const observer = new class extends mock<IAgent>() {
 			override getProtectedResources() { return []; }
@@ -106,7 +149,7 @@ suite('Copilot Entra authentication', () => {
 			}
 		}();
 		await f.authentication.replay(observer);
-		assert.deepStrictEqual(replayed, [{ accountId: 'selected', metadata: { 'vscode.authentication.accountLabel': 'Selected account' } }]);
+		assert.deepStrictEqual(replayed, [{ accountId: 'selected', metadata: undefined }]);
 	});
 
 	for (const audience of [copilotEntraEmuAudience, copilotEntraM365Audience]) {
@@ -151,24 +194,23 @@ suite('Copilot Entra authentication', () => {
 		});
 	});
 
-	test('rejects mismatched account, scopes, expiry and malformed display metadata', async () => {
+	test('rejects mismatched account, scopes and expiry', async () => {
 		const f = fixture();
-		await f.signIn('Shared label');
+		await f.signIn();
 		const request = tokenRequest();
 		await f.acquire(request);
 		const resource = copilotEntraResources.get(copilotEntraEmuAudience)!;
-		const valid = f.credential(resource, request.scopes, 'selected', 'Different label');
+		const valid = f.credential(resource, request.scopes);
 		const invalid = [
-			f.credential(resource, request.scopes, 'other', 'Shared label'),
+			f.credential(resource, request.scopes, 'other'),
 			f.credential(resource, ['different']),
 			{ ...valid, expiresIn: -1 },
-			...[null, 42, false, {}, []].map(label => ({ ...valid, _meta: { 'vscode.authentication.accountLabel': label } })),
 		];
 		for (const params of invalid) {
-			await assert.rejects(f.authenticate(params), /Microsoft credential|original account|account label/i);
+			await assert.rejects(f.authenticate(params), /Microsoft credential|original account/i);
 		}
 		await f.authenticate(valid);
-		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected', username: 'Shared label' });
+		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), { kind: 'identity', accountId: 'selected' });
 	});
 
 	test('never uses unscoped, expired or foreign-account credentials from the shared store', async () => {
@@ -335,14 +377,14 @@ suite('Copilot Entra authentication', () => {
 
 	test('cancellation returns immediately without clearing the established authority or advertising work', async () => {
 		const f = fixture();
-		await f.signIn('Selected account');
+		await f.signIn();
 		const cancellation = store.add(new CancellationTokenSource());
 		cancellation.cancel();
 		assert.deepStrictEqual({
 			result: await f.acquire(tokenRequest(), cancellation.token),
 			requirement: f.bridge.authenticationRequired.get(),
 			identity: await f.acquire(identity),
-		}, { result: { kind: 'cancelled' }, requirement: undefined, identity: { kind: 'identity', accountId: 'selected', username: 'Selected account' } });
+		}, { result: { kind: 'cancelled' }, requirement: undefined, identity: { kind: 'identity', accountId: 'selected' } });
 	});
 
 	test('replay re-validates stored credentials without mutating anything: the bound identity passes, another account or an unadvertised scope is rejected', async () => {

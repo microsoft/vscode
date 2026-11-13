@@ -40,6 +40,10 @@ parameters:
   - name: VSCODE_COMPILE_TEST_SUITES
     type: boolean
     default: true
+  # See product-build-win32-setup.yml
+  - name: VSCODE_WORKSPACE_IMAGE
+    type: string
+    default: none
 
 steps:
   - template: product-build-win32-setup.yml@self
@@ -48,6 +52,7 @@ steps:
       VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
       VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: ${{ parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL }}
       VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+      VSCODE_WORKSPACE_IMAGE: ${{ parameters.VSCODE_WORKSPACE_IMAGE }}
 
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
@@ -192,3 +197,5 @@ steps:
         VSCODE_BUILD_SERVER_WEB: ${{ parameters.VSCODE_BUILD_SERVER_WEB }}
         VSCODE_BUILD_INTEGRATION_TESTS: ${{ parameters.VSCODE_BUILD_INTEGRATION_TESTS }}
         VSCODE_COMPILE_TEST_SUITES: ${{ parameters.VSCODE_COMPILE_TEST_SUITES }}
+
+  - template: product-build-win32-network-diagnostics.yml@self

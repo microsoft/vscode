@@ -33,14 +33,14 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ARCHIVE_SESSION_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionIsArchivedContext, SessionItemIsMultiSelectionContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -48,6 +48,8 @@ import { SessionsView, SessionsViewId } from '../../../../../workbench/contrib/s
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
 import { ITestSessionsService, ITestSessionWithChat, stubPaneHost, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import '../../browser/views/sessionsViewActions.js';
 
 const DELETE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.deleteChat';
 
@@ -63,6 +65,53 @@ function getKeybindingRule(commandId: string, keybinding: number, operatingSyste
 
 suite('Sessions - Session management actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('offers Open Customizations for one selected session and hides it when AI is disabled', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu).filter(isIMenuItem).find(item => item.command.id === 'sessionsViewPane.openCustomizations');
+		assert.ok(item);
+		const evaluate = (enabled: boolean, multipleSelection: boolean) => {
+			const values = {
+				[ChatContextKeys.enabled.key]: enabled,
+				[SessionItemIsMultiSelectionContext.key]: multipleSelection,
+			};
+			const itemContext = context(values);
+			return { visible: item.when?.evaluate(itemContext), enabled: item.command.precondition?.evaluate(itemContext) };
+		};
+		assert.deepStrictEqual({
+			group: item.group,
+			single: evaluate(true, false),
+			multiple: evaluate(true, true),
+			aiDisabled: evaluate(false, false),
+		}, {
+			group: 'navigation',
+			single: { visible: true, enabled: true },
+			multiple: { visible: true, enabled: false },
+			aiDisabled: { visible: false, enabled: false },
+		});
+	});
+
+	test('adapts explicit session selections to the customization command without falling back to another session', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: { commandId: string; target: { sessionResource: URI } }[] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (commandId: string, target: { sessionResource: URI }) => {
+				calls.push({ commandId, target });
+				return undefined;
+			},
+		}));
+		const session = createTestSession('Selected').session;
+		const other = createTestSession('Other').session;
+		const handler = CommandsRegistry.getCommand('sessionsViewPane.openCustomizations')!.handler;
+		await handler(instantiationService, session);
+		await handler(instantiationService, [session]);
+		for (const target of [undefined, [], [session, other]]) {
+			await assert.rejects(async () => handler(instantiationService, target), /Select a single session/);
+		}
+		assert.deepStrictEqual(calls, Array(2).fill({
+			commandId: AICustomizationManagementCommands.OpenEditor,
+			target: { sessionResource: session.resource },
+		}));
+	});
 
 	test('scopes read and unread shortcuts to the Sessions list on every platform', () => {
 		const sessionsList = {
