@@ -18,6 +18,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -111,20 +112,20 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 		return resolved;
 	}
 
-	function item(encoded: number, command: string, options?: { readonly args?: unknown; readonly when?: string; readonly systemWide?: boolean }): ResolvedKeybindingItem {
+	function item(encoded: number, command: string, options?: { readonly args?: unknown; readonly when?: string; readonly systemWide?: boolean; readonly isDefault?: boolean }): ResolvedKeybindingItem {
 		return new ResolvedKeybindingItem(
 			resolve(encoded),
 			command,
 			options?.args,
 			options?.when ? ContextKeyExpr.deserialize(options.when) : undefined,
-			false,
+			options?.isDefault ?? false,
 			null,
 			false,
 			options?.systemWide ?? true,
 		);
 	}
 
-	async function createContribution(keybindings: readonly ResolvedKeybindingItem[] = [], failed: string[] = []) {
+	async function createContribution(keybindings: readonly ResolvedKeybindingItem[] = [], failed: string[] = [], contextKeyService = new MockContextKeyService()) {
 		const keybindingService = store.add(new TestKeybindingService());
 		keybindingService.keybindings = keybindings;
 		const nativeHostService = new TestNativeHostService();
@@ -136,6 +137,7 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			nativeHostService,
 			notificationService,
 			logService,
+			contextKeyService,
 		));
 		await clock.tickAsync(0);
 		return { contribution, keybindingService, nativeHostService, notificationService, logService };
@@ -223,6 +225,30 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 		});
 	});
 
+	test('mirrors a default binding while its when clause holds, and only logs when the system refuses it', async () => {
+		const contextKeyService = new class extends MockContextKeyService {
+			override contextMatchesRules(): boolean { return true; }
+		};
+		const { nativeHostService, notificationService, logService } = await createContribution([
+			item(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyS, ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, { isDefault: true, when: 'config.chat.appWindowScreenshots.enabled' }),
+			item(KeyMod.CtrlCmd | KeyCode.KeyA, OPEN_AGENTS_WINDOW_COMMAND_ID),
+		], ['ctrl+cmd+s', 'cmd+a'], contextKeyService);
+
+		assert.deepStrictEqual({
+			payloads: nativeHostService.keybindingPayloads.map(payload => payload.map(keybinding => keybinding.userSettingsLabel)),
+			notifications: notificationService.notifications.map(notification => notification.message),
+			warnings: logService.warnings,
+		}, {
+			payloads: [['cmd+a', 'ctrl+cmd+s']],
+			notifications: [
+				'Some system-wide keybindings could not be registered (cmd+a); the key combination may already be taken by the operating system or another application.'
+			],
+			warnings: [
+				'[OpenAgentsWindowSystemWideKeybinding] default system-wide keybindings could not be registered (ctrl+cmd+s); the key combination may already be taken by the operating system or another application.'
+			],
+		});
+	});
+
 	test('retries unchanged payload after an IPC error', async () => {
 		const openAgentsWindowBinding = item(KeyMod.CtrlCmd | KeyCode.KeyA, OPEN_AGENTS_WINDOW_COMMAND_ID);
 		const keybindingService = store.add(new TestKeybindingService());
@@ -234,6 +260,7 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			nativeHostService,
 			new RecordingNotificationService(),
 			new RecordingLogService(),
+			new MockContextKeyService(),
 		));
 		await clock.tickAsync(0);
 
@@ -296,6 +323,7 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			nativeHostService,
 			notificationService,
 			new RecordingLogService(),
+			new MockContextKeyService(),
 		);
 		await clock.tickAsync(0);
 

@@ -22,18 +22,29 @@ A user adds `"systemWide": true` to a keybinding entry in **`keybindings.json`**
 
 While VS Code is running (even unfocused), pressing that combination runs the command. Rules:
 
-- **User keybindings only.** Default and extension-contributed keybindings can never be
+- **User keybindings, and built-in ones that opt in.** A built-in keybinding rule can set
+  `systemWide: true` (`IKeybindingRule.systemWide`), such as Attach Screenshot of App Window,
+  which is system-wide while `chat.appWindowScreenshots.enabled` is on. When the OS refuses a
+  built-in one, that is only logged, as the user didn't ask for it. Editing a built-in one in the
+  Keyboard Shortcuts editor gives a user keybinding that is not system-wide, and the default
+  keybindings JSON doesn't show the flag, because a user's system-wide keybinding ignores its
+  `when` clause and would always register. Extension-contributed keybindings can never be
   system-wide — this prevents extensions from silently grabbing OS-global shortcuts.
 - **Single key combinations only.** Chords (`ctrl+k ctrl+c`) and single-modifier bindings cannot be
   expressed as an Electron accelerator; they are skipped with a `warn` log.
 - **`when` clauses are ignored** for the global trigger — an OS-global shortcut has no editor/UI
   context, so it is always active while VS Code runs. The user is warned once per binding label.
+  The `when` clause of a built-in system-wide keybinding instead decides whether it is registered:
+  each window evaluates it in its own context, without regard to focus, and registers it again as
+  the context keys in it change. Such a clause should only depend on keys like settings.
 - **First binding wins** on accelerator conflicts (deduped both in the renderer selection and in the
-  main-process per-window payload).
+  main-process per-window payload). The user's keybindings come before built-in ones, and a
+  built-in one also gives way to the user's keybindings of other commands at its key, so that it
+  never takes over a key that the user bound.
 - **Desktop only.** The flag is inert on web/server (there is no `globalShortcut` there, and the
   contribution is `electron-browser`).
 - **Always on.** There is no setting to enable/disable it and no first-run dialog.
-- **Features can offer a one-click opt-in.** The Agents Window's Open Agents Window tip, and chat's Attach Screenshot of App Window through its Use App Window Screenshot Shortcut in Other Apps command and its macOS Screen Recording setup, write a user keybinding with `"systemWide": true` through `IKeybindingEditingService`, after checking `selectSystemWideKeybindings` for conflicts. They never register OS shortcuts themselves. The Agents window registers the system-wide keybindings of both commands, and of Show Agents Launcher, so that they work while it is the only window open.
+- **Features can offer a one-click opt-in.** The Agents Window's Open Agents Window tip writes a user keybinding with `"systemWide": true` through `IKeybindingEditingService`, after checking `selectSystemWideKeybindings` for conflicts. Features never register OS shortcuts themselves. The Agents window registers the system-wide keybindings of Open Agents Window, Show Agents Launcher and Attach Screenshot of App Window, so that they work while it is the only window open.
 
 The `systemWide` boolean is declared in the `keybindings.json` JSON schema in
 `src/vs/workbench/services/keybinding/browser/keybindingService.ts`.
@@ -72,14 +83,17 @@ sequenceDiagram
 **`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindings.ts`** contains the
 shared, side-effect-free selection contract.
 
-- `selectSystemWideKeybindings(items)` — a **pure** function that filters the full set of resolved
-  keybindings down to eligible candidates. Eligibility: `item.systemWide && !item.isDefault &&
+- `selectSystemWideKeybindings(items, context?)` — a **pure** function that filters the full set of
+  resolved keybindings down to eligible candidates. Eligibility: `item.systemWide && !item.isDefault &&
   item.command && item.resolvedKeybinding && getElectronAccelerator() !== null` and the accelerator
-  has not already been claimed. Returns `{ candidates, unsupported, duplicates }` so the caller can
-  log why entries were dropped. Kept pure and separately unit-tested.
+  has not already been claimed. Given the context of a window, it then adds the default ones whose
+  `when` clause holds there, unless the accelerator is claimed or bound by the user to another
+  command; it leaves those out silently. Returns `{ candidates, unsupported, duplicates }` so the
+  caller can log why entries were dropped. Kept pure and separately unit-tested.
 
 **`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindingsSynchronizer.ts`**
-contains the shared renderer-to-main synchronization client. It debounces keybinding changes,
+contains the shared renderer-to-main synchronization client. It debounces keybinding changes, and
+changes of the context keys in the `when` clauses of default system-wide keybindings,
 serializes updates, maps candidates to the native IPC payload, skips payloads already processed by
 the main process, and deduplicates registration-failure reporting. The initial payload, including
 an empty one, is always sent so a reloaded renderer clears stale main-process ownership. A

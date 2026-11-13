@@ -2,7 +2,7 @@
 
 ## Scope
 
-The Agents Window is a narrow renderer owner of direct user system-wide keybindings for `workbench.action.openAgentsWindow`, `workbench.action.agentsLauncher` and `workbench.action.chat.attachAppWindowScreenshot`. This keeps those shortcuts active when the Agents Window remains after all standard editor windows close.
+The Agents Window is a narrow renderer owner of direct system-wide keybindings for `workbench.action.openAgentsWindow`, `workbench.action.agentsLauncher` and `workbench.action.chat.attachAppWindowScreenshot`: the user's, and the default keybinding of Attach Screenshot of App Window, which is system-wide while `chat.appWindowScreenshots.enabled` is on. This keeps those shortcuts active when the Agents Window remains after all standard editor windows close.
 
 The shared selection, renderer synchronization, native-host IPC, and Electron main-process
 registration mechanisms are specified in

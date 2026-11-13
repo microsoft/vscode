@@ -16,6 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -112,6 +113,7 @@ export class AppWindowScreenshotHint extends Disposable {
 		@IChatUserImageAttachmentService userImageAttachmentService: IChatUserImageAttachmentService,
 		@IAppWindowScreenshotService private readonly _appWindowScreenshotService: IAppWindowScreenshotService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -321,7 +323,7 @@ export class AppWindowScreenshotHint extends Disposable {
 		}
 
 		const accelerator = keybinding.getElectronAccelerator();
-		const systemWide = !!accelerator && selectSystemWideKeybindings(this._keybindingService.getKeybindings()).candidates.some(candidate => candidate.commandId === this._command.id && candidate.accelerator === accelerator);
+		const systemWide = !!accelerator && selectSystemWideKeybindings(this._keybindingService.getKeybindings(), this._contextKeyService).candidates.some(candidate => candidate.commandId === this._command.id && candidate.accelerator === accelerator);
 		const format = (key: string) => markdown(systemWide
 			? localize('appWindowScreenshotHint.systemWide', "Showing the agent your app? Next time, press [{0}]({1}) while your app is in front to attach a screenshot of its window.", escapeMarkdownSyntaxTokens(key), link)
 			: localize('appWindowScreenshotHint.inApp', "Showing the agent your app? Next time, switch from your app to chat and press [{0}]({1}) to attach a screenshot of its window.", escapeMarkdownSyntaxTokens(key), link));

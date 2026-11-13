@@ -170,6 +170,8 @@ export class TestNativeHostService implements INativeHostService {
 	async getMediaAccessStatus(_mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> { return 'granted'; }
 	async requestScreenCaptureAccess(): Promise<boolean> { return true; }
 	async getAppWindows(): Promise<INativeAppWindows> { return { kind: 'windows', windows: [] }; }
+	async showAppWindowCaptureFeedback(): Promise<void> { }
+	async endAppWindowCaptureFeedback(): Promise<void> { }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }

@@ -229,6 +229,12 @@ export interface INativeAppWindow {
 	 * The icon of the window's application as a PNG `data:` URL, where the platform provides it.
 	 */
 	readonly iconDataUrl?: string;
+
+	/**
+	 * Where the window shows on screen, in the coordinates of Electron's `screen`, where the platform tells: macOS does
+	 * for the windows that it shows on screen.
+	 */
+	readonly bounds?: IRectangle;
 }
 
 /**
@@ -445,6 +451,21 @@ export interface ICommonNativeHostService {
 	 * Wayland sessions list the one window that the user picks, or none when the user cancels.
 	 */
 	getAppWindows(options?: { readonly interactive?: boolean }): Promise<INativeAppWindows>;
+
+	/**
+	 * Lights up a window of another application on screen while VS Code captures it, given where it shows (see
+	 * {@link INativeAppWindow.bounds}). It draws above every window, ignores the mouse, and never takes focus. It stays
+	 * until {@link endAppWindowCaptureFeedback} ends it, or for a while at most.
+	 */
+	showAppWindowCaptureFeedback(bounds: IRectangle, options: { readonly color: string; readonly reduceMotion: boolean }): Promise<void>;
+
+	/**
+	 * Ends {@link showAppWindowCaptureFeedback}. Given the screenshot of the window as a `data:` URL, the window turns
+	 * into it, and it shrinks into the destination: a rectangle of the target window, in device-independent pixels from
+	 * the top left of its content. Without a destination on the same display, the screenshot shrinks where the window
+	 * is. Resolves once the feedback is gone.
+	 */
+	endAppWindowCaptureFeedback(screenshot?: { readonly image: string; readonly destination?: IRectangle }, options?: INativeHostOptions): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;

@@ -1193,6 +1193,7 @@ suite('ChatInputPart', () => {
 				attachedContextContainer: dom.$('div'),
 				attachmentsContainer: dom.$('div'),
 				attachedContextDisposables,
+				attachedContextElements: new Map(),
 				_attachmentModel: { attachments: [chip] },
 				configurationService: { getValue: () => false },
 				options: {},

@@ -5,6 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -31,6 +32,7 @@ export class OpenAgentsWindowSystemWideKeybindingContribution extends Disposable
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -39,11 +41,11 @@ export class OpenAgentsWindowSystemWideKeybindingContribution extends Disposable
 			onRegistrationFailuresChanged: failed => this.reportFailures(failed),
 			logLabel: 'OpenAgentsWindowSystemWideKeybinding',
 			syncImmediately: true,
-		}, this.keybindingService, this.nativeHostService, this.logService));
+		}, this.keybindingService, this.nativeHostService, this.logService, this.contextKeyService));
 	}
 
 	private collectCandidates(): ISystemWideKeybindingCandidate[] {
-		const { candidates, unsupported, duplicates } = selectSystemWideKeybindings(this.keybindingService.getKeybindings());
+		const { candidates, unsupported, duplicates } = selectSystemWideKeybindings(this.keybindingService.getKeybindings(), this.contextKeyService);
 		for (const rejection of unsupported) {
 			if (isOwnedCommand(rejection.commandId)) {
 				this.logService.warn(`[OpenAgentsWindowSystemWideKeybinding] '${rejection.userSettingsLabel}' cannot be registered as a system-wide shortcut (only single key combinations are supported).`);

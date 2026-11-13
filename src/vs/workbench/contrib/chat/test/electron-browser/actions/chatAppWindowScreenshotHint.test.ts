@@ -17,10 +17,12 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -48,6 +50,7 @@ suite('AppWindowScreenshotHint', () => {
 		const storageService = options.storageService ?? store.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 		const onDidAttachImages = store.add(new Emitter<IChatUserImageAttachmentEvent>());
 		instantiationService.stub(IChatUserImageAttachmentService, { onDidAttachImages: onDidAttachImages.event });

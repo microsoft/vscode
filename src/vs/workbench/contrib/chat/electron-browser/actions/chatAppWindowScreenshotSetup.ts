@@ -25,16 +25,6 @@ import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { AppWindowScreenshotPermission, IAppWindowScreenshotService } from '../../../screenshotTool/electron-browser/appWindowScreenshot.js';
 
-/** A keybinding that the setup offers to make work while another app is in front. */
-export interface IAppWindowScreenshotShortcut {
-	/** The label of the keybinding, as the user sees it in menus. */
-	readonly label: string;
-	/** Whether it already works while another app is in front. */
-	readonly enabled: boolean;
-	/** Makes it work while another app is in front, and resolves whether it does. */
-	enable(): Promise<boolean>;
-}
-
 interface IStepElements {
 	readonly row: HTMLElement;
 	readonly description: HTMLElement;
@@ -50,18 +40,12 @@ interface IScreenRecordingStep extends IStepElements {
 	readonly restart: Button;
 }
 
-interface IShortcutStep extends IStepElements {
-	readonly shortcut: IAppWindowScreenshotShortcut;
-	readonly enable: Button;
-}
-
 /** How long the modal shows Screen Recording allowed before it closes on its own. */
 const ALLOWED_CLOSE_DELAY = 1000;
 
 /**
- * The modal that sets up attaching screenshots of other apps while macOS doesn't allow Screen Recording. It lets the
- * user allow it, and offers to make the keybinding work while another app is in front. After the user goes to System
- * Settings, it checks Screen Recording again once the window regains focus. macOS only applies the permission once
+ * The modal that sets up attaching screenshots of other apps while macOS doesn't allow Screen Recording, which it lets
+ * the user allow. After the user goes to System Settings, it checks Screen Recording again once the window regains focus. macOS only applies the permission once
  * VS Code restarts, so when the user comes back without it, the step offers to restart. Once Screen Recording is
  * allowed, the modal closes on its own, and the keybinding attaches screenshots.
  */
@@ -70,11 +54,9 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 	private readonly _dialog: Dialog;
 	private readonly _element: HTMLElement;
 	private readonly _screenRecording: IScreenRecordingStep;
-	private readonly _shortcut: IShortcutStep | undefined;
 	private readonly _closeWhenAllowed = this._register(new RunOnceScheduler(() => this._dialog.dispose(), ALLOWED_CLOSE_DELAY));
 
 	private _permission: AppWindowScreenshotPermission;
-	private _shortcutEnabled: boolean;
 	/** Set when the user went to System Settings: once the window lost and regained focus, check again. */
 	private _settingsVisit: { blurred: boolean } | undefined;
 	/** Whether the user came back from System Settings while macOS still didn't allow Screen Recording. */
@@ -82,7 +64,6 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 
 	constructor(
 		permission: AppWindowScreenshotPermission,
-		shortcut: IAppWindowScreenshotShortcut | undefined,
 		@ILayoutService layoutService: ILayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IHostService private readonly _hostService: IHostService,
@@ -91,7 +72,6 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 	) {
 		super();
 		this._permission = permission;
-		this._shortcutEnabled = !!shortcut?.enabled;
 
 		// The dialog renders its icon and body when it is created, so it comes first and takes the elements after.
 		const slots: { icon?: HTMLElement; body?: HTMLElement } = {};
@@ -115,9 +95,6 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 		append(this._element, $('p.app-window-screenshot-setup-description', undefined, localize('appWindowScreenshotSetup.description', "Let the agent see the app that you are building, whether it runs in a browser, a simulator, or its own window. {0} captures a window only when you ask it to.", _productService.nameShort)));
 		const steps = append(this._element, $('.app-window-screenshot-setup-steps', { role: 'list', 'aria-label': localize('appWindowScreenshotSetup.steps', "Setup steps") }));
 		this._screenRecording = this._createScreenRecordingStep(steps);
-		if (shortcut) {
-			this._shortcut = this._createShortcutStep(steps, shortcut);
-		}
 
 		this._register(_hostService.onDidChangeFocus(focused => this._onWindowFocus(focused)));
 
@@ -172,15 +149,6 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 		return { ...step, recheck, allow, openSettings, restart };
 	}
 
-	private _createShortcutStep(list: HTMLElement, shortcut: IAppWindowScreenshotShortcut): IShortcutStep {
-		const step = this._createStep(list, Codicon.keyboard, localize('appWindowScreenshotSetup.shortcut', "Shortcut in Other Apps"));
-		const enable = this._register(new Button(step.controls, { ...defaultButtonStyles, secondary: true, small: true }));
-		enable.label = localize('appWindowScreenshotSetup.enableShortcut', "Turn On");
-		enable.setAriaLabel(localize('appWindowScreenshotSetup.enableShortcut.aria', "Turn On {0} in Other Apps", shortcut.label));
-		this._register(enable.onDidClick(() => this._enableShortcut()));
-		return { ...step, shortcut, enable };
-	}
-
 	private _render(): void {
 		const targetDocument = getWindow(this._element).document;
 		const focused = targetDocument.activeElement;
@@ -203,20 +171,6 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 				: this._returnedWithoutPermission ? [screenRecording.recheck, screenRecording.openSettings.element, screenRecording.restart.element]
 					: [screenRecording.recheck, screenRecording.allow.element],
 		);
-
-		const shortcut = this._shortcut;
-		if (shortcut) {
-			this._renderStep(
-				shortcut,
-				localize('appWindowScreenshotSetup.shortcut', "Shortcut in Other Apps"),
-				this._shortcutEnabled ? localize('appWindowScreenshotSetup.shortcutOn.state', "On") : localize('appWindowScreenshotSetup.shortcutOff.state', "Off"),
-				this._shortcutEnabled
-					? localize('appWindowScreenshotSetup.shortcutOn.description', "Press {0} while another app is in front.", shortcut.shortcut.label)
-					: localize('appWindowScreenshotSetup.shortcutOff.description', "Use {0} while another app is in front, too.", shortcut.shortcut.label),
-				this._shortcutEnabled,
-				this._shortcutEnabled ? [] : [shortcut.enable.element],
-			);
-		}
 
 		if (granted && !this._closeWhenAllowed.isScheduled()) {
 			this._closeWhenAllowed.schedule();
@@ -245,15 +199,13 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 		step.row.setAttribute('aria-label', localize('appWindowScreenshotSetup.step', "{0}, {1}. {2}", name, state, description));
 	}
 
-	/** Moves focus to the next thing to do: restarting, allowing Screen Recording, or turning on the shortcut. */
+	/** Moves focus to the next thing to do: restarting, or allowing Screen Recording. */
 	private _focus(): void {
 		const screenRecording = this._screenRecording;
 		if (screenRecording.restart.element.isConnected) {
 			screenRecording.restart.focus();
 		} else if (screenRecording.allow.element.isConnected) {
 			screenRecording.allow.focus();
-		} else if (this._shortcut?.enable.element.isConnected) {
-			this._shortcut.enable.focus();
 		}
 	}
 
@@ -293,15 +245,5 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 		} else if (permission === 'notGranted') {
 			status(localize('appWindowScreenshotSetup.notAllowed', "Screen Recording is not allowed yet. If you turned it on in System Settings, restart {0}.", this._productService.nameShort));
 		}
-	}
-
-	private async _enableShortcut(): Promise<void> {
-		const shortcut = this._shortcut?.shortcut;
-		if (!shortcut || !await shortcut.enable() || this._store.isDisposed) {
-			return;
-		}
-		this._shortcutEnabled = true;
-		this._render();
-		status(localize('appWindowScreenshotSetup.shortcutEnabled', "{0} now works while another app is in front.", shortcut.label));
 	}
 }

@@ -603,6 +603,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private attachedContextContainer!: HTMLElement;
 	private readonly attachedContextDisposables: MutableDisposable<DisposableStore> = this._register(new MutableDisposable<DisposableStore>());
+	/** The elements of the attachments that show above the input, by the id of the attachment. */
+	private readonly attachedContextElements = new Map<string, HTMLElement>();
 
 	private chatEditingSessionWidgetContainer!: HTMLElement;
 	private chatInputTodoListWidgetContainer!: HTMLElement;
@@ -4891,12 +4893,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
+	/** Returns the element that shows the attachment above the input, while it does. */
+	getAttachmentElement(id: string): HTMLElement | undefined {
+		return this.attachedContextElements.get(id);
+	}
+
 	public renderAttachedContext() {
 		const container = this.attachedContextContainer;
 		const store = new DisposableStore();
 		this.attachedContextDisposables.value = store;
 
 		dom.clearNode(container);
+		this.attachedContextElements.clear();
 
 		store.add(dom.addStandardDisposableListener(this.attachmentsContainer, dom.EventType.KEY_DOWN, (e: StandardKeyboardEvent) => {
 			this.handleAttachmentNavigation(e);
@@ -4972,6 +4980,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		for (const [index, attachment] of attachments) {
 			const shouldFocusClearButton = index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, attachments.length - 1) && this._indexOfLastAttachedContextDeletedWithKeyboard > -1;
 			const attachmentWidget = this.createAttachmentWidget(attachment, container, { shouldFocusClearButton, supportsDeletion: true });
+			this.attachedContextElements.set(attachment.id, attachmentWidget.element);
 
 			if (shouldFocusClearButton) {
 				attachmentWidget.element.focus();

@@ -3,18 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
+import { getZoomFactor } from '../../../../base/browser/browser.js';
+import { $, getWindow } from '../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeAppWindow, INativeAppWindows, INativeHostService } from '../../../../platform/native/common/native.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IScreenshotToolImage } from '../browser/screenshotTool.js';
 
 export const IAppWindowScreenshotService = createDecorator<IAppWindowScreenshotService>('appWindowScreenshotService');
@@ -80,8 +84,18 @@ export interface IAppWindowScreenshotService {
 	/**
 	 * Captures the window of another app as it is shown. Only call it when the user asked for it, as it asks for the
 	 * Screen Recording permission on macOS the first time, and shows the system's window picker in Wayland sessions.
+	 *
+	 * Where the platform tells where the window is, the window lights up on screen while it is captured. That stays
+	 * until {@link endCaptureFeedback}, which the caller must call however the capture ended.
 	 */
 	capture(options?: IAppWindowScreenshotOptions): Promise<AppWindowScreenshotResult>;
+
+	/**
+	 * Ends the feedback of {@link capture}. Given the screenshot and the element that it goes to, such as its attachment
+	 * in the chat input, the window turns into the screenshot, which shrinks into a thumbnail at the start of the
+	 * element; without them, the light just goes out. Resolves once the feedback is gone, at once when there is none.
+	 */
+	endCaptureFeedback(destination?: { readonly element: HTMLElement; readonly image: IScreenshotToolImage }): Promise<void>;
 }
 
 /** Names a window of another app by its title. */
@@ -94,6 +108,9 @@ const MAX_CAPTURE_SIZE = 8192;
 
 /** How long a capture waits for the first frame of the window. */
 const FRAME_TIMEOUT = 5000;
+
+/** The height of the thumbnail that the screenshot shrinks into, at most, which is wider by half. */
+const FEEDBACK_THUMBNAIL_HEIGHT = 32;
 
 const MAC_SCREEN_RECORDING_SETTINGS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
 
@@ -125,11 +142,16 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 		return this.storageService.getBoolean(CAPTURED_STORAGE_KEY, StorageScope.APPLICATION_SHARED, false);
 	}
 
+	/** Whether the feedback of a capture shows, until the caller ends it. */
+	private feedbackShown = false;
+
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CAPTURED_STORAGE_KEY, this._store)(() => this._onDidChangeHasCaptured.fire()));
@@ -215,6 +237,14 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 			}
 		}
 
+		if (window.bounds) {
+			this.feedbackShown = true;
+			void this.nativeHostService.showAppWindowCaptureFeedback(window.bounds, {
+				color: this.themeService.getColorTheme().getColor(focusBorder)?.toString() ?? '#0078d4',
+				reduceMotion: this.accessibilityService.isMotionReduced(),
+			});
+		}
+
 		try {
 			const image = await this.captureWindow(window);
 			if (!image) {
@@ -233,6 +263,28 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 			this.logService.error('[AppWindowScreenshot] Capturing a window failed:', error);
 			return { kind: 'failed', target, window };
 		}
+	}
+
+	async endCaptureFeedback(destination?: { readonly element: HTMLElement; readonly image: IScreenshotToolImage }): Promise<void> {
+		if (!this.feedbackShown) {
+			return;
+		}
+		this.feedbackShown = false;
+		const rect = destination?.element.getBoundingClientRect();
+		if (!destination || !rect?.width || !rect.height) {
+			return this.nativeHostService.endAppWindowCaptureFeedback();
+		}
+		// A small element, like an attachment, takes the thumbnail at its left end, and a big one, like the input, at its top left.
+		const inset = rect.height > FEEDBACK_THUMBNAIL_HEIGHT ? 6 : 2;
+		const height = Math.max(Math.min(FEEDBACK_THUMBNAIL_HEIGHT, rect.height - 2 * inset), 1);
+		const box = { x: rect.left + inset, y: rect.top + inset, width: Math.max(Math.min(height * 1.5, rect.width - 2 * inset), 1), height };
+		// The overlay that shows the feedback measures in device-independent pixels, which zoom in the window scales.
+		const targetWindow = getWindow(destination.element);
+		const zoom = getZoomFactor(targetWindow);
+		return this.nativeHostService.endAppWindowCaptureFeedback({
+			image: destination.image.dataUrl,
+			destination: { x: box.x * zoom, y: box.y * zoom, width: box.width * zoom, height: box.height * zoom },
+		}, { targetWindowId: targetWindow.vscodeWindowId });
 	}
 
 	private async pick(windows: readonly INativeAppWindow[]): Promise<INativeAppWindow | undefined> {

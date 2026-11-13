@@ -28,7 +28,9 @@ import { createDecorator, IInstantiationService } from '../../instantiation/comm
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
-import { excludeOwnWindowSources } from '../common/appWindows.js';
+import { excludeOwnWindowSources, orderAppWindowSources } from '../common/appWindows.js';
+import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions } from './appWindowCaptureFeedback.js';
+import { getMacScreenWindows } from './macScreenWindows.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -928,6 +930,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return { kind: 'permissionRequired' };
 		}
 
+		// Only macOS tells where windows are, and which application is in front.
+		const screenWindows = isMacintosh ? getMacScreenWindows(this.logService) : undefined;
 		let sources: Electron.DesktopCapturerSource[];
 		try {
 			// Thumbnails would capture every window, so none are made.
@@ -940,14 +944,34 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		const ownSourceIds = BrowserWindow.getAllWindows().filter(window => !window.isDestroyed()).map(window => window.getMediaSourceId());
+		const others = excludeOwnWindowSources(sources, ownSourceIds);
+		const onScreen = await screenWindows;
+		const ordered = onScreen ? orderAppWindowSources(others, onScreen.windows, onScreen.frontmostPid, process.pid) : others.map(source => ({ source, bounds: undefined }));
 		return {
 			kind: 'windows',
-			windows: excludeOwnWindowSources(sources, ownSourceIds).map(source => ({
+			windows: ordered.map(({ source, bounds }) => ({
 				sourceId: source.id,
 				title: source.name,
 				iconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32, height: 32, quality: 'best' }).toDataURL() : undefined,
+				bounds,
 			})),
 		};
+	}
+
+	private appWindowCaptureFeedback: AppWindowCaptureFeedback | undefined;
+
+	async showAppWindowCaptureFeedback(windowId: number | undefined, bounds: IRectangle, options: IAppWindowCaptureFeedbackOptions): Promise<void> {
+		this.appWindowCaptureFeedback ??= this._register(new AppWindowCaptureFeedback(this.logService));
+		this.appWindowCaptureFeedback.show(bounds, options);
+	}
+
+	async endAppWindowCaptureFeedback(windowId: number | undefined, screenshot?: { readonly image: string; readonly destination?: IRectangle }, options?: INativeHostOptions): Promise<void> {
+		let destination: IRectangle | undefined;
+		const content = screenshot?.destination && this.windowById(options?.targetWindowId, windowId)?.win?.getContentBounds();
+		if (screenshot?.destination && content) {
+			destination = { ...screenshot.destination, x: content.x + screenshot.destination.x, y: content.y + screenshot.destination.y };
+		}
+		await this.appWindowCaptureFeedback?.end(screenshot && { image: screenshot.image, destination });
 	}
 
 	async isAdmin(): Promise<boolean> {

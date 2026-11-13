@@ -193,6 +193,12 @@ suite('KeybindingsEditing', () => {
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
+	test('edit a default system-wide keybinding adds a user keybinding that is not system-wide', async () => {
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
+		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'a', systemWide: true }), 'alt+c', undefined);
+		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
 	test('edit a user keybinding preserves systemWide on other entries', async () => {
 		await writeToKeybindingsFile({ key: 'escape', command: 'b' }, { key: 'alt+shift+g', command: 'c', systemWide: true });
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }, { key: 'alt+shift+g', command: 'c', systemWide: true }];
@@ -285,7 +291,7 @@ suite('KeybindingsEditing', () => {
 		return json.parse((await fileService.readFile(userDataProfileService.currentProfile.keybindingsResource)).value.toString());
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
+	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord, systemWide }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers }; systemWide?: boolean }): ResolvedKeybindingItem {
 		const aSimpleKeybinding = function (chord: { keyCode: KeyCode; modifiers?: Modifiers }): KeyCodeChord {
 			const { ctrlKey, shiftKey, altKey, metaKey } = chord.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new KeyCodeChord(ctrlKey!, shiftKey!, altKey!, metaKey!, chord.keyCode);
@@ -298,6 +304,6 @@ suite('KeybindingsEditing', () => {
 			}
 		}
 		const keybinding = chords.length > 0 ? new USLayoutResolvedKeybinding(chords, OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false, systemWide);
 	}
 });
