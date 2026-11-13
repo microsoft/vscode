@@ -323,7 +323,7 @@ const SHELL_AUTHENTICATION_CONFIRM_NO = 'no';
 export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt): ChatQuestionCarouselData {
 	const details = [
 		prompt.command ? localize('agentHost.shellAuthentication.command', "Command: {0}", appendEscapedMarkdownInlineCode(escapeIcons(prompt.command))) : undefined,
-		`$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0}. It isn't sent to the model or saved in the chat.", appendEscapedMarkdownInlineCode(escapeIcons(prompt.program)))}`,
+		`$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model or saved in the chat.", appendEscapedMarkdownInlineCode(escapeIcons(prompt.program)))}`,
 	].filter(isDefined).join('\n\n');
 	const base = {
 		id: SHELL_AUTHENTICATION_QUESTION_ID,

@@ -12085,7 +12085,7 @@ suite('AgentHostChatContribution', () => {
 				completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).length,
 				stored: JSON.stringify(carousel.toJSON()).includes('private-password'),
 			}, {
-				questions: [{ type: 'text', password: true, required: true, title: 'sudo needs a password', description: '[sudo] password for dev:', details: 'Command: `sudo -A true`\n\n$(lock) Your answer goes only to `sudo`. It isn\'t sent to the model or saved in the chat.' }],
+				questions: [{ type: 'text', password: true, required: true, title: 'sudo needs a password', description: '[sudo] password for dev:', details: 'Command: `sudo -A true`\n\n$(lock) Your answer goes only to `sudo` and isn\'t sent to the model or saved in the chat.' }],
 				answered: [{ requestId: 'shell-auth', answer: 'private-password' }],
 				completions: 0,
 				stored: false,
