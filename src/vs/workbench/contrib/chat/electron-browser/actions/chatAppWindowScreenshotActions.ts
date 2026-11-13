@@ -12,6 +12,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -25,6 +26,8 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { FocusMode, INativeAppWindow } from '../../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import product from '../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
@@ -60,7 +63,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[ChatConfiguration.AppWindowScreenshotsEnabled]: {
 			type: 'boolean',
-			default: false,
+			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			markdownDescription: localize('chat.appWindowScreenshots.enabled', "Controls whether chat can attach a screenshot of the window of another app, such as the browser or simulator that runs the app that you are building. **Attach Screenshot of App Window** captures the window that you are using or just left, and you can mark up the screenshot before you send it. Its keybinding also works while the other app is in front."),
@@ -351,7 +354,6 @@ class AppWindowScreenshotContextValuePick implements IChatContextValueItem {
 	private window: INativeAppWindow | undefined;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAppWindowScreenshotService private readonly appWindowScreenshotService: IAppWindowScreenshotService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
@@ -366,9 +368,7 @@ class AppWindowScreenshotContextValuePick implements IChatContextValueItem {
 		this.window = undefined;
 		const model = widget.input.selectedLanguageModel.get();
 		// An automatically selected model can pick one that sees images, as the image pills assume.
-		if (!this.configurationService.getValue<boolean>(ChatConfiguration.AppWindowScreenshotsEnabled)
-			|| !widget.attachmentCapabilities.supportsImageAttachments
-			|| !(isAutoLanguageModel(model) || model?.metadata.capabilities?.vision)) {
+		if (!widget.attachmentCapabilities.supportsImageAttachments || !(isAutoLanguageModel(model) || model?.metadata.capabilities?.vision)) {
 			return false;
 		}
 		this.window = await raceTimeout(this.appWindowScreenshotService.getFrontmostWindow(), LABEL_TIMEOUT);
@@ -386,6 +386,7 @@ class AppWindowScreenshotContextValuePick implements IChatContextValueItem {
 	}
 }
 
+/** Offers the Add Context item while the feature is on. */
 class AppWindowScreenshotContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chat.appWindowScreenshot';
@@ -393,13 +394,19 @@ class AppWindowScreenshotContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@IChatContextPickService contextPickService: IChatContextPickService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(AppWindowScreenshotContextValuePick)));
+		const enabled = observableConfigValue(ChatConfiguration.AppWindowScreenshotsEnabled, false, configurationService);
+		this._register(autorun(reader => {
+			if (enabled.read(reader)) {
+				reader.store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(AppWindowScreenshotContextValuePick)));
+			}
+		}));
 	}
 }
 
-/** Shows {@link AppWindowScreenshotHint} above the main input of a chat widget. */
+/** Shows {@link AppWindowScreenshotHint} above the main input of a chat widget, while the feature is on. */
 class AppWindowScreenshotHintContribution extends Disposable implements IChatWidgetContrib {
 
 	static readonly ID = 'chatAppWindowScreenshotHint';
@@ -411,32 +418,39 @@ class AppWindowScreenshotHintContribution extends Disposable implements IChatWid
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
 		const input = widget.inputPart;
-		this._register(instantiationService.createInstance(AppWindowScreenshotHint, {
-			inputUri: input.inputUri,
-			noticeHost: input.noticeHost,
-			container: input.attachmentHintContainerElement,
-			getAttachmentIds: () => input.attachmentModel.attachments.map(attachment => attachment.id),
-			onDidChangeAttachments: input.attachmentModel.onDidChange,
-			onDidChangeDraft: Event.any<unknown>(widget.onDidAcceptInput, widget.onDidChangeViewModel),
-			canAttachScreenshots: () => {
-				const model = input.selectedLanguageModel.get();
-				return widget.location === ChatAgentLocation.Chat
-					&& !!widget.attachmentCapabilities.supportsImageAttachments
-					&& (isAutoLanguageModel(model) || !!model?.metadata.capabilities?.vision)
-					&& contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
-			},
-		}, {
-			id: ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID,
-			title: ATTACH_APP_WINDOW_SCREENSHOT_TITLE.value,
-			// Attaches to the chat that shows the hint, which need not be the chat that had focus last.
-			run: () => {
-				const sessionResource = widget.viewModel?.sessionResource;
-				void commandService.executeCommand(ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, sessionResource ? { sessionResource } satisfies IAttachAppWindowScreenshotArgs : undefined);
-			},
+		const enabled = observableConfigValue(ChatConfiguration.AppWindowScreenshotsEnabled, false, configurationService);
+		this._register(autorun(reader => {
+			if (!enabled.read(reader)) {
+				return;
+			}
+			reader.store.add(instantiationService.createInstance(AppWindowScreenshotHint, {
+				inputUri: input.inputUri,
+				noticeHost: input.noticeHost,
+				container: input.attachmentHintContainerElement,
+				getAttachmentIds: () => input.attachmentModel.attachments.map(attachment => attachment.id),
+				onDidChangeAttachments: input.attachmentModel.onDidChange,
+				onDidChangeDraft: Event.any<unknown>(widget.onDidAcceptInput, widget.onDidChangeViewModel),
+				canAttachScreenshots: () => {
+					const model = input.selectedLanguageModel.read(undefined);
+					return widget.location === ChatAgentLocation.Chat
+						&& !!widget.attachmentCapabilities.supportsImageAttachments
+						&& (isAutoLanguageModel(model) || !!model?.metadata.capabilities?.vision)
+						&& contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+				},
+			}, {
+				id: ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID,
+				title: ATTACH_APP_WINDOW_SCREENSHOT_TITLE.value,
+				// Attaches to the chat that shows the hint, which need not be the chat that had focus last.
+				run: () => {
+					const sessionResource = widget.viewModel?.sessionResource;
+					void commandService.executeCommand(ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, sessionResource ? { sessionResource } satisfies IAttachAppWindowScreenshotArgs : undefined);
+				},
+			}));
 		}));
 	}
 }

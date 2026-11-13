@@ -172,7 +172,7 @@ suite('AppWindowScreenshotHint', () => {
 		});
 	});
 
-	test('counts the opportunity with the feature off, and shows later when it went away unseen', async () => {
+	test('does nothing with the feature off, and shows later when it went away unseen', async () => {
 		const off = createHint({ enabled: false });
 		off.attach('image1');
 
@@ -194,7 +194,7 @@ suite('AppWindowScreenshotHint', () => {
 			afterCapture: hint.text(),
 			events: hint.events,
 		}, {
-			off: { text: '', events: ['screenshotTool.appWindowHint opportunity paste none 1'] },
+			off: { text: '', events: [] },
 			afterSend: '',
 			afterDrop: IN_CHAT,
 			afterCapture: '',

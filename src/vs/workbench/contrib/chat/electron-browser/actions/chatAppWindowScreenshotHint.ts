@@ -53,7 +53,7 @@ type AppWindowScreenshotHintEvent = {
 type AppWindowScreenshotHintClassification = {
 	owner: 'Giuspepe';
 	comment: 'Reports the hint that suggests attaching a screenshot of an app window when the user pastes or drops an image into chat, to learn whether it teaches the keybinding.';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What happened: the user pasted or dropped an image where the hint could show, logged once per chat input whether or not the feature is on; the hint showed; the user clicked its link, which runs the command; the user dismissed it; it went away with its images or the draft; or the user captured an app window while it showed.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What happened: the user pasted or dropped an image where the hint could show, logged once per chat input while the feature and tips are on; the hint showed; the user clicked its link, which runs the command; the user dismissed it; it went away with its images or the draft; or the user captured an app window while it showed.' };
 	gesture: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user pasted or dropped the image.' };
 	copy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which instructions the hint gave: press the keybinding in chat, press it while the other app is in front, run the command from the Command Palette, or none when it did not show.' };
 	imageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many images the paste or drop attached, or the hint is about.' };
@@ -148,16 +148,12 @@ export class AppWindowScreenshotHint extends Disposable {
 	}
 
 	private _onDidAttachImages(e: IChatUserImageAttachmentEvent): void {
-		if (!this._target.canAttachScreenshots()) {
+		if (!this._target.canAttachScreenshots() || !this._isTurnedOn()) {
 			return;
 		}
-		// Logged before anything that depends on the feature, so that it counts the same users in every arm of an experiment.
 		if (!this._loggedOpportunity) {
 			this._loggedOpportunity = true;
 			this._log('opportunity', e.gesture, 'none', e.attachmentIds.length, -1);
-		}
-		if (!this._isTurnedOn()) {
-			return;
 		}
 		// A hint that waits or shows already is about these images too.
 		if (!this._imageIds.size && (this._appWindowScreenshotService.hasCaptured || this._wasShown())) {

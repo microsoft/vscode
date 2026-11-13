@@ -82,6 +82,10 @@ export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingIt
 	if (!context) {
 		return { candidates, unsupported, duplicates };
 	}
+	const defaults = items.filter(item => item.isDefault && item.systemWide && item.command && context.contextMatchesRules(item.when));
+	if (!defaults.length) {
+		return { candidates, unsupported, duplicates };
+	}
 	// The keys of the user's keybindings, and the first keys of their chords, which a system-wide keybinding at that key
 	// would keep from starting, even in VS Code. Chords have no accelerator, so keys compare by their dispatch string.
 	const userCommands = new Map<string, string[]>();
@@ -98,9 +102,9 @@ export function selectSystemWideKeybindings(items: readonly ResolvedKeybindingIt
 			userCommands.set(key, [...userCommands.get(key) ?? [], command]);
 		}
 	}
-	for (const item of items) {
+	for (const item of defaults) {
 		const command = item.command;
-		if (!item.isDefault || !item.systemWide || !command || !context.contextMatchesRules(item.when)) {
+		if (!command) {
 			continue;
 		}
 		const accelerator = item.resolvedKeybinding?.getElectronAccelerator();
