@@ -15,6 +15,7 @@ import { SessionConfigKey } from '../../../../../../platform/agentHost/common/se
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { isCopilotCliSessionType } from '../../../../chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { getSessionConfigProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../common/sessionsProvider.js';
@@ -41,16 +42,17 @@ export class AgentHostSessionSandbox {
 			const config = session && chat && configProvider?.getSessionConfig(session.sessionId, chat);
 			const approvalProperty = getSessionApprovalProperty(config?.schema);
 			const hasPermissionPicker = !!session && !!approvalProperty && isSessionConfigWritable(approvalProperty.schema, configProvider?.getCreateSessionConfig(session.sessionId) !== undefined);
-			const applicable = session?.sessionType === COPILOT_CLI_AGENT_PROVIDER_ID && !!config?.schema.properties[SessionConfigKey.SandboxEnabled];
+			const isCopilotCli = session?.sessionType === COPILOT_CLI_AGENT_PROVIDER_ID || (!!session?.sessionType && isCopilotCliSessionType(session.sessionType));
+			const applicable = isCopilotCli && !!config?.schema.properties[SessionConfigKey.SandboxEnabled];
 			const inDevContainer = !!session && agentHost?.isDevContainerRequested?.(session.sessionId) === true;
 			const policy = session && !inDevContainer ? agentHost?.getSessionSandboxPolicy?.(session.sessionId) : undefined;
 			// Local drafts have no SDK policy until their first turn; container drafts must not inherit the source host's policy.
-			const useLocalPolicy = !policy && !inDevContainer && !isWeb && !environmentService.remoteAuthority && session?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID && session.sessionType === COPILOT_CLI_AGENT_PROVIDER_ID;
+			const useLocalPolicy = !policy && !inDevContainer && !isWeb && !environmentService.remoteAuthority && session?.providerId === LOCAL_AGENT_HOST_PROVIDER_ID && isCopilotCli;
 			const confirmedEnabled = session && chat && !inDevContainer ? agentHost?.getSessionSandboxEnabled?.(session.sessionId, chat) : undefined;
 			const value = config?.values[SessionConfigKey.SandboxEnabled];
 			settingChanged.read(reader);
 			return {
-				provider: applicable ? session.sessionType : undefined,
+				provider: applicable ? COPILOT_CLI_AGENT_PROVIDER_ID : undefined,
 				hasPermissionPicker,
 				sessionEnabled: value === 'on' ? true : value === 'off' ? false : confirmedEnabled,
 				confirmedEnabled,
