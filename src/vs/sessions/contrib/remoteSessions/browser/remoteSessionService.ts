@@ -27,6 +27,7 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { AutomationModelConfiguration } from '../../../../workbench/contrib/sessions/browser/automationModelConfiguration.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionType, SessionTypeAuthRequirement } from '../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
@@ -187,6 +188,19 @@ export class RemoteSessionService implements IRemoteSessionService {
 		};
 	}
 
+	/** Resolves the model's configured values (reasoning effort, context tier, ...) so the headless session does not start with host defaults. */
+	private captureModelConfiguration(modelIdentifier: string | undefined): ICreateNewSessionOptions['modelConfiguration'] {
+		if (!modelIdentifier) {
+			return undefined;
+		}
+		const configuration = new AutomationModelConfiguration(this.languageModelsService);
+		try {
+			return configuration.captureModelConfiguration(modelIdentifier);
+		} finally {
+			configuration.dispose();
+		}
+	}
+
 	private assertTargetConnection(candidate: IRemoteSessionCandidate): void {
 		const connection = this.connectionsService.getConnectionByAddress(candidate.provider.remoteAddress);
 		if (!this.remoteProviders().includes(candidate.provider)
@@ -276,10 +290,12 @@ export class RemoteSessionService implements IRemoteSessionService {
 				session: origin.session,
 				chat: origin.chat,
 			});
+			const modelConfiguration = this.captureModelConfiguration(target.modelIdentifier);
 			const createOptions: ICreateNewSessionOptions = {
 				providerId: target.provider.id,
 				sessionTypeId: target.sessionType.id,
 				modelId: target.modelIdentifier,
+				...(modelConfiguration ? { modelConfiguration } : {}),
 				metadata,
 				onSessionCreated: async session => {
 					background = await this.backgroundChats.acquire(session.mainChat.get().resource, token);
