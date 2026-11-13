@@ -83,6 +83,13 @@ export class MergedEnvironmentVariableCollection implements IMergedEnvironmentVa
 					continue;
 				}
 
+				// Skip Windows-style paths on non-Windows to prevent corruption of PATH when a local
+				// Windows extension host contributes paths into a remote non-Windows terminal.
+				// See https://github.com/microsoft/vscode/issues/247070
+				if (!isWindows && variable.toUpperCase() === 'PATH' && /^[A-Za-z]:[/\\]/.test(value)) {
+					continue;
+				}
+
 				// Default: true
 				if (mutator.options?.applyAtProcessCreation ?? true) {
 					switch (mutator.type) {
