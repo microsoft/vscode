@@ -200,6 +200,26 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 			heldChat.hold(this.chat.get(), this._boundCheck());
 		}
 
+		// A session replaced by one with another ID, such as one its host hands off to another connection, is removed right
+		// after: the chat follows to the chat of the replacement that continues it, rather than ending with the session.
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to, chats }) => {
+			const known = this._knownSession;
+			if (this._ended || this._composer.get() || !known || !isEqual(known.resource, from.resource)) {
+				return;
+			}
+			const current = this.chat.get();
+			const next = chats?.get(current) ?? (isEqual(current, from.mainChat.get().resource) ? to.mainChat.get().resource : undefined);
+			if (!next) {
+				return;
+			}
+			this._knownSession = to;
+			this._knownSessionRemoved = false;
+			if (!isEqual(next, current)) {
+				this.chat.set(next, undefined);
+				heldChat.hold(next, this._boundCheck());
+			}
+		}));
+
 		// Once it knows its session, only sessions added, removed or replaced can change where its chat is: what changes in its
 		// session it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
 		// A replacement, such as a pending session committed under the same ID, comes as a change of another object.

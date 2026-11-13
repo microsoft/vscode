@@ -11,6 +11,7 @@ import { createStyleSheet } from '../../../../../base/browser/domStylesheets.js'
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -51,6 +52,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionType, ISessionWorkspace, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { IMarkSessionReadOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionReplacedEvent } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ChatEditorContent, IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
@@ -130,6 +132,7 @@ suite('Sessions chat window provider', () => {
 		// The main window shows another session than those that move into it, such as one whose opening was cancelled
 		const mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
+		const onDidReplaceSession = store.add(new Emitter<ISessionReplacedEvent>());
 		/** How many times the chats looked their session up. */
 		const lookups = { count: 0 };
 		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', []);
@@ -173,7 +176,7 @@ suite('Sessions chat window provider', () => {
 			override readonly onDidAcceptNewSessionRequest = onDidAcceptNewSessionRequest.event;
 			override readonly onDidEndNewSessionRequest = onDidEndNewSessionRequest.event;
 			override readonly onDidReplaceNewDraftSession = Event.None;
-			override readonly onDidReplaceSession = Event.None;
+			override readonly onDidReplaceSession = onDidReplaceSession.event;
 			override getNewSessionTarget() { return undefined; }
 			override isNewSessionTargetAvailable() { return true; }
 			override getSessionTypesForFolder() { return [{ providerId: 'first-provider', sessionType: upcastPartial<ISessionType>({ id: 'first-type' }) }, { providerId: 'picked-provider', sessionType: upcastPartial<ISessionType>({ id: 'picked-type' }) }]; }
@@ -303,7 +306,7 @@ suite('Sessions chat window provider', () => {
 		}));
 		beforeProvider?.(storage);
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
-		return { provider, lookups, chatWindowService, editorParts, storage, events, window, titleBars, opening, slots, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
+		return { provider, lookups, chatWindowService, editorParts, storage, events, window, titleBars, opening, slots, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, onDidReplaceSession, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
 	}
 
 	/** The window the chats show in: its active chat is `activeChat`. */
@@ -463,6 +466,40 @@ suite('Sessions chat window provider', () => {
 		isArchived.set(true, undefined);
 
 		assert.deepStrictEqual({ whileReplacing, ended }, { whileReplacing: { showsOriginal: true, ended: 0 }, ended: ['ended'] });
+	});
+
+	test('a chat whose session is replaced by one with another ID, such as one handed off to another connection of its host and back, follows to the chat of the replacement that continues it rather than ending as the session is removed', async () => {
+		const store = disposables.add(new DisposableStore());
+		const local = createSession('local', [createChat('local-main'), createChat('local-peer')]);
+		const sessions = [local];
+		const { provider, onDidChangeSessions, onDidReplaceSession } = createProvider(store, sessions);
+		const content = store.add((await provider.resolveContent(local.resource))!);
+		const peer = asWindowChat((await content.resolveChat(URI.parse('test:/local-peer')))!);
+		const main = asWindowChat((await content.resolveChat(URI.parse('test:/local-main')))!);
+		const ended: string[] = [];
+		store.add(peer.onDidEnd(() => ended.push('peer')));
+		store.add(main.onDidEnd(() => ended.push('main')));
+		// The management service announces a replacement before it removes the session that was replaced
+		const replace = (from: ISession, to: ISession, chats: [string, string][]) => {
+			sessions[0] = to;
+			onDidReplaceSession.fire({ from, to, chats: new ResourceMap<URI>(chats.map(([source, target]): [URI, URI] => [URI.parse(`test:/${source}`), URI.parse(`test:/${target}`)])) });
+			onDidChangeSessions.fire({ added: [], changed: [to], removed: [from] });
+		};
+		const shown = () => ({ peer: peer.chat.get().path, peerSession: peer.session.get()?.sessionId, main: main.chat.get().path, mainSession: main.session.get()?.sessionId });
+
+		const relay = createSession('relay', [createChat('relay-main'), createChat('relay-peer')]);
+		replace(local, relay, [['local-peer', 'relay-peer']]);
+		const handedOff = shown();
+		const resolvesToEntry = await content.resolveChat(URI.parse('test:/relay-peer')) === peer;
+		const returned = createSession('local-again', [createChat('local-main'), createChat('local-peer')]);
+		replace(relay, returned, [['relay-peer', 'local-peer']]);
+
+		assert.deepStrictEqual({ handedOff, resolvesToEntry, returned: shown(), ended }, {
+			handedOff: { peer: '/relay-peer', peerSession: 'relay', main: '/relay-main', mainSession: 'relay' },
+			resolvesToEntry: true,
+			returned: { peer: '/local-peer', peerSession: 'local-again', main: '/local-main', mainSession: 'local-again' },
+			ended: [],
+		});
 	});
 
 	test('a chat that knows its session looks it up again only as sessions are added or removed, not as sessions change, such as while they stream', async () => {

@@ -2019,6 +2019,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('declines to adopt a session until its cache is listed over the current connection, and then prompts the retry', async () => {
+		connection.addSession(createSession('handed-off'));
+		const provider = createProvider(disposables, connection, { noConnection: true });
+		// A cache restored from storage, which can lack the session's peer chats.
+		provider.seedSessions([createSession('handed-off')]);
+		const to = provider.getSessions()[0];
+		const from = new class extends mock<ISession>() {
+			override readonly mainChat = constObservable<IChat>({ ...to.mainChat.get(), resource: URI.parse('relay:/main') });
+		}();
+		const replacements: string[] = [];
+		disposables.add(provider.onDidReplaceSession(event => replacements.push(...[...event.chats ?? []].map(([chat, ownChat]) => `${chat.toString()} -> ${ownChat.toString()}`))));
+		const attempts: string[] = [];
+		const attempt = (when: string) => attempts.push(`${when}: ${provider.adoptSession(from, AgentSession.uri('copilotcli', 'handed-off'))}`);
+		attempt('offline');
+		provider.setConnection(connection);
+		attempt('listing');
+		// Like the handoff, retry on changes of sessions until adopted.
+		disposables.add(provider.onDidChangeSessions(() => {
+			if (!attempts.at(-1)?.endsWith('true')) {
+				attempt('listed');
+			}
+		}));
+		await timeout(0);
+
+		assert.deepStrictEqual({ attempts, replacements }, {
+			attempts: ['offline: false', 'listing: false', 'listed: true'],
+			replacements: [`relay:/main -> ${to.mainChat.get().resource.toString()}`],
+		});
+	});
+
 	test('reports opening an un-adopted row of its own list once the host adopts it, correlated by the exact backend session', async () => {
 		const events: Record<string, unknown>[] = [];
 		const telemetryService = new class extends NullTelemetryServiceShape {

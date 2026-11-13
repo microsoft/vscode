@@ -1107,6 +1107,8 @@ export class VisibleSessions extends Disposable {
 		const previousActive = this._activeSession.get();
 		const wasActive = previousActive?.sessionId === fromId;
 		const detached = [...this._detached].filter(([, entry]) => entry.state.sessionId === fromId);
+		// The chat the session's own slot shows continues as the chat `chats` maps it to, not as the replacement's initial chat
+		const rootChat = rootVisible && chats ? this._wrappers.get(fromId)?.activeChat.get().resource : undefined;
 		this.replaceId(fromId, updatedSession.sessionId);
 		// `replaceId` is a no-op when ids match — dispose the old slot state
 		// directly so a fresh one is created against `updatedSession`.
@@ -1116,6 +1118,12 @@ export class VisibleSessions extends Disposable {
 
 		transaction((tsx) => {
 			const visibleSession = rootVisible ? this._getOrCreateVisibleSession(updatedSession) : undefined;
+			const continuedResource = rootChat && chats?.get(rootChat);
+			const continuedChat = continuedResource && updatedSession.chats.get().find(chat => this._uriIdentityService.extUri.isEqual(chat.resource, continuedResource));
+			if (visibleSession && continuedChat) {
+				visibleSession.openChat(continuedChat);
+				visibleSession.setActiveChat(continuedChat);
+			}
 			for (const [key, entry] of detached) {
 				this._detached.delete(key);
 				this._detachedDisposables.deleteAndDispose(key);

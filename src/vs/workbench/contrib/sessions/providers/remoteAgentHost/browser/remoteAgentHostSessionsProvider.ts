@@ -304,6 +304,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * re-announced so the UI can repopulate.
 	 */
 	private _unpublished = false;
+	/** The connection whose session listing the cache last reconciled with; peer chats of sessions are known only from it. */
+	private _listedConnection: IAgentConnection | undefined;
+	/** Whether {@link adoptSession} declined to wait for {@link _listedConnection}, so its listing should prompt another attempt. */
+	private _adoptionAwaitsListing = false;
 	private readonly _detachedWorktreeDeletionTasks = new Map<string, Promise<void>>();
 	private _detachedWorktreeReconciliation = 0;
 
@@ -804,6 +808,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override _onHostReconciledSessions(rawIds: ReadonlySet<string>): void {
+		this._listedConnection = this.connection;
+		if (this._adoptionAwaitsListing) {
+			this._adoptionAwaitsListing = false;
+			// Callers of `adoptSession` retry on a change of sessions; one fires after this hook only when the listing changed any session.
+			queueMicrotask(() => {
+				if (!this._store.isDisposed) {
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+				}
+			});
+		}
 		const scope = this._devContainerWorktreeScope;
 		if (!scope) {
 			return;
@@ -1205,6 +1219,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._listedConnection = undefined;
 		this._passiveRelay.set(false, undefined);
 		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
@@ -1280,6 +1295,12 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 */
 	adoptSession(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean {
 		if (this._unpublished) {
+			return false;
+		}
+		// A cache restored from storage or listed over an earlier connection can lack the session's peer chats.
+		if (!this._connection || this._listedConnection !== this._connection) {
+			this._adoptionAwaitsListing = true;
+			this._ensureSessionCache();
 			return false;
 		}
 		this._ensureSessionCache();

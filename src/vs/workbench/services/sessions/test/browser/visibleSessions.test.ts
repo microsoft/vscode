@@ -507,6 +507,23 @@ suite('VisibleSessions', () => {
 			});
 		});
 
+		test('a replacement whose chats have other resources shows, in the session\'s slot, the chat it maps the chat the slot showed to, rather than its initial chat', () => {
+			const model = createModel();
+			const peer: IChat = { ...stubChat, resource: URI.parse('test:///peer') };
+			const session = { ...stubSession('parent'), chats: constObservable([stubChat, peer]) };
+			model.restoreGrid([{ session, sticky: false }], 0);
+			model.setActiveChat(session, peer);
+			const ids = model.panes.get().map(pane => pane.id);
+			const main: IChat = { ...stubChat, resource: URI.parse('other:///chat') };
+			const movedPeer: IChat = { ...peer, resource: URI.parse('other:///peer') };
+			const replacement = { ...session, sessionId: 'replaced', resource: URI.parse('other:///replaced'), mainChat: constObservable(main), chats: constObservable([main, movedPeer]) };
+			model.updateSession(session, replacement, false, new ResourceMap<URI>([[stubChat.resource, main.resource], [peer.resource, movedPeer.resource]]));
+
+			assert.deepStrictEqual(model.panes.get().map(describe), [
+				{ id: ids[0], kind: SessionGridPaneKind.Slot, session: 'replaced', chat: '/peer', sticky: false, tabs: ['/chat', '/peer'], showsTabs: true },
+			]);
+		});
+
 		test('a replacement of the session seeds the pane\'s tabs from the persisted session state again, rather than carrying over the closed tabs of the replaced session', () => {
 			const peer: IChat = { ...stubChat, resource: URI.parse('test:///peer') };
 			const child: IChat = { ...stubChat, resource: URI.parse('test:///child') };
