@@ -1,10 +1,10 @@
 {
 	"_comment": "TODO: Lower these temporary size limits further to improve the mobile experience.",
 	"budgets": {
-		"workbenchJavaScriptGzipBytes": 5600000,
-		"workbenchCssGzipBytes": 240000,
-		"initialGzipBytes": 6200000,
-		"runtimeGzipBytes": 14600000,
+		"workbenchJavaScriptGzipBytes": 5700000,
+		"workbenchCssGzipBytes": 245000,
+		"initialGzipBytes": 6300000,
+		"runtimeGzipBytes": 14700000,
 		"extensionsGzipBytes": 800000
 	},
 	"extensions": [
@@ -126,6 +126,7 @@
 		"src/vs/workbench/contrib/chat/browser/attachments/chatReferenceAttachmentWidget.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/attachments/transcriptContextAttachmentWidget.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts",
+		"src/vs/workbench/contrib/chat/browser/chatDailyUsage.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/chatManagement/chatManagement.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/chatParticipant.contribution.ts",
 		"src/vs/workbench/contrib/chat/browser/chatPetAchievements.contribution.ts",
