@@ -38,7 +38,7 @@ export class EditorWindowSessionsNavigationHost implements ISessionsNavigationSe
 		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(sessionResource));
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSession(sessionResource));
 			if (session) {
 				await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 			}

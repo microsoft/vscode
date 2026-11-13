@@ -8,6 +8,8 @@
  * register it: the difference between loading what they import and also loading them. See agentsWindowRegistrations.test.ts.
  */
 export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
+	'command _sessionsList.markRead',
+	'command _sessionsList.markUnread',
 	'command sessionsViewPane.archiveSessionsWithUndo',
 	'command sessionsViewPane.deleteSessionGroupWithUndo',
 	'command sessionsViewPane.closeSession',
@@ -225,7 +227,7 @@ export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
 	'keybinding sessionsViewPane.openSessionAtIndex7 weight 250 when isSessionsWindow',
 	'keybinding sessionsViewPane.openSessionAtIndex8 weight 250 when isSessionsWindow',
 	'keybinding sessionsViewPane.openSessionAtIndex9 weight 250 when isSessionsWindow',
-	'keybinding sessionsViewPane.renameSession weight 250 when inChat && isSessionsWindow && sessionSupportsRename && !sessionItem.isMultiSelection || isSessionsWindow && listFocus && !inputFocus && !sessionItem.isMultiSelection && !treestickyScrollFocused && focusedView == \'sessions.workbench.view.sessionsView\'',
+	'keybinding sessionsViewPane.renameSession weight 250 when inChat && isSessionsWindow && sessionSupportsRename && !sessionItem.isMultiSelection || listFocus && !inputFocus && !sessionItem.isMultiSelection && !treestickyScrollFocused && focusedView == \'sessions.workbench.view.sessionsView\'',
 	'configuration sessions.drafts.enabled',
 	'configuration sessions.sendLater.enabled',
 	'configuration sessions.list.inlineActions',

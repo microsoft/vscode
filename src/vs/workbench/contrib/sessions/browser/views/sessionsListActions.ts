@@ -17,7 +17,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -38,6 +38,7 @@ import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -747,106 +748,87 @@ export class SessionsArchiveActionsContribution extends Disposable implements IW
 	}
 }
 
+/** The menu items of Mark as Read (`isRead`) or Mark as Unread of the sessions list: of a session, a chat and a session's header. */
+function getSessionsListReadStateMenus(isRead: boolean) {
+	const read = (key: ContextKeyExpression) => isRead ? key.negate() : key;
+	return [{
+		id: SessionItemContextMenuId,
+		group: '1_state',
+		order: 1,
+		when: ContextKeyExpr.and(read(SessionIsReadContext), SessionIsArchivedContext.negate()),
+	}, {
+		id: Menus.SessionChatItemContext,
+		group: '1_state',
+		order: 1,
+		when: ContextKeyExpr.and(SessionChatItemCanSetReadStateContext, read(SessionChatItemIsReadContext), SessionChatItemIsArchivedContext.negate()),
+	}, ...SessionHeaderMenus.map(id => ({
+		id,
+		group: 'secondary/1_state',
+		order: 10,
+		when: ContextKeyExpr.and(SessionIsCreatedContext, read(SessionIsReadContext), SessionIsArchivedContext.negate()),
+	}))];
+}
+
+const SESSIONS_LIST_READ_STATE = [
+	{ id: MARK_SESSION_READ_COMMAND_ID, title: localize2('markRead', "Mark as Read"), primary: KeyMod.Shift | KeyCode.KeyI, isRead: true },
+	{ id: MARK_SESSION_UNREAD_COMMAND_ID, title: localize2('markUnread', "Mark as Unread"), primary: KeyMod.Shift | KeyCode.KeyU, isRead: false },
+] as const;
+
 /**
  * Registers Mark as Read and Mark as Unread of the sessions list, until the returned disposable is disposed. Only the
  * Agents window registers them: they share their command ids with those of the agent sessions of an editor window, so
- * that keybindings apply to both.
+ * that keybindings apply to both. An editor window adds their menu items and keybindings with
+ * {@link registerSessionsListReadStateMenus} instead.
  */
 export function registerSessionsListReadStateActions(): IDisposable {
 	const store = new DisposableStore();
 
 	store.add(CommandsRegistry.registerCommandAlias('sessionsViewPane.markRead', MARK_SESSION_READ_COMMAND_ID));
-
 	store.add(CommandsRegistry.registerCommandAlias('sessionsViewPane.markUnread', MARK_SESSION_UNREAD_COMMAND_ID));
 
-	store.add(registerAction2(class MarkSessionReadAction extends Action2 {
-		constructor() {
-			super({
-				id: MARK_SESSION_READ_COMMAND_ID,
-				title: localize2('markRead', "Mark as Read"),
-				keybinding: {
-					weight: KeybindingWeight.SessionsContrib,
-					when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
-					primary: KeyMod.Shift | KeyCode.KeyI,
-				},
-				menu: [{
-					id: SessionItemContextMenuId,
-					group: '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(
-						SessionIsReadContext.negate(),
-						SessionIsArchivedContext.negate(),
-					),
-				}, {
-					id: Menus.SessionChatItemContext,
-					group: '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(
-						SessionChatItemCanSetReadStateContext,
-						SessionChatItemIsReadContext.negate(),
-						SessionChatItemIsArchivedContext.negate(),
-					),
-				}, ...SessionHeaderMenus.map(id => ({
+	for (const { id, title, primary, isRead } of SESSIONS_LIST_READ_STATE) {
+		store.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
 					id,
-					group: 'secondary/1_state',
-					order: 10,
-					when: ContextKeyExpr.and(
-						SessionIsCreatedContext,
-						SessionIsReadContext.negate(),
-						SessionIsArchivedContext.negate(),
-					),
-				}))]
-			});
-		}
-		run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
-			return markSessionListTargetsRead(accessor, context, true);
-		}
-	}));
+					title,
+					keybinding: {
+						weight: KeybindingWeight.SessionsContrib,
+						when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+						primary,
+					},
+					menu: getSessionsListReadStateMenus(isRead),
+				});
+			}
+			run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
+				return markSessionListTargetsRead(accessor, context, isRead);
+			}
+		}));
+	}
 
-	store.add(registerAction2(class MarkSessionUnreadAction extends Action2 {
-		constructor() {
-			super({
-				id: MARK_SESSION_UNREAD_COMMAND_ID,
-				title: localize2('markUnread', "Mark as Unread"),
-				keybinding: {
-					weight: KeybindingWeight.SessionsContrib,
-					when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
-					primary: KeyMod.Shift | KeyCode.KeyU,
-				},
-				menu: [{
-					id: SessionItemContextMenuId,
-					group: '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(
-						SessionIsReadContext,
-						SessionIsArchivedContext.negate(),
-					),
-				}, {
-					id: Menus.SessionChatItemContext,
-					group: '1_state',
-					order: 1,
-					when: ContextKeyExpr.and(
-						SessionChatItemCanSetReadStateContext,
-						SessionChatItemIsReadContext,
-						SessionChatItemIsArchivedContext.negate(),
-					),
-				}, ...SessionHeaderMenus.map(id => ({
-					id,
-					group: 'secondary/1_state',
-					order: 10,
-					when: ContextKeyExpr.and(
-						SessionIsCreatedContext,
-						SessionIsReadContext,
-						SessionIsArchivedContext.negate(),
-					),
-				}))]
-			});
-		}
-		run(accessor: ServicesAccessor, context?: ISession | ISession[] | ISessionChatItem): Promise<void> {
-			return markSessionListTargetsRead(accessor, context, false);
-		}
-	}));
+	return store;
+}
 
+/**
+ * Adds the menu items and keybindings of Mark as Read and Mark as Unread to the sessions list of an editor window, until
+ * the returned disposable is disposed. The menu items run the commands of the agent sessions of the window, which run
+ * {@link SESSIONS_LIST_MARK_READ_COMMAND_ID} and {@link SESSIONS_LIST_MARK_UNREAD_COMMAND_ID} for what the list shows; the
+ * keybindings run those directly, for the sessions of the list that have focus.
+ */
+export function registerSessionsListReadStateMenus(): IDisposable {
+	const store = new DisposableStore();
+	for (const { id, title, primary, isRead } of SESSIONS_LIST_READ_STATE) {
+		for (const { id: menu, ...item } of getSessionsListReadStateMenus(isRead)) {
+			store.add(MenuRegistry.appendMenuItem(menu, { command: { id, title }, ...item }));
+		}
+		// The list's own commands: the agent sessions' commands do not know which sessions of the list have focus
+		store.add(KeybindingsRegistry.registerKeybindingRule({
+			id: isRead ? SESSIONS_LIST_MARK_READ_COMMAND_ID : SESSIONS_LIST_MARK_UNREAD_COMMAND_ID,
+			weight: KeybindingWeight.SessionsContrib,
+			when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+			primary,
+		}));
+	}
 	return store;
 }
 
@@ -877,6 +859,10 @@ export function registerSessionsListActions(): IDisposable {
 
 function createSessionsListActions(): DisposableStore {
 	const store = new DisposableStore();
+
+	// What marks the list's targets read or unread, which the commands of either window run
+	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, true)));
+	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, false)));
 
 	store.add(AccessibleViewRegistry.register({
 		name: 'sessions-list-notification',
@@ -1648,12 +1634,10 @@ function createSessionsListActions(): DisposableStore {
 				keybinding: {
 					primary: KeyCode.F2,
 					weight: KeybindingWeight.SessionsContrib,
-					when: ContextKeyExpr.and(
-						IsSessionsWindowContext,
-						ContextKeyExpr.or(
-							ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
-							ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.inChatSession, SessionSupportsRenameContext),
-						),
+					// In the sessions list of either window; in a chat's input only in the Agents window
+					when: ContextKeyExpr.or(
+						ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+						ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.inChatSession, SessionSupportsRenameContext),
 					),
 				},
 				menu: [{

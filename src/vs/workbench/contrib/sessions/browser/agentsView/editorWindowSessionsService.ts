@@ -120,7 +120,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(sessionResource));
+			const session = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSession(sessionResource));
 			if (session) {
 				await this._openSession(session, options);
 			}
