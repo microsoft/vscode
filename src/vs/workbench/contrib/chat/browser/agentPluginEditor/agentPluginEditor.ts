@@ -256,6 +256,7 @@ export class AgentPluginEditor extends EditorPane {
 							source: mp.source,
 							sourceDescriptor: mp.sourceDescriptor,
 							marketplace: mp.marketplace,
+							marketplaceName: mp.marketplaceName,
 							marketplaceReference: mp.marketplaceReference,
 							marketplaceType: mp.marketplaceType,
 							readmeUri: mp.readmeUri,

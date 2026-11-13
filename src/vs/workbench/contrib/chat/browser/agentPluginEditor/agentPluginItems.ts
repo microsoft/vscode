@@ -5,7 +5,7 @@
 
 import { IObservable } from '../../../../../base/common/observable.js'; import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import type { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, matchesMarketplacePlugin } from '../../common/plugins/agentPluginService.js';
 import type { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
 
 export const enum AgentPluginItemKind {
@@ -33,6 +33,7 @@ export interface IMarketplacePluginItem {
 	readonly source: string;
 	readonly sourceDescriptor: IPluginSourceDescriptor;
 	readonly marketplace: string;
+	readonly marketplaceName?: string;
 	readonly marketplaceReference: IMarketplaceReference;
 	readonly marketplaceType: MarketplaceType;
 	readonly readmeUri?: URI;
@@ -41,7 +42,7 @@ export interface IMarketplacePluginItem {
 export type IAgentPluginItem = IInstalledPluginItem | IMarketplacePluginItem;
 
 /** Finds a discovered installation even when a marketplace update has changed its URI. */
-export function findInstalledPlugin(plugins: readonly IAgentPlugin[], uri: URI, marketplace?: Pick<IMarketplacePlugin, 'name' | 'marketplaceReference'>): IAgentPlugin | undefined {
+export function findInstalledPlugin(plugins: readonly IAgentPlugin[], uri: URI, marketplace?: Pick<IMarketplacePlugin, 'name' | 'marketplace' | 'marketplaceName' | 'marketplaceReference'>): IAgentPlugin | undefined {
 	return plugins.find(plugin => isEqual(plugin.uri, uri)
-		|| (marketplace && plugin.fromMarketplace?.name === marketplace.name && plugin.fromMarketplace.marketplaceReference.canonicalId === marketplace.marketplaceReference.canonicalId));
+		|| (marketplace && matchesMarketplacePlugin(plugin, marketplace)));
 }
