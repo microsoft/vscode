@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ISessionsNavigationHost } from '../../../../workbench/contrib/sessions/browser/sessionsNavigationHost.js';
+import { SessionsServiceNavigationHost } from '../../../../workbench/contrib/sessions/browser/sessionsServiceNavigationHost.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostCustomizationService } from '../../../../workbench/contrib/sessions/browser/agentHostCustomizationService.js';
 import { ISessionsService, SessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -33,6 +35,7 @@ registerSingleton(ISessionsListModelService, SessionsListModelService, Instantia
 registerSingleton(ISessionChangesStatsCache, SessionChangesStatsCache, InstantiationType.Delayed);
 registerSingleton(ISessionOpenTelemetryService, SessionOpenTelemetryService, InstantiationType.Delayed);
 registerSingleton(ISessionsService, SessionsService, InstantiationType.Eager);
+registerSingleton(ISessionsNavigationHost, SessionsServiceNavigationHost, InstantiationType.Delayed);
 registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
 registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
 registerSingleton(ISessionSectionOrderService, SessionSectionOrderService, InstantiationType.Delayed);
