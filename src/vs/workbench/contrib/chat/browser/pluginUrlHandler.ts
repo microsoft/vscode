@@ -25,7 +25,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { AICustomizationManagementCommands } from '../common/aiCustomizationWorkspaceService.js';
-import { IChatSessionsService, INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../common/chatSessionsService.js';
+import { getOpenNewSessionEditorCommandId, IChatSessionsService, INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../common/chatSessionsService.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider } from '../common/customizationHarnessService.js';
 import { isUntitledChatSession } from '../common/model/chatUri.js';
@@ -311,7 +311,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		const options: INewSessionInAgentsWindowOptions = { noWorkspace: true, agentHostProvider: COPILOT_CLI_AGENT_PROVIDER_ID };
 		const created = this.environmentService.isSessionsWindow
 			? await this.commandService.executeCommand<URI | undefined>(NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, options)
-			: await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionEditor.${SessionType.AgentHostCopilot}`);
+			: await this.commandService.executeCommand<URI | undefined>(getOpenNewSessionEditorCommandId(SessionType.AgentHostCopilot));
 		if (!URI.isUri(created) || created.scheme !== SessionType.AgentHostCopilot) {
 			throw new Error(localize('pluginLinkSessionCreationFailed', "Could not create a Copilot Agent Host session for this link."));
 		}

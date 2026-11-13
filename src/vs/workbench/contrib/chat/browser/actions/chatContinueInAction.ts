@@ -44,7 +44,7 @@ import { ChatModel, type IChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
-import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
+import { getOpenNewSessionEditorCommandId, getOpenNewSessionSidebarCommandId, ResolvedChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, CONTINUE_CHAT_IN_COPILOT_ACTION_ID } from '../../common/constants.js';
 import { isChatViewTitleActionContext, type IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getLocalChatMigrationTarget, LocalChatMigrationTelemetry, type LocalChatMigrationFailureReason } from '../agentSessions/agentHost/localChatMigrationTelemetry.js';
@@ -591,8 +591,6 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	}
 }
 
-const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
-
 const MAX_DELEGATION_TRANSCRIPT_LENGTH = 20_000;
 
 /**
@@ -647,7 +645,7 @@ export class CreateRemoteAgentJobAction {
 	constructor() { }
 
 	private openUntitledEditor(commandService: ICommandService, continuationTarget: ResolvedChatSessionsExtensionPoint) {
-		commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`);
+		commandService.executeCommand(getOpenNewSessionEditorCommandId(continuationTarget.type));
 	}
 
 	/**
@@ -969,8 +967,8 @@ export class CreateRemoteAgentJobAction {
 				// Non-agent-host targets (e.g. Cloud / Background) continue to use
 				// their per-session-type new-session command.
 				const actionId = isSidebar
-					? `workbench.action.chat.openNewSessionSidebar.${continuationTargetType}`
-					: `${NEW_CHAT_SESSION_ACTION_ID}.${continuationTargetType}`;
+					? getOpenNewSessionSidebarCommandId(continuationTargetType)
+					: getOpenNewSessionEditorCommandId(continuationTargetType);
 				await commandService.executeCommand(actionId, {
 					prompt: handoffPrompt,
 					attachedContext: continuationContext,
@@ -1032,7 +1030,7 @@ class CreateRemoteAgentJobFromEditorAction {
 			const uri = model.uri;
 			const attachedContext = [toPromptFileVariableEntry(uri, PromptFileVariableKind.PromptFile, undefined, false, [])];
 			const prompt = `Follow instructions in [${basename(uri)}](${uri.toString()}).`;
-			await commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`, { prompt, attachedContext });
+			await commandService.executeCommand(getOpenNewSessionEditorCommandId(continuationTarget.type), { prompt, attachedContext });
 		} catch (e) {
 			console.error('Error creating remote agent job from editor', e);
 			throw e;

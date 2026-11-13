@@ -11,7 +11,7 @@ import { DeferredPromise, Delayer, raceCancellationError, Sequencer, timeout } f
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { CancellationError, errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
+import { CancellationError, errorHandler, getErrorMessage, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { SaveReason } from '../../../../../common/editor.js';
@@ -44,6 +44,7 @@ import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/a
 import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/chatSessionsService.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, GuidanceCustomizationMigration, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IPluginMarketplaceCustomizationMigrationCandidate, isFileCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
@@ -1110,59 +1111,83 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	test('backs up customization sources before launching an agent migration', async () => {
-		const editor = createTestEditor();
-		store.add(editor.editorPreviewDisposables);
-		const fileService = createInMemoryFileService(store, Schemas.inMemory);
-		const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/review.prompt.md' });
-		const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/workspace-id/customizationMigrations' });
-		await fileService.writeFile(source, VSBuffer.fromString('original'));
-		editor.fileService = fileService;
-		editor.environmentService = { workspaceStorageHome: URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' }) };
-		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.PromptFiles, [
-			{ uri: source, storage: PromptsStorage.local, type: PromptsType.prompt },
-		]);
-		editor.harnessService.getActiveDescriptor = () => ({
-			id: 'agent-host-copilotcli',
-			label: 'Copilot',
-			icon: Codicon.copilot,
-			itemProvider: {
-				onDidChange: Event.None,
-				provideChatSessionCustomizations: async () => [],
-				provideSourceFolders: async () => [],
-			},
-		});
-		const calls: string[] = [];
-		let commandOptions: { readonly sessionToolIds?: readonly string[] } | undefined;
-		editor.closeCustomizationEditor = async () => {
-			const recoveries = await fileService.resolve(recoveryRoot);
-			assert.strictEqual(recoveries.children?.length, 1);
-			assert.strictEqual(await fileService.exists(URI.joinPath(recoveries.children[0].resource, 'manifest.json')), true);
-			calls.push('close');
-			return true;
-		};
-		editor.customizationMigrationTelemetryService.prepareAgentMigrationResult = () => {
-			calls.push('prepare');
-			return { dispose: () => calls.push('dispose') };
-		};
-		editor.commandService = {
-			executeCommand: async (_commandId, options) => {
-				commandOptions = options as typeof commandOptions;
-				calls.push('chat');
-				return undefined;
-			},
-		};
+	for (const isSessionsWindow of [false, true]) {
+		test(`backs up customization sources before launching an agent migration in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, async () => {
+			const editor = createTestEditor();
+			store.add(editor.editorPreviewDisposables);
+			editor.workspaceService.isSessionsWindow = isSessionsWindow;
+			const fileService = createInMemoryFileService(store, Schemas.inMemory);
+			const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/review.prompt.md' });
+			const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/workspace-id/customizationMigrations' });
+			await fileService.writeFile(source, VSBuffer.fromString('original'));
+			editor.fileService = fileService;
+			editor.environmentService = { workspaceStorageHome: URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage' }) };
+			editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.PromptFiles, [
+				{ uri: source, storage: PromptsStorage.local, type: PromptsType.prompt },
+			]);
+			editor.harnessService.getActiveDescriptor = () => ({
+				id: 'agent-host-copilotcli',
+				label: 'Copilot',
+				icon: Codicon.copilot,
+				itemProvider: {
+					onDidChange: Event.None,
+					provideChatSessionCustomizations: async () => [],
+					provideSourceFolders: async () => [],
+				},
+			});
+			const calls: string[] = [];
+			const migrationSessionResource = URI.parse('agent-host-copilotcli:/migration');
+			let boundSessionResource: URI | undefined;
+			let commandId: string | undefined;
+			let commandOptions: INewSessionInAgentsWindowOptions | undefined;
+			editor.closeCustomizationEditor = async () => {
+				const recoveries = await fileService.resolve(recoveryRoot);
+				assert.strictEqual(recoveries.children?.length, 1);
+				assert.strictEqual(await fileService.exists(URI.joinPath(recoveries.children[0].resource, 'manifest.json')), true);
+				calls.push('close');
+				return true;
+			};
+			editor.customizationMigrationTelemetryService.prepareAgentMigrationResult = () => {
+				calls.push('prepare');
+				return { dispose: () => calls.push('dispose') };
+			};
+			editor.customizationMigrationTelemetryService.bindAgentMigrationSession = (_flowId, resource) => {
+				calls.push('bind');
+				boundSessionResource = resource;
+			};
+			editor.commandService = {
+				executeCommand: async (id, options) => {
+					commandId = id;
+					commandOptions = options as typeof commandOptions;
+					calls.push('chat');
+					return isSessionsWindow ? migrationSessionResource : undefined;
+				},
+			};
 
-		await editor.startCustomizationMigrationWithAgent();
+			await editor.startCustomizationMigrationWithAgent();
+			const { recoveries } = await listCustomizationMigrationRecoveries(fileService, recoveryRoot);
 
-		assert.deepStrictEqual({
-			calls,
-			sessionToolIds: commandOptions?.sessionToolIds,
-		}, {
-			calls: ['close', 'prepare', 'chat', 'dispose'],
-			sessionToolIds: [CustomizationMigrationResultToolId],
+			assert.deepStrictEqual({
+				calls,
+				boundSessionResource,
+				recoveryStatus: recoveries[0].manifest.status,
+				recoverySession: recoveries[0].manifest.sessionResource,
+				commandId,
+				agentHostProvider: commandOptions?.agentHostProvider,
+				sessionToolIds: commandOptions?.sessionToolIds,
+				hasMigrationPrompt: commandOptions?.prompt?.startsWith('/migrate-customizations\n'),
+			}, {
+				calls: isSessionsWindow ? ['close', 'prepare', 'chat', 'bind'] : ['close', 'prepare', 'chat', 'dispose'],
+				boundSessionResource: isSessionsWindow ? migrationSessionResource : undefined,
+				recoveryStatus: isSessionsWindow ? 'running' : 'unknown',
+				recoverySession: isSessionsWindow ? migrationSessionResource.toString() : undefined,
+				commandId: isSessionsWindow ? NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID : 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+				agentHostProvider: isSessionsWindow ? 'copilotcli' : undefined,
+				sessionToolIds: [CustomizationMigrationResultToolId],
+				hasMigrationPrompt: true,
+			});
 		});
-	});
+	}
 
 	test('does not launch an agent migration when backup preparation fails', async () => {
 		const editor = createTestEditor();
@@ -1197,11 +1222,18 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 
 		const errors: Error[] = [];
+		const notifications: string[] = [];
+		editor.notificationService.error = message => notifications.push(message);
 		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(error => errors.push(error));
 		try {
 			await editor.startCustomizationMigrationWithAgent();
-			assert.deepStrictEqual({ closeCount, launchCount, errorCount: errors.length }, { closeCount: 0, launchCount: 0, errorCount: 1 });
+			assert.deepStrictEqual({ closeCount, launchCount, errorCount: errors.length, notifications }, {
+				closeCount: 0,
+				launchCount: 0,
+				errorCount: 1,
+				notifications: [`Could not start the agent-guided customization migration: ${getErrorMessage(errors[0])}`],
+			});
 		} finally {
 			setUnexpectedErrorHandler(originalErrorHandler);
 		}

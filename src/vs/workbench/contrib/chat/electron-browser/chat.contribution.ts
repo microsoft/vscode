@@ -45,6 +45,7 @@ import { IAgentHostService } from '../../../../platform/agentHost/common/agentSe
 import { type AgentInfo, type RootState } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatService } from '../common/chatService/chatService.js';
+import { getOpenNewSessionEditorCommandId, getOpenNewSessionSidebarCommandId } from '../common/chatSessionsService.js';
 import { ChatModeKind } from '../common/constants.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
@@ -360,10 +361,10 @@ async function openNewAgentHostSession(accessor: ServicesAccessor, position: Cha
 // is asynchronous. Provide stable command ids that automation (evals) can
 // invoke before the dynamic registration has occurred.
 CommandsRegistry.registerCommand(
-	`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`,
+	getOpenNewSessionSidebarCommandId(AgentSessionProviders.AgentHostCopilot),
 	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Sidebar, chatSendOptions)
 );
 CommandsRegistry.registerCommand(
-	`workbench.action.chat.openNewSessionEditor.${AgentSessionProviders.AgentHostCopilot}`,
+	getOpenNewSessionEditorCommandId(AgentSessionProviders.AgentHostCopilot),
 	(accessor, chatSendOptions?: NewAgentHostSessionSendOptions) => openNewAgentHostSession(accessor, ChatSessionPosition.Editor, chatSendOptions)
 );

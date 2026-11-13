@@ -14,6 +14,8 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { ISessionsPartService, ISessionView } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext, SideBarVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
@@ -35,26 +37,54 @@ import { ITestSessionsService, ITestSessionWithChat, stubMissingSessionHostsFrom
 suite('NewChatInSessionsWindowAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const resource = URI.parse(`${SessionType.AgentHostCopilot}:/new-session`);
+	const folderUri = URI.file('/workspace');
 
-	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean } = {}) {
+	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; workspace?: boolean; sendFailed?: boolean } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
+		const openedWorkspace: (ICreateNewSessionOptions | undefined)[] = [];
+		const calls: string[] = [];
+		const tools: { resource: URI; toolIds: readonly string[] }[] = [];
+		const session = upcastPartial<ITestSessionWithChat>({ resource, sessionId: 'new-session' });
+		instantiationService.stub(IAgentHostActiveClientService, {
+			setSessionTools: (resource, toolIds) => { calls.push('tools'); tools.push({ resource, toolIds }); },
+			clearSessionTools: () => { calls.push('clear'); },
+		});
+		instantiationService.stub(ISessionsPartService, {
+			getSessionView: sessionId => sessionId === session.sessionId ? upcastPartial<ISessionView>({
+				sendQuery: prompt => {
+					calls.push(`send:${prompt}`);
+					if (options.sendFailed) {
+						throw new Error('Send failed');
+					}
+				},
+				prefillInput: prompt => { calls.push(`prefill:${prompt}`); },
+			}) : undefined,
+		});
+		instantiationService.stub(ISessionsProvidersService, { getProvider: () => undefined });
 		let navigations = 0;
 		instantiationService.stub(INewSessionComposerService, {
 			notifyUserNavigation: () => { navigations++; },
 		});
 		instantiationService.stub(ISessionsManagementService, {
 			isQuickChatTargetAvailable: () => options.available ?? true,
+			isNewSessionTargetAvailable: () => options.available ?? true,
+			getNewSessionTarget: () => undefined,
 		});
 		instantiationService.stub(ISessionsService, upcastPartial<ITestSessionsService>({
 			activeSession: constObservable(options.active ? upcastPartial<ITestSessionWithChat>({
 				providerId: 'other-provider',
 				sessionType: 'other-agent',
+				workspace: constObservable(options.workspace ? upcastPartial<ISessionWorkspace>({ uri: folderUri }) : undefined),
 			}) : undefined),
 			openQuickChat: (target, preserveNavigation) => {
 				opened.push({ target, preserveNavigation });
-				return options.creationFailed ? undefined : upcastPartial<NonNullable<ReturnType<ISessionsService['openQuickChat']>>>({ resource });
+				return options.creationFailed ? undefined : session;
+			},
+			openNewSession: async target => {
+				openedWorkspace.push(target);
+				return { session: options.creationFailed ? undefined : session, trustDeclined: false };
 			},
 		}));
 		stubMissingSessionHostsFromSessionsService(instantiationService);
@@ -65,6 +95,9 @@ suite('NewChatInSessionsWindowAction', () => {
 		assert.ok(command);
 		return {
 			opened,
+			openedWorkspace,
+			calls,
+			tools,
 			get navigations() { return navigations; },
 			run: (args: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
 		};
@@ -115,6 +148,41 @@ suite('NewChatInSessionsWindowAction', () => {
 			target: { providerId: 'other-provider', sessionTypeId: 'other-agent' },
 			preserveNavigation: true,
 		}]);
+	});
+
+	test('launches a workspace migration in the requested harness with client tools registered before sending', async () => {
+		const fixture = createCommand({ active: true, workspace: true });
+		const result = await fixture.run({ agentHostProvider: 'copilotcli', prompt: '/migrate-customizations', sessionToolIds: ['migration-result'] });
+		assert.deepStrictEqual({ result, opened: fixture.openedWorkspace, tools: fixture.tools, calls: fixture.calls }, {
+			result: resource,
+			opened: [{ folderUri, toSide: undefined, providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: 'copilotcli' }],
+			tools: [{ resource, toolIds: ['migration-result'] }],
+			calls: ['tools', 'send:/migrate-customizations'],
+		});
+	});
+
+	test('does not expose client tools when only prefilling a prompt', async () => {
+		const fixture = createCommand();
+		await fixture.run({ noWorkspace: true, prompt: '/migrate-customizations', prefillPrompt: true, sessionToolIds: ['migration-result'] });
+		assert.deepStrictEqual({ tools: fixture.tools, calls: fixture.calls }, { tools: [], calls: ['prefill:/migrate-customizations'] });
+	});
+
+	test('clears session tools and surfaces a failure to send the prompt', async () => {
+		const fixture = createCommand({ sendFailed: true });
+		await assert.rejects(async () => fixture.run({ noWorkspace: true, prompt: '/migrate-customizations', sessionToolIds: ['migration-result'] }), /Send failed/);
+		assert.deepStrictEqual(fixture.calls, ['tools', 'send:/migrate-customizations', 'clear']);
+	});
+
+	test('does not send a migration prompt when session creation fails', async () => {
+		const fixture = createCommand({ active: true, workspace: true, creationFailed: true });
+		await assert.rejects(async () => fixture.run({ agentHostProvider: 'copilotcli', prompt: '/migrate-customizations', sessionToolIds: ['migration-result'] }), /chat is unavailable/);
+		assert.deepStrictEqual({ tools: fixture.tools, calls: fixture.calls }, { tools: [], calls: [] });
+	});
+
+	test('does not replace an unavailable workspace migration target with another harness', async () => {
+		const fixture = createCommand({ active: true, workspace: true, available: false });
+		await assert.rejects(async () => fixture.run({ agentHostProvider: 'copilotcli', prompt: '/migrate-customizations' }), /unavailable/);
+		assert.deepStrictEqual(fixture.openedWorkspace, []);
 	});
 
 	test('keeps default target selection when there is no active session', async () => {

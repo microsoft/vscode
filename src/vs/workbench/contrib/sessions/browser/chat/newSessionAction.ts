@@ -13,6 +13,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ActiveEditorContext, EditorAreaFocusContext } from '../../../../common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
+import { IAgentHostActiveClientService } from '../../../chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { INewSessionInAgentsWindowOptions } from '../../../chat/common/chatSessionsService.js';
 import { Menus } from '../menus.js';
 import { resolveDevContainerSourceWorkspace } from '../openInVSCodeUtils.js';
@@ -109,34 +110,46 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;
+		const activeClientService = options?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
+		const explicitTarget = options?.agentHostProvider ? {
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionTypeId: options.agentHostProvider,
+		} : undefined;
 		// New sessions open in the main window, from the session it shows.
 		const mainWindowHost = getMainWindowHost(accessor.get(ISessionHostService));
 		const activeSession = mainWindowHost.session.get();
 		if (!options?.toSide) {
 			accessor.get(ISessionDraftsService).stowAndClear();
 		}
-		const sendPrompt = (): void => {
+		const sendPrompt = (session: ISession | undefined): void => {
 			if (!options?.prompt) {
 				return;
 			}
-			const sessionView = sessionsPartService?.getSessionView(mainWindowHost.session.get()?.sessionId);
-			if (!sessionView) {
+			const sessionView = sessionsPartService?.getSessionView(session?.sessionId);
+			if (!sessionView || (!session && activeClientService && !options.prefillPrompt)) {
 				throw new Error(localize('sessions.newSession.chatUnavailable', "The new session chat is unavailable."));
 			}
 			if (options.prefillPrompt) {
 				sessionView.prefillInput(options.prompt);
 			} else {
-				sessionView.sendQuery(options.prompt);
+				if (activeClientService && session && options.sessionToolIds?.length) {
+					activeClientService.setSessionTools(session.resource, options.sessionToolIds);
+				}
+				try {
+					sessionView.sendQuery(options.prompt);
+				} catch (error) {
+					if (session) {
+						activeClientService?.clearSessionTools(session.resource);
+					}
+					throw error;
+				}
 			}
 		};
 		if (options?.noWorkspace) {
-			const target = options.agentHostProvider ? {
-				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-				sessionTypeId: options.agentHostProvider,
-			} : activeSession ? {
+			const target = explicitTarget ?? (activeSession ? {
 				providerId: activeSession.providerId,
 				sessionTypeId: activeSession.sessionType,
-			} : undefined;
+			} : undefined);
 			const availableTarget = target && sessionsManagementService.isQuickChatTargetAvailable(target) ? target : undefined;
 			if (options.agentHostProvider && !availableTarget) {
 				throw new Error(localize('sessions.newSession.agentUnavailable', "The requested Agent Host provider '{0}' is unavailable.", options.agentHostProvider));
@@ -145,7 +158,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			if (options.agentHostProvider && !session) {
 				throw new Error(localize('sessions.newSession.creationFailed', "Could not create a session for Agent Host provider '{0}'.", options.agentHostProvider));
 			}
-			sendPrompt();
+			sendPrompt(session);
 			return session?.resource;
 		}
 		// Clear the no-workspace latch before unsetNewSession(), or the replacement composer recreates the quick chat.
@@ -157,16 +170,21 @@ export class NewChatInSessionsWindowAction extends Action2 {
 				recentWorkspacesService.clearCheckedWorkspace();
 			}
 			sessionsService.unsetNewSession();
-			await sessionsService.openNewSession();
+			const { session } = await sessionsService.openNewSession(explicitTarget);
 			partService.getSessionView(mainWindowHost.session.get()?.sessionId)?.focusWorkspacePicker();
-			sendPrompt();
+			sendPrompt(session);
 			return;
 		}
-		const { session } = await sessionsService.openNewSession({
+		const target = {
 			toSide: options?.toSide,
 			...getInheritedNewSessionTarget(sessionsManagementService, accessor.get(ISessionsProvidersService), isQuickChat ? undefined : activeSession),
-		});
-		sendPrompt();
+			...explicitTarget,
+		};
+		if (explicitTarget && target.folderUri && !sessionsManagementService.isNewSessionTargetAvailable(target.folderUri, target)) {
+			throw new Error(localize('sessions.newSession.agentUnavailable', "The requested Agent Host provider '{0}' is unavailable.", options?.agentHostProvider));
+		}
+		const { session } = await sessionsService.openNewSession(target);
+		sendPrompt(session);
 		return session?.resource;
 	}
 }

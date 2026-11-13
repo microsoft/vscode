@@ -33,12 +33,22 @@ import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../common
 
 export const NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.sessions.newChat';
 
+export function getOpenNewSessionSidebarCommandId(sessionType: string): string {
+	return `workbench.action.chat.openNewSessionSidebar.${sessionType}`;
+}
+
+export function getOpenNewSessionEditorCommandId(sessionType: string): string {
+	return `workbench.action.chat.openNewSessionEditor.${sessionType}`;
+}
+
 export interface INewSessionInAgentsWindowOptions {
 	toSide?: boolean;
 	prompt?: string;
+	/** Client tools to expose to the new session before sending its initial prompt. */
+	sessionToolIds?: readonly string[];
 	prefillPrompt?: boolean;
 	noWorkspace?: boolean;
-	/** Local Agent Host provider to use for a workspace-less session instead of inheriting the active target. */
+	/** Local Agent Host provider to use instead of inheriting the active target. */
 	agentHostProvider?: string;
 }
 

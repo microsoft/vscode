@@ -94,7 +94,7 @@ import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { isAgentHostTarget, isRemoteAgentHostTarget, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/chatSessionsService.js';
+import { getOpenNewSessionSidebarCommandId, INewSessionInAgentsWindowOptions, isAgentHostTarget, isRemoteAgentHostTarget, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/chatSessionsService.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { isRemoteAgentHostSessionType, parseAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -1155,7 +1155,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, prefillPrompt: true, noWorkspace: true });
 			return;
 		}
-		const sessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`);
+		const sessionResource = await this.commandService.executeCommand<URI | undefined>(getOpenNewSessionSidebarCommandId(AgentSessionProviders.AgentHostCopilot));
 		const widget = sessionResource ? this.chatWidgetService.getWidgetBySessionResource(sessionResource) : undefined;
 		if (!widget) {
 			throw new Error(localize('marketplaceDetail.chatUnavailable', "The new Copilot session input is unavailable."));
@@ -1912,10 +1912,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 				},
 			);
 			try {
-				migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, {
+				const options: INewSessionInAgentsWindowOptions = {
 					prompt,
 					sessionToolIds: [CustomizationMigrationResultToolId],
-				});
+				};
+				const commandId = this.workspaceService.isSessionsWindow
+					? NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID
+					: getOpenNewSessionSidebarCommandId(harness.id);
+				if (this.workspaceService.isSessionsWindow) {
+					options.agentHostProvider = parseAgentHostHarness(harness.id);
+				}
+				migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(commandId, options);
 			} catch (error) {
 				resultRegistration.dispose();
 				await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'unknown' });
@@ -1932,7 +1939,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 		} catch (error) {
 			onUnexpectedError(error);
-			this.notificationService.error(localize('startAgentMigrationFailed', "Could not start the agent-guided customization migration."));
+			this.notificationService.error(localize('startAgentMigrationFailed', "Could not start the agent-guided customization migration: {0}", getErrorMessage(error)));
 		}
 	}
 
@@ -3437,7 +3444,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			);
 			return;
 		}
-		await this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${sessionType}`);
+		await this.commandService.executeCommand(getOpenNewSessionSidebarCommandId(sessionType));
 	}
 
 	private async pickCustomizationMigrationTargetFolder(sourceFolders: readonly ICustomizationSourceFolder[], targetType: PromptsType, selectsMultipleTypes: boolean): Promise<ICustomizationSourceFolder | undefined> {
