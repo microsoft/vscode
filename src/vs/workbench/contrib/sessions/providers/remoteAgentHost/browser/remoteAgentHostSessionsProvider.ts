@@ -908,8 +908,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return remoteAgentHostSessionTypeId(this._connectionAuthority, provider);
 	}
 
-	override getSessions(): ISession[] {
-		return this._unpublished ? [] : super.getSessions();
+	override getAllSessions(): ISession[] {
+		return this._unpublished ? [] : super.getAllSessions();
 	}
 
 	async resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined> {
