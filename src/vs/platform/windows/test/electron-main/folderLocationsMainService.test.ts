@@ -133,5 +133,20 @@ suite('FolderLocationsMainService', () => {
 		test('a location that cannot be determined is kept, remembered and logged', async () => {
 			assert.deepStrictEqual(await validate({ provider: new PermissionDeniedFileSystemProvider() }, location), { result: { folderLocation: location }, remembered: location, warnings: 1 });
 		});
+
+		test('open, reload and restore resolve the same remembered location, until it is gone', async () => {
+			const { service } = await create();
+			service.updateFolderLocation(workspace, location);
+			const resolve = () => service.validateFolderLocation(workspace, service.getFolderLocation(workspace));
+
+			const starts = [await resolve(), await resolve()];
+			service.updateFolderLocation(workspace, { ...location, uri: 'file:///work/repo.wt/gone' });
+			const afterDeletion = [await resolve(), await resolve()];
+
+			assert.deepStrictEqual({ starts, afterDeletion }, {
+				starts: [{ folderLocation: location }, { folderLocation: location }],
+				afterDeletion: [{ folderLocationMissing: { label: 'feature' } }, {}]
+			});
+		});
 	});
 });

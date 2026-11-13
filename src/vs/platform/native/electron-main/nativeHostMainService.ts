@@ -478,11 +478,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async setWindowFolderLocation(windowId: number | undefined, location: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.codeWindowById(options?.targetWindowId ?? windowId);
-		if (window?.config) {
-			window.config.folderLocation = location;
-			if (isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && !window.remoteAuthority) {
-				this.folderLocationsMainService.updateFolderLocation(window.openedWorkspace.uri, location);
-			}
+		if (window && isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && !window.remoteAuthority) {
+			this.folderLocationsMainService.updateFolderLocation(window.openedWorkspace.uri, location);
 		}
 	}
 

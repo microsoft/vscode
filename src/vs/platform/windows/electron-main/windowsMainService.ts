@@ -144,12 +144,6 @@ interface IPathToOpen<T = IEditorOptions> extends IPath<T> {
 	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
 	/**
-	 * The alternate location of a single-folder workspace to start at.
-	 * Only set when restoring the windows of the last session.
-	 */
-	readonly folderLocation?: IWindowFolderLocation;
-
-	/**
 	 * Whether the path is considered to be transient or not
 	 * for example, a transient workspace should not add to
 	 * the workspaces history and should never restore.
@@ -859,7 +853,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	 * the window opens at the workspace's own location and tells the user.
 	 */
 	private async validateFolderLocation(folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen): Promise<IValidatedFolderLocation> {
-		const candidate = folderOrWorkspace.folderLocation ?? this.getRememberedFolderLocation(folderOrWorkspace);
+		const candidate = this.getRememberedFolderLocation(folderOrWorkspace);
 		const workspace = folderOrWorkspace.workspace;
 		if (!candidate || !workspace || !isSingleFolderWorkspaceIdentifier(workspace) || folderOrWorkspace.remoteAuthority) {
 			return {};
@@ -1120,7 +1114,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					else if (lastSessionWindow.folderUri) {
 						const pathToOpen = await this.resolveOpenable({ folderUri: lastSessionWindow.folderUri }, { remoteAuthority: lastSessionWindow.remoteAuthority });
 						if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
-							return lastSessionWindow.folderLocation && !lastSessionWindow.remoteAuthority ? { ...pathToOpen, folderLocation: lastSessionWindow.folderLocation } : pathToOpen;
+							return pathToOpen;
 						}
 					}
 
