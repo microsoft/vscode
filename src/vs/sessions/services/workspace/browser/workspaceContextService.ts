@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Queue } from '../../../../base/common/async.js';
 import { removeTrailingPathSeparator } from '../../../../base/common/resources.js';
@@ -95,8 +94,6 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	}
 
 	async setFolderLocation(_location: URI, _options?: { readonly folder?: URI }): Promise<void> { }
-
-	async whenFolderLocationIdle(_token?: CancellationToken): Promise<void> { }
 
 	async enterWorkspace(_path: URI): Promise<void> { }
 

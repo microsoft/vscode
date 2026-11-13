@@ -625,6 +625,9 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	/** Set when the single-folder `workspace` (its primary location) is at an alternate location. */
 	folderLocation?: IWindowFolderLocation;
 
+	/** Set when the window was meant to start at an alternate location that no longer exists. */
+	folderLocationMissing?: { readonly label: string };
+
 	isInitialStartup?: boolean;
 	logLevel: LogLevel;
 	loggers: UriDto<ILoggerResource>[];
