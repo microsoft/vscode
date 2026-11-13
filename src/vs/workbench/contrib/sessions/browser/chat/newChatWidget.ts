@@ -449,6 +449,13 @@ export class NewChatWidget extends Disposable {
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
 			newWorktree: this._newWorktree,
 		}));
+		if (this._newWorktree) {
+			// The user's choice, or the default, settles after the configuration's last change: the trigger shows what it settled on
+			this._register(this._newWorktree.onDidChange(() => {
+				this._environmentWorkspaceChanged.trigger(undefined);
+				this._workspacePicker.refreshTriggerLabel();
+			}));
+		}
 		this._register(this._workspacePicker.onDidChangeSelection(() => this._environmentWorkspaceChanged.trigger(undefined)));
 		this._register(this._workspacePicker.onDidChangeDevContainerAvailability(() => this._environmentWorkspaceChanged.trigger(undefined)));
 		this._environmentWorkspaceChanged.trigger(undefined);

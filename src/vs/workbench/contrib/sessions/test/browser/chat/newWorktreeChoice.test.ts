@@ -174,6 +174,20 @@ suite('NewWorktreeChoice', () => {
 		assert.deepStrictEqual({ state: state(), writes }, { state: { available: true, selected: true }, writes: ['a=folder'] });
 	});
 
+	test('tells of what the draft shows as its agent keeps a new worktree after the last change of its configuration, as its write settles', async () => {
+		const { choice, show, resolve, state } = create({ ignoresWrites: true });
+		const shown: boolean[] = [];
+		store.add(choice.onDidChange(() => shown.push(state().selected)));
+		show('a');
+		resolve('a');
+		// The agent tells of its configuration, unchanged, before its write settles: the draft shows as in its folder until then
+		choice.applyDefault();
+		const before = state().selected;
+		await timeout(0);
+
+		assert.deepStrictEqual({ before, shown, after: state().selected }, { before: false, shown: [true], after: true });
+	});
+
 	test('undoes only the user\'s latest choice as its agent rejects it', async () => {
 		const { choice, show, resolve, writes, rejects, remember } = create({ deferred: true, initial: 'folder' });
 		show('a');

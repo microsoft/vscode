@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getSessionIsolationProperty, ISessionConfigProperty, isSessionConfigWritable, readSessionIsolation, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
@@ -41,6 +42,9 @@ interface IDraftChoice {
  */
 const draftChoices = new WeakMap<ISession, IDraftChoice>();
 
+/** Fires for a draft as a write to its isolation settles, which changes what the draft shows as selected. */
+const onDidSettleDraft = new Emitter<ISession>();
+
 /**
  * New Worktree for a composer restricted to its folders, such as an editor window's: its draft works in a new worktree of
  * the selected folder, through its agent's isolation setting, which its own isolation picker sets in the Agents window.
@@ -56,6 +60,9 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 		private readonly _enabled: IObservable<boolean>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) { }
+
+	/** Fires as what the current draft shows changes without a change of its configuration: a write settles or is undone. */
+	readonly onDidChange: Event<void> = Event.map(Event.filter(onDidSettleDraft.event, session => session === this._session.get()), () => undefined);
 
 	isAvailable(): boolean {
 		return !!this._draftIsolation();
@@ -125,9 +132,13 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 				state.pending = undefined;
 			}
 		};
-		operation.then(settle, error => {
+		operation.then(() => {
+			settle();
+			onDidSettleDraft.fire(draft.session);
+		}, error => {
 			settle();
 			onDidReject?.();
+			onDidSettleDraft.fire(draft.session);
 			onUnexpectedError(error);
 		});
 	}
