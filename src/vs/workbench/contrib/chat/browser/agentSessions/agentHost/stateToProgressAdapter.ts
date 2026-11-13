@@ -67,7 +67,7 @@ import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvoc
 import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
-import { hasKey, isDefined, type Mutable } from '../../../../../../base/common/types.js';
+import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
@@ -322,17 +322,14 @@ const SHELL_AUTHENTICATION_CONFIRM_NO = 'no';
 const SHELL_AUTHENTICATION_CANCEL = 'cancel';
 
 export function createShellAuthenticationCarousel(requestId: string, prompt: IShellAuthenticationPrompt, canAnswer = true): ChatQuestionCarouselData {
-	const details = [
-		prompt.command ? localize('agentHost.shellAuthentication.command', "Command: {0}", appendEscapedMarkdownInlineCode(escapeIcons(prompt.command))) : undefined,
-		canAnswer
-			? `$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model or saved in the chat.", appendEscapedMarkdownInlineCode(escapeIcons(prompt.program)))}`
-			: `$(info) ${localize('agentHost.shellAuthentication.cannotAnswer', "This connection can't send your answer privately, so you can only cancel the prompt here.")}`,
-	].filter(isDefined).join('\n\n');
+	const notice = canAnswer
+		? `$(lock) ${localize('agentHost.shellAuthentication.disclosure', "Your answer goes only to {0} and isn't sent to the model or saved in the chat.", appendEscapedMarkdownInlineCode(escapeIcons(prompt.program)))}`
+		: `$(info) ${localize('agentHost.shellAuthentication.cannotAnswer', "This connection can't send your answer privately, so you can only cancel the prompt here.")}`;
 	const base = {
 		id: SHELL_AUTHENTICATION_QUESTION_ID,
 		title: getShellAuthenticationTitle(prompt),
 		description: prompt.prompt.trim() || undefined,
-		detailedMessage: new MarkdownString(details, { supportThemeIcons: true }),
+		detailedMessage: new MarkdownString(notice, { supportThemeIcons: true }),
 		required: true,
 	};
 	const question: IChatQuestion = !canAnswer
@@ -353,7 +350,11 @@ export function createShellAuthenticationCarousel(requestId: string, prompt: ISh
 				],
 			}
 			: { ...base, type: 'text', password: prompt.inputKind === 'secret' };
-	const carousel = new ChatQuestionCarouselData([question], true, requestId);
+	// Theme icons render even inside code, so the command, which can contain `$(whoami)`, stays out of Markdown that supports them.
+	const command = prompt.command
+		? new MarkdownString().appendText(localize('agentHost.shellAuthentication.command', "Command:")).appendCodeblock('', prompt.command)
+		: undefined;
+	const carousel = new ChatQuestionCarouselData([question], true, requestId, undefined, undefined, command);
 	carousel.answerPresentation = 'conversation';
 	return carousel;
 }
