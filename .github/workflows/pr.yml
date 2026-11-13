@@ -1007,6 +1007,9 @@ jobs:
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
 
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
+
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib
         with:
