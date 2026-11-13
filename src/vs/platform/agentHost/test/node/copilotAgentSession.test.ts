@@ -20717,8 +20717,8 @@ Use the attached image as context.
 				for (const folder of ['/repo-a', '/repo-b']) {
 					const replacement = await createAgentSession(disposables, { extensionSessionApprovals: approvals, workingDirectory: URI.file(folder) });
 					for (const extensionId of ['project:demo', 'user:demo']) {
-						const answer = await Promise.race([replacement.runtime.handlePermissionRequest(envRequest(extensionId)), timeout(0).then(() => 'asks again')]);
-						answers.push(`${folder} ${extensionId}: ${typeof answer === 'string' ? answer : answer.kind}`);
+						const answer = await raceTimeout(replacement.runtime.handlePermissionRequest(envRequest(extensionId)), 0);
+						answers.push(`${folder} ${extensionId}: ${answer?.kind ?? 'asks again'}`);
 					}
 					replacement.session.dispose();
 				}

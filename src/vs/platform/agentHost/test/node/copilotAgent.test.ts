@@ -9699,7 +9699,7 @@ suite('CopilotAgent', () => {
 			results.push(`answer from the replaced runtime: ${await outcome(open('user:declined', { kind: 'consent', consentId: declinedConsentId, optionId: AgentExtensionConsentOption.Allow }))}`);
 			const replacement = launches[launches.length - 1];
 			for (const extensionId of ['user:allowed', 'user:declined']) {
-				results.push(`replacement ${extensionId}: ${await Promise.race([ask(replacement, extensionId), timeout(0).then(() => 'asks again')])}`);
+				results.push(`replacement ${extensionId}: ${await raceTimeout(ask(replacement, extensionId), 0) ?? 'asks again'}`);
 			}
 			assert.deepStrictEqual({ results, newRuntime: launches.length === launchCount + 1 && replacement.sessionId === first.sessionId }, {
 				results: [
