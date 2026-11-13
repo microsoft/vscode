@@ -174,7 +174,7 @@ suite('ChatHostPart', () => {
 		});
 	});
 
-	test('reads the edge of what it shows once, and again only as the window\'s classes change', async () => {
+	test('reads the edge of what it shows once, and again only as the window\'s classes change, laying it out again at that edge', async () => {
 		const store = disposables.add(new DisposableStore());
 		const workbench = append(mainWindow.document.body, $('.monaco-workbench.modern-ui'));
 		store.add(toDisposable(() => workbench.remove()));
@@ -200,12 +200,34 @@ suite('ChatHostPart', () => {
 		chatPart.layout(300, 400, 0, 0);
 		content.style.borderLeftWidth = '5px';
 		chatPart.layout(300, 400, 0, 0);
+		// As Modern UI changes the density: the window lays out as soon as the classes change
 		workbench.classList.add('modern-ui-compact');
-		await Promise.resolve();
 		chatPart.layout(300, 400, 0, 0);
+		await Promise.resolve();
 
-		// The first layout as the content is set, then those of the test
-		assert.deepStrictEqual(widths.slice(-3), [298, 298, 294]);
+		// The first layout as the content is set, then those of the test, then the one at the new edge
+		assert.deepStrictEqual(widths.slice(-4), [298, 298, 298, 294]);
+		store.dispose();
+	});
+
+	test('tells the grid that its least width changes as content is set or leaves', () => {
+		const store = disposables.add(new DisposableStore());
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
+		store.add(toDisposable(() => workbench.remove()));
+		const layoutService = upcastPartial<IWorkbenchLayoutService>({
+			registerPart: () => toDisposable(() => { }),
+			mainContainer: workbench,
+			isFloatingPanelsEnabled: () => false,
+		});
+		const chatPart = store.add(new ChatHostPart(new TestThemeService(), store.add(new TestStorageService()), layoutService));
+		chatPart.create(append(workbench, $('.part.chat')));
+		const minimumWidths: number[] = [];
+		store.add(chatPart.onDidChange(() => minimumWidths.push(chatPart.minimumWidth)));
+
+		const handle = chatPart.setContent(upcastPartial<IContentPart>({ element: $('.content'), minimumWidth: 500, onDidChange: Event.None, setVisible: () => { }, layout: () => { } }));
+		handle.dispose();
+
+		assert.deepStrictEqual(minimumWidths, [500, ChatHostPart.MINIMUM_WIDTH]);
 		store.dispose();
 	});
 
