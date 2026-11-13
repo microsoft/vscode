@@ -5537,13 +5537,22 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/**
+	 * Reports that `event.from` was replaced by `event.to`, once its listing scope lists the sessions as they are now: who
+	 * learns of the replacement, such as the sessions management service, can look either up at once.
+	 */
+	protected _replaceSession(event: { readonly from: ISession; readonly to: ISession }): void {
+		this._listingScope.value?.rematch();
+		this._onDidReplaceSession.fire(event);
+	}
+
+	/**
 	 * Lists only the sessions of `scope` from then on, such as those of an editor window's folders, in {@link getSessions}
 	 * and {@link onDidChangeSessions}. Lookups, such as {@link getAllSessions} and {@link getSessionByResource}, still find
 	 * every session.
 	 */
 	setListingScope(scope: ISessionsListingScope): void {
 		const previous = this.getSessions();
-		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions, this.onDidReplaceSession);
+		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions);
 		this._listingScope.value = filter;
 		this._listedSessionChanges.input = filter.onDidChangeSessions;
 		// Who listens already learns how the listing changed, also the first time. A window should still set its scope before
@@ -9300,7 +9309,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// that any synchronous listener calling getSessions() sees only
 				// the committed session and not both.
 				this._pendingSessions.delete(newSession.sessionId);
-				this._onDidReplaceSession.fire({ from: skeleton, to: committedSession });
+				this._replaceSession({ from: skeleton, to: committedSession });
 				return committedSession;
 			}
 		} catch {
@@ -10194,7 +10203,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (state) {
 			this._applySessionStateUpdate(replacement.sessionId, state);
 		}
-		this._onDidReplaceSession.fire({ from: previous, to: replacement });
+		this._replaceSession({ from: previous, to: replacement });
 		this._onDidChangeSessions.fire({ added: [replacement], removed: [previous], changed: [] });
 		previous.dispose();
 	}
