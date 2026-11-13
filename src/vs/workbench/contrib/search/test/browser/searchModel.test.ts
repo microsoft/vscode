@@ -705,10 +705,10 @@ suite('SearchModel', () => {
 				const model = store.add(instantiationService.createInstance(SearchModelImpl));
 				const previousSearch = model.search({ contentPattern: { pattern: 'old' }, type: QueryType.Text, folderQueries });
 				await previousProgress.p;
-				const cancelled = assert.rejects(previousSearch.asyncResults, isCancellationError);
+				const cancelled = previousSearch.asyncResults.then(() => false, isCancellationError);
 
 				await model.search({ contentPattern: { pattern: 'new' }, type: QueryType.Text, folderQueries }).asyncResults;
-				await cancelled;
+				assert.ok(await cancelled, 'Expected the previous search to be cancelled');
 				previousCompletion.complete({ results: [], messages: [] });
 				await clock.runAllAsync();
 
