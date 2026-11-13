@@ -569,14 +569,16 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 			retainedAttachments: handoff ? [] : automation.request?.attachments?.map(attachment => attachment.label),
 			runAt: automation.schedule.runAt ?? '',
 			description: formatTime(automation.schedule.runAt),
-			selectTime: toAction({ id: 'sessions.scheduled.editTime', label: localize('scheduledChat.editTime', "Change Send Time..."), class: ThemeIcon.asClassName(Codicon.clock), run: async (anchor?: HTMLElement) => {
-				const date = await this.pickTime(isHTMLElement(anchor) ? anchor : undefined);
-				if (date && this.editingRequest.get()?.state === state) {
-					state.runAt = date.toISOString();
-					state.description = formatTime(state.runAt);
-					this.editingRequest.set({ id: automation.id, state }, undefined);
+			selectTime: toAction({
+				id: 'sessions.scheduled.editTime', label: localize('scheduledChat.editTime', "Change Send Time..."), class: ThemeIcon.asClassName(Codicon.clock), run: async (anchor?: HTMLElement) => {
+					const date = await this.pickTime(isHTMLElement(anchor) ? anchor : undefined);
+					if (date && this.editingRequest.get()?.state === state) {
+						state.runAt = date.toISOString();
+						state.description = formatTime(state.runAt);
+						this.editingRequest.set({ id: automation.id, state }, undefined);
+					}
 				}
-			} }),
+			}),
 			save: async () => {
 				if (saving.get()) {
 					return;

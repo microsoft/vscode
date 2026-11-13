@@ -252,11 +252,13 @@ suite('ChatListWidget', () => {
 		};
 		const editing = {
 			text: request.text, runAt: '2099-01-15T10:00:00Z', description: request.description,
-			selectTime: toAction({ id: 'time', label: 'Time', run: async () => {
-				editing.description = 'Next week';
-				viewModel.setScheduledRequests([{ ...request, editing }]);
-				widget.refresh();
-			} }),
+			selectTime: toAction({
+				id: 'time', label: 'Time', run: async () => {
+					editing.description = 'Next week';
+					viewModel.setScheduledRequests([{ ...request, editing }]);
+					widget.refresh();
+				}
+			}),
 			save: async () => finish(),
 			cancel: finish,
 		};
