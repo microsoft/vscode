@@ -789,6 +789,22 @@ suite('RemoteConnectionsActionViewItem', () => {
 		]);
 	});
 
+	test('logs only allowlisted values from a failed toggle result', async () => {
+		const { instantiation, selectMethodEvents } = fixture('githubEnvironment');
+		const toggle = stub();
+		toggle.onCall(0).resolves({ failureReason: 'connection', errorCategory: 'httpServer', statusCode: 503, fileErrorCode: 'NoPermissions', message: 'C:\\Users\\someone\\project' });
+		toggle.onCall(1).resolves({ failureReason: 'C:\\Users\\someone', errorCategory: 'someone@example.com', errorCode: 12345, statusCode: 99999, fileErrorCode: 'Secret' });
+		const state = store.add(instantiation.createInstance(RemoteConnectionsState));
+		const editor = store.add(instantiation.createInstance(RemoteConnectionsSharing, state, () => toggle(), 'remotesEditor'));
+		await editor.selectMethod('githubEnvironment');
+		await editor.selectMethod('githubEnvironment');
+		const event = { source: 'remotesEditor', method: 'githubEnvironment', previousMethod: 'off', activeMethod: 'off', result: 'failed', gitHubEnvironments: 'enabled' };
+		assert.deepStrictEqual(selectMethodEvents(), [
+			{ ...event, failureReason: 'connection', errorCategory: 'httpServer', statusCode: 503, fileErrorCode: 'NoPermissions' },
+			{ ...event, failureReason: 'unknown' },
+		]);
+	});
+
 	test('canceling Dev Tunnel enablement leaves Off selected and remembers the method', async () => {
 		const { openMenu, closeMenu, executeCommand, configuration } = fixture('githubEnvironment');
 		executeCommand.resolves(undefined);

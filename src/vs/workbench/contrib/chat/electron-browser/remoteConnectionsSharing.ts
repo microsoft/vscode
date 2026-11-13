@@ -10,7 +10,7 @@ import { autorun, IObservable, observableValue } from '../../../../base/common/o
 import { localize } from '../../../../nls.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { getConnectionDiagnosticError } from '../../../../platform/agentHost/common/connectionDiagnostics.js';
-import { ConnectionTelemetryErrorClassification, getConnectionTelemetryError, IConnectionTelemetryError } from '../../../../platform/agentHost/common/connectionTelemetry.js';
+import { ConnectionTelemetryErrorClassification, getConnectionTelemetryError, IConnectionTelemetryError, toConnectionTelemetryError } from '../../../../platform/agentHost/common/connectionTelemetry.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, GitHubEnvironmentSharingError, GitHubEnvironmentSharingFailureReason, GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FileSystemProviderErrorCode } from '../../../../platform/files/common/files.js';
@@ -71,8 +71,34 @@ export function getRemoteConnectionsToggleFailure(error: unknown, fallbackReason
 	return { failureReason: fallbackReason, ...getConnectionTelemetryError(getConnectionDiagnosticError(error)) };
 }
 
-function isRemoteConnectionsToggleFailure(result: unknown): result is IRemoteConnectionsToggleFailure {
-	return typeof result === 'object' && result !== null && 'failureReason' in result && typeof result.failureReason === 'string';
+const remoteConnectionsFailureReasons: Record<RemoteConnectionsFailureReason, true> = {
+	unavailable: true, nonGitHubAccount: true, accountUnavailable: true, signInRequired: true, multipleAccounts: true, accountMismatch: true, signInFailed: true,
+	fileSystemRoot: true, projectFolder: true, ownerMismatch: true, connection: true, canceled: true, settingsUpdate: true, stopDevTunnel: true, devTunnel: true, unknown: true,
+};
+const fileSystemProviderErrorCodes = new Set<unknown>(Object.values(FileSystemProviderErrorCode));
+
+function isRemoteConnectionsFailureReason(value: unknown): value is RemoteConnectionsFailureReason {
+	return typeof value === 'string' && Object.hasOwn(remoteConnectionsFailureReasons, value);
+}
+
+function isFileSystemProviderErrorCode(value: unknown): value is FileSystemProviderErrorCode {
+	return fileSystemProviderErrorCodes.has(value);
+}
+
+/** Copies only allowlisted values from a failed toggle result, so telemetry never receives anything else the command returned. */
+function toRemoteConnectionsToggleFailure(result: unknown): IRemoteConnectionsToggleFailure | undefined {
+	if (typeof result !== 'object' || result === null) {
+		return undefined;
+	}
+	const failure: { readonly failureReason?: unknown; readonly fileErrorCode?: unknown; readonly errorCategory?: unknown; readonly errorCode?: unknown; readonly statusCode?: unknown } = result;
+	if (failure.failureReason === undefined) {
+		return undefined;
+	}
+	return {
+		failureReason: isRemoteConnectionsFailureReason(failure.failureReason) ? failure.failureReason : 'unknown',
+		...toConnectionTelemetryError(failure),
+		...(isFileSystemProviderErrorCode(failure.fileErrorCode) ? { fileErrorCode: failure.fileErrorCode } : {}),
+	};
 }
 
 type RemoteConnectionsSelectionResult = 'applied' | 'unchanged' | 'unavailable' | 'disabled' | 'failed';
@@ -425,7 +451,8 @@ export class RemoteConnectionsSharing extends Disposable {
 		if (toggleResult === 'canceled') {
 			return { result: 'applied', failure: { failureReason: 'canceled' } };
 		}
-		return isRemoteConnectionsToggleFailure(toggleResult) ? { result: 'failed', failure: toggleResult } : { result: 'applied' };
+		const failure = toRemoteConnectionsToggleFailure(toggleResult);
+		return failure ? { result: 'failed', failure } : { result: 'applied' };
 	}
 
 	private _fail(error: NotificationMessage, reason: RemoteConnectionsFailureReason): IRemoteConnectionsSelectionOutcome {
