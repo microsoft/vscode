@@ -39,6 +39,10 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return undefined;
 	}
 
+	getNetworkFileScheme(): string {
+		return 'vscode-remote';
+	}
+
 	isNetworkPathCaseSensitive(): boolean {
 		return true;
 	}

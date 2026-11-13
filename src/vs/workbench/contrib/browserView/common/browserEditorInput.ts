@@ -23,7 +23,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { BrowserViewStorageScope, IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, splitUrlSuffix, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -408,11 +408,8 @@ export class BrowserEditorInput extends EditorInput {
 		const network = this.activeNetwork;
 		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, network, this.browserViewWorkbenchService.isNetworkPathCaseSensitive(network))) {
 			// Map the target to the URL the page displays first, then carry over the page's query and fragment as written.
-			const mapped = remoteUrlToFileUrl(network, target.toString());
-			// Encoded paths hold no raw `?` or `#`, so the first one starts the target's own query or fragment.
-			const targetSuffixIndex = mapped.search(/[?#]/);
-			const suffixIndex = currentUrl.search(/[?#]/);
-			renamedUrl = (targetSuffixIndex === -1 ? mapped : mapped.slice(0, targetSuffixIndex)) + (suffixIndex === -1 ? '' : currentUrl.slice(suffixIndex));
+			const { query, fragment } = splitUrlSuffix(currentUrl);
+			renamedUrl = splitUrlSuffix(remoteUrlToFileUrl(network, target.toString())).base + query + fragment;
 		}
 		return {
 			editor: {

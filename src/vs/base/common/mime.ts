@@ -29,12 +29,7 @@ const mapExtToTextMimes: Record<string, string> = {
 	'.json': 'application/json',
 	'.map': 'application/json',
 	'.mjs': 'text/javascript',
-	'.otf': 'font/otf',
-	'.pdf': 'application/pdf',
-	'.ttf': 'font/ttf',
 	'.txt': 'text/plain',
-	'.wasm': 'application/wasm',
-	'.woff2': 'font/woff2',
 	'.xml': 'text/xml'
 };
 
@@ -76,6 +71,8 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.ogg': 'audio/ogg',
 	'.opus': 'audio/opus',
 	'.ogv': 'video/ogg',
+	'.otf': 'font/otf',
+	'.pdf': 'application/pdf',
 	'.png': 'image/png',
 	'.psd': 'image/vnd.adobe.photoshop',
 	'.qt': 'video/quicktime',
@@ -84,12 +81,15 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.tga': 'image/x-tga',
 	'.tif': 'image/tiff',
 	'.tiff': 'image/tiff',
+	'.ttf': 'font/ttf',
+	'.wasm': 'application/wasm',
 	'.wav': 'audio/x-wav',
 	'.webm': 'video/webm',
 	'.webp': 'image/webp',
 	'.wma': 'audio/x-ms-wma',
 	'.wmv': 'video/x-ms-wmv',
 	'.woff': 'application/font-woff',
+	'.woff2': 'font/woff2',
 };
 
 export function getMediaOrTextMime(path: string): string | undefined {

@@ -9,7 +9,7 @@ import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { extUri, extUriBiasedIgnorePathCase, extUriIgnorePathCase } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri, toAgentHostUri } from '../../agentHost/common/agentHostUri.js';
 import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
@@ -373,6 +373,17 @@ export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
 	readonly openSource?: IntegratedBrowserOpenSource;
 }
 
+/** Splits a URL into what precedes its query, its raw query including `?` and its raw fragment including `#`. */
+export function splitUrlSuffix(url: string): { readonly base: string; readonly query: string; readonly fragment: string } {
+	const hashIndex = url.indexOf('#');
+	const fragment = hashIndex === -1 ? '' : url.slice(hashIndex);
+	const beforeFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
+	const queryIndex = beforeFragment.indexOf('?');
+	return queryIndex === -1
+		? { base: beforeFragment, query: '', fragment }
+		: { base: beforeFragment.slice(0, queryIndex), query: beforeFragment.slice(queryIndex), fragment };
+}
+
 /**
  * Maps a `vscode-remote:` or `vscode-agent-host:` URL of the remote a session is bound to onto the
  * `file:` URL that sessions on that network serve from the remote's file system.
@@ -380,28 +391,37 @@ export interface IBrowserViewCreateOptions extends IBrowserViewCreationContext {
  */
 export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url: string): string {
 	const uri = URI.parse(url);
-	if (!network || (uri.scheme !== Schemas.vscodeRemote && uri.scheme !== AGENT_HOST_SCHEME) || uri.authority.toLowerCase() !== network.authority.toLowerCase()) {
+	if (!network || (uri.scheme !== Schemas.vscodeRemote && uri.scheme !== AGENT_HOST_SCHEME) || !extUri.isEqualAuthority(uri.authority, network.authority)) {
 		return url;
 	}
-	const original = uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(uri) : uri;
+	const isAgentHost = uri.scheme === AGENT_HOST_SCHEME;
+	const original = isAgentHost ? fromAgentHostUri(uri) : uri;
 	// A file on a share (authority) or another remote is not on the host's own file system.
-	if (uri.scheme === AGENT_HOST_SCHEME && (original.scheme !== Schemas.file || original.authority)) {
+	if (isAgentHost && (original.scheme !== Schemas.file || original.authority)) {
 		return url;
 	}
 	// Encode each segment so literal percent sequences in file names survive. Colons are valid in
 	// both POSIX paths and Windows drive letters, and must stay literal for relative URLs to resolve.
-	const path = 'file://' + original.path.split('/').map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
-	// Keep the query and fragment exactly as written, since decoding them would change their meaning.
-	// The query of an agent host URL holds the original URL, which is not part of the page URL.
-	const hashIndex = url.indexOf('#');
-	const fragment = hashIndex === -1 ? '' : url.slice(hashIndex);
-	const beforeHash = hashIndex === -1 ? url : url.slice(0, hashIndex);
-	const queryIndex = beforeHash.indexOf('?');
-	const query = uri.scheme === AGENT_HOST_SCHEME
-		? URI.from({ scheme: Schemas.file, path: '/', query: original.query }).toString(true).slice('file:///'.length)
-		: (queryIndex === -1 ? '' : beforeHash.slice(queryIndex));
-	const suffix = query + fragment;
-	return path + suffix;
+	const fileUrl = 'file://' + original.path.split('/').map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
+	// The query and fragment stay exactly as written, since decoding them would change their meaning.
+	const { query, fragment } = splitUrlSuffix(url);
+	if (!isAgentHost) {
+		return fileUrl + query + fragment;
+	}
+	// The query of an agent host URL is encoded metadata, so the page's query is the one of the file URL it wraps.
+	const pageQuery = URI.from({ scheme: Schemas.file, path: '/', query: original.query }).toString(true).slice('file:///'.length);
+	return fileUrl + pageQuery + fragment;
+}
+
+/**
+ * The inverse of {@link remoteUrlToFileUrl} for a resource: maps a `file:` URI on the file system of the
+ * remote {@link network} onto the `vscode-remote:` or `vscode-agent-host:` URI that reads it, as given by {@link scheme}.
+ */
+export function fileUrlToRemoteUri(fileUri: URI, network: IBrowserViewNetwork, scheme: string): URI {
+	if (scheme === Schemas.vscodeRemote) {
+		return fileUri.with({ scheme, authority: network.authority });
+	}
+	return toAgentHostUri(fileUri, network.authority);
 }
 
 /**

@@ -37,7 +37,7 @@ import { ChatEditorInput } from '../../chat/browser/widgetHosts/editor/chatEdito
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { getCopilotRootPaths } from '../../../../platform/environment/common/copilotHome.js';
 import { ICopilotHomeService } from '../../../services/environment/common/copilotHomeService.js';
@@ -959,44 +959,35 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	/** The remote networks with a published proxy, each with the trusted folders on its file system. */
 	private _getRemoteNetworks(): { [authority: string]: IBrowserViewRemoteNetwork } {
-		const rootsByAuthority = new Map<string, { scheme: string; paths: string[] }>();
-		for (const root of this._getTrustedFileRoots()) {
-			const remoteRoot = getBrowserViewRemoteRoot(root);
-			if (remoteRoot) {
-				const key = remoteRoot.authority.toLowerCase();
-				const entry = rootsByAuthority.get(key) ?? { scheme: remoteRoot.scheme, paths: [] };
-				if (entry.scheme === remoteRoot.scheme) {
-					entry.paths.push(remoteRoot.path);
-				}
-				rootsByAuthority.set(key, entry);
-			}
-		}
-		const ownAuthority = this.environmentService.remoteAuthority;
+		const remoteRoots = this._getTrustedFileRoots().flatMap(root => getBrowserViewRemoteRoot(root) ?? []);
 		const trustAllFiles = !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled();
 		const remoteNetworks: { [authority: string]: IBrowserViewRemoteNetwork } = {};
 		for (const [authority, entry] of this._networkProxies) {
 			if (!entry.info) {
 				continue;
 			}
-			const isOwn = authority.toLowerCase() === ownAuthority?.toLowerCase();
-			const scheme = isOwn ? Schemas.vscodeRemote : AGENT_HOST_SCHEME;
-			const roots = rootsByAuthority.get(authority.toLowerCase());
+			const network = { authority };
+			const scheme = this.getNetworkFileScheme(network);
 			remoteNetworks[authority] = {
 				proxy: entry.info,
 				scheme,
-				trustedRoots: roots?.scheme === scheme ? roots.paths : [],
-				trustAllFiles: isOwn && trustAllFiles,
-				caseSensitive: this.isNetworkPathCaseSensitive({ authority }) ?? true,
+				trustedRoots: remoteRoots.filter(root => root.scheme === scheme && extUri.isEqualAuthority(root.authority, authority)).map(root => root.path),
+				trustAllFiles: scheme === Schemas.vscodeRemote && trustAllFiles,
+				caseSensitive: this.isNetworkPathCaseSensitive(network) ?? true,
 			};
 		}
 		return remoteNetworks;
+	}
+
+	getNetworkFileScheme(network: IBrowserViewNetwork): string {
+		return extUri.isEqualAuthority(network.authority, this.environmentService.remoteAuthority) ? Schemas.vscodeRemote : AGENT_HOST_SCHEME;
 	}
 
 	isNetworkPathCaseSensitive(network: IBrowserViewNetwork | undefined): boolean | undefined {
 		if (!network) {
 			return undefined;
 		}
-		if (network.authority.toLowerCase() === this.environmentService.remoteAuthority?.toLowerCase()) {
+		if (this.getNetworkFileScheme(network) === Schemas.vscodeRemote) {
 			return this._isRemotePathCaseSensitive(network.authority);
 		}
 		return this._networkResolver?.isPathCaseSensitive?.(network) ?? true;

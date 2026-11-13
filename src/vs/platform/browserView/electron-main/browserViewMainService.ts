@@ -376,7 +376,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				// A network without a proxy keeps its previous one rather than use the local network.
 				const proxyInfo = didProxyChange ? getSessionProxyInfo(view.session, config) : undefined;
 				if (proxyInfo) {
-					view.session.remote.acquire(view.id, proxyInfo);
+					view.session.remote.acquire(view.id, proxyInfo, windowId);
 				}
 				if (typeof config.maxHistoryEntries === 'number') {
 					view.session.history.setMaxEntries(config.maxHistoryEntries);
@@ -440,8 +440,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			if (!proxyInfo) {
 				throw new Error(`No proxy is available for browser network '${browserSession.network.authority}'`);
 			}
-			browserSession.remote.acquire(id, proxyInfo);
-			browserSession.addHostView(id, host.windowId);
+			browserSession.remote.acquire(id, proxyInfo, host.windowId);
 		}
 
 		const view = this.instantiationService.createInstance(
@@ -473,7 +472,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 		Event.once(view.onDidClose)(() => {
 			browserSession.remote.release(id);
-			browserSession.removeHostView(id);
 			this.browserViews.deleteAndDispose(id);
 		});
 

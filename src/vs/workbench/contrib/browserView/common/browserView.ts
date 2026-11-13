@@ -381,6 +381,9 @@ export interface IBrowserViewWorkbenchService {
 	 */
 	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
 
+	/** The scheme of the URIs that read a remote network's file system: `vscode-remote` for the window's own remote, otherwise the agent host scheme. */
+	getNetworkFileScheme(network: IBrowserViewNetwork): string;
+
 	/** Whether the file system behind a remote network distinguishes paths by case (strict if unknown), or `undefined` for the local network, which follows the client. */
 	isNetworkPathCaseSensitive(network: IBrowserViewNetwork | undefined): boolean | undefined;
 

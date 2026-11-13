@@ -8,36 +8,40 @@ import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { IBrowserViewRemoteNetwork } from '../common/browserView.js';
 
 /** What sessions on a remote network may read from the remote's file system. */
-export interface IRemoteFileTrust<TRoots = ReadonlySet<string>> {
-	readonly roots: TRoots;
+export interface IRemoteFileTrust {
+	readonly roots: ReadonlySet<string>;
 	readonly trustAll: boolean;
 	/** The scheme the remote's files are read with: `vscode-remote` or `vscode-agent-host`. */
 	readonly scheme: string;
 	readonly caseSensitive: boolean;
 }
 
+/** The key under which a remote network's trust is stored. Authorities are case-insensitive. */
+export function toRemoteTrustKey(authority: string): string {
+	return authority.toLowerCase();
+}
+
 /**
- * Merges what every window contributes for each remote network, keyed by lowercase authority.
+ * Merges what every window contributes for each remote network, keyed by {@link toRemoteTrustKey}.
  * A window only contributes to the networks it is connected to.
  */
-export function computeRemoteFileTrust(windows: Iterable<{ readonly [authority: string]: IBrowserViewRemoteNetwork } | undefined>): Map<string, IRemoteFileTrust<Set<string>>> {
-	const remotes = new Map<string, IRemoteFileTrust<Set<string>> & { trustAll: boolean; caseSensitive: boolean }>();
+export function computeRemoteFileTrust(windows: Iterable<{ readonly [authority: string]: IBrowserViewRemoteNetwork } | undefined>): Map<string, IRemoteFileTrust> {
+	const roots = new Map<string, Set<string>>();
+	const remotes = new Map<string, { trustAll: boolean; scheme: string; caseSensitive: boolean }>();
 	for (const networks of windows) {
 		for (const [authority, network] of Object.entries(networks ?? {})) {
-			const key = authority.toLowerCase();
-			let remote = remotes.get(key);
-			if (!remote) {
-				remote = { roots: new Set<string>(), trustAll: false, scheme: network.scheme, caseSensitive: network.caseSensitive };
-				remotes.set(key, remote);
-			}
+			const key = toRemoteTrustKey(authority);
+			const remote = remotes.get(key) ?? { trustAll: false, scheme: network.scheme, caseSensitive: network.caseSensitive };
 			remote.trustAll ||= network.trustAllFiles;
 			remote.caseSensitive &&= network.caseSensitive;
-			for (const root of network.trustedRoots) {
-				addRemoteRoot(remote.roots, root);
-			}
+			remotes.set(key, remote);
+			const remoteRoots = roots.get(key) ?? new Set<string>();
+			// Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories.
+			network.trustedRoots.filter(root => normalizeRemoteFilePath(root) !== undefined).forEach(root => remoteRoots.add(root));
+			roots.set(key, remoteRoots);
 		}
 	}
-	return remotes;
+	return new Map([...remotes].map(([key, remote]) => [key, { ...remote, roots: roots.get(key)! }]));
 }
 
 /** The tree that decides whether a normalized remote path is inside one of the trusted roots. */
@@ -49,15 +53,6 @@ export function createRemoteRootTree(roots: Iterable<string>, caseSensitive: boo
 		}
 	}
 	return tree;
-}
-
-/**
- * Backslashes are separators to the trusted root tree, so a root containing one would authorize other directories.
- */
-function addRemoteRoot(roots: Set<string>, path: string): void {
-	if (!path.includes('\\')) {
-		roots.add(path);
-	}
 }
 
 /**

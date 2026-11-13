@@ -11,7 +11,7 @@ import { IBrowserViewNetwork, remoteUrlToFileUrl } from '../../../../../platform
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
-import { createBrowserPageLink, errorResult, getBrowserNetworkPolicyError, getBrowserPageResourceNavigationError, getExternalTunnelNetworkPolicyError, getSessionId, playwrightInvoke, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getBrowserNetworkPolicyError, getBrowserPageResourceNavigationError, getExternalTunnelNetworkPolicyError, getSessionId, playwrightInvoke, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl, toSessionId } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
@@ -99,7 +99,7 @@ export class NavigateBrowserTool implements IToolImpl {
 				}
 
 				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
-				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(this.getPageNetwork(params.pageId, context.chatSessionResource?.toString() ?? '<default>'), params.url), this.agentNetworkFilterService);
+				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(this.getPageNetwork(params.pageId, toSessionId(context.chatSessionResource)), params.url), this.agentNetworkFilterService);
 				if (networkPolicyError) {
 					throw new Error(networkPolicyError);
 				}
@@ -148,8 +148,7 @@ export class NavigateBrowserTool implements IToolImpl {
 				// A page on the local network in a remote workspace runs locally and cannot reach the
 				// remote's localhost directly. Rewrite to the forwarded local address (if
 				// any) so the page can be reached. The page keeps the network it was created with.
-				const usesRemoteNetwork = !!network;
-				const rewrite = rewriteRemoteLocalhostUrl(params.url!, this.remoteExplorerService, usesRemoteNetwork);
+				const rewrite = rewriteRemoteLocalhostUrl(params.url!, this.remoteExplorerService, !!network);
 				const tunnelPolicyError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
 				if (tunnelPolicyError) {
 					return errorResult(tunnelPolicyError);
