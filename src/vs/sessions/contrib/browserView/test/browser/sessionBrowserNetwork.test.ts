@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { withAgentHostResources } from '../../../../../platform/agentHost/common/meta/agentHostResources.js';
+import type { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -244,6 +246,22 @@ suite('SessionBrowserNetworkContribution', () => {
 			handshaken: [true, false, undefined],
 			changes: 1,
 		});
+	});
+
+	test('treats macOS agent hosts as case-insensitive despite their POSIX paths', () => {
+		const host = (platform: 'linux' | 'macos') => upcastPartial<IAgentConnection>({
+			initializeResult: constObservable(upcastPartial<InitializeResult>({ environment: { pathStyle: PathStyle.Posix } })),
+			rootState: upcastPartial<IAgentConnection['rootState']>({ value: upcastPartial<RootState>({ _meta: withAgentHostResources(undefined, { platform }) }) }),
+		});
+		const connections = new Map<string, IAgentConnection>([['linux-host', host('linux')], ['mac-host', host('macos')]]);
+		const resolver = createResolver({
+			connections: {
+				connections: ['linux-host', 'mac-host'].map(authority => upcastPartial<IAgentHostConnectionInfo>({ authority })),
+				getConnectionByAuthority: authority => connections.get(authority),
+			},
+		});
+
+		assert.deepStrictEqual(['linux-host', 'mac-host'].map(authority => resolver.isPathCaseSensitive!({ authority })), [true, false]);
 	});
 
 	test('reports whether hosts are connected and can proxy browsers', () => {

@@ -764,7 +764,7 @@ suite('BrowserViewWorkbenchService', () => {
 		assert.deepStrictEqual({ remoteNetworks, trustedFileRoots, trustAllFiles }, {
 			remoteNetworks: { 'ssh-remote+host': { proxy: proxy(1), scheme: 'vscode-remote', trustedRoots: ['/repo'], trustAllFiles: true, caseSensitive: true } },
 			trustedFileRoots: [URI.file('/home/test/.copilot').fsPath, instantiationService.get(IWorkspaceContextService).getWorkspace().folders[0].uri.fsPath, URI.file('/local').fsPath],
-			trustAllFiles: false,
+			trustAllFiles: true,
 		});
 	});
 });

@@ -16,6 +16,8 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
@@ -66,6 +68,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 		@IBrowserViewWorkbenchService browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -115,7 +118,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 						priority: RegisteredEditorPriority.option
 					},
 					{
-						canSupportResource: resource => resource.scheme === scheme && (scheme === Schemas.file || !!configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)),
+						canSupportResource: resource => resource.scheme === scheme && (scheme === Schemas.file || (!!configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId) && (scheme !== AGENT_HOST_SCHEME || environmentService.isSessionsWindow))),
 						singlePerResource: true
 					},
 					{

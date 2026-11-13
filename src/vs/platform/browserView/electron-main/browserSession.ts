@@ -19,7 +19,7 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
-import { normalizeRemoteFilePath, toRemoteFileAccessKey, type IRemoteFileAccess } from './browserSessionFiles.js';
+import { authorizeRemoteFilePath, toRemoteFileAccessKey, type IRemoteFileAccess } from './browserSessionFiles.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
@@ -447,10 +447,8 @@ export class BrowserSession {
 	 * through the file service of a window connected to that remote.
 	 */
 	private async handleRemoteFileRequest(authority: string, uri: URI): Promise<GlobalResponse> {
-		// Check and serve the same normalized path so `..` segments cannot escape the trusted roots.
-		const path = normalizeRemoteFilePath(uri.path);
-		const trusted = BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(authority));
-		if (path === undefined || !trusted || (!trusted.trustAllFiles && !trusted.roots.findSubstr(path))) {
+		const path = authorizeRemoteFilePath(BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(authority)), uri);
+		if (path === undefined) {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 

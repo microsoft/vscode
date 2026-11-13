@@ -197,7 +197,7 @@ export class BrowserEditorInput extends EditorInput {
 
 	/** The network the page actually runs on, which may be the local network the requested {@link network} fell back to. Falls back to the request before the model resolves. */
 	get activeNetwork(): IBrowserViewNetwork | undefined {
-		return this._model ? this._model.network : this.network;
+		return this.model ? this.model.network : this.network;
 	}
 
 	/** Whether navigating to {@link target} keeps the page on the {@link associatedResource}, apart from its query and fragment. */

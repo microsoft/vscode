@@ -13,6 +13,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../platform/agentHost/common/agentHostTcpSupport.js';
 import { getAgentHostPathStyle } from '../../../../platform/agentHost/common/agentHostPathStyle.js';
+import { readAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { PathStyle } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { BrowserViewStorageScope, getBrowserViewSessionAffinity, IBrowserViewNetwork, IBrowserViewOwner, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
@@ -223,15 +224,20 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		return candidates.filter((_, index) => trusted[index]).map(({ folder }) => folder);
 	}
 
-	/** Looks up the path style of every connected host. Hosts whose style is unknown are left out and treated as case-sensitive. */
+	/** Looks up the path style of every connected host. Hosts whose platform and style are unknown are left out and treated as case-sensitive. */
 	private _computeCaseSensitiveHosts(reader: IReader): { readonly [authority: string]: boolean } {
 		const hosts: { [authority: string]: boolean } = {};
 		for (const { authority } of this._agentHostConnectionsService.connections) {
 			const connection = this._agentHostConnectionsService.getConnectionByAuthority(authority);
 			// Reading the handshake tracks it, so the style is picked up once it completes.
 			connection?.initializeResult?.read(reader);
+			const root = connection?.rootState?.value;
+			const platform = readAgentHostResources(root instanceof Error ? undefined : root)?.platform;
 			const pathStyle = connection && getAgentHostPathStyle(connection);
-			if (pathStyle) {
+			if (platform) {
+				// Posix path style also covers macOS, whose file systems are usually case-insensitive.
+				hosts[authority] = platform === 'linux';
+			} else if (pathStyle) {
 				hosts[authority] = pathStyle === PathStyle.Posix;
 			}
 		}

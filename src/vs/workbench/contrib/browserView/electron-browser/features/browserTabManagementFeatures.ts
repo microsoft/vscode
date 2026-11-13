@@ -22,7 +22,8 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { BROWSER_REMOTE_FILE_SCHEMES, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
@@ -357,7 +358,11 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 				ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 				ContextKeyExpr.and(
 					ContextKeyExpr.has(`config.${BrowserRemoteProxyEnabledSettingId}`),
-					ContextKeyExpr.or(...BROWSER_REMOTE_FILE_SCHEMES.map(scheme => ResourceContextKey.Scheme.isEqualTo(scheme))),
+					// Only the Agents window has a network resolver for agent hosts.
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(AGENT_HOST_SCHEME), IsSessionsWindowContext),
+					),
 				),
 			),
 			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.(?:html?|mht(?:ml)?)$/i),

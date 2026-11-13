@@ -5,6 +5,7 @@
 
 import { posix } from '../../../base/common/path.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
+import { URI } from '../../../base/common/uri.js';
 import { IBrowserViewRemoteNetwork } from '../common/browserView.js';
 
 /** What sessions on a remote network may read from the remote's file system. */
@@ -37,7 +38,10 @@ export function computeRemoteFileAccess(windows: Iterable<{ readonly [authority:
 			for (const root of network.trustedRoots) {
 				// Roots with backslashes are dropped: they are separators to the tree, so one would authorize other directories.
 				const normalized = normalizeRemoteFilePath(root);
-				if (normalized) {
+				if (normalized === '/') {
+					// The tree's prefix matching does not match descendants of an empty root segment.
+					remote.trustAllFiles = true;
+				} else if (normalized) {
 					remote.roots.add(normalized);
 				}
 			}
@@ -58,4 +62,17 @@ export function computeRemoteFileAccess(windows: Iterable<{ readonly [authority:
  */
 export function normalizeRemoteFilePath(path: string): string | undefined {
 	return path.includes('\\') ? undefined : posix.normalize(path);
+}
+
+/**
+ * Returns the normalized path of a remote `file:` request if the remote's file access allows it, otherwise `undefined`.
+ * The caller must serve the returned path, so `..` segments cannot escape the trusted roots.
+ * A file authority names a network share, which is not on the remote's own disk, so it is never allowed.
+ */
+export function authorizeRemoteFilePath(access: IRemoteFileAccess | undefined, uri: URI): string | undefined {
+	const path = normalizeRemoteFilePath(uri.path);
+	if (uri.authority || path === undefined || !access || (!access.trustAllFiles && !access.roots.findSubstr(path))) {
+		return undefined;
+	}
+	return path;
 }

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_HOST_SCHEME } from '../../../agentHost/common/agentHostUri.js';
 import { IBrowserViewRemoteNetwork } from '../../common/browserView.js';
-import { computeRemoteFileAccess, normalizeRemoteFilePath } from '../../electron-main/browserSessionFiles.js';
+import { authorizeRemoteFilePath, computeRemoteFileAccess, normalizeRemoteFilePath } from '../../electron-main/browserSessionFiles.js';
 
 suite('computeRemoteFileAccess', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,6 +35,11 @@ suite('computeRemoteFileAccess', () => {
 		});
 	});
 
+	test('treats a root of the whole file system as trusting every file', () => {
+		const access = computeRemoteFileAccess([{ host: network(['/']) }]).get('host')!;
+		assert.deepStrictEqual({ trustAllFiles: access.trustAllFiles }, { trustAllFiles: true });
+	});
+
 	test('ignores case only for case-insensitive remotes', () => {
 		const request = '/C:/Users/me/web-example/index.html';
 		const trust = (caseSensitive: boolean) => computeRemoteFileAccess([{ host: network(['/c:/Users/me/web-example'], { caseSensitive }) }]).get('host')!.roots;
@@ -58,5 +64,20 @@ suite('normalizeRemoteFilePath', () => {
 			escapes: '/secret',
 			backslash: undefined,
 		});
+	});
+});
+
+suite('authorizeRemoteFilePath', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('only authorizes paths of the remote under its trusted roots', () => {
+		const access = computeRemoteFileAccess([{ host: { proxy: undefined as unknown as IBrowserViewRemoteNetwork['proxy'], scheme: AGENT_HOST_SCHEME, trustedRoots: ['/share'], trustAllFiles: false, caseSensitive: true } }]).get('host');
+		const authorize = (uri: string) => authorizeRemoteFilePath(access, URI.parse(uri));
+		assert.deepStrictEqual({
+			inside: authorize('file:///share/a/../index.html'),
+			outside: authorize('file:///share/../secret'),
+			networkShare: authorize('file://server/share/index.html'),
+			noAccess: authorizeRemoteFilePath(undefined, URI.parse('file:///share/index.html')),
+		}, { inside: '/share/index.html', outside: undefined, networkShare: undefined, noAccess: undefined });
 	});
 });

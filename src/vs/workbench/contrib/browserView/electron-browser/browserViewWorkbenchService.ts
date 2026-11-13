@@ -953,8 +953,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 			remoteNetworks: this._getRemoteNetworks(trustedRoots),
 			trustedFileRoots: trustedRoots.filter(root => root.scheme === Schemas.file).map(root => root.fsPath),
-			// A remote window's trust applies to its own remote's files, not to the local disk.
-			trustAllFiles: !this.environmentService.remoteAuthority && !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
+			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
 	}
 
