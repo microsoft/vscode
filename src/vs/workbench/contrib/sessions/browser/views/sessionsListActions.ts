@@ -367,8 +367,9 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 	}
 	const undo = modelService.setInboxState(targets, action);
 	const message = action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
-		: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
-			: localize('inboxSnoozed', "{0} snoozed", targets.length);
+		: action === 'done' ? localize('inboxAcknowledged', "{0} acknowledged", targets.length)
+			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
+				: localize('inboxSnoozed', "{0} snoozed", targets.length);
 	if (targets.length === 1) {
 		status(message);
 		return;
@@ -1271,6 +1272,26 @@ export function registerSessionsListActions(): IDisposable {
 		}
 		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
 			triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), undefined);
+		}
+	}));
+
+	store.add(registerAction2(class AcknowledgeInboxSessionAction extends Action2 {
+		constructor() {
+			super({
+				id: 'sessionsViewPane.inboxAcknowledge',
+				title: localize2('inboxAcknowledge', "Acknowledge"),
+				icon: Codicon.mailRead,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
+				menu: [{
+					id: SessionItemContextMenuId,
+					group: '1_state',
+					order: 0.5,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemInboxStateContext.notEqualsTo('done')),
+				}],
+			});
+		}
+		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
+			triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), 'done');
 		}
 	}));
 
