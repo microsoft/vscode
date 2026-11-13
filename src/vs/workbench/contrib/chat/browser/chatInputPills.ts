@@ -415,6 +415,15 @@ export class StandardChatInputPillSources extends Disposable {
 		return this.pins.getPinned(this.pinScope.read(reader), kind, reader);
 	}
 
+	/** Pins an entry of a pill kind into a pill of its own, as its pin action does. Returns whether it could: pins need a scope. */
+	pin(kind: SessionChatPillKind, entry: Pick<IChatPillEntry, 'id' | 'label'>): boolean {
+		const scope = this.pinScope.get();
+		if (scope) {
+			this.pins.setPinned(scope, kind, entry.id, entry.label, true);
+		}
+		return !!scope;
+	}
+
 	private withPinAction(entry: IChatPillEntry, kind: SessionChatPillKind, scope: string | undefined, pinned: boolean): IChatPillEntry {
 		if (!scope) {
 			return entry;
@@ -516,12 +525,16 @@ export class ChatInputPills extends Disposable {
 		}));
 		this._register(this._row.onDidRequestContextMenu(anchor => showContextMenu(anchor, this._getTarget(anchor))));
 
-		derived(this, reader => {
+		const rowState = derived(this, reader => {
 			const anyVisible = this._pills.isVisible.read(reader);
 			// The empty row only restores pills the user hid or filtered; default-hidden kinds never claimed room in the row.
 			const anyRestorable = [...kindsWithData.read(reader)].some(kind => this._visibility.isVisible(kind, reader) || !isSessionChatPillHiddenByDefault(kind));
 			return anyVisible ? 'visible' : anyRestorable ? 'empty' : 'hidden';
-		}).recomputeInitiallyAndOnChange(this._store, state => {
+		});
+		// Only touch the DOM when the row state changes: the sources update often (e.g. while a response streams),
+		// and pill size changes are already rescanned by the row's resize observer.
+		this._register(autorun(reader => {
+			const state = rowState.read(reader);
 			const activeElement = getWindow(this._row.content).document.activeElement;
 			const restoreInputFocus = state === 'hidden' && !!activeElement && this._row.content.contains(activeElement);
 			const visible = state !== 'hidden';
@@ -535,7 +548,7 @@ export class ChatInputPills extends Disposable {
 			if (restoreInputFocus) {
 				this._row.restoreFocus(() => this._pills.getPillElements(), _options.focusFallback);
 			}
-		});
+		}));
 	}
 
 	get visible(): boolean {

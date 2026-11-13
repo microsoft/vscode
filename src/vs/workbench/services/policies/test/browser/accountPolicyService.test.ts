@@ -17,7 +17,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { COPILOT_AUTO_TIER_KEY, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, hasManagedPermissionDenials, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedDefaultConfigurationValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, requiresCopilotAgentHost, TemporaryDefaultToLocalHarnessSettingId, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_ALLOWED_HARNESSES_KEY, COPILOT_AUTO_TIER_KEY, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, hasManagedPermissionDenials, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedDefaultConfigurationValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, requiresCopilotAgentHost, TemporaryDefaultToLocalHarnessSettingId, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -88,10 +88,10 @@ suite('AccountPolicyService', () => {
 	const logService = new NullLogService();
 
 	function thirdPartyAgentPolicies(): Record<string, PolicyDefinition> {
-		return Object.fromEntries(['Claude', 'Codex'].map(name => [name, {
+		return Object.fromEntries(([['Claude', 'claude'], ['Codex', 'codex']] as const).map(([name, harness]) => [name, {
 			type: 'boolean',
-			value: thirdPartyAgentEnabledValue,
-			managedSettings: { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: { type: 'boolean' } },
+			value: thirdPartyAgentEnabledValue(harness),
+			managedSettings: { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: { type: 'boolean' }, [COPILOT_ALLOWED_HARNESSES_KEY]: { type: 'string' } },
 		}]));
 	}
 
@@ -736,8 +736,8 @@ suite('AccountPolicyService', () => {
 			await defaultAccountService.refresh();
 			policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native, file));
 			const definitions: Record<string, PolicyDefinition> = {
-				Claude: { type: 'boolean', value: thirdPartyAgentEnabledValue },
-				Codex: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+				Claude: { type: 'boolean', value: thirdPartyAgentEnabledValue('claude') },
+				Codex: { type: 'boolean', value: thirdPartyAgentEnabledValue('codex') },
 			};
 			await policyService.updatePolicyDefinitions(definitions);
 			const results = [];
@@ -869,6 +869,74 @@ suite('AccountPolicyService', () => {
 			{ effective: false, claude: false, codex: false, presence: undefined, source: PolicyValueSource.FileManagedSettings },
 			{ effective: undefined, claude: undefined, codex: undefined, presence: undefined, source: undefined },
 		]);
+	});
+
+	test('allowed harnesses resolve as one list by channel precedence across refresh and removal', async () => {
+		const key = COPILOT_ALLOWED_HARNESSES_KEY;
+		const warnings: string[] = [];
+		const logger = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}();
+		const native = disposables.add(new FakeNativeManagedSettingsService());
+		const file = disposables.add(new FakeFileManagedSettingsService());
+		const changed = disposables.add(new Emitter<IPolicyData | null>());
+		const provider = new class extends DefaultAccountProvider {
+			override readonly onDidChangePolicyData = changed.event;
+			override policyData: IPolicyData = {};
+		}(BASE_DEFAULT_ACCOUNT);
+		defaultAccountService.setDefaultAccountProvider(provider);
+		await defaultAccountService.refresh();
+		policyService = disposables.add(new AccountPolicyService(logger, defaultAccountService, undefined, native, file));
+		const definitions: Record<string, PolicyDefinition> = {
+			...thirdPartyAgentPolicies(),
+			Presence: { type: 'boolean', value: managedSettingsDisabledValue },
+		};
+		const list = (allowedHarnesses: unknown): RawManagedSettingsData => allowedHarnesses === undefined ? {} : { vscode: { allowedHarnesses } };
+		const steps: readonly { native?: unknown; server?: unknown; file?: unknown; governed: boolean }[] = [
+			{ governed: true },
+			{ file: ['claude'], governed: true },
+			{ server: ['codex'], file: ['claude'], governed: true },
+			{ native: [], server: ['codex'], file: ['claude'], governed: true },
+			{ native: 'private-value', server: ['codex'], file: ['claude'], governed: true },
+			{ native: ['private-value', 'codex'], file: ['claude'], governed: true },
+			{ server: ['claude', 'codex'], governed: true },
+			{ server: ['claude'], governed: false },
+			{ governed: false },
+		];
+		const results = [];
+		for (const step of steps) {
+			const fileSettings = list(step.file);
+			native.setManagedSettings(normalizeManagedSettings(list(step.native)));
+			file.setManagedSettings(normalizeManagedSettings(fileSettings), fileSettings);
+			provider.policyData = adaptManagedSettings({ ...list(step.server), ...(step.governed ? { permissions: { allow: [] } } : {}) });
+			changed.fire(provider.policyData);
+			await policyService.updatePolicyDefinitions({ ...definitions, ...thirdPartyAgentPolicies() });
+			results.push({
+				effective: policyService.getManagedSettingValue(key),
+				claude: policyService.getPolicyValue('Claude'), codex: policyService.getPolicyValue('Codex'),
+				presence: policyService.getPolicyValue('Presence'),
+			});
+		}
+		assert.deepStrictEqual({ results, warnings, watched: native.registeredManagedSettings[key] }, {
+			results: [
+				{ effective: undefined, claude: false, codex: false, presence: false },
+				{ effective: '["claude"]', claude: undefined, codex: false, presence: false },
+				{ effective: '["codex"]', claude: false, codex: undefined, presence: false },
+				{ effective: '[]', claude: false, codex: false, presence: false },
+				{ effective: '"private-value"', claude: false, codex: false, presence: false },
+				{ effective: '["private-value","codex"]', claude: false, codex: undefined, presence: false },
+				{ effective: '["claude","codex"]', claude: undefined, codex: undefined, presence: false },
+				{ effective: '["claude"]', claude: undefined, codex: false, presence: undefined },
+				{ effective: undefined, claude: undefined, codex: undefined, presence: undefined },
+			],
+			warnings: [
+				'[AccountPolicy] Invalid managed setting "vscode.allowedHarnesses": expected an array of "claude" or "codex". It permits no third-party harness.',
+				'[AccountPolicy] Ignoring entries of managed setting "vscode.allowedHarnesses" other than "claude" or "codex".',
+			],
+			watched: { type: 'string' },
+		});
 	});
 
 	for (const channel of ['nativeMdm', 'file'] as const) {

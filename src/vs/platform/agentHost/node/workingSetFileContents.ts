@@ -33,7 +33,7 @@ export interface IWorkingSetFileContents {
  * that hasn't been accepted can't be told apart from it and stays in the
  * Working Set.
  */
-export async function computeWorkingSetFileContents(db: ISessionDatabase, records: readonly IFileEditRecord[], diffService: IDiffComputeService): Promise<IWorkingSetFileContents> {
+export async function computeWorkingSetFileContents(db: Pick<ISessionDatabase, 'readFileEditContent'>, records: readonly IFileEditRecord[], diffService: IDiffComputeService): Promise<IWorkingSetFileContents> {
 	const [first, ...rest] = records;
 	const firstContent = await readContent(db, first);
 	let baseline = isFileEditAcceptRecord(first) ? getFileEditAcceptedContent(first, firstContent) : getStart(first, firstContent);
@@ -42,8 +42,8 @@ export async function computeWorkingSetFileContents(db: ISessionDatabase, record
 	for (const record of rest) {
 		const content = await readContent(db, record);
 		const start = getStart(record, content);
-		if (!contentMatches(start, current)) {
-			if (contentMatches(baseline, current)) {
+		if (!fileEditContentMatches(start, current)) {
+			if (fileEditContentMatches(baseline, current)) {
 				baseline = start;
 				rebased = true;
 			} else {
@@ -120,7 +120,7 @@ function touchesRange(hunk: IDiffHunk, side: 'before' | 'after', range: TextRang
 	return start < rangeEndExclusive && rangeStart < endExclusive;
 }
 
-async function readContent(db: ISessionDatabase, record: IFileEditRecord): Promise<IFileEditContent> {
+async function readContent(db: Pick<ISessionDatabase, 'readFileEditContent'>, record: IFileEditRecord): Promise<IFileEditContent> {
 	const content = await db.readFileEditContent(record.toolCallId, record.filePath);
 	if (!content) {
 		throw new Error(`Recorded content is missing for '${record.filePath}'`);
@@ -174,7 +174,7 @@ function decodeText(bytes: Uint8Array | undefined): string | undefined {
  * Compares recorded contents, where empty content matches a missing file: the
  * edit tracker records a file deleted by a tool as an edit to empty content.
  */
-function contentMatches(a: Uint8Array | undefined, b: Uint8Array | undefined): boolean {
+export function fileEditContentMatches(a: Uint8Array | undefined, b: Uint8Array | undefined): boolean {
 	if (a === undefined || b === undefined) {
 		return (a ?? b ?? new Uint8Array()).length === 0;
 	}

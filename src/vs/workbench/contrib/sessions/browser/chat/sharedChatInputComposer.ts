@@ -347,7 +347,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			},
 		));
 		widget.render(widgetContainer, root, this.options.petHostPreferred, this.options.setChatPetPlatformOccupation);
-		widget.setVisible(true);
+		if (this.options.hideChatWidgetWhileHidden) {
+			// The widget is a foreground chat only while its composer is visible, rather than for as long as it is rendered.
+			this._register(autorun(reader => widget.setVisible((this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true))));
+		} else {
+			widget.setVisible(true);
+		}
 		widget.setInputPartMaxHeightOverride(COMPOSER_INPUT_MAX_HEIGHT);
 
 		this._register(widget.onDidFocus(() => this._onDidFocus.fire()));

@@ -250,6 +250,18 @@ Every interactive UI element must be fully operable via the keyboard.
 - **Escape to dismiss**: Overlays, dialogs, and popups must be dismissable with `Escape`, returning focus to the previous element.
 - **Focus trapping**: Modal dialogs must trap focus within the dialog until dismissed.
 
+### Visible Focus and State Precedence
+
+- Keyboard focus must remain visible when hover, selection, open state, or a nested control is also active. Test the combined state, not just focus and hover separately.
+- Focus the real production target. A synthetic class on a non-focusable wrapper can hide lifecycle bugs and does not prove that `:focus-visible`, focus restoration, or screen-reader navigation works.
+- Identify which element paints the focus ring. Lists and trees may suppress the outer row and draw on an inner `.monaco-tl-row`; do not clear that inner outline unless another visible solid ring remains.
+- Pointer modality begins only when the pointer resolves to an actionable target. Moving through menu padding, blank list space, or a filter input must not convert a keyboard-focused row into pointer-hover styling.
+- A component with nested actions must expose one active boundary. When focus moves to an inline action, suppress the parent card/row hover boundary while retaining the action's solid focus ring.
+- Keep persistent state distinct from focus: `aria-expanded="true"` and `aria-pressed="true"` communicate open/pressed state, while `:focus-visible` communicates keyboard location. Both use solid boundaries in HC, but keyboard focus remains the higher-priority owner when combined.
+- Native `<details>/<summary>` already exposes disclosure semantics to assistive technology, but `<summary>` does not receive an `aria-expanded` attribute. Use the native `open` state for visual styling rather than adding redundant ARIA.
+
+For deterministic component fixtures, focus the actual element through the fixture focus API and render any focus-triggered tooltip/hover through the production hover service. Do not replace the service with a no-op merely to simplify a screenshot; the omitted content may be part of the keyboard experience.
+
 ### Explaining unavailable options
 
 Follow the [discoverable unavailable-feature pattern](../design-philosophy/SKILL.md#make-unavailable-features-understandable): a feature promoted in documentation should not become inexplicably absent solely because the user cannot enable it. Announce both the disabled state and its reason using the control's supported ARIA semantics; a grey label, briefcase icon, or hover alone is insufficient. Keep icons decorative when text already conveys their meaning.

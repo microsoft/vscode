@@ -592,6 +592,7 @@ export class NewChatWidget extends Disposable {
 				: undefined),
 			inputVisible: this.options.inputVisible,
 			hostVisible: this.options.hostVisible,
+			hideChatWidgetWhileHidden: this.options.hideChatWidgetWhileHidden,
 			canSendRequest,
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
@@ -2667,6 +2668,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+		const requestedInBackground = !!background;
 		background = this._backgroundSend || background;
 		// A composer of a host of its own, such as a chat window's, shows the status of its background sends.
 		const showBackgroundSendStatus = this._backgroundSend || !!background && (!!this._draftHost || this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox);
@@ -2771,7 +2773,7 @@ export class NewChatWidget extends Disposable {
 		// It holds the composer weakly, so a request that outlives the composer does not keep it alive.
 		const composer = new WeakRef(this);
 		const hostTracking = background && this._draftHost
-			? this._draftHost.trackBackgroundSend({ session, query, attachedContext: attachedContext?.slice(), isLatest: () => composer.deref()?._lastBackgroundSendOptions === sendOptions })
+			? this._draftHost.trackBackgroundSend({ session, query, attachedContext: attachedContext?.slice(), requestedInBackground, isLatest: () => composer.deref()?._lastBackgroundSendOptions === sendOptions })
 			: undefined;
 
 		try {

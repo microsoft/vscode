@@ -978,6 +978,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		return this.activePart.sideGroup;
 	}
 
+	get supportsSplitting(): boolean {
+		return this.activePart.supportsSplitting;
+	}
+
 	get groups(): IEditorGroupView[] {
 		return this.getGroups();
 	}

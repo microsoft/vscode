@@ -34,9 +34,12 @@ export class TestContextViewService extends mock<IContextViewService>() {
 		return this.current?.delegate;
 	}
 
-	override showContextView(delegate: IContextViewDelegate): IOpenContextView {
+	override showContextView(delegate: IContextViewDelegate, hostContainer?: HTMLElement): IOpenContextView {
 		this.hideContextView();
-		const container = append(mainWindow.document.body, $('.test-context-view'));
+		const container = hostContainer
+			? append(hostContainer, hostContainer.ownerDocument.createElement('div'))
+			: append(mainWindow.document.body, $('.test-context-view'));
+		container.classList.add('test-context-view');
 		const rendered = delegate.render(container);
 		this.current = { delegate, container, rendered };
 		delegate.focus?.();
@@ -60,4 +63,6 @@ export class TestContextViewService extends mock<IContextViewService>() {
 		current.rendered.dispose();
 		current.container.remove();
 	}
+
+	override layout(): void { }
 }
