@@ -20,6 +20,18 @@ interface IDraftIsolation {
 	readonly isolation: string | undefined;
 }
 
+interface IDraftChoice {
+	/** Whether the user chose New Worktree for the draft. */
+	chosen: boolean;
+	/**
+	 * Whether it set the draft's isolation to its folder by default once: it does not set it again by itself, also where
+	 * the agent keeps a new worktree, which then shows as selected. The user's own choice still writes.
+	 */
+	defaulted: boolean;
+	/** The latest of the user's choices for the draft, which alone is undone as the agent rejects it. */
+	latestChoice: number;
+}
+
 /**
  * New Worktree for a composer restricted to its folders, such as an editor window's: its draft works in a new worktree of
  * the selected folder, through its agent's isolation setting, which its own isolation picker sets in the Agents window.
@@ -27,15 +39,11 @@ interface IDraftIsolation {
  */
 export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 
-	/** The drafts the user chose New Worktree for. */
-	private readonly _chosen = new Set<string>();
 	/**
-	 * The drafts whose isolation it set to their folder by default once: it does not set it again by itself, also where
-	 * the agent keeps a new worktree, which then shows as selected. The user's own choice still writes.
+	 * What it knows of each draft, as long as the draft lives: a composer that sends its drafts in the background and starts
+	 * new ones keeps nothing of the drafts that went, and a draft it shows again keeps the user's choice.
 	 */
-	private readonly _defaulted = new Set<string>();
-	/** The latest of the user's choices per draft, which alone is undone as the agent rejects it. */
-	private readonly _latestChoice = new Map<string, number>();
+	private readonly _drafts = new WeakMap<ISession, IDraftChoice>();
 	private _choices = 0;
 
 	constructor(
@@ -57,23 +65,14 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 			return;
 		}
 		// The choice is known before the agent takes it: its configuration can change, and apply the default, meanwhile
-		const sessionId = draft.session.sessionId;
-		const wasChosen = this._chosen.has(sessionId);
-		if (selected) {
-			this._chosen.add(sessionId);
-		} else {
-			this._chosen.delete(sessionId);
-		}
-		const choice = ++this._choices;
-		this._latestChoice.set(sessionId, choice);
+		const state = this._stateOf(draft.session);
+		const wasChosen = state.chosen;
+		state.chosen = selected;
+		const choice = state.latestChoice = ++this._choices;
 		this._write(draft, selected, () => {
 			// The agent did not take it: unless the user chose again since, the draft is as before
-			if (this._latestChoice.get(sessionId) === choice) {
-				if (wasChosen) {
-					this._chosen.add(sessionId);
-				} else {
-					this._chosen.delete(sessionId);
-				}
+			if (state.latestChoice === choice) {
+				state.chosen = wasChosen;
 			}
 		});
 	}
@@ -81,11 +80,23 @@ export class NewWorktreeChoice implements IWorkspacePickerNewWorktreeOption {
 	/** Makes the current draft work in its folder, once, unless the user chose New Worktree for it. */
 	applyDefault(): void {
 		const draft = this._draftIsolation();
-		const sessionId = draft?.session.sessionId;
-		if (draft && sessionId && draft.isolation === 'worktree' && !this._chosen.has(sessionId) && !this._defaulted.has(sessionId)) {
-			this._defaulted.add(sessionId);
+		if (draft?.isolation !== 'worktree') {
+			return;
+		}
+		const state = this._stateOf(draft.session);
+		if (!state.chosen && !state.defaulted) {
+			state.defaulted = true;
 			this._write(draft, false);
 		}
+	}
+
+	private _stateOf(session: ISession): IDraftChoice {
+		let state = this._drafts.get(session);
+		if (!state) {
+			state = { chosen: false, defaulted: false, latestChoice: 0 };
+			this._drafts.set(session, state);
+		}
+		return state;
 	}
 
 	private _write(draft: IDraftIsolation, worktree: boolean, onDidReject?: () => void): void {

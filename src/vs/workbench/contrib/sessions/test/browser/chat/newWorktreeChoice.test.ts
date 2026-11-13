@@ -77,7 +77,13 @@ suite('NewWorktreeChoice', () => {
 		};
 		return {
 			choice,
-			show: (sessionId: string) => session.set(draft(sessionId), undefined),
+			show: (sessionId: string) => {
+				const shown = draft(sessionId);
+				session.set(shown, undefined);
+				return shown;
+			},
+			/** Shows a draft again, such as one the composer adopts again. */
+			showAgain: (shown: ISession) => session.set(shown, undefined),
 			resolve: (sessionId: string) => resolved.add(sessionId),
 			applyWrites: () => pending.splice(0).forEach(apply => apply()),
 			writes,
@@ -190,6 +196,39 @@ suite('NewWorktreeChoice', () => {
 		assert.deepStrictEqual({ afterStaleRejection, writes }, {
 			afterStaleRejection: ['a=worktree', 'a=worktree'],
 			writes: ['a=worktree', 'a=worktree', 'b=worktree', 'b=folder'],
+		});
+	});
+
+	test('keeps what it knows of each draft only as long as the draft: a new draft defaults, also under a known ID, a stale rejection leaves the current draft, and a draft shown again keeps its choice', async () => {
+		const { choice, show, showAgain, resolve, writes, rejects, remember } = create({ deferred: true, initial: 'folder' });
+		resolve('a');
+		resolve('b');
+		// The user chooses New Worktree for a draft, which the composer then leaves for another before the agent answers
+		const first = show('a');
+		choice.setSelected(true);
+		const second = show('b');
+		choice.setSelected(true);
+		rejects.shift()!();
+		await timeout(0);
+		// The second draft's choice stands as the first's write is rejected
+		remember('b', 'worktree');
+		choice.applyDefault();
+		const afterStaleRejection = [...writes];
+		// The first draft, shown again, is as before its rejected choice: it works in its folder by default
+		showAgain(first);
+		remember('a', 'worktree');
+		choice.applyDefault();
+		// A new draft, as after a background send, defaults once again, also where it reuses the ID of one that went
+		show('a');
+		remember('a', 'worktree');
+		choice.applyDefault();
+		// The second draft, shown again, keeps its choice
+		showAgain(second);
+		choice.applyDefault();
+
+		assert.deepStrictEqual({ afterStaleRejection, writes }, {
+			afterStaleRejection: ['a=worktree', 'b=worktree'],
+			writes: ['a=worktree', 'b=worktree', 'a=folder', 'a=folder'],
 		});
 	});
 });
