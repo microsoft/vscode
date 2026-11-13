@@ -110,9 +110,10 @@ suite('stylelint', () => {
 	});
 
 	test('rejects hardcoded native scrollbar colors in production CSS', async () => {
-		const [themedPseudo, hardcodedPseudo, nestedHardcodedPseudo, nestedAtRuleHardcodedPseudo, themedStandard, hardcodedStandard, hardcodedStandardAfterNestedBlock, colorFreeReset, testCss] = await Promise.all([
+		const [themedPseudo, hardcodedPseudo, hardcodedPseudoBackgroundColor, nestedHardcodedPseudo, nestedAtRuleHardcodedPseudo, themedStandard, hardcodedStandard, hardcodedStandardAfterNestedBlock, colorFreeReset, testCss] = await Promise.all([
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background) }'),
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-track { background: white; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { background-color: white; }'),
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background); &:hover { background: white; } }'),
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { @media (forced-colors: none) { background: white; } }'),
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable { scrollbar-color: var(--vscode-scrollbarSlider-background) transparent; }'),
@@ -125,6 +126,7 @@ suite('stylelint', () => {
 		assert.deepStrictEqual({
 			themedPseudo,
 			hardcodedPseudo,
+			hardcodedPseudoBackgroundColor,
 			nestedHardcodedPseudo,
 			nestedAtRuleHardcodedPseudo,
 			themedStandard,
@@ -135,6 +137,7 @@ suite('stylelint', () => {
 		}, {
 			themedPseudo: false,
 			hardcodedPseudo: true,
+			hardcodedPseudoBackgroundColor: true,
 			nestedHardcodedPseudo: true,
 			nestedAtRuleHardcodedPseudo: true,
 			themedStandard: false,

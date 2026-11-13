@@ -444,6 +444,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		element.style.border = 'none';
 		element.style.width = '100%';
 		element.style.height = '100%';
+		// The shell document declares no color scheme; a mismatch with the inherited workbench scheme makes Chromium paint an opaque backdrop.
+		element.style.colorScheme = 'normal';
 
 		element.focus = () => {
 			this._doFocus();

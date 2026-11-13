@@ -15,5 +15,5 @@ applyTo: "**/*.css"
 - Browser-native controls inside `.monaco-workbench`, including unstyled scrollbars, inherit the appropriate light or dark `color-scheme` from the workbench theme class. Do not add component-local scrollbar colors merely because a container uses `overflow: auto` or `overflow: scroll`.
 - Component rules may customize scrollbar geometry or intentionally override a state, but color declarations must use the corresponding `--vscode-scrollbar*` theme variable or `transparent`.
 - Do not set `scrollbar-color` on `.monaco-workbench` or another shared ancestor. In Chromium, a non-`auto` value suppresses `::-webkit-scrollbar-thumb:hover` and `:active` styling on descendant scrollbars.
-- Standalone documents outside `.monaco-workbench`, such as webviews, cannot inherit the workbench color scheme and must provide their own appropriate `color-scheme` or theme-aware native scrollbar styling.
+- An embedded document's `color-scheme` must match its `<iframe>` element's, or Chromium paints an opaque backdrop behind the document. Webview iframes therefore reset to `color-scheme: normal`; do not set a dark `color-scheme` in only one of the nested webview documents.
 - Use `DomScrollableElement` when a surface needs VS Code's custom scrollbar behavior rather than a browser-native scrollbar.
