@@ -855,6 +855,19 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('a cleared scoped catalog reports the sessions its scope hides as removed too', async () => {
+		const { runtime, catalog, task, events, resources, discover } = createCatalogRuntime();
+		// The task is still pending, so what the empty scope hides is the runtime's session
+		catalog.attach(task.taskId, runtime, task);
+		discover();
+		catalog.setListingScope({ folders: constObservable([URI.file('/elsewhere')]), repositories: constObservable([]) });
+		events.length = 0;
+
+		catalog.clear();
+
+		assert.deepStrictEqual({ listed: resources(catalog.getSessions()), removed: events.map(event => event.removed) }, { listed: [], removed: [['remote-localhost__4321-copilot:/task-session']] });
+	});
+
 	test('a catalog cleared before its runtime reports a replacement reports the task\'s row as it attaches again', async () => {
 		const { runtime, catalog, task, events, discover, bind } = createCatalogRuntime();
 		catalog.attach(task.taskId, runtime, task);
@@ -2188,6 +2201,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			resolvedWhileConnected: sessionResource.toString(),
 			connectCallsAfterResolve: 0,
 			connectCalls: 1,
+		});
+	});
+
+	test('declines to adopt a session until its cache is listed over the current connection, and then prompts the retry', async () => {
+		connection.addSession(createSession('handed-off'));
+		const provider = createProvider(disposables, connection, { noConnection: true });
+		// A cache restored from storage, which can lack the session's peer chats.
+		provider.seedSessions([createSession('handed-off')]);
+		const to = provider.getSessions()[0];
+		const from = new class extends mock<ISession>() {
+			override readonly mainChat = constObservable<IChat>({ ...to.mainChat.get(), resource: URI.parse('relay:/main') });
+		}();
+		const replacements: string[] = [];
+		disposables.add(provider.onDidReplaceSession(event => replacements.push(...[...event.chats ?? []].map(([chat, ownChat]) => `${chat.toString()} -> ${ownChat.toString()}`))));
+		const attempts: string[] = [];
+		const attempt = (when: string) => attempts.push(`${when}: ${provider.adoptSession(from, AgentSession.uri('copilotcli', 'handed-off'))}`);
+		attempt('offline');
+		provider.setConnection(connection);
+		attempt('listing');
+		// Like the handoff, retry on changes of sessions until adopted.
+		disposables.add(provider.onDidChangeSessions(() => {
+			if (!attempts.at(-1)?.endsWith('true')) {
+				attempt('listed');
+			}
+		}));
+		await timeout(0);
+
+		assert.deepStrictEqual({ attempts, replacements }, {
+			attempts: ['offline: false', 'listing: false', 'listed: true'],
+			replacements: [`relay:/main -> ${to.mainChat.get().resource.toString()}`],
 		});
 	});
 

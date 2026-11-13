@@ -64,8 +64,11 @@ export interface IWorkspaceEditingService {
 	 * persists no trust; a grant that already started completes, but the superseded switch is not applied.
 	 * `options.folder` optionally names the folder to move by its current `uri`; it must match
 	 * the folder of the workspace. Multi-root workspaces are not supported yet.
+	 *
+	 * When `options.ifIdle` is `true`, the call does nothing if another switch is still in flight,
+	 * so that background callers never override a switch requested by the user.
 	 */
-	setFolderLocation(location: URI, options?: { readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void>;
+	setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.

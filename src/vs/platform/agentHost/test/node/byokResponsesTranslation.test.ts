@@ -224,12 +224,33 @@ suite('byokResponsesTranslation', () => {
 		});
 	});
 
+	test('applies the latest configuration_update effort and leaves the items out of the input', () => {
+		const user = (text: string) => ({ type: 'message', role: 'user', content: [{ type: 'input_text', text }] });
+		const request = responsesRequestToBridge('acme', {
+			model: 'gpt-5',
+			reasoning: { effort: 'medium' },
+			input: [
+				user('first'),
+				{ type: 'configuration_update', reasoning: { effort: 'high' } },
+				user('second'),
+				{ type: 'configuration_update', reasoning: { effort: 'low' } },
+				{ type: 'configuration_update', reasoning: {} },
+				user('third'),
+			],
+		});
+
+		assert.deepStrictEqual({ reasoningEffort: request.reasoningEffort, input: request.input }, {
+			reasoningEffort: 'low',
+			input: ['first', 'second', 'third'].map(text => ({ type: 'message', role: 'user', content: [{ type: 'text', text }] })),
+		});
+	});
+
 	test('rejects missing models and unsupported input items', () => {
 		assert.throws(() => responsesRequestToBridge('acme', { input: [] }), ResponsesTranslationError);
 		assert.throws(() => responsesRequestToBridge('acme', {
 			model: 'm',
-			input: [{ type: 'computer_call' }],
-		}), /Unsupported input\[0\]/);
+			input: [{ type: 'configuration_update', reasoning: { effort: 'high' } }, { type: 'computer_call' }],
+		}), /Unsupported input\[1\]/);
 	});
 
 	test('emits ordered Responses SSE for reasoning, text and tool calls', () => {

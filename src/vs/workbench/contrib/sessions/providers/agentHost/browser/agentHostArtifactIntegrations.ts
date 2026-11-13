@@ -5,7 +5,8 @@
 
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue, observableValueOpts } from '../../../../../../base/common/observable.js';
+import { structuralEquals } from '../../../../../../base/common/equals.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue, observableValueOpts } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -68,7 +69,8 @@ export function mapArtifactModelChats(
 		? { ...run, chat: mapping.find(chat => chat.backend === run.chat)?.client.toString() }
 		: run;
 	return {
-		snapshot: derived(reader => {
+		// The chat mapping changes with every chat of the session; publish a snapshot only when its content changes.
+		snapshot: derivedOpts<ArtifactSnapshot>({ equalsFn: structuralEquals }, reader => {
 			const snapshot = model.snapshot.read(reader);
 			const mapping = chats.read(reader);
 			const mapAction = (action: ArtifactActionView): ArtifactActionView => !action.chatAvailability ? action : {

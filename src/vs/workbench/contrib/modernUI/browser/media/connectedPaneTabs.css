@@ -62,7 +62,7 @@
 	--modern-ui-connected-pane-bottom-right-radius: var(--modern-ui-window-corner-radius);
 }
 
-/* Repaint the lower frame above ordinary content but below part overlays (z-index 5+). */
+/* Content-box offsets and border-box translations align the repaint with the native frame at any scale. */
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part:not(.has-footer) {
 	position: relative;
 }
@@ -72,27 +72,30 @@
 	content: '';
 	position: absolute;
 	z-index: 4;
-	bottom: 0;
-	box-sizing: border-box;
+	box-sizing: content-box;
 	border: inherit;
 	border-top: 0;
 	pointer-events: none;
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part:not(.has-footer)::before {
-	left: 0;
+	left: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))));
+	bottom: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))));
 	width: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))));
 	height: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius))));
 	border-right: 0;
 	border-radius: 0 0 0 var(--modern-ui-connected-pane-bottom-left-radius, var(--modern-ui-connected-pane-frame-radius, var(--modern-ui-connected-pane-radius)));
+	translate: -100% 100%;
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels:not(.agent-sessions-workbench):not(.modern-ui-compact) .pane-composite-part:not(.has-footer)::after {
-	right: 0;
+	right: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))));
+	bottom: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))));
 	width: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))));
 	height: max(var(--modern-ui-floating-card-stroke-width), var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius))));
 	border-left: 0;
 	border-radius: 0 0 var(--modern-ui-connected-pane-bottom-right-radius, var(--modern-ui-connected-pane-right-radius, var(--modern-ui-connected-pane-radius)));
+	translate: 100% 100%;
 }
 
 .modern-ui.modern-ui-connected-editor-tabs.monaco-workbench.mac.floating-panels.nostatusbar:not(.web):not(.fullscreen):not(.modern-ui-compact):not(.agent-sessions-workbench) .pane-composite-part.floating-part-outer-left.floating-part-outer-bottom > .footer {

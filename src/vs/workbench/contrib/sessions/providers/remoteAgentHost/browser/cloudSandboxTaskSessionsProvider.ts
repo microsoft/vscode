@@ -421,7 +421,8 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	}
 
 	clear(): void {
-		const removed = this.getSessions();
+		// Also those its listing scope hides: what listens to every session reports them removed too
+		const removed = this.getAllSessions();
 		this._tasks.clear();
 		this._providers.clear();
 		this._runtimeSessions.clear();

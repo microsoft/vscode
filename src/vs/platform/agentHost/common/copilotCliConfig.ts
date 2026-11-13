@@ -92,6 +92,8 @@ export const enum CopilotCliConfigKey {
 	LocalModelAccountGate = 'localModelAccountGate',
 	/** Whether Copilot adds its `Co-authored-by` trailer to the commits it creates. On by default. */
 	IncludeCoAuthoredBy = 'includeCoAuthoredBy',
+	/** Ask in chat for the answers that `sudo -A`, `ssh`, and `git` prompts in agent shell commands need. Off by default. */
+	ShellAuthentication = 'shellAuthentication',
 }
 
 export const CopilotCliVSCodeAssignmentContextKey = 'copilotCliVSCodeAssignmentContext';
@@ -168,6 +170,8 @@ export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoMod
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
 
 export const AgentHostCopilotIncludeCoAuthoredBySettingId = 'chat.agentHost.copilot.includeCoAuthoredBy';
+
+export const AgentHostCopilotShellAuthenticationEnabledSettingId = 'chat.agentHost.copilot.shellAuthentication.enabled';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
@@ -492,6 +496,12 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.includeCoAuthoredBy.title', "Include Co-authored-by Trailer"),
 		description: localize('agentHost.config.includeCoAuthoredBy.description', "When enabled, Copilot SDK sessions add a `Co-authored-by` trailer to the commits they create. Applied when a session starts or resumes."),
 		default: true,
+	}),
+	[CopilotCliConfigKey.ShellAuthentication]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.shellAuthentication.title', "Shell Authentication Prompts"),
+		description: localize('agentHost.config.shellAuthentication.description', "When enabled, Copilot SDK sessions ask in chat for the passwords, passphrases, and confirmations that `sudo -A`, `ssh`, and `git` request, and send the answer only to that program. Applied when a session starts or resumes."),
+		default: false,
 	}),
 });
 

@@ -14,7 +14,7 @@ import { FileOperationError, FileOperationResult, IFileContent, IFileService, IF
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../platform/workspace/common/workspace.js';
-import { parseGitHubOrigin, readFolderGitRepository, WorkspaceFolderRepositories } from '../../browser/workspaceFolderRepositories.js';
+import { WorkspaceFolderRepositories } from '../../browser/workspaceFolderRepositories.js';
 import { parseGitHubRepositoryFromGitConfig } from '../../browser/gitHubRepositoryResolver.js';
 
 suite('WorkspaceFolderRepositories', () => {
@@ -40,15 +40,34 @@ suite('WorkspaceFolderRepositories', () => {
 		return { fileService, reads };
 	}
 
+	/** The scope of a window with `folders` over the `.git` entries of {@link createFileService}, once its reads settle. */
+	async function readScope(entries: Record<string, string | boolean>, folders: readonly string[]) {
+		const { fileService } = createFileService(entries);
+		const warnings: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: (message: string) => { warnings.push(message); } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: store.add(new Emitter<IWorkspaceFoldersChangeEvent>()).event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(folder => upcastPartial<IWorkspaceFolder>({ uri: URI.file(folder) })) }),
+		}));
+		const scope = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
+		await timeout(0);
+		return { repositories: scope.repositories.get().map(uri => uri.path), gitHubRepositories: scope.gitHubRepositories.get(), warnings: warnings.length };
+	}
+
 	test('reads the repository of a checkout, of a worktree and of no checkout', async () => {
-		const { fileService } = createFileService({
+		const entries = {
 			'/work/vscode/.git': true,
 			'/work/owners/scope/.git': 'gitdir: /work/vscode/.git/worktrees/scope\n',
 			'/work/relative/.git': 'gitdir: ../vscode/.git/worktrees/relative',
 			'/work/submodule/.git': 'gitdir: ../vscode/.git/modules/submodule',
 			'/work/denied/.git': false,
-		});
-		const read = async (folder: string) => (await readFolderGitRepository(fileService, URI.file(folder)))?.path;
+		};
+		const read = async (folder: string) => {
+			const { repositories, warnings } = await readScope(entries, [folder]);
+			return warnings ? 'failed' : repositories[0];
+		};
 
 		assert.deepStrictEqual({
 			checkout: await read('/work/vscode'),
@@ -56,7 +75,7 @@ suite('WorkspaceFolderRepositories', () => {
 			relativeWorktree: await read('/work/relative'),
 			submodule: await read('/work/submodule'),
 			plain: await read('/work/plain'),
-			denied: await readFolderGitRepository(fileService, URI.file('/work/denied')).then(() => 'read', () => 'failed'),
+			denied: await read('/work/denied'),
 		}, {
 			checkout: '/work/vscode',
 			worktree: '/work/vscode',
@@ -111,26 +130,27 @@ suite('WorkspaceFolderRepositories', () => {
 		});
 	});
 
-	test('parses the GitHub repository of the origin remote', () => {
-		const origin = (url: string, remote = 'origin', headerComment = '') => parseGitHubOrigin(`[core]\n\tbare = false\n[remote "${remote}"]${headerComment}\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/${remote}/*\n`);
+	test('parses the GitHub repository of the origin remote', async () => {
+		const gitHubOf = async (config: string) => (await readScope({ '/work/repo/.git': true, '/work/repo/.git/config': config }, ['/work/repo'])).gitHubRepositories[0];
+		const origin = (url: string, remote = 'origin', headerComment = '') => gitHubOf(`[core]\n\tbare = false\n[remote "${remote}"]${headerComment}\n\turl = ${url}\n\tfetch = +refs/heads/*:refs/remotes/${remote}/*\n`);
 		assert.deepStrictEqual({
-			https: origin('https://github.com/Microsoft/VSCode.git'),
-			httpsWithoutSuffix: origin('https://github.com/microsoft/vscode'),
-			httpsWithUser: origin('https://user@github.com/microsoft/vscode.git'),
-			scp: origin('git@github.com:microsoft/vscode.git'),
-			ssh: origin('ssh://git@github.com/microsoft/vscode'),
-			quoted: origin('"https://github.com/microsoft/vscode.git"'),
-			comment: origin('https://github.com/microsoft/vscode.git # the main repository'),
-			quotedWithComment: origin('"git@github.com:microsoft/vscode.git" ; a comment'),
-			headerHashComment: origin('https://github.com/microsoft/vscode.git', 'origin', ' # the main repository'),
-			headerSemicolonComment: origin('https://github.com/microsoft/vscode.git', 'origin', '; the main repository'),
+			https: await origin('https://github.com/Microsoft/VSCode.git'),
+			httpsWithoutSuffix: await origin('https://github.com/microsoft/vscode'),
+			httpsWithUser: await origin('https://user@github.com/microsoft/vscode.git'),
+			scp: await origin('git@github.com:microsoft/vscode.git'),
+			ssh: await origin('ssh://git@github.com/microsoft/vscode'),
+			quoted: await origin('"https://github.com/microsoft/vscode.git"'),
+			comment: await origin('https://github.com/microsoft/vscode.git # the main repository'),
+			quotedWithComment: await origin('"git@github.com:microsoft/vscode.git" ; a comment'),
+			headerHashComment: await origin('https://github.com/microsoft/vscode.git', 'origin', ' # the main repository'),
+			headerSemicolonComment: await origin('https://github.com/microsoft/vscode.git', 'origin', '; the main repository'),
 			// Only origin's URL counts, also with comments on both headers
-			originAfterCommentedUpstream: parseGitHubOrigin('[remote "upstream"] # x\n\turl = https://github.com/other/upstream.git\n[remote "origin"] ; y\n\turl = git@github.com:microsoft/vscode.git\n'),
-			commentedUpstreamOnly: parseGitHubOrigin('[remote "upstream"] # x\n\turl = https://github.com/other/upstream.git\n'),
+			originAfterCommentedUpstream: await gitHubOf('[remote "upstream"] # x\n\turl = https://github.com/other/upstream.git\n[remote "origin"] ; y\n\turl = git@github.com:microsoft/vscode.git\n'),
+			commentedUpstreamOnly: await gitHubOf('[remote "upstream"] # x\n\turl = https://github.com/other/upstream.git\n'),
 			// The other callers of the shared parser read headers exactly as before
 			otherCallersHeaderComment: parseGitHubRepositoryFromGitConfig('[remote "origin"] # comment\n\turl = https://github.com/microsoft/vscode.git\n'),
-			otherHost: origin('https://gitlab.com/microsoft/vscode.git'),
-			otherRemote: origin('https://github.com/microsoft/vscode.git', 'upstream'),
+			otherHost: await origin('https://gitlab.com/microsoft/vscode.git'),
+			otherRemote: await origin('https://github.com/microsoft/vscode.git', 'upstream'),
 		}, {
 			https: 'microsoft/vscode',
 			httpsWithoutSuffix: 'microsoft/vscode',

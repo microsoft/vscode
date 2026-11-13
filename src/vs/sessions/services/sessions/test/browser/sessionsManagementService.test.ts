@@ -499,20 +499,25 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('lists the sessions as their providers list them, and finds by resource also those a listing scope hides', () => {
+	test('lists the sessions as their providers list them, and finds and reports the changes of also those outside a listing scope', () => {
 		const listed = stubSession({ sessionId: 'listed', providerId: 'scoped' });
 		const hidden = stubSession({ sessionId: 'hidden', providerId: 'scoped' });
+		const onDidChangeAllSessions = disposables.add(new Emitter<ISessionChangeEvent>());
 		const scoped = new class extends TestSessionsProvider {
 			override readonly id = 'scoped';
+			override readonly onDidChangeAllSessions = onDidChangeAllSessions.event;
 			override getAllSessions(): ISession[] { return [listed, hidden]; }
 		}(listed);
 		const { service } = createSessionsManagementService(listed, disposables, [scoped]);
+		const changes: string[] = [];
+		disposables.add(service.onDidChangeSession(batch => changes.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`).join(', '))));
+		onDidChangeAllSessions.fire({ added: [], removed: [], changed: [hidden] });
 
 		assert.deepStrictEqual({
 			listed: service.getSessions().map(session => session.sessionId),
-			all: service.getAllSessions().map(session => session.sessionId),
 			found: service.getSession(hidden.resource)?.sessionId,
-		}, { listed: ['listed'], all: ['listed', 'hidden'], found: 'hidden' });
+			changes,
+		}, { listed: ['listed'], found: 'hidden', changes: ['changed hidden'] });
 	});
 
 	suite('session grid integration', () => {
@@ -2742,7 +2747,7 @@ suite('SessionsManagementService', () => {
 			}(providers);
 		}
 
-		test('without a listing scope, the changes of all sessions are those of the listed sessions', () => {
+		test('without a listing scope, the changes of each session are those of the listed sessions', () => {
 			const first = stubSession({ sessionId: 'first', providerId: 'test' });
 			const second = stubSession({ sessionId: 'second', providerId: 'test' });
 			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
@@ -2752,14 +2757,49 @@ suite('SessionsManagementService', () => {
 			const providersService = createProvidersService();
 			const { service } = createSessionsManagementService(first, disposables, providersService);
 			const listed: ISessionChangeEvent[] = [];
-			const all: ISessionChangeEvent[] = [];
+			const each: string[] = [];
 			disposables.add(service.onDidChangeSessions(e => listed.push(e)));
-			disposables.add(service.onDidChangeAllSessions(e => all.push(e)));
+			disposables.add(service.onDidChangeSession(batch => each.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`).join(', '))));
 
 			disposables.add(providersService.registerProvider(provider));
 			onDidChangeSessions.fire({ added: [second], removed: [first], changed: [] });
 
-			assert.deepStrictEqual({ all, count: listed.length, sessions: service.getAllSessions().map(session => session.sessionId) }, { all: listed, count: 2, sessions: service.getSessions().map(session => session.sessionId) });
+			// One batch for each change of the listed sessions
+			const fromListed = listed.map(e => [...e.added.map(s => `added ${s.sessionId}`), ...e.removed.map(s => `removed ${s.sessionId}`), ...e.changed.map(s => `changed ${s.sessionId}`)].join(', '));
+			assert.deepStrictEqual({ each, count: listed.length }, { each: fromListed, count: 2 });
+		});
+
+		test('reports an empty change of a provider, such as its invalidation of what it lists, as an empty batch', () => {
+			const session = stubSession({ sessionId: 'only', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			disposables.add(providersService.registerProvider(provider));
+			const batches: number[] = [];
+			disposables.add(service.onDidChangeSession(batch => batches.push(batch.length)));
+
+			onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+
+			assert.deepStrictEqual(batches, [0]);
+		});
+
+		test('reports the sessions of a provider that registers, also those outside its listing scope, in one change', () => {
+			const sessions = ['a', 'b', 'c'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return sessions.slice(0, 1); }
+				override getAllSessions(): ISession[] { return sessions; }
+			}(sessions[0]);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(sessions[0], disposables, providersService);
+			const batches: string[][] = [];
+			disposables.add(service.onDidChangeSession(batch => batches.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`))));
+
+			disposables.add(providersService.registerProvider(provider));
+
+			assert.deepStrictEqual(batches, [['added a', 'added b', 'added c']]);
 		});
 
 		test('announces cached sessions when a provider registers', () => {
@@ -5878,6 +5918,69 @@ suite('SessionsManagementService', () => {
 			active: 'b',
 		});
 	});
+
+	for (const { timing, preserveCustomView } of [
+		{ timing: 'before', preserveCustomView: false },
+		{ timing: 'during', preserveCustomView: false },
+		{ timing: 'during', preserveCustomView: true },
+	] as const) {
+		test(`restoreVisibleSessions ${preserveCustomView ? 'does not surface the hidden' : 'retains the visible'} workspace draft created ${timing} startup restoration`, async () => {
+			const folderUri = URI.file('/project');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri,
+				label: 'project',
+				icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'project', description: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			};
+			const draft = stubSession({
+				sessionId: 'workspace-draft',
+				providerId: 'test',
+				status: constObservable(SessionStatus.Untitled),
+				workspace: constObservable(workspace),
+			});
+			const requests: { sessionId: string; chatResource: URI; query: string }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return []; }
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+					requests.push({ sessionId, chatResource, query: options.query });
+					return draft;
+				}
+			}(draft);
+			const { service, view } = createSessionsManagementService(draft, disposables, provider);
+			let restoring: Promise<void> | undefined;
+			if (timing === 'during') {
+				restoring = view.restoreVisibleSessions();
+			}
+			await view.openNewSession({ folderUri, preserveNavigation: true, preserveCustomView });
+			await (restoring ?? view.restoreVisibleSessions());
+
+			const active = activeSessionOf(view);
+			const restored = {
+				visible: slotSessionsOf(view).map(session => session?.sessionId),
+				active: active?.sessionId,
+				workspace: active?.workspace.get(),
+				pending: service.newSession.get()?.sessionId,
+				restoreComplete: view.initialRestoreComplete.get(),
+			};
+			if (!preserveCustomView && active) {
+				await service.sendNewChatRequest(active, { query: 'hello' });
+			}
+
+			assert.deepStrictEqual({ restored, requests }, {
+				restored: {
+					visible: [preserveCustomView ? undefined : draft.sessionId],
+					active: preserveCustomView ? undefined : draft.sessionId,
+					workspace: preserveCustomView ? undefined : workspace,
+					pending: draft.sessionId,
+					restoreComplete: true,
+				},
+				requests: preserveCustomView ? [] : [{ sessionId: draft.sessionId, chatResource: draft.mainChat.get().resource, query: 'hello' }],
+			});
+		});
+	}
 
 	test('restoreVisibleSessions prepares only the active session', async () => {
 		const session = stubSession({
