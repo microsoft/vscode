@@ -394,7 +394,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 		if (attention?.isHistoricalCompletion) {
 			if (!isUnreadSessionModifiedToday(session, reader)) {
-				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
+				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds, isHistoricalCompletion: true };
 			}
 		}
 		return undefined;

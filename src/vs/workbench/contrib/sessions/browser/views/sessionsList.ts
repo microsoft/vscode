@@ -472,6 +472,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.sessionInProgress;
 		case SessionInboxSection.OnHold:
 			return Codicon.history;
+		case SessionInboxSection.Acknowledged:
 		case SessionInboxSection.Done:
 			return Codicon.mailRead;
 		case CUSTOMIZATIONS_SECTION_ID:
@@ -10346,6 +10347,7 @@ function getSessionInboxSectionLabel(section: typeof sessionInboxSections[number
 		case SessionInboxSection.ReadyToMerge: return localize('inboxReadyToMerge', "Ready to merge");
 		case SessionInboxSection.Working: return localize('inboxWorking', "Working");
 		case SessionInboxSection.OnHold: return localize('inboxOnHold', "On hold");
+		case SessionInboxSection.Acknowledged: return localize('inboxAcknowledged', "Acknowledged");
 	}
 }
 

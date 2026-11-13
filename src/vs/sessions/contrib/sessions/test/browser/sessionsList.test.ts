@@ -5320,15 +5320,18 @@ suite('Sessions - SessionsList', () => {
 				list.update();
 				act();
 				await retry(async () => assert.deepStrictEqual(visible(), []), 10, 100);
-				const acknowledged = { state: model.getInboxState(session)?.kind, sections: list.getTreeSnapshot().map(node => node.type === 'section' ? node.id : node.type) };
+				await retry(async () => assert.deepStrictEqual(list.getTreeSnapshot().map(node => node.type === 'section' ? node.id : node.type), [SessionInboxSection.ReadyForYou, SessionInboxSection.Acknowledged]), 10, 100);
+				const acknowledged = { state: model.getInboxState(session)?.kind, label: list.getItemRow({ section: SessionInboxSection.Acknowledged })?.getAttribute('aria-label') };
+				list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, false);
+				const expanded = visible();
 				built.status.set(SessionStatus.InProgress, undefined);
 				built.mainChat.status.set(SessionStatus.InProgress, undefined);
 				built.status.set(SessionStatus.Completed, undefined);
 				built.mainChat.status.set(SessionStatus.Completed, undefined);
 				await retry(async () => assert.deepStrictEqual(visible(), ['ready']), 10, 100);
-				assert.deepStrictEqual({ afterViewing, opened, hiddenState, ordinaryState, acknowledged, archived: session.isArchived.get() }, {
+				assert.deepStrictEqual({ afterViewing, opened, hiddenState, ordinaryState, acknowledged, expanded, archived: session.isArchived.get() }, {
 					afterViewing: ['ready'], opened: 1, hiddenState: undefined, ordinaryState: undefined,
-					acknowledged: { state: 'done', sections: [SessionInboxSection.ReadyForYou] }, archived: false,
+					acknowledged: { state: 'done', label: 'Acknowledged, 1' }, expanded: ['ready'], archived: false,
 				});
 			});
 		}
@@ -5345,7 +5348,7 @@ suite('Sessions - SessionsList', () => {
 			const archived = createTestSession('archived', { isArchived: true }).session;
 			const sections = groupSessionsForList([idle, working, finished, failing, pinned, waiting, done, snoozed, archived],
 				SessionsGrouping.Inbox, SessionsSorting.Updated, session => session === pinned, undefined, 'Done', true, [],
-				session => session === done ? SessionInboxSection.Done : session === snoozed ? SessionInboxSection.OnHold : getSessionInboxSection(session),
+				session => session === done ? getSessionInboxSection(session, { kind: 'done', activity: '' }) : session === snoozed ? SessionInboxSection.OnHold : getSessionInboxSection(session),
 				session => session === failing || session === waiting ? InboxNotificationPriority.Now : InboxNotificationPriority.Later);
 			assert.deepStrictEqual(sections.map(section => [section.id, section.label, section.sessions.map(session => session.sessionId)]), [
 				['pinned', 'Pinned', ['pinned']],
@@ -5353,6 +5356,7 @@ suite('Sessions - SessionsList', () => {
 				['inbox:working', 'Working', ['working']],
 				['inbox:readyToMerge', 'Ready to merge', []],
 				['inbox:onHold', 'On hold', ['snoozed']],
+				['inbox:acknowledged', 'Acknowledged', ['done']],
 				['archived', 'Done', ['archived']],
 			]);
 		});
@@ -5393,7 +5397,7 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual(sections, [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(() => ({
 					working: Array(4).fill(SessionInboxSection.Working),
 					held: SessionInboxSection.OnHold,
-					done: SessionInboxSection.Done,
+					done: SessionInboxSection.Acknowledged,
 					stopped: SessionInboxSection.ReadyForYou,
 				})));
 			});
@@ -5514,7 +5518,7 @@ suite('Sessions - SessionsList', () => {
 			grouped.isRead.set(true, undefined);
 			await retry(async () => assert.deepStrictEqual(snapshot().find(section => section.id === SessionInboxSection.ReadyForYou)?.sessions, ['grouped']), 10, 100);
 			model.setInboxState([grouped.session], 'done');
-			await retry(async () => assert.deepStrictEqual(snapshot(), initial), 10, 100);
+			await retry(async () => assert.deepStrictEqual(snapshot(), [...initial, { id: SessionInboxSection.Acknowledged, sessions: ['grouped'] }]), 10, 100);
 			running.status.set(SessionStatus.NeedsInput, undefined);
 			attention.set(new Map([...attention.get(), ['ready', { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: ['review'], isHistoricalCompletion: false }]]), undefined);
 			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
@@ -5550,10 +5554,12 @@ suite('Sessions - SessionsList', () => {
 			const working = createTestSession('working', { workspaceResource, status: SessionStatus.InProgress }).session;
 			const held = createTestSession('held', { workspaceResource }).session;
 			const otherHeld = createTestSession('other-held').session;
+			const acknowledged = createTestSession('acknowledged', { workspaceResource }).session;
+			const otherAcknowledged = createTestSession('other-acknowledged').session;
 			const archived = createTestSession('archived', { workspaceResource, isArchived: true }).session;
 			const otherArchived = createTestSession('other-archived', { isArchived: true }).session;
 			const activeSession = constObservable<ITestSessionWithChat>({ ...otherPinned, activeChat: otherPinned.mainChat });
-			const items = [pinned, otherPinned, remotePinned, ready, working, held, otherHeld, archived, otherArchived];
+			const items = [pinned, otherPinned, remotePinned, ready, working, held, otherHeld, acknowledged, otherAcknowledged, archived, otherArchived];
 			const harness = createListHarness(disposables, items, { activeSession });
 			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
 			harness.instantiationService.stub(ISessionsListModelService, model);
@@ -5561,6 +5567,7 @@ suite('Sessions - SessionsList', () => {
 				model.pinSession(session);
 			}
 			model.setInboxState([held, otherHeld], 'hold');
+			model.setInboxState([acknowledged, otherAcknowledged], 'done');
 			let grouping = SessionsGrouping.Inbox;
 			const container = harness.createContainer();
 			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, container, {
@@ -5597,6 +5604,7 @@ suite('Sessions - SessionsList', () => {
 					{ id: SessionInboxSection.ReadyForYou, sessions: ['ready'] },
 					{ id: SessionInboxSection.Working, sessions: ['working'] },
 					{ id: SessionInboxSection.OnHold, sessions: ['held'] },
+					{ id: SessionInboxSection.Acknowledged, sessions: ['acknowledged'] },
 					{ id: 'archived', sessions: ['archived'] },
 				],
 				hiddenActive: false, selectedCount: '1',
@@ -5723,6 +5731,7 @@ suite('Sessions - SessionsList', () => {
 					[SessionInboxSection.Working, ['working']],
 					[SessionInboxSection.ReadyToMerge, ['merge']],
 					[SessionInboxSection.OnHold, ['held']],
+					[SessionInboxSection.Acknowledged, ['done']],
 				],
 				tabElements: 0,
 				revealed: true,
@@ -5760,6 +5769,7 @@ suite('Sessions - SessionsList', () => {
 			list.refresh();
 			const populated = snapshot(list);
 			list.setItemCollapsed({ section: 'pinned' }, false);
+			list.setItemCollapsed({ section: SessionInboxSection.Acknowledged }, false);
 			list.update();
 			const manuallyExpanded = snapshot(list);
 			list.dispose();
@@ -5771,12 +5781,12 @@ suite('Sessions - SessionsList', () => {
 			grouping = SessionsGrouping.Inbox;
 			restoredList.update();
 			assert.deepStrictEqual({ empty, populated, manuallyExpanded, restored, ordinaryShowsAcknowledged, returned: snapshot(restoredList) }, {
-				empty: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
-				populated: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
-				manuallyExpanded: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
-				restored: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
+				empty: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, true]],
+				populated: [['pinned', true], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, true]],
+				manuallyExpanded: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, false]],
+				restored: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, false]],
 				ordinaryShowsAcknowledged: true,
-				returned: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false]],
+				returned: [['pinned', false], [SessionInboxSection.ReadyForYou, false], [SessionInboxSection.Working, false], [SessionInboxSection.Acknowledged, false]],
 			});
 		});
 
@@ -8405,8 +8415,8 @@ suite('Sessions - SessionsList', () => {
 			list.update(true);
 			assert.deepStrictEqual({ initial, acknowledged, resumed: snapshot() }, {
 				initial: [[SessionInboxSection.ReadyForYou, ['group:comparison-group', 'recent']]],
-				acknowledged: [[SessionInboxSection.ReadyForYou, []]],
-				resumed: [[SessionInboxSection.ReadyForYou, ['group:comparison-group']]],
+				acknowledged: [[SessionInboxSection.ReadyForYou, []], [SessionInboxSection.Acknowledged, ['group:comparison-group', 'recent']]],
+				resumed: [[SessionInboxSection.ReadyForYou, ['group:comparison-group']], [SessionInboxSection.Acknowledged, ['recent']]],
 			});
 		});
 
