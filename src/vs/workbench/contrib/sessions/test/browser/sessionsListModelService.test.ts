@@ -21,6 +21,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
+import { getSessionInboxSection, SessionInboxSection } from '../../common/sessionInbox.js';
 
 function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
@@ -383,21 +384,29 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
-	test('historical completions start Done while Return to Inbox persists and remains undoable', () => {
+	test('historical completions stay hidden unless explicitly acknowledged, while Return to Inbox persists and remains undoable', () => {
 		const session = createSession('historical');
 		sessions.push(session);
 		attention.set(new Map([[session.sessionId, {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
 		}]]), undefined);
 		const initial = service.getInboxState(session)?.kind;
+		const section = () => getSessionInboxSection(session, service.getInboxState(session));
+		const historicalSection = section();
 		const undo = service.setInboxState([session], undefined);
 		const resumed = service.getInboxState(session);
 		undo();
 		const undone = service.getInboxState(session)?.kind;
+		service.setInboxState([session], 'done');
+		const acknowledgedSection = section();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const restoredSection = section();
 		service.setInboxState([session], undefined);
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
-		assert.deepStrictEqual({ initial, resumed, undone, restored: service.getInboxState(session), archived: session.isArchived.get() }, {
+		assert.deepStrictEqual({ initial, historicalSection, acknowledgedSection, restoredSection, resumed, undone, restored: service.getInboxState(session), archived: session.isArchived.get() }, {
+			historicalSection: SessionInboxSection.Done, acknowledgedSection: SessionInboxSection.Acknowledged, restoredSection: SessionInboxSection.Acknowledged,
 			initial: 'done', resumed: undefined, undone: 'done', restored: undefined, archived: false,
 		});
 	});

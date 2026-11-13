@@ -473,6 +473,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 			return Codicon.sessionInProgress;
 		case SessionInboxSection.OnHold:
 			return Codicon.history;
+		case SessionInboxSection.Acknowledged:
 		case SessionInboxSection.Done:
 			return Codicon.mailRead;
 		case CUSTOMIZATIONS_SECTION_ID:
@@ -5099,7 +5100,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				toolbarMenuId: Menus.SessionItemToolbar,
 				toolbarTelemetrySource: 'sessionsList.row',
 				getAdditionalContextKeys: (session, reader) => [
-					[SessionItemInboxStateContext.key, this.isInboxLayout() ? this._sessionsListModelService.getInboxState(session, reader)?.kind ?? '' : ''],
+					[SessionItemInboxStateContext.key, this.getInboxStateContext(session, reader)],
 					[SessionItemCanAcknowledgeContext.key, this.getMultiSelectedSessions(session, reader).some(session => this.canAcknowledgeInboxSession(session, reader))],
 					[SessionItemCanMergePullRequestContext.key, this.canMergeInboxPullRequest(session, reader)],
 					[SessionItemIsMultiSelectionContext.key, this.getMultiSelectedSessions(session, reader).length > 1],
@@ -8812,8 +8813,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		const selectedSessions = this.getMultiSelectedSessions(element);
-		const inboxStates = this.options.grouping() === SessionsGrouping.Inbox
-			? selectedSessions.map(session => this._sessionsListModelService.getInboxState(session)?.kind) : [];
+		const inboxStates = selectedSessions.map(session => this.getInboxStateContext(session));
 
 		const inGroup = this._sessionGroupsService.getGroupOfSession(element.sessionId) !== undefined;
 		const contextOverlay: [string, boolean | string][] = [
@@ -9321,6 +9321,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private canAcknowledgeInboxSession(session: ISession, reader?: IReader): boolean {
 		return this.isInboxLayout() && !session.isArchived.read(reader) && this.getInboxSection(session, reader) === SessionInboxSection.ReadyForYou;
+	}
+
+	private getInboxStateContext(session: ISession, reader?: IReader): string {
+		if (!this.isInboxLayout()) {
+			return '';
+		}
+		const state = this._sessionsListModelService.getInboxState(session, reader);
+		return state?.kind === 'done' && state.isHistoricalCompletion ? 'historical' : state?.kind ?? '';
 	}
 
 	private acknowledgeInboxSessions(sessions: readonly ISession[], actionId?: string): void {
@@ -10401,6 +10409,7 @@ function getSessionInboxSectionLabel(section: typeof sessionInboxSections[number
 		case SessionInboxSection.ReadyToMerge: return localize('inboxReadyToMerge', "Ready to merge");
 		case SessionInboxSection.Working: return localize('inboxWorking', "Working");
 		case SessionInboxSection.OnHold: return localize('inboxOnHold', "On hold");
+		case SessionInboxSection.Acknowledged: return localize('inboxAcknowledged', "Acknowledged");
 	}
 }
 

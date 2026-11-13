@@ -1262,21 +1262,18 @@ export function registerSessionsListActions(): IDisposable {
 				title: localize2('inboxAcknowledge', "Acknowledge"),
 				tooltip: localize('inboxAcknowledgeTooltip', "Acknowledge: Remove from Inbox until new activity"),
 				icon: Codicon.eye,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionItemCanAcknowledgeContext),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
 				menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
 					id,
 					group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
 					order: 0.5,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(), SessionItemCanAcknowledgeContext),
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(),
+						id === Menus.SessionItemToolbar ? SessionItemCanAcknowledgeContext : SessionItemInboxStateContext.notEqualsTo('done')),
 				})),
 			});
 		}
 		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-			const model = accessor.get(ISessionsListModelService);
-			const attention = accessor.get(ISessionAttentionService).sessionAttention.get();
-			const sessions = getSessionActionTargets(accessor, context).filter(session => !session.isArchived.get()
-				&& getSessionInboxSection(session, model.getInboxState(session), undefined, attention.get(session.sessionId)) === SessionInboxSection.ReadyForYou);
-			triageSessions(model, accessor.get(IViewsService), sessions, 'done');
+			triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), 'done');
 		}
 	}));
 
