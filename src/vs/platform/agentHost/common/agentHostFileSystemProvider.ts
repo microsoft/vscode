@@ -342,10 +342,10 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const handleHolder = store.add(new MutableDisposable<IDisposable>());
 		const reconnectListener = store.add(new MutableDisposable<IDisposable>());
 		const authority = resource.authority;
-		const watchedPath = this._decodeUri(resource).path;
+		const remoteResource = this._decodeUri(resource);
 		const params: CreateResourceWatchParams = {
 			channel: ROOT_STATE_URI,
-			uri: this._decodeUri(resource).toString(),
+			uri: remoteResource.toString(),
 			recursive: opts.recursive,
 			...(opts.excludes.length > 0 ? { excludes: { items: [...opts.excludes] } } : {}),
 			...(opts.includes && opts.includes.length > 0
@@ -410,7 +410,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					// Read per batch so a watch attached before the handshake picks up the host's platform. Unknown hosts stay case-sensitive.
 					const caseInsensitive = isAgentHostPathCaseSensitive(target) === false;
 					this._onDidChangeFile.fire(changes.map(c => ({
-						resource: this._encodeUri(caseInsensitive ? matchWatchedPathCase(c.resource, watchedPath) : c.resource, resource.authority),
+						resource: this._encodeUri(caseInsensitive ? matchWatchedPathCase(c.resource, remoteResource.path) : c.resource, resource.authority),
 						type: c.type,
 						// Correlated watchers (such as the browser's auto-reload) only receive events carrying their ID.
 						...(opts.correlationId !== undefined ? { cId: opts.correlationId } : {}),
