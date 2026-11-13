@@ -202,7 +202,7 @@ export function containsAutomaticReplyAnswer(raw: Record<string, ChatInputAnswer
 	);
 }
 
-function getInputQuestionText(question: ChatInputQuestion): { readonly title: string; readonly message: string } {
+function getInputQuestionText(question: Pick<ChatInputQuestion, 'title' | 'message'>): { readonly title: string; readonly message: string } {
 	if (question.title) {
 		return { title: question.title, message: question.message };
 	}
@@ -288,10 +288,14 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	});
 
 	if (questions.length === 0) {
+		const questionText = getInputQuestionText({ message: inputReq.message ?? '' });
 		questions.push({
 			id: 'answer',
 			type: 'text',
-			title: rewriteQuestionMarkdownLinks(inputReq.message ?? '', connectionAuthority),
+			title: rewriteQuestionMarkdownLinks(questionText.title, connectionAuthority),
+			detailedMessage: questionText.message
+				? new MarkdownString(rewriteQuestionMarkdownLinks(questionText.message, connectionAuthority), { isTrusted: false })
+				: undefined,
 			required: true,
 		});
 	}
