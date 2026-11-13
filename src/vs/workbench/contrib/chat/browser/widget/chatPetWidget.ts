@@ -145,6 +145,8 @@ const MOUSE_BOUNCE_HORIZONTAL_TRANSFER = 0.35;
 const MOUSE_BOUNCE_EDGE_KICK = 320;
 const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_DISPLAY_SIZE = 48;
+/** Maximum number of subagent pets shown at once. */
+const SUBAGENT_PET_MAX_COUNT = 10;
 /** Maximum stacking height before subagent pets share space. */
 const SUBAGENT_PET_MAX_HEIGHT = 96;
 /** Tolerance for fractional pixels when checking subagent pet bounds. */
@@ -1497,6 +1499,8 @@ export class ChatPetWidget extends Disposable {
 
 	/** Active subagent pets keyed by request and tool call identity. */
 	private readonly _subagentPets = new Map<string, SubagentPet>();
+	private _activeSubagents: ReadonlySet<string> = new Set();
+	private _despawningSubagentPetCount = 0;
 	/** Chat model currently supplying active subagents. */
 	private _subagentPetModel: IChatModel | undefined;
 	/** Resources for active subagent pets and their disappearance effects. */
@@ -2054,6 +2058,8 @@ export class ChatPetWidget extends Disposable {
 
 			if (!enabled) {
 				this._subagentPetResizeScheduler.cancel();
+				this._activeSubagents = new Set();
+				this._despawningSubagentPetCount = 0;
 				for (const subagentPet of this._subagentPets.values()) {
 					subagentPet.element.remove();
 				}
@@ -3263,16 +3269,25 @@ export class ChatPetWidget extends Disposable {
 
 	/** Creates and removes subagent pets to match the active subagent identities. */
 	private _updateSubagentPets(subagents: ReadonlySet<string>): void {
+		this._activeSubagents = new Set(subagents);
 		let removed = false;
 		let added = false;
 		for (const [id, subagentPet] of this._subagentPets) {
 			if (!subagents.has(id)) {
 				removed = true;
 				this._subagentPets.delete(id);
-				subagentPet.despawn(() => this._subagentPetEffects.delete(subagentPet));
+				this._despawningSubagentPetCount++;
+				subagentPet.despawn(() => {
+					this._subagentPetEffects.delete(subagentPet);
+					this._despawningSubagentPetCount--;
+					this._updateSubagentPets(this._activeSubagents);
+				});
 			}
 		}
 		for (const id of subagents) {
+			if (this._subagentPets.size + this._despawningSubagentPetCount >= SUBAGENT_PET_MAX_COUNT) {
+				break;
+			}
 			if (this._subagentPets.has(id)) {
 				continue;
 			}

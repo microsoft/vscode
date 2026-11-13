@@ -2877,6 +2877,31 @@ suite('ChatPetWidget', () => {
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 1);
 	});
 
+	test('subagent pets fill available slots without replacing active pets', async () => {
+		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
+		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+		const tools = Array.from({ length: 12 }, (_, index) => {
+			const id = `subagent-${index}`;
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		});
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
+		const initial = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
+		assert.strictEqual(initial.length, 10);
+		tools[10].toolSpecificData = { kind: 'subagent', isActive: false };
+		changed.fire({ reason: 'other' });
+		assert.deepStrictEqual([...overlay.querySelectorAll('.chat-subagent-pet')], initial);
+		tools[0].toolSpecificData = { kind: 'subagent', isActive: false };
+		changed.fire({ reason: 'other' });
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet, .chat-subagent-pet-despawning').length, 10);
+		await waitForPetAnimation(() => overlay.querySelectorAll('.chat-subagent-pet').length === 10);
+		const after = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
+		assert.deepStrictEqual(after.slice(0, 9), initial.slice(1));
+		assert.ok(!initial.includes(after[9]));
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet-despawning').length, 0);
+	});
+
 	test('shows one subagent pet per active subagent and removes it when it stops', async () => {
 		const { widget, firstHost, button, overlay, service } = createHostTransitionHarness();
 		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
@@ -3213,7 +3238,7 @@ suite('ChatPetWidget', () => {
 					largeEnough: rects.every(rect => rect.width >= 9.5 && rect.height >= 9.5),
 				}, { count, withinChat: true, bounded: true, largeEnough: true }, JSON.stringify({ left, right, top, bottom, input: input.toJSON(), movement: movement.toJSON() }));
 			};
-			checkBounds(100);
+			checkBounds(10);
 			firstParent.style.width = '120px';
 			layout();
 			await waitForPetAnimation(() => subagentPets.every(subagentPet => {
@@ -3221,7 +3246,7 @@ suite('ChatPetWidget', () => {
 				const input = firstParent.getBoundingClientRect();
 				return rect.left >= input.left - 0.1 && rect.right <= input.right + 0.1 && rect.bottom <= input.top + 0.1 && subagentPet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-');
 			}));
-			checkBounds(100);
+			checkBounds(10);
 			root.style.height = '64px';
 			firstParent.style.top = '32px';
 			layout();
@@ -3230,14 +3255,15 @@ suite('ChatPetWidget', () => {
 				const input = firstParent.getBoundingClientRect();
 				return rect.left >= input.left - 0.1 && rect.right <= input.right + 0.1 && rect.top >= root.getBoundingClientRect().top - 0.1 && rect.bottom <= input.top + 0.1 && subagentPet.querySelector('img')?.getAttribute('src')?.includes('buddy-idle-');
 			}));
-			checkBounds(100);
+			checkBounds(10);
 			tools[0].toolSpecificData = { kind: 'subagent', isActive: false };
 			changed.fire({ reason: 'other' });
-			checkBounds(99);
+			checkBounds(9);
 			assert.deepStrictEqual([...overlay.querySelectorAll('.chat-subagent-pet')], subagentPets.slice(1));
+			await waitForPetAnimation(() => overlay.querySelectorAll('.chat-subagent-pet').length === 10);
 			tools[0].toolSpecificData = { kind: 'subagent', isActive: true };
 			changed.fire({ reason: 'other' });
-			checkBounds(100);
+			checkBounds(10);
 		});
 	}
 
@@ -3309,7 +3335,7 @@ suite('ChatPetWidget', () => {
 				const rect = subagentPet.getBoundingClientRect();
 				return rect.bottom <= bounds.top - 60 + 0.1 && rect.left >= bounds.left + 20 - 0.1 && rect.right <= bounds.right - 20 + 0.1;
 			}),
-		}, { count: 20, onPrompt: true });
+		}, { count: 10, onPrompt: true });
 	});
 
 	for (const reducedMotion of [false, true]) {
