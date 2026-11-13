@@ -264,6 +264,27 @@ function getFusionTierModelName(id: string, metadata: CopilotAutoTierMetadata | 
 	return localize({ key: 'copilotAgent.fusionTierModelName', comment: ['{0} is an effort level of Copilot Fusion, e.g. High'] }, "Copilot Fusion {0}", tier ? getProviderAutoTierLabel(tier) : getFusionAutoModeTierLabel(id));
 }
 
+/** Marketplace display descriptions can omit revisions; use the runtime's user registration for exact identity. */
+function getUserMarketplaceSource(settings: Awaited<ReturnType<CopilotClient['rpc']['user']['settings']['get']>>['settings'], name: string): string | undefined {
+	const marketplaces = settings.extraKnownMarketplaces?.value;
+	if (!marketplaces || typeof marketplaces !== 'object' || Array.isArray(marketplaces)) {
+		return undefined;
+	}
+	const entry = marketplaces[name];
+	if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+		return undefined;
+	}
+	const source = entry.source;
+	if (!source || typeof source !== 'object' || Array.isArray(source)) {
+		return undefined;
+	}
+	const value = source.source === 'github' ? source.repo : source.source === 'git' ? source.url : undefined;
+	if (typeof value !== 'string' || (source.ref !== undefined && typeof source.ref !== 'string')) {
+		return undefined;
+	}
+	return source.ref ? `${value}#${source.ref}` : value;
+}
+
 export async function getCopilotManagedSettingsDiagnostics(
 	managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>,
 	token: string | undefined,
@@ -3610,21 +3631,26 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return liveSession.retryManagedPlugins();
 	}
 
-	async listPluginMarketplaces(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]> {
+	async listPluginMarketplaces(session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]> {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		const marketplaces = liveSession
 			? await liveSession.listPluginMarketplaces()
 			: (await this._retryAfterClosedConnection('listPluginMarketplaces', client => client.rpc.plugins.marketplaces.list())).marketplaces;
+		const userSettings = !session && !chat
+			? await this._retryAfterClosedConnection('listPluginMarketplaces', client => client.rpc.user.settings.get())
+			: undefined;
 		return marketplaces.map(marketplace => ({
 			name: marketplace.name,
-			source: marketplace.source,
+			source: userSettings && !marketplace.managed && !marketplace.isDefault && !marketplace.team
+				? getUserMarketplaceSource(userSettings.settings, marketplace.name) ?? marketplace.source
+				: marketplace.source,
 			isDefault: marketplace.isDefault === true,
 			managed: marketplace.managed === true,
 			available: marketplace.available !== false,
 		}));
 	}
 
-	async addPluginMarketplace(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace> {
+	async addPluginMarketplace(session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace> {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		const result = liveSession
 			? await liveSession.addPluginMarketplace(source)
@@ -3637,7 +3663,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return marketplace;
 	}
 
-	async browsePluginMarketplace(session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]> {
+	async browsePluginMarketplace(session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]> {
 		const liveSession = this._findPluginOperationSession(session, chat);
 		const plugins = liveSession
 			? await liveSession.browsePluginMarketplace(name)

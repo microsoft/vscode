@@ -738,6 +738,7 @@ interface ITestCopilotModelInfo {
 
 interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
 	readonly rpc: {
+		readonly user: { readonly settings: Pick<CopilotClient['rpc']['user']['settings'], 'get'> };
 		readonly agents: CopilotAgentDiscovery;
 		readonly instructions: CopilotInstructionDiscovery;
 		readonly skills: CopilotSkillDiscovery;
@@ -800,6 +801,7 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 
 class TestCopilotClient implements ITestCopilotClient {
+	userSettings: Awaited<ReturnType<CopilotClient['rpc']['user']['settings']['get']>> = { settings: {} };
 	mcpConfigListResult: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>> = { servers: {} };
 	managedSettingsResolution: ManagedSettingsResolveResult = {
 		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
@@ -908,6 +910,7 @@ class TestCopilotClient implements ITestCopilotClient {
 				return { models: models.map(toSdkModelInfo), ...(auto ? { auto } : {}) };
 			}
 		},
+		user: { settings: { get: async () => this.userSettings } },
 		plugins: {
 			list: async () => ({ plugins: this.pluginInstallations }),
 			enable: async ({ names }) => {
@@ -3004,6 +3007,70 @@ suite('CopilotAgent', () => {
 			await disposeAgent(agent);
 		}
 	});
+
+	test('installs marketplace plugins through the SDK server API without creating a session', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginMarketplaces = [{
+			name: 'marketplace',
+			source: 'GitHub: owner/repository',
+			isDefault: false,
+			managed: false,
+			available: true,
+		}];
+		client.pluginMarketplaceBrowsePlugins = [{ name: 'plugin' }];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+
+		const marketplace = await agent.addPluginMarketplace(undefined, 'owner/repository#feature/beta');
+		const plugins = await agent.browsePluginMarketplace(undefined, marketplace.name);
+		await agent.installPlugin({ source: `${plugins[0].name}@${marketplace.name}` });
+
+		assert.deepStrictEqual({
+			add: client.pluginMarketplaceAddRequests,
+			browse: client.pluginMarketplaceBrowseRequests,
+			install: client.pluginInstallRequests,
+		}, {
+			add: [{ source: 'owner/repository#feature/beta' }],
+			browse: [{ name: 'marketplace' }],
+			install: [{ source: 'plugin@marketplace' }],
+		});
+	});
+
+	for (const source of [
+		{ source: 'github', repo: 'owner/repository', ref: 'feature/beta' },
+		{ source: 'git', url: 'https://example.com/marketplace.git', ref: 'release/v1' },
+	] as const) {
+		test(`lists the exact registered marketplace revision when its display source omits it: ${source.source}`, async () => {
+			const client = new TestCopilotClient([]);
+			const displaySource = source.source === 'github' ? 'GitHub: owner/repository' : 'URL: https://example.com/marketplace.git';
+			client.pluginMarketplaces = [
+				{ name: 'user-marketplace', source: displaySource },
+				{ name: 'managed-marketplace', source: displaySource, managed: true },
+				{ name: 'default-marketplace', source: displaySource, isDefault: true },
+				{ name: 'team-marketplace', source: displaySource, team: true },
+			];
+			const registeredSource: Record<string, string> = source.source === 'github'
+				? { source: 'github', repo: source.repo, ref: source.ref }
+				: { source: 'git', url: source.url, ref: source.ref };
+			client.userSettings = { settings: {
+				extraKnownMarketplaces: {
+					value: Object.fromEntries(client.pluginMarketplaces.map(marketplace => [marketplace.name, { source: registeredSource }])),
+					default: {},
+					isDefault: false,
+				},
+			} };
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			afterTest(() => disposeAgent(agent));
+
+			const marketplaces = await agent.listPluginMarketplaces();
+			assert.deepStrictEqual(marketplaces.map(marketplace => ({ name: marketplace.name, source: marketplace.source })), [
+				{ name: 'user-marketplace', source: `${source.source === 'github' ? source.repo : source.url}#${source.ref}` },
+				{ name: 'managed-marketplace', source: displaySource },
+				{ name: 'default-marketplace', source: displaySource },
+				{ name: 'team-marketplace', source: displaySource },
+			]);
+		});
+	}
 
 	test('preserves marketplace revisions through the SDK server API', async () => {
 		const client = new TestCopilotClient([]);
