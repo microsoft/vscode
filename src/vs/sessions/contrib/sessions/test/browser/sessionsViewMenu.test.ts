@@ -22,7 +22,7 @@ import { IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from 
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -50,7 +50,7 @@ import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPrio
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 import { getSessionArchiveOnboardingTargetId, SessionItemCanMergePullRequestContext, SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { getInboxPullRequestMergeOperation } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
+import { getInboxPullRequestMergeOperation, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
@@ -412,6 +412,79 @@ suite('Sessions - View Menu', () => {
 			hidden: { toolbar: [], contextMenu: [] },
 		});
 	});
+
+	for (const mixedSelection of [false, true]) {
+		test(`inbox can acknowledge pinned historical completions${mixedSelection ? ' alongside acknowledged sessions' : ''} and return them to Inbox`, async () => {
+			const sessions = ['historical', 'acknowledged'].map(id => buildTestSession({ id, title: id, isRead: true }).session);
+			const [historical, acknowledged] = sessions;
+			const harness = createListHarness(store, sessions);
+			harness.instantiationService.stub(ISessionAttentionService, upcastPartial<ISessionAttentionService>({
+				sessionAttention: constObservable(new Map(sessions.map(session => [session.sessionId, {
+					tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
+				}]))),
+				acquireSessionAttention: () => toDisposable(() => { }),
+			}));
+			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			model.pinSession(historical);
+			model.pinSession(acknowledged);
+			model.setInboxState([acknowledged], 'done');
+			const context = store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+			ChatContextKeys.enabled.bindTo(context).set(true);
+			SessionsViewGroupingContext.bindTo(context).set(SessionsGrouping.Inbox);
+			harness.instantiationService.stub(IContextKeyService, context);
+			harness.instantiationService.stub(IMenuService, store.add(harness.instantiationService.createInstance(MenuService)));
+			harness.instantiationService.stub(ICommandService, 'executeCommand', async (id: string, ...args: unknown[]) =>
+				CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, ...args));
+			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () => undefined);
+			let shown: IContextMenuDelegate | undefined;
+			harness.instantiationService.stub(IContextMenuService, {
+				showContextMenu: (delegate: IContextMenuDelegate) => { shown = delegate; },
+			});
+			const list = store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const showMenu = (selection: ISession[]) => {
+				assert.ok(list.setSelectedItems(selection.map(session => ({ session: session.resource }))));
+				list.getItemRow({ session: historical.resource })!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				assert.ok(shown);
+				return shown;
+			};
+			const triageActions = (menu: IContextMenuDelegate) => menu.getActions()
+				.filter(action => ['sessionsViewPane.inboxAcknowledge', 'sessionsViewPane.inboxResume'].includes(action.id))
+				.map(action => ({ label: action.label, enabled: action.enabled }));
+			const run = async (menu: IContextMenuDelegate, id: string) => {
+				const action = menu.getActions().find(action => action.id === id);
+				assert.ok(action);
+				await menu.actionRunner!.run(action, menu.getActionsContext?.());
+			};
+			const toolbarCanResume = () => !!list.getItemRow({ session: historical.resource })!
+				.querySelector('.session-title-toolbar [aria-label="Return to Inbox"]');
+			const sectionSessions = (section: SessionInboxSection) => list.getTreeSnapshot().flatMap(node =>
+				node.type === 'section' && node.id === section ? node.children.flatMap(child => child.type === 'session' ? [child.session.sessionId] : []) : []);
+			const menu = showMenu(mixedSelection ? sessions : [historical]);
+			const initial = { actions: triageActions(menu), toolbarCanResume: toolbarCanResume() };
+			await run(menu, 'sessionsViewPane.inboxAcknowledge');
+			list.unpinSession(historical);
+			list.update(true);
+			const acknowledgedSections = sectionSessions(SessionInboxSection.Acknowledged);
+			const acknowledgedMenu = showMenu([historical]);
+			const afterAcknowledgement = triageActions(acknowledgedMenu);
+			await run(acknowledgedMenu, 'sessionsViewPane.inboxResume');
+			list.update(true);
+			assert.deepStrictEqual({
+				initial, acknowledgedSections, afterAcknowledgement,
+				resumed: model.getInboxState(historical),
+				inboxSessions: sectionSessions(SessionInboxSection.ReadyForYou),
+				otherState: model.getInboxState(acknowledged)?.kind,
+			}, {
+				initial: { actions: [{ label: 'Acknowledge', enabled: true }, { label: 'Return to Inbox', enabled: true }], toolbarCanResume: true },
+				acknowledgedSections: ['historical'], afterAcknowledgement: [{ label: 'Return to Inbox', enabled: true }],
+				resumed: undefined, inboxSessions: ['historical'], otherState: 'done',
+			});
+		});
+	}
 
 	test('bulk inbox triage remains undoable without archiving or closing sessions', async () => {
 		const sessions = ['first', 'second', 'archived'].map(id => buildTestSession({ id, title: id, isArchived: id === 'archived', isRead: false }).session);
