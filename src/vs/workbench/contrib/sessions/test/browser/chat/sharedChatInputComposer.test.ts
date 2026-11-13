@@ -47,7 +47,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest'] } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean | IObservable<boolean>; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[]; confirmSend?: DeferredPromise<boolean>; focused?: boolean; preserveInputFocusOnSend?: boolean; storageService?: IStorageService; onSend?: () => void; inputSnapshot?: IComposerInputSnapshot; onSendRequest?: () => void; scheduleRequest?: INewChatComposerInputOptions['scheduleRequest']; tryHandle?: (input: string) => Promise<boolean> } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -124,7 +124,7 @@ suite('SharedChatInputComposer', () => {
 			_canSendRequest: typeof options.canSendRequest === 'object' ? options.canSendRequest : constObservable(options.canSendRequest ?? true),
 			_modelRef: { value: { object: { inputModel: { setState: (state: object) => { draftModelState = state; } } } } },
 			options: {
-				session: constObservable(undefined),
+				session: constObservable(options.tryHandle ? { resource: URI.parse('session:/1'), providerId: 'provider', sessionId: '1' } : undefined),
 				canSchedule: constObservable(!!options.scheduleRequest),
 				scheduleRequest: options.scheduleRequest,
 				confirmSend: options.confirmSend && (() => options.confirmSend!.p),
@@ -149,6 +149,7 @@ suite('SharedChatInputComposer', () => {
 			logService: new NullLogService(),
 			notificationService: { error: (message: string) => { errors.push(message); }, warn: (message: string) => { warnings.push(message); } },
 			chatSlashCommandService: slashCommands,
+			chatSubmitRequestHandlerService: { tryHandle: (request: { input: string }) => options.tryHandle?.(request.input) ?? Promise.resolve(false) },
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
 		return { composer, widget, executeToolbarElement, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, warnings, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
@@ -701,6 +702,26 @@ suite('SharedChatInputComposer', () => {
 			input: { text: '/review', attachments: ['context'], enabled: true },
 		});
 	});
+
+	for (const handled of [true, false]) {
+		test(`a request whose input is replaced while a submit handler runs keeps the newer input (${handled ? 'handled, which says nothing' : 'not handled, so not sent, which says so'})`, async () => {
+			const handling = new DeferredPromise<boolean>();
+			const handledInputs: string[] = [];
+			const { composer, widget, state } = createComposer({ tryHandle: input => { handledInputs.push(input); return handling.p; } });
+			const sending = composer.submit();
+			await timeout(0);
+			(widget.setInput as (value: string) => void)('/review');
+			handling.complete(handled);
+			const sent = await sending;
+			assert.deepStrictEqual({ sent, handledInputs, requests: state().requests, warnings: state().warnings.length, input: state().input }, {
+				sent: handled,
+				handledInputs: ['Build it'],
+				requests: [],
+				warnings: handled ? 0 : 1,
+				input: { text: '/review', attachments: ['context'], enabled: true },
+			});
+		});
+	}
 
 	test('a send whose session does not get ready in time is not sent, gives its input back as it was and says so', () => runWithFakedTimers({}, async () => {
 		const { composer, inputTransitions, state } = createComposer({ canSendRequest: false, focused: true });

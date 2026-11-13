@@ -1095,6 +1095,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		// The request is captured before it waits for its session or the host's confirmation, during which the input is read-only.
 		// It can still be replaced programmatically, such as by Run Prompt, and sending would then clear the newer draft.
 		const draftBeforeWait = this.getDraft();
+		const isDraftReplaced = () => !equals(draftBeforeWait, this.getDraft());
 		if (!this._canSendRequest.get()) {
 			// A request sent as the composer opens, such as by Run Prompt, can come before its session is set up to send.
 			// The request is already captured, so edits made while it waits would be lost.
@@ -1148,12 +1149,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				return false;
 			}
 		}
-		if (!equals(draftBeforeWait, this.getDraft())) {
+		if (isDraftReplaced()) {
 			// Keep the newer draft for the user to send, and say why the request did not go out.
 			if (hadFocus && canRestoreInputFocus()) {
 				widget.input.focus();
 			}
-			this.notificationService.warn(localize('sharedChatInputComposer.inputReplaced', "The request was not sent because the input was replaced while it waited. The new input was kept."));
+			this._notifyInputReplaced();
 			return false;
 		}
 
@@ -1193,8 +1194,17 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				input: query,
 			})) {
 				userInteraction?.cancel('notDispatched');
-				this.setInputValue('');
+				// The handler has acted on the request; an input replaced while it ran is newer, so it is kept.
+				if (!isInputAlive() || !isDraftReplaced()) {
+					this.setInputValue('');
+				}
 				return true;
+			}
+			// The handler can wait, during which the input can be replaced as before.
+			if (isInputAlive() && isDraftReplaced()) {
+				userInteraction?.cancel('notDispatched');
+				this._notifyInputReplaced();
+				return false;
 			}
 
 			// The input is about to be cleared: until the send ends, the host restores what is sent.
@@ -1243,6 +1253,10 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}
 			this._sending.set(false, undefined);
 		}
+	}
+
+	private _notifyInputReplaced(): void {
+		this.notificationService.warn(localize('sharedChatInputComposer.inputReplaced', "The request was not sent because the input was replaced while it waited. The new input was kept."));
 	}
 
 	/** The client-side command `rawQuery` runs, if any. Provider commands are references, so they never parse as one. */
