@@ -594,6 +594,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 	registerTokenStyleDefault('property.defaultLibrary', [['support.variable.property']]);
 	registerTokenStyleDefault('property.defaultLibrary.readonly', [['support.constant.property']]);
 	registerTokenStyleDefault('function.defaultLibrary', [['support.function']]);
+	registerTokenStyleDefault('method.defaultLibrary', [['support.function']]);
 	registerTokenStyleDefault('member.defaultLibrary', [['support.function']]);
 	return registry;
 }
