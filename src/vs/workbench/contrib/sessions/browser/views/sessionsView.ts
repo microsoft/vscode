@@ -35,7 +35,7 @@ import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
+import { getSessionFilterEnvironments, getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
 import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidget.js';
 import { AgentHostShortcutsWidget } from '../agentHostShortcutsWidget.js';
 import { Action2, IMenuService, MenuRegistry, registerAction2, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -473,9 +473,11 @@ export class SessionsView extends ViewPane {
 		});
 		const scopeEnvironments = derived(this, reader => {
 			scopeChanged.read(reader);
-			return this.sessionsProvidersService.getProviders().map(provider => provider.environment);
+			return getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 		});
-		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions, scopeEnvironments));
+		const inboxScope = this._register(this.instantiationService.createInstance(SessionsInboxScope, inboxScopeContainer, sessionsControl.filters, scopeSessions,
+			derived(reader => scopeEnvironments.read(reader).environments),
+			derived(reader => scopeEnvironments.read(reader).localEnvironmentIds)));
 		this._register(autorun(reader => {
 			scopeChanged.read(reader);
 			const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden;
@@ -885,7 +887,7 @@ export class SessionsView extends ViewPane {
 			readonly emptySourcesTitle: string | undefined;
 		}>({ owner: this, equalsFn: structuralEquals }, reader => {
 			changed.read(reader);
-			const environments = this.sessionsProvidersService.getProviders().map(provider => provider.environment);
+			const { environments } = getSessionFilterEnvironments(this.sessionsProvidersService.getProviders(), reader);
 			const options = getSessionFilterOptions(
 				this.sessionsManagementService.getSessions(),
 				environments,

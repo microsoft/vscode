@@ -1222,6 +1222,42 @@ export function getAgentHostMcpServerGroup(server: AgentHostMcpServer): McpEntry
 }
 
 /**
+ * Returns the MCP Servers page entry for a server the client bundled for the agent host. The bundle
+ * is an internal delivery plugin, so the server is presented by the VS Code configuration or
+ * extension it came from instead. Matches like the MCP Servers page: configured servers first.
+ */
+export function getClientBundledMcpServerEntry(server: AgentHostMcpServer, localServers: readonly IWorkbenchMcpServer[], runtimeServers: readonly IMcpServer[], collections: readonly Pick<McpCollectionDefinition, 'id' | 'source'>[]): IMcpInstalledEntry | undefined {
+	if (!server.isClientBundled) {
+		return undefined;
+	}
+	// Like the MCP Servers page, a configuration shadowed by another with the same name claims a server only
+	// through its own runtime definition.
+	const candidates = localServers.filter(candidate => getWorkbenchServerMatchKeys(candidate).includes(server.name));
+	const local = candidates.length === 1 ? candidates[0] : candidates.find(candidate => runtimeServers.some(runtimeServer => runtimeServer.definition.id === candidate.id));
+	if (local) {
+		return { type: 'server-item', server: local, activeSessionServer: server, localServer: runtimeServers.find(candidate => candidate.definition.id === local.id) };
+	}
+	const runtimeServer = runtimeServers.find(candidate => getRuntimeServerMatchKeys(candidate).includes(server.name));
+	if (!runtimeServer) {
+		return undefined;
+	}
+	const source = collections.find(collection => collection.id === runtimeServer.collection.id)?.source;
+	return createBuiltinEntry(runtimeServer, server, source instanceof ExtensionIdentifier ? source : undefined);
+}
+
+/**
+ * Resolves the source of a client-bundled server like the MCP Servers page: its configuration file,
+ * extension, or plugin. A configuration file source opens the file.
+ */
+export function getClientBundledMcpServerSource(entry: IMcpInstalledEntry, labelService: ILabelService, agentPluginService: IAgentPluginService, extensionsWorkbenchService: IExtensionsWorkbenchService, openPlugin?: (plugin: IAgentPlugin) => void, openFile?: (uri: URI) => void): ReturnType<typeof getMcpEntrySource> {
+	const source = getMcpEntrySource(entry, labelService, agentPluginService, extensionsWorkbenchService, openPlugin);
+	const sourceUri = getMcpEntrySourceUri(entry);
+	return source && !source.open && sourceUri && openFile
+		? { ...source, ariaLabel: localize('openMcpServerSource', "Open {0}", source.label), open: () => openFile(sourceUri) }
+		: source;
+}
+
+/**
  * Returns the origin an installed MCP server is subgrouped under within its
  * scope group, or `undefined` for servers configured directly in the scope.
  */
@@ -1240,7 +1276,10 @@ export function getMcpEntryOrigin(entry: IMcpInstalledEntry): { readonly id: str
 				: { id: `extension:${entry.extensionId.value.toLowerCase()}`, kind: 'extension', label: undefined };
 		}
 	}
-	const activeSessionServer = getActiveSessionServer(entry);
+	// A server the client bundled is presented by its own VS Code configuration, not by the
+	// internal bundle the host reports as its plugin.
+	const hostServer = getActiveSessionServer(entry);
+	const activeSessionServer = entry.type !== 'session-server-item' && hostServer?.isClientBundled ? undefined : hostServer;
 	switch (activeSessionServer?.source) {
 		case 'plugin':
 			return activeSessionServer.sourcePluginName ? { id: `plugin:${activeSessionServer.sourcePluginName}`, kind: 'plugin', label: activeSessionServer.sourcePluginName } : undefined;
@@ -1320,7 +1359,7 @@ function getMcpEntryName(element: IMcpInstalledEntry): string {
 			: getMcpEntryLabel(element);
 }
 
-function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
+export function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
 	switch (element.type) {
 		case 'server-item':
 			return element.server.local?.mcpResource;
@@ -1329,7 +1368,8 @@ function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
 		case 'connector-item':
 			return element.activeSessionServer?.sourceUri;
 		case 'builtin-item':
-			return element.activeSessionServer?.sourceUri
+			// A client-bundled server's host-reported file is in the internal bundle, not its own configuration.
+			return (element.activeSessionServer?.isClientBundled ? undefined : element.activeSessionServer?.sourceUri)
 				?? element.localServer?.readDefinitions().get().server?.presentation?.origin?.uri
 				?? element.localServer?.collection?.presentation?.origin;
 		case 'provider-item':

@@ -1478,6 +1478,7 @@ suite('AgentService (node dispatcher)', () => {
 				const provider: IAgent = disposables.add(new ScopedAgent('copilot'));
 				provider.openSessionCanvas = async (_session, _request, chat, context) => {
 					canvasCredential = resolveAgentChatContext(context, chat).credentials?.getCredential({ resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource })?.token;
+					return { kind: 'opened' };
 				};
 				registerTestAgentProvider(scopedService, provider);
 				const composition = getTestAgentServiceComposition(scopedService);
@@ -4041,6 +4042,7 @@ suite('AgentService (node dispatcher)', () => {
 			provider.openSessionCanvas = async (session, request, chat, context) => {
 				const resolved = resolveAgentChatContext(context, chat);
 				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.owner.get().toString(), request]);
+				return { kind: 'opened' };
 			};
 			provider.closeSessionCanvas = async (session, request, chat, context) => {
 				const resolved = resolveAgentChatContext(context, chat);

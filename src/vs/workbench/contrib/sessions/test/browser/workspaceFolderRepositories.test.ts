@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -14,6 +15,8 @@ import { FileOperationError, FileOperationResult, IFileContent, IFileService, IF
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../platform/workspace/common/workspace.js';
+import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { SessionsListingScopeFilter } from '../../browser/sessionScope.js';
 import { WorkspaceFolderRepositories } from '../../browser/workspaceFolderRepositories.js';
 import { parseGitHubRepositoryFromGitConfig } from '../../browser/gitHubRepositoryResolver.js';
 
@@ -129,6 +132,52 @@ suite('WorkspaceFolderRepositories', () => {
 			removedAtOnce: { repositories: ['/work/denied', '/work/other'], reads: 5, warnings: 1 },
 		});
 	});
+
+	test('once the window\'s folder moved into a worktree of its repository, the scope still lists the sessions of the repository and of all its worktrees', async () => {
+		const { fileService } = createFileService({
+			'/work/vscode/.git': true,
+			'/work/vscode.worktrees/feature/.git': 'gitdir: /work/vscode/.git/worktrees/feature',
+		});
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		// The folder keeps its primary location, and is now at its linked checkout
+		let folder = upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode') });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { } }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [folder] }),
+		}));
+		const repositories = store.add(instantiationService.createInstance(WorkspaceFolderRepositories));
+		const sessionIn = (root: string, workingDirectory: string) => upcastPartial<ISession>({
+			sessionId: `${root}|${workingDirectory}`,
+			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [upcastPartial<ISessionWorkspace['folders'][number]>({ root: URI.file(root), workingDirectory: URI.file(workingDirectory) })] })),
+		});
+		const sessions = {
+			repository: sessionIn('/work/vscode', '/work/vscode'),
+			feature: sessionIn('/work/vscode', '/work/vscode.worktrees/feature'),
+			otherWorktree: sessionIn('/work/vscode', '/work/vscode.worktrees/other'),
+			elsewhere: sessionIn('/work/tools', '/work/tools'),
+		};
+		const listed = () => {
+			const filter = store.add(new SessionsListingScopeFilter({ folders: constObservable([folder.uri]), repositories: constObservable(repositories.repositories.get()) }, () => Object.values(sessions), Event.None));
+			const scope = new Set(filter.getSessions());
+			return Object.entries(sessions).filter(([, session]) => scope.has(session)).map(([name]) => name);
+		};
+
+		await timeout(0);
+		const atPrimary = listed();
+		folder = upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode.worktrees/feature') });
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [folder] });
+		await timeout(0);
+
+		assert.deepStrictEqual({ atPrimary, atWorktree: listed(), repositories: repositories.repositories.get().map(uri => uri.path) }, {
+			atPrimary: ['repository', 'feature', 'otherWorktree'],
+			atWorktree: ['repository', 'feature', 'otherWorktree'],
+			repositories: ['/work/vscode'],
+		});
+	});
+
 
 	test('parses the GitHub repository of the origin remote', async () => {
 		const gitHubOf = async (config: string) => (await readScope({ '/work/repo/.git': true, '/work/repo/.git/config': config }, ['/work/repo'])).gitHubRepositories[0];

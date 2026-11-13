@@ -49,6 +49,9 @@ import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID } fr
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../sessions/common/sessionCommands.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../sessions/common/sessionConfig.js';
+import { ChatInputCanScheduleContext } from '../../../sessions/common/contextkeys.js';
+import { ChatAutomationsEnabledContext } from '../../common/automations/automationsEnabled.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
@@ -671,6 +674,31 @@ suite('ChatTipService', () => {
 			}).value,
 			'Use `/automate` to have the agent walk you through turning a task into a recurring automation.',
 		);
+	});
+
+	test('send later tip requires the setting and a supported Agents window chat with AI and automations enabled', () => {
+		const tip = TIP_CATALOG.find(tip => tip.id === 'tip.sendLater');
+		assert.ok(tip?.when);
+
+		const isEnabled = contextKeyService.createKey<boolean | undefined>(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, undefined);
+		const isSessionsWindow = contextKeyService.createKey<boolean>(IsSessionsWindowContext.key, true);
+		const isChatEnabled = contextKeyService.createKey<boolean>(ChatContextKeys.enabled.key, true);
+		const isAutomationsEnabled = contextKeyService.createKey<boolean>(ChatAutomationsEnabledContext.key, true);
+		const canSchedule = contextKeyService.createKey<boolean>(ChatInputCanScheduleContext.key, true);
+		const eligibility = [contextKeyService.contextMatchesRules(tip.when)];
+
+		isEnabled.set(false);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		isEnabled.set(true);
+		eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		for (const key of [isSessionsWindow, isChatEnabled, isAutomationsEnabled, canSchedule]) {
+			key.set(false);
+			eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+			key.set(true);
+			eligibility.push(contextKeyService.contextMatchesRules(tip.when));
+		}
+
+		assert.deepStrictEqual(eligibility, [false, false, true, false, true, false, true, false, true, false, true]);
 	});
 
 	test('records # file reference usage for attach files tip eligibility', () => {
