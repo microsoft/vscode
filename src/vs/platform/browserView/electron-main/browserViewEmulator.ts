@@ -23,6 +23,7 @@ export class BrowserViewEmulator extends Disposable {
 	private _device: IBrowserDeviceProfile | undefined;
 	private _elementSelectionActive = false;
 	private readonly _defaultUserAgent: string;
+	private _baseUserAgent: string;
 	private _lastLayout = { containerWidth: 1024, containerHeight: 768, scale: 1, hostZoom: 1 };
 	private _lastApplied: { viewportWidth: number; viewportHeight: number; scale: number; hostZoom: number; mobile: boolean } | undefined;
 
@@ -35,6 +36,7 @@ export class BrowserViewEmulator extends Disposable {
 	) {
 		super();
 		this._defaultUserAgent = this.browser.webContents.getUserAgent();
+		this._baseUserAgent = this._defaultUserAgent;
 
 		// Chromium may reset emulation on cross-process navigation.
 		const onNavigate = () => {
@@ -58,13 +60,24 @@ export class BrowserViewEmulator extends Disposable {
 		return this._lastLayout.scale * this._lastLayout.hostZoom;
 	}
 
+	/**
+	 * Sets the user agent used when no device profile overrides it.
+	 * Pass `undefined` to restore the default Electron user agent.
+	 */
+	setBaseUserAgent(userAgent: string | undefined): void {
+		this._baseUserAgent = userAgent || this._defaultUserAgent;
+		if (!this._device?.userAgent && this.browser.webContents.getUserAgent() !== this._baseUserAgent) {
+			this.browser.webContents.setUserAgent(this._baseUserAgent);
+		}
+	}
+
 	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {
 		const prev = this._device;
 		this._device = device;
 
 		const nextUA = device?.userAgent;
 		if (prev?.userAgent !== nextUA) {
-			this.browser.webContents.setUserAgent(nextUA ?? this._defaultUserAgent);
+			this.browser.webContents.setUserAgent(nextUA ?? this._baseUserAgent);
 		}
 
 		if (prev && !device && this.isSafeToApplyEmulation()) {

@@ -25,7 +25,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../.
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
-import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
+import { BrowserNewTabPlacementSettingId, BrowserUserAgentSettingId, getDefaultBrowserUserAgent } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
 import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../platform/url/common/trustedDomains.js';
@@ -972,6 +972,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'When enabled, localhost links (`localhost`, `127.0.0.1`, `[::1]`) and all-interfaces links (`0.0.0.0`, `[0:0:0:0:0:0:0:0]`, `[::]`) from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			),
 			agentsWindow: { default: true },
+		},
+		[BrowserUserAgentSettingId]: {
+			type: 'string',
+			default: getDefaultBrowserUserAgent(),
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.userAgent' },
+				"The user agent used by the Integrated Browser. Device emulation overrides this value."
+			),
+			scope: ConfigurationScope.WINDOW,
 		},
 		[BrowserDimOverlaySettingId]: {
 			type: 'boolean',
