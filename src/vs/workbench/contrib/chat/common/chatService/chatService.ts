@@ -2200,6 +2200,8 @@ export interface IChatRequestSubmittedEvent {
 export interface IChatRequestAcceptedEvent {
 	readonly chatSessionResource: URI;
 	readonly isNewSession: boolean;
+	/** The mode (agent) the submission was sent with, if the sender chose one. */
+	readonly modeInfo?: IChatRequestModeInfo;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

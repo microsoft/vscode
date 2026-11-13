@@ -69,7 +69,7 @@ import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModeInfo, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
@@ -647,10 +647,11 @@ suite('ChatService', () => {
 	test('acceptance counts submissions once, not rejections, system messages, retries or queue drains', async () => {
 		const service = createChatService();
 		const model = startSessionModel(service).object;
-		const accepted: boolean[] = [];
-		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		const modeInfo: IChatRequestModeInfo = { kind: undefined, isBuiltin: true, modeInstructions: undefined, telemetryModeId: undefined, applyCodeBlockSuggestionId: undefined };
+		const accepted: { isNewSession: boolean; modeInfo?: IChatRequestModeInfo }[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push({ isNewSession: event.isNewSession, modeInfo: event.modeInfo })));
 		await service.sendRequest(model.sessionResource, '');
-		const first = await service.sendRequest(model.sessionResource, 'first');
+		const first = await service.sendRequest(model.sessionResource, 'first', { modeInfo });
 		ChatSendResult.assertSent(first);
 		await first.data.responseCompletePromise;
 		await service.resendRequest(model.getRequests()[0]);
@@ -661,7 +662,11 @@ suite('ChatService', () => {
 		await service.sendRequest(model.sessionResource, 'steering', { queue: ChatRequestQueueKind.Steering, pauseQueue: true });
 		service.processPendingRequests(model.sessionResource);
 		await timeout(10);
-		assert.deepStrictEqual(accepted, [true, false, false]);
+		assert.deepStrictEqual(accepted, [
+			{ isNewSession: true, modeInfo },
+			{ isNewSession: false, modeInfo: undefined },
+			{ isNewSession: false, modeInfo: undefined },
+		]);
 	});
 
 	async function createSurveySession(sessionType: string, provider?: string) {
