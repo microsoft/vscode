@@ -17895,6 +17895,39 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({ peerSubscribed, parentSubscriptions: subscriptions(chat) - parentBefore }, { peerSubscribed: true, parentSubscriptions: 0 });
 	}));
 
+	test('a configuration lease whose session or chat state arrives as the provider is disposed in a microtask queued with it ends there', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const outcomes: Record<string, unknown> = {};
+		for (const variant of ['session', 'chat'] as const) {
+			const rawId = `config-queued-dispose-${variant}`;
+			const { provider, chat, peer, peerSummary, state } = perChatSession(rawId, true, { withoutChatState: true, peerFromTool: true });
+			await timeout(0);
+			const session = provider.getSessions().find(session => session.title.get() === rawId)!;
+			await waitForSessionConfig(provider, session, config => !!config);
+			const peerResource = session.chats.get().find(candidate => !isEqual(candidate.resource, session.mainChat.get().resource))!.resource;
+			// Once disposed, the provider holds no chat of the session: also none the lease subscribed to before the dispose ran
+			const live = (resource: string) => (agentHost.sessionSubscribeCounts.get(resource) ?? 0) - (agentHost.sessionUnsubscribeCounts.get(resource) ?? 0);
+
+			if (variant === 'session') {
+				agentHost.clearSessionState(rawId, 'copilotcli');
+			}
+			const pending = provider.acquireSessionConfig(session.sessionId, peerResource, CancellationToken.None);
+			const rejected = assert.rejects(pending, /Cancel/);
+			if (variant === 'session') {
+				agentHost.setSessionState(rawId, 'copilotcli', state());
+			} else {
+				await timeout(0);
+				agentHost.setChatState(peer, { ...peerSummary, turns: [] });
+			}
+			queueMicrotask(() => provider.dispose());
+			await rejected;
+			await timeout(60_000);
+			outcomes[variant] = { peer: live(peer), parent: live(chat) };
+		}
+
+		// The leak tracker of the suite checks that nothing registered on the disposed lease
+		assert.deepStrictEqual(outcomes, { session: { peer: 0, parent: 0 }, chat: { peer: 0, parent: 0 } });
+	}));
+
 	test('resolves creation isolation for the selected harness and workspace without creating a draft', async () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
