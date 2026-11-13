@@ -5095,6 +5095,49 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(result.details, 'Custom Endpoint/My Endpoint/Custom Model • 1 credit');
 		}));
 
+		test('live BYOK turn resolves unprefixed usage.model under selected BYOK model provider even when same-named or normalized Copilot model exists', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const byok = createByokLanguageModelTestData();
+			const clashingCopilotModel = upcastPartial<ILanguageModelChatMetadata>({
+				name: 'Claude Haiku 5.5 (Copilot)',
+				id: 'claude-haiku.5.5',
+				vendor: 'agent-host-copilot',
+			});
+			const byokModel = upcastPartial<ILanguageModelChatMetadata>({
+				name: 'Claude Haiku 5.5',
+				id: 'claude-haiku-5-5',
+				vendor: 'openrouter',
+				isBYOK: true,
+			});
+			const bridgedByokModel = upcastPartial<ILanguageModelChatMetadata>({
+				name: 'Claude Haiku 5.5',
+				id: 'openrouter/claude-haiku-5-5',
+				vendor: 'agent-host-copilot',
+				modelGroup: { id: 'openrouter' },
+				byokModelIdentifier: 'openrouter/claude-haiku-5-5',
+			});
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				...byok.languageModels,
+				['agent-host-copilot:claude-haiku.5.5', clashingCopilotModel],
+				['openrouter/claude-haiku-5-5', byokModel],
+				['agent-host-copilot:openrouter/claude-haiku-5-5', bridgedByokModel],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				...byok,
+				languageModels,
+			});
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				userSelectedModelId: 'agent-host-copilot:openrouter/claude-haiku-5-5',
+			});
+
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'claude-haiku-5-5', _meta: { cost: 0 } } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'OpenRouter/Claude Haiku 5.5 • 0 credits');
+		}));
+
 		test('cancelled turn still returns model credit details from accumulated usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],

@@ -5744,7 +5744,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			return undefined;
 		};
+		const fallbackProvider = fallbackRawModelId && fallbackRawModelId.includes('/')
+			? fallbackRawModelId.slice(0, fallbackRawModelId.lastIndexOf('/'))
+			: undefined;
 		const lookupModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+			if (fallbackProvider && rawModelId && !rawModelId.includes('/')) {
+				const byokRaw = lookupRawModel(`${fallbackProvider}/${rawModelId}`);
+				if (byokRaw) {
+					return byokRaw;
+				}
+			}
+			if (fallbackProvider) {
+				const fallbackModelId = this._toLanguageModelId(sessionResource, fallbackRawModelId);
+				if (fallbackModelId) {
+					const model = this._languageModelsService.lookupLanguageModel(fallbackModelId);
+					if (model) { return { identifier: fallbackModelId, model, resolvedFromRaw: false }; }
+				}
+			}
 			const rawModel = lookupRawModel(rawModelId);
 			if (rawModel) {
 				return rawModel;
@@ -5771,7 +5787,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 		return {
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
-			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name,
+			toModelDisplayName: rawModelId => lookupModel(rawModelId)?.model.name ?? lookupRawModel(rawModelId)?.model.name,
 			toResponseDetails: (rawModelId, usage) => {
 				const { billedId, resolved } = resolveBilledModel(rawModelId, usage);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
