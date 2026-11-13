@@ -684,6 +684,8 @@ suite('mcpListWidget', () => {
 					},
 				},
 				installedEntries: entries.map(entry => ({ entry })),
+				collapsedGroups: new Set<string>(),
+				searchQuery: '',
 				isGalleryDiscoveryEnabled: () => true,
 				shouldShowLegacyGallery: () => false,
 				getAvailableGalleryServers: () => [],
@@ -715,6 +717,49 @@ suite('mcpListWidget', () => {
 		});
 	});
 
+	test('keeps collapsed groups collapsed when the server list changes', () => {
+		const localEntry = (id: string, scope: LocalMcpServerScope): IMcpInstalledEntry => ({
+			type: 'server-item',
+			server: { id, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
+		});
+		type TreeNode = { readonly element: { readonly type: string; readonly label?: string }; readonly collapsed?: unknown; readonly children?: readonly unknown[] };
+		const renders: (readonly TreeNode[] | undefined)[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renders.push(children) },
+			installedEntries: [localEntry('workspace-one', LocalMcpServerScope.Workspace), localEntry('user-one', LocalMcpServerScope.User)].map(entry => ({ entry })),
+			collapsedGroups: new Set<string>(['user']),
+			searchQuery: '',
+			isGalleryDiscoveryEnabled: () => true,
+			shouldShowLegacyGallery: () => false,
+			getAvailableGalleryServers: () => [],
+			cardScrollableNode: document.createElement('div'),
+			cardDisposables: { clear() { } },
+			updateMcpTreeEmptyState: () => { },
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() {
+					return testIWorkspace({ id: 'test', folders: [] });
+				}
+			}(),
+		});
+		const renderMcpTree = Reflect.get(McpListWidget.prototype, 'renderMcpTree') as (this: object) => void;
+		const describeRenders = () => renders.splice(0).map(children => children?.map(child => `${child.element.label} (${child.children?.length}) ${child.collapsed ? 'collapsed' : 'expanded'}`));
+
+		renderMcpTree.call(widget);
+		const initial = describeRenders();
+		widget.installedEntries = [...widget.installedEntries, { entry: localEntry('user-two', LocalMcpServerScope.User) }];
+		renderMcpTree.call(widget);
+		const afterServerAdded = describeRenders();
+		widget.searchQuery = 'one';
+		renderMcpTree.call(widget);
+		const whileSearching = describeRenders();
+
+		assert.deepStrictEqual({ initial, afterServerAdded, whileSearching }, {
+			initial: [['Workspace (1) expanded', 'User (1) collapsed']],
+			afterServerAdded: [['Workspace (1) expanded', 'User (2) collapsed']],
+			whileSearching: [['Workspace (1) expanded', 'User (2) expanded']],
+		});
+	});
+
 	test('splits workspace MCP sections in multi-root workspaces', () => {
 		const firstUri = URI.file('/workspace/first');
 		const secondUri = URI.file('/workspace/second');
@@ -740,6 +785,8 @@ suite('mcpListWidget', () => {
 		const widget = Object.assign(Object.create(McpListWidget.prototype), {
 			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renderedChildren = children ?? [] },
 			installedEntries: [createEntry('first', folders[0]), createEntry('second', folders[1])].map(entry => ({ entry })),
+			collapsedGroups: new Set<string>(),
+			searchQuery: '',
 			isGalleryDiscoveryEnabled: () => true,
 			shouldShowLegacyGallery: () => false,
 			getAvailableGalleryServers: () => [],
