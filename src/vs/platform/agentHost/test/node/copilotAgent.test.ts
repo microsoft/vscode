@@ -14977,15 +14977,19 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('strips inherited HydraFusion and dynamic Auto tier flags and preserves unrelated environment', () => {
+		test('strips inherited HydraFusion, dynamic Auto tier and setting experiment flags and preserves unrelated environment', () => {
 			const env = createCopilotCliEnvironment({
-				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2, hydrafusion_sticky_root, HYDRAFUSION_INTERRUPTED_COMMIT, DYNAMIC_AUTO_TIERS',
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2, hydrafusion_sticky_root, HYDRAFUSION_INTERRUPTED_COMMIT, HYDRAFUSION_SENT_HISTORY_ADOPTION, context_budget_tool_estimate, DYNAMIC_AUTO_TIERS',
 				DYNAMIC_AUTO_TIERS: 'true',
 				HYDRAFUSION: 'true',
 				HYDRAFUSION_ROLLOUT: 'true',
 				HYDRAFUSION_PLAN_V2: 'true',
 				HYDRAFUSION_STICKY_ROOT: 'true',
 				HYDRAFUSION_INTERRUPTED_COMMIT: 'true',
+				HYDRAFUSION_SENT_HISTORY_ADOPTION: 'true',
+				CONTEXT_BUDGET_TOOL_ESTIMATE: 'true',
+				COPILOT_EXP_COPILOT_CLI_HYDRAFUSION_SENT_HISTORY_ADOPTION: 'true',
+				COPILOT_EXP_COPILOT_CLI_CONTEXT_BUDGET_TOOL_ESTIMATE: 'true',
 				COMPUTER_USE: 'true',
 				PATH: '/usr/bin',
 			});
@@ -14997,6 +15001,10 @@ suite('CopilotAgent', () => {
 				hydraFusionV2: env['HYDRAFUSION_PLAN_V2'],
 				hydraFusionStickyRoot: env['HYDRAFUSION_STICKY_ROOT'],
 				hydraFusionInterruptedCommit: env['HYDRAFUSION_INTERRUPTED_COMMIT'],
+				hydraFusionSentHistoryAdoption: env['HYDRAFUSION_SENT_HISTORY_ADOPTION'],
+				contextBudgetToolEstimate: env['CONTEXT_BUDGET_TOOL_ESTIMATE'],
+				sentHistoryAdoptionExp: env['COPILOT_EXP_COPILOT_CLI_HYDRAFUSION_SENT_HISTORY_ADOPTION'],
+				contextBudgetToolEstimateExp: env['COPILOT_EXP_COPILOT_CLI_CONTEXT_BUDGET_TOOL_ESTIMATE'],
 				featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
 				computerUse: env['COMPUTER_USE'],
 				path: env['PATH'],
@@ -15007,6 +15015,10 @@ suite('CopilotAgent', () => {
 				hydraFusionV2: undefined,
 				hydraFusionStickyRoot: undefined,
 				hydraFusionInterruptedCommit: undefined,
+				hydraFusionSentHistoryAdoption: undefined,
+				contextBudgetToolEstimate: undefined,
+				sentHistoryAdoptionExp: undefined,
+				contextBudgetToolEstimateExp: undefined,
 				featureFlags: 'COMPUTER_USE',
 				computerUse: 'true',
 				path: '/usr/bin',

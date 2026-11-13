@@ -1474,6 +1474,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
+		const fusionSentHistoryAdoptionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.FusionSentHistoryAdoption) === true;
+		const contextBudgetToolEstimateEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ContextBudgetToolEstimate) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
 		const featureFlags = {
 			AUTO_APPROVAL: true,
@@ -1498,6 +1500,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
 			HYDRAFUSION_PLAN_V2: true,
 			HYDRAFUSION_STICKY_ROOT: true,
+			// The next turn extends the request history a committed Fusion phase sent, keeping its prompt cache.
+			...(fusionSentHistoryAdoptionEnabled ? { HYDRAFUSION_SENT_HISTORY_ADOPTION: true } : {}),
+			// Pre-request context checks count deferred tools as the next request sends them.
+			...(contextBudgetToolEstimateEnabled ? { CONTEXT_BUDGET_TOOL_ESTIMATE: true } : {}),
 		};
 		const enableCustomTerminalTool = plan.workspace?.kind !== 'virtual' && process.platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellToolsPromise: ReturnType<typeof createShellTools> | Promise<[]> = Promise.resolve([]);

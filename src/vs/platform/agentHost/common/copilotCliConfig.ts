@@ -68,6 +68,14 @@ export const enum CopilotCliConfigKey {
 	Opus48Prompt = 'opus48Prompt',
 	/** Send the system prompt in the runtime's stability-ordered prompt-cache layout. Off by default. */
 	StabilityOrderedPrompt = 'stabilityOrderedPrompt',
+	/** Keep the conversation a committed Copilot Fusion phase sent as the session's history. Off by default. */
+	FusionSentHistoryAdoption = 'fusionSentHistoryAdoption',
+	/** Whether the workbench Copilot Fusion sent-history value is controlled by its configuration default. */
+	FusionSentHistoryAdoptionDefaultControlled = 'fusionSentHistoryAdoptionDefaultControlled',
+	/** Count deferred tools as the next request sends them when estimating context use before a request. Off by default. */
+	ContextBudgetToolEstimate = 'contextBudgetToolEstimate',
+	/** Whether the workbench context budget tool estimate value is controlled by its configuration default. */
+	ContextBudgetToolEstimateDefaultControlled = 'contextBudgetToolEstimateDefaultControlled',
 	/** Ask GPT and Auto sessions for brief user-visible progress updates before and between tool calls. Off by default. */
 	ProgressUpdatesPrompt = 'progressUpdatesPrompt',
 	/** Whether the workbench progress-update prompt value is controlled by its configuration default. */
@@ -146,6 +154,10 @@ export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
+
+export const CopilotFusionSentHistoryAdoptionEnabledSettingId = 'chat.copilot.fusion.sentHistoryAdoption.enabled';
+
+export const CopilotContextBudgetToolEstimateEnabledSettingId = 'chat.copilot.contextBudgetToolEstimate.enabled';
 
 export const AgentHostCopilotProgressUpdatesPromptSettingId = 'chat.agentHost.copilot.progressUpdatesPrompt.enabled';
 
@@ -370,6 +382,30 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.stabilityOrderedPrompt.title', "Stability-Ordered System Prompt"),
 		description: localize('agentHost.config.stabilityOrderedPrompt.description', "When enabled, Copilot SDK sessions order the system prompt by how often each section changes, so sessions with the same tools and workspace can reuse each other's prompt cache. This moves per-session sections, such as the environment and session folder, to the end of the system prompt."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.FusionSentHistoryAdoption]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.fusionSentHistoryAdoption.title', "Copilot Fusion Sent History"),
+		description: localize('agentHost.config.fusionSentHistoryAdoption.description', "When enabled, a Copilot Fusion turn keeps the conversation its committed phase sent to the model, including request-only context such as the deferred-tool reminder, so the next turn extends the cached prompt instead of rewriting it."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ContextBudgetToolEstimate]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.contextBudgetToolEstimate.title', "Context Budget Tool Estimate"),
+		description: localize('agentHost.config.contextBudgetToolEstimate.description', "When enabled, Copilot SDK sessions count deferred tools the way the next request sends them when measuring context use before a request, instead of counting every tool schema in full. This avoids unneeded compaction, for example after a session resumes."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.FusionSentHistoryAdoptionDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.fusionSentHistoryAdoptionDefaultControlled.title', "Copilot Fusion Sent History Default Control"),
+		description: localize('agentHost.config.fusionSentHistoryAdoptionDefaultControlled.description', "Whether the workbench Copilot Fusion sent history setting has no explicit override. Used only to gate setting experiment telemetry."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ContextBudgetToolEstimateDefaultControlled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.contextBudgetToolEstimateDefaultControlled.title', "Context Budget Tool Estimate Default Control"),
+		description: localize('agentHost.config.contextBudgetToolEstimateDefaultControlled.description', "Whether the workbench context budget tool estimate setting has no explicit override. Used only to gate setting experiment telemetry."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ProgressUpdatesPrompt]: schemaProperty<boolean>({

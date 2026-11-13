@@ -4248,6 +4248,21 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('configures the runtime cache feature flags from their settings', async () => {
+		const store = disposables.add(new DisposableStore());
+		const fusionSentHistoryAdoption = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.FusionSentHistoryAdoption]: true }), { id: 'gpt-5' });
+		const contextBudgetToolEstimate = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.ContextBudgetToolEstimate]: true }), { id: 'gpt-5' });
+		const base = { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: false, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false };
+
+		assert.deepStrictEqual({
+			fusionSentHistoryAdoption: fusionSentHistoryAdoption.featureFlags,
+			contextBudgetToolEstimate: contextBudgetToolEstimate.featureFlags,
+		}, {
+			fusionSentHistoryAdoption: { ...base, HYDRAFUSION_SENT_HISTORY_ADOPTION: true },
+			contextBudgetToolEstimate: { ...base, CONTEXT_BUDGET_TOOL_ESTIMATE: true },
+		});
+	});
+
 	test('exposes only the client semantic-search override', async () => {
 		const store = new DisposableStore();
 		const snapshot = { discoveredAgents: [], additionalRootInstructions: [], tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} };
