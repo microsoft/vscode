@@ -552,7 +552,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				const repository = this.getRepository(uri);
 
 				if (repository) {
-					this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Repository for editor resource ${uri.fsPath} already exists: ${repository.root}`);
+					// Handle nested repositories that are shadowed by the already-open repository
+					const nestedRepositoryPath = await this.findNestedRepositoryPath(path.dirname(uri.fsPath), repository.root);
+
+					if (!nestedRepositoryPath) {
+						this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Repository for editor resource ${uri.fsPath} already exists: ${repository.root}`);
+						return;
+					}
+
+					this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Open nested repository for editor resource ${uri.fsPath}`);
+					await this.openRepository(nestedRepositoryPath);
 					return;
 				}
 
@@ -563,6 +572,30 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		catch (err) {
 			this.logger.warn(`[Model][onDidChangeVisibleTextEditors] Error: ${err}`);
 		}
+	}
+
+	/**
+	 * Walks from `folderPath` up to (excluding) `repositoryRoot` looking for a
+	 * `.git` folder/file of a nested repository that has not been opened yet.
+	 */
+	private async findNestedRepositoryPath(folderPath: string, repositoryRoot: string): Promise<string | undefined> {
+		while (isDescendant(repositoryRoot, folderPath) && !pathEquals(repositoryRoot, folderPath)) {
+			try {
+				await fs.promises.stat(path.join(folderPath, '.git'));
+				return folderPath;
+			} catch {
+				// no `.git` at this level, continue with the parent folder
+			}
+
+			const parentPath = path.dirname(folderPath);
+			if (pathEquals(parentPath, folderPath)) {
+				break;
+			}
+
+			folderPath = parentPath;
+		}
+
+		return undefined;
 	}
 
 	private onDidChangeActiveTextEditor(): void {
