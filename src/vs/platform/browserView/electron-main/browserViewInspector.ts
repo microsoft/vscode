@@ -113,16 +113,14 @@ export class BrowserViewInspector extends Disposable {
 		// Wire up inspector adoption from the registry
 		this._register(this._registry.onDidAdopt(inspector => this._onInspectorAdopted(inspector)));
 
-		const onNavigatedPrune = () => this._registry.pruneRetiredFrames();
-
 		// Navigation destroys preload overlays and CDP state
 		const onNavigated = () => {
 			this._activeSelection.clear();
 			this._activeAreaSelection.clear();
+			this._registry.pruneRetiredFrames();
 		};
 		webContents.on('did-navigate', onNavigated);
-		webContents.on('did-navigate', onNavigatedPrune);
-		this._register({ dispose: () => { webContents.removeListener('did-navigate', onNavigated); webContents.removeListener('did-navigate', onNavigatedPrune); } });
+		this._register({ dispose: () => webContents.removeListener('did-navigate', onNavigated) });
 
 		// Preload ready — the key correlation point between WebFrameMain and CDP target
 		const onIpcMessage = (_event: Electron.Event, channel: string, ...args: unknown[]) => {
@@ -708,12 +706,7 @@ class FrameInspectorRegistry extends Disposable {
 				this._pendingSessions.delete(token);
 			}
 		}
-		// Remove any pending frame entries whose frame is now detached/destroyed
-		for (const [token, frame] of this._pendingFrames) {
-			if (frame.detached || frame.isDestroyed()) {
-				this._pendingFrames.delete(token);
-			}
-		}
+		this.pruneRetiredFrames();
 	}
 
 	/** Dispose all inspectors whose connection is the given session and clear related pending state. */
