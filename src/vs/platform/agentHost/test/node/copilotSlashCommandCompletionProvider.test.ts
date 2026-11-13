@@ -1242,9 +1242,9 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			};
 		}
 
-		function syncedPlugin(name: string, children?: readonly SkillCustomization[]): PluginCustomization {
+		function syncedPlugin(name: string, children?: readonly SkillCustomization[], enabled = true): PluginCustomization {
 			return {
-				...plugin(name, children),
+				...plugin(name, children, enabled),
 				id: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
 				uri: `${SYNCED_CUSTOMIZATION_SCHEME}:/plugins/${name}`,
 			};
@@ -1359,33 +1359,98 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-skill ']);
 		});
 
-		test('treats skills inside disabled containers as unknown', async () => {
+		test('excludes runtime skills inside disabled containers', async () => {
 			const provider = createProvider(
-				[{ name: 'my-plugin:my-skill', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true }],
-				[plugin('my-plugin', [skill('my-skill')], false)],
+				['my-plugin:my-skill', 'bundled', 'skills-bundle:bundled', 'local'].map(name => ({
+					name, description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true,
+				})),
+				[
+					plugin('my-plugin', [skill('my-skill')], false),
+					syncedPlugin('skills-bundle', [skill('bundled')], false),
+					{
+						type: CustomizationType.Directory, id: 'file:///skills', uri: 'file:///skills', name: 'skills',
+						enabled: false, contents: CustomizationType.Skill, writable: false,
+						load: { kind: CustomizationLoadStatus.Loaded }, children: [skill('local')],
+					},
+				],
 			);
 			const items = await run(provider, '/');
-			assert.deepStrictEqual(runtimeOnly(items).map(i => i.insertText), ['/my-plugin:my-skill ']);
+			assert.deepStrictEqual(runtimeOnly(items), []);
 		});
 
-		test('treats user-disabled and disabled skill children as unknown', async () => {
+		test('excludes user-disabled and disabled skill children', async () => {
 			const provider = createProvider(
 				[
 					{ name: 'my-plugin:user-disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 					{ name: 'my-plugin:disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'same-name', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 				],
-				[plugin('my-plugin', [
-					skill('user-disabled', undefined, { disableUserInvocation: true }),
-					skill('disabled', undefined, { enabled: false }),
-				])],
+				[
+					plugin('my-plugin', [
+						skill('user-disabled', undefined, { disableUserInvocation: true }),
+						skill('disabled', undefined, { enabled: false }),
+					]),
+					plugin('same-name', [skill('same-name', undefined, { disableUserInvocation: true })]),
+				],
 			);
 
 			const items = await run(provider, '/');
 
-			assert.deepStrictEqual(runtimeOnly(items).map(item => item.insertText), [
-				'/my-plugin:disabled ',
-				'/my-plugin:user-disabled ',
+			assert.deepStrictEqual(runtimeOnly(items), []);
+		});
+
+		test('excludes ineligible synced skills even when bare names are reserved', async () => {
+			const names = ['ordinary', 'plan', 'compact', 'rubber-duck', 'triage', 'inspect'];
+			const provider = createProvider(
+				[
+					...names.flatMap(name => [name, `skills-bundle:${name}`]).map(name => ({
+						name, description: 'Runtime skill', kind: 'skill' as const, allowDuringAgentExecution: true,
+					})),
+					{ name: 'triage', aliases: ['inspect'], description: 'Built-in command', kind: 'builtin', allowDuringAgentExecution: true },
+					{ name: 'ordinary', aliases: ['shortcut'], description: 'Client command', kind: 'client', allowDuringAgentExecution: true },
+					{ name: 'skills-bundle:unknown', description: 'Unknown skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[syncedPlugin('skills-bundle', names.map(name => skill(name, undefined, { disableUserInvocation: true })))],
+			);
+
+			assert.deepStrictEqual(runtimeOnly(await run(provider, '/')).map(item => item.insertText), [
+				'/inspect ', '/ordinary ', '/shortcut ', '/skills-bundle:unknown ', '/triage ',
 			]);
+		});
+
+		test('keeps eligible qualified synced skills when bare names are reserved by client commands or aliases', async () => {
+			const provider = createProvider(
+				[
+					...['compact', 'rubber-duck', 'inspect'].map(name => ({
+						name: `skills-bundle:${name}`, description: 'Runtime skill', kind: 'skill' as const, allowDuringAgentExecution: true,
+					})),
+					{ name: 'triage', aliases: ['inspect'], description: 'Built-in command', kind: 'builtin', allowDuringAgentExecution: true },
+				],
+				[syncedPlugin('skills-bundle', ['compact', 'rubber-duck', 'inspect'].map(name => skill(name)))],
+			);
+
+			assert.deepStrictEqual(runtimeOnly(await run(provider, '/')).map(item => item.insertText), [
+				'/inspect ', '/skills-bundle:compact ', '/skills-bundle:inspect ', '/skills-bundle:rubber-duck ', '/triage ',
+			]);
+		});
+
+		test('excludes ineligible skill aliases without suppressing unrelated bare skills', async () => {
+			const provider = createProvider(
+				[
+					{ name: 'my-plugin:hidden', aliases: ['short'], description: 'Hidden skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'alternate', aliases: ['MY-PLUGIN:HIDDEN'], description: 'Hidden skill alias', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'hidden', aliases: ['runtime-alias'], description: 'Unrelated skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'other:hidden', description: 'Other plugin skill', kind: 'skill', allowDuringAgentExecution: true },
+				],
+				[plugin('my-plugin', [skill('hidden', undefined, { disableUserInvocation: true })])],
+			);
+			const expected = ['/hidden ', '/other:hidden ', '/runtime-alias '];
+
+			assert.deepStrictEqual({
+				leading: runtimeOnly(await run(provider, '/')).map(item => item.insertText),
+				inline: (await run(provider, 'Use /')).map(item => item.insertText),
+				explicit: runtimeOnly(await run(provider, '/short')),
+			}, { leading: expected, inline: expected, explicit: [] });
 		});
 
 		test('hides internal MCP skill commands and excludes MCP skills from management arguments', async () => {
