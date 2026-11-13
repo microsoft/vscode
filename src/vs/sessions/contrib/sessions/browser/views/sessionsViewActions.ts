@@ -48,7 +48,9 @@ AccessibleViewRegistry.register({
 	when: SessionsListNotificationFocused,
 	getProvider: accessor => accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.getAccessibilityHelp(),
 });
-import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { SessionsArchiveActionsContribution, registerSessionsListActions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+
+registerSessionsListActions();
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {

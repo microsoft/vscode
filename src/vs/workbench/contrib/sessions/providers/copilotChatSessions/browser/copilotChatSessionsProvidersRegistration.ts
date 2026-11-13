@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from '../../../../../common/contributions.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IDisposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
@@ -15,44 +14,42 @@ import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/age
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 /**
- * Registers the {@link CopilotChatSessionsProvider} as a sessions provider.
+ * Registers the {@link CopilotChatSessionsProvider} as a sessions provider, and on the web also its cloud sandbox provider
+ * while cloud sandboxes are enabled, until the returned disposable is disposed.
  *
  * The provider only surfaces Copilot Cloud sessions from the Copilot extension;
  * local Copilot CLI sessions are owned by the agent host providers.
  */
-export class DefaultSessionsProviderContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'sessions.defaultSessionsProvider';
+export function registerCopilotChatSessionsProviders(accessor: ServicesAccessor): IDisposable {
+	const instantiationService = accessor.get(IInstantiationService);
+	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+	const configurationService = accessor.get(IConfigurationService);
+	const chatEntitlementService = accessor.get(IChatEntitlementService);
 
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
-	) {
-		super();
+	const disposables = new DisposableStore();
 
-		const provider = this._register(instantiationService.createInstance(CopilotChatSessionsProvider, 'default'));
-		this._register(sessionsProvidersService.registerProvider(provider));
+	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider, 'default'));
+	disposables.add(sessionsProvidersService.registerProvider(provider));
 
-		if (isWeb) {
-			const sandboxRegistration = this._register(new MutableDisposable<DisposableStore>());
-			const updateSandboxRegistration = () => {
-				if (!isCloudSandboxEnabled(configurationService) || chatEntitlementService.sentiment.hidden) {
-					sandboxRegistration.clear();
-				} else if (!sandboxRegistration.value) {
-					const store = new DisposableStore();
-					sandboxRegistration.value = store;
-					const sandboxProvider = store.add(instantiationService.createInstance(CopilotChatSessionsProvider, 'sandbox'));
-					store.add(sessionsProvidersService.registerProvider(sandboxProvider));
-				}
-			};
-			this._register(configurationService.onDidChangeConfiguration(event => {
-				if (event.affectsConfiguration(CloudSandboxEnabledSettingId) || event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
-					updateSandboxRegistration();
-				}
-			}));
-			this._register(chatEntitlementService.onDidChangeSentiment(updateSandboxRegistration));
-			updateSandboxRegistration();
-		}
+	if (isWeb) {
+		const sandboxRegistration = disposables.add(new MutableDisposable<DisposableStore>());
+		const updateSandboxRegistration = () => {
+			if (!isCloudSandboxEnabled(configurationService) || chatEntitlementService.sentiment.hidden) {
+				sandboxRegistration.clear();
+			} else if (!sandboxRegistration.value) {
+				const store = new DisposableStore();
+				sandboxRegistration.value = store;
+				const sandboxProvider = store.add(instantiationService.createInstance(CopilotChatSessionsProvider, 'sandbox'));
+				store.add(sessionsProvidersService.registerProvider(sandboxProvider));
+			}
+		};
+		disposables.add(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(CloudSandboxEnabledSettingId) || event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				updateSandboxRegistration();
+			}
+		}));
+		disposables.add(chatEntitlementService.onDidChangeSentiment(updateSandboxRegistration));
+		updateSandboxRegistration();
 	}
+	return disposables;
 }

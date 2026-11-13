@@ -16,7 +16,9 @@ import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../workbench/contrib
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { resolveGridCommandView } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { ModelPickerToolbarsContribution } from '../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
+import { ModelPickerToolbarsContribution, registerModelPickerAction } from '../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
+
+registerModelPickerAction();
 
 // -- Action --
 

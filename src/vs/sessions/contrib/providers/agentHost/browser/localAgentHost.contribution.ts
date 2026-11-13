@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { AgentHostContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostTerminalContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { AgentHostCopilotCliSettingsContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
@@ -11,7 +13,18 @@ import { AgentHostSignedOutCompatibilityContribution } from '../../../../../work
 import { AgentHostSdkSetupNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
 import { AgentHostSignedOutModelsNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import './codexCustomizationSettings.contribution.js';
-import { LocalAgentHostContribution } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProviderRegistration.js';
+import { registerLocalAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProviderRegistration.js';
+
+/** Registers the local agent host sessions provider of the Agents window. */
+class LocalAgentHostContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.contrib.localAgentHostContribution';
+
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
+		super();
+		this._register(instantiationService.invokeFunction(registerLocalAgentHostSessionsProvider));
+	}
+}
 
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);

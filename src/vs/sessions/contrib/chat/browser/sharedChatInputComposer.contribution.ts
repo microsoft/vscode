@@ -26,7 +26,9 @@ import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/ses
 import { SessionsGrouping } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { IScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
-import { SharedChatInputComposerContribution } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
+import { SharedChatInputComposerContribution, registerSharedChatInputComposerToolbar } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
+
+registerSharedChatInputComposerToolbar();
 
 export class SendInBackgroundAction extends Action2 {
 	constructor() {

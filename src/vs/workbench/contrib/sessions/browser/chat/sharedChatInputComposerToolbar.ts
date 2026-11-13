@@ -8,7 +8,7 @@ import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/act
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -25,40 +25,6 @@ import { SharedChatInputComposerBusyContext } from './sharedChatInputComposer.js
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
 const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
 export const COMPOSER_SESSION_CONTROLS_ACTION_ID = 'sessions.newChatComposer.sessionControls';
-MenuRegistry.appendMenuItem(Menus.NewSessionChatInputToolbar, {
-	command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },
-	group: 'navigation',
-	order: -2,
-});
-
-for (const [id, title, busy] of [
-	[COMPOSER_INITIALIZING_ACTION_ID, localize2('sessionsSharedChatInput.initializing', "Initializing..."), 'initializing'],
-	[COMPOSER_SENDING_ACTION_ID, localize2('sessionsSharedChatInput.sending', "Loading..."), 'sending'],
-] as const) {
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id,
-				title,
-				f1: false,
-				menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 100, when: SharedChatInputComposerBusyContext.isEqualTo(busy) },
-			});
-		}
-		override run(): void { /* progress only */ }
-	});
-}
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: COMPOSER_SESSION_CONTROLS_ACTION_ID,
-			title: localize2('sessionsSharedChatInput.sessionControls', "Session Controls"),
-			f1: false,
-			menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0 },
-		});
-	}
-	override run(): void { /* rendered by the action view item */ }
-});
 
 /** Progress in the composer's input toolbar, labelled by its action. */
 class ComposerBusyActionViewItem extends BaseActionViewItem {
@@ -143,4 +109,49 @@ export class SharedChatInputComposerContribution extends Disposable implements I
 		}
 		this._register(actionViewItemService.register(Menus.NewSessionChatInputToolbar, COMPOSER_SESSION_CONTROLS_ACTION_ID, (action, _options, instantiationService) => new ComposerSessionControlsActionViewItem(action, instantiationService)));
 	}
+}
+
+/**
+ * Registers the items of a new-session composer's input toolbar, until the returned disposable is disposed: Add Context,
+ * its progress and its session controls. {@link SharedChatInputComposerContribution} renders the progress and controls.
+ */
+export function registerSharedChatInputComposerToolbar(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(MenuRegistry.appendMenuItem(Menus.NewSessionChatInputToolbar, {
+		command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },
+		group: 'navigation',
+		order: -2,
+	}));
+
+	for (const [id, title, busy] of [
+		[COMPOSER_INITIALIZING_ACTION_ID, localize2('sessionsSharedChatInput.initializing', "Initializing..."), 'initializing'],
+		[COMPOSER_SENDING_ACTION_ID, localize2('sessionsSharedChatInput.sending', "Loading..."), 'sending'],
+	] as const) {
+		store.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id,
+					title,
+					f1: false,
+					menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 100, when: SharedChatInputComposerBusyContext.isEqualTo(busy) },
+				});
+			}
+			override run(): void { /* progress only */ }
+		}));
+	}
+
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: COMPOSER_SESSION_CONTROLS_ACTION_ID,
+				title: localize2('sessionsSharedChatInput.sessionControls', "Session Controls"),
+				f1: false,
+				menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0 },
+			});
+		}
+		override run(): void { /* rendered by the action view item */ }
+	}));
+
+	return store;
 }
