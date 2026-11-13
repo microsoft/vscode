@@ -220,7 +220,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		return candidates.filter((_, index) => trusted[index]).map(({ folder }) => folder);
 	}
 
-	/** Looks up the path style of every connected host. Hosts whose platform and style are unknown are left out and treated as case-sensitive. */
+	/** Looks up whether each connected host's paths are case-sensitive. Hosts whose platform and path style are unknown are left out and treated as case-sensitive. */
 	private _computeCaseSensitiveHosts(reader: IReader): { readonly [authority: string]: boolean } {
 		const hosts: { [authority: string]: boolean } = {};
 		for (const { authority } of this._agentHostConnectionsService.connections) {
