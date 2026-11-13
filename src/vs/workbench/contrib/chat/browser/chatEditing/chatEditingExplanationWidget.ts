@@ -353,8 +353,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 				if (this._chatSessionResource) {
 					chatWidget = await this._chatWidgetService.openSession(this._chatSessionResource);
 				} else {
-					await this._chatWidgetService.revealChatView(false);
-					chatWidget = this._chatWidgetService.lastFocusedWidget;
+					chatWidget = await this._chatWidgetService.revealChatView(false);
 				}
 				if (chatWidget) {
 					chatWidget.attachmentModel.addContext(

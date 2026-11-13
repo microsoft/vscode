@@ -56,7 +56,7 @@ import { IChatInputNoticeHubService } from '../widget/input/chatInputNoticeHub.j
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatMode, IChatMode } from '../../common/chatModes.js';
-import { chatAgentLeader } from '../../common/requestParser/chatParserTypes.js';
+import { agentReg } from '../../common/requestParser/chatRequestParser.js';
 import { ElicitationState, IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
@@ -275,9 +275,14 @@ export interface IChatViewOpenRequestEntry {
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 /** Whether opening chat with `opts`, or in `mode`, asks for what only local chat serves: Ask or Edit mode, or a chat participant. */
-function requiresLocalChat(opts: IChatViewOpenOptions | undefined, mode: IChatMode | undefined): boolean {
+function requiresLocalChat(opts: IChatViewOpenOptions | undefined, mode: IChatMode | undefined, chatAgentService: IChatAgentService): boolean {
 	const kind = opts?.mode ?? mode?.kind;
-	return kind === ChatModeKind.Ask || kind === ChatModeKind.Edit || !!opts?.query?.trimStart().startsWith(chatAgentLeader);
+	if (kind === ChatModeKind.Ask || kind === ChatModeKind.Edit) {
+		return true;
+	}
+	// Only a registered participant needs local chat: a query may start with `@` for other reasons, such as a decorator
+	const name = opts?.query?.trimStart().match(agentReg)?.[1];
+	return !!name && (chatAgentService.getAgentsByName(name).length > 0 || !!chatAgentService.getAgentByFullyQualifiedId(name));
 }
 
 abstract class OpenChatGlobalAction extends Action2 {
@@ -302,7 +307,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		// The Agents view shows sessions, not local chat: what only local chat serves is not available there. The Ask and Edit
 		// mode actions are disabled by their precondition; this covers what a precondition cannot see, the arguments, such as
 		// a mode or a chat participant that the caller asks for.
-		if (accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.agentsViewActive.key) && requiresLocalChat(opts, this.mode)) {
+		if (accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.agentsViewActive.key) && requiresLocalChat(opts, this.mode, accessor.get(IChatAgentService))) {
 			accessor.get(INotificationService).info(localize('chat.localChatUnavailable', "Ask and Edit modes and chat participants are not available while the Agents view is enabled."));
 			return;
 		}

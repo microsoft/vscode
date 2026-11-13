@@ -31,6 +31,13 @@ import { FindAgentSessionInViewerAction, FocusAgentSessionsAction, HideAgentSess
 import { ContinueInlineChatInChatViewAction } from '../../../../inlineChat/browser/inlineChatActions.js';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_TERMINATED, CTX_INLINE_CHAT_VISIBLE } from '../../../../inlineChat/common/inlineChat.js';
 
+import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ISCMService } from '../../../../scm/common/scm.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
+import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatSendResult, IChatService } from '../../../common/chatService/chatService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -49,6 +56,14 @@ suite('Open Chat', () => {
 			revealWidget: async () => { calls.push('revealWidget'); return undefined; },
 		}));
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: () => { calls.push('notification'); return upcastPartial<INotificationHandle>({}); } }));
+		instantiationService.stub(IChatAgentService, upcastPartial<IChatAgentService>({
+			getAgentsByName: name => name === 'workspace' ? [upcastPartial<IChatAgentData>({ name })] : [],
+			getAgentByFullyQualifiedId: () => undefined,
+		}));
+		const unrelatedServices: ServiceIdentifier<unknown>[] = [IChatService, ILanguageModelToolsService, IHostService, ICommandService, IFileService, ILanguageModelsService, ISCMService, IConfigurationService];
+		for (const service of unrelatedServices) {
+			instantiationService.stub(service, {});
+		}
 		const openChat = (mode: IChatMode, opts?: IChatViewOpenOptions) => instantiationService.invokeFunction(accessor => new class extends ModeOpenChatGlobalAction {
 			constructor() { super(mode); }
 		}().run(accessor, opts));
@@ -57,7 +72,10 @@ suite('Open Chat', () => {
 		await openChat(ChatMode.Agent, { query: 'refactor this', mode: ChatModeKind.Edit });
 		await openChat(ChatMode.Agent, { query: ' @workspace where is the layout?' });
 
-		assert.deepStrictEqual(calls, ['notification', 'notification']);
+		// Leading `@` text that names no participant, such as a decorator, is a plain query
+		await openChat(ChatMode.Agent, { query: '@dataclass\nclass Point: ...' });
+
+		assert.deepStrictEqual(calls, ['notification', 'notification', 'revealWidget']);
 	});
 
 	test('a session opened in the Chat view starts, moves and completes in the host of the Chat view\'s chats, which holds what it needs until the start ends, and gets back a request it does not show', async () => {
