@@ -292,6 +292,33 @@ suite('Workbench layout chat part', () => {
 		return { layout, grid, middle };
 	}
 
+	test('the visible neighbors of the parts beside a chat part are the chat part, as long as it shows', () => {
+		const neighbors = (chat: ILayoutConfiguration['chat']) => {
+			const { layout } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat });
+			const neighbor = (part: Parts, direction: Direction) => layout.getVisibleNeighborPart(part, direction)?.split('.').pop();
+			return {
+				sideBarRight: neighbor(Parts.SIDEBAR_PART, Direction.Right),
+				editorLeft: neighbor(Parts.EDITOR_PART, Direction.Left),
+				chatLeft: chat ? neighbor(Parts.CHAT_PART, Direction.Left) : undefined,
+				chatRight: chat ? neighbor(Parts.CHAT_PART, Direction.Right) : undefined,
+			};
+		};
+		assert.deepStrictEqual({ shown: neighbors({ visible: true, size: 400 }), hidden: neighbors({ visible: false, size: 400 }), absent: neighbors(undefined) }, {
+			shown: { sideBarRight: 'chat', editorLeft: 'chat', chatLeft: 'sidebar', chatRight: 'editor' },
+			hidden: { sideBarRight: 'editor', editorLeft: 'sidebar', chatLeft: undefined, chatRight: undefined },
+			absent: { sideBarRight: 'editor', editorLeft: 'sidebar', chatLeft: undefined, chatRight: undefined },
+		});
+	});
+
+	test('the grid without a chat part is as before it existed', () => {
+		const { descriptor } = createLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+		assert.deepStrictEqual(shape(descriptor.root), [
+			'titlebar', '(banner)',
+			['activitybar', 'sidebar', ['editor', 'panel'], 'auxiliarybar'],
+			'statusbar',
+		]);
+	});
+
 	test('keeps the chat part beside the editor as the side bar and the panel move', () => {
 		const { layout, middle } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } });
 		const setSideBarPosition = (position: Position) => (Reflect.get(layout, 'setSideBarPosition') as (position: Position) => void).call(layout, position);

@@ -2747,10 +2747,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return undefined;
 		}
 
+		// The chat part only where a feature registered one as the window started, and it joined the grid
+		const candidates = [Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.TITLEBAR_PART, ...(this.chatPartView ? [Parts.CHAT_PART] : [])];
 		for (const neighborView of neighborViews) {
-			const neighborPart =
-				[Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.TITLEBAR_PART]
-					.find(partId => this.getPart(partId) === neighborView && this.isVisible(partId, mainWindow));
+			const neighborPart = candidates.find(partId => this.getPart(partId) === neighborView && this.isVisible(partId, mainWindow));
 
 			if (neighborPart !== undefined) {
 				return neighborPart;

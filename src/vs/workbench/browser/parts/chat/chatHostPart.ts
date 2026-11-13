@@ -54,6 +54,12 @@ export class ChatHostPart extends Part {
 
 	/** Shows `content`, until the returned disposable is disposed; the owner of the content disposes the content. */
 	setContent(content: IContentPart): IDisposable {
+		// What it showed stops showing: its owner still disposes it, and disposing its handle then leaves this content alone
+		const previous = this._content;
+		if (previous && previous !== content) {
+			(previous.element as HTMLElement).remove();
+			previous.setVisible(false);
+		}
 		this._content = content;
 		this._contentEdge = undefined;
 		this._contentArea?.appendChild(content.element as HTMLElement);

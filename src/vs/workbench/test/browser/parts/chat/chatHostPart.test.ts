@@ -138,6 +138,42 @@ suite('ChatHostPart', () => {
 		});
 	});
 
+	test('shows only the content set last: the one it replaces leaves without being disposed, and disposing its handle leaves the new one shown', () => {
+		const store = disposables.add(new DisposableStore());
+		const workbench = append(mainWindow.document.body, $('.monaco-workbench'));
+		store.add(toDisposable(() => workbench.remove()));
+		const layoutService = upcastPartial<IWorkbenchLayoutService>({
+			registerPart: () => toDisposable(() => { }),
+			mainContainer: workbench,
+			isFloatingPanelsEnabled: () => false,
+		});
+		const chatPart = store.add(new ChatHostPart(new TestThemeService(), store.add(new TestStorageService()), layoutService));
+		const container = append(workbench, $('.part.chat'));
+		chatPart.create(container);
+		chatPart.setVisible(true);
+		const content = (name: string) => {
+			const element = $(`.content-${name}`);
+			let visible: boolean | undefined;
+			const part = upcastPartial<IContentPart>({ element, minimumWidth: 0, onDidChange: Event.None, setVisible: value => { visible = value; }, layout: () => { } });
+			return { part, state: () => ({ inPart: container.contains(element), visible }) };
+		};
+		const first = content('first');
+		const second = content('second');
+
+		const firstHandle = chatPart.setContent(first.part);
+		const secondHandle = store.add(chatPart.setContent(second.part));
+		const replaced = { first: first.state(), second: second.state() };
+		firstHandle.dispose();
+		const afterStaleDispose = { first: first.state(), second: second.state() };
+		secondHandle.dispose();
+
+		assert.deepStrictEqual({ replaced, afterStaleDispose, afterDispose: second.state().inPart }, {
+			replaced: { first: { inPart: false, visible: false }, second: { inPart: true, visible: true } },
+			afterStaleDispose: { first: { inPart: false, visible: false }, second: { inPart: true, visible: true } },
+			afterDispose: false,
+		});
+	});
+
 	test('reads the edge of what it shows once, and again only as the window\'s classes change', async () => {
 		const store = disposables.add(new DisposableStore());
 		const workbench = append(mainWindow.document.body, $('.monaco-workbench.modern-ui'));
