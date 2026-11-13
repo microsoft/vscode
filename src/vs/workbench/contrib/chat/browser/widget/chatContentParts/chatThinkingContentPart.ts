@@ -5,6 +5,7 @@
 
 import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventHelper, EventType, getActiveElement, getWindow, hide, isAncestorOfActiveElement, isHTMLElement, scheduleAtNextAnimationFrame, setVisibility } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
@@ -219,6 +220,8 @@ interface IConversationTitle {
 	readonly duration?: number;
 	/** Shows the title as text instead of rendering it as markdown, for titles that are already plain text. */
 	readonly plainText?: boolean;
+	/** Keeps a plain text title on one row, ending what does not fit with an ellipsis. */
+	readonly singleRow?: boolean;
 }
 
 /** The latest reasoning or item in a conversation section, which its collapsed header names while running. */
@@ -232,6 +235,23 @@ interface IConversationActivity extends IConversationTitle {
 const conversationReasoningKey = 'reasoning';
 const conversationDefaultKey = 'default';
 const conversationFinishedKey = 'finished';
+
+/**
+ * The first line of reasoning as plain text, for a header to preview. It is the whole line:
+ * the header shows as much of it as fits its row. There is none while that line is still
+ * streaming a bold span, which may yet be the heading that names the reasoning.
+ */
+function getReasoningPreview(text: string): string | undefined {
+	// Whitespace before the line is dropped, as it is from a line a heading is extracted from, so that
+	// an unfinished heading is recognized however the text starts.
+	const firstLine = text.trimStart().split(/\r?\n/, 1)[0];
+	if (firstLine.startsWith('**') && !firstLine.includes('**', 2)) {
+		return undefined;
+	}
+	const preview = renderAsPlaintext(new MarkdownString(firstLine), { omitMarkdownSyntax: true }).replace(/\s+/g, ' ').trim();
+	// Markdown syntax that has not been followed by any text yet, like a list marker, previews nothing.
+	return /[\p{L}\p{N}]/u.test(preview) ? preview : undefined;
+}
 
 /**
  * Metadata passed to {@link ChatThinkingContentPart.appendItem} to drive
@@ -279,7 +299,6 @@ const enum WorkingMessageCategory {
 }
 
 export const defaultThinkingMessages = [
-	localize('chat.thinking.thinking.1', 'Thinking'),
 	localize('chat.thinking.thinking.2', 'Reasoning'),
 	localize('chat.thinking.thinking.3', 'Considering'),
 	localize('chat.thinking.thinking.4', 'Analyzing'),
@@ -491,6 +510,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
 	private readonly _pendingExternalResources = new Map<string, IChatToolInvocation | IChatToolInvocationSerialized>();
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
+	/** A title on a single row. Its hover shows the whole of it, as the row may end it early. */
+	private readonly singleRowTitle = this._register(new MutableDisposable<IDisposable & { readonly element: HTMLElement; readonly hoverContent: HTMLElement }>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffDataByPartId = new Map<string, IChatContentPartDiffData>();
 	private readonly editResourcesByPartId = new Map<string, readonly URI[]>();
@@ -782,13 +803,19 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 	}
 
-	/** Names reasoning by its latest summary heading, which changes as the summary streams, or says Thinking without one. */
+	/**
+	 * Names reasoning by its latest summary heading, which changes as the summary streams.
+	 * Without one it says Thinking, followed by the reasoning's first line as that streams.
+	 */
 	private getReasoningActivity(content: IChatThinkingPart): IConversationActivity {
-		const heading = getThinkingHeaders(extractTextFromPart(content)).at(-1)?.title;
+		const text = extractTextFromPart(content);
+		const heading = getThinkingHeaders(text).at(-1)?.title;
+		const preview = heading === undefined ? getReasoningPreview(text) : undefined;
 		return {
-			title: heading ?? this.thinkingTitle,
+			title: heading ?? (preview === undefined ? this.thinkingTitle : localize('chat.thinking.label', "{0}: {1}", this.thinkingTitle, preview)),
 			key: heading === undefined ? conversationReasoningKey : `${conversationReasoningKey}:${heading}`,
 			plainText: true,
+			singleRow: preview !== undefined,
 			reasoning: { partId: content.id },
 		};
 	}
@@ -802,7 +829,8 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 		this.pendingConversationReasoningId = undefined;
 		const activity = this.getReasoningActivity(content);
-		if (activity.key !== current?.key || partId !== current.reasoning?.partId) {
+		// A preview keeps its key as its line streams, so the header follows it without wiping.
+		if (activity.key !== current?.key || partId !== current.reasoning?.partId || !thinkingTitleEqual(activity.title, current.title)) {
 			this.setConversationActivity(activity);
 		}
 	}
@@ -854,7 +882,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			if (target.finished) {
 				this.setFinalizedTitle(getThinkingTitleValue(target.title));
 			} else {
-				this.setTitle(target.title, !target.key || target.plainText);
+				this.setTitle(target.title, !target.key || target.plainText, target.singleRow);
 			}
 		} finally {
 			this.isShowingConversationTitle = false;
@@ -1980,6 +2008,11 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		if (!this.containsReasoning && this.restoreSingleItemToOriginalPosition()) {
 			return;
 		}
+		if (this.isConversation) {
+			// A conversation section is named by what it did, never by a reasoning heading or a generated title.
+			this.setFallbackTitle();
+			return;
+		}
 		const headers = this.getTitleHeaders();
 		if (headers.length === 1) {
 			this.acceptGeneratedTitle(headers[0]);
@@ -3007,7 +3040,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.updateDropdownClickability();
 	}
 
-	protected override setTitle(title: ChatThinkingTitle, omitPrefix?: boolean): void {
+	protected override setTitle(title: ChatThinkingTitle, omitPrefix?: boolean, singleRow?: boolean): void {
 		if (this.isVerboseToolChain || this.streamingCompleted || this.element.isComplete) {
 			return;
 		}
@@ -3025,14 +3058,29 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.interruptConversationTitle();
 
 		if (omitPrefix) {
-			this.clearTitleDetail();
-			if (this._collapseButton) {
-				const labelElement = this._collapseButton.labelElement;
-				labelElement.textContent = '';
-				const plainSpan = $('span');
-				plainSpan.textContent = titleValue;
-				labelElement.appendChild(plainSpan);
+			const labelElement = this._collapseButton?.labelElement;
+			const shownSingleRow = singleRow ? this.singleRowTitle.value : undefined;
+			if (labelElement && shownSingleRow?.element.parentElement === labelElement) {
+				// Text streams into the title that is there and into its hover, which may be open.
+				shownSingleRow.element.textContent = titleValue;
+				shownSingleRow.hoverContent.textContent = titleValue;
 				this.setAriaLabel(titleValue);
+			} else {
+				this.clearTitleDetail();
+				if (labelElement) {
+					labelElement.textContent = '';
+					const plainSpan = $(singleRow ? 'span.chat-thinking-title-single-row' : 'span');
+					plainSpan.textContent = titleValue;
+					labelElement.appendChild(plainSpan);
+					if (singleRow) {
+						// The hover's content is an element, which the hover follows as its text changes.
+						const hoverContent = $('span');
+						hoverContent.textContent = titleValue;
+						const hover = this.hoverService.setupDelayedHover(plainSpan, { content: hoverContent, style: HoverStyle.Pointer, persistence: { hideOnHover: true } });
+						this.singleRowTitle.value = { element: plainSpan, hoverContent, dispose: () => hover.dispose() };
+					}
+					this.setAriaLabel(titleValue);
+				}
 			}
 			this.forgetShimmerTitle();
 			this.currentTitle = titleValue;
@@ -3065,6 +3113,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		// Dispose previous detail rendering
 		this._titleDetailRendered.clear();
 		this._titleFileWidgetStore.clear();
+		this.singleRowTitle.clear();
 
 		const markdownTitle = typeof title === 'string' ? new MarkdownString(title) : title;
 		const result = this.chatContentMarkdownRenderer.render(markdownTitle);
@@ -3117,6 +3166,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this._collapseButton?.element.parentElement?.classList.remove('chat-thinking-title-beside-button');
 		this._titleDetailRendered.clear();
 		this._titleFileWidgetStore.clear();
+		this.singleRowTitle.clear();
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

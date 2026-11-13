@@ -1569,6 +1569,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				x: this.windowState.x || 0,
 				y: this.windowState.y || 0,
 				zoomLevel: this.customZoomLevel,
+				alwaysOnTop: this._win.isAlwaysOnTop(),
 				minimized: minimized || undefined
 			};
 		}
@@ -1611,6 +1612,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		state.zoomLevel = this.customZoomLevel;
+		state.alwaysOnTop = this._win.isAlwaysOnTop();
 
 		return state;
 	}
@@ -1618,6 +1620,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
 		mark('code/willRestoreCodeWindowState');
 
+		const alwaysOnTop = state?.alwaysOnTop;
 		let hasMultipleDisplays = false;
 		if (state) {
 
@@ -1637,7 +1640,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		mark('code/didRestoreCodeWindowState');
 
-		return [state || defaultWindowState(), hasMultipleDisplays];
+		return [{ ...(state || defaultWindowState()), alwaysOnTop }, hasMultipleDisplays];
 	}
 
 	getBounds(): electron.Rectangle {

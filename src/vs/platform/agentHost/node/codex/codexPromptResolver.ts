@@ -60,6 +60,9 @@ export function resolveCodexInput(
 		for (const att of attachments) {
 			switch (att.type) {
 				case MessageAttachmentKind.Resource: {
+					if (att.displayKind === 'skill') {
+						break;
+					}
 					const uri = URI.parse(att.uri);
 					if (uri.scheme === 'file' && isImageResourceAttachment(att, uri)) {
 						input.push({ type: 'localImage', path: uri.fsPath });

@@ -13,6 +13,7 @@ import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnv
 import { AgentHostSessionResidencyLimitConfigKey, AgentHostSessionResidencyLimitDefault, platformRootSchema } from '../common/agentHostSchema.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { parseAnnotationsUri } from '../common/annotationsUri.js';
+import { ActionType } from '../common/state/sessionActions.js';
 import { isSessionStatusArchived, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -113,6 +114,11 @@ export class AgentSessionResidency extends Disposable {
 			}
 			void this.reconcile();
 		}));
+		this._register(this._stateManager.onDidEmitEnvelope(({ action }) => {
+			if (action.type === ActionType.ChatPendingMessageSet || action.type === ActionType.ChatPendingMessageRemoved) {
+				void this.reconcile();
+			}
+		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			const resource = URI.parse(session);
 			if (!parseSubagentSessionUri(resource)) {
@@ -173,6 +179,13 @@ export class AgentSessionResidency extends Disposable {
 			}
 		}
 		return false;
+	}
+
+	private _hasPendingMessages(session: string): boolean {
+		return this._stateManager.getSessionState(session)?.chats.some(chat => {
+			const state = this._stateManager.getChatState(chat.resource);
+			return !!state?.queuedMessages?.length || !!state?.steeringMessage;
+		}) ?? false;
 	}
 
 	reconcile(): Promise<void> {
@@ -381,7 +394,7 @@ export class AgentSessionResidency extends Disposable {
 		const processed = new Set<string>();
 		for (const session of residents) {
 			const sessionKey = session.toString();
-			if (this._hasResidencySubscribers(session) || this._stateManager.hasActiveTurn(sessionKey)) {
+			if (this._hasResidencySubscribers(session) || this._stateManager.hasActiveTurn(sessionKey) || this._hasPendingMessages(sessionKey)) {
 				this._cancelIdleRelease(sessionKey);
 			} else if (this._idleReleaseDue.has(sessionKey)) {
 				// A due release stays due after its provider lets go of the session: a failed release may already have.
@@ -424,6 +437,7 @@ export class AgentSessionResidency extends Disposable {
 			|| this._hasResidencySubscribers(session)
 			|| this._delegate.isReleaseBlocked(session)
 			|| this._stateManager.hasActiveTurn(sessionKey)
+			|| this._hasPendingMessages(sessionKey)
 			|| this._options.holdsSession(sessionKey)) {
 			return false;
 		}
@@ -502,6 +516,7 @@ export class AgentSessionResidency extends Disposable {
 			&& !this._hasResidencySubscribers(URI.parse(sessionKey))
 			&& !this._delegate.isReleaseBlocked(URI.parse(sessionKey))
 			&& !this._stateManager.hasActiveTurn(sessionKey)
+			&& !this._hasPendingMessages(sessionKey)
 			&& !this._options.holdsSession(sessionKey);
 	}
 

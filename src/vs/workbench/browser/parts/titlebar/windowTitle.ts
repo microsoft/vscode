@@ -32,6 +32,7 @@ import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -40,10 +41,10 @@ const enum WindowSettingNames {
 
 export const defaultWindowTitle = (() => {
 	if (isMacintosh && isNative) {
-		return '${activeEditorShort}${separator}${rootName}${separator}${profileName}'; // macOS has native dirty indicator
+		return '${activeEditorShort}${separator}${rootName}${separator}${folderLocation}${separator}${profileName}'; // macOS has native dirty indicator
 	}
 
-	const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
+	const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${folderLocation}${separator}${profileName}${separator}${appName}';
 	if (isWeb) {
 		return base + '${separator}${remoteName}'; // Web: always show remote name
 	}
@@ -69,6 +70,18 @@ export class WindowTitle extends Disposable {
 
 	get value() { return this.title ?? ''; }
 	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+
+	/** The label of the alternate folder location, or an empty string while the folder is at its primary location. */
+	get folderLocation(): string {
+		const folder = this.contextService.getWorkspace().folders[0];
+		return (folder && this.labelService.getFolderLocationLabel(folder.uri)) ?? '';
+	}
+
+	/** The alternate folder location the folder is at, or `undefined` while it is at its primary location. */
+	get folderLocationInfo() {
+		const folder = this.contextService.getWorkspace().folders[0];
+		return folder ? this.folderLocationService.getLocation(folder) : undefined;
+	}
 	get fileName() {
 		const activeEditor = this.editorService.activeEditor;
 		if (!activeEditor) {
@@ -79,7 +92,36 @@ export class WindowTitle extends Disposable {
 		return `${dirty}${fileName}`;
 	}
 
+	/**
+	 * The label of the command center. While the folder is at an alternate location it is always the
+	 * folder name, independent of the window title format and `showFileName`. With `fileNameAsFallback` the
+	 * file name is only used when there is no workspace name.
+	 */
+	getCommandCenterLabel(options: { showFileName: boolean; fileNameAsFallback?: boolean }): string {
+		const { prefix, suffix } = this.getTitleDecorations();
+		let label = this.workspaceName;
+		if (!this.folderLocationInfo) {
+			if (this.isCustomTitleFormat()) {
+				label = this.getWindowTitle();
+			} else if (options.showFileName && (!options.fileNameAsFallback || !label) && this.fileName !== undefined) {
+				label = this.fileName;
+			}
+		}
+		if (!label) {
+			label = localize('commandCenterLabel.search', "Search");
+		}
+		if (prefix) {
+			label = localize('commandCenterLabel.prefix', "{0} {1}", prefix, label);
+		}
+		if (suffix) {
+			label = localize('commandCenterLabel.suffix', "{0} {1}", label, suffix);
+		}
+
+		return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
+	}
+
 	private title: string | undefined;
+	private folderLocationKey = '';
 
 	private titleIncludesFocusedView: boolean = false;
 	private titleIncludesEditorState: boolean = false;
@@ -98,7 +140,8 @@ export class WindowTitle extends Disposable {
 		@IProductService private readonly productService: IProductService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService
 	) {
 		super();
 
@@ -114,6 +157,7 @@ export class WindowTitle extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.titleUpdater.schedule()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
@@ -188,7 +232,18 @@ export class WindowTitle extends Disposable {
 
 	private doUpdateTitle(): void {
 		const title = this.getFullWindowTitle();
-		if (title !== this.title) {
+
+		// The command center renders the folder location itself, so it needs to refresh even if a custom title format leaves the title text unchanged
+		const folderLocation = this.folderLocationInfo;
+		const folderLocationKey = folderLocation ? `${folderLocation.uri.toString()}|${folderLocation.label}|${folderLocation.description ?? ''}|${folderLocation.icon?.id ?? ''}` : '';
+		const folderLocationChanged = folderLocationKey !== this.folderLocationKey;
+		this.folderLocationKey = folderLocationKey;
+
+		if (title === this.title) {
+			if (folderLocationChanged) {
+				this.onDidChangeEmitter.fire();
+			}
+		} else {
 
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
@@ -296,6 +351,7 @@ export class WindowTitle extends Disposable {
 	 * {rootPath}: e.g. /Users/Development
 	 * {folderName}: e.g. myFolder
 	 * {folderPath}: e.g. /Users/Development/myFolder
+	 * {folderLocation}: e.g. my-location, only while the folder is at an alternate location
 	 * {appName}: e.g. VS Code
 	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
@@ -312,7 +368,7 @@ export class WindowTitle extends Disposable {
 		if (workspace.configuration) {
 			root = workspace.configuration;
 		} else if (workspace.folders.length) {
-			root = workspace.folders[0].uri;
+			root = workspace.uri ?? workspace.folders[0].uri;
 		}
 
 		// Compute active editor folder
@@ -357,6 +413,7 @@ export class WindowTitle extends Disposable {
 		const rootPath = root ? this.labelService.getUriLabel(root) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
+		const folderLocation = this.folderLocation;
 		const dirty = editor?.isDirty() && !editor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
 		const profileName = this.userDataProfileService.currentProfile.isDefault ? '' : this.userDataProfileService.currentProfile.name;
@@ -397,6 +454,7 @@ export class WindowTitle extends Disposable {
 			rootNameShort,
 			folderName,
 			folderPath,
+			folderLocation,
 			dirty,
 			appName,
 			remoteName,

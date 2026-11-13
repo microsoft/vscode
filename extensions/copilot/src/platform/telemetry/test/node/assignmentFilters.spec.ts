@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { platform, PlatformToString } from '../../../../util/vs/base/common/platform';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
+import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { packageJson } from '../../../env/common/packagejson';
 import { ILogService } from '../../../log/common/logService';
 import { UserInfoStore } from '../../node/baseExperimentationService';
@@ -51,6 +52,7 @@ describe('CopilotAssignmentsFilterProvider', () => {
 		}));
 
 		expect(Object.fromEntries(provider.getFilters())).toEqual({
+			integratorid: INTEGRATION_ID,
 			vscode_core_platform: PlatformToString(platform),
 			vscode_core_windowkind: 'editor',
 			devdeviceid: 'test-device',

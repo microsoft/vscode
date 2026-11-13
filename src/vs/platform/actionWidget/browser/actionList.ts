@@ -410,6 +410,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const icon = document.createElement('div');
 		icon.className = 'icon';
+		icon.ariaHidden = 'true';
 		container.append(icon);
 
 		const labelIcon = dom.append(container, dom.$('span.action-list-label-icon', { 'aria-hidden': 'true' }));
@@ -444,6 +445,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const submenuIndicator = document.createElement('div');
 		submenuIndicator.className = 'action-list-submenu-indicator';
+		submenuIndicator.ariaHidden = 'true';
 		container.append(submenuIndicator);
 
 		const inlineToggleContainer = document.createElement('div');
@@ -474,7 +476,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			return;
 		}
 
-		dom.setVisibility(!element.hideIcon, data.icon);
+		data.icon.style.display = element.hideIcon ? 'none' : '';
 		data.labelIcon.className = element.labelIcon
 			? `action-list-label-icon ${ThemeIcon.asClassName(element.labelIcon)}`
 			: 'action-list-label-icon';

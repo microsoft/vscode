@@ -133,7 +133,7 @@ suite('workspace images', () => {
 		}
 	});
 
-	// Only the CI test jobs of product-build.yml start from images, and the image jobs only run in CI
+	// Only the CI test jobs of product-build-ci.yml start from images, and the image jobs only run in CI
 	// builds. The Windows smoke tests, like the WSL smoke test job of pull requests, don't: WSL cannot
 	// open folders on a volume that is mounted in a folder.
 	test('Azure Pipelines CI test jobs start from images, except the Windows smoke tests', () => {
@@ -152,8 +152,9 @@ suite('workspace images', () => {
 				...Object.entries(record).flatMap(([key, child]) => templates(child, key.startsWith('${{ if ') ? [...conditions, key] : conditions)),
 			];
 		};
-		const observed = ['product-build.yml', 'product-build-template.yml', 'product-build-ado-ci.yml'].map(file => {
-			const all = templates(load(readRepositoryFile(`build/azure-pipelines/${file}`).toString(), { schema: FAILSAFE_SCHEMA }));
+		const observed = ['product-build.yml', 'product-build-template.yml', 'product-build-ado-ci.yml', 'product-build-ci.yml'].map(file => {
+			// Every job of product-build-ci.yml is a CI job
+			const all = templates(load(readRepositoryFile(`build/azure-pipelines/${file}`).toString(), { schema: FAILSAFE_SCHEMA }), file === 'product-build-ci.yml' ? [`\${{ if eq(variables['VSCODE_CIBUILD'], true) }}`] : []);
 			return {
 				file,
 				imageJobs: all.filter(({ template }) => template.endsWith('-workspace-image.yml@self')).map(({ template, ci }) => ({ template: path.posix.basename(template), ci })),
@@ -169,8 +170,12 @@ suite('workspace images', () => {
 			...jobs.map(job => [`darwin ${job}`, image('darwin', job)]),
 		]);
 		assert.deepEqual(observed, [
+			// The product build has no CI test jobs
+			{ file: 'product-build.yml', imageJobs: [], testJobs: {} },
+			{ file: 'product-build-template.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
+			{ file: 'product-build-ado-ci.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
 			{
-				file: 'product-build.yml',
+				file: 'product-build-ci.yml',
 				imageJobs: [
 					{ template: 'product-build-win32-workspace-image.yml@self', ci: true },
 					{ template: 'product-build-linux-workspace-image.yml@self', ci: true },
@@ -178,8 +183,6 @@ suite('workspace images', () => {
 				],
 				testJobs: testJobs((platform, job) => platform === 'win32' && job === 'Smoke' ? 'none' : 'use'),
 			},
-			{ file: 'product-build-template.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
-			{ file: 'product-build-ado-ci.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
 		]);
 	});
 
