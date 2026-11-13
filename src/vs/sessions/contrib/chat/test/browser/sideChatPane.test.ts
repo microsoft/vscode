@@ -10,12 +10,15 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveSideChatTabContext } from '../../../../common/agentsWindowContextKeys.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -33,9 +36,13 @@ import { ISessionsHostLayoutService } from '../../../../../workbench/services/se
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { SideChatPaneContribution, SideChatTab } from '../../browser/sideChatPane.contribution.js';
+import { SideChatActivityBarContribution } from '../../browser/sideChatActivityBar.contribution.js';
+import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatEditorContent } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
-import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 /** The main window's one editor group, as far as the side pane opens and closes its editors there. */
@@ -355,4 +362,57 @@ suite('SideChatPaneContribution', () => {
 		assert.deepStrictEqual(icons, ['comment-discussion', 'loading~spin', 'circle', 'circle', 'comment-discussion', 'circle']);
 	});
 
+	test('the Session Activity Bar lists the side chats of the grid\'s active chat, also those of its side chats, while side chats show in the side pane', () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		const main = chat('main');
+		const other = chat('other');
+		const side = chat('side', { kind: ChatOriginKind.SideChat, parentChat: main.resource });
+		const nested = chat('nested', { kind: ChatOriginKind.SideChat, parentChat: side.resource });
+		const otherSide = chat('otherSide', { kind: ChatOriginKind.SideChat, parentChat: other.resource });
+		const chats = observableValue<readonly IChat[]>('chats', [main, other]);
+		const activeChat = observableValue<IChat>('activeChat', main);
+		const inSidePane = observableValue('sideChatsInSidePane', true);
+		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({
+			gridHost: upcastPartial<ISessionsService['gridHost']>({ session: constObservable(upcastPartial<ISession>({ chats })), chat: activeChat }),
+		}));
+		instantiationService.stub(ISideChatPlacementService, { _serviceBrand: undefined, inSidePane });
+		store.add(instantiationService.createInstance(SideChatActivityBarContribution));
+		const entryId = AgentsWindowMenus.SessionActivityBarSideChats.id;
+		const titleOf = (title: string | { readonly value: string }) => typeof title === 'string' ? title : title.value;
+		// The side pane shows the tab of `side`, a side chat of `main`.
+		const sideShows: IContext = { getValue: <T>(key: string) => (key === MainEditorAreaVisibleContext.key ? true : key === ActiveSideChatTabContext.key ? side.resource.toString() : undefined) as T | undefined };
+		const activityBar = () => {
+			const item = MenuRegistry.getMenuItems(Menus.SessionActivityBar).find(item => isIMenuItem(item) ? item.command.id === entryId : isISubmenuItem(item) && item.submenu.id === entryId);
+			if (!item) {
+				return { entry: undefined };
+			}
+			const entry = isIMenuItem(item) ? titleOf(item.command.title) : titleOf(item.title);
+			const toggled = isIMenuItem(item) ? item.command.toggled : item.toggled;
+			const checked = !!toggled && (hasKey(toggled, { condition: true }) ? toggled.condition : toggled).evaluate(sideShows);
+			const submenu = MenuRegistry.getMenuItems(AgentsWindowMenus.SessionActivityBarSideChats).filter(isIMenuItem).map(item => titleOf(item.command.title));
+			return submenu.length ? { entry, checked, submenu } : { entry, checked };
+		};
+
+		const snapshots = [activityBar()];
+		chats.set([main, other, side], undefined);
+		snapshots.push(activityBar());
+		chats.set([main, other, side, nested, otherSide], undefined);
+		snapshots.push(activityBar());
+		activeChat.set(side, undefined);
+		snapshots.push(activityBar());
+		activeChat.set(other, undefined);
+		snapshots.push(activityBar());
+		inSidePane.set(false, undefined);
+		snapshots.push(activityBar());
+
+		assert.deepStrictEqual(snapshots, [
+			{ entry: undefined },
+			{ entry: 'Side Chat: side', checked: true },
+			{ entry: 'Side Chats', checked: true, submenu: ['side', 'nested'] },
+			{ entry: 'Side Chat: nested', checked: false },
+			{ entry: 'Side Chat: otherSide', checked: false },
+			{ entry: undefined },
+		]);
+	});
 });

@@ -15,7 +15,7 @@ import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -43,6 +43,7 @@ import { ISessionsHostLayoutService } from '../../../../workbench/services/sessi
 import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
 import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
+import { ActiveSideChatTabContext } from '../../../common/agentsWindowContextKeys.js';
 
 /** A side chat in the side pane shows only its chat: its tab names it, and the grid's chat has the Session Activity Bar. */
 const SIDE_CHAT_HOST_OPTIONS: ISessionViewHostOptions = {
@@ -242,6 +243,7 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 	private _shownOwnerCaptured = false;
 	private readonly _opener: IChatHostOpener;
 	private readonly _pendingOpen = this._register(new MutableDisposable());
+	private readonly _activeSideChatTab: IContextKey<string>;
 
 	constructor(
 		@ISideChatPlacementService private readonly _placementService: ISideChatPlacementService,
@@ -294,7 +296,11 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 				}
 			}
 		}));
-		this._register(_editorService.onDidActiveEditorChange(() => this._onDidChangeActiveEditor()));
+		this._activeSideChatTab = ActiveSideChatTabContext.bindTo(contextKeyService);
+		this._register(_editorService.onDidActiveEditorChange(() => {
+			this._onDidChangeActiveEditor();
+			this._updateActiveSideChatTab();
+		}));
 
 		this._register(autorun(reader => {
 			if (this._placementService.inSidePane.read(reader)) {
@@ -448,7 +454,15 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 		if (entry) {
 			this._tabs.delete(chat);
 			entry.store.dispose();
+			this._updateActiveSideChatTab();
 		}
+	}
+
+	/** Publishes the side chat whose tab is the side pane's active editor, if one is. */
+	private _updateActiveSideChatTab(): void {
+		const activeEditor = this._editorGroupsService.mainPart.activeGroup.activeEditor;
+		const active = activeEditor && [...this._tabs.values()].find(({ tab }) => tab.input === activeEditor);
+		this._activeSideChatTab.set(active ? active.tab.chatResource.toString() : '');
 	}
 
 	private _closeAllTabs(): void {
