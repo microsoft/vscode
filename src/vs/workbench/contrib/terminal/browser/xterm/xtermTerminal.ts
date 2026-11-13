@@ -12,6 +12,7 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboard';
 import * as dom from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { IXtermCore } from '../xterm-private.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -981,7 +982,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			customGlyphs
 		});
 		this._webglWindow = dom.getWindow(this.raw.element);
-		ensureCanvasFontLeadingWhitespaceFix(this._webglWindow);
+		ensureCanvasFontLeadingWhitespaceFix(mainWindow);
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
