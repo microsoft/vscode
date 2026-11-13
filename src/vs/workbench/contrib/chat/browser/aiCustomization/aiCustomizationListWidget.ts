@@ -1142,7 +1142,7 @@ export class AICustomizationListWidget extends Disposable {
 		// so the focus indicator is visible instead of requiring the user to
 		// press an arrow key first.
 		this._register(this.list.onDidFocus(() => {
-			focusFirstCustomizationTreeItem<IListEntry>(this.list, this.displayEntries, entry => entry.type !== 'group-header');
+			focusFirstCustomizationTreeItem<IListEntry>(this.list, this.displayEntries, entry => entry.type !== 'group-header' && this.isEntryVisible(entry));
 		}));
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
@@ -2196,10 +2196,26 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	focusList(): void {
 		this.list.domFocus();
-		const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
+		const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header' && this.isEntryVisible(entry)) ?? this.displayEntries[0];
 		if (firstItem) {
 			this.list.setFocus([firstItem]);
 		}
+	}
+
+	/**
+	 * Whether the entry has a row in the list, that is, it is not inside a
+	 * collapsed group or skill bundle.
+	 */
+	private isEntryVisible(entry: IListEntry): boolean {
+		if (!this.list.hasElement(entry)) {
+			return false;
+		}
+		for (let parent = this.list.getParentElement(entry); parent; parent = this.list.getParentElement(parent)) {
+			if (this.list.isCollapsed(parent)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
