@@ -17,7 +17,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agent.
 import { generateUuid, isUUID } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostAutomationCreationId, getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, withAgentHostAutomationCreationId, withAgentHostAutomationScheduleKind } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationCreationId, getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, getAgentHostOneTimeReceipts, getAgentHostScheduledChatConversation, isAgentHostScheduledChat, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, supportsAgentHostScheduledChatExistingConversation, withAgentHostAutomationCreationId, withAgentHostAutomationScheduleKind, withAgentHostScheduledChat, withAgentHostScheduledChatConversation } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../../platform/agentHost/common/automationConfig.js';
 import { validateAutomationRunAt, validateDurableAutomationMessage } from '../../../../../../platform/agentHost/common/automationRequest.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -115,7 +115,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		&& !!this._connection.initializeResult.read(reader)?.automations?.oneTime);
 	readonly supportsExistingChatAutomation = derived(this, reader => this._boundaryMapper?.supportsExistingChatAutomation === true
 		&& this.supportsOneTimeAutomation.read(reader)
-		&& !!this._connection.initializeResult.read(reader)?.automations?.existingConversation);
+		&& supportsAgentHostScheduledChatExistingConversation(this._connection.initializeResult.read(reader)));
 
 	constructor(
 		private readonly _providerId: string,
@@ -271,7 +271,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			const entry = this._findAutomationEntry(id)!;
 			const state = await this._dispatchAndWait({
 				type: ActionType.AutomationUpdateRequested, resource: entry.resource,
-				expectedModifiedAt: entry.modifiedAt, changes: { enabled: false },
+				changes: { enabled: false },
 			}, catalog => catalog.entries.some(candidate => candidate.resource === entry.resource && !candidate.definition.enabled), mutationGuard);
 			if (!state) {
 				throw new Error('Scheduled chat cancellation completed without authoritative state.');
@@ -590,26 +590,28 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		const schedule = projectSchedule(state.definition);
-		const conversation = state.definition.conversation && this._boundaryMapper?.conversationFromHost?.(
-			URI.parse(state.definition.conversation.session), URI.parse(state.definition.conversation.chat));
+		const hostConversation = getAgentHostScheduledChatConversation(state.definition);
+		const conversation = hostConversation && this._boundaryMapper?.conversationFromHost?.(
+			URI.parse(hostConversation.session), URI.parse(hostConversation.chat));
+		const receipts = getAgentHostOneTimeReceipts(state);
 		return {
 			id: this._resourceId(state.resource),
 			...(getAgentHostAutomationCreationId(state.definition) ? { creationId: getAgentHostAutomationCreationId(state.definition) } : {}),
 			name: state.definition.title,
 			prompt: state.definition.message.text,
-			...(state.definition.purpose ? { purpose: state.definition.purpose } : {}),
+			...(isAgentHostScheduledChat(state.definition) ? { purpose: 'scheduledChat' as const } : {}),
 			request: this._mapMessage(state.definition.message, false, state.definition.session.provider),
 			...(conversation ? { conversation } : {}),
-			...(state.oneTimeRun ? { oneTimeRunId: this._resourceId(state.oneTimeRun) } : {}),
-			...(state.oneTimeDispatchedAt ? { oneTimeDispatchedAt: state.oneTimeDispatchedAt } : {}),
-			...(state.oneTimeDispatchRejectedAt ? { oneTimeDispatchRejectedAt: state.oneTimeDispatchRejectedAt } : {}),
+			...(receipts.run ? { oneTimeRunId: this._resourceId(receipts.run) } : {}),
+			...(receipts.dispatchedAt ? { oneTimeDispatchedAt: receipts.dispatchedAt } : {}),
+			...(receipts.dispatchRejectedAt ? { oneTimeDispatchRejectedAt: receipts.dispatchRejectedAt } : {}),
 			schedule,
 			...(schedule.interval === 'custom' || schedule.interval === 'once' && !this.supportsOneTimeAutomation.get()
 				? { readOnlyReason: localize('agentHostAutomation.customSchedule', "This automation uses a schedule that cannot be edited in VS Code.") } : {}),
-			...(state.definition.conversation && (!conversation || !this.supportsExistingChatAutomation.get())
+			...(hostConversation && (!conversation || !this.supportsExistingChatAutomation.get())
 				? { readOnlyReason: localize('agentHostAutomation.conversationUnavailable', "The scheduled chat's original conversation is unavailable on this provider.") } : {}),
 			target,
-			sessionTemplate: state.definition.conversation ? undefined : projectAutomationSessionTemplate(state.definition, modelId),
+			sessionTemplate: hostConversation ? undefined : projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
 			createdAt: state.createdAt,
 			updatedAt: state.modifiedAt,
@@ -735,7 +737,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const resource = current.resource;
 		const definition = this._definitionFromDescriptor(descriptor, current.definition, resetSessionTemplate);
-		const scope = !current.definition.conversation && (customizationIds !== undefined || !this._isCustomizationTargetUnchanged(descriptor.target, current.definition, definition.session.provider))
+		const scope = !getAgentHostScheduledChatConversation(current.definition) && (customizationIds !== undefined || !this._isCustomizationTargetUnchanged(descriptor.target, current.definition, definition.session.provider))
 			? this._acquireCustomizationScope(descriptor.target, definition.session.provider)
 			: undefined;
 		try {
@@ -747,10 +749,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				{
 					type: ActionType.AutomationUpdateRequested,
 					resource,
-					...(this.supportsOneTimeAutomation.get() ? { expectedModifiedAt: current.modifiedAt } : {}),
 					changes: {
 						title: definition.title,
-						purpose: definition.purpose,
 						message: definition.message,
 						session: definition.session,
 						enabled: definition.enabled,
@@ -888,7 +888,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (descriptor.creationId) {
 			meta = withAgentHostAutomationCreationId(meta, descriptor.creationId);
 		}
-		let conversation = existing?.conversation;
+		const existingConversation = existing && getAgentHostScheduledChatConversation(existing);
+		let conversation = existingConversation;
 		if (descriptor.conversation) {
 			const session = this._boundaryMapper?.resolveBackendSession?.(descriptor.conversation.sessionResource);
 			const chat = this._boundaryMapper?.resolveBackendChat?.(descriptor.conversation.chatResource);
@@ -898,14 +899,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				throw new AutomationUnavailableError(localize('agentHostAutomation.followupMissing', "The original session or chat is no longer available."));
 			}
 			conversation = { session: session.toString(), chat: chat.toString() };
-			if (existing?.conversation && (existing.conversation.session !== conversation.session || existing.conversation.chat !== conversation.chat)) {
+			if (existingConversation && (existingConversation.session !== conversation.session || existingConversation.chat !== conversation.chat)) {
 				throw new Error(localize('agentHostAutomation.followupImmutable', "A scheduled follow-up cannot change its conversation."));
 			}
 		}
+		meta = withAgentHostScheduledChatConversation(withAgentHostScheduledChat(meta, descriptor.purpose === 'scheduledChat'), conversation);
 		return {
 			title: descriptor.name,
-			purpose: descriptor.purpose,
-			...(conversation ? { conversation } : {}),
 			message: { ...message, origin: { kind: MessageKind.Automation } },
 			session: {
 				provider,

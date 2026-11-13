@@ -20,7 +20,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { nextAutomationCronOccurrence } from '../../../../../../platform/agentHost/common/automationCron.js';
-import { withAgentHostAutomationHistoryState } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostScheduledChatExistingConversationCapabilityMetaKey, getAgentHostScheduledChatConversation, withAgentHostAutomationHistoryState, withAgentHostOneTimeReceipts } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -460,7 +460,8 @@ suite('AgentHostAutomationStore', () => {
 				conversationFromHost: (session, chat) => session.toString() === backend.session.toString() && chat.toString() === backend.chat.toString() ? conversation : undefined,
 			});
 			const connection = disposables.add(new TestAutomationConnection());
-			connection.initializeResult.set({ ...connection.initializeResult.get()!, automations: { create: {}, oneTime: {}, existingConversation: {}, customizations: {} } }, undefined);
+			const initializeResult = connection.initializeResult.get()!;
+			connection.initializeResult.set({ ...initializeResult, automations: { create: {}, oneTime: {}, customizations: {} }, _meta: { ...initializeResult._meta, [AgentHostScheduledChatExistingConversationCapabilityMetaKey]: true } }, undefined);
 			store.setConnection(connection);
 			const request: Message = {
 				text: 'Review changes', origin: { kind: MessageKind.Automation },
@@ -475,7 +476,7 @@ suite('AgentHostAutomationStore', () => {
 			assert.ok(action.type === ActionType.AutomationCreateRequested);
 			assert.deepStrictEqual({
 				supported: store.supportsExistingChatAutomation.get(), projected: created.conversation, template: created.sessionTemplate,
-				target: action.definition.conversation, model: action.definition.session.model, config: action.definition.session.config,
+				target: getAgentHostScheduledChatConversation(action.definition), model: action.definition.session.model, config: action.definition.session.config,
 				customizations: action.definition.session.customizations, request: created.request,
 			}, {
 				supported: true, projected: conversation, template: undefined,
@@ -485,7 +486,7 @@ suite('AgentHostAutomationStore', () => {
 			const rejectedAt = '2027-01-01T10:00:01.000Z';
 			connection.setAutomation({
 				resource: action.resource, definition: action.definition, operations: [AutomationOperation.Remove], runs: [],
-				createdAt: created.createdAt, modifiedAt: created.updatedAt, oneTimeRun: 'ahp-automation-run:/rejected', oneTimeDispatchRejectedAt: rejectedAt,
+				createdAt: created.createdAt, modifiedAt: created.updatedAt, _meta: withAgentHostOneTimeReceipts(undefined, { run: 'ahp-automation-run:/rejected', dispatchRejectedAt: rejectedAt }),
 			});
 			assert.deepStrictEqual({
 				rejectedAt: store.getAutomation(created.id)?.oneTimeDispatchRejectedAt,
@@ -501,9 +502,11 @@ suite('AgentHostAutomationStore', () => {
 				toHost: resource => resource, fromHost: resource => resource, resourceSchemeForProvider: provider => provider,
 			});
 			const connection = disposables.add(new TestAutomationConnection());
+			const initializeResult = connection.initializeResult.get()!;
 			connection.initializeResult.set({
-				...connection.initializeResult.get()!,
-				automations: { create: {}, oneTime: {}, ...(!eligible ? { existingConversation: {} } : {}) },
+				...initializeResult,
+				automations: { create: {}, oneTime: {} },
+				_meta: { ...initializeResult._meta, ...(!eligible ? { [AgentHostScheduledChatExistingConversationCapabilityMetaKey]: true } : {}) },
 			}, undefined);
 			store.setConnection(connection);
 			await assert.rejects(store.createAutomation({
@@ -528,7 +531,7 @@ suite('AgentHostAutomationStore', () => {
 		const oneTimeRun = 'ahp-automation-run:/once';
 		const oneTimeDispatchedAt = '2027-01-01T10:00:01.000Z';
 		const entry: AutomationEntry = {
-			resource: create.resource, definition: create.definition, operations: [AutomationOperation.Remove], oneTimeRun, oneTimeDispatchedAt,
+			resource: create.resource, definition: create.definition, operations: [AutomationOperation.Remove], _meta: withAgentHostOneTimeReceipts(undefined, { run: oneTimeRun, dispatchedAt: oneTimeDispatchedAt }),
 			createdAt: created.createdAt, modifiedAt: created.updatedAt,
 			runs: [{
 				resource: oneTimeRun, automation: create.resource, origin: { kind: AutomationRunOriginKind.Manual },
