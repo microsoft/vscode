@@ -25,7 +25,7 @@ import { IEditorService } from '../../../../../../services/editor/common/editorS
 import { IPreferencesService } from '../../../../../../services/preferences/common/preferences.js';
 import { IProgress } from '../../../../../../../platform/progress/common/progress.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../test/browser/componentFixtures/fixtureUtils.js';
-import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind } from '../../browser/remotesModel.js';
+import { ICustomizationRemote, IRemoteRefreshProgress, IRemotesModel, RemoteKind, remoteKindLabels } from '../../browser/remotesModel.js';
 import { RemotesWidget } from '../../browser/remotesWidget.js';
 import { confirmTunnelDeletion } from '../../browser/remoteHostOptions.js';
 
@@ -40,7 +40,7 @@ const remotes: ICustomizationRemote[] = [
 	{ id: 'environment:laptop', kind: 'environment', name: 'Shared laptop', detail: 'env-laptop', canRemove: true, connectionStatus: RemoteAgentHostConnectionStatus.disconnected, unavailableReason: 'This environment is not online. Start its owning application before connecting.', pickerUnavailableReason: 'Available in the picker when the owning application is online.' },
 ];
 
-async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string } = {}): Promise<void> {
+async function render({ container, disposableStore, theme }: ComponentFixtureContext, width: number, operatingSystem = OS, empty = false, failedKinds: readonly RemoteKind[] = [], environments = false, refreshing?: RemoteKind, signInRequired: boolean | 'pending' = false, options: { readonly height?: number; readonly connectionError?: string; readonly retrying?: boolean; readonly heading?: string; readonly filter?: RemoteKind } = {}): Promise<void> {
 	container.style.width = `${width}px`;
 	container.style.height = `${options.height ?? 640}px`;
 	container.classList.add('remotes-editor');
@@ -137,8 +137,16 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 	widget.setHeading(options.heading);
 	widget.setVisible(true);
 	await waitForFixtureCondition(() => refreshing
-		? content.querySelectorAll('.remotes-group-progress:not([hidden])').length === 1
+		? !!content.querySelector('.remotes-type-filter .codicon-modifier-spin')
 		: content.querySelector('.remotes-table-container')?.getAttribute('aria-busy') === 'false', 'Remotes refresh should reach its fixture state before capture');
+	if (options.filter) {
+		const label = remoteKindLabels[options.filter];
+		const pill = [...content.querySelectorAll<HTMLElement>('.remotes-type-filter .monaco-button')].find(element => element.getAttribute('aria-label')?.startsWith(`${label},`));
+		if (!pill) {
+			throw new Error(`Missing ${label} type filter`);
+		}
+		pill.click();
+	}
 	if (pendingSignIn) {
 		content.querySelector<HTMLElement>('.remotes-empty-signin .monaco-link')!.click();
 		await waitForFixtureCondition(() => !!content.querySelector('.remotes-signin-progress:not([hidden])'), 'Sign-in spinner should appear before capture');
@@ -187,6 +195,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/remotes/' }, {
 	TunnelSignIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true) }),
 	TunnelSigningIn: defineComponentFixture({ labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, 'pending') }),
 	TunnelSignInNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, ['tunnel'], true, undefined, true) }),
+	FilteredSSH: defineComponentFixture({
+		labels: { kind: 'screenshot' }, additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => render(context, 1000, OS, false, [], true, undefined, false, { filter: 'ssh' }),
+	}),
+	FilteredTunnelSignIn: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['tunnel'], true, undefined, true, { filter: 'tunnel' }) }),
+	FilteredWSLEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OperatingSystem.Windows, true, [], true, undefined, false, { filter: 'wsl' }) }),
 	EnvironmentsNarrow: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 360, OS, false, [], true) }),
 	EnvironmentsEmpty: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, [], true) }),
 	EnvironmentsWarning: defineComponentFixture({ labels: { kind: 'screenshot' }, render: context => render(context, 1000, OS, true, ['environment'], true) }),
