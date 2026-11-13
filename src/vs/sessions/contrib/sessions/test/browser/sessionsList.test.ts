@@ -5456,26 +5456,31 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('inbox exposes the snooze deadline visually and to screen readers', () => {
-			const session = buildTestSession({ id: 'snoozed', title: 'Snoozed', workspace: 'Project' }).session;
-			const harness = createListHarness(disposables, [session]);
-			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
-			harness.instantiationService.stub(ISessionsListModelService, model);
-			const until = new Date(2099, 0, 1, 9);
-			model.setInboxState([session], until.getTime());
-			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
-				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
-			}));
-			list.layout(600, 400);
-			list.setHeaderCollapsed(SessionInboxSection.OnHold, false);
-			const row = list.getItemRow({ session: session.resource })!;
-			const description = `Snoozed until ${until.toLocaleString()}`;
-			assert.deepStrictEqual({
-				visible: row.textContent?.includes(description),
-				accessible: row.getAttribute('aria-label')?.includes(description),
-				archived: session.isArchived.get(),
-			}, { visible: true, accessible: true, archived: false });
-		});
+		const snoozeDeadline = new Date(2099, 0, 1, 9);
+		for (const { action, description } of [
+			{ action: snoozeDeadline.getTime(), description: `Snoozed until ${snoozeDeadline.toLocaleString()}` },
+			{ action: 'untilActivity' as const, description: 'Snoozed until new activity' },
+			{ action: 'hold' as const, description: undefined },
+		]) {
+			test(`inbox triage descriptor for ${typeof action === 'number' ? 'timed snooze' : action} is consistent visually and for screen readers`, () => {
+				const session = buildTestSession({ id: 'triaged', title: 'Triaged', workspace: 'Project' }).session;
+				const harness = createListHarness(disposables, [session]);
+				const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+				harness.instantiationService.stub(ISessionsListModelService, model);
+				model.setInboxState([session], action);
+				const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				}));
+				list.layout(600, 400);
+				list.setHeaderCollapsed(SessionInboxSection.OnHold, false);
+				const row = list.getItemRow({ session: session.resource })!;
+				assert.deepStrictEqual({
+					description: row.querySelector('.session-details-row .session-description')?.textContent,
+					accessible: row.getAttribute('aria-label')?.includes(description ?? 'On hold until'),
+					archived: session.isArchived.get(),
+				}, { description, accessible: description !== undefined, archived: false });
+			});
+		}
 
 		test('inbox renders historical and explicit triage state and restores custom placement when leaving the mode', async () => {
 			const grouped = createTestSession('grouped');

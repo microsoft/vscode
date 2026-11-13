@@ -85,7 +85,6 @@ export function getSessionInboxDescription(state: SessionInboxState | undefined)
 	switch (state?.kind) {
 		case 'snoozed': return localize('inboxSnoozedUntil', "Snoozed until {0}", new Date(state.until).toLocaleString());
 		case 'untilActivity': return localize('inboxSnoozedUntilActivity', "Snoozed until new activity");
-		case 'hold': return localize('inboxHeldUntilResumed', "On hold until you return it to Inbox");
 		default: return undefined;
 	}
 }
