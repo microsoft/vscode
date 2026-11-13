@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewRemoteRoot, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewRemoteNetwork, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewRemoteFile, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewRemoteNetwork, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
 import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, normalizeBrowserViewUrl } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -960,7 +960,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	/** The remote networks with a published proxy, each with the trusted folders on its file system. */
 	private _getRemoteNetworks(trustedRoots: readonly URI[]): { [authority: string]: IBrowserViewRemoteNetwork } {
-		const remoteRoots = trustedRoots.flatMap(root => getBrowserViewRemoteRoot(root) ?? []);
+		const remoteRoots = trustedRoots.flatMap(root => getBrowserViewRemoteFile(root) ?? []);
 		const trustAllFiles = !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled();
 		const remoteNetworks: { [authority: string]: IBrowserViewRemoteNetwork } = {};
 		for (const [authority, entry] of this._networkProxies) {
@@ -972,7 +972,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			remoteNetworks[authority] = {
 				proxy: entry.info,
 				scheme,
-				trustedRoots: remoteRoots.filter(root => root.scheme === scheme && extUri.isEqualAuthority(root.authority, authority)).map(root => root.path),
+				trustedRoots: remoteRoots.filter(root => root.scheme === scheme && extUri.isEqualAuthority(root.authority, authority)).map(root => root.fileUri.path),
 				trustAllFiles: scheme === Schemas.vscodeRemote && trustAllFiles,
 				caseSensitive: this.isNetworkPathCaseSensitive(network) ?? true,
 			};

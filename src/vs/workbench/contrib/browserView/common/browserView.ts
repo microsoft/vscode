@@ -10,7 +10,6 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
@@ -68,6 +67,7 @@ import {
 	IBrowserViewNetwork,
 	IBrowserViewSessionOptions,
 	getBrowserViewSessionNetwork,
+	BROWSER_REMOTE_FILE_SCHEMES,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -290,7 +290,7 @@ export interface IBrowserViewOpenHandler {
 }
 
 /** Resource schemes of HTML files that can be opened in the integrated browser. */
-export const BROWSER_FILE_SCHEMES: readonly string[] = [Schemas.file, Schemas.vscodeRemote, AGENT_HOST_SCHEME];
+export const BROWSER_FILE_SCHEMES: readonly string[] = [Schemas.file, ...BROWSER_REMOTE_FILE_SCHEMES];
 
 /** Whether browser views may use remote networks (see {@link IBrowserViewNetworkResolver}). */
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';

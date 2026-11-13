@@ -88,10 +88,6 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 				const fallback = this.getLocalFallback(model, network);
 				isWarning = fallback.isWarning;
 				statusMessage = fallback.message;
-				if (model.url.startsWith('file://')) {
-					isWarning = true;
-					statusMessage = localize('browser.connectedLocally.file', "File URLs are served locally, not over the remote connection.");
-				}
 			}
 		}
 
@@ -109,6 +105,9 @@ class BrowserRemoteIndicatorContribution extends BrowserEditorContribution {
 
 	/** Why a tab opened for a remote network uses the local one. Deliberate choices are not warnings. */
 	private getLocalFallback(model: IBrowserViewModel, network: IBrowserViewNetwork): { message: string; isWarning: boolean } {
+		if (model.url.startsWith('file://')) {
+			return { message: localize('browser.connectedLocally.file', "File URLs are served locally, not over the remote connection."), isWarning: true };
+		}
 		const networkStatus = this.browserViewWorkbenchService.getNetworkStatus(network);
 		if (model.storageScope === BrowserViewStorageScope.Global) {
 			return { message: localize('browser.localFallback.global', "Connected locally. Browsers using global storage load pages from your local network, not from {0}.", networkStatus.label), isWarning: false };

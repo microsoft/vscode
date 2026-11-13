@@ -19,7 +19,7 @@ import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
 import { BrowserSessionRemote, IBrowserSessionRemote } from './browserSessionRemote.js';
-import { normalizeRemoteFilePath, toRemoteTrustKey, type IRemoteFileTrust } from './browserSessionFiles.js';
+import { normalizeRemoteFilePath, toRemoteFileAccessKey, type IRemoteFileAccess } from './browserSessionFiles.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { localize } from '../../../nls.js';
@@ -261,10 +261,10 @@ export class BrowserSession {
 
 	private static readonly _trustedLocalFileRoots = TernarySearchTree.forPaths<true>(!isLinux);
 	private static _trustAllLocalFiles = false;
-	private static _trustedRemoteFileRoots = new Map<string, IRemoteFileTrust>();
+	private static _remoteFileAccess = new Map<string, IRemoteFileAccess>();
 
 	/**
-	 * Set trusted file roots for sessions on the local network. Remote sessions use {@link setTrustedRemoteFileRoots}.
+	 * Set trusted file roots for sessions on the local network. Remote sessions use {@link setRemoteFileAccess}.
 	 */
 	static setTrustedLocalFileRoots(roots: readonly string[], trustAllFiles: boolean): void {
 		BrowserSession._trustAllLocalFiles = trustAllFiles;
@@ -277,11 +277,11 @@ export class BrowserSession {
 	}
 
 	/**
-	 * Set the trusted paths on the file system of each remote, keyed by {@link toRemoteTrustKey}.
+	 * Set the trusted paths on the file system of each remote, keyed by {@link toRemoteFileAccessKey}.
 	 * Used for the `file:` requests of sessions bound to that remote's network.
 	 */
-	static setTrustedRemoteFileRoots(remotes: ReadonlyMap<string, IRemoteFileTrust>): void {
-		BrowserSession._trustedRemoteFileRoots = new Map(remotes);
+	static setRemoteFileAccess(remotes: ReadonlyMap<string, IRemoteFileAccess>): void {
+		BrowserSession._remoteFileAccess = new Map(remotes);
 	}
 
 	// #endregion
@@ -347,7 +347,7 @@ export class BrowserSession {
 
 	/** Whether the file system of this session's remote network distinguishes paths by case (strict if unknown), or `undefined` for the local network, which follows the client. */
 	get isPathCaseSensitive(): boolean | undefined {
-		return this._network && (BrowserSession._trustedRemoteFileRoots.get(toRemoteTrustKey(this._network.authority))?.caseSensitive ?? true);
+		return this._network && (BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(this._network.authority))?.caseSensitive ?? true);
 	}
 
 	/** The options that select this session. */
@@ -449,8 +449,8 @@ export class BrowserSession {
 	private async handleRemoteFileRequest(authority: string, uri: URI): Promise<GlobalResponse> {
 		// Check and serve the same normalized path so `..` segments cannot escape the trusted roots.
 		const path = normalizeRemoteFilePath(uri.path);
-		const trusted = BrowserSession._trustedRemoteFileRoots.get(toRemoteTrustKey(authority));
-		if (path === undefined || !trusted || (!trusted.trustAll && !trusted.roots.findSubstr(path))) {
+		const trusted = BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(authority));
+		if (path === undefined || !trusted || (!trusted.trustAllFiles && !trusted.roots.findSubstr(path))) {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 

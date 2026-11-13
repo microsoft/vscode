@@ -7,9 +7,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_HOST_SCHEME } from '../../../agentHost/common/agentHostUri.js';
 import { IBrowserViewRemoteNetwork } from '../../common/browserView.js';
-import { computeRemoteFileTrust, normalizeRemoteFilePath } from '../../electron-main/browserSessionFiles.js';
+import { computeRemoteFileAccess, normalizeRemoteFilePath } from '../../electron-main/browserSessionFiles.js';
 
-suite('computeRemoteFileTrust', () => {
+suite('computeRemoteFileAccess', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const proxy = { port: 1, username: 'u', password: 'p' } as unknown as IBrowserViewRemoteNetwork['proxy'];
@@ -19,24 +19,24 @@ suite('computeRemoteFileTrust', () => {
 	}
 
 	test('merges what windows contribute per authority', () => {
-		const remotes = computeRemoteFileTrust([
+		const remotes = computeRemoteFileAccess([
 			{ 'Host-A': network(['/repo']), 'host-b': network(['/other'], { caseSensitive: false }) },
 			{ 'host-a': network(['/more', '/bad\\root'], { trustAllFiles: true, caseSensitive: false }) },
 			undefined,
 		]);
 		const paths = ['/repo/a', '/REPO/a', '/more/a', '/bad/a', '/other/a', '/OTHER/a'];
 		assert.deepStrictEqual(Object.fromEntries([...remotes].map(([authority, remote]) => [authority, {
-			trustAll: remote.trustAll, scheme: remote.scheme, caseSensitive: remote.caseSensitive,
+			trustAllFiles: remote.trustAllFiles, scheme: remote.scheme, caseSensitive: remote.caseSensitive,
 			trusted: paths.filter(path => remote.roots.findSubstr(path)),
 		}])), {
-			'host-a': { trustAll: true, scheme: AGENT_HOST_SCHEME, caseSensitive: false, trusted: ['/repo/a', '/REPO/a', '/more/a'] },
-			'host-b': { trustAll: false, scheme: AGENT_HOST_SCHEME, caseSensitive: false, trusted: ['/other/a', '/OTHER/a'] },
+			'host-a': { trustAllFiles: true, scheme: AGENT_HOST_SCHEME, caseSensitive: false, trusted: ['/repo/a', '/REPO/a', '/more/a'] },
+			'host-b': { trustAllFiles: false, scheme: AGENT_HOST_SCHEME, caseSensitive: false, trusted: ['/other/a', '/OTHER/a'] },
 		});
 	});
 
 	test('ignores case only for case-insensitive remotes', () => {
 		const request = '/C:/Users/me/web-example/index.html';
-		const trust = (caseSensitive: boolean) => computeRemoteFileTrust([{ host: network(['/c:/Users/me/web-example'], { caseSensitive }) }]).get('host')!.roots;
+		const trust = (caseSensitive: boolean) => computeRemoteFileAccess([{ host: network(['/c:/Users/me/web-example'], { caseSensitive }) }]).get('host')!.roots;
 		assert.deepStrictEqual({
 			insensitive: !!trust(false).findSubstr(request),
 			sensitive: !!trust(true).findSubstr(request),

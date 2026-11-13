@@ -199,19 +199,22 @@ export interface IBrowserViewRemoteNetwork {
 	readonly caseSensitive: boolean;
 }
 
+/** Resource schemes that address files on a remote's own file system: the window's remote, or a remote agent host. */
+export const BROWSER_REMOTE_FILE_SCHEMES: readonly string[] = [Schemas.vscodeRemote, AGENT_HOST_SCHEME];
+
 /**
- * The remote and path a trusted root refers to when it is a folder on the file system of a remote
- * that browser sessions can read from, or `undefined` otherwise.
+ * The remote a `vscode-remote:` or `vscode-agent-host:` URI points into, and the `file:` URI of the same
+ * location on that remote's own file system, or `undefined` for anything else. The inverse of {@link fileUrlToRemoteUri}.
  */
-export function getBrowserViewRemoteRoot(root: URI): { readonly scheme: string; readonly authority: string; readonly path: string } | undefined {
-	if (root.scheme === Schemas.vscodeRemote) {
-		return { scheme: root.scheme, authority: root.authority, path: root.path };
+export function getBrowserViewRemoteFile(uri: URI): { readonly scheme: string; readonly authority: string; readonly fileUri: URI } | undefined {
+	if (uri.scheme === Schemas.vscodeRemote) {
+		return { scheme: uri.scheme, authority: uri.authority, fileUri: uri.with({ scheme: Schemas.file, authority: '' }) };
 	}
-	if (root.scheme === AGENT_HOST_SCHEME) {
-		const original = fromAgentHostUri(root);
-		// A root with an authority (`file://server/share`) is not a path on the host's own file system.
-		if (original.scheme === Schemas.file && !original.authority) {
-			return { scheme: root.scheme, authority: root.authority, path: original.path };
+	if (uri.scheme === AGENT_HOST_SCHEME) {
+		const fileUri = fromAgentHostUri(uri);
+		// A file with an authority (`file://server/share`) is not on the host's own file system.
+		if (fileUri.scheme === Schemas.file && !fileUri.authority) {
+			return { scheme: uri.scheme, authority: uri.authority, fileUri };
 		}
 	}
 	return undefined;
@@ -390,22 +393,17 @@ export function splitUrlSuffix(url: string): { readonly base: string; readonly q
  * Other URLs are returned as is.
  */
 export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url: string): string {
-	const uri = URI.parse(url);
-	if (!network || (uri.scheme !== Schemas.vscodeRemote && uri.scheme !== AGENT_HOST_SCHEME) || !extUri.isEqualAuthority(uri.authority, network.authority)) {
+	const remote = network && getBrowserViewRemoteFile(URI.parse(url));
+	if (!remote || !extUri.isEqualAuthority(remote.authority, network.authority)) {
 		return url;
 	}
-	const isAgentHost = uri.scheme === AGENT_HOST_SCHEME;
-	const original = isAgentHost ? fromAgentHostUri(uri) : uri;
-	// A file on a share (authority) or another remote is not on the host's own file system.
-	if (isAgentHost && (original.scheme !== Schemas.file || original.authority)) {
-		return url;
-	}
+	const original = remote.fileUri;
 	// Encode each segment so literal percent sequences in file names survive. Colons are valid in
 	// both POSIX paths and Windows drive letters, and must stay literal for relative URLs to resolve.
 	const fileUrl = 'file://' + original.path.split('/').map(segment => encodeURIComponent(segment).replace(/%3A/gi, ':')).join('/');
 	// The query and fragment stay exactly as written, since decoding them would change their meaning.
 	const { query, fragment } = splitUrlSuffix(url);
-	if (!isAgentHost) {
+	if (remote.scheme === Schemas.vscodeRemote) {
 		return fileUrl + query + fragment;
 	}
 	// The query of an agent host URL is encoded metadata, so the page's query is the one of the file URL it wraps.

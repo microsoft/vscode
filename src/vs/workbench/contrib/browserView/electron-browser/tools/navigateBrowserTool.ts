@@ -98,8 +98,9 @@ export class NavigateBrowserTool implements IToolImpl {
 					throw new Error(resourceNavigationError);
 				}
 
+				const pageNetwork = this.getPageNetwork(params.pageId, toSessionId(context.chatSessionResource));
 				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
-				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(this.getPageNetwork(params.pageId, toSessionId(context.chatSessionResource)), params.url), this.agentNetworkFilterService);
+				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(pageNetwork, params.url), this.agentNetworkFilterService);
 				if (networkPolicyError) {
 					throw new Error(networkPolicyError);
 				}
@@ -134,8 +135,9 @@ export class NavigateBrowserTool implements IToolImpl {
 				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.goForward({ waitUntil: 'domcontentloaded' }));
 			default: {
 				const network = this.getPageNetwork(params.pageId, sessionId);
-				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
-				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(network, params.url!), this.agentNetworkFilterService);
+				// A resource of the page's remote is loaded as a `file:` URL, so the policy, the rewrite and the navigation use that.
+				const url = remoteUrlToFileUrl(network, params.url!);
+				const networkPolicyError = getBrowserNetworkPolicyError(url, this.agentNetworkFilterService);
 				if (networkPolicyError) {
 					return errorResult(networkPolicyError);
 				}
@@ -148,14 +150,14 @@ export class NavigateBrowserTool implements IToolImpl {
 				// A page on the local network in a remote workspace runs locally and cannot reach the
 				// remote's localhost directly. Rewrite to the forwarded local address (if
 				// any) so the page can be reached. The page keeps the network it was created with.
-				const rewrite = rewriteRemoteLocalhostUrl(params.url!, this.remoteExplorerService, !!network);
+				const rewrite = rewriteRemoteLocalhostUrl(url, this.remoteExplorerService, !!network);
 				const tunnelPolicyError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
 				if (tunnelPolicyError) {
 					return errorResult(tunnelPolicyError);
 				}
 				const result = await playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page, target) => {
 					return page.goto(target, { waitUntil: 'domcontentloaded' });
-				}, remoteUrlToFileUrl(network, rewrite.url));
+				}, rewrite.url);
 				return rewrite.rewritten
 					? { ...result, content: [remoteUrlRewriteNotice(params.url!, rewrite.url), ...result.content] }
 					: result;

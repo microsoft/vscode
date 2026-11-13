@@ -7,7 +7,7 @@ import assert from 'assert';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../agentHost/common/agentHostUri.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewPresentation, getBrowserViewRemoteRoot, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewPresentation, getBrowserViewRemoteFile, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -188,15 +188,15 @@ suite('BrowserView', () => {
 		});
 	});
 
-	test('finds the remote path of a trusted root', () => {
+	test('finds the file on the remote disk', () => {
 		assert.deepStrictEqual({
-			remote: getBrowserViewRemoteRoot(URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+a', path: '/repo' })),
-			agentHost: getBrowserViewRemoteRoot(toAgentHostUri(URI.file('/repo'), 'host-a')),
-			fileAuthority: getBrowserViewRemoteRoot(toAgentHostUri(URI.from({ scheme: 'file', authority: 'server', path: '/share' }), 'host-a')),
-			local: getBrowserViewRemoteRoot(URI.file('/repo')),
+			remote: getBrowserViewRemoteFile(URI.from({ scheme: 'vscode-remote', authority: 'ssh-remote+a', path: '/repo' })),
+			agentHost: getBrowserViewRemoteFile(toAgentHostUri(URI.file('/repo'), 'host-a')),
+			fileAuthority: getBrowserViewRemoteFile(toAgentHostUri(URI.from({ scheme: 'file', authority: 'server', path: '/share' }), 'host-a')),
+			local: getBrowserViewRemoteFile(URI.file('/repo')),
 		}, {
-			remote: { scheme: 'vscode-remote', authority: 'ssh-remote+a', path: '/repo' },
-			agentHost: { scheme: AGENT_HOST_SCHEME, authority: 'host-a', path: '/repo' },
+			remote: { scheme: 'vscode-remote', authority: 'ssh-remote+a', fileUri: URI.file('/repo') },
+			agentHost: { scheme: AGENT_HOST_SCHEME, authority: 'host-a', fileUri: URI.file('/repo') },
 			fileAuthority: undefined,
 			local: undefined,
 		});

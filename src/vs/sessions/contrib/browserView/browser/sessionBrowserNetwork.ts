@@ -69,12 +69,12 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 	private readonly _composerTabs = this._register(new DisposableMap<BrowserEditorInput, IComposerTab>());
 	/** The folders of the sessions on remote agent hosts that are trusted, for {@link IBrowserViewNetworkResolver.getTrustedFileRoots}. */
 	private _trustedFileRoots: URI[] = [];
-	/** Whether the file system of each connected host (keyed by authority) distinguishes paths by case, once its operating system is known. */
-	private readonly _caseSensitiveHosts: IObservable<{ readonly [authority: string]: boolean }>;
 	/** Identifies {@link _trustedFileRoots}, so changes are only reported when they change. */
 	private _trustedFileRootsKey = '[]';
 	/** Recomputes of the trusted roots run one at a time, so the latest one wins. */
 	private readonly _trustedFileRootsUpdates = new Sequencer();
+	/** Whether the file system of each connected host (keyed by authority) distinguishes paths by case, once its operating system is known. */
+	private readonly _caseSensitiveHosts: IObservable<{ readonly [authority: string]: boolean }>;
 	/** Moves of composer tabs run one at a time, so each sees the tabs earlier moves created. */
 	private readonly _composerTabMoves = new Sequencer();
 

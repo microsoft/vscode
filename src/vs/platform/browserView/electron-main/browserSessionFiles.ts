@@ -8,31 +8,31 @@ import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { IBrowserViewRemoteNetwork } from '../common/browserView.js';
 
 /** What sessions on a remote network may read from the remote's file system. */
-export interface IRemoteFileTrust {
+export interface IRemoteFileAccess {
 	/** The trusted folders, as normalized paths. Looks paths up with the remote's case rules. */
 	readonly roots: TernarySearchTree<string, true>;
-	readonly trustAll: boolean;
+	readonly trustAllFiles: boolean;
 	/** The scheme the remote's files are read with: `vscode-remote` or `vscode-agent-host`. */
 	readonly scheme: string;
 	readonly caseSensitive: boolean;
 }
 
 /** The key under which a remote network's trust is stored. Authorities are case-insensitive. */
-export function toRemoteTrustKey(authority: string): string {
+export function toRemoteFileAccessKey(authority: string): string {
 	return authority.toLowerCase();
 }
 
 /**
- * Merges what every window contributes for each remote network, keyed by {@link toRemoteTrustKey}.
+ * Merges what every window contributes for each remote network, keyed by {@link toRemoteFileAccessKey}.
  * A window only contributes to the networks it is connected to.
  */
-export function computeRemoteFileTrust(windows: Iterable<{ readonly [authority: string]: IBrowserViewRemoteNetwork } | undefined>): Map<string, IRemoteFileTrust> {
-	const merged = new Map<string, { roots: Set<string>; trustAll: boolean; scheme: string; caseSensitive: boolean }>();
+export function computeRemoteFileAccess(windows: Iterable<{ readonly [authority: string]: IBrowserViewRemoteNetwork } | undefined>): Map<string, IRemoteFileAccess> {
+	const merged = new Map<string, { roots: Set<string>; trustAllFiles: boolean; scheme: string; caseSensitive: boolean }>();
 	for (const networks of windows) {
 		for (const [authority, network] of Object.entries(networks ?? {})) {
-			const key = toRemoteTrustKey(authority);
-			const remote = merged.get(key) ?? { roots: new Set<string>(), trustAll: false, scheme: network.scheme, caseSensitive: network.caseSensitive };
-			remote.trustAll ||= network.trustAllFiles;
+			const key = toRemoteFileAccessKey(authority);
+			const remote = merged.get(key) ?? { roots: new Set<string>(), trustAllFiles: false, scheme: network.scheme, caseSensitive: network.caseSensitive };
+			remote.trustAllFiles ||= network.trustAllFiles;
 			remote.caseSensitive &&= network.caseSensitive;
 			for (const root of network.trustedRoots) {
 				// Roots with backslashes are dropped: they are separators to the tree, so one would authorize other directories.
