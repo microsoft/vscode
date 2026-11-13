@@ -14,9 +14,10 @@ import { BrowserViewUri } from '../../../../platform/browserView/common/browserV
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { BROWSER_FILE_SCHEMES, IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
+import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -64,6 +65,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IBrowserViewWorkbenchService browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -113,7 +115,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 						priority: RegisteredEditorPriority.option
 					},
 					{
-						canSupportResource: resource => resource.scheme === scheme,
+						canSupportResource: resource => resource.scheme === scheme && (scheme === Schemas.file || !!configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)),
 						singlePerResource: true
 					},
 					{

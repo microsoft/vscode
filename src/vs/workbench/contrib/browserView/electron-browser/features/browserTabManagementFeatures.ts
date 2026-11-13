@@ -24,7 +24,7 @@ import { logBrowserOpen } from '../../../../../platform/browserView/common/brows
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { BROWSER_FILE_SCHEMES, BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
@@ -352,7 +352,10 @@ class OpenIntegratedBrowserAction extends Action2 {
 class OpenFileInIntegratedBrowserAction extends Action2 {
 	constructor() {
 		const IS_SUPPORTED_BROWSER_FILE = ContextKeyExpr.and(
-			ContextKeyExpr.or(...BROWSER_FILE_SCHEMES.map(scheme => ResourceContextKey.Scheme.isEqualTo(scheme))),
+			// Remote files can only be loaded by tabs on a remote network, which needs the remote proxy.
+			ContextKeyExpr.or(...BROWSER_FILE_SCHEMES.map(scheme => scheme === Schemas.file
+				? ResourceContextKey.Scheme.isEqualTo(scheme)
+				: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(scheme), ContextKeyExpr.has(`config.${BrowserRemoteProxyEnabledSettingId}`)))),
 			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.(?:html?|mht(?:ml)?)$/i),
 		);
 		super({
