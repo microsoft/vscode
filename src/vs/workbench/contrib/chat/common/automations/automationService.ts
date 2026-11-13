@@ -139,6 +139,8 @@ export interface ICreateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
+	/** See {@link IAutomationDescriptor.continueSession}; requires {@link IAutomationStore.supportsContinueSession}. */
+	readonly continueSession?: boolean;
 	/**
 	 * Ids of the {@link IAutomationCustomizationChoice | customizations} to sync.
 	 * Absent means the provider's default: every customization enabled for the target.
@@ -178,6 +180,8 @@ export interface IUpdateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
+	/** See {@link IAutomationDescriptor.continueSession}; absent keeps the current choice. */
+	readonly continueSession?: boolean;
 	/**
 	 * Ids of the customizations to sync. Selected entries that are outdated are refreshed.
 	 * Absent keeps the saved customizations unless the target changes.
@@ -233,6 +237,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
 		cloudTrigger: automation.cloudTrigger,
+		...(automation.continueSession ? { continueSession: true } : {}),
 	});
 }
 
@@ -300,6 +305,8 @@ export interface IAutomationStore {
 	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void>;
 	/** Whether this provider supports an explicit keep/delete history policy. */
 	supportsDeleteHistoryChoice?(id: string): boolean;
+	/** Whether Automations of the provider can continue the previous run's session; see {@link IAutomationDescriptor.continueSession}. */
+	supportsContinueSession?(providerId: string): boolean;
 	/** Includes removed definitions whose run history is retained. */
 	getAutomationHistoryName?(id: string): string | undefined;
 	/** State of a removed definition's retained history. */

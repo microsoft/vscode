@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, ThrottlerByKey } from '../../../base/common/async.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { Iterable } from '../../../base/common/iterator.js';
@@ -22,7 +22,7 @@ import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomat
 import { toTelemetryModel } from './agentHostTelemetryReporter.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentSession } from '../common/agent.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
 import { AUTOMATION_CATALOG_URI, type AutomationState, type ErrorInfo, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
 import { automationReducer } from '../common/state/sessionReducers.js';
@@ -44,13 +44,15 @@ import { AuthenticateTargetKind } from '../common/state/sessionProtocol.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
 import { McpServerStatus, SessionOriginKind, type AutomationSessionOrigin, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
-import { getAgentHostAutomationHistoryState, withAgentHostAutomationHistoryState } from '../common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, hasAgentHostAutomationContinueSession, readAgentHostAutomationRunMessage, withAgentHostAutomationHistoryState, withAgentHostAutomationRunMessage } from '../common/meta/agentHostAutomationsMeta.js';
 import { readMcpServerConnectorName } from '../common/meta/mcpCustomizationMeta.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
 const SCHEDULE_RETRY_DELAY_MS = 60_000;
 const RUN_HISTORY_PAGE_SIZE = 50;
+/** When an edit last changed what shapes an Automation's sessions; runs continue only a session created since. */
+const SESSION_TEMPLATE_CHANGED_META_KEY = 'vscode.sessionTemplateChangedAt';
 /** Gives the network time to reconnect after a full wake before resuming a turn that sleep broke; resumes also wait until scheduled work is ready. */
 const RESUME_AFTER_WAKE_DELAY_MS = 10_000;
 
@@ -69,6 +71,18 @@ interface IStoredSessionCreation {
 	readonly run: string;
 	readonly session: string;
 	readonly provider: string;
+}
+
+interface IContinuedRun {
+	readonly session: string;
+	/** The run's message, which starts a turn once the session runs no other turn. */
+	readonly message: Message;
+	/** The Automation's customizations, which the session gets before the run's turn starts. */
+	readonly activeClient: SessionActiveClient | undefined;
+	/** Whether the run must not start, while it is being linked or cancelled; it stays a continued run meanwhile. */
+	held: boolean;
+	/** The turn the message started. */
+	turnId?: string;
 }
 
 interface IStoredHistoryDeletion {
@@ -105,7 +119,16 @@ export interface IAgentHostAutomationExecution {
 	getRecoverableSessionProvider(session: URI, expectedProvider?: string): Promise<string | undefined>;
 	deleteSession(session: URI, provider: string): Promise<void>;
 	startSession(session: URI, message: Message): Promise<void>;
-	cancelSession(session: URI): Promise<boolean>;
+	/** Whether a run of `template` can send its message in `session`: it exists with `provider`, the template's provider, and is not archived. */
+	canContinueSession(template: AutomationSessionTemplate, session: URI, provider: string): Promise<boolean>;
+	/**
+	 * Starts a turn with `message` in an existing session, unless the session is running a turn or `shouldStart` no longer
+	 * holds once it is ready. The session first gets `activeClient`, the run's customizations. Throws when the session was
+	 * archived or deleted meanwhile.
+	 */
+	continueSession(session: URI, message: Message, shouldStart: () => boolean, activeClient: SessionActiveClient | undefined): Promise<void>;
+	/** Cancels the session's running turn, only when it is `turnId` if given. */
+	cancelSession(session: URI, turnId?: string): Promise<boolean>;
 	/** Resumes a session's latest turn if it failed with a resumable error; returns whether it resumed. */
 	resumeTurn(session: URI, turnId: string): Promise<boolean>;
 }
@@ -154,10 +177,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private readonly _resumeAfterWakeTimer = this._register(new MutableDisposable());
 	/** Running runs that were active while the machine was not fully awake. */
 	private readonly _sleptRuns = new Set<string>();
-	/** Runs whose turn failed after the machine slept, waiting for the next resume delay to finish and for scheduled work to be ready. */
-	private readonly _resumesAfterWake = new Map<string, { readonly session: string; readonly turnId: string; readonly error: ErrorInfo; delayElapsed: boolean }>();
+	/**
+	 * Runs whose turn failed after the machine slept, waiting for the next resume delay to finish and for scheduled work to be
+	 * ready; `held` while the run's cancellation persists, so it doesn't resume meanwhile.
+	 */
+	private readonly _resumesAfterWake = new Map<string, { readonly session: string; readonly turnId: string; readonly error: ErrorInfo; delayElapsed: boolean; held?: boolean }>();
 	/** Runs already resumed after a wake; another failure ends them. */
 	private readonly _resumedAfterWake = new Set<string>();
+	/** Runs that continue the session of a previous run, in the order they are due, until they end. */
+	private readonly _continuedRuns = new Map<string, IContinuedRun>();
+	/** One attempt at a time per session to start its next continued run; attempts requested meanwhile run once after it. */
+	private readonly _continuedRunStarts = this._register(new ThrottlerByKey<string>());
 	/** Pending runs that a Run Now request reused; like manual runs, they start without waiting for scheduled work to be ready. */
 	private readonly _manuallyRequestedRuns = new Set<string>();
 	private readonly _customizations: AgentHostAutomationCustomizations;
@@ -373,6 +403,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			modifiedAt: new Date().toISOString(),
 		};
 		this._validateDefinition(automation.definition);
+		// A turn without a model keeps its session's model, so clearing the model starts over too.
+		const clearsModel = getExecutionSessionTemplate(existing.definition).model !== undefined && getExecutionSessionTemplate(automation.definition).model === undefined;
+		if (clearsModel || !equals(toSessionShape(existing.definition.session), toSessionShape(automation.definition.session))) {
+			automation = { ...automation, _meta: { ...automation._meta, [SESSION_TEMPLATE_CHANGED_META_KEY]: automation.modifiedAt } };
+		}
 		if (action.changes.session !== undefined) {
 			automation.customizations = await this._customizations.capture(clientId, action.changes.session.customizations, existing, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		}
@@ -742,7 +777,8 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (sessions.length === 0) {
 			return;
 		}
-		const results = await Promise.allSettled(sessions.map(session => this._execution.cancelSession(URI.parse(session))));
+		const turnId = this._continuedRuns.get(resource)?.turnId;
+		const results = await Promise.allSettled(sessions.map(session => this._execution.cancelSession(URI.parse(session), turnId)));
 		let accepted = false;
 		for (const result of results) {
 			if (result.status === 'rejected') {
@@ -907,7 +943,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			const cursors = { ...readScheduleCursors(current._meta) };
 			let automation = current;
-			let claimedForAutomation = false;
+			// A run yet to start in the session, even one still creating it, covers this occurrence too; another would only repeat its prompt after it.
+			let claimedForAutomation = hasAgentHostAutomationContinueSession(current.definition) && Iterable.some(this._runs.values(), run => {
+				const continued = this._continuedRuns.get(run.resource);
+				return run.automation === current.resource && !isTerminalLifecycle(run.lifecycle) && (run.primarySession === undefined || continued !== undefined && continued.turnId === undefined);
+			});
 			for (const trigger of current.definition.triggers) {
 				if (trigger.kind !== AutomationTriggerKind.Schedule) {
 					continue;
@@ -1105,24 +1145,28 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				this._logService.info(`[AgentHostAutomationService] Deferring Automation run until its provider is available: run=${initialRun.resource}.`);
 				return;
 			}
-			const allocation = await this._execution.allocateSession(template);
-			const running = await this._enqueueMutation(() => this._markRunRunning(initialRun.resource, allocation));
-			if (!running) {
-				return;
-			}
 			const configuration = this._configurationTelemetry(definition.session);
-			const session = await this._execution.createSession({ ...template, provider: allocation.provider }, running, allocation.session, activeClient);
-			const shouldStart = await this._enqueueMutation(() => this._linkRunSession(running.resource, session.toString(), configuration, allocation.provider));
-			if (!shouldStart) {
-				await this._execution.cancelSession(session);
-				return;
-			}
 			// Each turn applies its own model and agent, independently of the session's creation defaults.
 			const message: Message = {
 				...definition.message,
 				...(definition.message.model === undefined && template.model !== undefined ? { model: template.model } : {}),
 				...(template.agent !== undefined ? { agent: template.agent } : {}),
 			};
+			const templateRevision = readSessionTemplateChangedAt(entry._meta);
+			if (hasAgentHostAutomationContinueSession(definition) && await this._continueSession(initialRun, template, configuration, message, activeClient, templateRevision)) {
+				return;
+			}
+			const allocation = await this._execution.allocateSession(template);
+			const running = await this._enqueueMutation(() => this._markRunRunning(initialRun.resource, allocation));
+			if (!running) {
+				return;
+			}
+			const session = await this._execution.createSession({ ...template, provider: allocation.provider }, running, allocation.session, activeClient);
+			const shouldStart = await this._enqueueMutation(() => this._linkRunSession(running.resource, session.toString(), configuration, allocation.provider, templateRevision));
+			if (!shouldStart) {
+				await this._execution.cancelSession(session);
+				return;
+			}
 			await this._execution.startSession(session, message);
 		} catch (error) {
 			try {
@@ -1140,7 +1184,81 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 	}
 
-	private async _markRunRunning(resource: string, allocation: { readonly session: URI; readonly provider: string }): Promise<AutomationRunState | undefined> {
+	/**
+	 * Sends the run's message in the session of the Automation's latest run that has one. `false` when that session can't
+	 * be continued, such as after it was deleted or archived, so the run creates a new session that later runs continue.
+	 */
+	private async _continueSession(run: AutomationRunState, template: AutomationSessionTemplate, configuration: IAutomationConfigurationTelemetry, message: Message, activeClient: SessionActiveClient | undefined, templateRevision: string | undefined): Promise<boolean> {
+		let previous: AutomationRunState | undefined;
+		for (const candidate of this._runs.values()) {
+			if (candidate.automation === run.automation && candidate.resource !== run.resource && candidate.primarySession !== undefined
+				&& (!previous || Date.parse(candidate.lifecycle.createdAt) > Date.parse(previous.lifecycle.createdAt))) {
+				previous = candidate;
+			}
+		}
+		const provider = previous && this._runProviders.get(previous.resource);
+		const session = previous?.primarySession !== undefined ? URI.parse(previous.primarySession) : undefined;
+		// A session keeps the folders and configuration it was created with, so an edit of them since starts over.
+		if (!session || !provider || !previous || readSessionTemplateChangedAt(previous._meta) !== templateRevision) {
+			return false;
+		}
+		try {
+			if (!await this._execution.canContinueSession(template, session, provider)) {
+				return false;
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostAutomationService] Cannot continue the previous Automation session; creating a new one: run=${run.resource}, session=${session}, error=${toErrorMessage(error)}`);
+			return false;
+		}
+		// Not journaled as a creation: recovery must never delete a session that a previous run created. The run is registered
+		// before its link is published, so no other turn of the session matches it, but starts only once linked.
+		const linked = await this._enqueueMutation(async () => {
+			if (!await this._markRunRunning(run.resource, { session, provider }, false)) {
+				return false;
+			}
+			const continued: IContinuedRun = { session: session.toString(), message: withAgentHostAutomationRunMessage(message, run.resource), activeClient, held: true };
+			this._continuedRuns.set(run.resource, continued);
+			try {
+				const linked = await this._linkRunSession(run.resource, session.toString(), configuration, provider, templateRevision);
+				continued.held = false;
+				return linked;
+			} catch (error) {
+				this._continuedRuns.delete(run.resource);
+				throw error;
+			}
+		});
+		if (linked) {
+			await this._startNextContinuedRun(session.toString());
+		}
+		return true;
+	}
+
+	/**
+	 * Starts the earliest waiting continued run of `session` unless the session runs a turn, such as a user's, or an earlier
+	 * run still holds it: one that ran a turn there and hasn't ended, even while it waits to resume after a wake. Called again
+	 * whenever a turn of the session ends and whenever a run of it ends.
+	 */
+	private _startNextContinuedRun(session: string): Promise<void> {
+		return this._continuedRunStarts.queue(session, async () => {
+			const next = Iterable.find(this._continuedRuns, ([, continued]) => continued.session === session && continued.turnId === undefined);
+			if (!next || next[1].held || Iterable.some(this._runs.values(), run => {
+				const continued = this._continuedRuns.get(run.resource);
+				return !isTerminalLifecycle(run.lifecycle) && run.sessions.includes(session) && (!continued || continued.turnId !== undefined);
+			})) {
+				return;
+			}
+			const [resource, continued] = next;
+			try {
+				// Checked again once the session restores, as the run may have ended or been held meanwhile.
+				await this._execution.continueSession(URI.parse(session), continued.message, () => this._continuedRuns.get(resource) === continued && !continued.held, continued.activeClient);
+			} catch (error) {
+				await this._enqueueMutation(() => this._failRun(resource, error)).catch(persistError =>
+					this._logService.error(`[AgentHostAutomationService] Failed to persist automation run failure: run=${resource}, error=${toErrorMessage(persistError)}`));
+			}
+		});
+	}
+
+	private async _markRunRunning(resource: string, allocation: { readonly session: URI; readonly provider: string }, journalCreation = true): Promise<AutomationRunState | undefined> {
 		const run = this._runs.get(resource);
 		if (!run || run.lifecycle.status !== AutomationRunStatus.Pending) {
 			return undefined;
@@ -1152,18 +1270,21 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		};
 		const next = { ...run, lifecycle };
 		const creations = new Map(this._sessionCreations);
-		creations.set(resource, { run: resource, session: allocation.session.toString(), provider: allocation.provider });
+		if (journalCreation) {
+			creations.set(resource, { run: resource, session: allocation.session.toString(), provider: allocation.provider });
+		}
 		await this._commitRun(next, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }], undefined, allocation.provider, creations);
 		return next;
 	}
 
-	private async _linkRunSession(resource: string, session: string, configuration: IAutomationConfigurationTelemetry | undefined, provider: string): Promise<boolean> {
+	/** `templateRevision` is the Automation's revision of what a session keeps from its creation that `session` was created from. */
+	private async _linkRunSession(resource: string, session: string, configuration: IAutomationConfigurationTelemetry | undefined, provider: string, templateRevision?: string): Promise<boolean> {
 		const run = this._runs.get(resource);
 		if (!run) {
 			throw new Error(`Automation run not found while linking session: ${resource}`);
 		}
 		const sessions = run.sessions.includes(session) ? run.sessions : [...run.sessions, session];
-		const next = { ...run, sessions, primarySession: session };
+		const next = { ...run, sessions, primarySession: session, ...(templateRevision !== undefined ? { _meta: { ...run._meta, [SESSION_TEMPLATE_CHANGED_META_KEY]: templateRevision } } : {}) };
 		const actions: Array<AutomationRunSessionSetAction | AutomationRunPrimarySessionChangedAction> = [];
 		if (!run.sessions.includes(session)) {
 			actions.push({ type: ActionType.AutomationRunSessionSet, session });
@@ -1193,12 +1314,34 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (isTerminalLifecycle(run.lifecycle)) {
 			throw new Error(`Automation run is already terminal: ${resource}`);
 		}
-		// A run waiting to resume after a wake has no active turn to cancel.
-		if (run.sessions.length > 0 && !this._resumesAfterWake.has(resource)) {
+		// A run waiting to resume after a wake has no active turn to cancel, nor has a continued run waiting for its session.
+		const continued = this._continuedRuns.get(resource);
+		const resume = this._resumesAfterWake.get(resource);
+		if (run.sessions.length > 0 && !resume && (!continued || continued.turnId !== undefined)) {
 			return run.sessions;
 		}
+		// Holds the run at once, so nothing starts or resumes its turn while the cancellation persists.
+		for (const waiting of [continued, resume]) {
+			if (waiting) {
+				waiting.held = true;
+			}
+		}
 		const lifecycle = toCancelledLifecycle(run.lifecycle, new Date().toISOString());
-		await this._commitRun({ ...run, lifecycle }, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }]);
+		try {
+			await this._commitRun({ ...run, lifecycle }, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }]);
+		} catch (error) {
+			// The run still waits, and may have missed its chance to go on during the write.
+			if (resume) {
+				resume.held = false;
+				this._scheduleResumesAfterWake();
+				void this._resumeTurnsAfterWake();
+			}
+			if (continued) {
+				continued.held = false;
+				void this._startNextContinuedRun(continued.session);
+			}
+			throw error;
+		}
 		return [];
 	}
 
@@ -1235,11 +1378,17 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				break;
 		}
 		const action = envelope.action;
+		if (action.type === ActionType.ChatTurnStarted) {
+			const continued = this._continuedRuns.get(readAgentHostAutomationRunMessage(action.message) ?? '');
+			if (continued) {
+				continued.turnId = action.turnId;
+			}
+		}
 		if (action.type === ActionType.ChatTurnStarted || action.type === ActionType.ChatTurnResume) {
 			// The chat is running again, whether this service or a user restarted it.
 			// This service stops the run waiting before it resumes, so a run still waiting here was restarted by a user and has used its one retry.
 			if (this._resumesAfterWake.size > 0) {
-				const restarted = this._activeRunForChat(envelope.channel);
+				const restarted = this._activeRunForChat(envelope.channel, action.turnId);
 				if (restarted && this._resumesAfterWake.delete(restarted.resource)) {
 					this._resumedAfterWake.add(restarted.resource);
 				}
@@ -1251,8 +1400,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			&& action.type !== ActionType.ChatError) {
 			return;
 		}
-		const run = this._activeRunForChat(envelope.channel);
+		const run = this._activeRunForChat(envelope.channel, action.turnId);
 		if (!run) {
+			// A turn that is no run's, such as a user's, frees its session for the next continued run.
+			const session = this._chatOwnership.getChatOwner(envelope.channel);
+			if (session !== undefined && this._continuedRuns.size > 0 && this._chatOwnership.getDefaultChat(session) === envelope.channel) {
+				void this._startNextContinuedRun(session);
+			}
 			return;
 		}
 		void this._enqueueMutation(async () => {
@@ -1292,10 +1446,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}).catch(error => this._logService.error(`[AgentHostAutomationService] Failed to persist terminal automation lifecycle: run=${run.resource}, error=${toErrorMessage(error)}`));
 	}
 
-	/** Matches the run's recorded sessions to their default chats, so a run still completes after its session left the registry. */
-	private _activeRunForChat(chat: string): AutomationRunState | undefined {
-		return [...this._runs.values()].find(candidate => !isTerminalLifecycle(candidate.lifecycle)
+	/**
+	 * Matches the run's recorded sessions to their default chats, so a run still completes after its session left the registry.
+	 * A run that continued a session only matches its own turn: other turns of that chat are a user's or other runs'.
+	 */
+	private _activeRunForChat(chat: string, turnId: string): AutomationRunState | undefined {
+		const active = [...this._runs.values()].filter(candidate => !isTerminalLifecycle(candidate.lifecycle)
 			&& candidate.sessions.some(session => this._chatOwnership.getDefaultChat(session) === chat));
+		return active.find(candidate => this._continuedRuns.get(candidate.resource)?.turnId === turnId)
+			?? active.find(candidate => !this._continuedRuns.has(candidate.resource));
 	}
 
 	private _scheduleResumesAfterWake(): void {
@@ -1314,7 +1473,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private async _resumeTurnsAfterWake(): Promise<void> {
 		for (const resource of [...this._resumesAfterWake.keys()]) {
 			const pending = this._resumesAfterWake.get(resource);
-			if (!pending?.delayElapsed || !this._systemWake.isReadyForScheduledWork.get()) {
+			if (!pending?.delayElapsed || pending.held || !this._systemWake.isReadyForScheduledWork.get()) {
 				continue;
 			}
 			this._resumesAfterWake.delete(resource);
@@ -1444,9 +1603,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				});
 			}
 			this._sleptRuns.delete(run.resource);
+			this._continuedRuns.delete(run.resource);
 			this._resumesAfterWake.delete(run.resource);
 			this._resumedAfterWake.delete(run.resource);
 			this._manuallyRequestedRuns.delete(run.resource);
+			// The run no longer holds its session, such as while it waited to resume after a wake.
+			for (const session of this._continuedRuns.size > 0 ? run.sessions : []) {
+				void this._startNextContinuedRun(session);
+			}
 			this._scheduleNext();
 		}
 	}
@@ -1561,6 +1725,21 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private readonly _log = (message: string) => this._logService.warn(`[AgentHostAutomationService] ${message}`);
+}
+
+function readSessionTemplateChangedAt(meta: Record<string, unknown> | undefined): string | undefined {
+	const value = meta?.[SESSION_TEMPLATE_CHANGED_META_KEY];
+	return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * What of a session template a session keeps from its creation and a run of it must not silently ignore: its provider,
+ * folders and persistent configuration, including a provider's own, such as mode, approvals and sandbox. Model and agent
+ * apply per turn, except that a turn without a model keeps its session's; customization snapshots change without an edit
+ * of the Automation.
+ */
+function toSessionShape(template: AutomationSessionTemplate): unknown {
+	return JSON.parse(JSON.stringify({ provider: template.provider, workingDirectories: template.workingDirectories, config: omitTransientSessionConfigValues(template.config ?? {}) }));
 }
 
 function getExecutionSessionTemplate(definition: AutomationDefinition): AutomationSessionTemplate {

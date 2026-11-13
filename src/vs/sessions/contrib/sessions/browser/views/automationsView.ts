@@ -1648,7 +1648,19 @@ class AutomationHistorySection extends Disposable {
 		this.approvalModel = this._register(this.instantiationService.createInstance(AgentSessionApprovalModel));
 	}
 
-	render(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
+	render(allRuns: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
+		// Runs that continue a session share it: show the session once, for its newest run.
+		const shownSessions = new Set<ISession>();
+		const runs = allRuns.filter(run => {
+			const session = sessions.get(run.id);
+			if (session && shownSessions.has(session)) {
+				return false;
+			}
+			if (session) {
+				shownSessions.add(session);
+			}
+			return true;
+		});
 		const runIds = new Set(runs.map(run => run.id));
 		for (const id of this.cloudSessions.keys()) {
 			if (!runIds.has(id) || !sessions.has(id)) {
@@ -1682,8 +1694,8 @@ class AutomationHistorySection extends Disposable {
 		});
 		const activeElement = DOM.getActiveElement();
 		const historyOwnedFocus = DOM.isHTMLElement(activeElement) && this.groupsContainer.contains(activeElement);
-		const focusedRunId = historyOwnedFocus ? [...this.runFocusTargets].find(([, target]) =>
-			target.container.contains(activeElement) && target.list.getFocusedSession() === target.session)?.[0] : undefined;
+		const focused = historyOwnedFocus ? [...this.runFocusTargets].find(([, target]) =>
+			target.container.contains(activeElement) && target.list.getFocusedSession() === target.session) : undefined;
 		this.runFocusTargets.clear();
 		this.renderedFocusableRunIds = [];
 
@@ -1735,7 +1747,9 @@ class AutomationHistorySection extends Disposable {
 
 		this.restoreFocusAfterRender();
 		if (historyOwnedFocus && DOM.isHTMLElement(activeElement) && !this.groupsContainer.contains(DOM.getActiveElement())) {
-			const target = focusedRunId ? this.runFocusTargets.get(focusedRunId) : undefined;
+			// A newer run of a shared session takes over its row, possibly in another date group.
+			const target = focused && (this.runFocusTargets.get(focused[0])
+				?? [...this.runFocusTargets.values()].find(candidate => isEqual(candidate.session.resource, focused[1].session.resource)));
 			if (activeElement.isConnected) {
 				activeElement.focus();
 			} else if (target) {

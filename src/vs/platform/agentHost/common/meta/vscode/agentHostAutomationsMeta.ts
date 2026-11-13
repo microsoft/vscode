@@ -5,6 +5,7 @@
 
 import type { InitializeResult } from '../../state/protocol/common/commands.js';
 import type { AutomationDefinition, AutomationEntry } from '../../state/protocol/channels-automation/state.js';
+import type { Message } from '../../state/protocol/channels-chat/state.js';
 
 /** Initialize presence flag for autonomous execution support, independent of feature enablement and per-definition operations. */
 export const AgentHostAutonomousAutomationsCapabilityMetaKey = 'vscode.autonomousAutomations';
@@ -14,8 +15,42 @@ export const AgentHostAutomationHistoryCapabilityMetaKey = 'vscode.automationHis
 export const AgentHostAutomationHistoryReceiptsCapabilityMetaKey = 'vscode.automationHistoryReceipts';
 export const AgentHostAutomationHistoryDeletionStateCapabilityMetaKey = 'vscode.automationHistoryDeletionState';
 
+/** Initialize presence flag, and definition flag, for sending every run's message in the session of the previous run. */
+export const AgentHostAutomationContinueSessionCapabilityMetaKey = 'vscode.automationContinueSession';
+
 const AgentHostAutomationHistoryStateMetaKey = 'vscode.automationHistoryState';
 const AgentHostAutomationScheduleKindMetaKey = 'vscode.automationScheduleKind';
+const AgentHostAutomationRunMessageMetaKey = 'vscode.automationRun';
+
+/**
+ * For a definition, whether each run sends its message in the session of the Automation's previous run instead of a new
+ * session; for an initialize result, whether the host supports that.
+ */
+export function hasAgentHostAutomationContinueSession(owner: AutomationDefinition | InitializeResult | undefined): boolean {
+	return owner?._meta?.[AgentHostAutomationContinueSessionCapabilityMetaKey] === true;
+}
+
+/** Sets or clears the continue-session choice while preserving unrelated metadata. */
+export function withAgentHostAutomationContinueSession(meta: Record<string, unknown> | undefined, continueSession: boolean): Record<string, unknown> {
+	const result = { ...meta };
+	if (continueSession) {
+		result[AgentHostAutomationContinueSessionCapabilityMetaKey] = true;
+	} else {
+		delete result[AgentHostAutomationContinueSessionCapabilityMetaKey];
+	}
+	return result;
+}
+
+/** Tags the message an Automation run sends, so the host can tell the run's turn from other turns of a shared chat. */
+export function withAgentHostAutomationRunMessage(message: Message, run: string): Message {
+	return { ...message, _meta: { ...message._meta, [AgentHostAutomationRunMessageMetaKey]: run } };
+}
+
+/** The Automation run that sent `message`, if any. */
+export function readAgentHostAutomationRunMessage(message: Message): string | undefined {
+	const run = message._meta?.[AgentHostAutomationRunMessageMetaKey];
+	return typeof run === 'string' ? run : undefined;
+}
 
 /** Reads the explicitly chosen CRON editing form without changing runtime schedule semantics. */
 export function getAgentHostAutomationScheduleKind(definition: AutomationDefinition): 'cron' | undefined {

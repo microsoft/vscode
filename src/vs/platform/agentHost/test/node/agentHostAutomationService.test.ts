@@ -26,6 +26,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete } from '../common/chatActionBuilders.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
+import { type AutomationDefinitionPatch } from '../../common/state/protocol/channels-automation/actions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
@@ -48,7 +49,7 @@ import { SCHEDULED_WORK_WAKE_NETWORK_CAP_MS, SCHEDULED_WORK_WAKE_SETTLE_MS } fro
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { getAgentHostAutomationHistoryState, withAgentHostAutomationHistoryState } from '../../common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, readAgentHostAutomationRunMessage, withAgentHostAutomationContinueSession, withAgentHostAutomationHistoryState } from '../../common/meta/agentHostAutomationsMeta.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -56,6 +57,10 @@ class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	override publicLog2(name?: string, data?: Record<string, unknown>): void {
 		this.events.push({ name: name ?? '', data: data ?? {} });
 	}
+}
+
+interface IStoredAutomationsForTest {
+	readonly runs: readonly AutomationRunState[];
 }
 
 suite('AgentHostAutomationService', () => {
@@ -160,6 +165,8 @@ suite('AgentHostAutomationService', () => {
 			getRecoverableSessionProvider: execution?.getRecoverableSessionProvider ?? (async session => stateManager.getSessionSummary(session.toString())?.provider),
 			deleteSession: execution?.deleteSession ?? (async () => { }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
+			canContinueSession: execution?.canContinueSession ?? (async () => false),
+			continueSession: execution?.continueSession ?? (async () => { throw new Error('Unexpected session continuation'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
 			resumeTurn: execution?.resumeTurn ?? (async () => false),
 		}, stateManager, createTestChatOwnershipService(stateManager), storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections, systemWake);
@@ -1536,6 +1543,418 @@ suite('AgentHostAutomationService', () => {
 		})));
 	});
 
+	function createIdleSession(session: URI): string {
+		const chat = buildDefaultChatUri(session.toString());
+		stateManager.createSession({ resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), defaultChat: chat });
+		return chat;
+	}
+
+	/**
+	 * Stores continue-session Automations, the default one and `others`, whose previous runs used `session`; returns the default.
+	 * `templateRevision` is the time of the Automations' last edit of what a session keeps, which the previous runs' sessions were created from.
+	 */
+	async function storeContinuedAutomation(session: URI, others: readonly string[] = [], templateRevision?: string): Promise<string> {
+		const automations = [createAction().resource, ...others];
+		const epoch = new Date(0).toISOString();
+		const _meta = templateRevision !== undefined ? { 'vscode.sessionTemplateChangedAt': templateRevision } : undefined;
+		storageService.set('automations', {
+			catalog: { automations: automations.map(resource => ({ resource, definition: { ...definition(), _meta: withAgentHostAutomationContinueSession(undefined, true) }, runs: [], operations: [], createdAt: epoch, modifiedAt: epoch, _meta })) },
+			runs: automations.map(automation => ({
+				resource: `${automation}-previous`, automation, origin: { kind: AutomationRunOriginKind.Manual }, sessions: [session.toString()], primarySession: session.toString(),
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: epoch, startedAt: epoch, completedAt: epoch }, _meta,
+			})),
+			runProviders: Object.fromEntries(automations.map(automation => [`${automation}-previous`, 'mock'])),
+		});
+		await storageService.whenIdle();
+		return automations[0];
+	}
+
+	/** Runs `action` during the next storage write of a value that `matches`, before it is written. */
+	function duringNextWrite(action: () => unknown, matches: (value: IStoredAutomationsForTest) => boolean = () => true): void {
+		const write = storageService.setAndFlush;
+		storageService.setAndFlush = async (key, value) => {
+			if (matches(value as IStoredAutomationsForTest)) {
+				storageService.setAndFlush = write;
+				await action();
+			}
+			return write.call(storageService, key, value);
+		};
+	}
+
+	function startUserTurn(chat: string): void {
+		stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'user-turn', startedAt: new Date().toISOString(), message: { text: 'Hi', origin: { kind: MessageKind.User } } });
+	}
+
+	test('continues the latest run\'s session once enabled, waiting for the user\'s turn and ending only with its own, until a settings edit', async () => {
+		const session = URI.parse('mock:/continued');
+		const afterEdit = URI.parse('mock:/after-edit');
+		const chat = buildDefaultChatUri(session.toString());
+		const created: string[] = [];
+		const attempts: { readonly session: string; readonly run: string | undefined; readonly started: boolean }[] = [];
+		const firstStarted = new DeferredPromise<void>();
+		const secondAttempted = new DeferredPromise<void>();
+		const secondStarted = new DeferredPromise<void>();
+		const thirdStarted = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => {
+				const next = created.length === 0 ? session : afterEdit;
+				created.push(next.toString());
+				createIdleSession(next);
+				return next;
+			},
+			startSession: async started => {
+				if (started.toString() === session.toString()) {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: new Date().toISOString(), message: { text: 'Run', origin: { kind: MessageKind.Automation } } });
+				}
+				await (started.toString() === session.toString() ? firstStarted : thirdStarted).complete();
+			},
+			canContinueSession: async (_template, candidate, provider) => provider === 'mock' && stateManager.getSessionState(candidate.toString()) !== undefined,
+			continueSession: async (candidate, message) => {
+				const started = !stateManager.getChatState(chat)?.activeTurn;
+				attempts.push({ session: candidate.toString(), run: readAgentHostAutomationRunMessage(message), started });
+				if (started) {
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'second-turn', startedAt: new Date().toISOString(), message });
+				}
+				await (started ? secondStarted : secondAttempted).complete();
+			},
+		});
+		await enableAndCreate(service);
+		const automation = createAction().resource;
+		const first = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'first' });
+		await firstStarted.p;
+		stateManager.dispatchServerAction(chat, chatTurnComplete('first-turn', 10));
+		await terminalRun(first.resource);
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { _meta: withAgentHostAutomationContinueSession(undefined, true) } });
+
+		// A user's turn is running when the next run is due, so the run waits for it to end.
+		startUserTurn(chat);
+		const second = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'second' });
+		await secondAttempted.p;
+		stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 10));
+		await secondStarted.p;
+		const afterUserTurn = stateManager.getAutomationRunState(second.resource)?.lifecycle.status;
+		stateManager.dispatchServerAction(chat, chatTurnComplete('second-turn', 10));
+		await terminalRun(second.resource);
+
+		// The session keeps the sandbox it was created with, so turning the sandbox on starts over.
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { session: { provider: 'mock', config: { sandboxEnabled: 'on' } } } });
+		const third = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'third' });
+		await thirdStarted.p;
+
+		const run = stateManager.getAutomationRunState(second.resource);
+		assert.deepStrictEqual({
+			created, attempts, afterUserTurn,
+			second: { status: run?.lifecycle.status, sessions: run?.sessions, primarySession: run?.primarySession },
+			third: stateManager.getAutomationRunState(third.resource)?.primarySession,
+		}, {
+			created: [session.toString(), afterEdit.toString()],
+			attempts: [
+				{ session: session.toString(), run: second.resource, started: false },
+				{ session: session.toString(), run: second.resource, started: true },
+			],
+			afterUserTurn: AutomationRunStatus.Running,
+			second: { status: AutomationRunStatus.Completed, sessions: [session.toString()], primarySession: session.toString() },
+			third: afterEdit.toString(),
+		});
+	});
+
+	for (const busy of [true, false]) {
+		test(`cancelling a continued run ${busy ? 'waiting for its session' : 'while its session restores'} neither starts nor cancels a turn`, async () => {
+			const session = URI.parse('mock:/waiting');
+			const chat = createIdleSession(session);
+			const automation = await storeContinuedAutomation(session);
+			if (busy) {
+				startUserTurn(chat);
+			}
+			const attempted = new DeferredPromise<void>();
+			const restored = new DeferredPromise<void>();
+			const decisions: boolean[] = [];
+			const cancelled: string[] = [];
+			const service = createService({
+				canContinueSession: async () => true,
+				continueSession: async (_session, _message, shouldStart) => {
+					await attempted.complete();
+					if (!busy) {
+						await restored.p;
+					}
+					decisions.push(!stateManager.getChatState(chat)?.activeTurn && shouldStart());
+				},
+				cancelSession: async candidate => {
+					cancelled.push(candidate.toString());
+					return true;
+				},
+			});
+			await service.handleConfigurationChanged();
+			const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'waiting' });
+			await attempted.p;
+			// The user's turn ends, or the session finishes restoring, while the cancellation is written.
+			duringNextWrite(() => busy ? stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 10)) : restored.complete());
+			await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+			await service.fetchAutomationRuns({ channel: AUTOMATION_CATALOG_URI, automation });
+
+			assert.deepStrictEqual({ cancelled, decisions, status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status }, {
+				cancelled: [],
+				decisions: [false],
+				status: AutomationRunStatus.Cancelled,
+			});
+		});
+	}
+
+	for (const linkIs of ['written', 'published'] as const) {
+		test(`a continued run ends only with its own turn when the user's turn ends while its link is ${linkIs}`, async () => {
+			const session = URI.parse('mock:/linking');
+			const chat = createIdleSession(session);
+			const automation = await storeContinuedAutomation(session);
+			startUserTurn(chat);
+			const started = new DeferredPromise<void>();
+			const service = createService({
+				canContinueSession: async () => true,
+				continueSession: async (_session, message) => {
+					if (!stateManager.getChatState(chat)?.activeTurn) {
+						stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'run-turn', startedAt: new Date().toISOString(), message });
+						if (linkIs === 'written') {
+							stateManager.dispatchServerAction(chat, chatTurnComplete('run-turn', 1));
+						}
+						await started.complete();
+					}
+				},
+			});
+			await service.handleConfigurationChanged();
+			const endUserTurn = () => stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 10));
+			if (linkIs === 'written') {
+				duringNextWrite(endUserTurn, value => value.runs.some(run => run.automation === automation && run.lifecycle.status === AutomationRunStatus.Running && run.primarySession === session.toString()));
+			} else {
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+					if (envelope.action.type === ActionType.AutomationRunPrimarySessionChanged && stateManager.getChatState(chat)?.activeTurn?.id === 'user-turn') {
+						endUserTurn();
+					}
+				}));
+			}
+			const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'linking' });
+			await started.p;
+			await service.fetchAutomationRuns({ channel: AUTOMATION_CATALOG_URI, automation });
+			const beforeItsTurnEnded = stateManager.getAutomationRunState(run.resource)?.lifecycle.status;
+			if (linkIs === 'published') {
+				stateManager.dispatchServerAction(chat, chatTurnComplete('run-turn', 1));
+			}
+			await terminalRun(run.resource);
+
+			assert.deepStrictEqual(beforeItsTurnEnded, linkIs === 'written' ? AutomationRunStatus.Completed : AutomationRunStatus.Running);
+		});
+	}
+
+	test('a continued run whose cancellation fails to persist stays the run of its own turn and still starts first', async () => {
+		const session = URI.parse('mock:/uncancelled');
+		const chat = createIdleSession(session);
+		const other = 'ahp-automation:/other';
+		const automation = await storeContinuedAutomation(session, [other]);
+		startUserTurn(chat);
+		const started: (string | undefined)[] = [];
+		const service = createService({
+			canContinueSession: async () => true,
+			continueSession: async (_session, message) => {
+				if (!stateManager.getChatState(chat)?.activeTurn) {
+					started.push(readAgentHostAutomationRunMessage(message));
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'run-turn', startedAt: new Date().toISOString(), message });
+				}
+			},
+		});
+		await service.handleConfigurationChanged();
+		const linked = new Set<string>();
+		const bothLinked = new DeferredPromise<void>();
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.AutomationRunPrimarySessionChanged && linked.add(envelope.channel).size === 2) {
+				void bothLinked.complete();
+			}
+		}));
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'uncancelled' });
+		const later = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: other, requestId: 'later' });
+		await bothLinked.p;
+		// The user's turn ends while the first run's cancellation is written, and the write fails.
+		duringNextWrite(() => {
+			stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 10));
+			throw new Error('Disk full');
+		}, value => value.runs.some(candidate => candidate.resource === run.resource && candidate.lifecycle.status === AutomationRunStatus.Cancelled));
+		await assert.rejects(service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested }), /Disk full/);
+		await service.fetchAutomationRuns({ channel: AUTOMATION_CATALOG_URI, automation });
+
+		assert.deepStrictEqual({ started, statuses: [run, later].map(candidate => stateManager.getAutomationRunState(candidate.resource)?.lifecycle.status) }, {
+			started: [run.resource],
+			statuses: [AutomationRunStatus.Running, AutomationRunStatus.Running],
+		});
+	});
+
+	test('a continued Automation keeps one run waiting for its busy session, however many occurrences fall due', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+		const session = URI.parse('mock:/busy');
+		const chat = createIdleSession(session);
+		const automation = await storeContinuedAutomation(session);
+		startUserTurn(chat);
+		const started: (string | undefined)[] = [];
+		const restored = new DeferredPromise<void>();
+		const service = createService({
+			canContinueSession: async () => {
+				await restored.p;
+				return true;
+			},
+			continueSession: async (_session, message) => {
+				if (!stateManager.getChatState(chat)?.activeTurn) {
+					started.push(readAgentHostAutomationRunMessage(message));
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'run-turn', startedAt: new Date().toISOString(), message });
+				}
+			},
+		});
+		await service.handleConfigurationChanged();
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { triggers: [{ id: 'minutely', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }] } });
+		const triggered = () => stateManager.getAutomationCatalogState()?.entries.find(entry => entry.resource === automation)?.runs.filter(run => run.origin.kind === AutomationRunOriginKind.Trigger).length;
+		// The first run is pending while its session restores, then waits for the user's turn.
+		await timeout(2.5 * 60_000);
+		const whileRestoring = triggered();
+		await restored.complete();
+		await timeout(3 * 60_000);
+		const whileBusy = { triggered: triggered(), started: started.length };
+		stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 10));
+		await timeout(1_000);
+
+		assert.deepStrictEqual({ whileRestoring, whileBusy, afterwards: { triggered: triggered(), started: started.length } }, {
+			whileRestoring: 1,
+			whileBusy: { triggered: 1, started: 0 },
+			afterwards: { triggered: 1, started: 1 },
+		});
+	}));
+
+	test('a continued run whose session link fails to persist never starts', async () => {
+		const session = URI.parse('mock:/unlinked');
+		const chat = createIdleSession(session);
+		const automation = await storeContinuedAutomation(session);
+		startUserTurn(chat);
+		const attempts: string[] = [];
+		const service = createService({
+			canContinueSession: async () => true,
+			continueSession: async candidate => { attempts.push(candidate.toString()); },
+		});
+		await service.handleConfigurationChanged();
+		// The link write fails, and the user's turn ends while the run's failure is written.
+		duringNextWrite(() => {
+			duringNextWrite(() => stateManager.dispatchServerAction(chat, chatTurnComplete('user-turn', 10)));
+			throw new Error('Disk full');
+		}, value => value.runs.some(run => run.automation === automation && run.lifecycle.status === AutomationRunStatus.Running && run.primarySession === session.toString()));
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'unlinked' });
+		await terminalRun(run.resource);
+		await service.fetchAutomationRuns({ channel: AUTOMATION_CATALOG_URI, automation });
+
+		assert.deepStrictEqual({ attempts, status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status }, {
+			attempts: [],
+			status: AutomationRunStatus.Failed,
+		});
+	});
+
+	test('a continued run starts a new session when the previous session cannot be continued, such as after it was archived', async () => {
+		const previous = URI.parse('mock:/previous');
+		const next = URI.parse('mock:/next');
+		const automation = await storeContinuedAutomation(previous);
+		const checked: string[] = [];
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			canContinueSession: async (_template, candidate) => {
+				checked.push(candidate.toString());
+				return false;
+			},
+			createSession: async () => {
+				createIdleSession(next);
+				return next;
+			},
+			startSession: async () => { await started.complete(); },
+		});
+		await service.handleConfigurationChanged();
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'next' });
+		await started.p;
+
+		assert.deepStrictEqual({ checked, sessions: stateManager.getAutomationRunState(run.resource)?.sessions }, {
+			checked: [previous.toString()],
+			sessions: [next.toString()],
+		});
+	});
+
+	const edits: [name: string, changes: AutomationDefinitionPatch[]][] = [
+		['continues a session created after an edit, even if the run was due before it', []],
+		['starts over once the model is cleared, as a turn without a model keeps its session\'s', [{ message: { ...definition().message, model: { id: 'chosen' } } }, { message: definition().message }]],
+		['starts over once a provider\'s own setting changes, such as its approvals', [{ session: { provider: 'mock', config: { 'codex.permissionsPreset': 'default' } } }]],
+	];
+	for (const [name, changes] of edits) {
+		test(`a continued run ${name}`, async () => {
+			const previous = URI.parse('mock:/previous');
+			const next = URI.parse('mock:/next');
+			createIdleSession(previous);
+			// The previous run was due at the epoch, before the edit, and created its session from the edited settings.
+			const automation = await storeContinuedAutomation(previous, [], new Date(1000).toISOString());
+			const used = new DeferredPromise<string>();
+			const service = createService({
+				canContinueSession: async () => true,
+				continueSession: async candidate => { await used.complete(candidate.toString()); },
+				createSession: async () => {
+					createIdleSession(next);
+					return next;
+				},
+				startSession: async session => { await used.complete(session.toString()); },
+			});
+			await service.handleConfigurationChanged();
+			for (const change of changes) {
+				await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: change });
+			}
+			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'next' });
+
+			assert.strictEqual(await used.p, (changes.length > 0 ? next : previous).toString());
+		});
+	}
+
+	test('a continued Automation skips occurrences while its run still creates the session', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 30), maxTaskCount: 100 }, async () => {
+		const automation = await storeContinuedAutomation(URI.parse('mock:/gone'));
+		const created = new DeferredPromise<URI>();
+		const service = createService({ createSession: () => created.p });
+		await service.handleConfigurationChanged();
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: automation, changes: { triggers: [{ id: 'minutely', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }] } });
+		await timeout(3.5 * 60_000);
+
+		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries.find(entry => entry.resource === automation)?.runs.filter(run => run.origin.kind === AutomationRunOriginKind.Trigger).length, 1);
+	}));
+
+	test('a continued run waits while an earlier run of its session waits to resume after a wake, until that run is cancelled', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+		const session = URI.parse('mock:/shared');
+		const chat = createIdleSession(session);
+		const second = 'ahp-automation:/second';
+		const automation = await storeContinuedAutomation(session, [second]);
+		const started: (string | undefined)[] = [];
+		const service = createService({
+			canContinueSession: async () => true,
+			continueSession: async (_session, message) => {
+				if (!stateManager.getChatState(chat)?.activeTurn) {
+					started.push(readAgentHostAutomationRunMessage(message));
+					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: `turn-${started.length}`, startedAt: new Date().toISOString(), message });
+				}
+			},
+		});
+		await service.handleConfigurationChanged();
+		const first = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation, requestId: 'first' });
+		await timeout(1_000);
+		// The first run's turn fails during sleep while the second run's link is written, before the first run is recorded as waiting to resume.
+		systemWake.setFullyAwake(false);
+		duringNextWrite(() => stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatError, turnId: 'turn-1', duration: 0,
+			part: { kind: ResponsePartKind.Error, error: { errorType: 'query', message: 'Connection reset' }, resumable: true },
+		}), value => value.runs.some(run => run.automation === second && run.lifecycle.status === AutomationRunStatus.Running && run.primarySession === session.toString()));
+		const later = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: second, requestId: 'second' });
+		await timeout(1_000);
+		const waiting = [...started];
+		await service.handleCancel(first.resource, { type: ActionType.AutomationRunCancelRequested });
+		await timeout(1_000);
+
+		assert.deepStrictEqual({ waiting, started, first: stateManager.getAutomationRunState(first.resource)?.lifecycle.status }, {
+			waiting: [first.resource],
+			started: [first.resource, later.resource],
+			first: AutomationRunStatus.Cancelled,
+		});
+	}));
+
 	for (const hasMessageModel of [false, true]) {
 		test(hasMessageModel ? 'preserves an explicit Automation message model' : 'records the Automation model configuration on its first turn', async () => {
 			const session = URI.parse('mock:/model-configuration-run');
@@ -2197,6 +2616,11 @@ suite('AgentHostAutomationService', () => {
 			await timeout(1_000);
 			const afterFailure = stateManager.getAutomationRunState(run.resource)?.lifecycle.status;
 			if (then === 'cancel') {
+				// The machine wakes and the resume delay passes while the cancellation is written.
+				duringNextWrite(async () => {
+					systemWake.setFullyAwake(true);
+					await timeout(60_000);
+				});
 				await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
 			} else if (then === 'userResume') {
 				// The user clicks Try Again before the host's own retry, and the turn fails again.
