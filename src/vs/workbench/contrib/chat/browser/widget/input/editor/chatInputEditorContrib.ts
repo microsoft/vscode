@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent } from '../../../../../../../base/common/observable.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../../../base/common/uuid.js';
 import { MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
@@ -35,6 +36,7 @@ import { IEditorService } from '../../../../../../services/editor/common/editorS
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 import { getSandboxPlaceholder } from './chatInputSandboxContribution.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKindFromValue } from '../../../../common/attachments/chatVariableEntries.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -67,11 +69,11 @@ class InputEditorDecorations extends Disposable {
 	public readonly id = 'inputEditorDecorations';
 
 	private readonly previouslyUsedAgents = new Set<string>();
-	private clickablePromptSlashCommand: { range: Range; uri: URI } | undefined;
-	private mouseDownPromptSlashCommand: { position: Position; uri: URI; range: Range } | undefined;
+	private clickableReferences: { range: Range; uri: URI }[] = [];
+	private mouseDownReference: { position: Position; uri: URI; range: Range } | undefined;
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
-
+	private readonly inputEditorDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly updateThrottle = this._register(new ThrottledDelayer<void>(InputEditorDecorations.UPDATE_DELAY));
 
@@ -87,16 +89,11 @@ class InputEditorDecorations extends Disposable {
 		super();
 
 		this.registeredDecorationTypes();
+		this.registerInputEditorListeners();
 		this.triggerInputEditorDecorationsUpdate();
-		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
-		this._register(this.widget.inputEditor.onDidChangeConfiguration(e => {
-			// The editor's placeholder option is set/cleared by features such as
-			// dictation ("Listening…"). When it is set, PlaceholderTextContribution
-			// renders it, so the decoration placeholder must yield to avoid two
-			// overlapping placeholders; re-run when the option changes.
-			if (e.hasChanged(EditorOption.placeholder)) {
-				this.triggerInputEditorDecorationsUpdate();
-			}
+		this._register(this.widget.onDidChangeActiveInputEditor(() => {
+			this.registerInputEditorListeners();
+			this.triggerInputEditorDecorationsUpdate();
 		}));
 		this._register(this.widget.onDidChangeParsedInput(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.widget.onDidChangeViewModel(() => {
@@ -107,38 +104,6 @@ class InputEditorDecorations extends Disposable {
 		this._register(this.widget.onDidSubmitAgent((e) => {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
-		this._register(this.widget.inputEditor.onMouseDown(e => {
-			this.mouseDownPromptSlashCommand = undefined;
-
-			if (!e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
-				return;
-			}
-
-			const clickablePromptSlashCommand = this.clickablePromptSlashCommand;
-			if (!clickablePromptSlashCommand || !clickablePromptSlashCommand.range.containsPosition(e.target.position)) {
-				return;
-			}
-
-			this.mouseDownPromptSlashCommand = {
-				position: Position.lift(e.target.position),
-				uri: clickablePromptSlashCommand.uri,
-				range: clickablePromptSlashCommand.range,
-			};
-		}));
-		this._register(this.widget.inputEditor.onMouseUp(e => {
-			const mouseDownPromptSlashCommand = this.mouseDownPromptSlashCommand;
-			this.mouseDownPromptSlashCommand = undefined;
-
-			if (!mouseDownPromptSlashCommand || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
-				return;
-			}
-
-			if (!mouseDownPromptSlashCommand.range.containsPosition(e.target.position) || !Position.equals(mouseDownPromptSlashCommand.position, e.target.position)) {
-				return;
-			}
-
-			void this.editorService.openEditor({ resource: mouseDownPromptSlashCommand.uri });
-		}));
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.customizationHarnessService.onDidChangeSlashCommands((e) => {
 			const sessionResource = this.widget.viewModel?.sessionResource;
@@ -146,9 +111,7 @@ class InputEditorDecorations extends Disposable {
 				this.triggerInputEditorDecorationsUpdate();
 			}
 		}));
-		const activeInputChanged = observableSignalFromEvent(this, this.widget.onDidChangeActiveInputEditor);
 		this._register(autorun(reader => {
-			activeInputChanged.read(reader);
 			this.widget.input.sandboxToggleChecked.read(reader);
 			const currentMode = this.widget.input.currentModeObs.read(reader);
 			if (currentMode) {
@@ -160,6 +123,53 @@ class InputEditorDecorations extends Disposable {
 		}));
 
 		this.registerViewModelListeners();
+	}
+
+	private registerInputEditorListeners(): void {
+		const store = new DisposableStore();
+		this.inputEditorDisposables.value = store;
+		this.mouseDownReference = undefined;
+		this.clickableReferences = [];
+		const editor = this.widget.inputEditor;
+		store.add(editor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
+		store.add(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.placeholder)) {
+				this.triggerInputEditorDecorationsUpdate();
+			}
+		}));
+		store.add(editor.onMouseDown(e => {
+			this.mouseDownReference = undefined;
+
+			if (!e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			const position = e.target.position;
+			const reference = this.clickableReferences.find(reference => reference.range.containsPosition(position) && !Position.equals(reference.range.getEndPosition(), position));
+			if (!reference) {
+				return;
+			}
+
+			this.mouseDownReference = {
+				position: Position.lift(position),
+				uri: reference.uri,
+				range: reference.range,
+			};
+		}));
+		store.add(editor.onMouseUp(e => {
+			const mouseDownReference = this.mouseDownReference;
+			this.mouseDownReference = undefined;
+
+			if (!mouseDownReference || !e.event.leftButton || e.target.type !== MouseTargetType.CONTENT_TEXT || !e.target.position) {
+				return;
+			}
+
+			if (!mouseDownReference.range.containsPosition(e.target.position) || !Position.equals(mouseDownReference.position, e.target.position)) {
+				return;
+			}
+
+			void this.editorService.openEditor({ resource: mouseDownReference.uri });
+		}));
 	}
 
 	private registerViewModelListeners(): void {
@@ -321,7 +331,8 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private async updateAsyncInputEditorDecorations(token: CancellationToken): Promise<void> {
-		this.clickablePromptSlashCommand = undefined;
+		const editor = this.widget.inputEditor;
+		this.clickableReferences = [];
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, []);
 
 		const parsedRequest = this.widget.parsedInput.parts;
@@ -330,6 +341,17 @@ class InputEditorDecorations extends Disposable {
 			return;
 		}
 
+		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
+		const clickableDecorations: IDecorationOptions[] = [];
+		for (const variable of dynamicVariableParts) {
+			if (getAgentHostCompletionReferenceKindFromValue(variable.data) !== AgentHostCompletionReferenceKind.Skill || isUUID(variable.id)) {
+				continue;
+			}
+			const uri = URI.parse(variable.id, true);
+			clickableDecorations.push(this.createClickableReferenceDecoration(variable.editorRange, uri, variable.modelDescription));
+		}
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
+
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
 		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
@@ -337,7 +359,7 @@ class InputEditorDecorations extends Disposable {
 
 		// first, fetch all async context
 		const promptSlashCommand = slashPromptPart ? await this.customizationHarnessService.resolvePromptSlashCommand(slashPromptPart.name, viewModel.sessionResource, token) : undefined;
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || editor !== this.widget.inputEditor) {
 			// a new update came in while we were waiting
 			return;
 		}
@@ -373,25 +395,8 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (slashPromptPart && promptSlashCommand) {
-			this.clickablePromptSlashCommand = {
-				range: Range.lift(slashPromptPart.editorRange),
-				uri: promptSlashCommand.uri,
-			};
-			const promptHoverMessage = new MarkdownString();
-			if (promptSlashCommand.description) {
-				promptHoverMessage.appendText(promptSlashCommand.description);
-				promptHoverMessage.appendText('\n');
-			}
-			promptHoverMessage.appendText(localize(
-				'chatInput.promptSlashCommand.open',
-				"Click to open {0}",
-				this.labelService.getUriLabel(promptSlashCommand.uri, { relative: true })
-			));
-			const promptDecoration = {
-				range: slashPromptPart.editorRange,
-				hoverMessage: promptHoverMessage,
-			};
-			this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, [promptDecoration]);
+			clickableDecorations.push(this.createClickableReferenceDecoration(slashPromptPart.editorRange, promptSlashCommand.uri, promptSlashCommand.description));
+			this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, slashCommandTextDecorationType, textDecorations);
@@ -407,8 +412,6 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
-		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
-
 		const isEditingPreviousRequest = !!viewModel.editing;
 		if (isEditingPreviousRequest) {
 			for (const variable of dynamicVariableParts) {
@@ -419,6 +422,21 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);
+	}
+
+	private createClickableReferenceDecoration(range: IRange, uri: URI, description?: string): IDecorationOptions {
+		this.clickableReferences.push({ range: Range.lift(range), uri });
+		const hoverMessage = new MarkdownString();
+		if (description) {
+			hoverMessage.appendText(description);
+			hoverMessage.appendText('\n');
+		}
+		hoverMessage.appendText(localize(
+			'chatInput.promptSlashCommand.open',
+			"Click to open {0}",
+			this.labelService.getUriLabel(uri, { relative: true })
+		));
+		return { range, hoverMessage };
 	}
 
 	private updateAriaPlaceholder(value: string | undefined): void {

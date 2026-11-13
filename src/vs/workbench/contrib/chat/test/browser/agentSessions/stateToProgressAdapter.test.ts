@@ -9,6 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../../base/common/uuid.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
@@ -31,6 +32,7 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platf
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
@@ -434,11 +436,11 @@ suite('stateToProgressAdapter', () => {
 	test('preserves completion and resource mention ranges when restoring attachments', () => {
 		const text = '/skill first\r\nthen /command and #file';
 		const attachments = [{
-			type: MessageAttachmentKind.Simple as const,
+			type: MessageAttachmentKind.Resource as const,
 			label: 'Skill',
 			displayKind: 'skill',
 			range: { start: { line: 0, character: 0 }, end: { line: 0, character: 6 } },
-			_meta: { uri: 'custom-skill:/selected' },
+			uri: 'custom-skill:/selected',
 		}, {
 			type: MessageAttachmentKind.Simple as const,
 			label: 'Command',
@@ -465,6 +467,79 @@ suite('stateToProgressAdapter', () => {
 			],
 			[undefined, undefined, undefined],
 		]);
+	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`restores skill identity in client space without changing host metadata (${kind.name})`, () => {
+			const uri = URI.file('/workspace/review/SKILL.md');
+			const metadata = { uri: 'file:///wrong/SKILL.md', opaque: { value: false } };
+			const variables = messageAttachmentsToVariableData([{
+				type: MessageAttachmentKind.Resource,
+				uri: uri.toString(),
+				label: '/review',
+				displayKind: 'skill',
+				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } },
+				_meta: metadata,
+			}, {
+				type: MessageAttachmentKind.Simple,
+				label: '/compact',
+				displayKind: 'command',
+				_meta: { command: 'compact', uri: uri.toString() },
+			}], 'test', '/review', kind.resourceUris)?.variables;
+
+			assert.deepStrictEqual(variables, [{
+				kind: 'generic',
+				id: kind.toClient(uri).toString(),
+				name: '/review',
+				value: { $mid: 'agentHostCompletion', kind: 'skill' },
+				_meta: metadata,
+				range: { start: 0, endExclusive: 7 },
+			}, {
+				kind: 'generic',
+				id: 'agent-host-command:compact',
+				name: '/compact',
+				value: { $mid: 'agentHostCompletion', kind: 'command' },
+				_meta: { command: 'compact', uri: uri.toString() },
+			}]);
+		});
+	}
+
+	test('restores legacy persisted Simple skills as bound resources', () => {
+		const uri = URI.file('/workspace/review/SKILL.md');
+		const metadata = { uri: uri.toString(), description: 'Review changes' };
+		const variable = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill', _meta: metadata,
+		}], 'local')?.variables[0];
+		assert.deepStrictEqual(variable, {
+			kind: 'generic', id: uri.toString(), name: '/review', value: { $mid: 'agentHostCompletion', kind: 'skill' },
+			modelDescription: 'Review changes', _meta: metadata,
+		});
+	});
+
+	test('restores skills without resource URIs as non-resource references', () => {
+		const metadata = [undefined, { uri: 42 }];
+		const variables = messageAttachmentsToVariableData(metadata.map(_meta => ({
+			type: MessageAttachmentKind.Simple,
+			label: '/review',
+			displayKind: 'skill',
+			_meta,
+		})), 'local')?.variables;
+		assert.deepStrictEqual(variables?.map(variable => ({ ...variable, id: isUUID(variable.id) })), metadata.map(_meta => ({
+			kind: 'generic',
+			id: true,
+			name: '/review',
+			value: { $mid: 'agentHostCompletion', kind: 'skill' },
+			_meta,
+		})));
+	});
+
+	test('rejects malformed skill resource URIs instead of treating them as file paths', () => {
+		assert.throws(() => messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.Resource,
+			label: '/review',
+			displayKind: 'skill',
+			uri: 'not-a-uri',
+		}], 'local'), /Scheme is missing/);
 	});
 
 	test('restores embedded resources with invalid base64 data without throwing', () => {

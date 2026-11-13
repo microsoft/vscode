@@ -7625,21 +7625,28 @@ suite('CopilotAgentSession', () => {
 				range: { start: { line: 0, character: 20 }, end: { line: 0, character: 35 } },
 			};
 			const skill: MessageAttachment = {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///workspace/SKILL.md',
 				label: '/review',
+				displayKind: 'skill',
 				range: { start: { line: 0, character: 40 }, end: { line: 0, character: 47 } },
-				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
-				modelRepresentation: 'Review instructions',
+				_meta: { description: 'Review changes', argumentHint: 'Files', opaque: false },
 			};
 			const repeatedSkill: MessageAttachment = {
 				...skill,
 				range: { start: { line: 0, character: 52 }, end: { line: 0, character: 59 } },
 			};
 			const completionOnlySkill: MessageAttachment = {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'custom-skill:/review',
 				label: '/review',
+				displayKind: 'skill',
 				range: { start: { line: 1, character: 0 }, end: { line: 1, character: 7 } },
-				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
+			};
+			const forwardedCommand: MessageAttachment = {
+				...command,
+				_meta: { command: 'chronicle', description: 'Tips' },
+				modelRepresentation: 'Command instructions',
 			};
 			const unrelated: MessageAttachment = {
 				type: MessageAttachmentKind.Simple,
@@ -7653,15 +7660,22 @@ suite('CopilotAgentSession', () => {
 				displayKind: 'document',
 			};
 			const prompt = '/chronicle tips and /chronicle tips and /review and /review\n/review';
-			await session.send(prompt, [command, repeatedCommand, unrelated, skill, repeatedSkill, completionOnlySkill], 'first');
+			await session.send(prompt, [command, repeatedCommand, unrelated, skill, repeatedSkill, completionOnlySkill, forwardedCommand], 'first');
 			mockSession.fire('session.idle', {});
 			await session.send(prompt, [file], 'second');
 			const steeringCommand = { ...command, _meta: { command: 'different-command' } };
 			await session.sendSteering({
 				id: 'steering',
-				message: { text: prompt, origin: { kind: MessageKind.User }, attachments: [steeringCommand] },
+				message: { text: prompt, origin: { kind: MessageKind.User }, attachments: [steeringCommand, completionOnlySkill] },
 			});
 			await database.whenIdle();
+			const legacySkill = {
+				type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill', range: skill.range,
+				_meta: { uri: 'file:///legacy/SKILL.md', name: 'review', displayName: 'Review' },
+			};
+			await database.setMetadata('copilot.completionReferences', JSON.stringify({
+				text: prompt, references: [{ attachment: legacySkill }],
+			}), 'second');
 			session.dispose();
 			await database.whenIdle();
 			await database.close();
@@ -7683,23 +7697,26 @@ suite('CopilotAgentSession', () => {
 					{
 						prompt, attachments: [
 							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Unrelated model context')), mimeType: 'text/plain', displayName: skill.label },
-							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Review instructions')), mimeType: 'text/plain', displayName: '/review' },
-							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Review instructions')), mimeType: 'text/plain', displayName: '/review' },
+							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Command instructions')), mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=command', displayName: command.label },
 						],
 					},
 					{ prompt, attachments: [{ type: 'file', path: URI.file('/workspace/readme.md').fsPath, displayName: 'readme.md' }] },
 					{ prompt, attachments: undefined, mode: 'immediate' },
 				],
 				messages: [
-					{ text: prompt, attachments: [unrelated, skill, repeatedSkill, command, repeatedCommand, completionOnlySkill] },
-					{ text: prompt, attachments: [file] },
-					{ text: prompt, attachments: [steeringCommand] },
+					{ text: prompt, attachments: [unrelated, forwardedCommand, command, repeatedCommand, skill, repeatedSkill, completionOnlySkill] },
+					{
+						text: prompt, attachments: [file, {
+							type: MessageAttachmentKind.Resource, uri: legacySkill._meta.uri, label: '/review', displayKind: 'skill',
+							range: skill.range, _meta: legacySkill._meta,
+						}]
+					},
+					{ text: prompt, attachments: [steeringCommand, completionOnlySkill] },
 				],
 				withoutMetadata: [
 					[
 						unrelated,
-						{ type: MessageAttachmentKind.Simple, label: '/review', modelRepresentation: 'Review instructions' },
-						{ type: MessageAttachmentKind.Simple, label: '/review', modelRepresentation: 'Review instructions' },
+						{ type: MessageAttachmentKind.Simple, label: command.label, displayKind: 'command', modelRepresentation: 'Command instructions' },
 					],
 					[file],
 					undefined,
@@ -7724,10 +7741,11 @@ suite('CopilotAgentSession', () => {
 				'\n\n/review\n<context>User-authored context.</context>\n',
 			];
 			const references: MessageAttachment[] = texts.map((_, index) => ({
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///workspace/SKILL.md',
 				label: '/review',
+				displayKind: 'skill',
 				range: { start: { line: index + 1, character: 0 }, end: { line: index + 1, character: 7 } },
-				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
 			}));
 			const transcript: SessionEvent[] = [];
 			mockSession.onSend = () => {
@@ -7799,13 +7817,12 @@ suite('CopilotAgentSession', () => {
 				mockSession.fire('user.message', data as SessionEventPayload<'user.message'>['data'], { id });
 			};
 			const reference: MessageAttachment = {
-				type: MessageAttachmentKind.Simple, label: 'chronicle tips', displayKind: 'command',
-				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 15 } },
-				_meta: { command: 'chronicle' },
+				type: MessageAttachmentKind.Resource, uri: 'file:///workspace/SKILL.md', label: '/review', displayKind: 'skill',
+				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } },
 			};
-			await session.send('/chronicle tips', [reference], 'first');
+			await session.send('/review', [reference], 'first');
 			mockSession.fire('session.idle', {});
-			await session.send('/chronicle tips', [reference], 'second');
+			await session.send('/review', [reference], 'second');
 			mockSession.fire('session.idle', {});
 			await database.setMetadata('copilot.completionReferences', 'session-only');
 			await database.whenIdle();
