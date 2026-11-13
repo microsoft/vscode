@@ -24,3 +24,7 @@
 	flex: 1 1 auto;
 	min-width: 0;
 }
+
+.chat-app-window-screenshot-hint .chat-app-window-screenshot-hint-message .rendered-markdown p {
+	margin: 0;
+}

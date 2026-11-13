@@ -5,19 +5,23 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { MarkdownRenderOptions, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
+import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
@@ -60,6 +64,10 @@ suite('AppWindowScreenshotHint', () => {
 			getKeybindings: () => options.keybinding === 'systemWide' ? [new ResolvedKeybindingItem(KEYBINDING, COMMAND.id, undefined, undefined, false, null, false, true)] : [],
 		});
 
+		const executed: string[] = [];
+		instantiationService.stub(ICommandService, { executeCommand: async (id: string) => { executed.push(id); return undefined; } });
+		instantiationService.stub(IMarkdownRendererService, { render: (markdown: IMarkdownString, options?: MarkdownRenderOptions) => renderMarkdown(markdown, options) });
+
 		const events: string[] = [];
 		instantiationService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
 			override publicLog2(eventName: string, data?: unknown): void {
@@ -85,9 +93,11 @@ suite('AppWindowScreenshotHint', () => {
 
 		return {
 			events,
+			executed,
 			noticeHost,
 			storageService,
 			text: () => container.textContent ?? '',
+			clickLink: () => container.querySelector<HTMLElement>('a')?.click(),
 			attach(id: string, gesture: ChatImageAttachGesture = 'paste') {
 				attachmentIds.push(id);
 				onDidAttachImages.fire({ inputUri: INPUT, attachmentIds: [id], gesture });
@@ -188,25 +198,30 @@ suite('AppWindowScreenshotHint', () => {
 		});
 	});
 
-	test('names the keybinding, where it works, or the command when there is none', () => {
+	test('names the keybinding, where it works, or the command when there is none, and links it to the command', () => {
 		const shown = (['none', 'inChat', 'systemWide'] as const).map(keybinding => {
 			const hint = createHint({ keybinding });
 			hint.attach('image1');
-			return { text: hint.text(), event: hint.events[1] };
+			const text = hint.text();
+			hint.clickLink();
+			return { text, events: hint.events.slice(1), executed: hint.executed };
 		});
 
 		assert.deepStrictEqual(shown, [
 			{
 				text: `Showing the agent your app? Next time, switch from your app to chat and run ${COMMAND.title} from the Command Palette to attach a screenshot of its window.`,
-				event: 'screenshotTool.appWindowHint shown paste palette 1',
+				events: ['screenshotTool.appWindowHint shown paste palette 1', 'screenshotTool.appWindowHint clicked paste palette 1'],
+				executed: [COMMAND.id],
 			},
 			{
 				text: IN_CHAT,
-				event: 'screenshotTool.appWindowHint shown paste inApp 1',
+				events: ['screenshotTool.appWindowHint shown paste inApp 1', 'screenshotTool.appWindowHint clicked paste inApp 1'],
+				executed: [COMMAND.id],
 			},
 			{
 				text: `Showing the agent your app? Next time, press ${KEY} while your app is in front to attach a screenshot of its window.`,
-				event: 'screenshotTool.appWindowHint shown paste systemWide 1',
+				events: ['screenshotTool.appWindowHint shown paste systemWide 1', 'screenshotTool.appWindowHint clicked paste systemWide 1'],
+				executed: [COMMAND.id],
 			},
 		]);
 	});

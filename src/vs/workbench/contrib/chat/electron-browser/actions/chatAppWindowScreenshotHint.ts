@@ -5,15 +5,19 @@
 
 import '../media/chatAppWindowScreenshotHint.css';
 import { $, append, clearNode } from '../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -32,7 +36,7 @@ const HINT_SHOWN_STORAGE_KEY = 'chat.appWindowScreenshots.hintShown';
 /** Which instructions the hint gives: press the keybinding in chat, press it in the other app, or run the command. */
 type AppWindowScreenshotHintCopy = 'inApp' | 'systemWide' | 'palette' | 'none';
 
-type AppWindowScreenshotHintAction = 'opportunity' | 'shown' | 'dismissed' | 'expired' | 'used';
+type AppWindowScreenshotHintAction = 'opportunity' | 'shown' | 'clicked' | 'dismissed' | 'expired' | 'used';
 
 type AppWindowScreenshotHintEvent = {
 	action: AppWindowScreenshotHintAction;
@@ -45,7 +49,7 @@ type AppWindowScreenshotHintEvent = {
 type AppWindowScreenshotHintClassification = {
 	owner: 'Giuspepe';
 	comment: 'Reports the hint that suggests attaching a screenshot of an app window when the user pastes or drops an image into chat, to learn whether it teaches the keybinding.';
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What happened: the user pasted or dropped an image where the hint could show, logged once per chat input whether or not the feature is on; the hint showed; the user dismissed it; it went away with its images or the draft; or the user captured an app window while it showed.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What happened: the user pasted or dropped an image where the hint could show, logged once per chat input whether or not the feature is on; the hint showed; the user clicked its link, which runs the command; the user dismissed it; it went away with its images or the draft; or the user captured an app window while it showed.' };
 	gesture: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user pasted or dropped the image.' };
 	copy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which instructions the hint gave: press the keybinding in chat, press it while the other app is in front, run the command from the Command Palette, or none when it did not show.' };
 	imageCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many images the paste or drop attached, or the hint is about.' };
@@ -77,7 +81,8 @@ export interface IAppWindowScreenshotHintCommand {
 /**
  * Suggests the keybinding of Attach Screenshot of App Window once, right after the user pastes or drops an image into
  * the chat input, which is how they attach a screenshot by hand. It shows as a tip above the input, which yields to
- * every other notice, and goes away with its images or with the draft.
+ * every other notice, and goes away with its images or with the draft. The keybinding in it is a link that runs the
+ * command, which captures the window, or opens the setup while macOS doesn't allow Screen Recording.
  */
 export class AppWindowScreenshotHint extends Disposable {
 
@@ -97,8 +102,10 @@ export class AppWindowScreenshotHint extends Disposable {
 		private readonly _command: IAppWindowScreenshotHintCommand,
 		@IChatUserImageAttachmentService userImageAttachmentService: IChatUserImageAttachmentService,
 		@IAppWindowScreenshotService private readonly _appWindowScreenshotService: IAppWindowScreenshotService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
@@ -211,7 +218,8 @@ export class AppWindowScreenshotHint extends Disposable {
 			onEscape: () => this._end('dismissed'),
 		}));
 		append(notice.domNode, $(`span.chat-app-window-screenshot-hint-icon${ThemeIcon.asCSSSelector(Codicon.deviceCamera)}`, { 'aria-hidden': 'true' }));
-		append(notice.domNode, $('span.chat-app-window-screenshot-hint-message', undefined, message));
+		const rendered = store.add(this._markdownRendererService.render(message, { actionHandler: () => this._runCommand() }));
+		append(notice.domNode, $('.chat-app-window-screenshot-hint-message')).appendChild(rendered.element);
 		notice.addDismissAction({ onActivate: () => this._end('dismissed') });
 
 		this._content.value = store;
@@ -220,21 +228,34 @@ export class AppWindowScreenshotHint extends Disposable {
 		setChatInputStackSlot(this._target.container, ChatInputStackSlot.Docked);
 	}
 
-	/** Words the hint for the user's keybinding, which can work while the app is in front, or for the command when it has none. */
-	private _getCopy(): { readonly copy: AppWindowScreenshotHintCopy; readonly message: string; readonly ariaLabel: string } {
+	/**
+	 * Words the hint for the user's keybinding, which can work while the app is in front, or for the command when it has
+	 * none. Either is a link that runs the command.
+	 */
+	private _getCopy(): { readonly copy: AppWindowScreenshotHintCopy; readonly message: MarkdownString; readonly ariaLabel: string } {
+		const link = `command:${this._command.id}`;
+		const markdown = (value: string) => new MarkdownString(value, { isTrusted: { enabledCommands: [this._command.id] } });
 		const keybinding = this._keybindingService.lookupKeybinding(this._command.id);
 		const label = keybinding?.getLabel();
 		if (!keybinding || !label) {
-			const message = localize('appWindowScreenshotHint.palette', "Showing the agent your app? Next time, switch from your app to chat and run {0} from the Command Palette to attach a screenshot of its window.", this._command.title);
-			return { copy: 'palette', message, ariaLabel: message };
+			const message = markdown(localize('appWindowScreenshotHint.palette', "Showing the agent your app? Next time, switch from your app to chat and run [{0}]({1}) from the Command Palette to attach a screenshot of its window.", escapeMarkdownSyntaxTokens(this._command.title), link));
+			return { copy: 'palette', message, ariaLabel: renderAsPlaintext(message) };
 		}
 
 		const accelerator = keybinding.getElectronAccelerator();
 		const systemWide = !!accelerator && selectSystemWideKeybindings(this._keybindingService.getKeybindings()).candidates.some(candidate => candidate.commandId === this._command.id && candidate.accelerator === accelerator);
-		const format = (key: string) => systemWide
-			? localize('appWindowScreenshotHint.systemWide', "Showing the agent your app? Next time, press {0} while your app is in front to attach a screenshot of its window.", key)
-			: localize('appWindowScreenshotHint.inApp', "Showing the agent your app? Next time, switch from your app to chat and press {0} to attach a screenshot of its window.", key);
-		return { copy: systemWide ? 'systemWide' : 'inApp', message: format(label), ariaLabel: format(keybinding.getAriaLabel() ?? label) };
+		const format = (key: string) => markdown(systemWide
+			? localize('appWindowScreenshotHint.systemWide', "Showing the agent your app? Next time, press [{0}]({1}) while your app is in front to attach a screenshot of its window.", escapeMarkdownSyntaxTokens(key), link)
+			: localize('appWindowScreenshotHint.inApp', "Showing the agent your app? Next time, switch from your app to chat and press [{0}]({1}) to attach a screenshot of its window.", escapeMarkdownSyntaxTokens(key), link));
+		return { copy: systemWide ? 'systemWide' : 'inApp', message: format(label), ariaLabel: renderAsPlaintext(format(keybinding.getAriaLabel() ?? label)) };
+	}
+
+	/** Runs the command from the hint's link: it captures the window, or opens the setup while macOS doesn't allow Screen Recording. */
+	private _runCommand(): void {
+		if (this._shownAt !== undefined) {
+			this._log('clicked', this._gesture, this._copy, this._imageIds.size, Date.now() - this._shownAt);
+		}
+		void this._commandService.executeCommand(this._command.id);
 	}
 
 	/** Takes the hint away. When it never showed, the next paste or drop can show it. */
