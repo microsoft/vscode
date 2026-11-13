@@ -7,7 +7,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
@@ -30,11 +29,11 @@ export const FOLDER_LOCATION_RESTORE_TIMEOUT = 10000;
  * so that it survives a reload or restart, and confirms the location the window
  * has been started at.
  *
- * The window starts at the persisted alternate location (see `WorkspaceService`),
- * without any trust being granted or the location being validated. A missing location
- * is detected asynchronously and the window returns to the primary location. Once a provider confirms the location, it
- * becomes the current location. If no provider does, the window returns to the
- * primary location.
+ * The main process only starts a window at an alternate location that exists (otherwise the window
+ * opens at the primary location and `folderLocationMissing` tells the user). The window starts there
+ * without any trust being granted. Once a provider confirms the location, it becomes the current
+ * location. If no provider does, the user is offered to return to the primary location: the window
+ * never switches back by itself.
  */
 export class FolderLocationPersistenceContribution extends Disposable implements IWorkbenchContribution {
 
@@ -48,12 +47,20 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
 		this._register(this.folderLocationService.onDidChangeLocation(e => this.persist(this.folderLocationService.getLocation(e.folder))));
+
+		const missing = environmentService.folderLocationMissing;
+		if (missing) {
+			this.notificationService.notify({
+				id: 'workbench.folderLocationMissing',
+				severity: Severity.Warning,
+				message: localize('folderLocationMissing', "The folder location '{0}' no longer exists. The folder was opened at its primary location.", missing.label)
+			});
+		}
 
 		const persisted = environmentService.folderLocation;
 		if (persisted) {
@@ -104,17 +111,6 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		const workspace = this.contextService.getWorkspace();
 		const primary = workspace.uri ?? workspace.folders[0].uri;
 
-		// The location is applied at startup without validation, so a missing one is detected here
-		const exists = await this.isDirectory(location);
-		if (token.isCancellationRequested || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0]) || !this.isAtAlternate(location)) {
-			return; // disposed, or switched by someone else in the meantime
-		}
-
-		if (!exists) {
-			await this.returnToPrimary(persisted, primary, location, token);
-			return;
-		}
-
 		const resolved = await this.resolve(primary, location, token);
 		if (token.isCancellationRequested || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0]) || !this.isAtAlternate(location)) {
 			return; // disposed, or switched by someone else in the meantime
@@ -123,15 +119,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		if (resolved) {
 			this.folderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved);
 		} else {
-			await this.returnToPrimary(persisted, primary, location, token);
-		}
-	}
-
-	private async isDirectory(location: URI): Promise<boolean> {
-		try {
-			return (await this.fileService.stat(location)).isDirectory;
-		} catch (error) {
-			return false;
+			this.offerReturnToPrimary(persisted, primary);
 		}
 	}
 
@@ -178,48 +166,22 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		}
 	}
 
-	private async returnToPrimary(persisted: IWindowFolderLocation, primary: URI, location: URI, token: CancellationToken): Promise<void> {
-		while (true) {
-			try {
+	private offerReturnToPrimary(persisted: IWindowFolderLocation, primary: URI): void {
+		const handle = this.notificationService.prompt(
+			Severity.Warning,
+			localize('folderLocationUnconfirmed', "The folder location '{0}' could not be confirmed. The folder is still open there.", persisted.label),
+			[{
+				label: localize('returnToPrimaryFolderLocation', "Return to Primary Location"),
+				run: () => this.workspaceEditingService.setFolderLocation(primary).catch(error => this.logService.error('Failed to return the folder to its primary location', error))
+			}],
+			{ sticky: true }
+		);
 
-				// Does nothing while a newer switch is in flight: that one is authoritative
-				await this.workspaceEditingService.setFolderLocation(primary, { ifIdle: true });
-			} catch (error) {
-				if (token.isCancellationRequested) {
-					return;
-				}
-				if (this.isAtAlternate(location)) {
-					this.logService.error('Failed to return the folder to its primary location', error);
-				}
-				return; // otherwise the workspace changed, nothing to return from
-			}
-
-			if (token.isCancellationRequested) {
-				return;
-			}
-
-			const workspace = this.contextService.getWorkspace();
-			const identity = toWorkspaceIdentifier(workspace);
-			const folder = workspace.folders[0];
-			if (!isSingleFolderWorkspaceIdentifier(identity) || !this.uriIdentityService.extUri.isEqual(identity.uri, primary) || !folder) {
-				return; // not the original workspace any more
-			}
-
-			if (this.uriIdentityService.extUri.isEqual(folder.uri, primary)) {
-				this.discard(persisted); // only announce at the primary location
-				return;
-			}
-
-			// The request was skipped because a switch is in flight. Once it settled, retry only
-			// if the window is still stuck at the unusable location, never overriding a newer choice.
-			if (!this.isAtAlternate(location) || this.folderLocationService.getLocation(folder)) {
-				return;
-			}
-			await this.workspaceEditingService.whenFolderLocationIdle(token);
-			if (token.isCancellationRequested || !this.isAtAlternate(location) || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0])) {
-				return;
-			}
-		}
+		// The question is moot once the location is confirmed or switched by someone else
+		const store = this._register(new DisposableStore());
+		const close = () => { store.dispose(); handle.close(); };
+		store.add(this.folderLocationService.onDidChangeLocation(close));
+		store.add(handle.onDidClose(() => store.dispose()));
 	}
 
 	private discard(persisted: IWindowFolderLocation): void {

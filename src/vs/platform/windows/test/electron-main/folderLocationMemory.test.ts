@@ -7,7 +7,7 @@ import assert from 'assert';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FolderLocationMemory } from '../../electron-main/folderLocationMemory.js';
+import { FolderLocationMemory, validateStartupFolderLocation } from '../../electron-main/folderLocationMemory.js';
 
 suite('FolderLocationMemory', () => {
 
@@ -67,5 +67,41 @@ suite('FolderLocationMemory', () => {
 		}
 
 		assert.deepStrictEqual([memory.get(URI.file('/work/repo0')), memory.get(URI.file('/work/repo104'))], [undefined, location]);
+	});
+
+	suite('validateStartupFolderLocation', () => {
+
+		const existing = async (path: string) => path === '/work/repo.wt/feature';
+
+		test('an existing local location is kept and remembered', async () => {
+			const { memory } = create();
+			memory.set(primary, location);
+
+			assert.deepStrictEqual({ result: await validateStartupFolderLocation(primary, location, memory, existing), memory: memory.get(primary) }, { result: { folderLocation: location }, memory: location });
+		});
+
+		test('a missing location opens at the primary, is reported and forgotten', async () => {
+			const { memory } = create();
+			memory.set(primary, location);
+
+			assert.deepStrictEqual({ result: await validateStartupFolderLocation(primary, location, memory, async () => false), memory: memory.get(primary) }, { result: { folderLocationMissing: { label: 'feature' } }, memory: undefined });
+		});
+
+		test('a remote location is not started at and is forgotten without a stat', async () => {
+			const { memory } = create();
+			memory.set(primary, location);
+			let stats = 0;
+
+			assert.deepStrictEqual(
+				{ result: await validateStartupFolderLocation(primary, { ...location, uri: 'vscode-remote://host/work/repo.wt/feature' }, memory, async () => { stats++; return true; }), stats, memory: memory.get(primary) },
+				{ result: { folderLocationMissing: { label: 'feature' } }, stats: 0, memory: undefined });
+		});
+
+		test('without a location nothing is validated or cleared', async () => {
+			const { memory } = create();
+			memory.set(primary, location);
+
+			assert.deepStrictEqual({ result: await validateStartupFolderLocation(primary, undefined, memory, async () => false), memory: memory.get(primary) }, { result: {}, memory: location });
+		});
 	});
 });

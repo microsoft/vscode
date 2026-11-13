@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
@@ -70,14 +69,6 @@ export interface IWorkspaceEditingService {
 	 * so that background callers never override a switch requested by the user.
 	 */
 	setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void>;
-
-	/**
-	 * Resolves once no `setFolderLocation` request is in flight; immediately when none is.
-	 * Lets an `ifIdle` caller whose request was skipped retry after the competing request settled.
-	 * Resolves (never rejects) when `token` is cancelled or the service is disposed, so callers
-	 * must check their own cancellation after awaiting.
-	 */
-	whenFolderLocationIdle(token?: CancellationToken): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.

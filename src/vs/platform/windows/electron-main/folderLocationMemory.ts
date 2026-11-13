@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { IStateService } from '../../state/node/state.js';
 import { IWindowFolderLocation } from '../../window/common/window.js';
@@ -52,6 +53,31 @@ export class FolderLocationMemory {
 		const entries = this.stateService.getItem<Record<string, IWindowFolderLocation | undefined>>(FolderLocationMemory.storageKey);
 		return entries && typeof entries === 'object' ? { ...entries } : {};
 	}
+}
+
+/** The outcome of validating the alternate location a window is about to be opened at. */
+export interface IValidatedFolderLocation {
+	readonly folderLocation?: IWindowFolderLocation;
+	readonly folderLocationMissing?: { readonly label: string };
+}
+
+/**
+ * Decides, before the window is created, whether a window can start at an alternate location:
+ * only an existing local directory qualifies. Otherwise the window opens at the primary location,
+ * the remembered location is forgotten and the window is told, so that it can inform the user.
+ */
+export async function validateStartupFolderLocation(primary: URI, candidate: IWindowFolderLocation | undefined, memory: Pick<FolderLocationMemory, 'set'>, isDirectory: (path: string) => Promise<boolean>): Promise<IValidatedFolderLocation> {
+	if (!candidate) {
+		return {};
+	}
+
+	const location = URI.parse(candidate.uri);
+	if (location.scheme === Schemas.file && await isDirectory(location.fsPath)) {
+		return { folderLocation: candidate };
+	}
+
+	memory.set(primary, undefined);
+	return { folderLocationMissing: { label: candidate.label } };
 }
 
 function isWindowFolderLocation(candidate: Partial<IWindowFolderLocation> | undefined): candidate is IWindowFolderLocation {
